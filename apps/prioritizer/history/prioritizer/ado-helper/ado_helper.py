@@ -37,7 +37,7 @@ DEFAULTS = {
     'types': ['Issue', 'Bug', 'User Story'],
     'closed_states': ['Resolved', 'Closed', 'Done'],  # counts as finished in the app
     'removed_states': ['Removed'],        # counts as won't do in the app
-    'allowed_origins': ['https://em.alexisdavidson.org'],
+    'allowed_origins': ['https://adavidson21.github.io'],
     'verify_ssl': True,
     # Pull requests to review. Each source is a collection URL + project, optionally limited to some repos.
     # Leave empty to skip PRs. Example:
