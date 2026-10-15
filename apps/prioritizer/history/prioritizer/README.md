@@ -1,6 +1,6 @@
 # Prioritizer
 
-Part of the [EM Hub](../README.md). It also runs on its own at `/prioritizer/`.
+Part of the [Workshop](../README.md). It also runs on its own at `/workshop/prioritizer/`.
 
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.

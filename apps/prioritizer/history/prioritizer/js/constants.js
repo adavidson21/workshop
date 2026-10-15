@@ -22,7 +22,7 @@ const VQ = {
 };
 const VIEWS = ['today','triage','rank','eisen','ve','people','archive','reports'];
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
-// Inside the EM Hub shell (a same-origin frame), the shell owns the theme picker, the Dashboard page and the service worker.
+// Inside the Workshop shell (a same-origin frame), the shell owns the theme picker, the Dashboard page and the service worker.
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
 const NAV_OF = v => (v in LENSES) ? 'prio' : v;
 const svg = (d, w = 1.5) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
