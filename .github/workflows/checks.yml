@@ -15,3 +15,19 @@ jobs:
       - run: node --test "tests/contract/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
       - run: python tests/e2e.py
+  agent:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Agent tests
+        run: node --test "agent/test/*.test.mjs"
+      - name: Contract suite against the real agent
+        run: node --test "tests/contract/*.test.mjs"
+        env:
+          WORKSHOP_TARGET: agent/test-target.mjs
