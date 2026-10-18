@@ -111,13 +111,13 @@
     closeMenu();
     menu = document.createElement('div');
     menu.className = 'menu'; menu.setAttribute('role', 'menu');
-    menu.innerHTML = EmTheme.menuHtml();
+    menu.innerHTML = WorkshopTheme.menuHtml();
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect(), m = menu.getBoundingClientRect();
     const phone = matchMedia('(max-width:720px)').matches;
     menu.style.left = Math.max(8, Math.min(window.innerWidth - m.width - 8, phone ? r.right - m.width : r.right + 8)) + 'px';
     menu.style.top = Math.max(8, phone ? r.top - m.height - 8 : r.bottom - m.height) + 'px';
-    menu.addEventListener('click', e => { const b = e.target.closest('[data-th]'); if (b) { EmTheme.set(b.dataset.th); closeMenu(); anchor.focus(); } });
+    menu.addEventListener('click', e => { const b = e.target.closest('[data-th]'); if (b) { WorkshopTheme.set(b.dataset.th); closeMenu(); anchor.focus(); } });
     const first = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
     if (first) first.focus();
   }
@@ -162,10 +162,10 @@
     try { await p.prompt(); await p.userChoice; } catch (err) { /* each prompt works once; the browser offers a fresh one later */ }
   });
 
-  window.EmHub = {apps: APPS, go, toast};
+  window.WorkshopHub = {apps: APPS, go, toast};
 
   renderRail();
   window.addEventListener('hashchange', route);
   route();
-  EmSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
+  WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
 })();

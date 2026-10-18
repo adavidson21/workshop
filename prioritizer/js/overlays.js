@@ -115,12 +115,12 @@ function deleteList(L){
     });
 }
 /* theme: shared with the shell (shared/theme.js); this menu is only shown when Prioritizer runs on its own */
-EmTheme.onChange(() => { if (menuEl && menuEl.querySelector('[data-th]')) closeMenu(); });
+WorkshopTheme.onChange(() => { if (menuEl && menuEl.querySelector('[data-th]')) closeMenu(); });
 function openThemeMenu(anchor){
-  popMenu(EmTheme.menuHtml(), anchor, 'right').addEventListener('click', e => {
+  popMenu(WorkshopTheme.menuHtml(), anchor, 'right').addEventListener('click', e => {
     const b = e.target.closest('[data-th]'); if (!b) return;
     closeMenu(true);
-    EmTheme.set(b.dataset.th);
+    WorkshopTheme.set(b.dataset.th);
   });
 }
 

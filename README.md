@@ -45,6 +45,8 @@ shared/                 used by the hub and every app
   ui.css                buttons, menus, toast, tooltip
   eng-client.js         eng-agents shell API client and connection settings
   sw-register.js        registers sw.js
+  fonts/                self-hosted Inter and JetBrains Mono (OFL), fonts.css
+  vendor/               third-party code served from this site (SheetJS); see vendor/README.md
 prioritizer/            the Prioritizer app (also runs on its own at /prioritizer/)
   ado-helper/           the local ADO helper (Python)
 sw.js                   offline cache for the whole site
@@ -53,11 +55,15 @@ tests/                  checks (see below)
 
 ### Adding an app
 
-1. Build it as a page in its own folder (like `prioritizer/`) or as a script that renders into a pane (like `shell/dashboard.js`). Load `shared/theme.js`, `shared/themes.css` and `shared/ui.css` so it matches.
+1. Build it as a page in its own folder (like `prioritizer/`) or as a script that renders into a pane (like `shell/dashboard.js`). Load `shared/theme.js`, `shared/fonts/fonts.css`, `shared/themes.css` and `shared/ui.css` so it matches, and copy the Content-Security-Policy meta tag from `index.html`.
 2. Add an entry to `APPS` in `shell/shell.js` (id, label, icon, mount, show). The rail, routing and `Alt+<n>` come with it.
 3. Add its files to `SHELL` in `sw.js`.
 
 An app in a frame can ask the hub to switch apps with `parent.postMessage({type: 'em-open', app: 'dashboard', focus: id}, location.origin)`.
+
+### No third-party requests
+
+Pages load files from this site only, plus the local helpers on `http://127.0.0.1`. Fonts are in `shared/fonts/` and libraries in `shared/vendor/`; nothing comes from a CDN. A Content-Security-Policy meta tag on each page enforces this, and `tests/e2e.py` fails if any request goes anywhere else.
 
 ### Themes
 
@@ -88,3 +94,7 @@ python tests/e2e.py              the hub in headless Chromium against a mock das
 GitHub Pages serves the repo root. When you ship a change, bump `CACHE` in `sw.js` so open windows offer a "New version" reload.
 
 Workshop lives at https://adavidson21.github.io/workshop/ (Prioritizer on its own: `/workshop/prioritizer/`). Same github.io site as before, so tasks saved in the browser carry over. If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in `prioritizer/ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
+
+## License
+
+MIT, see `LICENSE`. Bundled fonts and libraries keep their own licenses: `shared/fonts/OFL-*.txt` and `shared/vendor/LICENSE-SheetJS.txt`.

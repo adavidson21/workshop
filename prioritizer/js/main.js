@@ -1,7 +1,7 @@
 /* Prioritizer: Startup: service worker, test hook, first render. Loaded last. */
 'use strict';
 // On its own, Prioritizer registers the site's service worker itself; inside the shell, the shell does.
-if (!EMBEDDED) EmSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
+if (!EMBEDDED) WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
 if (EMBEDDED){
   $('#themeBtn').hidden = true;
   // Alt+1, Alt+2, ... switch apps in the shell, even while focus is in here.

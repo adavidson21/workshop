@@ -21,7 +21,7 @@
     pane.addEventListener('click', onClick);
     pane.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'engPort') act('connect'); });
     window.addEventListener('message', onMessage);
-    EmTheme.onChange(sendTheme);
+    WorkshopTheme.onChange(sendTheme);
     EngClient.onChange(() => { if (frame && frame.dataset.port !== String(EngClient.settings().port)) dropFrame(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && visible && st.status !== 'ok') check(); });
   }
@@ -96,7 +96,7 @@
   function dropFrame() { if (frame) { frame.remove(); frame = null; ready = false; } }
 
   function post(msg) { if (frame && ready && frame.contentWindow) frame.contentWindow.postMessage(msg, EngClient.base()); }
-  function sendTheme() { post({type: 'eng-theme', theme: EmTheme.current()}); }
+  function sendTheme() { post({type: 'eng-theme', theme: WorkshopTheme.current()}); }
   function onMessage(e) {
     if (!frame || e.source !== frame.contentWindow || e.origin !== EngClient.base()) return;
     if (e.data && e.data.type === 'eng-ready') {
@@ -115,11 +115,11 @@
     if (a === 'off') {
       EngClient.save({on: false});
       st = {status: 'setup', error: '', data: null};
-      render(); schedule(); EmHub.toast('Dashboard disconnected'); return;
+      render(); schedule(); WorkshopHub.toast('Dashboard disconnected'); return;
     }
     if (a === 'connect') {
       const inp = pane.querySelector('#engPort'), port = Math.round(+(inp && inp.value));
-      if (!EngClient.validPort(port)) { EmHub.toast('Use a port between 1024 and 65535.'); return; }
+      if (!EngClient.validPort(port)) { WorkshopHub.toast('Use a port between 1024 and 65535.'); return; }
       EngClient.save({port});
       st.status = 'idle'; check();
     }

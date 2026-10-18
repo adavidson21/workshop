@@ -7,17 +7,27 @@
    through the storage event. */
 (function () {
   'use strict';
-  const KEY = 'em.theme';
+  const KEY = 'workshop.theme';
+  const OLD_KEYS = ['em.theme', 'prioritizer.theme']; // earlier names, newest first
   const THEMES = {system: 'System', slate: 'Slate', graphite: 'Graphite', ivory: 'Ivory', rose: 'Rosé', solarized: 'Solarized Light', nord: 'Nord', dracula: 'Dracula'};
   // [background, accent] per theme, for the theme menu swatches and the browser's theme-color.
   const SWATCH = {slate: ['#F7F7F8', '#4F46E5'], graphite: ['#141518', '#8C88FF'], ivory: ['#FBF8F1', '#9C5A6A'], rose: ['#FBF4F2', '#A04F6C'], solarized: ['#FDF6E3', '#1F6FA8'], nord: ['#2E3440', '#88C0D0'], dracula: ['#282A36', '#BD93F9']};
   const dark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : {matches: false};
   const listeners = [];
 
+  // One-time move from the earlier names (em.theme in the EM Hub days, prioritizer.theme before the
+  // hub). Runs on load, before anything reads the choice. The old keys go only once the copy succeeds.
+  try {
+    if (localStorage.getItem(KEY) === null) {
+      const old = OLD_KEYS.map(k => localStorage.getItem(k)).find(v => v !== null);
+      if (old !== undefined) localStorage.setItem(KEY, old);
+    }
+    OLD_KEYS.forEach(k => localStorage.removeItem(k));
+  } catch (e) { /* private mode: nothing to move */ }
+
   function pref() {
     try {
-      // Before the hub, Prioritizer kept the choice under prioritizer.theme.
-      const v = localStorage.getItem(KEY) || localStorage.getItem('prioritizer.theme');
+      const v = localStorage.getItem(KEY);
       return v in THEMES ? v : 'system';
     } catch (e) { return 'system'; }
   }
@@ -52,6 +62,6 @@
   if (dark.addEventListener) dark.addEventListener('change', apply);
   window.addEventListener('storage', e => { if (e.key === KEY) apply(); });
 
-  window.EmTheme = {KEY, THEMES, SWATCH, pref, resolve, current, apply, set, onChange, menuHtml};
+  window.WorkshopTheme = {KEY, THEMES, SWATCH, pref, resolve, current, apply, set, onChange, menuHtml};
   apply();
 })();

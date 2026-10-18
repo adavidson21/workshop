@@ -9,7 +9,8 @@
    until the Dashboard page connects once (that sets on). */
 (function () {
   'use strict';
-  const KEY = 'em.eng';
+  const KEY = 'workshop.eng';
+  const OLD_KEY = 'em.eng'; // earlier name, moved to KEY once below
   const APP = 'eng-agents-dashboard';
   const DEFAULT_PORT = 4300;
   const API = 1; // the shell API version this client speaks (eng-agents docs/shell-api.md)
@@ -30,6 +31,13 @@
   // fn(settings) runs when the settings change in this page or another one on this site.
   function onChange(fn) { listeners.push(fn); }
   window.addEventListener('storage', e => { if (e.key === KEY) listeners.forEach(fn => fn(settings())); });
+
+  // One-time move from the EM Hub name. The old key goes only once the copy succeeds.
+  try {
+    const old = localStorage.getItem(OLD_KEY);
+    if (old !== null && localStorage.getItem(KEY) === null) localStorage.setItem(KEY, old);
+    localStorage.removeItem(OLD_KEY);
+  } catch (e) { /* private mode: nothing to move */ }
 
   // Before the hub, Prioritizer kept these in prioritizer.ui as {eng: {on, port}}. Copy them over once,
   // now, before Prioritizer next saves its UI state without them.
