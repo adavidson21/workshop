@@ -1,0 +1,9 @@
+{
+  "workshop": 1,
+  "kind": "request",
+  "id": "r1",
+  "method": "eval",
+  "params": {
+    "code": "1"
+  }
+}

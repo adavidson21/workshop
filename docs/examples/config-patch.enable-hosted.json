@@ -1,0 +1,13 @@
+{
+  "features": {
+    "hostedMode": true
+  },
+  "allowedOrigins": [
+    "https://work.example.org"
+  ],
+  "connectors": {
+    "ado": {
+      "enabled": true
+    }
+  }
+}

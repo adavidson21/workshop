@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Data envelope",
+  "description": "See docs/data-format.md. updatedAt is always present in what a backend returns and ignored on put.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "rev",
+    "items"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9-]{0,39}$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rev": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/isoTime"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/itemId"
+          },
+          "updatedAt": {
+            "$ref": "common.schema.json#/$defs/msTime"
+          }
+        }
+      }
+    },
+    "deleted": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/itemId"
+      },
+      "additionalProperties": {
+        "$ref": "common.schema.json#/$defs/msTime"
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "updatedAt"
+      ],
+      "properties": {
+        "updatedAt": {
+          "$ref": "common.schema.json#/$defs/msTime"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "itemId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  }
+}

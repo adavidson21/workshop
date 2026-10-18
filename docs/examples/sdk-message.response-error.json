@@ -1,0 +1,10 @@
+{
+  "workshop": 1,
+  "kind": "response",
+  "id": "r9",
+  "ok": false,
+  "error": {
+    "code": "not_found",
+    "message": "The shell does not know that request."
+  }
+}

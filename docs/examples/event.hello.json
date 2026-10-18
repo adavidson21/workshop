@@ -1,0 +1,7 @@
+{
+  "event": "hello",
+  "data": {
+    "api": 1,
+    "version": "0.1.0"
+  }
+}

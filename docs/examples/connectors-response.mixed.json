@@ -1,0 +1,77 @@
+{
+  "connectors": [
+    {
+      "id": "ado",
+      "name": "Azure DevOps",
+      "version": "1.0.0",
+      "enabled": true,
+      "status": {
+        "state": "ready",
+        "message": null,
+        "since": "2026-10-18T13:00:00.000Z"
+      },
+      "actions": [
+        {
+          "name": "sync",
+          "title": "Sync my work items",
+          "write": false
+        },
+        {
+          "name": "sync.prs",
+          "title": "Sync PRs waiting for my review",
+          "write": false
+        },
+        {
+          "name": "dataset",
+          "title": "Team report dataset",
+          "write": false
+        },
+        {
+          "name": "workitem.get",
+          "title": "Get a work item",
+          "write": false
+        }
+      ],
+      "test": {
+        "action": "workitem.get",
+        "arg": "id",
+        "label": "Work item ID"
+      }
+    },
+    {
+      "id": "opencode",
+      "name": "opencode",
+      "version": "1.0.0",
+      "enabled": false,
+      "status": {
+        "state": "disabled",
+        "message": null,
+        "since": "2026-10-18T13:00:00.000Z"
+      },
+      "actions": [
+        {
+          "name": "status",
+          "title": "Work items and agent state",
+          "write": false
+        },
+        {
+          "name": "push",
+          "title": "Push branches",
+          "write": true
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "version": "0.1.0",
+      "enabled": true,
+      "status": {
+        "state": "error",
+        "message": "GITHUB_TOKEN is not set.",
+        "since": "2026-10-18T13:00:00.000Z"
+      },
+      "actions": []
+    }
+  ]
+}

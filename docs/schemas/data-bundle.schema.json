@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Export bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "exportedAt",
+    "source",
+    "collections"
+  ],
+  "properties": {
+    "schema": {
+      "const": "workshop.bundle"
+    },
+    "version": {
+      "const": 1
+    },
+    "exportedAt": {
+      "$ref": "common.schema.json#/$defs/isoTime"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "backend"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "common.schema.json#/$defs/runMode"
+        },
+        "backend": {
+          "$ref": "common.schema.json#/$defs/backend"
+        },
+        "agentVersion": {
+          "$ref": "common.schema.json#/$defs/semver"
+        }
+      }
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "app",
+          "collection",
+          "envelope"
+        ],
+        "properties": {
+          "app": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "collection": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "envelope": {
+            "$ref": "data-envelope.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

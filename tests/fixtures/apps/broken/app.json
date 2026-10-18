@@ -1,0 +1,8 @@
+{
+  "manifestVersion": 1,
+  "id": "not-broken",
+  "name": "Broken",
+  "version": "1.0.0",
+  "icon": "icon.svg",
+  "entry": "index.html"
+}

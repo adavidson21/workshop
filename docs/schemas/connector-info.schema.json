@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One connector, as listed by the agent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "version",
+    "enabled",
+    "status",
+    "actions"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "status": {
+      "$ref": "common.schema.json#/$defs/connectorStatus"
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "title",
+          "write"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "common.schema.json#/$defs/actionName"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "write": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "arg",
+        "label"
+      ],
+      "properties": {
+        "action": {
+          "$ref": "common.schema.json#/$defs/actionName"
+        },
+        "arg": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    }
+  }
+}

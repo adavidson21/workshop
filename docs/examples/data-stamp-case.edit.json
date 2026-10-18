@@ -1,0 +1,106 @@
+{
+  "description": "Changed and new items get now; unchanged items keep their stamp even with keys in another order; removed items get a tombstone; tombstones older than 60 days are dropped; meta gets now when it changes.",
+  "now": 1792330000000,
+  "before": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "keep",
+        "updatedAt": 100,
+        "text": "same",
+        "tags": [
+          "x"
+        ]
+      },
+      {
+        "id": "edit",
+        "updatedAt": 100,
+        "text": "old"
+      },
+      {
+        "id": "gone",
+        "updatedAt": 100,
+        "text": "bye"
+      }
+    ],
+    "deleted": {
+      "ancient": 1787145999999,
+      "recent": 1792243600000
+    },
+    "meta": {
+      "updatedAt": 100,
+      "capacity": 20
+    }
+  },
+  "after": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "tags": [
+          "x"
+        ],
+        "text": "same",
+        "updatedAt": 100,
+        "id": "keep"
+      },
+      {
+        "id": "edit",
+        "updatedAt": 100,
+        "text": "new"
+      },
+      {
+        "id": "added",
+        "updatedAt": 0,
+        "text": "hello"
+      }
+    ],
+    "deleted": {
+      "ancient": 1787145999999,
+      "recent": 1792243600000
+    },
+    "meta": {
+      "updatedAt": 100,
+      "capacity": 25
+    }
+  },
+  "expected": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "tags": [
+          "x"
+        ],
+        "text": "same",
+        "updatedAt": 100,
+        "id": "keep"
+      },
+      {
+        "id": "edit",
+        "updatedAt": 1792330000000,
+        "text": "new"
+      },
+      {
+        "id": "added",
+        "updatedAt": 1792330000000,
+        "text": "hello"
+      }
+    ],
+    "deleted": {
+      "recent": 1792243600000,
+      "gone": 1792330000000
+    },
+    "meta": {
+      "updatedAt": 1792330000000,
+      "capacity": 25
+    }
+  }
+}

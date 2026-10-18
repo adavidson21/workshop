@@ -1,0 +1,9 @@
+{
+  "workshop": 1,
+  "kind": "event",
+  "event": "theme",
+  "payload": {
+    "key": "nord",
+    "scheme": "dark"
+  }
+}

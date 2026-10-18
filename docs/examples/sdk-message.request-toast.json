@@ -1,0 +1,10 @@
+{
+  "workshop": 1,
+  "kind": "request",
+  "id": "r7",
+  "method": "toast",
+  "params": {
+    "text": "Saved",
+    "kind": "success"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "configVersion": 1,
+  "allowedOrigins": [
+    "http://work.example.org"
+  ]
+}

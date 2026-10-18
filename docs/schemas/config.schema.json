@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "~/.workshop/config.json",
+  "description": "See docs/config.md. Unknown top-level keys are allowed and preserved.",
+  "type": "object",
+  "required": [
+    "configVersion"
+  ],
+  "properties": {
+    "configVersion": {
+      "const": 1
+    },
+    "port": {
+      "$ref": "#/$defs/port"
+    },
+    "allowedOrigins": {
+      "$ref": "#/$defs/origins"
+    },
+    "features": {
+      "$ref": "#/$defs/features"
+    },
+    "connectors": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/$defs/name"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535
+    },
+    "origins": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/origin"
+      },
+      "uniqueItems": true,
+      "maxItems": 20
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "startAtLogin": {
+          "type": "boolean"
+        },
+        "hostedMode": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

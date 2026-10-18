@@ -1,0 +1,55 @@
+{
+  "description": "On a tie remote wins. Meta follows its own stamp.",
+  "local": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 4,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 100,
+        "text": "local"
+      }
+    ],
+    "meta": {
+      "updatedAt": 500,
+      "capacity": 30
+    }
+  },
+  "remote": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 100,
+        "text": "remote"
+      }
+    ],
+    "meta": {
+      "updatedAt": 400,
+      "capacity": 20
+    }
+  },
+  "expected": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 100,
+        "text": "remote"
+      }
+    ],
+    "deleted": {},
+    "meta": {
+      "updatedAt": 500,
+      "capacity": 30
+    }
+  }
+}

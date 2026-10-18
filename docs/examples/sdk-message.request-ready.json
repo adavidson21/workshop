@@ -1,0 +1,10 @@
+{
+  "workshop": 1,
+  "kind": "request",
+  "id": "r1",
+  "method": "ready",
+  "params": {
+    "app": "prioritizer",
+    "sdk": 1
+  }
+}

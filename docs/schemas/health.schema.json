@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/health",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "api",
+    "version"
+  ],
+  "properties": {
+    "app": {
+      "const": "workshop-agent"
+    },
+    "api": {
+      "const": 1
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    }
+  }
+}

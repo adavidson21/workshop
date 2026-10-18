@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "a": {
+      "type": "object",
+      "title": "A",
+      "additionalProperties": false,
+      "properties": {
+        "b": {
+          "type": "object",
+          "title": "B",
+          "additionalProperties": false,
+          "properties": {
+            "c": {
+              "type": "object",
+              "title": "C",
+              "additionalProperties": false,
+              "properties": {
+                "d": {
+                  "type": "string",
+                  "title": "D"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

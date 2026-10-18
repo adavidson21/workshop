@@ -1,0 +1,11 @@
+{
+  "event": "connector",
+  "data": {
+    "id": "opencode",
+    "event": "agent.waiting",
+    "payload": {
+      "folder": "41207-fix-login-timeout",
+      "question": "Which branch should I use?"
+    }
+  }
+}

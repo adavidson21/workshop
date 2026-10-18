@@ -1,0 +1,11 @@
+{
+  "workshop": 1,
+  "kind": "request",
+  "id": "r9",
+  "method": "commands.register",
+  "params": {
+    "id": "sync-ado",
+    "title": "Sync ADO",
+    "shortcut": "Ctrl+Shift+S"
+  }
+}

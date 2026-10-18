@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET and PUT /api/connectors/<id>/config response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "schema",
+    "config",
+    "env"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "schema": {
+      "$ref": "config-form.schema.json"
+    },
+    "config": {
+      "type": "object"
+    },
+    "env": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/$defs/envName"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "set"
+        ],
+        "properties": {
+          "set": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shared definitions",
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$",
+      "description": "App id, collection name or connector id."
+    },
+    "actionName": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*)*$",
+      "maxLength": 80
+    },
+    "isoTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "msTime": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Milliseconds since 1970-01-01 UTC."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^(https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?|http://(127\\.0\\.0\\.1|localhost)(:[0-9]{1,5})?)$"
+    },
+    "envName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+    },
+    "clientId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "invalid_config",
+        "confirm_required",
+        "downgrade",
+        "unauthorized",
+        "forbidden",
+        "local_only",
+        "not_found",
+        "method_not_allowed",
+        "conflict",
+        "too_large",
+        "disabled",
+        "unavailable",
+        "internal"
+      ]
+    },
+    "connectorState": {
+      "enum": [
+        "disabled",
+        "stopped",
+        "starting",
+        "ready",
+        "error"
+      ]
+    },
+    "connectorStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "message",
+        "since"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "common.schema.json#/$defs/connectorState"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "since": {
+          "$ref": "common.schema.json#/$defs/isoTime"
+        },
+        "details": {
+          "type": "object"
+        }
+      }
+    },
+    "runMode": {
+      "enum": [
+        "local",
+        "hosted",
+        "browser"
+      ]
+    },
+    "backend": {
+      "enum": [
+        "agent",
+        "browser"
+      ]
+    },
+    "themeKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$"
+    }
+  }
+}

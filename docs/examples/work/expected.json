@@ -1,0 +1,163 @@
+{
+  "description": "What the rules in docs/work-format.md read from this folder, with every file given the same modification time.",
+  "items": [
+    {
+      "folder": "41207-fix-login-timeout",
+      "kind": "item",
+      "id": "41207",
+      "title": "Fix login timeout on renewal",
+      "type": "User Story",
+      "adoState": "Active",
+      "ado": {"connection": "work", "collection": "Main", "project": "Web"},
+      "lane": "feature",
+      "laneGuessed": false,
+      "repos": [
+        {"folder": "auth-lib", "branch": "dev/feature/41207-fix-login-timeout", "shared": true, "why": "Session lifetime setting"},
+        {"folder": "web-app", "branch": "dev/feature/41207-fix-login-timeout", "shared": false, "why": "Renewal page uses the new setting"}
+      ],
+      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "review": null},
+      "tasks": {
+        "total": 3,
+        "done": 2,
+        "list": [
+          {"n": 1, "title": "Add a failing test for the session lifetime", "done": true, "repo": "auth-lib"},
+          {"n": 2, "title": "Read the lifetime from config", "done": true, "repo": "auth-lib"},
+          {"n": 3, "title": "Use the setting on the renewal page", "done": false, "repo": "web-app"}
+        ]
+      },
+      "blocked": null,
+      "paused": null,
+      "last": {"date": "2026-10-14 14:05", "command": "/do-task", "agent": "implementer", "did": "Task 2. Lifetime now comes from config.", "verify": "`dotnet test` -> PASS", "notes": null, "next": "/do-task 41207 3"},
+      "next": {"stage": "build", "command": "/do-task 41207 3", "action": null, "text": "Task 3: Use the setting on the renewal page", "needsYou": false},
+      "bucket": "active",
+      "pr": []
+    },
+    {
+      "folder": "41300-export-retry-fails",
+      "kind": "item",
+      "id": "41300",
+      "title": "Export retry fails after one attempt",
+      "type": "Bug",
+      "adoState": "New",
+      "ado": null,
+      "lane": "bug",
+      "laneGuessed": false,
+      "repos": [
+        {"folder": "export-service", "branch": "dev/bug/41300-export-retry-fails", "shared": false, "why": "Retry loop"}
+      ],
+      "gates": {"spec": null, "plan": null, "bug": "DRAFT", "review": null},
+      "tasks": {
+        "total": 1,
+        "done": 0,
+        "list": [
+          {"n": 1, "title": "Add a failing test for the second retry", "done": false, "repo": "export-service"}
+        ]
+      },
+      "blocked": null,
+      "paused": null,
+      "last": null,
+      "next": {"stage": "bug", "command": "/approve 41300", "action": "Review bug.md and tasks.md", "text": "Review bug.md and tasks.md", "needsYou": true},
+      "bucket": "needs",
+      "pr": []
+    },
+    {
+      "folder": "41455-audit-log-filter",
+      "kind": "item",
+      "id": "41455",
+      "title": "Filter the audit log by user",
+      "type": "Feature",
+      "adoState": "Active",
+      "ado": {"connection": "work", "collection": "Main", "project": null},
+      "lane": "feature",
+      "laneGuessed": true,
+      "repos": [
+        {"folder": "web-app", "branch": "dev/feature/41455-audit-log-filter", "shared": false, "why": "Audit page"}
+      ],
+      "gates": {"spec": "DRAFT", "plan": null, "bug": null, "review": null},
+      "tasks": {"total": 0, "done": 0, "list": []},
+      "blocked": null,
+      "paused": {"since": "2026-10-16 09:30", "reason": "Waiting on design", "inProgress": "none (paused between steps)", "wip": null, "waiting": "- Final filter design from the designer"},
+      "last": null,
+      "next": {"stage": "spec", "command": "/approve 41455", "action": "Review spec.md", "text": "Review spec.md", "needsYou": true},
+      "bucket": "paused",
+      "pr": []
+    },
+    {
+      "folder": "41502-csv-export",
+      "kind": "item",
+      "id": "41502",
+      "title": "CSV export for reports",
+      "type": "User Story",
+      "adoState": "Active",
+      "ado": null,
+      "lane": "feature",
+      "laneGuessed": false,
+      "repos": [
+        {"folder": "reports-api", "branch": "dev/feature/41502-csv-export", "shared": false, "why": "New endpoint"}
+      ],
+      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "review": null},
+      "tasks": {
+        "total": 2,
+        "done": 1,
+        "list": [
+          {"n": 1, "title": "Add the CSV writer", "done": true, "repo": "reports-api"},
+          {"n": 2, "title": "Add the export endpoint", "done": false, "repo": "reports-api"}
+        ]
+      },
+      "blocked": "The date format test expects UTC.",
+      "paused": null,
+      "last": {"date": "2026-10-17", "command": "/do-task", "agent": "implementer", "did": "Task 2. Endpoint added but two tests fail.", "verify": "`dotnet test` -> FAIL (2 failed)", "notes": "The date format test expects UTC.", "next": "/do-task 41502 2"},
+      "next": {"stage": "build", "command": "/do-task 41502 2", "action": "Task 2 is blocked. Read the last progress.md entry, then split the task or fix the plan", "text": "Task 2 is blocked. Read the last progress.md entry, then split the task or fix the plan", "needsYou": true},
+      "bucket": "needs",
+      "pr": []
+    },
+    {
+      "folder": "41610-rate-limit-headers",
+      "kind": "item",
+      "id": "41610",
+      "title": "Send rate limit headers",
+      "type": "Bug",
+      "adoState": "Resolved",
+      "ado": null,
+      "lane": "bug",
+      "laneGuessed": true,
+      "repos": [
+        {"folder": "gateway", "branch": "dev/bug/41610-rate-limit-headers", "shared": false, "why": "Response headers"}
+      ],
+      "gates": {"spec": null, "plan": null, "bug": "APPROVED", "review": "READY"},
+      "tasks": {
+        "total": 1,
+        "done": 1,
+        "list": [
+          {"n": 1, "title": "Add a failing header test", "done": true, "repo": "gateway"}
+        ]
+      },
+      "blocked": null,
+      "paused": null,
+      "last": null,
+      "next": {"stage": "ship", "command": null, "action": "Push the branches and open the PRs (text is in pr.md)", "text": "Push the branches and open the PRs (text is in pr.md)", "needsYou": false},
+      "bucket": "ship",
+      "pr": [
+        {"repo": "gateway", "branch": "dev/bug/41610-rate-limit-headers", "target": "main", "title": "Send rate limit headers on every response", "description": "Adds the standard rate limit headers.\n\n- Header values come from the limiter\n\nTesting: dotnet test, all pass.\n\nWork item: #41610"}
+      ]
+    },
+    {
+      "folder": "spike-cache-options",
+      "kind": "spike",
+      "title": "Cache options for the catalog",
+      "state": "Findings written",
+      "summary": "An in-memory cache with a 5 minute TTL is enough.",
+      "recommendation": "Use the in-memory cache. Confidence: Medium.",
+      "nextText": null,
+      "bucket": "notes"
+    },
+    {
+      "folder": "tsd-billing-api",
+      "kind": "tsd",
+      "title": "Billing API",
+      "gate": "UNKNOWN",
+      "wrong": 0,
+      "bucket": "notes"
+    }
+  ]
+}

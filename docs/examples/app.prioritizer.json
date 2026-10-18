@@ -1,0 +1,58 @@
+{
+  "manifestVersion": 1,
+  "id": "prioritizer",
+  "name": "Prioritizer",
+  "version": "3.0.0",
+  "description": "Decide what to work on next.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 10,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": "task/:id",
+      "title": "Open a task"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    },
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "data": [
+    "tasks",
+    "lists"
+  ],
+  "commands": [
+    {
+      "id": "add-task",
+      "title": "Add a task",
+      "route": ""
+    },
+    {
+      "id": "sync-ado",
+      "title": "Sync ADO"
+    }
+  ],
+  "shortcuts": [
+    {
+      "keys": "Ctrl+Shift+A",
+      "command": "add-task",
+      "scope": "global"
+    }
+  ],
+  "files": [
+    "app.css",
+    "js/main.js",
+    "js/state.js"
+  ]
+}

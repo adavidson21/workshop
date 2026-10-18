@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A stamp test case for docs/data-format.md",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "description",
+    "now",
+    "before",
+    "after",
+    "expected"
+  ],
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "now": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "before": {
+      "$ref": "data-envelope.schema.json"
+    },
+    "after": {
+      "$ref": "data-envelope.schema.json"
+    },
+    "expected": {
+      "$ref": "data-envelope.schema.json"
+    }
+  }
+}

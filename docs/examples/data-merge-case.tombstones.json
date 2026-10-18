@@ -1,0 +1,63 @@
+{
+  "description": "A tombstone newer than (or equal to) the item removes it. An item newer than the tombstone survives and the tombstone goes.",
+  "local": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 4,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "b",
+        "updatedAt": 200,
+        "text": "b"
+      }
+    ],
+    "deleted": {
+      "a": 300,
+      "c": 250
+    }
+  },
+  "remote": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 200,
+        "text": "a"
+      },
+      {
+        "id": "c",
+        "updatedAt": 250,
+        "text": "c"
+      },
+      {
+        "id": "b",
+        "updatedAt": 400,
+        "text": "b edited"
+      }
+    ],
+    "deleted": {
+      "b": 300
+    }
+  },
+  "expected": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "b",
+        "updatedAt": 400,
+        "text": "b edited"
+      }
+    ],
+    "deleted": {
+      "a": 300,
+      "c": 250
+    }
+  }
+}

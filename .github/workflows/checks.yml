@@ -11,5 +11,7 @@ jobs:
         with: { python-version: '3.12' }
       - run: node tests/check-themes.mjs
       - run: node tests/check-offline.mjs
+      - run: node tests/check-contracts.mjs
+      - run: node --test "tests/contract/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
       - run: python tests/e2e.py

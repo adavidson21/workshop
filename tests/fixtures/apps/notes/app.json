@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "notes",
+  "name": "Notes",
+  "version": "0.1.0",
+  "description": "Test fixture: a minimal app.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 20,
+  "data": ["pages"],
+  "commands": [{"id": "new-page", "title": "New page"}],
+  "shortcuts": [{"keys": "Ctrl+Shift+N", "command": "new-page", "scope": "app"}]
+}

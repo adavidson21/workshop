@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A merge test case for docs/data-format.md",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "description",
+    "local",
+    "remote",
+    "expected"
+  ],
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "local": {
+      "$ref": "data-envelope.schema.json"
+    },
+    "remote": {
+      "$ref": "data-envelope.schema.json"
+    },
+    "expected": {
+      "$ref": "data-envelope.schema.json"
+    }
+  }
+}

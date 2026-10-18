@@ -1,0 +1,9 @@
+{
+  "event": "config",
+  "data": {
+    "changed": [
+      "features",
+      "connector:ado"
+    ]
+  }
+}
