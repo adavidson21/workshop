@@ -23,13 +23,19 @@
       "User Story"
     ],
     "closedStates": [
-      "Closed",
       "Resolved",
-      "Done",
+      "Closed",
+      "Done"
+    ],
+    "removedStates": [
       "Removed"
     ],
-    "syncMinutes": 15,
-    "reviewNewItems": true,
-    "prTiers": "all"
+    "prSources": [
+      {
+        "connection": "work",
+        "project": "Web",
+        "repos": []
+      }
+    ]
   }
 }
