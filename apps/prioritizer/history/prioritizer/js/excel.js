@@ -1,8 +1,8 @@
-/* Prioritizer: Excel export and import (SheetJS from cdnjs). */
+/* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
 'use strict';
 /* ---------- excel export / import ---------- */
 const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
-const NO_XLSX = 'Excel tools did not load. Check your internet connection and reload.';
+const NO_XLSX = 'Excel tools did not load. Reload the page.';
 function exportXlsx(){
   if (!window.XLSX){ toast(NO_XLSX); return; }
   XLSX.writeFile(buildWorkbook(), `prioritizer-${todayStr()}.xlsx`);
