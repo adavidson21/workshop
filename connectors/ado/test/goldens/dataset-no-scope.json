@@ -1,0 +1,7 @@
+{
+  "case": "dataset-no-scope",
+  "result": {
+    "error": "Add at least one area path or person to your team profile."
+  },
+  "requests": []
+}

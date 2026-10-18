@@ -1,0 +1,243 @@
+{
+  "case": "dataset",
+  "result": {
+    "ok": {
+      "schema": 1,
+      "days": 42,
+      "since": "2026-09-03",
+      "base": "{{ADO}}/Main",
+      "areas": [
+        "Web App\\Team A"
+      ],
+      "people": [
+        "dev.one@example.com"
+      ],
+      "truncated": false,
+      "scanned": 3,
+      "config": {
+        "highPriorities": [
+          1,
+          2
+        ],
+        "escalationPriority": 1,
+        "bugTypes": [
+          "Bug"
+        ],
+        "closedStates": [
+          "Resolved",
+          "Closed",
+          "Done"
+        ],
+        "removedStates": [
+          "Removed"
+        ]
+      },
+      "items": [
+        {
+          "id": 301,
+          "title": "Synthetic bug 301",
+          "type": "Bug",
+          "state": "Closed",
+          "project": "Web App",
+          "assignedTo": "Dev Two",
+          "priority": 1,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/301",
+          "assignedEmail": "dev.two@example.com",
+          "area": "Web App\\Team A",
+          "iteration": "Web App\\Sprint 12",
+          "created": "2026-09-10",
+          "createdBy": "Pat Kim",
+          "closed": "2026-10-01",
+          "effort": 5,
+          "effortField": "Effort",
+          "tags": "api; urgent",
+          "history": true
+        },
+        {
+          "id": 302,
+          "title": "Synthetic user story 302",
+          "type": "User Story",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Dev One",
+          "priority": 2,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/302",
+          "assignedEmail": "dev.one@example.com",
+          "area": "Web App\\Team A",
+          "iteration": "Web App\\Release 3\\Sprint 13",
+          "created": "2026-09-04",
+          "createdBy": "Pat Kim",
+          "closed": null,
+          "effort": 3.5,
+          "effortField": "StoryPoints",
+          "tags": "",
+          "history": true
+        },
+        {
+          "id": 303,
+          "title": "Synthetic bug 303",
+          "type": "Bug",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Dev One",
+          "priority": 2,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/303",
+          "assignedEmail": "dev.one@example.com",
+          "area": "Web App\\Team A",
+          "iteration": "Web App",
+          "created": "2026-08-01",
+          "createdBy": "",
+          "closed": null,
+          "effort": null,
+          "effortField": "",
+          "tags": "",
+          "history": true
+        },
+        {
+          "id": 304,
+          "title": "Synthetic issue 304",
+          "type": "Issue",
+          "state": "New",
+          "project": "Mobile",
+          "assignedTo": "",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Mobile/_workitems/edit/304",
+          "assignedEmail": "",
+          "area": "Mobile",
+          "iteration": "Mobile\\Sprint 2",
+          "created": "2026-10-02",
+          "createdBy": "",
+          "closed": null,
+          "effort": 8,
+          "effortField": "OriginalEstimate",
+          "tags": "",
+          "history": false
+        }
+      ],
+      "events": [
+        {
+          "id": 302,
+          "date": "2026-09-04T00:00:00",
+          "by": "",
+          "kind": "created",
+          "priority": 2,
+          "iteration": null,
+          "to": {
+            "name": "Dev One",
+            "email": "dev.one@example.com"
+          }
+        },
+        {
+          "id": 303,
+          "date": "2026-09-05T00:00:00",
+          "by": "",
+          "kind": "priority",
+          "from": 3,
+          "to": 2
+        },
+        {
+          "id": 303,
+          "date": "2026-09-06T00:00:00",
+          "by": "",
+          "kind": "assigned",
+          "from": null,
+          "to": {
+            "name": "Dev One",
+            "email": "dev.one@example.com"
+          }
+        },
+        {
+          "id": 301,
+          "date": "2026-09-10T09:00:00",
+          "by": "Pat Kim",
+          "kind": "created",
+          "priority": 2,
+          "iteration": "Web App\\Sprint 11",
+          "to": {
+            "name": "Dev One",
+            "email": "dev.one@example.com"
+          }
+        },
+        {
+          "id": 301,
+          "date": "2026-09-12T10:00:00",
+          "by": "Pat Kim",
+          "kind": "priority",
+          "from": 2,
+          "to": 1
+        },
+        {
+          "id": 301,
+          "date": "2026-09-20T08:00:00",
+          "by": "",
+          "kind": "iteration",
+          "from": "Web App\\Sprint 11",
+          "to": "Web App\\Sprint 12"
+        },
+        {
+          "id": 301,
+          "date": "2026-09-21T08:00:00",
+          "by": "",
+          "kind": "assigned",
+          "from": {
+            "name": "Dev One",
+            "email": "dev.one@example.com"
+          },
+          "to": {
+            "name": "Dev Two",
+            "email": "dev.two@example.com"
+          }
+        },
+        {
+          "id": 301,
+          "date": "2026-10-01T11:00:00",
+          "by": "Dev Two",
+          "kind": "state",
+          "from": "Active",
+          "to": "Closed"
+        },
+        {
+          "id": 302,
+          "date": "2026-10-10T08:00:00",
+          "by": "",
+          "kind": "state",
+          "from": "New",
+          "to": "Active"
+        }
+      ],
+      "iterations": {
+        "Web App\\Sprint 11": {
+          "start": "2026-08-31",
+          "finish": "2026-09-13"
+        },
+        "Web App\\Sprint 12": {
+          "start": "2026-09-14",
+          "finish": "2026-09-27"
+        },
+        "Web App\\Release 3\\Sprint 13": {
+          "start": "2026-09-28",
+          "finish": "2026-10-11"
+        }
+      }
+    }
+  },
+  "requests": [
+    "GET /Main/Mobile/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=6.0",
+    "GET /Main/Web%20App/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/301/updates?$skip=0&$top=200&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/302/updates?$skip=0&$top=200&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/302/updates?$skip=200&$top=200&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/303/updates?$skip=0&$top=200&api-version=6.0",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] IN ('Issue', 'Bug', 'User Story') AND ([System.AreaPath] UNDER 'Web App\\\\Team A' OR [System.AssignedTo] IN ('dev.one@example.com')) AND [System.ChangedDate] >= @Today - 42 ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] IN ('Issue', 'Bug', 'User Story') AND ([System.AreaPath] UNDER 'Web App\\\\Team A' OR [System.AssignedTo] IN ('dev.one@example.com')) AND [System.State] NOT IN ('Resolved', 'Closed', 'Done', 'Removed') ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/workitemsbatch?api-version=6.0 {\"$expand\":\"Links\",\"errorPolicy\":\"omit\",\"ids\":[301,302,303,304]}"
+  ]
+}

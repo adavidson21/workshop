@@ -1,0 +1,279 @@
+{
+  "case": "sync-with-prs",
+  "result": {
+    "ok": {
+      "items": [
+        {
+          "id": 101,
+          "title": "Fix the user's renewal timeout",
+          "type": "Bug",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": 2,
+          "due": "2026-10-20",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/101"
+        },
+        {
+          "id": 102,
+          "title": "Synthetic user story 102",
+          "type": "User Story",
+          "state": "New",
+          "project": "Mobile",
+          "assignedTo": "Sam Lee",
+          "priority": 3,
+          "due": "2026-11-01",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Mobile/_workitems/edit/102"
+        },
+        {
+          "id": 103,
+          "title": "Synthetic issue 103",
+          "type": "Issue",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/103"
+        }
+      ],
+      "gone": [
+        {
+          "id": 201,
+          "title": "Synthetic bug 201",
+          "type": "Bug",
+          "state": "Closed",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/201",
+          "reason": "closed"
+        },
+        {
+          "id": 202,
+          "title": "Synthetic bug 202",
+          "type": "Bug",
+          "state": "Removed",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/202",
+          "reason": "removed"
+        },
+        {
+          "id": 203,
+          "title": "Synthetic task 203",
+          "type": "Task",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/203",
+          "reason": "filtered"
+        },
+        {
+          "id": 204,
+          "title": "Synthetic bug 204",
+          "type": "Bug",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Dev Two",
+          "priority": 1,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/204",
+          "reason": "reassigned"
+        },
+        {
+          "id": 205,
+          "reason": "missing"
+        }
+      ],
+      "prs": {
+        "items": [
+          {
+            "key": "{{ADO}}/Main|Web App|501",
+            "id": 501,
+            "title": "Synthetic change 501",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/501",
+            "tier": "blocking",
+            "via": [],
+            "lastBlocker": true,
+            "waiting": false
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|502",
+            "id": 502,
+            "title": "Synthetic change 502",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/502",
+            "tier": "asked",
+            "via": [],
+            "lastBlocker": false,
+            "waiting": true
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|511",
+            "id": 511,
+            "title": "Synthetic change 511",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/511",
+            "tier": "blocking",
+            "via": [],
+            "lastBlocker": false,
+            "waiting": false
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|503",
+            "id": 503,
+            "title": "Synthetic change 503",
+            "repo": "web ui",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web%20ui/pullrequest/503",
+            "tier": "pool",
+            "via": [
+              "Platform"
+            ],
+            "lastBlocker": false,
+            "waiting": false
+          },
+          {
+            "key": "{{ADO}}/Apps|Field|601",
+            "id": 601,
+            "title": "Synthetic change 601",
+            "repo": "field-app",
+            "project": "Field",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Apps/Field/_git/field-app/pullrequest/601",
+            "tier": "blocking",
+            "via": [],
+            "lastBlocker": true,
+            "waiting": false
+          },
+          {
+            "key": "{{ADO}}/Apps|Field|602",
+            "id": 602,
+            "title": "Synthetic change 602",
+            "repo": "field-tools",
+            "project": "Field",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Apps/Field/_git/field-tools/pullrequest/602",
+            "tier": "asked",
+            "via": [],
+            "lastBlocker": false,
+            "waiting": false
+          }
+        ],
+        "gone": [
+          {
+            "key": "{{ADO}}/Apps|Field|999",
+            "reason": "missing"
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|504",
+            "id": 504,
+            "title": "Synthetic change 504",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/504",
+            "tier": "pool",
+            "via": [
+              "Platform"
+            ],
+            "lastBlocker": false,
+            "reason": "covered"
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|505",
+            "id": 505,
+            "title": "Synthetic change 505",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Sam Lee",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/505",
+            "tier": "asked",
+            "via": [],
+            "lastBlocker": false,
+            "reason": "own"
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|507",
+            "id": 507,
+            "title": "Synthetic change 507",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/507",
+            "tier": "asked",
+            "via": [],
+            "lastBlocker": false,
+            "reason": "reviewed"
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|508",
+            "id": 508,
+            "title": "Synthetic change 508",
+            "repo": "web-api",
+            "project": "Web App",
+            "author": "Ana Ruiz",
+            "created": "2026-10-12",
+            "url": "{{ADO}}/Main/Web%20App/_git/web-api/pullrequest/508",
+            "tier": "asked",
+            "via": [],
+            "lastBlocker": false,
+            "reason": "merged"
+          },
+          {
+            "key": "{{ADO}}/Main|Web App|abc",
+            "reason": "missing"
+          }
+        ],
+        "notes": [
+          "Team-only PRs skipped for Field: ADO rejected the PAT (HTTP 403) for {{ADO}}/Apps. It may be expired or missing the Project and Team (Read) scope."
+        ]
+      }
+    }
+  },
+  "requests": [
+    "GET /Apps/Field/_apis/git/pullrequests/602?api-version=6.0",
+    "GET /Apps/Field/_apis/git/pullrequests/999?api-version=6.0",
+    "GET /Apps/Field/_apis/git/pullrequests?$top=500&api-version=6.0&searchCriteria.reviewerId=u-me&searchCriteria.status=active",
+    "GET /Apps/_apis/connectionData?api-version=1.0",
+    "GET /Apps/_apis/projects/Field/teams?$mine=true&$top=500&api-version=6.0",
+    "GET /Main/Web%20App/_apis/git/pullrequests/508?api-version=6.0",
+    "GET /Main/Web%20App/_apis/git/pullrequests?$top=500&api-version=6.0&searchCriteria.reviewerId=t-platform&searchCriteria.status=active",
+    "GET /Main/Web%20App/_apis/git/pullrequests?$top=500&api-version=6.0&searchCriteria.reviewerId=u-me&searchCriteria.status=active",
+    "GET /Main/_apis/connectionData?api-version=1.0",
+    "GET /Main/_apis/projects/Web%20App/teams?$mine=true&$top=500&api-version=6.0",
+    "GET /_apis/connectionData?api-version=1.0",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.WorkItemType] IN ('Issue', 'Bug', 'User Story') AND [System.State] NOT IN ('Resolved', 'Closed', 'Done', 'Removed') ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/workitemsbatch?api-version=6.0 {\"$expand\":\"Links\",\"errorPolicy\":\"omit\",\"ids\":[101,102,103,201,202,203,204,205]}"
+  ]
+}
