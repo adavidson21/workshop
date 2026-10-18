@@ -387,6 +387,7 @@ document.getElementById('allow').addEventListener('click', function () {
         if (!entry.mod) fail('unavailable', `The ${id} connector did not load: ${entry.error}`);
         if (m === 'GET') return ok(connectorConfigView(entry));
         only('GET', 'PUT');
+        if (!own) fail('local_only', 'Change connector settings from Workshop on this computer.');
         const body = await readBody(req, MB);
         const e1 = schemas.validate('connector-config-put', body);
         if (e1.length) fail('bad_request', `Send {"config": {...}}: ${e1[0]}`);

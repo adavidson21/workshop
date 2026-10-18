@@ -80,7 +80,7 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /api/connectors/<id>` | token | One connector |
 | `POST /api/connectors/<id>/<action>` | header token | Run an action |
 | `GET /api/connectors/<id>/config` | token | A connector's config, form schema, env status |
-| `PUT /api/connectors/<id>/config` | header token | Change a connector's config |
+| `PUT /api/connectors/<id>/config` | header token, own origin only | Change a connector's config |
 | `GET /api/config` | token | Public view of `config.json` |
 | `PUT /api/config` | header token, own origin only | Change features, origins, connector on/off, port |
 | `GET /api/events` | token (cookie, header or query) | Server-sent event stream |
@@ -215,6 +215,8 @@ Body ([connector-config-put](schemas/connector-config-put.schema.json)):
 ```json
 {"config": {"connections": [{"name": "work", "serverUrl": "https://ado.example.com", "collection": "Main", "project": "Web", "patEnv": "ADO_PAT"}]}}
 ```
+
+Own origin only: from a hosted origin, `403 local_only`. A connector config names servers and environment variables, so a script on a hosted origin that could change it could point a connector at another server and send it any environment variable.
 
 The agent validates `config` against the connector's `configSchema` (unknown keys are rejected: `400 invalid_config`), saves it to `config.json`, and if the connector is enabled, calls `stop()` then `start(ctx)` with the new config. Response: the same shape as `GET`.
 

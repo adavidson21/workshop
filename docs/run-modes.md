@@ -59,7 +59,7 @@ Chrome and Edge ask the user to allow a public site to reach `127.0.0.1` (Local 
 
 ### Trade-off
 
-The hosted page holds the token in its own `localStorage`. Anyone who can run script on that origin can use the agent. That is why hosted mode is off by default, origins must be listed one by one, and config changes (`PUT /api/config`) are refused from hosted origins.
+The hosted page holds the token in its own `localStorage`. Anyone who can run script on that origin can use the agent. That is why hosted mode is off by default, origins must be listed one by one, and config changes (`PUT /api/config` and `PUT /api/connectors/<id>/config`) are refused from hosted origins. In hosted mode the Settings app shows settings read-only and says to open Workshop on this computer to change them.
 
 ## Service worker rules
 

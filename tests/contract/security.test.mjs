@@ -114,6 +114,10 @@ test('config changes are refused from hosted origins', async () => {
   expectError(await put(hosted, '/api/config', { features: { startAtLogin: true } }, { origin: HOSTED }), 403, 'local_only');
 });
 
+test('connector config changes are refused from hosted origins', async () => {
+  expectError(await put(hosted, '/api/connectors/echo/config', { config: { tokenEnv: 'OTHER_SECRET' } }, { origin: HOSTED }), 403, 'local_only');
+});
+
 test('pairing needs the cookie, hosted mode, and a listed origin', async () => {
   const enc = encodeURIComponent(HOSTED);
   const noCookie = await get(hosted, `/pair?origin=${enc}`, { auth: 'none' });
