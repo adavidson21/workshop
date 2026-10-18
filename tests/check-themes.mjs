@@ -14,12 +14,12 @@ const js = fs.readFileSync(path.join(root, 'shared/theme.js'), 'utf8');
 const store = {};
 const sandbox = {
   window: {matchMedia: () => ({matches: false}), addEventListener() {}},
-  localStorage: {getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }},
+  localStorage: {getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; }},
   document: {documentElement: {dataset: {}}, querySelector: () => null},
   console,
 };
 vm.runInNewContext(js, sandbox);
-const {THEMES, SWATCH} = sandbox.window.EmTheme;
+const {THEMES, SWATCH} = sandbox.window.WorkshopTheme;
 
 const errors = [];
 const header = css.match(/^\s*themes:\s*(.+)$/m);

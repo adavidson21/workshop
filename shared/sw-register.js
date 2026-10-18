@@ -1,5 +1,5 @@
 /* Registers the site's service worker (/sw.js) so the hub installs as an app and opens offline.
-   The top page calls EmSw.register(ask) once: the shell, or Prioritizer when it runs on its own.
+   The top page calls WorkshopSw.register(ask) once: the shell, or Prioritizer when it runs on its own.
    ask(message, label, onClick) shows the "New version" prompt in that page's own toast. */
 (function () {
   'use strict';
@@ -24,5 +24,5 @@
     });
   }
 
-  window.EmSw = {register};
+  window.WorkshopSw = {register};
 })();
