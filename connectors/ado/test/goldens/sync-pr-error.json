@@ -1,0 +1,55 @@
+{
+  "case": "sync-pr-error",
+  "result": {
+    "ok": {
+      "items": [
+        {
+          "id": 101,
+          "title": "Fix the user's renewal timeout",
+          "type": "Bug",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": 2,
+          "due": "2026-10-20",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/101"
+        },
+        {
+          "id": 102,
+          "title": "Synthetic user story 102",
+          "type": "User Story",
+          "state": "New",
+          "project": "Mobile",
+          "assignedTo": "Sam Lee",
+          "priority": 3,
+          "due": "2026-11-01",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Mobile/_workitems/edit/102"
+        },
+        {
+          "id": 103,
+          "title": "Synthetic issue 103",
+          "type": "Issue",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/103"
+        }
+      ],
+      "gone": [],
+      "prError": "ADO URL not found (HTTP 404): {{ADO}}/Gone/Nope/_apis/git/pullrequests. Check the collection URL and project name."
+    }
+  },
+  "requests": [
+    "GET /Gone/Nope/_apis/git/pullrequests?$top=500&api-version=6.0&searchCriteria.reviewerId=u-me&searchCriteria.status=active",
+    "GET /Gone/_apis/connectionData?api-version=1.0",
+    "GET /Gone/_apis/projects/Nope/teams?$mine=true&$top=500&api-version=6.0",
+    "GET /_apis/connectionData?api-version=1.0",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.WorkItemType] IN ('Issue', 'Bug', 'User Story') AND [System.State] NOT IN ('Resolved', 'Closed', 'Done', 'Removed') ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/workitemsbatch?api-version=6.0 {\"$expand\":\"Links\",\"errorPolicy\":\"omit\",\"ids\":[101,102,103]}"
+  ]
+}

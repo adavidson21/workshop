@@ -1,0 +1,77 @@
+{
+  "case": "sync-no-prs",
+  "result": {
+    "ok": {
+      "items": [
+        {
+          "id": 101,
+          "title": "Fix the user's renewal timeout",
+          "type": "Bug",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": 2,
+          "due": "2026-10-20",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/101"
+        },
+        {
+          "id": 102,
+          "title": "Synthetic user story 102",
+          "type": "User Story",
+          "state": "New",
+          "project": "Mobile",
+          "assignedTo": "Sam Lee",
+          "priority": 3,
+          "due": "2026-11-01",
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Mobile/_workitems/edit/102"
+        },
+        {
+          "id": 103,
+          "title": "Synthetic issue 103",
+          "type": "Issue",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/103"
+        }
+      ],
+      "gone": [
+        {
+          "id": 201,
+          "title": "Synthetic bug 201",
+          "type": "Bug",
+          "state": "Closed",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/201",
+          "reason": "closed"
+        },
+        {
+          "id": 202,
+          "title": "Synthetic bug 202",
+          "type": "Bug",
+          "state": "Removed",
+          "project": "Web App",
+          "assignedTo": "Sam Lee",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14T15:30:00.47Z",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/202",
+          "reason": "removed"
+        }
+      ]
+    }
+  },
+  "requests": [
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.WorkItemType] IN ('Bug', 'Issue') AND [System.State] NOT IN ('Closed', 'Removed', 'Cut') ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/workitemsbatch?api-version=6.0 {\"$expand\":\"Links\",\"errorPolicy\":\"omit\",\"ids\":[101,102,103,201,202]}"
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "case": "dataset-truncated",
+  "result": {
+    "ok": {
+      "schema": 1,
+      "days": 7,
+      "since": "2026-10-08",
+      "base": "{{ADO}}/Main",
+      "areas": [],
+      "people": [
+        "dev.one@example.com"
+      ],
+      "truncated": true,
+      "scanned": 2,
+      "config": {
+        "highPriorities": [
+          1
+        ],
+        "escalationPriority": 2,
+        "bugTypes": [
+          "Bug",
+          "Defect"
+        ],
+        "closedStates": [
+          "Resolved",
+          "Closed",
+          "Done"
+        ],
+        "removedStates": [
+          "Removed"
+        ]
+      },
+      "items": [
+        {
+          "id": 301,
+          "title": "Synthetic bug 301",
+          "type": "Bug",
+          "state": "Closed",
+          "project": "Web App",
+          "assignedTo": "Dev Two",
+          "priority": 1,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/301",
+          "assignedEmail": "dev.two@example.com",
+          "area": "Web App\\Team A",
+          "iteration": "Web App\\Sprint 12",
+          "created": "2026-09-10",
+          "createdBy": "Pat Kim",
+          "closed": "2026-10-01",
+          "effort": null,
+          "effortField": "",
+          "tags": "api; urgent",
+          "history": true
+        },
+        {
+          "id": 302,
+          "title": "Synthetic user story 302",
+          "type": "User Story",
+          "state": "Active",
+          "project": "Web App",
+          "assignedTo": "Dev One",
+          "priority": 2,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Web%20App/_workitems/edit/302",
+          "assignedEmail": "dev.one@example.com",
+          "area": "Web App\\Team A",
+          "iteration": "Web App\\Release 3\\Sprint 13",
+          "created": "2026-09-04",
+          "createdBy": "Pat Kim",
+          "closed": null,
+          "effort": 3.5,
+          "effortField": "StoryPoints",
+          "tags": "",
+          "history": true
+        },
+        {
+          "id": 304,
+          "title": "Synthetic issue 304",
+          "type": "Issue",
+          "state": "New",
+          "project": "Mobile",
+          "assignedTo": "",
+          "priority": null,
+          "due": null,
+          "changed": "2026-10-14",
+          "url": "{{ADO}}/Main/Mobile/_workitems/edit/304",
+          "assignedEmail": "",
+          "area": "Mobile",
+          "iteration": "Mobile\\Sprint 2",
+          "created": "2026-10-02",
+          "createdBy": "",
+          "closed": null,
+          "effort": 8,
+          "effortField": "OriginalEstimate",
+          "tags": "",
+          "history": false
+        }
+      ],
+      "events": [
+        {
+          "id": 302,
+          "date": "2026-10-10T08:00:00",
+          "by": "",
+          "kind": "state",
+          "from": "New",
+          "to": "Active"
+        }
+      ],
+      "iterations": {
+        "Web App\\Sprint 11": {
+          "start": "2026-08-31",
+          "finish": "2026-09-13"
+        },
+        "Web App\\Sprint 12": {
+          "start": "2026-09-14",
+          "finish": "2026-09-27"
+        },
+        "Web App\\Release 3\\Sprint 13": {
+          "start": "2026-09-28",
+          "finish": "2026-10-11"
+        }
+      }
+    }
+  },
+  "requests": [
+    "GET /Main/Mobile/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=6.0",
+    "GET /Main/Web%20App/_apis/wit/classificationnodes/Iterations?$depth=10&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/301/updates?$skip=0&$top=200&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/302/updates?$skip=0&$top=200&api-version=6.0",
+    "GET /Main/_apis/wit/workItems/302/updates?$skip=200&$top=200&api-version=6.0",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] IN ('Bug', 'User Story') AND ([System.AssignedTo] IN ('dev.one@example.com')) AND [System.ChangedDate] >= @Today - 7 ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] IN ('Bug', 'User Story') AND ([System.AssignedTo] IN ('dev.one@example.com')) AND [System.State] NOT IN ('Resolved', 'Closed', 'Done', 'Removed') ORDER BY [System.ChangedDate] DESC\"}",
+    "POST /Main/_apis/wit/workitemsbatch?api-version=6.0 {\"$expand\":\"Links\",\"errorPolicy\":\"omit\",\"ids\":[301,302,304]}"
+  ]
+}

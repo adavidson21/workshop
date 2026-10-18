@@ -1,0 +1,9 @@
+{
+  "case": "sync-sign-in-page",
+  "result": {
+    "error": "ADO answered with a sign-in page instead of data. Check the URL and that the PAT is valid."
+  },
+  "requests": [
+    "POST /Login/_apis/wit/wiql?api-version=6.0 {\"query\":\"SELECT [System.Id] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.WorkItemType] IN ('Issue', 'Bug', 'User Story') AND [System.State] NOT IN ('Resolved', 'Closed', 'Done', 'Removed') ORDER BY [System.ChangedDate] DESC\"}"
+  ]
+}
