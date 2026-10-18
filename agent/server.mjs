@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { VERSION } from './version.mjs';
 import { SchemaSet } from './lib/schema.mjs';
-import { HttpError, MB, fail, sendJson, sendHtml, sendText, readJsonBody, parseCookies, escapeHtml } from './lib/http.mjs';
+import { HttpError, MB, fail, sendJson, sendHtml, sendText, readJsonBody, drain, parseCookies, escapeHtml } from './lib/http.mjs';
 import { removeTmpFiles, KeyedLock } from './lib/fsutil.mjs';
 import { homePaths, loadConfig, saveConfig, loadToken } from './lib/home.mjs';
 import { createLogger, stripToken } from './lib/log.mjs';
@@ -165,6 +165,7 @@ export async function createAgent(o) {
     } catch (e) {
       if (!(e instanceof HttpError)) log.error(`Unexpected error on ${req.method} ${stripToken(req.url)}: ${e && (e.stack || e.message)}`);
       if (res.headersSent) { res.end(); return; }
+      await drain(req);
       const err = e instanceof HttpError ? e : new HttpError('internal', 'Something went wrong in the agent. See the log for details.');
       if (isApi) sendJson(res, err.status, { error: err.message, code: err.code, ...(err.extra || {}) }, cors);
       else sendText(res, err.status, err.message);

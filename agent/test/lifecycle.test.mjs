@@ -94,3 +94,17 @@ test('start.mjs refuses unknown options', async () => {
   assert.equal(code, 1);
   assert.match(err, /Unknown option/);
 });
+
+test('early errors on large uploads still reach the client', async () => {
+  const home = tempHome();
+  const agent = await start(home);
+  try {
+    const big = { features: {}, pad: 'x'.repeat(2 * 1024 * 1024) };
+    const tooLarge = await put(agent, '/api/config', big);
+    assert.equal(tooLarge.status, 413);
+    assert.equal(tooLarge.json.code, 'too_large');
+    const noToken = await put(agent, '/api/data/notes/pages', big, { auth: 'none' });
+    assert.equal(noToken.status, 401);
+    assert.equal((await get(agent, '/api/health', { auth: 'none' })).status, 200, 'still answering');
+  } finally { await agent.stop(); rmHome(home); }
+});

@@ -48,6 +48,25 @@ export function sendText(res, status, text, extra = {}) {
   res.end(text);
 }
 
+const DRAIN_CAP = 64 * MB;
+
+/**
+ * Read and discard the rest of a request body, so an early error response reaches the client. If the
+ * response is sent while the client is still uploading, Windows resets the connection and the client sees
+ * ECONNRESET instead of the error. Bodies more than 64 MB past that point are cut off.
+ */
+export function drain(req) {
+  return new Promise(resolve => {
+    if (req.complete || req.readableEnded || req.destroyed) { resolve(); return; }
+    let size = 0;
+    req.on('data', c => { size += c.length; if (size > DRAIN_CAP) { req.destroy(); resolve(); } });
+    req.on('end', resolve);
+    req.on('close', resolve);
+    req.on('error', resolve);
+    req.resume();
+  });
+}
+
 /**
  * Read a JSON body up to `limit` bytes. Resolves undefined for an empty body.
  * Rejects with too_large or bad_request as HttpError.
@@ -56,17 +75,22 @@ export function readJsonBody(req, limit) {
   return new Promise((resolve, reject) => {
     const tooLarge = () => new HttpError('too_large', `The request is larger than ${limit / MB} MB.`);
     const declared = Number(req.headers['content-length'] || 0);
-    if (declared > limit) { req.resume(); reject(tooLarge()); return; }
+    if (declared > limit) { drain(req).then(() => reject(tooLarge())); return; }
     const chunks = [];
     let size = 0;
     let over = false;
-    req.on('data', c => { size += c.length; if (size > limit) over = true; else chunks.push(c); });
+    req.on('data', c => {
+      size += c.length;
+      if (size > limit) { over = true; chunks.length = 0; } else chunks.push(c);
+      if (size > limit + DRAIN_CAP) req.destroy();
+    });
     req.on('end', () => {
       if (over) { reject(tooLarge()); return; }
       const text = Buffer.concat(chunks).toString('utf8');
       if (!text) { resolve(undefined); return; }
       try { resolve(JSON.parse(text)); } catch { reject(new HttpError('bad_request', 'The request body is not valid JSON.')); }
     });
+    req.on('close', () => { if (over) reject(tooLarge()); });
     req.on('error', reject);
   });
 }
