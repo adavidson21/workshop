@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "api",
+    "token",
+    "agentOrigin"
+  ],
+  "properties": {
+    "api": {
+      "const": 1
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32,128}$"
+    },
+    "agentOrigin": {
+      "$ref": "common.schema.json#/$defs/origin"
+    }
+  }
+}

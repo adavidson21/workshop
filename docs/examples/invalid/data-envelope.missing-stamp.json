@@ -1,0 +1,11 @@
+{
+  "schema": "prioritizer.tasks",
+  "version": 3,
+  "rev": 1,
+  "items": [
+    {
+      "id": "t_1",
+      "title": "No stamp"
+    }
+  ]
+}

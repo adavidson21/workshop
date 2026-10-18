@@ -1,0 +1,4 @@
+{
+  "error": "That collection changed since you loaded it. Reload and try again.",
+  "code": "conflict"
+}

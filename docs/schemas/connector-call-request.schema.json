@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "POST /api/connectors/<id>/<action> body",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "args": {
+      "type": "object"
+    },
+    "confirm": {
+      "type": "boolean"
+    }
+  }
+}

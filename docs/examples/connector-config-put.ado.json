@@ -1,0 +1,35 @@
+{
+  "config": {
+    "connections": [
+      {
+        "name": "work",
+        "serverUrl": "https://ado.example.com",
+        "collection": "Main",
+        "project": "Web",
+        "patEnv": "ADO_PAT"
+      }
+    ],
+    "defaultConnection": "work",
+    "paths": [
+      {
+        "path": "C:/src/work/api-repo",
+        "connection": "work",
+        "project": "Web"
+      }
+    ],
+    "types": [
+      "Issue",
+      "Bug",
+      "User Story"
+    ],
+    "closedStates": [
+      "Closed",
+      "Resolved",
+      "Done",
+      "Removed"
+    ],
+    "syncMinutes": 15,
+    "reviewNewItems": true,
+    "prTiers": "all"
+  }
+}

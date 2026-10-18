@@ -1,0 +1,14 @@
+{
+  "workshop": 1,
+  "kind": "response",
+  "id": "r1",
+  "ok": true,
+  "result": {
+    "theme": {
+      "key": "nord",
+      "scheme": "dark"
+    },
+    "route": "task/t_k2f9",
+    "visible": true
+  }
+}

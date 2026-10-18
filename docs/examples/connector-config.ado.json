@@ -1,0 +1,173 @@
+{
+  "id": "ado",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "connections"
+    ],
+    "properties": {
+      "connections": {
+        "type": "array",
+        "title": "Connections",
+        "description": "One per ADO server and collection.",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "serverUrl",
+            "collection",
+            "patEnv"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Name",
+              "pattern": "^[A-Za-z0-9_-]{1,40}$"
+            },
+            "serverUrl": {
+              "type": "string",
+              "title": "Server URL",
+              "format": "uri"
+            },
+            "collection": {
+              "type": "string",
+              "title": "Collection"
+            },
+            "project": {
+              "type": "string",
+              "title": "Project"
+            },
+            "patEnv": {
+              "type": "string",
+              "title": "PAT environment variable",
+              "x-workshop-env": true,
+              "default": "ADO_PAT"
+            }
+          }
+        }
+      },
+      "defaultConnection": {
+        "type": "string",
+        "title": "Default connection"
+      },
+      "paths": {
+        "type": "array",
+        "title": "Repo and path mapping",
+        "description": "Which connection and project a repo or folder uses.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "connection"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "title": "Repo or folder"
+            },
+            "connection": {
+              "type": "string",
+              "title": "Connection"
+            },
+            "project": {
+              "type": "string",
+              "title": "Project"
+            }
+          }
+        }
+      },
+      "types": {
+        "type": "array",
+        "title": "Work item types",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "Issue",
+          "Bug",
+          "User Story"
+        ]
+      },
+      "closedStates": {
+        "type": "array",
+        "title": "States that count as done",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "Closed",
+          "Resolved",
+          "Done",
+          "Removed"
+        ]
+      },
+      "syncMinutes": {
+        "type": "integer",
+        "title": "Sync every (minutes)",
+        "minimum": 5,
+        "maximum": 240,
+        "default": 15
+      },
+      "reviewNewItems": {
+        "type": "boolean",
+        "title": "Let me pick new work items before they are added",
+        "default": true
+      },
+      "prTiers": {
+        "type": "string",
+        "title": "PR tiers",
+        "enum": [
+          "all",
+          "named"
+        ],
+        "x-workshop-labels": [
+          "All PRs I am on",
+          "Only PRs that name me"
+        ],
+        "default": "all"
+      }
+    }
+  },
+  "config": {
+    "connections": [
+      {
+        "name": "work",
+        "serverUrl": "https://ado.example.com",
+        "collection": "Main",
+        "project": "Web",
+        "patEnv": "ADO_PAT"
+      }
+    ],
+    "defaultConnection": "work",
+    "paths": [
+      {
+        "path": "C:/src/work/api-repo",
+        "connection": "work",
+        "project": "Web"
+      }
+    ],
+    "types": [
+      "Issue",
+      "Bug",
+      "User Story"
+    ],
+    "closedStates": [
+      "Closed",
+      "Resolved",
+      "Done",
+      "Removed"
+    ],
+    "syncMinutes": 15,
+    "reviewNewItems": true,
+    "prTiers": "all"
+  },
+  "env": {
+    "ADO_PAT": {
+      "set": true
+    }
+  }
+}

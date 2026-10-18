@@ -1,0 +1,10 @@
+{
+  "configVersion": 1,
+  "port": 4380,
+  "allowedOrigins": [],
+  "features": {
+    "startAtLogin": false,
+    "hostedMode": false
+  },
+  "connectors": {}
+}

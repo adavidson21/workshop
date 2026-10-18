@@ -1,0 +1,11 @@
+{
+  "event": "connector-status",
+  "data": {
+    "id": "ado",
+    "status": {
+      "state": "error",
+      "message": "ADO_PAT is not set.",
+      "since": "2026-10-18T13:00:00.000Z"
+    }
+  }
+}

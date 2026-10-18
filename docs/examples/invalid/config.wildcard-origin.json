@@ -1,0 +1,6 @@
+{
+  "configVersion": 1,
+  "allowedOrigins": [
+    "https://*.example.org"
+  ]
+}

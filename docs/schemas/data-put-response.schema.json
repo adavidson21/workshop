@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PUT /api/data/<app>/<collection> response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rev",
+    "updatedAt"
+  ],
+  "properties": {
+    "rev": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/isoTime"
+    }
+  }
+}

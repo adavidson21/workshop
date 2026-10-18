@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "app.json",
+  "description": "See docs/app-manifest.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "version",
+    "icon",
+    "entry"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "icon": {
+      "$ref": "#/$defs/relPath"
+    },
+    "entry": {
+      "$ref": "#/$defs/relPath"
+    },
+    "order": {
+      "type": "number"
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/runMode"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "routes": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_:.~-]+(/[A-Za-z0-9_:.~-]+)*$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "connectors": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "required"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/name"
+      },
+      "uniqueItems": true,
+      "maxItems": 50
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/commandId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "route": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "shortcuts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "keys",
+          "command",
+          "scope"
+        ],
+        "properties": {
+          "keys": {
+            "$ref": "#/$defs/keys"
+          },
+          "command": {
+            "$ref": "#/$defs/commandId"
+          },
+          "scope": {
+            "enum": [
+              "app",
+              "global"
+            ]
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relPath"
+      },
+      "uniqueItems": true,
+      "maxItems": 500
+    }
+  },
+  "$defs": {
+    "relPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9_.@-]+(/[A-Za-z0-9_.@-]+)*$",
+      "maxLength": 200,
+      "description": "Relative to the app folder. No leading slash, no . or .. segments."
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$"
+    },
+    "keys": {
+      "type": "string",
+      "pattern": "^(Ctrl\\+)?(Alt\\+)?(Shift\\+)?(Meta\\+)?([A-Z0-9]|F[1-9]|F1[0-2]|Enter|Escape|Space|Tab|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown|Slash|Period|Comma)$",
+      "not": {
+        "pattern": "^(Alt\\+[1-9]|Ctrl\\+K)$"
+      },
+      "description": "Modifiers in the order Ctrl, Alt, Shift, Meta. Alt+1 to Alt+9 and Ctrl+K are reserved for the shell."
+    }
+  }
+}

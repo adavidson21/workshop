@@ -1,0 +1,44 @@
+{
+  "description": "Adding back an item that has a tombstone removes the tombstone.",
+  "now": 1792330000000,
+  "before": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [],
+    "deleted": {
+      "a": 1792243600000
+    }
+  },
+  "after": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 0,
+        "text": "back"
+      }
+    ],
+    "deleted": {
+      "a": 1792243600000
+    }
+  },
+  "expected": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 1792330000000,
+        "text": "back"
+      }
+    ],
+    "deleted": {}
+  }
+}

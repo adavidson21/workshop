@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "configVersion",
+    "port",
+    "allowedOrigins",
+    "features",
+    "connectors",
+    "home"
+  ],
+  "properties": {
+    "configVersion": {
+      "const": 1
+    },
+    "port": {
+      "$ref": "config.schema.json#/$defs/port"
+    },
+    "allowedOrigins": {
+      "$ref": "config.schema.json#/$defs/origins"
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startAtLogin",
+        "hostedMode"
+      ],
+      "properties": {
+        "startAtLogin": {
+          "type": "boolean"
+        },
+        "hostedMode": {
+          "type": "boolean"
+        }
+      }
+    },
+    "connectors": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/$defs/name"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "home": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

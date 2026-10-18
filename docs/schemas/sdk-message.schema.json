@@ -1,0 +1,583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shell and app postMessage",
+  "description": "See docs/sdk.md, Shell messages.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "ready"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "app",
+            "sdk"
+          ],
+          "properties": {
+            "app": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "sdk": {
+              "const": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "open"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "app"
+          ],
+          "properties": {
+            "app": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "toast"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "kind": {
+              "enum": [
+                "info",
+                "success",
+                "warn",
+                "error"
+              ]
+            },
+            "action": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "command"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "command": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,39}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "badge"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count"
+          ],
+          "properties": {
+            "count": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 999
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "notify"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title"
+          ],
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "route": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "commands.register"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "title"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "shortcut": {
+              "$ref": "app.schema.json#/$defs/keys"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "commands.unregister"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "ok"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "response"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "ok": {
+          "const": true
+        },
+        "result": {}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "ok",
+        "error"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "response"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "$ref": "common.schema.json#/$defs/errorCode"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "event",
+        "payload"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "event"
+        },
+        "event": {
+          "const": "theme"
+        },
+        "payload": {
+          "$ref": "#/$defs/theme"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "event",
+        "payload"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "event"
+        },
+        "event": {
+          "const": "route"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "event",
+        "payload"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "event"
+        },
+        "event": {
+          "const": "command"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "event",
+        "payload"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "event"
+        },
+        "event": {
+          "const": "visible"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "visible"
+          ],
+          "properties": {
+            "visible": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "event",
+        "payload"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "event"
+        },
+        "event": {
+          "const": "online"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "online"
+          ],
+          "properties": {
+            "online": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "msgId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "scheme"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "common.schema.json#/$defs/themeKey"
+        },
+        "scheme": {
+          "enum": [
+            "light",
+            "dark"
+          ]
+        }
+      }
+    }
+  }
+}

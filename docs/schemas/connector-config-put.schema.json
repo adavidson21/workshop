@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PUT /api/connectors/<id>/config body",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "config"
+  ],
+  "properties": {
+    "config": {
+      "type": "object"
+    }
+  }
+}

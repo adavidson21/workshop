@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/apps (and apps/registry.json on static sites)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apps"
+  ],
+  "properties": {
+    "apps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "base",
+          "manifest"
+        ],
+        "properties": {
+          "base": {
+            "type": "string",
+            "pattern": "^/apps/[a-z][a-z0-9-]{0,39}/$"
+          },
+          "manifest": {
+            "$ref": "app.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

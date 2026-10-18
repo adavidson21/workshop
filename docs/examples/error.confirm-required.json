@@ -1,0 +1,4 @@
+{
+  "error": "This action changes Azure DevOps. Ask the user to confirm first.",
+  "code": "confirm_required"
+}

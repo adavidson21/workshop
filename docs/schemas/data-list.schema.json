@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/data/<app>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "collections"
+  ],
+  "properties": {
+    "app": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "collection",
+          "schema",
+          "version",
+          "rev",
+          "updatedAt",
+          "items"
+        ],
+        "properties": {
+          "collection": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9-]{0,39}$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "$ref": "common.schema.json#/$defs/isoTime"
+          },
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

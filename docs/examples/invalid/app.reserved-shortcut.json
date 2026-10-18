@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "notes",
+  "name": "Notes",
+  "version": "0.1.0",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "commands": [
+    {
+      "id": "go",
+      "title": "Go"
+    }
+  ],
+  "shortcuts": [
+    {
+      "keys": "Ctrl+K",
+      "command": "go",
+      "scope": "app"
+    }
+  ]
+}

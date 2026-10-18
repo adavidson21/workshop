@@ -1,0 +1,12 @@
+{
+  "manifestVersion": 1,
+  "id": "board",
+  "name": "Board",
+  "version": "1.2.0",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 10,
+  "modes": ["local", "hosted"],
+  "routes": [{"path": "card/:id", "title": "Open a card"}],
+  "connectors": [{"id": "echo", "required": true}]
+}

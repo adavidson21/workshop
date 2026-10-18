@@ -1,0 +1,20 @@
+{
+  "config": {
+    "configVersion": 1,
+    "port": 4380,
+    "allowedOrigins": [
+      "https://work.example.org"
+    ],
+    "features": {
+      "startAtLogin": false,
+      "hostedMode": true
+    },
+    "connectors": {
+      "ado": {
+        "enabled": true
+      }
+    },
+    "home": "/Users/alex/.workshop"
+  },
+  "restartRequired": false
+}

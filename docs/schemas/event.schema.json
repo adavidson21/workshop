@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "An event on /api/events, as {event, data}",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "hello"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "api",
+            "version"
+          ],
+          "properties": {
+            "api": {
+              "const": 1
+            },
+            "version": {
+              "$ref": "common.schema.json#/$defs/semver"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "data"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "app",
+            "collection",
+            "rev",
+            "updatedAt",
+            "client"
+          ],
+          "properties": {
+            "app": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "collection": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "rev": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "updatedAt": {
+              "$ref": "common.schema.json#/$defs/isoTime"
+            },
+            "client": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/clientId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "connector"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "event",
+            "payload"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "event": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9.-]{0,63}$"
+            },
+            "payload": {}
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "connector-status"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "status": {
+              "$ref": "common.schema.json#/$defs/connectorStatus"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "config"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "changed"
+          ],
+          "properties": {
+            "changed": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^(features|allowedOrigins|connectors|port|connector:[a-z][a-z0-9-]{0,39})$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

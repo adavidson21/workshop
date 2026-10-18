@@ -1,0 +1,517 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Connector configSchema (form subset)",
+  "description": "A connector configSchema must validate against this. See docs/connector.md.",
+  "$ref": "#/$defs/rootObject",
+  "$defs": {
+    "rootObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "required": {
+          "$ref": "#/$defs/requiredList"
+        },
+        "properties": {
+          "$ref": "#/$defs/props1"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "requiredList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "propName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$"
+    },
+    "props1": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/propName"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/field1"
+      }
+    },
+    "props2": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/propName"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/field2"
+      }
+    },
+    "props3": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/propName"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/leaf"
+      }
+    },
+    "field1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "$ref": "#/$defs/object1"
+        },
+        {
+          "$ref": "#/$defs/arrayOfObjects1"
+        }
+      ]
+    },
+    "field2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "$ref": "#/$defs/object2"
+        },
+        {
+          "$ref": "#/$defs/arrayOfObjects2"
+        }
+      ]
+    },
+    "object1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "required": {
+          "$ref": "#/$defs/requiredList"
+        },
+        "properties": {
+          "$ref": "#/$defs/props2"
+        }
+      }
+    },
+    "leaf": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/stringField"
+        },
+        {
+          "$ref": "#/$defs/numberField"
+        },
+        {
+          "$ref": "#/$defs/booleanField"
+        },
+        {
+          "$ref": "#/$defs/stringArrayField"
+        }
+      ]
+    },
+    "stringField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "string"
+        },
+        "default": {
+          "type": "string"
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "format": {
+          "enum": [
+            "uri"
+          ]
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "x-workshop-env": {
+          "type": "boolean"
+        },
+        "x-workshop-labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "x-workshop-multiline": {
+          "type": "boolean"
+        }
+      }
+    },
+    "numberField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "enum": [
+            "integer",
+            "number"
+          ]
+        },
+        "default": {
+          "type": "number"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      }
+    },
+    "booleanField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "boolean"
+        },
+        "default": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stringArrayField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/stringItems"
+        },
+        "default": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "uniqueItems": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stringItems": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "string"
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "format": {
+          "enum": [
+            "uri"
+          ]
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "x-workshop-env": {
+          "type": "boolean"
+        }
+      }
+    },
+    "object2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "required": {
+          "$ref": "#/$defs/requiredList"
+        },
+        "properties": {
+          "$ref": "#/$defs/props3"
+        }
+      }
+    },
+    "arrayOfObjects1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/itemsObject2"
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "default": {
+          "type": "array"
+        }
+      }
+    },
+    "arrayOfObjects2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/itemsObject3"
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "default": {
+          "type": "array"
+        }
+      }
+    },
+    "itemsObject2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "required": {
+          "$ref": "#/$defs/requiredList"
+        },
+        "properties": {
+          "$ref": "#/$defs/props2"
+        }
+      }
+    },
+    "itemsObject3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "properties",
+        "additionalProperties"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "required": {
+          "$ref": "#/$defs/requiredList"
+        },
+        "properties": {
+          "$ref": "#/$defs/props3"
+        }
+      }
+    }
+  }
+}

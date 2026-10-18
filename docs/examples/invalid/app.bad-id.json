@@ -1,0 +1,8 @@
+{
+  "manifestVersion": 1,
+  "id": "Notes App",
+  "name": "Notes",
+  "version": "0.1.0",
+  "icon": "icon.svg",
+  "entry": "index.html"
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Error body",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error",
+    "code"
+  ],
+  "properties": {
+    "error": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "code": {
+      "$ref": "common.schema.json#/$defs/errorCode"
+    }
+  }
+}

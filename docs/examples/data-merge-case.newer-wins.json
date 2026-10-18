@@ -1,0 +1,63 @@
+{
+  "description": "Per item, the newer change stamp wins. Items only on one side are kept, remote order first.",
+  "local": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 4,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "a",
+        "updatedAt": 200,
+        "text": "local edit"
+      },
+      {
+        "id": "c",
+        "updatedAt": 150,
+        "text": "local only"
+      }
+    ]
+  },
+  "remote": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "b",
+        "updatedAt": 100,
+        "text": "remote only"
+      },
+      {
+        "id": "a",
+        "updatedAt": 100,
+        "text": "remote copy"
+      }
+    ]
+  },
+  "expected": {
+    "schema": "notes.pages",
+    "version": 1,
+    "rev": 5,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "b",
+        "updatedAt": 100,
+        "text": "remote only"
+      },
+      {
+        "id": "a",
+        "updatedAt": 200,
+        "text": "local edit"
+      },
+      {
+        "id": "c",
+        "updatedAt": 150,
+        "text": "local only"
+      }
+    ],
+    "deleted": {}
+  }
+}

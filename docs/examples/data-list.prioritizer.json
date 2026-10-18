@@ -1,0 +1,21 @@
+{
+  "app": "prioritizer",
+  "collections": [
+    {
+      "collection": "lists",
+      "schema": "prioritizer.lists",
+      "version": 1,
+      "rev": 3,
+      "updatedAt": "2026-10-18T13:02:11.000Z",
+      "items": 1
+    },
+    {
+      "collection": "tasks",
+      "schema": "prioritizer.tasks",
+      "version": 3,
+      "rev": 14,
+      "updatedAt": "2026-10-18T13:02:11.000Z",
+      "items": 2
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "error": "That collection changed since you loaded it. Reload and try again.",
+  "code": "conflict",
+  "current": {
+    "schema": "prioritizer.tasks",
+    "version": 3,
+    "rev": 14,
+    "updatedAt": "2026-10-18T13:02:11.000Z",
+    "items": [
+      {
+        "id": "t_k2f9",
+        "updatedAt": 1792328400000,
+        "title": "Draft Q4 plan",
+        "value": 3,
+        "effort": "M",
+        "done": false,
+        "listId": "l_main"
+      },
+      {
+        "id": "t_p81a",
+        "updatedAt": 1792242000000,
+        "title": "Review onboarding doc",
+        "value": 2,
+        "effort": "S",
+        "done": true,
+        "listId": "l_main"
+      }
+    ],
+    "deleted": {
+      "t_old1": 1792155600000
+    },
+    "meta": {
+      "updatedAt": 1792328400000,
+      "capacity": 20
+    }
+  }
+}

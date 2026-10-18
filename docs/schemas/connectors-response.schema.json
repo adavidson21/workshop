@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/connectors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connectors"
+  ],
+  "properties": {
+    "connectors": {
+      "type": "array",
+      "items": {
+        "$ref": "connector-info.schema.json"
+      }
+    }
+  }
+}
