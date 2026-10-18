@@ -26,8 +26,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Agent tests
-        run: node --test "agent/test/*.test.mjs"
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./agent/test/github-reporter.mjs --test-reporter-destination=stdout "agent/test/*.test.mjs"
       - name: Contract suite against the real agent
-        run: node --test "tests/contract/*.test.mjs"
+        if: ${{ !cancelled() }}
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./agent/test/github-reporter.mjs --test-reporter-destination=stdout "tests/contract/*.test.mjs"
         env:
           WORKSHOP_TARGET: agent/test-target.mjs
