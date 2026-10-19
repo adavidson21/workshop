@@ -11,7 +11,7 @@ import { cleanKnown, cleanKnownPrs, sync } from '../lib/sync.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '..', '..', '..');
-export const HELPER = path.join(REPO, 'prioritizer', 'ado-helper', 'ado_helper.py');
+export const HELPER = path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py');
 export const HARNESS = path.join(HERE, '..', 'lib', 'helper_harness.py');
 export const GOLDENS = path.join(HERE, 'goldens');
 const PLACEHOLDER = '{{ADO}}';

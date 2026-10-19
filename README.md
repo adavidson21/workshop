@@ -2,12 +2,15 @@
 
 An engineering manager's hub: one page with a rail of apps, sharing one theme.
 
-- **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [prioritizer/README.md](prioritizer/README.md).
+- **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
 - **Dashboard** shows your [eng-agents](https://github.com/adavidson21/eng-agents) live dashboard, which runs on your own computer.
+- **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
-Switch apps from the rail, or with `Alt+1` and `Alt+2`. Each app keeps its state while you're in another one. Prioritizer is the plain address; the Dashboard is `#/dashboard`, and `#/dashboard/<work item id>` opens it at an item.
+Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/dashboard/<work item id>` or `#/prioritizer/task/<task id>`.
 
-Everything stays on your device. There are no accounts and no server: Prioritizer saves in your browser, and the Dashboard talks to `127.0.0.1` only.
+Everything stays on your device. There are no accounts and no server: data is saved in your browser, or in files on this computer when Workshop runs there, and nothing talks to anything but `127.0.0.1` and the systems you set up in Settings.
+
+Workshop runs three ways (see [docs/run-modes.md](docs/run-modes.md)): from the Workshop agent on this computer (`node agent/start.mjs`, then open the address it prints), as static files with no agent (browser storage only, like the github.io site), or as static files on your own domain paired with the agent (**Connect** on the rail, after you turn on hosted mode in Settings).
 
 ## eng-agents dashboard
 
@@ -32,14 +35,16 @@ In Chrome or Edge, open Workshop and click **Install** on the rail (or the insta
 
 It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
 
-The install dialog shows `screenshots/wide.png` and `screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
+The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
 
 ## Layout
 
 ```
-index.html              the hub page: rail + one pane per app
-shell/                  shell.js (rail, routing, theme menu, toast), dashboard.js (Dashboard page), shell.css
-shared/                 used by the hub and every app
+index.html              the shell page: rail + one pane per app
+shell/                  shell.js (rail, routing, palette, theme menu, toast, pairing, the SDK's shell side),
+                        dashboard.js (Dashboard page), shell.css, registry.mjs (writes apps/registry.json)
+shared/                 used by the shell and every app
+  workshop-sdk.js       the SDK: apps reach the shell, data and connectors only through it (docs/sdk.md)
   themes.css            the themes: styling source of truth, also for the eng-agents dashboard
   theme.js              applies and remembers the theme across pages
   ui.css                buttons, menus, toast, tooltip
@@ -47,19 +52,29 @@ shared/                 used by the hub and every app
   sw-register.js        registers sw.js
   fonts/                self-hosted Inter and JetBrains Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
-prioritizer/            the Prioritizer app (also runs on its own at /prioritizer/)
-  ado-helper/           the local ADO helper (Python)
+  screenshots/          images for the install dialog
+  test/                 SDK tests
+apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
+  registry.json         the app list for static sites (node shell/registry.mjs writes it)
+  prioritizer/          Prioritizer (also runs on its own at /apps/prioritizer/)
+    ado-helper/         the local ADO helper (Python), for when Workshop's ADO connector is not running
+  settings/             Settings
+agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
+connectors/             one folder per connector (ADO, opencode)
+docs/                   the contracts every part is written against
 sw.js                   offline cache for the whole site
 tests/                  checks (see below)
 ```
 
 ### Adding an app
 
-1. Build it as a page in its own folder (like `prioritizer/`) or as a script that renders into a pane (like `shell/dashboard.js`). Load `shared/theme.js`, `shared/fonts/fonts.css`, `shared/themes.css` and `shared/ui.css` so it matches, and copy the Content-Security-Policy meta tag from `index.html`.
-2. Add an entry to `APPS` in `shell/shell.js` (id, label, icon, mount, show). The rail, routing and `Alt+<n>` come with it.
-3. Add its files to `SHELL` in `sw.js`.
+An app is a folder. No shell or service worker edits.
 
-An app in a frame can ask the hub to switch apps with `parent.postMessage({type: 'em-open', app: 'dashboard', focus: id}, location.origin)`.
+1. Make `apps/<id>/` with an `app.json` ([docs/app-manifest.md](docs/app-manifest.md)), an `icon.svg` (20 by 20, stroke, `currentColor`) and its page. Load `shared/theme.js`, `shared/fonts/fonts.css`, `shared/themes.css` and `shared/ui.css` so it matches, and copy the Content-Security-Policy meta tag from `index.html`. List the app's other files in `app.json` `files` so it works offline (`node tests/check-offline.mjs` says what is missing).
+2. Talk to the shell, data and connectors through the SDK only ([docs/sdk.md](docs/sdk.md)): `import { connect } from '../../shared/workshop-sdk.js'; const ws = await connect({app: '<id>'});`. Then `ws.open`, `ws.toast`, `ws.badge`, `ws.commands.register`, `ws.data.get` and `put`, `ws.connectors.call`, and events with `ws.on`. No `postMessage` and no `fetch` to `/api/`.
+3. Run `node shell/registry.mjs` so static sites list it too. The agent finds it on its own.
+
+The rail, routes, `Alt+<n>`, shortcuts and the palette come from `app.json`. See `apps/settings/` for a small app.
 
 ### No third-party requests
 
@@ -71,29 +86,31 @@ Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/them
 
 ## Running it locally
 
-No build step, but it needs a web server (the pages load several files):
+With the agent (local mode, connectors and data on disk):
 
 ```
-python -m http.server 8000
+node agent/start.mjs
 ```
 
-Then open `http://localhost:8000/`. For the Dashboard page, add `"http://localhost:8000"` to `shellOrigins` too.
+Then open the address it prints. Without it (browser mode), any static web server works, for example `python -m http.server 8000`, then `http://localhost:8000/`. For the Dashboard page, add the page's origin to `shellOrigins` too.
 
 ## Checks
 
 ```
-node tests/check-themes.mjs      theme.js matches themes.css
-node tests/check-offline.mjs     every file the pages load is in sw.js
-python tests/e2e.py              the hub in headless Chromium against a mock dashboard
+node tests/check-themes.mjs              theme.js matches themes.css
+node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
+node shell/registry.mjs --check          apps/registry.json lists every app folder
+node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes
 ```
 
-`e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. All three run on every push (`.github/workflows/checks.yml`).
+`e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
 
 ## Shipping
 
-GitHub Pages serves the repo root. When you ship a change, bump `CACHE` in `sw.js` so open windows offer a "New version" reload.
+GitHub Pages serves the repo root. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
 
-Workshop lives at https://adavidson21.github.io/workshop/ (Prioritizer on its own: `/workshop/prioritizer/`). Same github.io site as before, so tasks saved in the browser carry over. If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in `prioritizer/ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
+Workshop lives at https://adavidson21.github.io/workshop/ (Prioritizer on its own: `/workshop/apps/prioritizer/`; the old `/workshop/prioritizer/` address forwards there). Same github.io site as before, so tasks saved in the browser carry over. If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in `apps/prioritizer/ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
 
 ## License
 

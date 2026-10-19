@@ -24,7 +24,7 @@ import { cleanKnown, sync } from './lib/sync.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const DEFAULT_HELPER = path.join(REPO, 'prioritizer', 'ado-helper', 'ado_helper.py');
+const DEFAULT_HELPER = path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py');
 const HARNESS = path.join(HERE, 'lib', 'helper_harness.py');
 
 const USAGE = `Usage: node connectors/ado/doctor.mjs [options]

@@ -6,7 +6,7 @@
 <!-- Only this site, plus the local helpers on 127.0.0.1 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Workshop</title>
-<meta name="description" content="An engineering manager's hub: Prioritizer and the eng-agents work dashboard in one place.">
+<meta name="description" content="An engineering manager's hub: Prioritizer, the eng-agents work dashboard and Settings in one place.">
 <meta name="theme-color" content="#F7F7F8">
 <!-- sets the theme before first paint so there's no flash -->
 <script src="shared/theme.js"></script>
@@ -32,6 +32,6 @@
 <script src="shared/eng-client.js"></script>
 <script src="shared/sw-register.js"></script>
 <script src="shell/dashboard.js"></script>
-<script src="shell/shell.js"></script>
+<script type="module" src="shell/shell.js"></script>
 </body>
 </html>

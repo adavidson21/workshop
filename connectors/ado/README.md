@@ -1,6 +1,6 @@
 # ADO connector
 
-One Azure DevOps integration for every Workshop app. It replaces `prioritizer/ado-helper/ado_helper.py` (removed in WS8) and gives eng-agents `/start` a way to fetch work items through the agent (WS9).
+One Azure DevOps integration for every Workshop app. It replaces `apps/prioritizer/ado-helper/ado_helper.py` (removed in WS8) and gives eng-agents `/start` a way to fetch work items through the agent (WS9).
 
 Read-only: every action has `write: false`. Node standard library only. It calls only the server URLs in its settings.
 

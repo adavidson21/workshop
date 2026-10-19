@@ -1,4 +1,4 @@
-// Golden tests: the connector must produce the same JSON as prioritizer/ado-helper/ado_helper.py, and make
+// Golden tests: the connector must produce the same JSON as apps/prioritizer/ado-helper/ado_helper.py, and make
 // the same ADO calls, for the synthetic fixtures. Goldens come from the helper (make-goldens.mjs).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

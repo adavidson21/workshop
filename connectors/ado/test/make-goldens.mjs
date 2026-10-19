@@ -1,4 +1,4 @@
-// Regenerates test/goldens/*.json by running prioritizer/ado-helper/ado_helper.py against the fake ADO
+// Regenerates test/goldens/*.json by running apps/prioritizer/ado-helper/ado_helper.py against the fake ADO
 // server and the synthetic fixtures. Run after changing fixtures or the helper:
 //   node connectors/ado/test/make-goldens.mjs
 import fs from 'node:fs';

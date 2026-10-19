@@ -1,6 +1,6 @@
 // docs/run-modes.md (Service worker rules): the service worker never handles /api/*, /pair, or the
 // event stream. Loads sw.js in a fake service worker scope and fires fetch events at it.
-// Marked to-do until WS4 replaces sw.js; WS4 removes { todo } so the check blocks merges.
+// WS4 replaced sw.js; this check now blocks merges.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,7 +31,7 @@ function loadWorker(source) {
   };
 }
 
-test('sw.js leaves agent API requests alone', { todo: 'WS4 replaces sw.js, then removes this todo' }, () => {
+test('sw.js leaves agent API requests alone', () => {
   const handles = loadWorker(fs.readFileSync(path.join(REPO, 'sw.js'), 'utf8'));
   for (const p of ['/api/health', '/api/data/prioritizer/tasks', '/api/events', '/api/connectors/ado/sync', '/api/', '/pair?origin=https%3A%2F%2Fx.example']) {
     assert.equal(handles(`${ORIGIN}${p}`), false, `${p} must not be handled by the service worker`);

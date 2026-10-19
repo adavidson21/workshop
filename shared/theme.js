@@ -47,6 +47,12 @@
     try { localStorage.setItem(KEY, p in THEMES ? p : 'system'); } catch (e) { /* private mode: this page only */ }
     return apply();
   }
+  // 'light' or 'dark' for a theme key, from its background color (the SDK theme payload is {key, scheme}).
+  function scheme(key) {
+    const hex = ((SWATCH[resolve(key)] || SWATCH.slate)[0] || '#ffffff').replace('#', '');
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5 ? 'dark' : 'light';
+  }
   // fn(theme) runs whenever the applied theme changes, from this page or another one.
   function onChange(fn) { listeners.push(fn); }
 
@@ -62,6 +68,6 @@
   if (dark.addEventListener) dark.addEventListener('change', apply);
   window.addEventListener('storage', e => { if (e.key === KEY) apply(); });
 
-  window.WorkshopTheme = {KEY, THEMES, SWATCH, pref, resolve, current, apply, set, onChange, menuHtml};
+  window.WorkshopTheme = {KEY, THEMES, SWATCH, pref, resolve, current, scheme, apply, set, onChange, menuHtml};
   apply();
 })();

@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "settings",
+  "name": "Settings",
+  "version": "1.0.0",
+  "description": "Workshop's settings, connectors, and moving your data.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 90,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "files": [
+    "settings.css",
+    "js/settings.js",
+    "js/forms.js"
+  ]
+}
