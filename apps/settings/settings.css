@@ -1,0 +1,70 @@
+/* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css. */
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+code,.mono{font-family:var(--mono);font-size:.86em}
+
+.wrap{max-width:46rem;margin:0 auto;padding:1.25rem 1.5rem 3rem}
+.shead h1{margin:0;font-size:1.3rem;font-weight:600;letter-spacing:-.015em}
+.shead .sub{margin:.2rem 0 1rem;color:var(--muted);font-size:.88rem}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.15rem;margin:0 0 1rem}
+.card h2{margin:0 0 .2rem;font-size:1.02rem;font-weight:600}
+.card>.sub{margin:0 0 .8rem;color:var(--muted);font-size:.86rem}
+.err{color:var(--danger);font-size:.88rem}
+
+/* forms (also generated ones, see js/forms.js) */
+.cfg fieldset{border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem .7rem;margin:.6rem 0}
+.cfg legend{padding:0 .3rem;font-size:.86rem;font-weight:600}
+.cfg-row{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .7rem;margin:.55rem 0}
+.cfg-row>label{min-width:11rem;font-size:.88rem}
+.cfg-row.cfg-check>label{min-width:0}
+.cfg-row .cfg-leaf{flex:1;min-width:12rem;display:flex;align-items:center;gap:.5rem}
+.cfg-row>.cfg-input{flex:none;width:8rem}
+.cfg-help{flex-basis:100%;margin:0;color:var(--muted);font-size:.8rem}
+.cfg-req{color:var(--muted);font-size:.78rem}
+.cfg-input{width:100%;box-sizing:border-box;padding:.4rem .55rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:.88rem}
+.cfg-input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea.cfg-input{resize:vertical}
+.cfg input[type=checkbox]{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
+.cfg-env-status{flex:none;font-size:.78rem;color:var(--muted);white-space:nowrap}
+.cfg-env-status.ok{color:var(--ink)}
+.cfg-env-status.warn{color:var(--warn)}
+.cfg-list{display:flex;flex-direction:column;gap:.5rem}
+.cfg-item{display:flex;gap:.5rem;align-items:flex-start}
+.cfg-item>.cfg-input,.cfg-item>.cfg-item-body{flex:1;min-width:0}
+.cfg-item>fieldset.cfg-item-body,.cfg-item>div.cfg-item-body{border:1px dashed var(--line);border-radius:10px;padding:.2rem .7rem;margin:0}
+.cfg-add{margin-top:.5rem}
+.acts{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;margin-top:.8rem}
+.acts.left{justify-content:flex-start}
+.acts .msg{margin-right:auto;color:var(--muted);font-size:.84rem}
+.acts.left .msg{margin:0 0 0 .4rem}
+label.btn{cursor:pointer}
+
+/* connectors */
+.conn{border-top:1px solid var(--line);padding:.8rem 0 .4rem}
+.conn:first-of-type{border-top:0}
+.conn-head{display:flex;align-items:center;gap:.8rem}
+.conn-head>div{flex:1;min-width:0}
+.conn h3{display:inline;margin:0;font-size:.95rem;font-weight:600}
+.conn .ver{margin-left:.5rem;color:var(--muted);font:400 .76rem var(--mono)}
+.state{font-size:.76rem;padding:.1rem .5rem;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.state[data-state=ready]{background:var(--accent-soft);color:var(--ink)}
+.state[data-state=error]{background:var(--danger-soft);color:var(--danger)}
+.state[data-state=starting]{background:var(--warn-soft);color:var(--ink)}
+.state-msg{margin:.2rem 0 0;color:var(--muted);font-size:.82rem}
+.state-msg:empty{display:none}
+.switch{display:flex;align-items:center;gap:.35rem;font-size:.84rem;cursor:pointer}
+.switch input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
+.conn details{margin-top:.5rem}
+.conn summary{cursor:pointer;font-size:.88rem;color:var(--accent)}
+.test{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.6rem;font-size:.88rem}
+.test .cfg-input{width:10rem}
+.test-out{flex-basis:100%;font-size:.86rem}
+.test-out.err{color:var(--danger)}
+.test-title{margin:.2rem 0;font-weight:600}
+.test-out dl{display:grid;grid-template-columns:max-content 1fr;gap:.1rem .8rem;margin:.2rem 0 0}
+.test-out dt{color:var(--muted)}
+.test-out dd{margin:0}
+
+/* hosted: read only */
+.ro .cfg-input:disabled,.ro input:disabled{opacity:.75}

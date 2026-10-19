@@ -1,0 +1,62 @@
+{
+  "manifestVersion": 1,
+  "id": "prioritizer",
+  "name": "Prioritizer",
+  "version": "4.0.0",
+  "description": "Decide what to work on next.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 10,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": "task/:id",
+      "title": "Open a task"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    }
+  ],
+  "commands": [
+    {
+      "id": "add-task",
+      "title": "Add a task",
+      "route": ""
+    },
+    {
+      "id": "sync-ado",
+      "title": "Sync with Azure DevOps"
+    }
+  ],
+  "files": [
+    "app.css",
+    "js/actions.js",
+    "js/ado.js",
+    "js/command-bar.js",
+    "js/constants.js",
+    "js/drag-drop.js",
+    "js/drawer.js",
+    "js/eng.js",
+    "js/events.js",
+    "js/excel.js",
+    "js/folder-sync.js",
+    "js/main.js",
+    "js/model.js",
+    "js/overlays.js",
+    "js/people.js",
+    "js/quick-add.js",
+    "js/render.js",
+    "js/reports.js",
+    "js/state.js",
+    "js/util.js",
+    "js/views.js",
+    "js/ws.js"
+  ]
+}

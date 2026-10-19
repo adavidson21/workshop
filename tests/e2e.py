@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""End-to-end check of the hub in headless Chromium, against a mock eng-agents live dashboard.
+"""End-to-end check of Workshop in headless Chromium.
 
   pip install playwright && python -m playwright install chromium
   python tests/e2e.py
 
-Serves this repo on 127.0.0.1:8802 and a mock dashboard on 127.0.0.1:4300 (the mock speaks the
-shell API from eng-agents docs/shell-api.md). Exit 1 if any check fails.
+Three parts:
+  1. Browser mode: serves this repo as a static site on 127.0.0.1:8802 with a mock eng-agents live
+     dashboard on 127.0.0.1:4300 (the mock speaks the shell API from eng-agents docs/shell-api.md).
+  2. Local mode: the real agent (tests/e2e-agent.mjs) with a temporary home, the repo's apps plus a sample
+     app, and the ADO and echo connectors. Settings, required connectors, data events.
+  3. Hosted mode: the static site on localhost:8803, paired with that agent. Settings is read-only.
+Exit 1 if any check fails.
 """
-import functools, http.server, json, os, sys, tempfile, threading
+import functools, http.server, json, os, shutil, subprocess, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +83,211 @@ def add_ado_task(frame, tid, title, ado_id, typ):
       P.state = P.sanitize(P.state); P.commit(); }""", [tid, title, ado_id, typ])
 
 
+# Globals a page defines beyond a blank page, minus the shared classic scripts (theme, eng-agents client,
+# service worker registration, SheetJS). Prioritizer is ES modules, so only its test hook should remain.
+PRIORITIZER_GLOBALS = """() => {
+  const f = document.createElement('iframe'); document.body.appendChild(f);
+  const blank = new Set(Object.getOwnPropertyNames(f.contentWindow)); f.remove();
+  const shared = new Set(['WorkshopTheme', 'EngClient', 'WorkshopSw', 'XLSX', 'cptable', 'make_xlsx_lib', 'DO_NOT_EXPORT_CODEPAGE']);
+  return Object.getOwnPropertyNames(window).filter(n => !blank.has(n) && !shared.has(n)).sort();
+}"""
+
+# Runs the SDK's browser backend (IndexedDB) in a page: the same rules as the agent's data API.
+SDK_BROWSER = """async () => {
+  const {connect} = await import('/shared/workshop-sdk.js');
+  const a = await connect({app: 'notes'}), b = await connect({app: 'notes'});
+  const out = {mode: a.mode, backend: a.backend, online: a.online};
+  out.empty = await a.data.get('pages');
+  let heard = null; b.data.subscribe('pages', e => { heard = e; });
+  let self = null; a.data.subscribe('pages', e => { self = e; });
+  const first = a.data.stamp(null, {schema: 'notes.pages', version: 1, rev: 0, items: [{id: 'p1', title: 'One'}]});
+  out.put1 = await a.data.put('pages', first);
+  await new Promise(r => setTimeout(r, 300));
+  out.heard = heard && heard.rev; out.self = self;
+  const read = await b.data.get('pages');
+  out.readRev = read.rev; out.updatedAt = typeof read.updatedAt;
+  try { await a.data.put('pages', first); out.conflict = 'none'; } catch (e) { out.conflict = e.code; out.currentRev = e.current && e.current.rev; }
+  try { await a.data.put('pages', {...read, version: 0}); } catch (e) { out.badVersion = e.code; }
+  try { await a.data.put('pages', {...read, schema: 'notes.other'}); } catch (e) { out.badSchema = e.code; }
+  const edited = b.data.stamp(read, {...structuredClone(read), items: [...read.items, {id: 'p2', title: 'Two'}]});
+  out.put2 = (await b.data.put('pages', edited)).rev;
+  const bundle = await a.data.export({apps: ['notes']});
+  out.bundle = [bundle.schema, bundle.collections.length, bundle.source.backend];
+  bundle.collections.push({app: 'notes', collection: 'drafts', envelope: {...structuredClone(bundle.collections[0].envelope), schema: 'notes.drafts'}});
+  out.imported = await a.data.import(bundle);
+  out.connectors = await a.connectors.list();
+  try { await a.connectors.call('ado', 'sync'); } catch (e) { out.callCode = e.code; }
+  return out;
+}"""
+
+
+def browser_mode_checks(ctx, pg, frame, watch):
+    """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
+    rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
+    check('rail is built from the app registry', rail == ['prioritizer', 'dashboard', 'settings'])
+    check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
+    check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
+
+    pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Control+k'); pg.wait_for_timeout(300)
+    check('Ctrl+K inside an app opens the shell palette, not the app\'s own', pg.locator('.cmdk-input').is_visible() and not frame.evaluate("document.getElementById('cmd').classList.contains('open')"))
+    pg.keyboard.type('add a task'); pg.keyboard.press('Enter'); pg.wait_for_timeout(400)
+    check('a palette command reaches the app through the SDK', frame.evaluate("document.getElementById('cmd').classList.contains('open')"))
+    frame.press('#cmdInput', 'Escape'); pg.wait_for_timeout(200)
+
+    tid = frame.evaluate("window.__prioritizer.state.tasks.find(t => t.title === 'Fix login').id")
+    pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
+    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/')
+    frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
+
+    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
+    check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
+    check('Settings in browser mode offers only data', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
+    check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
+
+    b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
+    b2 = ctx.new_page(); watch(b2); b2.goto(HUB + '/apps/settings/'); b2.wait_for_timeout(500)
+    b2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+      window.__heard = []; ws.data.subscribe('pages', e => window.__heard.push(e.rev)); }""")
+    r = b1.evaluate(SDK_BROWSER)
+    check('SDK picks browser mode with no agent', [r['mode'], r['backend'], r['online']] == ['browser', 'browser', False])
+    check('browser backend: a new collection reads as null', r['empty'] is None)
+    check('browser backend: put sets rev and updatedAt like the agent', r['put1'] and r['put1']['rev'] == 1 and r['readRev'] == 1 and r['updatedAt'] == 'string')
+    check('browser backend: a stale rev is a conflict with the stored copy', r['conflict'] == 'conflict' and r['currentRev'] == 1)
+    check('browser backend: lower version and wrong schema are refused', r.get('badVersion') == 'downgrade' and r.get('badSchema') == 'bad_request')
+    check('browser backend: other clients hear writes, the writer does not', r['heard'] == 1 and r['self'] is None and r['put2'] == 2)
+    check('browser backend: another tab hears writes (BroadcastChannel)', b2.evaluate('window.__heard') == [1, 2, 3])  # 3: the import merges pages
+    check('browser backend: export and import bundles', r['bundle'] == ['workshop.bundle', 1, 'browser'] and r['imported'] == {'created': 1, 'merged': 1})
+    check('browser backend: connectors are unavailable', r['connectors'] == [] and r['callCode'] == 'unavailable')
+    b1.close(); b2.close()
+
+    cached = pg.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
+      const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return [];
+      return (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname); }""")
+    check('service worker precaches every app\'s files from the registry', '/apps/prioritizer/js/people.js' in cached and '/apps/settings/js/forms.js' in cached and '/apps/settings/icon.svg' in cached)
+    check('service worker caches nothing under /api', not any(p.startswith('/api') for p in cached))
+    pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
+
+
+def start_agent(tmp, config=None):
+    """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
+    apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
+    for name in ('prioritizer', 'settings'):
+        shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
+    for name in ('notes', 'board'):
+        shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
+    board = os.path.join(apps, 'board', 'app.json')
+    with open(board) as f: m = json.load(f)
+    m['order'] = 50  # after the repo's apps, so Prioritizer stays home
+    with open(board, 'w') as f: json.dump(m, f)
+    shutil.copytree(os.path.join(ROOT, 'connectors', 'ado'), os.path.join(conns, 'ado'))
+    shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'connectors', 'echo'), os.path.join(conns, 'echo'))
+    os.makedirs(home)
+    if config:
+        with open(os.path.join(home, 'config.json'), 'w') as f: json.dump(config, f)
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e-agent.mjs'), '--home', home, '--apps', apps, '--connectors', conns, '--env', 'ECHO_TOKEN=x'],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    info = json.loads(proc.stdout.readline())
+    return proc, info['url'], info['token'], home
+
+
+def agent_checks(b, watch):
+    """Parts 2 and 3: the real agent (local mode), and a hosted page paired with it."""
+    tmp = tempfile.mkdtemp()
+    hosted = 'http://localhost:8803'
+    proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [hosted],
+                                               'features': {'startAtLogin': False, 'hostedMode': True}, 'connectors': {}})
+    try:
+        ctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        streams = []
+        ctx.on('request', lambda r: streams.append(r.url) if '/api/events' in r.url else None)
+        ap = ctx.new_page(); watch(ap)
+        ap.goto(f'{url}/?token={token}'); ap.wait_for_timeout(1500)
+        check('agent page runs in local mode', ap.evaluate('document.documentElement.dataset.mode') == 'local')
+        rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
+        check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'dashboard', 'notes', 'board', 'settings'])
+        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Prioritizer · Workshop')
+        pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
+        check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
+        ap.keyboard.press('Alt+3'); ap.wait_for_timeout(800)
+        check('the sample app opens in a frame', any(f.url.endswith('/apps/notes/index.html') for f in ap.frames))
+        ap.keyboard.press('Alt+4'); ap.wait_for_timeout(800)
+        check('an app whose required connector is off shows a notice', 'Board needs Echo' in ap.inner_text('#pane-board') and not any('/apps/board/' in f.url for f in ap.frames))
+
+        ap.keyboard.press('Alt+5'); ap.wait_for_timeout(1500)
+        sf = next(f for f in ap.frames if '/apps/settings/' in f.url)
+        echo = sf.locator('.conn[data-connector=echo]')
+        check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').inner_text() == 'Off')
+        echo.locator('[data-enable]').check(); ap.wait_for_timeout(1200)
+        check('turning a connector on starts it', echo.locator('[data-state]').inner_text() == 'Ready')
+        echo.locator('summary').click(); ap.wait_for_timeout(600)
+        greeting = echo.get_by_label('Greeting (required)', exact=True)
+        check('a connector form is generated from its configSchema', greeting.input_value() == 'Hello' and echo.locator('select').count() == 1 and echo.locator('.cfg-env-status').inner_text() == 'set on this computer')
+        greeting.fill('Hi from e2e'); echo.locator('form.cfg button.btn.primary').click(); ap.wait_for_timeout(1000)
+        with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
+        check('connector settings save to config.json', saved['connectors']['echo']['config'].get('greeting') == 'Hi from e2e')
+        echo.locator('[data-test] input').fill('ping'); echo.locator('[data-test] button').click(); ap.wait_for_timeout(800)
+        check('the Test field runs the connector and shows the answer', 'ping' in echo.locator('.test-out').inner_text())
+
+        ado = sf.locator('.conn[data-connector=ado]')
+        ado.locator('summary').click(); ap.wait_for_timeout(800)
+        legends = ado.locator('legend').all_inner_texts()
+        check('the ADO form has connections and repo and path mapping', 'Connections' in legends and 'Repo and path mapping' in legends)
+        conn = ado.locator('fieldset', has=sf.locator('legend', has_text='Connections')).first
+        conn.locator('> .cfg-add').click(); ap.wait_for_timeout(200)
+        item = conn.locator('.cfg-item').first
+        item.get_by_label('Name (required)', exact=True).fill('work')
+        item.get_by_label('Server URL (required)', exact=True).fill('https://ado.example.com')
+        item.get_by_label('Collection (required)', exact=True).fill('Main')
+        pat = item.locator('.cfg-row', has=sf.get_by_label('PAT environment variable (required)', exact=True))
+        check('a PAT is never typed in: only the variable name', pat.locator('input').input_value() == 'ADO_PAT' and pat.locator('input[type=password]').count() == 0 and pat.locator('.cfg-env-status').inner_text() == 'save to check')
+        ado.locator('form.cfg > .acts button.primary').click(); ap.wait_for_timeout(1200)
+        with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
+        conns = saved['connectors'].get('ado', {}).get('config', {}).get('connections', [])
+        check('the ADO mapping saves to config.json', len(conns) == 1 and conns[0]['serverUrl'] == 'https://ado.example.com' and 'ADO_PAT' not in json.dumps({k: v for k, v in os.environ.items() if k == 'ADO_PAT'}))
+        check('after saving, the form says whether the variable is set', ado.locator('.cfg-env-status').first.inner_text() == 'not set on this computer')
+
+        ap.keyboard.press('Alt+4'); ap.wait_for_timeout(1200)
+        check('turning on its connector lets the app load', any('/apps/board/' in f.url for f in ap.frames))
+
+        p1 = ctx.new_page(); watch(p1); p1.goto(url + '/apps/settings/'); p1.wait_for_timeout(600)
+        p2 = ctx.new_page(); watch(p2); p2.goto(url + '/apps/settings/'); p2.wait_for_timeout(600)
+        p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+          window.__heard = []; ws.data.subscribe('pages', e => window.__heard.push(e.rev)); await new Promise(r => setTimeout(r, 500)); }""")
+        rev = p1.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+          const env = ws.data.stamp(null, {schema: 'notes.pages', version: 1, rev: 0, items: [{id: 'a', title: 'A'}]});
+          return (await ws.data.put('pages', env)).rev; }""")
+        p2.wait_for_timeout(800)
+        check('agent backend: other pages hear writes through the event stream', rev == 1 and p2.evaluate('window.__heard') == [1])
+        check(f'one event stream for every app and window, not one each ({len(streams)} opened)', len(streams) == 1)
+        with open(os.path.join(home, 'data', 'notes', 'pages.json')) as f:
+            check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
+        cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
+          const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
+          return (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname); }""")
+        check('on the agent, the service worker caches apps from /api/apps and nothing under /api', cached is not None and '/apps/notes/index.html' in cached and not any(p.startswith('/api') for p in cached))
+        ctx.close()
+
+        # Part 3: hosted. The static site on another origin, paired with the agent.
+        serve(8803, functools.partial(Static, directory=ROOT))
+        hctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        hp = hctx.new_page(); watch(hp)
+        hp.goto(hosted + '/manifest.webmanifest')
+        hp.evaluate(f"localStorage.setItem('workshop.agent', JSON.stringify({{url: '{url}', token: '{token}'}}))")
+        hp.goto(hosted + '/#/settings'); hp.wait_for_timeout(2000)
+        check('a paired hosted page runs in hosted mode', hp.evaluate('document.documentElement.dataset.mode') == 'hosted')
+        hs = next((f for f in hp.frames if '/apps/settings/' in f.url), None)
+        check('hosted Settings is read-only and says where to change it', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
+              and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn').count() == 2)
+        put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
+          try { await ws.config.put({features: {startAtLogin: true}}); return 'saved'; } catch (e) { return e.code; } }""") if hs else None
+        check('the agent refuses config changes from a hosted page', put == 'local_only')
+        hctx.close()
+    finally:
+        proc.terminate(); proc.wait(10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     serve(8802, functools.partial(Static, directory=ROOT))
     serve(4300, Mock)
@@ -102,9 +312,9 @@ def main():
         check('theme survives the rename', keys['workshop.theme'] == 'dracula' and pg.evaluate('document.documentElement.dataset.theme') == 'dracula')
         check('dashboard settings survive the rename', json.loads(keys['workshop.eng'] or '{}') == {'on': False, 'port': 4300})
         check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None and keys['em.eng'] is None)
-        check('old globals are gone', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !!window.WorkshopHub && !!window.WorkshopTheme && !!window.WorkshopSw"))
+        check('old globals are gone', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !!window.WorkshopHub && !!window.WorkshopTheme && !!window.WorkshopSw"))
         check('opens on Prioritizer at the plain address', pg.url == HUB + '/' and pg.title() == 'Prioritizer · Workshop')
-        frame = next(f for f in pg.frames if f.url.endswith('/prioritizer/'))
+        frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dracula')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
@@ -139,9 +349,12 @@ def main():
         pg.click('[data-eng=settings]'); pg.click('[data-eng=off]'); pg.wait_for_timeout(300)
         check('Disconnect turns stages off', pg.evaluate("JSON.parse(localStorage.getItem('workshop.eng')).on") is False)
 
+        browser_mode_checks(ctx, pg, frame, watch)
+
         sp = ctx.new_page(); watch(sp)
-        sp.goto(HUB + '/prioritizer/'); sp.wait_for_timeout(600)
+        sp.goto(HUB + '/apps/prioritizer/'); sp.wait_for_timeout(600)
         check('Prioritizer still works on its own', sp.locator('#themeBtn').is_visible() and sp.locator('#snav .sitem').count() == 6)
+        check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)
         check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
@@ -149,13 +362,15 @@ def main():
         # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
         check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Inter', 'JetBrains Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
         check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
-        with sp.expect_download() as dl: sp.evaluate('exportXlsx()')
+        with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
         xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
         with open(xlsx, 'rb') as f: check('Excel export writes an xlsx file', f.read(2) == b'PK')
         sp.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fix login'); P.commit(); }")
         sp.set_input_files('#importFile', xlsx); sp.wait_for_timeout(500)
         sp.click('[data-imp=replace]'); sp.wait_for_timeout(300)
         check('Excel import restores the exported tasks', sp.evaluate(tasks) == before)
+
+        agent_checks(b, watch)
 
         check('no page errors', not errors)
         if errors: print('  ' + '\n  '.join(errors))

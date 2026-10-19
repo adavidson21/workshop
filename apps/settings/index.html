@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="slate">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this site, plus the local helpers on 127.0.0.1 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Settings</title>
+<meta name="theme-color" content="#F7F7F8">
+<!-- sets the theme before first paint so there is no flash -->
+<script src="../../shared/theme.js"></script>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<link rel="icon" type="image/svg+xml" href="../../icons/favicon.svg">
+<link rel="stylesheet" href="../../shared/themes.css">
+<link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<main class="wrap" id="app">
+  <header class="shead">
+    <h1>Settings</h1>
+    <p class="sub" id="modeNote"></p>
+  </header>
+  <div id="content" aria-live="polite"></div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/settings.js"></script>
+</body>
+</html>

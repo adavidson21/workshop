@@ -10,7 +10,9 @@
   function register(ask) {
     if (!ok()) return;
     let reloading = false;
-    window.addEventListener('load', () => {
+    // Module pages (the shell) may call this after the load event has fired.
+    const whenLoaded = fn => (document.readyState === 'complete' ? fn() : window.addEventListener('load', fn));
+    whenLoaded(() => {
       navigator.serviceWorker.register(new URL('sw.js', root).href, {scope: root.pathname}).then(reg => {
         const prompt = w => ask('New version available', 'Reload', () => { reloading = true; w.postMessage('skipWaiting'); });
         if (reg.waiting && navigator.serviceWorker.controller) prompt(reg.waiting);

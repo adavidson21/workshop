@@ -1,4 +1,4 @@
-// Small helpers ported from prioritizer/ado-helper/ado_helper.py. They copy Python's behavior on purpose
+// Small helpers ported from apps/prioritizer/ado-helper/ado_helper.py. They copy Python's behavior on purpose
 // (truthiness, int(), quote()) so the connector produces the same JSON as the helper.
 
 /** Python truthiness: None, False, 0, '', empty list and empty dict are false. */

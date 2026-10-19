@@ -12,6 +12,8 @@ jobs:
       - run: node tests/check-themes.mjs
       - run: node tests/check-offline.mjs
       - run: node tests/check-contracts.mjs
+      - run: node shell/registry.mjs --check
+      - run: node --test "shared/test/*.test.mjs"
       - run: node --test "tests/contract/*.test.mjs"
       - run: node --test "connectors/*/test/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
@@ -35,6 +37,6 @@ jobs:
         run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./agent/test/github-reporter.mjs --test-reporter-destination=stdout "tests/contract/*.test.mjs"
         env:
           WORKSHOP_TARGET: agent/test-target.mjs
-      - name: ADO connector tests
+      - name: Connector tests
         if: ${{ !cancelled() }}
         run: node --test "connectors/*/test/*.test.mjs"

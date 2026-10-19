@@ -1,34 +1,75 @@
 #!/usr/bin/env node
-// Checks that every local script and stylesheet the pages load is in sw.js SHELL, so the installed
-// app works offline, and that every SHELL entry exists. Exit 1 if not. Node 18+, no dependencies.
+// Checks that the installed app works offline: everything the shell page and each app's page load is
+// precached by sw.js. The shell and shared/ must be in CORE in sw.js; an app's own files must be its entry,
+// its icon, or listed in its app.json "files" (sw.js caches those from the app registry). ES module imports
+// are followed, so every module an app imports is covered too. Also checks that every listed file exists.
+// Exit 1 if not. Node 22, no dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PAGES = ['index.html', 'prioritizer/index.html'];
-
-// Evaluate sw.js with stub worker globals to read SHELL.
-const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-const ctx = {self: {addEventListener() {}}, caches: {}, location: {origin: 'https://x'}, fetch() {}, Request: class {}, Response: {}, URL};
-vm.runInNewContext(sw + '\nthis.__SHELL = SHELL;', ctx);
-const shell = new Set(ctx.__SHELL.map(u => path.normalize(u.replace(/^\.\//, '')).replace(/\/?$/, m => m)));
-
+const rel = f => path.relative(root, f).split(path.sep).join('/');
 const errors = [];
-for (const u of ctx.__SHELL) {
-  const f = path.join(root, u.endsWith('/') ? u + 'index.html' : u);
-  if (!fs.existsSync(f)) errors.push(`sw.js lists ${u}, which does not exist.`);
+
+// Evaluate sw.js with stub worker globals to read CORE.
+const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const ctx = { self: { addEventListener() {}, location: new URL('https://x/sw.js') }, caches: {}, location: { origin: 'https://x' }, fetch() {}, Request: class {}, Response: {}, URL };
+vm.runInNewContext(sw + '\nthis.__CORE = CORE;', ctx);
+const norm = u => u.replace(/^\.\//, '').replace(/^$/, 'index.html').replace(/\/$/, '/index.html');
+const core = new Set(ctx.__CORE.map(norm));
+for (const u of ctx.__CORE) if (!fs.existsSync(path.join(root, norm(u)))) errors.push(`sw.js CORE lists ${u}, which does not exist.`);
+
+// Apps, from the static registry (the shell and sw.js read the same list; CI checks it is current).
+const registry = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'registry.json'), 'utf8'));
+const pages = [{ page: 'index.html', owned: null }];
+for (const a of registry.apps) {
+  const base = a.base.replace(/^\//, '');
+  const m = a.manifest;
+  const owned = new Set([base + (m.entry || 'index.html'), base + (m.icon || 'icon.svg'), ...(m.files || []).map(f => base + f)]);
+  for (const f of owned) if (!fs.existsSync(path.join(root, f))) errors.push(`${base}app.json lists ${f.slice(base.length)}, which does not exist.`);
+  pages.push({ page: base + (m.entry || 'index.html'), base, owned, id: m.id });
 }
-for (const page of PAGES) {
-  const html = fs.readFileSync(path.join(root, page), 'utf8');
-  const refs = [...html.matchAll(/<(?:script[^>]*\ssrc|link[^>]*\shref)="([^"]+)"/g)].map(m => m[1]).filter(u => !/^(https?:)?\/\//.test(u));
-  for (const ref of refs) {
-    const rel = path.normalize(path.join(path.dirname(page), ref));
-    if (!fs.existsSync(path.join(root, rel))) errors.push(`${page} loads ${ref}, which does not exist.`);
-    else if (!shell.has(rel)) errors.push(`${page} loads ${ref}; add ./${rel} to SHELL in sw.js.`);
+
+function covered(file, app) {
+  if (app && file.startsWith(app.base)) {
+    if (!app.owned.has(file)) errors.push(`${app.page} needs ${file}; add "${file.slice(app.base.length)}" to "files" in ${app.base}app.json.`);
+  } else if (!core.has(file)) errors.push(`${app ? app.page : 'index.html'} needs ${file}; add ./${file} to CORE in sw.js.`);
+}
+
+// Follow static imports from a module, recursively.
+function walkModule(file, app, seen) {
+  if (seen.has(file)) return;
+  seen.add(file);
+  const abs = path.join(root, file);
+  if (!fs.existsSync(abs)) { errors.push(`${file} is imported but does not exist.`); return; }
+  covered(file, app);
+  const src = fs.readFileSync(abs, 'utf8');
+  for (const m of src.matchAll(/^(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|^import\s*['"]([^'"]+)['"]/gm)) {
+    const spec = m[1] || m[2];
+    if (!spec.startsWith('.')) continue;
+    walkModule(rel(path.resolve(path.dirname(abs), spec)), app, seen);
   }
 }
 
-if (errors.length) { console.error('Offline cache list is out of date:\n- ' + errors.join('\n- ')); process.exit(1); }
-console.log(`offline ok: ${ctx.__SHELL.length} files cached, every page asset covered`);
+for (const p of pages) {
+  const html = fs.readFileSync(path.join(root, p.page), 'utf8');
+  const app = p.owned ? p : null;
+  const seen = new Set();
+  for (const m of html.matchAll(/<(script|link)\b([^>]*)>/g)) {
+    const attrs = m[2];
+    const ref = (attrs.match(/\s(?:src|href)="([^"]+)"/) || [])[1];
+    if (!ref || /^(https?:)?\/\//.test(ref) || /\brel="(?:manifest|icon|apple-touch-icon)"/.test(attrs)) {
+      if (ref && /\brel="(?:manifest|icon|apple-touch-icon)"/.test(attrs) && !fs.existsSync(path.join(root, path.dirname(p.page), ref))) errors.push(`${p.page} links ${ref}, which does not exist.`);
+      continue;
+    }
+    const file = rel(path.resolve(root, path.dirname(p.page), ref));
+    if (!fs.existsSync(path.join(root, file))) { errors.push(`${p.page} loads ${ref}, which does not exist.`); continue; }
+    if (m[1] === 'script' && /\btype="module"/.test(attrs)) walkModule(file, app, seen);
+    else covered(file, app);
+  }
+}
+
+if (errors.length) { console.error('Offline cache list is out of date:\n- ' + [...new Set(errors)].join('\n- ')); process.exit(1); }
+console.log(`offline ok: ${core.size} core files, ${registry.apps.length} apps, every page asset and module covered`);

@@ -1,5 +1,5 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
-// prioritizer/ado-helper/ado_helper.py. Read-only. See connectors/ado/README.md.
+// apps/prioritizer/ado-helper/ado_helper.py. Read-only. See connectors/ado/README.md.
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
 import { dataset } from './lib/dataset.mjs';

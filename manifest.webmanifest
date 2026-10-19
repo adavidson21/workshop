@@ -20,7 +20,7 @@
     {"name": "Dashboard", "url": "./#/dashboard", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]}
   ],
   "screenshots": [
-    {"src": "screenshots/wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Prioritizer: today's short list and what's up next"},
-    {"src": "screenshots/narrow.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Prioritizer on a phone"}
+    {"src": "shared/screenshots/wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Prioritizer: today's short list and what's up next"},
+    {"src": "shared/screenshots/narrow.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Prioritizer on a phone"}
   ]
 }

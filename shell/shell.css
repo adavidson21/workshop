@@ -17,6 +17,38 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
 .app-btn.on{background:var(--accent-soft);color:var(--ink)}
 .app-btn.on::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
 .app-btn .lbl{line-height:1.1}
+.app-btn .ico{display:flex}
+.app-btn .ico svg{width:19px;height:19px}
+.app-btn .badge{position:absolute;top:4px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:.6rem;font-weight:700;line-height:16px;text-align:center}
+
+/* command palette (Ctrl+K) */
+.cmdk{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center}
+.cmdk-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28);z-index:-1}
+.cmdk-box{margin-top:12vh;width:min(560px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
+.cmdk-input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;padding:.9rem 1rem;font:400 15px var(--sans);outline:none}
+.cmdk-list{list-style:none;margin:0;padding:.3rem;max-height:46vh;overflow:auto}
+.cmdk-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem .7rem;border-radius:8px;cursor:pointer}
+.cmdk-list li.on{background:var(--accent-soft)}
+.cmdk-list li:hover{background:var(--hover)}
+.cmdk-app{font-size:.75rem;color:var(--muted)}
+.cmdk-empty{color:var(--muted);cursor:default}
+.cmdk-empty:hover{background:none}
+.cmdk-box.pair{padding:1.1rem 1.25rem}
+.cmdk-box.pair h2{margin:0 0 .4rem;font-size:1.05rem}
+.cmdk-box.pair p{margin:0 0 .8rem;color:var(--muted);font-size:.88rem}
+.cmdk-box.pair label{display:flex;align-items:center;gap:.6rem;font-size:.88rem}
+.cmdk-box.pair input{width:7rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.cmdk-box.pair .acts{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}
+
+/* a pane that cannot load its app (a required connector is missing), or an empty app list */
+.notice{margin:12vh auto 0;max-width:30rem;padding:0 1.5rem;text-align:center}
+.notice h2{font-size:1.15rem;margin:0 0 .4rem}
+.notice p{color:var(--muted);margin:.3rem 0 .9rem}
+.notice a.btn{text-decoration:none}
+
+/* toast kinds from the SDK */
+.toast[data-kind=warn]{border-left:3px solid var(--warn)}
+.toast[data-kind=error]{border-left:3px solid var(--danger)}
 
 /* panes: every app keeps its own pane, so switching apps keeps their state */
 .panes{position:relative;min-width:0;min-height:0}

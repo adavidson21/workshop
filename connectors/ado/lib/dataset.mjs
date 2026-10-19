@@ -1,4 +1,4 @@
-// "dataset": port of dataset() in prioritizer/ado-helper/ado_helper.py.
+// "dataset": port of dataset() in apps/prioritizer/ado-helper/ado_helper.py.
 //
 // Read-only raw data for the Reports view, for a whole team rather than just you. The app computes
 // every report from this one pull, so new reports need no connector change.

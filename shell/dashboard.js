@@ -125,5 +125,5 @@
     }
   }
 
-  window.EmDashboard = {mount, show, hide};
+  window.WorkshopDashboard = {mount, show, hide};
 })();

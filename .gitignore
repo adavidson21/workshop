@@ -1,5 +1,5 @@
 __pycache__/
 *.pyc
-prioritizer/ado-helper/ado-helper.json
-prioritizer/ado-helper/ado-helper.log
+apps/prioritizer/ado-helper/ado-helper.json
+apps/prioritizer/ado-helper/ado-helper.log
 .DS_Store

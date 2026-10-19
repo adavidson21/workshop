@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-theme="slate">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this site, plus the local helpers on 127.0.0.1 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Prioritizer</title>
+<meta name="theme-color" content="#F7F7F8">
+<!-- sets the theme before first paint so there's no flash -->
+<script src="../../shared/theme.js"></script>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/vendor/xlsx.full.min.js" defer></script>
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="../../icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../../icons/app-touch-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prioritizer">
+<link rel="stylesheet" href="../../shared/themes.css">
+<link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side" aria-label="Sidebar">
+    <div class="sbrand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="var(--on-accent)"><rect x="5" y="5" width="6.2" height="6.2" rx="1.8"/><path d="M6.6 8.3l1.2 1.1 2-2.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><rect x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/></g></svg></span><b>Prioritizer</b>
+      <button class="ibtn collapse-btn" id="collapseBtn" aria-label="Collapse sidebar" data-tip="Collapse sidebar">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/></svg>
+      </button>
+    </div>
+    <nav class="snav" id="snav" aria-label="Views"></nav>
+    <div class="ssec"><span>Scope</span><button class="ibtn" id="addList" aria-label="New list" data-tip="New list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button></div>
+    <div class="slists" id="slists"></div>
+    <div class="sfoot">
+      <button class="ibtn" id="syncBtn" aria-label="Save to folder" data-sync="off">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M2.75 6.25a1.5 1.5 0 0 1 1.5-1.5h3.4l1.6 1.75h6.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H4.25a1.5 1.5 0 0 1-1.5-1.5z"/><path class="mk-ok" d="M7.25 11.25l2 2 3.5-3.75"/><path class="mk-x" d="M8.25 9.5l3.5 3.5M11.75 9.5l-3.5 3.5"/></svg>
+      </button>
+      <button class="ibtn" id="adoBtn" aria-label="Azure DevOps sync" data-ado="off">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9.5A6 6 0 0 0 5.2 6.2M4 10.5a6 6 0 0 0 10.8 3.3"/><path d="M16.3 4.8v4.7h-4.6M3.7 15.2v-4.7h4.6"/><path class="mk-x" d="M8.6 8.6l2.8 2.8M11.4 8.6l-2.8 2.8"/></svg>
+      </button>
+      <span class="grow"></span>
+      <button class="ibtn" id="helpBtn" aria-label="Keyboard shortcuts" data-tip="Keyboard shortcuts (?)">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="15" height="10" rx="2"/><path d="M6 8.5h.01M9 8.5h.01M12 8.5h.01M15 8.5h.01M7 12h6"/></svg>
+      </button>
+      <button class="ibtn" id="themeBtn" aria-label="Theme" data-tip="Theme">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor"/></svg>
+      </button>
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="page">
+    <header class="phead" id="phead"></header>
+    <main id="main"></main>
+  </div>
+  <div class="dscrim" id="dscrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Task details"></aside>
+</div>
+<div class="cmd" id="cmd">
+  <div class="backdrop" data-cmd-close></div>
+  <div class="box" role="dialog" aria-modal="true" aria-label="Add a task">
+    <div class="inrow">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+      <input id="cmdInput" placeholder="Add a task" aria-label="New task" autocomplete="off" enterkeyhint="done">
+      <button class="btn ghost" data-cmd-close>Done</button>
+    </div>
+    <div class="parsed" id="cmdParsed" aria-live="polite"></div>
+    <div class="help"><span><code>@name</code> person</span><span><code>!1</code> to <code>!4</code> value</span><span><code>!!</code> urgent</span><span><code>~xs</code> to <code>~xl</code> effort</span><span><code>^fri</code> due</span><span><code>#list</code> list</span><span><kbd>Enter</kbd> add</span><span><kbd>Esc</kbd> close</span></div>
+  </div>
+</div>
+<div class="modal" id="modal"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<!-- Shared with the shell: the theme helper (in <head>), the eng-agents client and the service
+     worker registration. These stay classic scripts, so WorkshopTheme, EngClient and WorkshopSw are
+     on window for the app modules to use. -->
+<script src="../../shared/eng-client.js"></script>
+<script src="../../shared/sw-register.js"></script>
+<!-- Prioritizer is one ES module graph now. main.js imports the rest, and reaches the shell, data
+     and connectors through the SDK (../../shared/workshop-sdk.js). -->
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

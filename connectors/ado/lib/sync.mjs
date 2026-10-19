@@ -1,4 +1,4 @@
-// "sync" and "sync.prs": ports of sync() and sync_prs() in prioritizer/ado-helper/ado_helper.py.
+// "sync" and "sync.prs": ports of sync() and sync_prs() in apps/prioritizer/ado-helper/ado_helper.py.
 // Output matches the helper's JSON so Prioritizer can switch from the helper to the agent unchanged.
 import { AdoError, clientFor } from './client.mjs';
 import { syncConnection, resolveConnection } from './config.mjs';
