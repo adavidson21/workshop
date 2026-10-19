@@ -64,6 +64,17 @@ The SDK sends `X-Workshop-Client` on every write and the token header on every a
 | `ws.connectors.call(id, action, args?, {confirm?})` | Runs an action. Resolves the action's `result`. For `write` actions pass `confirm: true`, and only from a user click that says what will happen. In browser mode rejects with `unavailable`. |
 | `ws.connectors.on(id, event, handler)` | Listens to `connector` events from that connector. `event` `*` matches all. Returns an unsubscribe function. |
 | `ws.connectors.onStatus(id, handler)` | Listens to `connector-status` for that connector. |
+| `ws.connectors.getConfig(id)` | That connector's settings, form schema and environment variable status, from `GET /api/connectors/<id>/config`. Works whether or not the connector is on. In browser mode rejects with `unavailable`. |
+| `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page rejects with `local_only`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
+
+### Settings
+
+For the Settings app. Other apps keep their own settings in their own data.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.config.get()` | The public view of `config.json` ([config.md](config.md)), from `GET /api/config`. In browser mode rejects with `unavailable`. |
+| `ws.config.put(patch)` | Changes features, allowed origins, connectors on and off, or the port (`PUT /api/config`). Resolves `{config, restartRequired}`. From a hosted page rejects with `local_only`. |
 
 ## Shell messages
 
