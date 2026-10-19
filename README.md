@@ -37,6 +37,25 @@ It installs per user from the browser, with no admin rights or executable. If In
 
 The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
 
+## Install and run the agent
+
+The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<port>`, keeps your data on disk, and hosts connectors. Node 22 or later, no admin rights, no npm install.
+
+1. Get the code: `git clone https://github.com/adavidson21/workshop` (or download the zip).
+2. Install, per user:
+   - macOS or Linux: `bash scripts/install.sh`
+   - Windows: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`
+   This checks Node, creates `~/.workshop`, and turns on start at login. Pass `--no-login` (or `-NoLogin` on Windows) to skip that part.
+3. Start it now: `node workshop.mjs start`, then open the address it prints in Chrome or Edge on this computer.
+
+Other commands:
+
+- `node workshop.mjs doctor` checks Node, `config.json`, the port, start at login and hosted mode. `node workshop.mjs doctor ado` checks the ADO connector.
+- `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
+- `node workshop.mjs update` updates this checkout. `node workshop.mjs uninstall` turns off start at login (your data stays in `~/.workshop`).
+
+Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
+
 ## Layout
 
 ```

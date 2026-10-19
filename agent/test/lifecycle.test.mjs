@@ -60,8 +60,10 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
 test('node agent/start.mjs starts the agent and prints the launcher address', { timeout: 20000 }, async () => {
   const home = tempHome();
   const port = await freePort();
+  // WORKSHOP_LOGIN_DIR sends any start-at-login launcher into the temp home, so this test never writes to
+  // the computer's real Startup folder, LaunchAgents or autostart.
   const child = spawn(process.execPath, [path.join(HERE, '..', 'start.mjs'), '--port', String(port), '--quiet'], {
-    env: { ...process.env, WORKSHOP_HOME: home }, stdio: ['ignore', 'pipe', 'pipe']
+    env: { ...process.env, WORKSHOP_HOME: home, WORKSHOP_LOGIN_DIR: path.join(home, 'login') }, stdio: ['ignore', 'pipe', 'pipe']
   });
   try {
     let out = '';

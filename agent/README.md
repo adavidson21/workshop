@@ -25,7 +25,7 @@ Everything it writes is in `~/.workshop/` (`%USERPROFILE%\.workshop` on Windows)
 | `data/_connectors/<id>/` | Each connector's private storage. |
 | `logs/agent.log` | The log. Moves to `agent.1.log` past 5 MB. Never holds the token, PATs or data contents. |
 
-Installers and start at login are WS7. Until then, start it by hand.
+The `workshop` command wraps this: `node workshop.mjs start` is the same as the above, and `scripts/install.sh` / `scripts/install.ps1` set up the home folder and start at login. See the top-level README and [docs/security.md](../docs/security.md).
 
 ## What it does and does not do
 

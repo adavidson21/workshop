@@ -35,7 +35,7 @@ for (let i = 0; i < args.length; i++) {
 const home = resolveHome();
 let agent;
 try {
-  agent = await createAgent({ home, port: opt.port, echoLog: opt.echoLog });
+  agent = await createAgent({ home, port: opt.port, echoLog: opt.echoLog, manageStartup: true });
 } catch (e) {
   console.error(e.message);
   process.exit(1);
