@@ -1,6 +1,9 @@
-// eng-agents live dashboard: Adapter for opencode 1.x (`opencode serve`).
+// opencode connector: adapter for opencode 1.x (`opencode serve`).
+//
+// Copied from eng-agents core/scripts/dashboard/server/opencode-v1.mjs. Change: the reload after
+// opencode disposes its instance stops with the connector.
 
-import { httpError, opt } from "./context.mjs";
+import { httpError, later, opt } from "./context.mjs";
 import { folderForArgs, linkFrom } from "./links.mjs";
 import { appendText, errText, httpJson, oc, permissions, questions, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 import { loadState } from "./opencode-connect.mjs";
@@ -189,7 +192,7 @@ export function makeV1(url) {
           break;
         case "server.instance.disposed":
         case "global.disposed":
-          setTimeout(() => loadState().then(broadcastLive, () => {}), 500);
+          later(() => loadState().then(broadcastLive, () => {}), 500);
           break;
         default:
           return false;

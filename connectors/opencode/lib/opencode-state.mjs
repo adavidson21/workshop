@@ -1,10 +1,12 @@
-// eng-agents live dashboard: Live opencode state shared by both server APIs (sessions, prompts, replies) and HTTP helpers.
+// opencode connector: live opencode state shared by both server APIs (sessions, prompts, replies) and HTTP helpers.
+//
+// Copied from eng-agents core/scripts/dashboard/server/opencode-state.mjs. Changes: resetState() for a
+// restart, `agent.done` events, timers and requests that stop with the connector.
 
 import { spawn } from "node:child_process";
-import { isWin, log, opt } from "./context.mjs";
-import { starting } from "./actions.mjs";
+import { cancel, ctx, isWin, later, log, opt } from "./context.mjs";
 import { autoOnBusy, autoOnIdle } from "./autopilot.mjs";
-import { broadcastLive } from "./live.mjs";
+import { broadcastLive, emitDone } from "./live.mjs";
 
 export const oc = {
   api: null, // the adapter in use
@@ -19,6 +21,17 @@ export const oc = {
 export const sessions = new Map(); // id -> { id, title, status, activity, text, textAt, busySince, error, command }
 export const permissions = new Map(); // id -> normalized request
 export const questions = new Map(); // id -> normalized request
+
+export function resetState() {
+  Object.assign(oc, { api: null, kind: null, url: null, connected: false, version: null, error: null, started: false, commands: new Set() });
+  sessions.clear();
+  permissions.clear();
+  questions.clear();
+  turnText.clear();
+  doneFor.clear();
+  cancel(promptsTimer);
+  promptsTimer = null;
+}
 
 export function upsertSession(id, patch) {
   if (!id) return {};
@@ -35,9 +48,16 @@ export function setBusy(sid) {
   autoOnBusy(sid);
 }
 
+const doneFor = new Map(); // session id -> busySince of the turn agent.done was sent for
 export function setIdle(sid, error) {
-  upsertSession(sid, { status: "idle", activity: null, ...(error !== undefined ? { error } : {}) });
-  oc.api.lastText(sid).then(broadcastLive, () => {});
+  const s = upsertSession(sid, { status: "idle", activity: null, ...(error !== undefined ? { error } : {}) });
+  if (oc.api) oc.api.lastText(sid).then(broadcastLive, () => {});
+  // One agent.done per turn: opencode 1.x reports idle twice (session.status, then session.idle).
+  if (s.busySince && doneFor.get(sid) !== s.busySince) {
+    doneFor.set(sid, s.busySince);
+    if (doneFor.size > 500) doneFor.delete(doneFor.keys().next().value);
+    emitDone(sid, s.error || null);
+  }
   autoOnIdle(sid);
 }
 
@@ -62,9 +82,9 @@ export function toolLine(name, input, title) {
 
 let promptsTimer = null;
 export function refreshPromptsSoon() {
-  clearTimeout(promptsTimer);
-  promptsTimer = setTimeout(() => {
-    oc.api.loadPrompts().then(broadcastLive, (e) => log("prompts:", e.message));
+  cancel(promptsTimer);
+  promptsTimer = later(() => {
+    if (oc.api) oc.api.loadPrompts().then(broadcastLive, (e) => log("prompts:", e.message));
   }, 120);
 }
 
@@ -73,12 +93,14 @@ export function refreshPromptsSoon() {
 export async function httpJson(url, { method = "GET", body, headers = {}, timeout = 15000 } = {}) {
   const ctrl = new AbortController();
   const t = timeout ? setTimeout(() => ctrl.abort(), timeout) : null;
+  // Stopping the connector aborts every request to opencode (ctx.signal).
+  const signal = ctx && ctx.signal ? AbortSignal.any([ctrl.signal, ctx.signal]) : ctrl.signal;
   try {
     const r = await fetch(url, {
       method,
       headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...headers },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: ctrl.signal,
+      signal,
     });
     const text = await r.text();
     let data = null;

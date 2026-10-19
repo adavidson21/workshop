@@ -1,4 +1,7 @@
-// eng-agents live dashboard: Adapter for the opencode 2.x background service (/api routes).
+// opencode connector: adapter for the opencode 2.x background service (/api routes).
+//
+// Copied from eng-agents core/scripts/dashboard/server/opencode-v2.mjs. Change: the user name comes
+// from the connector config (usernameEnv) instead of OPENCODE_SERVER_USERNAME directly.
 
 import { httpError, inWorkspace, opt } from "./context.mjs";
 import { folderForArgs, folderForPrompt, linkFrom } from "./links.mjs";
@@ -6,7 +9,7 @@ import { appendText, errText, httpJson, oc, permissions, questions, refreshPromp
 
 export function makeV2(url, password) {
   const base = url.replace(/\/+$/, "");
-  const auth = password ? { authorization: "Basic " + Buffer.from(`${process.env.OPENCODE_SERVER_USERNAME || "opencode"}:${password}`).toString("base64") } : {};
+  const auth = password ? { authorization: "Basic " + Buffer.from(`${opt.username || "opencode"}:${password}`).toString("base64") } : {};
   const loc = () => `location%5Bdirectory%5D=${encodeURIComponent(opt.workspace)}`;
   const call = (p, o = {}) => httpJson(base + p, { ...o, headers: { ...auth, ...(o.headers || {}) } });
   const wsSessions = new Set(); // sessions in this workspace

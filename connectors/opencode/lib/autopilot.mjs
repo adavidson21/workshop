@@ -1,13 +1,17 @@
-// eng-agents live dashboard: Autopilot: runs approve, tasks, do-task, review and pr in order, each in a new session, and stops when it needs the engineer.
+// opencode connector: autopilot. Runs approve, tasks, do-task, review and pr in order, each in a new
+// session, and stops when it needs the engineer.
+//
+// Copied from eng-agents core/scripts/dashboard/server/autopilot.mjs. Changes: autopilot.json is read by
+// loadAuto() on each start; status changes also send an `autopilot` event. The rules are unchanged.
 
 import fs from "node:fs";
 import path from "node:path";
-import { httpError, log, stateDir } from "./context.mjs";
-import { model, runModel, setModel } from "./model.mjs";
+import { current, httpError, later, log, stateDir } from "./context.mjs";
+import { runModel, setModel } from "./model.mjs";
 import { currentSession, linkSessionsFromModel } from "./links.mjs";
 import { sessions } from "./opencode-state.mjs";
 import { findItem, needOpencode, parseCommand, runCommand } from "./actions.mjs";
-import { broadcast, broadcastLive, pageData } from "./live.mjs";
+import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
 
 //
 // Runs the build half of the pipeline for one work item without you switching sessions:
@@ -23,7 +27,7 @@ import { broadcast, broadcastLive, pageData } from "./live.mjs";
 // Permission prompts and agent questions do not stop it: the step waits for your answer on the page.
 // Replying to the agent in a waiting step's session resumes it.
 
-const autoFile = path.join(stateDir, "autopilot.json");
+const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["approve", "tasks", "do-task", "review", "pr"]);
 const MAX_FIX_ROUNDS = 2;
 
@@ -31,26 +35,29 @@ const MAX_FIX_ROUNDS = 2;
 //                 approveFirst, fixRounds, started, updated, log: [{ at, text }] } }
 // status: "running" | "waiting" (needs you) | "done" | "stopped"
 export let autopilot = {};
-try {
-  autopilot = JSON.parse(fs.readFileSync(autoFile, "utf8")) || {};
-} catch {
-  autopilot = {};
-}
-for (const a of Object.values(autopilot)) {
-  if (a.status === "running") {
-    a.status = "waiting";
-    a.inFlight = false;
-    a.message = "The dashboard restarted. Click Resume to carry on.";
+export function loadAuto() {
+  stepping.clear();
+  try {
+    autopilot = JSON.parse(fs.readFileSync(autoFile(), "utf8")) || {};
+  } catch {
+    autopilot = {};
   }
+  for (const a of Object.values(autopilot)) {
+    if (a.status === "running") {
+      a.status = "waiting";
+      a.inFlight = false;
+      a.message = "Workshop restarted the opencode connector. Click Resume to carry on.";
+    }
+  }
+  try {
+    if (Object.keys(autopilot).length) saveAuto();
+  } catch {}
 }
-try {
-  if (Object.keys(autopilot).length) saveAuto();
-} catch {}
 
 export function saveAuto() {
-  const tmp = autoFile + ".tmp";
+  const tmp = autoFile() + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(autopilot, null, 2));
-  fs.renameSync(tmp, autoFile);
+  fs.renameSync(tmp, autoFile());
 }
 
 export function autoActive(folder) {
@@ -74,6 +81,7 @@ function autoSet(folder, status, message) {
   a.inFlight = false;
   autoLog(folder, message || status);
   saveAuto();
+  emitAutopilot(folder, status, a.message);
   broadcastLive();
 }
 
@@ -94,11 +102,13 @@ async function autoStep(folder, finished = false) {
   stepping.add(folder);
   try {
     // Fresh read of .work, not the debounced one: the step that just ended may have written files.
+    const alive = current(() => true);
     const r = await runModel();
+    if (!alive()) return;
     if (r.error) return autoSet(folder, "waiting", `Could not read .work: ${r.error}`);
     setModel(r.data);
     linkSessionsFromModel();
-    broadcast("model", pageData());
+    emitModel();
 
     const it = findItem(folder);
     if (!it || it.kind !== "item") return autoSet(folder, "stopped", "The work item folder is gone.");
@@ -166,7 +176,7 @@ export function autoOnIdle(sid) {
   a.inFlight = false;
   saveAuto();
   // Give the agent's last file writes and the error event (opencode 1.x) a moment to land.
-  setTimeout(() => autoStep(folder, true), 1500);
+  later(() => autoStep(folder, true), 1500);
 }
 
 export function autoOnFail(sid, msg) {
@@ -184,6 +194,7 @@ export function autoOnReply(sid) {
   a.sawBusy = false;
   autoLog(folder, "Resumed by your reply");
   saveAuto();
+  emitAutopilot(folder, "running", null);
 }
 
 export async function autopilotAction({ folder, action }) {
@@ -230,6 +241,7 @@ export async function autopilotAction({ folder, action }) {
     autoLog(folder, action === "approve-start" ? "Started: approve, then build" : "Started");
   }
   saveAuto();
+  emitAutopilot(folder, "running", null);
   broadcastLive();
   await autoStep(folder);
   const now = autopilot[folder];

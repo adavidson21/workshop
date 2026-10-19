@@ -1,10 +1,14 @@
-// eng-agents live dashboard: Finding and connecting to opencode, loading its state, and following its event stream.
+// opencode connector: finding and connecting to opencode, loading its state, and following its event stream.
+//
+// Copied from eng-agents core/scripts/dashboard/server/opencode-connect.mjs. Changes: the 2.x password
+// comes from the environment variable named in the config (ctx.env); opencode must be on this computer;
+// reconnects, the event stream and a 1.x `opencode serve` this connector started all stop with it.
 
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { V1_DEFAULT_URL, isWin, log, opt, sleep, stateDir } from "./context.mjs";
+import { V1_DEFAULT_URL, ctx, current, isWin, later, log, loopbackUrl, opt, running, sleep, stateDir } from "./context.mjs";
 import { currentSession, links, saveLinks } from "./links.mjs";
 import { httpJson, oc, ocCli } from "./opencode-state.mjs";
 import { makeV2 } from "./opencode-v2.mjs";
@@ -13,7 +17,7 @@ import { broadcastLive } from "./live.mjs";
 
 // 2.x: the background service. `opencode service start` starts it if needed and prints its URL.
 async function v2Password() {
-  if (process.env.OPENCODE_SERVER_PASSWORD) return process.env.OPENCODE_SERVER_PASSWORD;
+  if (opt.password) return opt.password;
   const files = [];
   const paths = await ocCli(["debug", "paths"]);
   const cfg = (paths.out.match(/^config\s+(.+)$/m) || [])[1];
@@ -32,7 +36,9 @@ async function v2Password() {
 async function v2Service(start) {
   const r = await ocCli(["service", start ? "start" : "status"], 60000);
   const url = (r.out.match(/https?:\/\/\S+/) || [])[0];
-  return url ? { url: url.replace(/\/+$/, "") } : { error: (r.err || r.out || "no output").split(/\r?\n/).slice(-2).join(" ") };
+  if (!url) return { error: (r.err || r.out || "no output").split(/\r?\n/).slice(-2).join(" ") };
+  const local = loopbackUrl(url);
+  return local ? { url: local } : { error: `it reported ${url}, which is not on this computer` };
 }
 
 // Picks the adapter: an explicit --opencode URL is probed; otherwise the installed CLI decides.
@@ -60,6 +66,7 @@ async function pickAdapter() {
 }
 
 // 1.x only: start `opencode serve` when nothing answers on the URL.
+let serveChild = null;
 function startV1Serve(url) {
   const u = new URL(url);
   if (!/^(127\.0\.0\.1|localhost|\[::1\])$/.test(u.hostname)) {
@@ -78,27 +85,38 @@ function startV1Serve(url) {
     oc.error = `Could not start opencode (${e.message}). Start it yourself: opencode serve --port ${port}`;
     log(oc.error);
   });
-  child.on("exit", (code) => {
+  child.on("exit", current((code) => {
     if (oc.started) log(`opencode serve exited (${code}). See ${logFile}`);
     oc.started = false;
-  });
+  }));
   oc.started = true;
-  const stop = () => {
-    try {
-      if (isWin) spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
-      else child.kill();
-    } catch {}
-  };
-  process.on("exit", stop);
+  serveChild = child;
+  fs.closeSync(out);
+}
+
+/** Stops the event stream, and a 1.x `opencode serve` this connector started (as the live server did on exit). */
+export function disconnectOpencode() {
+  if (eventsCtrl) eventsCtrl.abort();
+  eventsCtrl = null;
+  const child = serveChild;
+  serveChild = null;
+  if (!child || child.exitCode !== null) return;
+  try {
+    if (isWin) spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
+    else child.kill();
+  } catch {}
 }
 
 export async function connectOpencode() {
+  if (!running) return;
   if (!oc.api) {
-    oc.api = await pickAdapter();
+    const api = await pickAdapter();
+    if (!running) return;
+    oc.api = api;
     if (!oc.api) {
       oc.connected = false;
       broadcastLive();
-      setTimeout(connectOpencode, 10000);
+      later(connectOpencode, 10000);
       return;
     }
     oc.kind = oc.api.kind;
@@ -107,11 +125,12 @@ export async function connectOpencode() {
   let info = await oc.api.info().catch(() => null);
   if (!info && oc.kind === "v1" && opt.startOpencode && !oc.started && !opt.opencode) {
     startV1Serve(oc.url);
-    for (let i = 0; i < 40 && !info; i++) {
+    for (let i = 0; i < 40 && !info && running; i++) {
       await sleep(750);
-      info = await oc.api.info().catch(() => null);
+      if (running) info = await oc.api.info().catch(() => null);
     }
   }
+  if (!running) return;
   if (!info) {
     oc.connected = false;
     if (!oc.error || /Lost opencode/.test(oc.error)) {
@@ -122,7 +141,7 @@ export async function connectOpencode() {
     broadcastLive();
     // 2.x: the service may have moved or restarted with a new password; look it up again.
     if (oc.kind === "v2" && !opt.opencode) oc.api = null;
-    setTimeout(connectOpencode, 5000);
+    later(connectOpencode, 5000);
     return;
   }
   oc.version = info.version;
@@ -130,9 +149,9 @@ export async function connectOpencode() {
   try {
     await loadState();
   } catch (e) {
-    log("opencode: could not load sessions:", e.message);
+    if (running) log("opencode: could not load sessions:", e.message);
   }
-  followEvents();
+  if (running) followEvents();
 }
 
 export async function loadState() {
@@ -160,10 +179,12 @@ export async function loadState() {
 let eventsCtrl = null;
 async function followEvents() {
   if (eventsCtrl) eventsCtrl.abort();
-  eventsCtrl = new AbortController();
+  const ctrl = (eventsCtrl = new AbortController());
+  const alive = current(() => true);
   try {
     const req = oc.api.eventsRequest();
-    const r = await fetch(req.url, { signal: eventsCtrl.signal, headers: { accept: "text/event-stream", ...req.headers } });
+    const signal = ctx && ctx.signal ? AbortSignal.any([ctrl.signal, ctx.signal]) : ctrl.signal;
+    const r = await fetch(req.url, { signal, headers: { accept: "text/event-stream", ...req.headers } });
     if (!r.ok || !r.body) throw new Error(`event stream: HTTP ${r.status}`);
     oc.connected = true;
     log(`opencode ${oc.version || ""} connected at ${oc.url} (${oc.kind === "v2" ? "2.x API" : "1.x API"})`);
@@ -184,7 +205,7 @@ async function followEvents() {
           .filter((l) => l.startsWith("data:"))
           .map((l) => l.slice(5).trimStart())
           .join("\n");
-        if (!data) continue;
+        if (!data || !alive()) continue;
         try {
           if (oc.api.onEvent(JSON.parse(data))) broadcastLive();
         } catch (e) {
@@ -194,11 +215,11 @@ async function followEvents() {
     }
     throw new Error("event stream closed");
   } catch (e) {
-    if (e.name === "AbortError") return;
+    if (e.name === "AbortError" || ctrl.signal.aborted || !alive()) return;
     oc.connected = false;
     oc.error = `Lost opencode at ${oc.url} (${e.message}). Reconnecting.`;
     log(oc.error);
     broadcastLive();
-    setTimeout(connectOpencode, 3000);
+    later(connectOpencode, 3000);
   }
 }

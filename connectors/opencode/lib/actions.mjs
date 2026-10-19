@@ -1,14 +1,18 @@
-// eng-agents live dashboard: Page and shell actions: run a command, start an item, reply, answer prompts, push, abort, remove, open a terminal. Also the shell API data.
+// opencode connector: the actions. Run a command, start an item, reply, answer prompts, push, abort,
+// remove, open a terminal. Also the shell status data (the `status` action).
+//
+// Copied from eng-agents core/scripts/dashboard/server/actions.mjs. Changes: the status `version` is
+// the connector's version; resetActions() for a restart. The rules (push protections, confirm on
+// remove, one session per item) are unchanged.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { APP, FRESH_SESSION, httpError, isWin, log, opt, sameDir, workRoot } from "./context.mjs";
+import { APP, FRESH_SESSION, VERSION, httpError, isWin, log, opt, sameDir, workRoot } from "./context.mjs";
 import { model, modelError, refresh, scheduleRefresh } from "./model.mjs";
 import { currentSession, folderForSession, folderForToken, linkFrom, linkSession, links, saveLinks } from "./links.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { autoActive, autoOnFail, autoOnReply, autopilot, saveAuto } from "./autopilot.mjs";
-import { runningVersion } from "./updates.mjs";
 import { broadcastLive } from "./live.mjs";
 
 export function parseCommand(text) {
@@ -36,7 +40,7 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
   if (!item) throw httpError(404, `No work item folder "${folder}". Refresh the page.`);
   const cmd = parseCommand(command);
   if (!cmd) throw httpError(400, `Not a command: ${command}`);
-  if (oc.commands.size && !oc.commands.has(cmd.name)) throw httpError(400, `opencode has no /${cmd.name} command. Re-run install.ps1, then restart opencode.`);
+  if (oc.commands.size && !oc.commands.has(cmd.name)) throw httpError(400, `opencode has no /${cmd.name} command. Re-run eng-agents install.ps1, then restart opencode.`);
   if (!fromAuto && autoActive(folder)) throw httpError(409, "Autopilot is running this item. Stop it first.");
 
   let sid = fresh || FRESH_SESSION.has(cmd.name) ? null : currentSession(folder);
@@ -77,6 +81,11 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
 // The folder appears once /start creates it; the session is linked to it then.
 export const starting = new Map(); // id -> { sid, at }, until its folder shows up (or 10 minutes pass)
 const START_FORGET_MS = 10 * 60e3;
+const pushing = new Set();
+export function resetActions() {
+  starting.clear();
+  pushing.clear();
+}
 export async function startItem({ id, lane }) {
   needOpencode();
   const wid = String(id || "").trim();
@@ -85,7 +94,7 @@ export async function startItem({ id, lane }) {
   if (folderForToken(wid)) throw httpError(409, `Work item ${wid} is already started. Open the dashboard to continue it.`);
   const prev = starting.get(wid);
   if (prev && (sessions.get(prev.sid) || {}).status !== "idle") throw httpError(409, `Work item ${wid} is already starting.`);
-  if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run install.ps1, then restart opencode.");
+  if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run eng-agents install.ps1, then restart opencode.");
 
   const args = `${wid} ${lane}`;
   const created = await oc.api.createSession(`${wid}: /start ${args}`);
@@ -160,7 +169,7 @@ export function shellData() {
   return {
     app: APP,
     api: SHELL_API, // bump on a breaking change to this shape (docs/shell-api.md)
-    version: runningVersion,
+    version: VERSION,
     workspace: path.basename(opt.workspace),
     opencode: { connected: oc.connected, error: oc.error },
     error: modelError,
@@ -213,7 +222,6 @@ export async function answerQuestion({ id, answers, reject }) {
 // Push one branch from the PR panel: `git -C <repo> push -u origin <branch>`, run here, not by the
 // agent. The engineer's click is the approval that the agent's `git push` would ask for. Only the
 // branch named in pr.md for that repo, never the target or default branch, never --force.
-const pushing = new Set();
 function gitRun(cwd, args, timeout) {
   return new Promise((resolve) => {
     let out = "";

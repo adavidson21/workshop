@@ -1,11 +1,14 @@
-// eng-agents live dashboard: The work model: runs New-Dashboard.ps1 -AsJson, watches .work, and keeps .work/dashboard.html current.
+// opencode connector: the work model. Runs New-Dashboard.ps1 -AsJson and watches .work.
+//
+// Copied from eng-agents core/scripts/dashboard/server/model.mjs. Changes: the parser is the copy in
+// connectors/opencode/parser/; the watcher and poll stop with the connector; the static page snapshot
+// (.work/dashboard.html) is not written, because its template is the eng-agents page (see README.md).
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
-import { log, opt, psExe, scriptPath, templatePath, workRoot } from "./context.mjs";
+import { cancel, current, every, later, log, opt, psExe, running, scriptPath, workRoot } from "./context.mjs";
 import { linkSessionsFromModel } from "./links.mjs";
-import { broadcast, pageData } from "./live.mjs";
+import { emitModel } from "./live.mjs";
 
 export let model = null;
 export let modelError = null;
@@ -16,12 +19,34 @@ export function setModel(data) {
 }
 let refreshing = false;
 let refreshAgain = false;
+let watcher = null;
+let poller = null;
+let debounce = null;
+
+export function resetModel() {
+  model = null;
+  modelError = null;
+  refreshing = false;
+  refreshAgain = false;
+  if (watcher) {
+    try { watcher.close(); } catch {}
+  }
+  watcher = null;
+  cancel(poller);
+  cancel(debounce);
+  poller = debounce = null;
+}
 
 export function runModel() {
   return new Promise((resolve) => {
     const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-WorkRoot", workRoot, "-AsJson"];
     if (opt.config) args.push("-ConfigPath", opt.config);
-    const p = spawn(psExe, args, { cwd: opt.workspace, windowsHide: true });
+    let p;
+    try {
+      p = spawn(psExe, args, { cwd: opt.workspace, windowsHide: true });
+    } catch (e) {
+      return resolve({ error: e.message });
+    }
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
@@ -39,65 +64,47 @@ export function runModel() {
 }
 
 export async function refresh() {
+  if (!running) return;
   if (refreshing) {
     refreshAgain = true;
     return;
   }
   refreshing = true;
-  try {
-    const r = await runModel();
+  const apply = current((r) => {
     if (r.error) {
       modelError = r.error;
       log("refresh failed:", r.error);
     } else {
       setModel(r.data);
       linkSessionsFromModel();
-      writeSnapshot();
     }
-    broadcast("model", pageData());
+    emitModel();
+  });
+  try {
+    apply(await runModel());
   } finally {
     refreshing = false;
-    if (refreshAgain) {
+    if (refreshAgain && running) {
       refreshAgain = false;
-      setTimeout(refresh, 50);
+      later(refresh, 50);
     }
   }
 }
 
-// Keeps .work/dashboard.html (the static page) current while this runs, so after a reboot that file
-// shows where everything stood, with a link back here. Written only when something changed.
-let lastSnapshot = null;
-function writeSnapshot() {
-  try {
-    const { generated, generatedMs, ...rest } = model;
-    const key = JSON.stringify(rest);
-    if (key === lastSnapshot) return;
-    const data = { ...model, liveUrl: `http://127.0.0.1:${opt.port}/` };
-    const json = JSON.stringify(data).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
-    const html = fs.readFileSync(templatePath, "utf8").replace("__ENG_DATA__", () => json);
-    const out = path.join(workRoot, "dashboard.html");
-    fs.writeFileSync(out + ".tmp", html);
-    fs.renameSync(out + ".tmp", out);
-    lastSnapshot = key;
-  } catch (e) {
-    log("could not write .work/dashboard.html:", e.message);
-  }
-}
-
-let debounce = null;
 export function scheduleRefresh(ms = 400) {
-  clearTimeout(debounce);
-  debounce = setTimeout(refresh, ms);
+  cancel(debounce);
+  debounce = later(refresh, ms);
 }
 
 export function watchWork() {
   const ignore = (f) => !f || /^_dashboard([\\/]|$)/.test(f) || /dashboard\.html(\.tmp)?$/i.test(f);
   try {
-    fs.watch(workRoot, { recursive: true }, (_e, f) => {
+    watcher = fs.watch(workRoot, { recursive: true }, current((_e, f) => {
       if (!ignore(String(f || ""))) scheduleRefresh();
-    });
+    }));
+    watcher.on("error", () => {});
   } catch (e) {
     log("File watching is not available here; polling only.", e.message);
   }
-  setInterval(() => scheduleRefresh(0), opt.poll * 1000);
+  poller = every(() => scheduleRefresh(0), opt.poll * 1000);
 }

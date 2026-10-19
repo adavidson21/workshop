@@ -1,4 +1,7 @@
-// eng-agents live dashboard: Which opencode session belongs to which work item (.work/_dashboard/sessions.json).
+// opencode connector: which opencode session belongs to which work item (.work/_dashboard/sessions.json).
+//
+// Copied from eng-agents core/scripts/dashboard/server/links.mjs. Change: the file is read by
+// loadLinks() on each start instead of once at import, so a new workspace setting takes effect.
 
 import fs from "node:fs";
 import { sessionsFile } from "./context.mjs";
@@ -6,10 +9,18 @@ import { model } from "./model.mjs";
 
 // { "<folder>": { "sessions": [ { "id": "ses_...", "command": "/do-task 41207 3", "created": "<iso>" } ] } }
 export let links = {};
-try {
-  links = JSON.parse(fs.readFileSync(sessionsFile, "utf8")) || {};
-} catch {
+export function loadLinks() {
+  unlinked.clear();
   links = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(sessionsFile, "utf8"));
+    // Keep only entries in the expected shape, so a hand-edited file cannot break the state.
+    for (const [f, e] of Object.entries(raw && typeof raw === "object" ? raw : {})) {
+      if (e && Array.isArray(e.sessions)) links[f] = { sessions: e.sessions.filter((s) => s && typeof s.id === "string") };
+    }
+  } catch {
+    links = {};
+  }
 }
 
 export function saveLinks() {
