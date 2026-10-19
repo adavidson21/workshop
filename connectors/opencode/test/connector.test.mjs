@@ -37,8 +37,11 @@ for (const kind of ["v1", "v2"]) {
     let ws, fake, f;
     const ctx = () => f.ctx;
     const live = async () => (await call("state", {}, ctx())).liveMode.live;
+    // Busy first, and seen, then idle: sent together, the session can read idle before the busy event
+    // is handled, and a late busy then makes the next test's action fail with "still working".
     const finish = async (sid) => {
       fake.send(busyEvent(kind, sid));
+      await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the session to be busy");
       fake.send(idleEvent(kind, sid));
       await waitFor(async () => (await live()).sessions[sid]?.status === "idle", "the session to go idle");
     };
