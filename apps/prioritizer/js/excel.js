@@ -1,5 +1,9 @@
+import { COLORS, EFFORTS, EQ, VALUE, VQ } from './constants.js';
+import { score } from './model.js';
+import { closeModal, showModal, toast } from './overlays.js';
+import { commit, listById, migrateTask, orderedLists, sanitize, setState, state, topLists } from './state.js';
+import { dateStr, isDate, plural, todayStr, uid } from './util.js';
 /* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
-'use strict';
 /* ---------- excel export / import ---------- */
 const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
 const NO_XLSX = 'Excel tools did not load. Reload the page.';
@@ -156,7 +160,7 @@ function doImport(p, mode){
     p.tasks.forEach(t => t.rank += off);
     state.lists.push(...p.lists); state.tasks.push(...p.tasks);
   }
-  state = sanitize(state);
+  setState(sanitize(state));
   commit();
   toast(`Imported ${plural(p.tasks.length,'task')}`);
 }
@@ -184,3 +188,5 @@ function importFile(file){
   };
   reader.readAsArrayBuffer(file);
 }
+
+export { NO_XLSX, buildWorkbook, doImport, exportXlsx, importFile, parseWorkbook };

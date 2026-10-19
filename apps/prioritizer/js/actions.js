@@ -1,5 +1,11 @@
+import { COLORS, EQ, POINTS, VQ } from './constants.js';
+import { closeDrawer, drawerId, openDrawer } from './drawer.js';
+import { urgency } from './model.js';
+import { toast } from './overlays.js';
+import { parseQuick } from './quick-add.js';
+import { canonPerson, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state } from './state.js';
+import { fmtDay, todayStr, uid } from './util.js';
 /* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
-'use strict';
 /* ---------- task actions ---------- */
 function addTask(text, attrs = {}){
   const p = parseQuick(text);
@@ -104,3 +110,5 @@ function downgradeUrgent(id){
   t.urgentFlag = false; commit();
   toast('No longer urgent', 'Undo', () => { t.urgentFlag = true; commit(); });
 }
+
+export { addTask, applyOrder, deleteTask, downgradeUrgent, dropIntoQuadrant, moveTask, toggleDone, toggleFocus, wontDo };

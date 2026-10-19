@@ -1,9 +1,21 @@
+import { PR_TIER, adoShort, prTip } from './ado.js';
+import { ICON, LENSES, NAV, NAV_OF, POINTS, VIEWS } from './constants.js';
+import { markSel, syncDrawer } from './drawer.js';
+import { engChip } from './eng.js';
+import { closeSide } from './events.js';
+import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
+import { renderReports, rpHead } from './reports.js';
+import { childrenOf, commit, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
+import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
+import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
-'use strict';
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
 let openQuad = null, showAllPick = false, weekOff = 0, doneOpen = false, sel = null, prevView = 'today';
 let tri = {seen: new Set(), draft: null, id: null};
+// Other modules change this view state through these setters (imported bindings are read-only).
+const setSel = v => { sel = v; }, setOpenQuad = v => { openQuad = v; }, setShowAllPick = v => { showAllPick = v; },
+  setWeekOff = v => { weekOff = v; }, setDoneOpen = v => { doneOpen = v; };
 function setView(v){
   if (!VIEWS.includes(v)) return;
   if (v === 'triage' && state.view !== 'triage'){ prevView = state.view; tri = {seen: new Set(), draft: null, id: null}; }
@@ -132,3 +144,5 @@ function capacityCut(open){
   if (cut === -1 && open.length){ cut = 0; sum = POINTS[open[0].effort] || 0; }
   return {cut, sum};
 }
+
+export { app, capacityCut, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, prevView, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff };

@@ -1,5 +1,10 @@
+import { applyOrder, dropIntoQuadrant } from './actions.js';
+import { hideTip } from './events.js';
+import { toast } from './overlays.js';
+import { render } from './render.js';
+import { commit, findTask, listById, state } from './state.js';
+import { todayStr } from './util.js';
 /* Prioritizer: Drag and drop between lists, quadrants and people, plus inline rename. */
-'use strict';
 /* ---------- drag and drop (desktop) ---------- */
 let dragId = null, dragFromPerson = null, overEl = null;
 function setOver(el){
@@ -94,3 +99,5 @@ function inlineEdit(span, value, label, onSave){
   span.replaceWith(inp);
   inp.focus(); inp.select();
 }
+
+export { inlineEdit };

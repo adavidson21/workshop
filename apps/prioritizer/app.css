@@ -444,3 +444,13 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
   .tday:not(.on){display:none}
   .sitem .more{opacity:1}
 }
+
+/* ADO settings: starting value and urgent flag per PR tier */
+.sheet .tiers{border-collapse:collapse;margin-top:.8rem;font-size:.86rem}
+.sheet .tiers caption{text-align:left;color:var(--muted);padding-bottom:.3rem}
+.sheet .tiers th{text-align:left;font-weight:500;padding:.2rem .8rem .2rem 0}
+.sheet .tiers td{padding:.2rem .6rem .2rem 0}
+.sheet .tiers select{width:auto}
+.sheet .tiers .chk{display:flex;gap:.35rem;align-items:center;margin:0;font-weight:400;cursor:pointer}
+.sheet .tiers .chk input{width:auto;margin:0;accent-color:var(--accent)}
+.sheet .fld .hint{margin-left:.4rem}

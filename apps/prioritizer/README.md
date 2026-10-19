@@ -1,6 +1,6 @@
 # Prioritizer
 
-Part of the [Workshop](../README.md). It also runs on its own at `/workshop/prioritizer/`.
+Part of the [Workshop](../../README.md). It also runs on its own at `/workshop/apps/prioritizer/`.
 
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
@@ -34,7 +34,7 @@ The **Scope** in the sidebar (All lists, a list, or a section) filters every vie
 
 ## Adding tasks
 
-Press `N` or `Ctrl+K` (`Cmd+K` on a Mac) anywhere. Optional inline tags:
+Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; inside Workshop, `Ctrl+K` is Workshop's command palette, where **Add a task** is one of the commands. Optional inline tags:
 
 | Tag | Sets | Example |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ Example: `Review promo doc @Brandon !3 ~s ^fri #eng`
 
 Slate (light) and Graphite (dark) follow your system setting by default. Also available: Ivory (warm light), Rosé, Solarized Light, Nord and Dracula, all tuned so text meets WCAG AA contrast. Inside the hub, pick one from the theme button on the hub's rail; on its own, Prioritizer has the button at the bottom of its sidebar. The choice is saved per device and shared by every page of the hub.
 
-Themes live in `shared/themes.css` at the repo root. See the [hub README](../README.md#themes) to change them.
+Themes live in `shared/themes.css` at the repo root. See the [Workshop README](../../README.md#themes) to change them.
 
 ## Saving
 
@@ -66,16 +66,20 @@ Themes live in `shared/themes.css` at the repo root. See the [hub README](../REA
 
 Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waiting on your review, show up as tasks in an **ADO** list, and in All lists next to everything else. Read-only for now.
 
-**How it connects:** a small helper (`prioritizer/ado-helper/ado_helper.py`, Python standard library only) runs on your computer. It reads your PAT from an environment variable and calls your ADO server. The app talks only to the helper at `127.0.0.1`, so the PAT never touches the page or leaves your computer. The helper only answers this site and only on this computer.
+**How it connects:** when Workshop runs on your computer (`node agent/start.mjs`) and its ADO connector is on in **Settings**, Prioritizer syncs through the connector, which keeps its connections (server, collection, project, which repo maps to which) in Workshop's settings. Otherwise a small helper (`apps/prioritizer/ado-helper/ado_helper.py`, Python standard library only) runs on your computer instead. Either way your PAT stays in an environment variable on your computer and never touches the page. The helper only answers this site and only on this computer.
+
+**Prioritizer's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings, so they stay the same whichever way Prioritizer connects.
+
+With the connector, skip the helper steps below: turn the ADO connector on in Settings, add a connection, then click Connect in ADO Settings.
 
 **Setup on the work PC:**
 
-1. Download `ado_helper.py` from the ADO button in the sidebar (or from `prioritizer/ado-helper/` in this repo) into a folder you keep.
+1. Download `ado_helper.py` from the ADO button in the sidebar (or from `apps/prioritizer/ado-helper/` in this repo) into a folder you keep.
 2. Run `py ado_helper.py`. The first run asks for your collection URL (for example `https://tfs.yourcompany.com/DefaultCollection`) and the name of your PAT environment variable. Settings save to `ado-helper.json` next to the script.
 3. Optional: `py ado_helper.py --test` checks the connection and lists what it finds. `py ado_helper.py --startup` starts it hidden at login (`--no-startup` undoes it).
 4. In the app, click the ADO button (sync arrows, bottom of the sidebar) and Connect. If the browser asks to allow access to apps on this device, choose Allow.
 
-**What syncing does** (every 10 minutes while the app is open, when you switch back to it, or with Sync now):
+**What syncing does** (every 10 minutes by default while the app is open, when you switch back to it, or with Sync now):
 
 - **New work items wait for you to pick them.** The sync button shows a count, and a toast offers Review. In the review list, check what you want and choose **Add**, or **Skip unchecked** to also dismiss the rest for good. **Later** keeps them waiting. Items closed or reassigned before you pick them drop off on their own. To skip this step, choose **Add them automatically** in ADO Settings. PRs are always added automatically.
 - Added items become tasks in the ADO list. ADO Priority 1 to 4 sets a starting value (High to Trivial); effort is left for you in Triage. ADO's due or target date fills Due.
@@ -95,6 +99,8 @@ Active PRs where you or one of your teams is a reviewer become tasks in **ADO > 
 | Blocking | You're a named, required reviewer | High | Yes |
 | Asked | You're a named, optional reviewer | Medium | No |
 | Team | Only your team was added, so any teammate can take it | Low | No |
+
+The starting value and urgent flag are defaults; change them per tier in ADO Settings.
 
 A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in Triage.
 
@@ -133,7 +139,7 @@ Settings in `ado-helper.json`: `high_priorities` (default 1 and 2), `escalation_
 
 ## eng-agents stages
 
-When the hub's **Dashboard** page is connected to your [eng-agents](https://github.com/adavidson21/eng-agents) live dashboard (see the [hub README](../README.md#eng-agents-dashboard)), ADO tasks here show their eng-agents stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to jump to that item on the Dashboard page.
+When the hub's **Dashboard** page is connected to your [eng-agents](https://github.com/adavidson21/eng-agents) live dashboard (see the [Workshop README](../../README.md#eng-agents-dashboard)), ADO tasks here show their eng-agents stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to jump to that item on the Dashboard page.
 
 An ADO task not started yet gets **Start as feature** or **Start as bug** in its details. That runs `/start` in opencode for you.
 
@@ -141,11 +147,11 @@ Stages refresh every 30 seconds while the page is open, and right away when you 
 
 ## Install it as a desktop app
 
-Install the hub, not Prioritizer on its own: see the [hub README](../README.md#install-it-as-a-desktop-app).
+Install Workshop, not Prioritizer on its own: see the [Workshop README](../../README.md#install-it-as-a-desktop-app).
 
 ## Code
 
-No build step. `index.html` is the page; `app.css` is Prioritizer's own styles (shared buttons, menus and themes come from `../shared/`). The code is in `js/`, one file per concern, loaded in order by `index.html`:
+No build step. `index.html` is the page; `app.json` describes the app to Workshop ([docs/app-manifest.md](../../docs/app-manifest.md)); `app.css` is Prioritizer's own styles (shared buttons, menus and themes come from `../../shared/`). The code is in `js/`, one ES module per concern:
 
 | File | What's in it |
 | --- | --- |
@@ -158,11 +164,12 @@ No build step. `index.html` is the page; `app.css` is Prioritizer's own styles (
 | `excel.js`, `folder-sync.js` | Excel export and import; autosave to a folder |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
-| `main.js` | Startup (loaded last) |
+| `ws.js` | The connection to Workshop through the SDK (`../../shared/workshop-sdk.js`): shell, data, connectors |
+| `main.js` | Startup: the one module `index.html` loads; it imports the rest |
 
-They are classic scripts sharing one scope: a function in one file can call a function in any other, but code that runs at load may only use what earlier files define. When you add a file, add it to `index.html` and to `SHELL` in `../sw.js` (`node tests/check-offline.mjs` catches a miss).
+Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`node tests/check-offline.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
 
-`window.__prioritizer` exposes the model and sync functions for automated checks (see `../tests/e2e.py`).
+`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (see `../../tests/e2e.py`).
 
 ### Upgrading from the previous version
 

@@ -1,5 +1,8 @@
+import { renderMainOnly } from './drawer.js';
+import { toast } from './overlays.js';
+import { esc } from './util.js';
+import { ready } from './ws.js';
 /* Prioritizer: eng-agents stages on ADO tasks and Start as feature or bug (via shared/eng-client.js). */
-'use strict';
 /* The eng-agents live dashboard (started with /dashboard in opencode) runs on this computer. Once the
    shell's Dashboard page has connected to it (EngClient.settings().on), ADO tasks here show where their
    work item stands, and a task can start its work item. The connection and the shell API live in
@@ -105,9 +108,11 @@ async function engStart(t, lane, btn){
   engCheck();
 }
 
-/* Open the work item in the shell's Dashboard page. On its own (not in the shell), go to the shell. */
+/* Open the work item in the shell's Dashboard page. The SDK routes this to the shell when embedded,
+   or navigates to the shell URL when Prioritizer runs on its own. */
 function engOpen(adoId){
   const id = adoId ? String(adoId) : '';
-  if (EMBEDDED) window.parent.postMessage({type: 'em-open', app: 'dashboard', focus: id}, location.origin);
-  else location.href = new URL('../#/dashboard' + (id ? '/' + encodeURIComponent(id) : ''), location.href).href;
+  ready.then(ws => { if (ws) ws.open({app: 'dashboard', path: id}); });
 }
+
+export { eng, engCheck, engChip, engDrawer, engOpen, engSchedule, engStart };

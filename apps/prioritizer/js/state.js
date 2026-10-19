@@ -1,9 +1,14 @@
+import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, KEY, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS } from './constants.js';
+import { scheduleWrite } from './folder-sync.js';
+import { isStale, isTriaged } from './model.js';
+import { toast } from './overlays.js';
+import { render } from './render.js';
+import { isDate, todayStr, uid } from './util.js';
 /* Prioritizer: Board state: shape, migration, sanitize, load/save with change stamps, per-device UI state, list and scope helpers. */
-'use strict';
 /* ---------- state ---------- */
 function fresh(){
   const main = {id: uid(), name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], people: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: []}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], people: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers()}};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -63,6 +68,15 @@ function cleanPending(a){
   const pr = parseInt(a.priority, 10);
   return Object.assign(link, {title: typeof a.title === 'string' ? a.title.slice(0, 500) : '', priority: pr >= 1 && pr <= 4 ? pr : null, seen: isDate(a.seen) ? a.seen : todayStr()});
 }
+// Starting value (1 to 4) and urgent flag a new PR review task gets, per tier. Missing or bad entries get the default.
+function cleanTiers(t){
+  const out = {};
+  for (const [k, d] of Object.entries(PR_TIER_DEFAULTS)){
+    const v = t && typeof t === 'object' && t[k] && typeof t[k] === 'object' ? t[k] : {};
+    out[k] = {value: Number.isInteger(v.value) && v.value >= 1 && v.value <= 4 ? v.value : d.value, urgent: typeof v.urgent === 'boolean' ? v.urgent : d.urgent};
+  }
+  return out;
+}
 function sanitize(s){
   if (!s || !Array.isArray(s.lists) || !s.lists.length) return fresh();
   s.version = 2;
@@ -106,6 +120,9 @@ function sanitize(s){
   s.ado.skip = Array.isArray(s.ado.skip) ? s.ado.skip.filter(n => Number.isInteger(n)).slice(-500) : [];
   s.ado.skipPr = Array.isArray(s.ado.skipPr) ? s.ado.skipPr.filter(k => typeof k === 'string').slice(-500) : [];
   s.ado.choose = s.ado.choose !== false;   // new work items wait for you to pick them (default)
+  const mins = Math.round(+s.ado.syncMinutes);
+  s.ado.syncMinutes = mins >= ADO_SYNC_MIN && mins <= ADO_SYNC_MAX ? mins : ADO_SYNC_MINUTES;
+  s.ado.prTiers = cleanTiers(s.ado.prTiers);
   s.ado.pending = Array.isArray(s.ado.pending) ? s.ado.pending.map(cleanPending).filter(Boolean).slice(0, 300) : [];
   if (s.ado.prListId && !ids.has(s.ado.prListId)) delete s.ado.prListId;
   normalizeRanks(s);
@@ -119,6 +136,10 @@ let state = load();
 let saveWarned = false;
 /* Per-item change stamps so two devices can merge instead of overwriting each other. */
 let snap = null;
+// state and snap are module-private. Other modules change them through these setters, because an ES
+// module cannot assign to a binding it imported from here.
+function setState(s){ state = s; }
+function setSnap(s){ snap = s; }
 const stripStamp = o => { const {updatedAt, ...r} = o; return JSON.stringify(r); };
 function takeSnap(){
   return {tasks: new Map(state.tasks.map(t => [t.id, stripStamp(t)])), lists: new Map(state.lists.map(l => [l.id, stripStamp(l)])),
@@ -188,3 +209,5 @@ function canonPerson(n){
   return n;
 }
 const initials = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+
+export { PR_GONES, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, inScope, initials, isDoneToday, isFocus, listById, load, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setSnap, setState, snap, state, stripStamp, takeSnap, topLists, triageQueue, ui };

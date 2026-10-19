@@ -1,5 +1,4 @@
 /* Prioritizer: Constants: storage keys, the value/effort scales, quadrant names, views and icons. */
-'use strict';
 /* ---------- constants ---------- */
 const KEY = 'prioritizer.v1', UI_KEY = 'prioritizer.ui';
 const COLORS = ['blush','sage','lavender','butter','sky','peach']; // still stored for older copies of the app; no longer shown
@@ -25,6 +24,10 @@ const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker, the Dashboard page and the service worker.
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
 const NAV_OF = v => (v in LENSES) ? 'prio' : v;
+// ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
+// and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
+const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
+const PR_TIER_DEFAULTS = {blocking: {value: 4, urgent: true}, asked: {value: 3, urgent: false}, pool: {value: 2, urgent: false}};
 const svg = (d, w = 1.5) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICON = {
   check: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>',
@@ -46,3 +49,5 @@ const ICON = {
   top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6)
 };
 const NAV = [['today','Today',ICON.today],['triage','Triage',ICON.triage],['prio','Prioritize',ICON.prio],['people','People',ICON.people],['archive','Archive',ICON.archive],['reports','Reports',ICON.reports]];
+
+export { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

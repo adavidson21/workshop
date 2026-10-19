@@ -1,19 +1,33 @@
-/* Prioritizer: Azure DevOps sync through the local helper (ado-helper/ado_helper.py). */
-'use strict';
-/* ---------- Azure DevOps: work items from the local helper (ado-helper/ado_helper.py) ---------- */
-const ADO_DEFAULT_PORT = 4791, ADO_EVERY = 10 * 60 * 1000, ADO_MIN_GAP = 2 * 60 * 1000;
+import { ADO_SYNC_MAX, ADO_SYNC_MIN, COLORS, VALUE } from './constants.js';
+import { flushText } from './drawer.js';
+import { hideTip, placeTip, tipFor } from './events.js';
+import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
+import { setScope, setView } from './render.js';
+import { PR_GONES, canonPerson, cleanAdo, cleanPending, cleanPr, commit, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
+import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
+import { ready } from './ws.js';
+/* Prioritizer: Azure DevOps sync, through Workshop's ADO connector or the local helper (ado-helper/ado_helper.py). */
+/* ---------- Azure DevOps ----------
+   Where the data comes from: the ADO connector, when this page runs on Workshop's agent and the connector is
+   turned on (Settings); otherwise the ado_helper.py helper on this computer. Both take the same requests and
+   give the same answers (the connector was ported from the helper). How often to sync, whether new work
+   items wait for you, and PR tier values are Prioritizer's own data, in state.ado. */
+const ADO_DEFAULT_PORT = 4791, ADO_MIN_GAP = 2 * 60 * 1000;
 const ADO_GONE = {closed: 'Closed in ADO', removed: 'Removed in ADO', reassigned: 'Reassigned in ADO', missing: 'Not found in ADO', filtered: 'No longer matches ADO filter'};
 const ADO_VALUE = {1: 4, 2: 3, 3: 2, 4: 1};   // ADO priority 1 (highest) to 4, as a starting value
+// Labels and tips per PR tier. The starting value and urgent flag for each are in state.ado.prTiers.
 const PR_TIER = {
-  blocking: {value: 4, urgent: true, label: 'Blocking', tip: "You're a required reviewer, so it can't merge without you"},
-  asked: {value: 3, urgent: false, label: 'Asked', tip: 'You were added by name as an optional reviewer'},
-  pool: {value: 2, urgent: false, label: 'Team', tip: 'Your team was added, so any teammate can review it'}
+  blocking: {label: 'Blocking', tip: "You're a required reviewer, so it can't merge without you"},
+  asked: {label: 'Asked', tip: 'You were added by name as an optional reviewer'},
+  pool: {label: 'Team', tip: 'Your team was added, so any teammate can review it'}
 };
+const tierOf = k => Object.assign({}, PR_TIER[k] || PR_TIER.pool, state.ado.prTiers[k] || state.ado.prTiers.pool);
 const PR_GONE = {reviewed: 'You voted', covered: 'A teammate reviewed it', merged: 'Completed in ADO', abandoned: 'Abandoned in ADO',
   unassigned: 'No longer a reviewer', draft: 'Back to draft', own: 'Your own PR', missing: 'Not found in ADO'};
 const prTip = p => `PR ${p.id} in ${p.repo}${p.author ? ' by ' + p.author : ''}${p.via.length && p.tier === 'pool' ? ', via ' + p.via.join(', ') : ''}${p.lastBlocker ? '. Everyone else required has approved' : ''}`;
 const adoShort = type => ({'User Story': 'Story', 'Product Backlog Item': 'PBI'})[type] || type || 'ADO';
-ui.ado = Object.assign({on: false, port: ADO_DEFAULT_PORT, last: 0, error: ''}, ui.ado || {});
+// Per-device ADO state. Called by main.js once every module has loaded (modules import each other in a cycle).
+function adoInit(){ ui.ado = Object.assign({on: false, port: ADO_DEFAULT_PORT, last: 0, error: ''}, ui.ado || {}); }
 let adoBusy = false, adoTimer = null;
 
 function adoList(){
@@ -142,7 +156,7 @@ function prApply(prs, n){
   let maxRank = state.tasks.reduce((m, t) => Math.max(m, t.rank), 0);
   for (const it of prs.items || []){
     const link = cleanPr(it); if (!link) continue;
-    const tier = PR_TIER[link.tier], title = `Review: ${it.title || 'PR ' + link.id}`;
+    const tier = tierOf(link.tier), title = `Review: ${it.title || 'PR ' + link.id}`;
     const t = byKey.get(link.key);
     if (!t){
       if (skip.has(link.key)) continue;
@@ -160,7 +174,7 @@ function prApply(prs, n){
       adoNote(t, `Back for your review on ${on}.`); n.reopened++;
     }
     if (t.pr.tier !== link.tier){
-      const old = PR_TIER[t.pr.tier];
+      const old = tierOf(t.pr.tier);
       if (t.value === old.value) t.value = tier.value;
       if (t.urgentFlag === old.urgent) t.urgentFlag = tier.urgent;
       adoNote(t, `Now ${tier.label.toLowerCase()} (${tier.tip.toLowerCase()}) as of ${on}.`);
@@ -188,6 +202,30 @@ function prApply(prs, n){
   }
 }
 
+/* Where ADO data comes from: 'connector' or 'helper'. Decided at start and again when settings change. */
+let adoVia = 'helper';
+async function adoDetect(){
+  const ws = await ready;
+  adoVia = 'helper';
+  if (ws && ws.backend === 'agent'){
+    try { const c = (await ws.connectors.list()).find(x => x.id === 'ado'); if (c && c.enabled) adoVia = 'connector'; } catch(e){ /* keep the helper */ }
+  }
+  return adoVia;
+}
+// One ADO request: name is sync, dataset or health. Same answers from either source.
+async function adoCall(name, args){
+  if (adoVia === 'connector'){
+    const ws = await ready;
+    if (name === 'health'){
+      const c = (await ws.connectors.list()).find(x => x.id === 'ado');
+      if (!c || !c.enabled) throw new Error('The ADO connector is turned off. Turn it on in Settings.');
+      if (c.status.state !== 'ready') throw new Error(c.status.message || `The ADO connector is ${c.status.state}.`);
+      return {collections: [], reports: true};
+    }
+    return ws.connectors.call('ado', name, args);
+  }
+  return adoFetch('/' + name, name === 'health' ? undefined : args);
+}
 async function adoFetch(path, body){
   const r = await fetch(`http://127.0.0.1:${ui.ado.port}${path}`, {
     method: body ? 'POST' : 'GET', cache: 'no-store', targetAddressSpace: 'loopback',
@@ -207,7 +245,7 @@ async function adoSync(manual){
   try {
     const known = state.tasks.filter(t => t.ado && !t.done).map(t => t.ado.id);
     const knownPrs = state.tasks.filter(t => t.pr && !t.done).map(t => t.pr.key);
-    const res = await adoFetch('/sync', {known, knownPrs});
+    const res = await adoCall('sync', {known, knownPrs});
     flushText();
     const n = adoApply(res);
     ui.ado.last = Date.now(); ui.ado.error = res.prError ? `Pull requests: ${res.prError}` : ''; saveUi();
@@ -226,7 +264,7 @@ async function adoSync(manual){
 }
 function adoSchedule(){
   clearInterval(adoTimer); adoTimer = null;
-  if (ui.ado.on){ adoTimer = setInterval(() => { if (!document.hidden) adoSync(false); }, ADO_EVERY); }
+  if (ui.ado.on){ adoTimer = setInterval(() => { if (!document.hidden) adoSync(false); }, state.ado.syncMinutes * 60 * 1000); }
 }
 function setAdo(){
   const b = $('#adoBtn'); if (!b) return;
@@ -238,32 +276,51 @@ function setAdo(){
     : ago == null ? 'ADO sync on' : `ADO synced ${ago < 1 ? 'just now' : plural(ago, 'minute') + ' ago'}`;
   if (tipFor === b) placeTip(b);
 }
-function adoSetup(){
+async function adoSetup(){
+  await adoDetect();
+  const viaConnector = adoVia === 'connector';
+  const valueOpts = cur => [4, 3, 2, 1].map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${VALUE[v]}</option>`).join('');
+  const tiers = Object.entries(PR_TIER).map(([k, d]) => { const t = state.ado.prTiers[k]; return `<tr><th scope="row" title="${esc(d.tip)}">${d.label}</th>
+      <td><select data-tier-value="${k}" aria-label="${d.label}: starting value">${valueOpts(t.value)}</select></td>
+      <td><label class="chk"><input type="checkbox" data-tier-urgent="${k}"${t.urgent ? ' checked' : ''}> Urgent</label></td></tr>`; }).join('');
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Connect Azure DevOps"><h3>Connect Azure DevOps</h3>
-    <p>Your Issues, Bugs and User Stories, plus pull requests waiting on your review, show up as tasks in an <b>ADO</b> list. New work items wait for you to pick them, unless you choose to add them automatically below. A small helper on this computer talks to ADO with your PAT, so the PAT never touches this page or leaves your computer.</p>
-    <ol class="steps">
+    <p>Your Issues, Bugs and User Stories, plus pull requests waiting on your review, show up as tasks in an <b>ADO</b> list. New work items wait for you to pick them, unless you choose to add them automatically below. ${viaConnector
+      ? 'Workshop on this computer talks to ADO with your PAT, so the PAT never touches this page. Its connections are in <b>Settings</b>.'
+      : 'A small helper on this computer talks to ADO with your PAT, so the PAT never touches this page or leaves your computer.'}</p>
+    ${viaConnector ? '' : `<ol class="steps">
       <li>Download <a class="lnk" href="ado-helper/ado_helper.py" download>ado_helper.py</a> to a folder you keep, like Documents.</li>
       <li>In that folder, run <code>py ado_helper.py</code>. The first time, it asks for your ADO collection URL and the name of the environment variable holding your PAT.</li>
       <li>For pull requests, run <code>py ado_helper.py --add-pr-source</code> and enter each collection and project to watch. Your PAT also needs Code (Read).</li>
       <li>Leave it running, or run <code>py ado_helper.py --startup</code> once so it starts when you log in.</li>
       <li>Click Connect. If the browser asks to allow access to apps on this device, choose Allow.</li>
     </ol>
-    <div class="fld"><label for="adoPort">Helper port</label><input type="number" id="adoPort" class="mono" min="1024" max="65535" value="${ui.ado.port}"></div>
+    <div class="fld"><label for="adoPort">Helper port</label><input type="number" id="adoPort" class="mono" min="1024" max="65535" value="${ui.ado.port}"></div>`}
     <div class="opts" role="radiogroup" aria-label="New work items"><span class="lbl">New work items assigned to you</span>
       <label><input type="radio" name="adoChoose" value="1"${state.ado.choose ? ' checked' : ''}> Let me choose which to add</label>
       <label><input type="radio" name="adoChoose" value="0"${state.ado.choose ? '' : ' checked'}> Add them automatically</label></div>
+    <div class="fld"><label for="adoEvery">Sync every</label><input type="number" id="adoEvery" class="mono" min="${ADO_SYNC_MIN}" max="${ADO_SYNC_MAX}" value="${state.ado.syncMinutes}"> <span class="hint">minutes</span></div>
+    <table class="tiers"><caption>New pull request reviews start at</caption><tbody>${tiers}</tbody></table>
     <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${ui.ado.on && ui.ado.error ? esc(ui.ado.error) : ''}</p>
     <footer>${ui.ado.on ? '<button class="btn text-danger" data-ado-off>Disconnect</button>' : ''}<span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-ado-go>${ui.ado.on ? 'Save' : 'Connect'}</button></footer></div>`,
     sh => sh.addEventListener('click', async e => {
       if (e.target.closest('[data-ado-off]')){ ui.ado.on = false; ui.ado.error = ''; saveUi(); adoSchedule(); setAdo(); closeModal(); toast('ADO disconnected. Synced tasks stay in your board.'); return; }
       const go = e.target.closest('[data-ado-go]'); if (!go) return;
-      const port = Math.round(+sh.querySelector('#adoPort').value), msg = sh.querySelector('#adoMsg');
+      const msg = sh.querySelector('#adoMsg');
+      const portEl = sh.querySelector('#adoPort'), port = portEl ? Math.round(+portEl.value) : ui.ado.port;
       if (!(port >= 1024 && port <= 65535)){ msg.textContent = 'Use a port between 1024 and 65535.'; return; }
+      const every = Math.round(+sh.querySelector('#adoEvery').value);
+      if (!(every >= ADO_SYNC_MIN && every <= ADO_SYNC_MAX)){ msg.textContent = `Sync every ${ADO_SYNC_MIN} to ${ADO_SYNC_MAX} minutes.`; return; }
+      const prTiers = {};
+      for (const k of Object.keys(PR_TIER)) prTiers[k] = {value: +sh.querySelector(`[data-tier-value=${k}]`).value, urgent: sh.querySelector(`[data-tier-urgent=${k}]`).checked};
       const choose = sh.querySelector('[name=adoChoose]:checked').value === '1';
-      if (choose !== state.ado.choose){ state.ado.choose = choose; if (!choose){ adoPick(state.ado.pending.map(p => p.id), []); normalizeRanks(state); } commit(); }
-      ui.ado.port = port; go.disabled = true; msg.textContent = 'Checking the helper...';
+      if (choose !== state.ado.choose || every !== state.ado.syncMinutes || JSON.stringify(prTiers) !== JSON.stringify(state.ado.prTiers)){
+        state.ado.syncMinutes = every; state.ado.prTiers = prTiers;
+        if (choose !== state.ado.choose){ state.ado.choose = choose; if (!choose){ adoPick(state.ado.pending.map(p => p.id), []); normalizeRanks(state); } }
+        commit();
+      }
+      ui.ado.port = port; go.disabled = true; msg.textContent = viaConnector ? 'Checking the ADO connector...' : 'Checking the helper...';
       try {
-        await adoFetch('/health');
+        await adoCall('health');
         ui.ado.on = true; ui.ado.error = ''; ui.ado.last = 0; saveUi();
         closeModal(); adoSchedule(); adoSync(true);
       } catch(err){
@@ -289,3 +346,5 @@ function onAdoClick(btn){
       if (b.dataset.a === 'reports') setView('reports');
     });
 }
+
+export { ADO_DOWN, ADO_GONE, PR_GONE, PR_TIER, adoApply, adoCall, adoDetect, adoInit, adoPick, adoReview, adoSchedule, adoSetup, adoShort, adoSync, adoUnreachable, onAdoClick, prTip, setAdo };

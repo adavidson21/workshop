@@ -1,5 +1,4 @@
 /* Prioritizer: Small helpers: DOM lookup, escaping, ids, dates. */
-'use strict';
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,3 +25,5 @@ function fmtDay(s){
   return dt.toLocaleDateString(undefined, o);
 }
 const fmtLong = s => parseD(s).toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'});
+
+export { $, addDays, dateStr, daysBetween, esc, fmtDay, fmtLong, fmtMD, isDate, parseD, plural, today, todayStr, uid };

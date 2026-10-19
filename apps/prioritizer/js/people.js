@@ -1,5 +1,9 @@
+import { inlineEdit } from './drag-drop.js';
+import { closeMenu, popMenu, toast } from './overlays.js';
+import { render } from './render.js';
+import { commit, findTask, listById, state } from './state.js';
+import { esc } from './util.js';
 /* Prioritizer: People: rename, remove, person menu. */
-'use strict';
 /* ---------- people ---------- */
 function renamePerson(oldN, newN){
   newN = newN.replace(/^@/, '').trim(); if (!newN) return render();
@@ -41,3 +45,5 @@ document.addEventListener('dblclick', e => {
     if (L && lbl) inlineEdit(lbl, L.name, 'List name', v => { L.name = v; commit(); });
   }
 });
+
+export { openPersonMenu };

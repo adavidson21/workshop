@@ -1,5 +1,18 @@
+import { addTask, downgradeUrgent, moveTask, toggleDone, toggleFocus } from './actions.js';
+import { onAdoClick } from './ado.js';
+import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
+import { EMBEDDED, KEY } from './constants.js';
+import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
+import { engOpen } from './eng.js';
+import { importFile } from './excel.js';
+import { checkExternal, onSyncClick } from './folder-sync.js';
+import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
+import { openPersonMenu } from './people.js';
+import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
+import { canonPerson, commit, inScope, load, saveUi, scopeListIds, setSnap, setState, state, takeSnap, ui } from './state.js';
+import { $, isDate, plural, todayStr, uid } from './util.js';
+import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
-'use strict';
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
 function applySide(){
@@ -56,11 +69,11 @@ document.addEventListener('click', e => {
     state.tasks.forEach(x => { if (inScope(x) && !x.done && x.focusOn && x.focusOn < t0) x.focusOn = lo.dataset.left === 'carry' ? t0 : null; });
     commit(); return;
   }
-  if (t.closest('[data-pickall]')){ showAllPick = !showAllPick; render(); return; }
+  if (t.closest('[data-pickall]')){ setShowAllPick(!showAllPick); render(); return; }
   if (t.closest('[data-addperson]')){ askText('Add a person', '', n => { canonPerson(n); commit(); }, 'Add'); return; }
-  const wk = t.closest('[data-week]'); if (wk){ if (!wk.disabled){ weekOff = Math.min(0, weekOff + +wk.dataset.week); render(); } return; }
+  const wk = t.closest('[data-week]'); if (wk){ if (!wk.disabled){ setWeekOff(Math.min(0, weekOff + +wk.dataset.week)); render(); } return; }
   if (t.closest('[data-copy-recap]')){ copyText(recapText(recapData())); return; }
-  const qa = t.closest('[data-qadd]'); if (qa){ openQuad = openQuad === qa.dataset.qadd ? null : qa.dataset.qadd; render(); return; }
+  const qa = t.closest('[data-qadd]'); if (qa){ setOpenQuad(openQuad === qa.dataset.qadd ? null : qa.dataset.qadd); render(); return; }
   if (t.closest('[data-clear-archive]')){
     const ids = scopeListIds();
     const n = state.tasks.filter(x => x.done && ids.includes(x.listId)).length;
@@ -71,7 +84,7 @@ document.addEventListener('click', e => {
   }
   const r = t.closest('.row[data-id]'); if (r && !t.closest('.qform,.pform')){ openDrawer(r.dataset.id); return; }
 });
-document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') doneOpen = e.target.open; }, true);
+document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); }, true);
 document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
   if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); state.capacityAt = Date.now(); } commit(); }
@@ -96,12 +109,12 @@ document.addEventListener('focusout', e => {
   const f = e.target.closest && e.target.closest('.qform');
   if (!f || f.querySelector('input').value.trim()) return;
   setTimeout(() => {
-    if (!document.activeElement || !document.activeElement.closest('.qform')){ openQuad = null; render(); }
+    if (!document.activeElement || !document.activeElement.closest('.qform')){ setOpenQuad(null); render(); }
   }, 150);
 });
 document.addEventListener('focusin', e => {
   const r = e.target.closest && e.target.closest('main .row[data-id]');
-  if (r && sel !== r.dataset.id){ sel = r.dataset.id; markSel(); }
+  if (r && sel !== r.dataset.id){ setSel(r.dataset.id); markSel(); }
 });
 document.addEventListener('keydown', e => {
   const ae = document.activeElement || document.body;
@@ -112,12 +125,12 @@ document.addEventListener('keydown', e => {
     if (trap) trapTab(e, trap);
     return;
   }
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k'){ e.preventDefault(); if (modalOpen) return; cmdOpen() ? closeCmd() : openCmd(); return; }
+  if (!EMBEDDED && (e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k'){ e.preventDefault(); if (modalOpen) return; cmdOpen() ? closeCmd() : openCmd(); return; }
   if (e.key === 'Escape'){
     if (cmdOpen()) return closeCmd();
     if (modalOpen) return closeModal();
     if (menuEl) return closeMenu(true);
-    if (openQuad){ openQuad = null; render(); return; }
+    if (openQuad){ setOpenQuad(null); render(); return; }
     if (ae.id === 'triDue'){ ae.blur(); return; }
     if (innerWidth < 760 && mobileOpen){ closeSide(); return; }
     if (drawerId) return closeDrawer();
@@ -153,7 +166,7 @@ document.addEventListener('keydown', e => {
   else if (k === 't' && sel){ toggleFocus(sel); requestAnimationFrame(focusSel); }
   else if (k === '?'){ showHelp(); }
 });
-window.addEventListener('storage', e => { if (e.key === KEY){ state = load(); snap = takeSnap(); render(); } });
+window.addEventListener('storage', e => { if (e.key === KEY){ setState(load()); setSnap(takeSnap()); render(); } });
 let lastDay = todayStr();
 const checkDay = () => { if (todayStr() !== lastDay){ lastDay = todayStr(); render(); } };
 setInterval(checkDay, 60000);
@@ -181,3 +194,5 @@ document.addEventListener('mouseover', e => {
   tipTimer = setTimeout(() => { if (tipFor === el && el.isConnected){ placeTip(el); tipEl.classList.add('show'); } }, 320);
 });
 ['mousedown','dragstart','scroll','keydown'].forEach(ev => document.addEventListener(ev, hideTip, true));
+
+export { applySide, closeSide, hideTip, placeTip, tipFor };

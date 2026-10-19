@@ -1,5 +1,11 @@
+import { addTask } from './actions.js';
+import { VALUE } from './constants.js';
+import { hideTip } from './events.js';
+import { closeMenu } from './overlays.js';
+import { parseQuick } from './quick-add.js';
+import { defaultListId, listById, state } from './state.js';
+import { $, esc, fmtLong, todayStr } from './util.js';
 /* Prioritizer: The command bar (N or Ctrl+K) for adding tasks. */
-'use strict';
 /* ---------- command bar ---------- */
 const cmd = $('#cmd'), cmdInput = $('#cmdInput'), cmdParsed = $('#cmdParsed');
 let cmdReturn = null, cmdAdded = '';
@@ -39,3 +45,5 @@ cmdInput.addEventListener('keydown', e => {
   }
 });
 cmd.addEventListener('click', e => { if (e.target.closest('[data-cmd-close]')) closeCmd(); });
+
+export { closeCmd, cmd, cmdOpen, openCmd };

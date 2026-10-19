@@ -1,5 +1,6 @@
+import { orderedLists } from './state.js';
+import { addDays, dateStr, isDate, parseD, today } from './util.js';
 /* Prioritizer: Quick add syntax: @person !value !! ~effort ^due #list. */
-'use strict';
 /* ---------- quick add syntax (Build spec: Command bar syntax) ---------- */
 const DOW = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 function parseDue(x){
@@ -35,3 +36,5 @@ function parseQuick(text){
   out.title = keep.join(' ').trim();
   return out;
 }
+
+export { parseQuick };

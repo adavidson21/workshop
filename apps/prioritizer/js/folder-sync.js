@@ -1,5 +1,9 @@
+import { hideTip, placeTip, tipFor } from './events.js';
+import { NO_XLSX, buildWorkbook, exportXlsx, parseWorkbook } from './excel.js';
+import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
+import { commit, sanitize, setState, state } from './state.js';
+import { $, plural } from './util.js';
 /* Prioritizer: Autosave to a folder (Chrome or Edge, File System Access API). */
-'use strict';
 /* ---------- autosave to a folder (Chrome / Edge) ---------- */
 const FILE_NAME = 'prioritizer.xlsx';
 const fsOK = typeof window.showDirectoryPicker === 'function';
@@ -48,7 +52,7 @@ async function readFolderFile(){
 }
 function applyFile(p){
   state.lists = p.lists; state.tasks = p.tasks;
-  state = sanitize(state);
+  setState(sanitize(state));
   lastSig = dataSig();
   commit();
 }
@@ -156,3 +160,5 @@ async function restoreSync(){
   setSync('paused');
   toast(`Reconnect to ${h.name} to keep the folder copy`, 'Reconnect', reconnect, 20000);
 }
+
+export { checkExternal, kvGet, kvSet, onSyncClick, restoreSync, scheduleWrite };

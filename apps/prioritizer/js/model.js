@@ -1,5 +1,6 @@
+import { POINTS, TIERS, WINDOW } from './constants.js';
+import { addDays, daysBetween, today } from './util.js';
 /* Prioritizer: The prioritization model: implied due dates, urgency, score, tiers, quadrants. Pure functions. */
-'use strict';
 /* ---------- prioritization model (Build spec: Derived logic) ---------- */
 const isTriaged  = t => t.value != null && t.effort != null;
 const impliedDue = t => t.value ? addDays(t.ageFrom, WINDOW[t.value]) : null;
@@ -35,3 +36,5 @@ const fmtScore = s => s == null ? '' : (Math.round(s * 10) / 10).toFixed(1);
 function byScore(a, b){
   return (score(b) - score(a)) || (urgency(b) - urgency(a)) || (b.value - a.value) || (a.rank - b.rank);
 }
+
+export { ageDays, byScore, eKey, fmtScore, impliedDue, isStale, isTriaged, nudgeDue, score, stillUrgent, tier, urgency, vKey };

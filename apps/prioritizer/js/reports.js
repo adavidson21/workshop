@@ -1,5 +1,12 @@
+import { ADO_DOWN, adoCall, adoSetup, adoSync, adoUnreachable } from './ado.js';
+import { ICON } from './constants.js';
+import { NO_XLSX } from './excel.js';
+import { kvGet, kvSet } from './folder-sync.js';
+import { closeModal, showModal, toast } from './overlays.js';
+import { main, render, setView } from './render.js';
+import { saveUi, state, ui } from './state.js';
+import { $, esc, fmtMD, plural, todayStr } from './util.js';
 /* Prioritizer: Reports: team-wide ADO reports from one read-only pull, with Excel export. */
-'use strict';
 /* ---------- reports: team-wide ADO reports from one read-only pull ----------
    The ADO helper's /dataset returns the team's work items plus their priority, sprint, assignment and state
    changes in a window, and sprint dates. Every report below is computed here from that one pull, so a new
@@ -9,10 +16,13 @@ const RP_TABS = [['churn', 'Priority churn'], ['other', "Other teams' work"], ['
   ['scope', 'Sprint scope churn'], ['load', 'Load by person'], ['aging', 'Aging and throughput']];
 const RP_DAYS = [14, 30, 42, 60, 90, 120, 180];
 const RP_OLD = 'Your ADO helper is out of date. Download the new ado_helper.py from ADO Settings and restart it.';
-ui.rp = Object.assign({days: 42, base: '', areas: '', people: '', tab: 'churn'}, ui.wl || {}, ui.rp || {});
-delete ui.wl;
 let rp = {data: null, busy: false, error: '', calc: null};
-kvGet('reports').then(d => { if (d && d.schema === 1 && !rp.data){ rp.data = d; if (state.view === 'reports') render(); } }).catch(() => {});
+// Report settings and the last pulled data. Called by main.js once every module has loaded.
+function rpInit(){
+  ui.rp = Object.assign({days: 42, base: '', areas: '', people: '', tab: 'churn'}, ui.wl || {}, ui.rp || {});
+  delete ui.wl;
+  kvGet('reports').then(d => { if (d && d.schema === 1 && !rp.data){ rp.data = d; if (state.view === 'reports') render(); } }).catch(() => {});
+}
 const rpLines = v => String(v || '').split(/\r?\n|;/).map(x => x.trim()).filter(Boolean);
 const rpHasProfile = () => !!(rpLines(ui.rp.areas).length || rpLines(ui.rp.people).length);
 const DAY_MS = 864e5;
@@ -248,7 +258,7 @@ async function rpRefresh(){
   if (!rpHasProfile()) return rpProfile();
   rp.busy = true; rp.error = ''; render();
   try {
-    const d = await adoFetch('/dataset', {days: ui.rp.days, base: ui.rp.base || undefined, areas: rpLines(ui.rp.areas), people: rpLines(ui.rp.people)});
+    const d = await adoCall('dataset', {days: ui.rp.days, base: ui.rp.base || undefined, areas: rpLines(ui.rp.areas), people: rpLines(ui.rp.people)});
     rp.data = d; rp.calc = null;
     kvSet('reports', d).catch(() => {});
     toast(`Reports updated: ${plural(d.items.length, 'work item')}, ${plural(d.events.length, 'change')}`);
@@ -279,7 +289,7 @@ async function rpProfile(){
       rpRefresh();
     }));
   try {
-    const h = await adoFetch('/health');
+    const h = await adoCall('health');
     cols = h.collections || [];
     if (cols.length > 1 && $('#rpCol')){
       $('#rpCol').innerHTML = cols.map(c => `<option${c === ui.rp.base ? ' selected' : ''}>${esc(c)}</option>`).join('');
@@ -425,3 +435,5 @@ function buildReportsWorkbook(d){
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) adoSync(false); });
 window.addEventListener('focus', () => adoSync(false));
+
+export { buildReportsWorkbook, renderReports, rp, rpCompute, rpHead, rpInit, rpRefresh };

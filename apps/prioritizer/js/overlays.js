@@ -1,5 +1,11 @@
+import { EMBEDDED } from './constants.js';
+import { applyOrder } from './actions.js';
+import { hideTip } from './events.js';
+import { byScore, fmtScore, isTriaged, score } from './model.js';
+import { setScope } from './render.js';
+import { childrenOf, commit, listById, orderedLists, scopeOpen, state, topLists } from './state.js';
+import { $, esc, plural, uid } from './util.js';
 /* Prioritizer: Modal, menus, list and scope menus, theme menu, toast, and the Suggest order preview. */
-'use strict';
 /* ---------- modal, menu, toast ---------- */
 const modal = $('#modal');
 let modalReturn = null;
@@ -46,7 +52,8 @@ function showHelp(){
   const r = (k, d) => `<tr><td>${k}</td><td>${d}</td></tr>`;
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"><h3>Keyboard shortcuts</h3>
     <table class="keys"><tbody>
-      ${r('<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
+      ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
+      ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
       ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Triage, Prioritize, People, Archive, Reports')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
@@ -162,3 +169,5 @@ function suggestPreview(){
       };
     });
 }
+
+export { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, popMenu, showHelp, showModal, suggestPreview, toast, trapTab };

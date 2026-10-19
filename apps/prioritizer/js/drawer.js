@@ -1,5 +1,13 @@
+import { deleteTask, moveTask, toggleDone, toggleFocus, wontDo } from './actions.js';
+import { ADO_GONE, PR_GONE, PR_TIER } from './ado.js';
+import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
+import { engDrawer, engOpen, engStart } from './eng.js';
+import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
+import { app, drawer, main, render, sel, setSel } from './render.js';
+import { canonPerson, commit, findTask, orderedLists, save, scopeOpen, state } from './state.js';
+import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
+import { dayLabel } from './views.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
-'use strict';
 /* ---------- selection + keyboard navigation ---------- */
 function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
 function markSel(){
@@ -16,7 +24,7 @@ function moveSel(d){
   const rows = visibleRows(); if (!rows.length) return;
   let i = rows.findIndex(el => el.dataset.id === sel);
   i = i < 0 ? (d > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, i + d));
-  sel = rows[i].dataset.id;
+  setSel(rows[i].dataset.id);
   markSel(); focusSel();
   if (drawerId) openDrawer(sel, false);
 }
@@ -27,7 +35,7 @@ const drawerOverlay = () => drawerId && innerWidth < 1100;
 function openDrawer(id, focusTitle = true){
   if (!findTask(id)) return;
   if (!drawerId) drawerReturn = document.activeElement;
-  drawerId = id; sel = id;
+  drawerId = id; setSel(id);
   app.classList.add('drawer-open');
   renderDrawer();
   markSel();
@@ -150,3 +158,5 @@ drawer.addEventListener('click', e => {
   if (a === 'eng-open') return engOpen(t.ado.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
 });
+
+export { closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };
