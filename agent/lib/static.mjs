@@ -7,6 +7,21 @@ import { fail } from './http.mjs';
 
 const TOP_DIRS = new Set(['shell', 'shared', 'icons']);
 const TOP_FILES = new Set(['index.html', 'manifest.webmanifest', 'sw.js']);
+
+// Security headers the agent sends with every page it serves (docs/security.md, Content security policy).
+// The policy matches the Content-Security-Policy meta tag the pages also carry, so a page behaves the same
+// whether the agent serves it or a static host does. It allows this origin and the local agent on
+// 127.0.0.1 only, so a page can never load code, fonts or images from anywhere else, and "frame-ancestors
+// 'self'" keeps a hostile site from framing the hub.
+export const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+export const SECURITY_HEADERS = {
+  'Content-Security-Policy': CSP,
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+};
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -55,7 +70,7 @@ export function serveStatic(req, res, pathname, dirs) {
     'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
     'Content-Length': size,
     'Cache-Control': 'no-cache',
-    'X-Content-Type-Options': 'nosniff'
+    ...SECURITY_HEADERS
   });
   if (req.method === 'HEAD') { res.end(); return; }
   const stream = fs.createReadStream(file);

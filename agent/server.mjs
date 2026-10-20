@@ -19,6 +19,7 @@ import { Store } from './lib/store.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { serveStatic } from './lib/static.mjs';
+import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -43,6 +44,12 @@ const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.lengt
  * @param {object} [o.env]             environment variables connectors may read (default process.env)
  * @param {number} [o.port]            listen here instead of config.json's port (0 picks a free port)
  * @param {boolean} [o.echoLog]        also print log lines to the console
+ * @param {boolean} [o.manageStartup]  write and remove the OS start-at-login launcher to match the flag (the
+ *                                     real launcher, agent/start.mjs, sets this). Off by default so a test
+ *                                     calling createAgent never touches the computer's real login folder.
+ * @param {string} [o.loginDir]        folder for the start-at-login launcher (default: the platform's own).
+ *                                     Passing it (or WORKSHOP_LOGIN_DIR) turns on startup management into that
+ *                                     folder, so a test can exercise it in a temp directory.
  * @returns {Promise<{url: string, port: number, token: string, home: string, logFile: string, stop: () => Promise<void>}>}
  */
 export async function createAgent(o) {
@@ -54,6 +61,15 @@ export async function createAgent(o) {
   const env = o.env || process.env;
   const paths = homePaths(home);
   const schemas = SchemaSet.fromDir(path.join(REPO, 'docs', 'schemas'));
+  // Where the start-at-login launcher (docs/config.md, features.startAtLogin) lives. It runs this repo's
+  // agent with this computer's Node. The launcher sits in the OS login location (the user's home, not the
+  // Workshop data home), so loginItem uses its own default home. loginDir (or WORKSHOP_LOGIN_DIR) lets a test
+  // write it to a temp folder. manageStartup gates every login side effect: it is off unless the real
+  // launcher asks for it or a loginDir is given, so running the tests never writes to the computer's own
+  // Startup folder, LaunchAgents or autostart.
+  const loginDir = o.loginDir ?? env.WORKSHOP_LOGIN_DIR;
+  const manageStartup = o.manageStartup === true || loginDir != null;
+  const loginOpts = { repo: REPO, execPath: process.execPath, platform: process.platform, env, dir: loginDir };
 
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   const leftovers = removeTmpFiles(home);
@@ -281,6 +297,8 @@ document.getElementById('allow').addEventListener('click', function () {
       const changed = [];
       const toggled = [];
       const restartRequired = body.port !== undefined && body.port !== port;
+      const loginBefore = config.features.startAtLogin === true;
+      const loginAsked = body.features && Object.prototype.hasOwnProperty.call(body.features, 'startAtLogin');
       await commitConfig(() => {
         if (body.port !== undefined) { config.port = body.port; changed.push('port'); }
         if (body.allowedOrigins) { config.allowedOrigins = [...body.allowedOrigins]; changed.push('allowedOrigins'); }
@@ -295,6 +313,13 @@ document.getElementById('allow').addEventListener('click', function () {
         }
       });
       for (const [id, on] of toggled) await connectors.enabledChanged(id, on);
+      // Make start at login match the saved flag. The flag is already saved, so this is best effort: a
+      // startup folder that cannot be written logs a warning and never fails the settings change.
+      if (manageStartup && loginAsked && config.features.startAtLogin === true !== loginBefore) {
+        const want = config.features.startAtLogin === true;
+        const r = await applyStartAtLogin(want, loginOpts);
+        if (!r.ok) log.warn(`Could not ${want ? 'turn on' : 'turn off'} start at login: ${r.error}`);
+      }
       if (changed.length) events.send('config', { changed });
       ok({ config: publicConfig(), restartRequired });
       return;
@@ -324,6 +349,19 @@ document.getElementById('allow').addEventListener('click', function () {
   port = server.address().port;
   log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}).`);
   await connectors.startAll();
+
+  // Keep the start-at-login launcher in step with the flag, in case config.json was edited by hand or the
+  // repo moved since last run. Only acts when the two disagree, so a normal start writes nothing. Gated on
+  // manageStartup so running the tests never touches the computer's real login folder.
+  if (manageStartup) {
+    try {
+      const want = config.features.startAtLogin === true;
+      if (want !== startAtLoginStatus(loginOpts).installed) {
+        const r = await applyStartAtLogin(want, loginOpts);
+        if (!r.ok) log.warn(`Could not apply start at login: ${r.error}`);
+      }
+    } catch (e) { log.warn(`Could not check start at login: ${e.message}`); }
+  }
 
   let stopping = null;
   return {
