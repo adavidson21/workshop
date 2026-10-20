@@ -2,7 +2,7 @@
 // The `workshop` command: one entry point for running and looking after the local agent.
 //
 //   workshop start [--port n] [--quiet]   Start the agent (same as node agent/start.mjs).
-//   workshop install [--no-login]         First run: create ~/.workshop and turn on start at login.
+//   workshop install [--login]            First run: create ~/.workshop. --login also turns on start at login.
 //   workshop uninstall                     Turn off start at login. Leaves your data in place.
 //   workshop doctor                        Check Node, config.json, the port, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
@@ -32,7 +32,7 @@ const SERVED_FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
 const USAGE = `Usage: workshop <command> [options]
 
   start [--port <n>] [--quiet]   Start the agent, print the address to open.
-  install [--no-login]           Create ~/.workshop and turn on start at login (opt in, no admin).
+  install [--login]              Create ~/.workshop. --login also turns on start at login (no admin).
   uninstall                      Turn off start at login. Your data stays in ~/.workshop.
   doctor                         Check Node, config.json, the port, start at login and hosted mode.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
@@ -210,8 +210,8 @@ async function runInstall(opts, io) {
   }
   const created = await ensureHome(home);
   io.out(created ? `Created ${home} with default settings (everything off).` : `Using ${home}.`);
-  if (opts.login === false) {
-    io.out('Left start at login off (--no-login). Turn it on later with "workshop install".');
+  if (opts.login !== true) {
+    io.out('Start at login is off. Turn it on in Settings, or run "workshop install --login".');
   } else {
     await setStartAtLoginFlag(home, schemas, true);
     const r = await enableStartAtLogin({ repo: REPO, env: io.env, dir: io.env.WORKSHOP_LOGIN_DIR });
@@ -290,7 +290,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
     return code;
   }
 
-  if (cmd === 'install') return runInstall({ login: !rest.includes('--no-login') }, io);
+  if (cmd === 'install') return runInstall({ login: rest.includes('--login') }, io);
   if (cmd === 'uninstall') return runUninstall(io);
 
   if (cmd === 'publish') {

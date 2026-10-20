@@ -1,6 +1,6 @@
 # Install Workshop on Windows, per user, no admin rights.
-# It checks Node, creates %USERPROFILE%\.workshop, and (unless you pass -NoLogin) turns on start at login.
-# Run it from PowerShell:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1   [-NoLogin]
+# It checks Node and creates %USERPROFILE%\.workshop. Start at login stays off unless you pass -Login.
+# Run it from PowerShell:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1   [-Login]
 #Requires -Version 5
 $ErrorActionPreference = 'Stop'
 
@@ -21,11 +21,11 @@ if ($major -lt 22) {
 }
 Write-Host "Node $(node -v): ok."
 
-# -NoLogin on this script becomes --no-login for the workshop command.
+# -Login on this script becomes --login for the workshop command.
 $extra = @()
-if ($args -contains '-NoLogin' -or $args -contains '--no-login') { $extra += '--no-login' }
+if ($args -contains '-Login' -or $args -contains '--login') { $extra += '--login' }
 
-# Create the data folder and turn on start at login (skipped with -NoLogin).
+# Create the data folder (and turn on start at login with -Login).
 node "$repo\workshop.mjs" install @extra
 
 Write-Host ""

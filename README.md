@@ -45,7 +45,7 @@ The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<
 2. Install, per user:
    - macOS or Linux: `bash scripts/install.sh`
    - Windows: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`
-   This checks Node, creates `~/.workshop`, and turns on start at login. Pass `--no-login` (or `-NoLogin` on Windows) to skip that part.
+   This checks Node and creates `~/.workshop`. Start at login stays off; pass `--login` (or `-Login` on Windows) to turn it on, or turn it on later in Settings.
 3. Start it now: `node workshop.mjs start`, then open the address it prints in Chrome or Edge on this computer.
 
 Other commands:

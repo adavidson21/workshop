@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install Workshop on macOS or Linux, per user, no admin rights.
-# It checks Node, creates ~/.workshop, and (unless you pass --no-login) turns on start at login.
-# Run it from anywhere:  bash scripts/install.sh   [--no-login]
+# It checks Node and creates ~/.workshop. Start at login stays off unless you pass --login.
+# Run it from anywhere:  bash scripts/install.sh   [--login]
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,7 +20,7 @@ if [ "$MAJOR" -lt 22 ]; then
 fi
 echo "Node $(node -v): ok."
 
-# Create ~/.workshop and turn on start at login (pass --no-login to skip that part).
+# Create ~/.workshop (pass --login to also turn on start at login).
 node "$REPO/workshop.mjs" install "$@"
 
 echo

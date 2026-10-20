@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { inspectConfig, doctorReport, buildRegistry, publish, loadSchemas } from '../../workshop.mjs';
+import { inspectConfig, doctorReport, buildRegistry, publish, loadSchemas, main } from '../../workshop.mjs';
 import { APPS } from './helpers.mjs';
 
 const tempDir = pfx => fs.mkdtempSync(path.join(os.tmpdir(), pfx));
@@ -79,4 +79,24 @@ test('publish copies the served files and writes apps/registry.json', () => {
     const reg = JSON.parse(fs.readFileSync(path.join(out, 'apps', 'registry.json'), 'utf8'));
     assert.deepEqual(reg.apps.map(a => a.base), ['/apps/demo/']);
   } finally { rm(repo); rm(out); }
+});
+
+test('install leaves start at login off unless --login is passed', async () => {
+  const home = tempDir('workshop-cli-install-');
+  const loginDir = tempDir('workshop-cli-login-');
+  // A port nothing listens on, so install never sees a running agent.
+  const env = { WORKSHOP_HOME: home, WORKSHOP_LOGIN_DIR: loginDir };
+  const out = [];
+  const io = { out: s => out.push(s), env };
+  try {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, port: 4399, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: {} }));
+    assert.equal(await main(['install'], io), 0);
+    assert.deepEqual(fs.readdirSync(loginDir), [], 'no launcher without --login');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).features.startAtLogin, false);
+    assert.match(out.join('\n'), /Start at login is off/);
+
+    assert.equal(await main(['install', '--login'], io), 0);
+    assert.equal(fs.readdirSync(loginDir).length, 1, 'launcher written with --login');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).features.startAtLogin, true);
+  } finally { rm(home); rm(loginDir); }
 });
