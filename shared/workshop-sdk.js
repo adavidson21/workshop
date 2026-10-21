@@ -500,6 +500,9 @@ export async function connect(options) {
   let initial = { theme: null, route: '', visible: true };
   if (shell.embedded) {
     try { initial = await shell.request('ready', { app, sdk: SDK_VERSION }, READY_TIMEOUT_MS) || initial; } catch (e) { /* no answer: keep the defaults */ }
+    // The route the app was opened at (docs/sdk.md: route fires "including on first show"). Sent on the
+    // next task, so handlers the app adds right after `await connect()` get it.
+    if (initial.route) { const path = initial.route; setTimeout(() => shell.emit('route', { path })); }
   }
 
   // Keep the theme current() returns up to date.

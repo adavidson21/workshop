@@ -1,0 +1,680 @@
+{
+ "generated": "2026-10-21T05:28:55.1996881-04:00",
+ "generatedMs": 1792574935199,
+ "workspace": "/home/me/work",
+ "workRoot": "/home/me/work/.work",
+ "gitAvailable": true,
+ "configFound": false,
+ "dashboardVersion": null,
+ "stepWords": {
+  "start": "Set up the repos and branches",
+  "spec": "Write the spec",
+  "plan": "Write the plan",
+  "tasks": "Split the plan into tasks",
+  "bug": "Analyze the bug",
+  "review": "Review the changes",
+  "pr": "Write the PR text",
+  "resume": "Resume this item",
+  "approve": "Approve"
+ },
+ "refreshCommand": "/dashboard static",
+ "refreshShell": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"/home/claude/workshop/connectors/opencode/parser/New-Dashboard.ps1\" -WorkRoot \"/home/me/work/.work\"",
+ "liveShell": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"/home/claude/workshop/connectors/opencode/parser/Start-LiveDashboard.ps1\"",
+ "items": [
+  {
+   "kind": "item",
+   "id": "41207",
+   "folder": "41207-fix-login-timeout",
+   "title": "Fix login timeout on renewal",
+   "type": "User Story",
+   "adoState": "Active",
+   "fetched": "2026-10-12",
+   "lane": "feature",
+   "laneGuessed": false,
+   "url": null,
+   "hasRepos": true,
+   "hasPr": false,
+   "gates": {
+    "spec": "APPROVED",
+    "plan": "APPROVED",
+    "bug": null,
+    "review": null
+   },
+   "tasks": {
+    "total": 3,
+    "done": 2,
+    "list": [
+     {
+      "n": 1,
+      "title": "Add a failing test for the session lifetime",
+      "done": true,
+      "repo": "auth-lib"
+     },
+     {
+      "n": 2,
+      "title": "Read the lifetime from config",
+      "done": true,
+      "repo": "auth-lib"
+     },
+     {
+      "n": 3,
+      "title": "Use the setting on the renewal page",
+      "done": false,
+      "repo": "web-app"
+     }
+    ]
+   },
+   "blocked": null,
+   "paused": null,
+   "last": {
+    "date": "2026-10-14 14:05",
+    "command": "/do-task",
+    "agent": "implementer",
+    "did": "Task 2. Lifetime now comes from config.",
+    "verify": "`dotnet test` -> PASS",
+    "notes": null,
+    "next": "/do-task 41207 3"
+   },
+   "repos": [
+    {
+     "folder": "auth-lib",
+     "branch": "dev/feature/41207-fix-login-timeout",
+     "shared": true,
+     "why": "Session lifetime setting",
+     "git": {
+      "exists": false,
+      "isGit": false,
+      "branch": null,
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": null,
+      "lastDate": null,
+      "lastMsg": null,
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    },
+    {
+     "folder": "web-app",
+     "branch": "dev/feature/41207-fix-login-timeout",
+     "shared": false,
+     "why": "Renewal page uses the new setting",
+     "git": {
+      "exists": false,
+      "isGit": false,
+      "branch": null,
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": null,
+      "lastDate": null,
+      "lastMsg": null,
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    }
+   ],
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "workitem.md",
+    "repos.md",
+    "spec.md",
+    "plan.md",
+    "tasks.md",
+    "progress.md"
+   ],
+   "pr": [],
+   "next": {
+    "stage": "build",
+    "command": "/do-task 41207 3",
+    "action": null,
+    "text": "Task 3: Use the setting on the renewal page",
+    "note": "Start a new session (/new) first.",
+    "needsYou": false
+   },
+   "stage": "build",
+   "bucket": "active",
+   "resume": [
+    "cd \"/home/me/work\"",
+    "opencode",
+    "/do-task 41207 3"
+   ]
+  },
+  {
+   "kind": "item",
+   "id": "41300",
+   "folder": "41300-export-retry-fails",
+   "title": "Export retry fails after one attempt",
+   "type": "Bug",
+   "adoState": "New",
+   "fetched": "Pasted by engineer on 2026-10-15",
+   "lane": "bug",
+   "laneGuessed": false,
+   "url": "https://ado.example.com/Main/Web/_workitems/edit/41300",
+   "hasRepos": true,
+   "hasPr": false,
+   "gates": {
+    "spec": null,
+    "plan": null,
+    "bug": "DRAFT",
+    "review": null
+   },
+   "tasks": {
+    "total": 1,
+    "done": 0,
+    "list": [
+     {
+      "n": 1,
+      "title": "Add a failing test for the second retry",
+      "done": false,
+      "repo": "export-service"
+     }
+    ]
+   },
+   "blocked": null,
+   "paused": null,
+   "last": null,
+   "repos": [
+    {
+     "folder": "export-service",
+     "branch": "dev/bug/41300-export-retry-fails",
+     "shared": false,
+     "why": "Retry loop",
+     "git": {
+      "exists": false,
+      "isGit": false,
+      "branch": null,
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": null,
+      "lastDate": null,
+      "lastMsg": null,
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    }
+   ],
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "workitem.md",
+    "repos.md",
+    "bug.md",
+    "tasks.md"
+   ],
+   "pr": [],
+   "next": {
+    "stage": "bug",
+    "command": "/approve 41300",
+    "action": "Review bug.md and tasks.md",
+    "text": "Review bug.md and tasks.md",
+    "note": "After approval: start a new session (/new), then /do-task 41300 1",
+    "needsYou": true
+   },
+   "stage": "bug",
+   "bucket": "needs",
+   "resume": [
+    "cd \"/home/me/work\"",
+    "opencode",
+    "/approve 41300"
+   ]
+  },
+  {
+   "kind": "item",
+   "id": "41455",
+   "folder": "41455-audit-log-filter",
+   "title": "Filter the audit log by user",
+   "type": "Feature",
+   "adoState": "Active",
+   "fetched": null,
+   "lane": "feature",
+   "laneGuessed": true,
+   "url": null,
+   "hasRepos": true,
+   "hasPr": false,
+   "gates": {
+    "spec": "DRAFT",
+    "plan": null,
+    "bug": null,
+    "review": null
+   },
+   "tasks": {
+    "total": 0,
+    "done": 0,
+    "list": []
+   },
+   "blocked": null,
+   "paused": {
+    "since": "2026-10-16 09:30",
+    "reason": "Waiting on design",
+    "inProgress": "none (paused between steps)",
+    "wip": null,
+    "waiting": "- Final filter design from the designer"
+   },
+   "last": null,
+   "repos": [
+    {
+     "folder": "web-app",
+     "branch": "dev/feature/41455-audit-log-filter",
+     "shared": false,
+     "why": "Audit page",
+     "git": {
+      "exists": false,
+      "isGit": false,
+      "branch": null,
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": null,
+      "lastDate": null,
+      "lastMsg": null,
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    }
+   ],
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "workitem.md",
+    "repos.md",
+    "spec.md",
+    "paused.md"
+   ],
+   "pr": [],
+   "next": {
+    "stage": "spec",
+    "command": "/approve 41455",
+    "action": "Review spec.md",
+    "text": "Review spec.md",
+    "note": "Answer its open questions first. After approval: /plan 41455",
+    "needsYou": true
+   },
+   "stage": "spec",
+   "bucket": "paused",
+   "resume": [
+    "cd \"/home/me/work\"",
+    "opencode",
+    "/resume 41455"
+   ]
+  },
+  {
+   "kind": "item",
+   "id": "41502",
+   "folder": "41502-csv-export",
+   "title": "CSV export for reports",
+   "type": "User Story",
+   "adoState": "Active",
+   "fetched": null,
+   "lane": "feature",
+   "laneGuessed": false,
+   "url": null,
+   "hasRepos": true,
+   "hasPr": false,
+   "gates": {
+    "spec": "APPROVED",
+    "plan": "APPROVED",
+    "bug": null,
+    "review": null
+   },
+   "tasks": {
+    "total": 2,
+    "done": 1,
+    "list": [
+     {
+      "n": 1,
+      "title": "Add the CSV writer",
+      "done": true,
+      "repo": "reports-api"
+     },
+     {
+      "n": 2,
+      "title": "Add the export endpoint",
+      "done": false,
+      "repo": "reports-api"
+     }
+    ]
+   },
+   "blocked": "The date format test expects UTC.",
+   "paused": null,
+   "last": {
+    "date": "2026-10-17",
+    "command": "/do-task",
+    "agent": "implementer",
+    "did": "Task 2. Endpoint added but two tests fail.",
+    "verify": "`dotnet test` -> FAIL (2 failed)",
+    "notes": "The date format test expects UTC.",
+    "next": "/do-task 41502 2"
+   },
+   "repos": [
+    {
+     "folder": "reports-api",
+     "branch": "dev/feature/41502-csv-export",
+     "shared": false,
+     "why": "New endpoint",
+     "git": {
+      "exists": false,
+      "isGit": false,
+      "branch": null,
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": null,
+      "lastDate": null,
+      "lastMsg": null,
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    }
+   ],
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "workitem.md",
+    "repos.md",
+    "spec.md",
+    "plan.md",
+    "tasks.md",
+    "progress.md"
+   ],
+   "pr": [],
+   "next": {
+    "stage": "build",
+    "command": "/do-task 41502 2",
+    "action": "Task 2 is blocked. Read the last progress.md entry, then split the task or fix the plan",
+    "text": "Task 2 is blocked. Read the last progress.md entry, then split the task or fix the plan",
+    "note": "Start a new session (/new) before /do-task.",
+    "needsYou": true
+   },
+   "stage": "build",
+   "bucket": "needs",
+   "resume": [
+    "cd \"/home/me/work\"",
+    "opencode",
+    "/do-task 41502 2"
+   ]
+  },
+  {
+   "kind": "item",
+   "id": "41610",
+   "folder": "41610-rate-limit-headers",
+   "title": "Send rate limit headers",
+   "type": "Bug",
+   "adoState": "Resolved",
+   "fetched": null,
+   "lane": "bug",
+   "laneGuessed": true,
+   "url": null,
+   "hasRepos": true,
+   "hasPr": true,
+   "gates": {
+    "spec": null,
+    "plan": null,
+    "bug": "APPROVED",
+    "review": "READY"
+   },
+   "tasks": {
+    "total": 1,
+    "done": 1,
+    "list": [
+     {
+      "n": 1,
+      "title": "Add a failing header test",
+      "done": true,
+      "repo": "gateway"
+     }
+    ]
+   },
+   "blocked": null,
+   "paused": null,
+   "last": null,
+   "repos": [
+    {
+     "folder": "gateway",
+     "branch": "dev/bug/41610-rate-limit-headers",
+     "shared": false,
+     "why": "Response headers",
+     "git": {
+      "exists": true,
+      "isGit": true,
+      "branch": "dev/bug/41610-rate-limit-headers",
+      "detached": false,
+      "upstream": null,
+      "ahead": 0,
+      "behind": 0,
+      "gone": false,
+      "changed": 0,
+      "files": [],
+      "lastSha": "edf3032",
+      "lastDate": "2026-10-21T05:28:53-04:00",
+      "lastMsg": "headers",
+      "defaultBranch": "main",
+      "unpushed": null,
+      "web": null,
+      "links": null
+     },
+     "links": null
+    }
+   ],
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "workitem.md",
+    "repos.md",
+    "bug.md",
+    "tasks.md",
+    "review.md",
+    "pr.md"
+   ],
+   "pr": [
+    {
+     "repo": "gateway",
+     "branch": "dev/bug/41610-rate-limit-headers",
+     "target": "main",
+     "title": "Send rate limit headers on every response",
+     "description": "Adds the standard rate limit headers.\n\n- Header values come from the limiter\n\nTesting: dotnet test, all pass.\n\nWork item: #41610",
+     "links": null,
+     "web": null,
+     "push": {
+      "local": true,
+      "remote": false,
+      "unpushed": null
+     },
+     "pushCmd": "git -C gateway push -u origin dev/bug/41610-rate-limit-headers"
+    }
+   ],
+   "next": {
+    "stage": "ship",
+    "command": null,
+    "action": "Push the branches and open the PRs (text is in pr.md)",
+    "text": "Push the branches and open the PRs (text is in pr.md)",
+    "note": null,
+    "needsYou": false
+   },
+   "stage": "ship",
+   "bucket": "ship",
+   "resume": [
+    "cd \"/home/me/work\"",
+    "opencode"
+   ]
+  },
+  {
+   "folder": "spike-cache-options",
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "findings.md"
+   ],
+   "kind": "spike",
+   "id": null,
+   "title": "Cache options for the catalog",
+   "bucket": "notes",
+   "summary": "An in-memory cache with a 5 minute TTL is enough.",
+   "recommendation": "Use the in-memory cache. Confidence: Medium.",
+   "nextText": null,
+   "state": "Findings written"
+  },
+  {
+   "folder": "tsd-billing-api",
+   "modified": "2026-10-14T08:00:00.0000000-04:00",
+   "modifiedMs": 1791979200000,
+   "files": [
+    "tsd.md"
+   ],
+   "kind": "tsd",
+   "id": null,
+   "title": "Billing API",
+   "bucket": "notes",
+   "state": "Draft, not fact-checked",
+   "nextText": "Start a new session, then `/check-docs .work/tsd-billing-api/tsd.md`."
+  }
+ ],
+ "repos": [
+  {
+   "folder": "gateway",
+   "git": {
+    "exists": true,
+    "isGit": true,
+    "branch": "dev/bug/41610-rate-limit-headers",
+    "detached": false,
+    "upstream": null,
+    "ahead": 0,
+    "behind": 0,
+    "gone": false,
+    "changed": 0,
+    "files": [],
+    "lastSha": "edf3032",
+    "lastDate": "2026-10-21T05:28:53-04:00",
+    "lastMsg": "headers",
+    "defaultBranch": "main",
+    "unpushed": null,
+    "web": null,
+    "links": null
+   },
+   "owner": "41610",
+   "ownerKnown": true
+  }
+ ],
+ "activity": [
+  {
+   "date": "2026-10-17",
+   "command": "/do-task",
+   "agent": "implementer",
+   "did": "Task 2. Endpoint added but two tests fail.",
+   "verify": "`dotnet test` -> FAIL (2 failed)",
+   "id": "41502",
+   "folder": "41502-csv-export",
+   "title": "CSV export for reports",
+   "order": 0,
+   "modifiedMs": 1791979200000
+  },
+  {
+   "date": "2026-10-14 14:05",
+   "command": "/do-task",
+   "agent": "implementer",
+   "did": "Task 2. Lifetime now comes from config.",
+   "verify": "`dotnet test` -> PASS",
+   "id": "41207",
+   "folder": "41207-fix-login-timeout",
+   "title": "Fix login timeout on renewal",
+   "order": 1,
+   "modifiedMs": 1791979200000
+  },
+  {
+   "date": "2026-10-12",
+   "command": "/start",
+   "agent": "planner",
+   "did": "Fetched the work item and set up two repos.",
+   "verify": null,
+   "id": "41207",
+   "folder": "41207-fix-login-timeout",
+   "title": "Fix login timeout on renewal",
+   "order": 0,
+   "modifiedMs": 1791979200000
+  }
+ ],
+ "liveMode": {
+  "error": null,
+  "live": {
+   "opencode": {
+    "url": "http://127.0.0.1:4096",
+    "kind": "v1",
+    "connected": true,
+    "version": "1.14.2",
+    "error": null,
+    "started": false,
+    "attach": "opencode attach http://127.0.0.1:4096 --dir /home/me/work"
+   },
+   "items": {
+    "41207-fix-login-timeout": {
+     "current": "ses_0001abc",
+     "sessions": [
+      {
+       "id": "ses_0001abc",
+       "command": "/plan 41207",
+       "created": "2026-10-21T09:28:55.337Z",
+       "title": "41207: /plan 41207"
+      }
+     ]
+    }
+   },
+   "sessions": {
+    "ses_0001abc": {
+     "id": "ses_0001abc",
+     "title": "41207: /plan 41207",
+     "status": "busy",
+     "activity": "Starting /plan",
+     "text": null,
+     "error": null,
+     "updated": null,
+     "busySince": 1792574935337,
+     "command": "/plan 41207",
+     "folder": "41207-fix-login-timeout",
+     "attach": "opencode attach http://127.0.0.1:4096 --session ses_0001abc --dir /home/me/work"
+    }
+   },
+   "permissions": [],
+   "questions": [],
+   "autopilot": {},
+   "canOpenTerminal": false
+  }
+ }
+}

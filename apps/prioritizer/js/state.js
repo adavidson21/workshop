@@ -129,7 +129,7 @@ function sanitize(s){
 let ui = {collapsed: false};
 try { ui = Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch(e) {}
 const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch(e) {} };
-delete ui.eng; // eng-agents settings moved to shared/eng-client.js
+delete ui.eng; // old eng-agents connection settings; the opencode connector replaced them
 
 // The board starts empty; storage.js loads the saved one before the first render.
 let state = Object.assign(fresh(), pickWindow(ui));

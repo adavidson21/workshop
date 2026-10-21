@@ -9,8 +9,7 @@
    A manifest app is a same-origin page in a frame, kept loaded while hidden so its state survives
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open,
    toast, badge, notify, commands.register, commands.unregister) and sends them events (theme, route,
-   command, visible). The Dashboard is a built-in code pane (shell/dashboard.js) until WS6 makes the
-   Agents app. */
+   command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { detectBackend } from '../shared/workshop-sdk.js';
 
 const $ = s => document.querySelector(s);
@@ -19,17 +18,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const PAIR_KEY = 'workshop.agent';
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/;
 
-/* ---------- built-in apps ----------
-   Code that renders into a pane instead of a page in a frame. Only the Dashboard, until WS6. */
-const BUILTINS = [{
-  id: 'dashboard',
-  manifest: { id: 'dashboard', name: 'Dashboard', order: 20 },
-  icon: svg('<rect x="2.75" y="3.25" width="6" height="7.5" rx="1.3"/><rect x="11.25" y="3.25" width="6" height="4.5" rx="1.3"/><rect x="11.25" y="10.25" width="6" height="6.5" rx="1.3"/><rect x="2.75" y="13.25" width="6" height="3.5" rx="1.3"/>'),
-  mount: pane => window.WorkshopDashboard.mount(pane), show: arg => window.WorkshopDashboard.show(arg), hide: () => window.WorkshopDashboard.hide()
-}];
-
 let env = { mode: 'browser', backend: 'browser', agentUrl: null, token: null };
-let apps = [];            // [{id, kind: 'frame'|'builtin', manifest, base?, icon?, frame?, ...}]
+let apps = [];            // [{id, manifest, base, frame?, ...}]
 let byId = {};
 let connectors = [];      // GET /api/connectors, agent backend only
 let current = null;
@@ -61,8 +51,7 @@ async function loadApps() {
   if (env.backend === 'agent') {
     try { connectors = (await agentGet('/api/connectors')).connectors || []; } catch (e) { connectors = []; }
   }
-  const frameApps = list.map(a => ({ id: a.manifest.id, kind: 'frame', manifest: a.manifest, base: String(a.base).replace(/^\//, '') }));
-  apps = frameApps.concat(BUILTINS.map(b => Object.assign({ kind: 'builtin' }, b)))
+  apps = list.map(a => ({ id: a.manifest.id, manifest: a.manifest, base: String(a.base).replace(/^\//, '') }))
     .filter(a => !a.manifest.modes || a.manifest.modes.includes(env.mode))
     .sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
@@ -87,12 +76,12 @@ const BLANK_ICON = svg('<rect x="4" y="4" width="12" height="12" rx="2.5"/>');
 
 function renderRail() {
   $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="Workshop">${MARK}</a>`
-    + apps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${a.kind === 'builtin' ? a.icon : BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
+    + apps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Use Workshop on this computer" title="Use Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`
     + `<button class="app-btn" id="themeBtn" aria-label="Theme" title="Theme">${THEME_ICON}</button>`;
-  for (const a of apps) if (a.kind === 'frame') loadIcon(a);
+  for (const a of apps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
 }
 
@@ -139,8 +128,11 @@ function setBadge(appId, count) {
 
 /* ---------- routing: #/<app>[/<path>]. The first app (home) has the bare address, no #. ---------- */
 const homeId = () => apps.length ? apps[0].id : null;
+// Addresses from before an app was renamed: the Dashboard pane became the Agents app (WS6).
+const RENAMED = { dashboard: 'agents' };
 function parseHash() {
-  const [id, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+  let [id, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+  if (!byId[id] && byId[RENAMED[id]]) id = RENAMED[id];
   return { id: byId[id] ? id : null, path: rest.length ? rest.map(decodeURIComponent).join('/') : '' };
 }
 function route() {
@@ -148,7 +140,7 @@ function route() {
   const app = byId[id];
   if (!app) return;
   const prev = current && current !== id ? byId[current] : null;
-  if (prev) { if (prev.kind === 'builtin' && prev.hide) prev.hide(); else sendTo(prev, 'visible', { visible: false }); }
+  if (prev) sendTo(prev, 'visible', { visible: false });
   current = id;
   let pane = document.getElementById('pane-' + id);
   if (!pane) {
@@ -157,15 +149,10 @@ function route() {
     $('#panes').appendChild(pane);
   }
   document.querySelectorAll('.pane').forEach(p => { p.hidden = p !== pane; });
-  if (app.kind === 'builtin') {
-    if (!mounted.has(id)) { app.mount(pane); mounted.add(id); }
-    app.show(parsed.path);
-  } else {
-    if (!mounted.has(id)) ensureMounted(app, pane);
-    sendTo(app, 'visible', { visible: true }); // before ready, the ready reply carries it
-    deliverRoute(app, parsed.path);
-    focusFrame(app);
-  }
+  if (!mounted.has(id)) ensureMounted(app, pane);
+  sendTo(app, 'visible', { visible: true }); // before ready, the ready reply carries it
+  deliverRoute(app, parsed.path);
+  focusFrame(app);
   document.title = `${app.manifest.name} · Workshop`;
   markRail();
   // Tidy the address: home is the bare page, and a one-time path is dropped so a reload does not repeat it.
@@ -228,7 +215,7 @@ function reply(win, id, body) {
   try { win.postMessage(Object.assign({ workshop: 1, kind: 'response', id }, body), location.origin); } catch (e) { /* frame gone */ }
 }
 function sendTo(app, event, payload) {
-  if (!app || app.kind !== 'frame' || !app.frame || !app.readySent) return;
+  if (!app || !app.frame || !app.readySent) return;
   try { app.frame.contentWindow.postMessage({ workshop: 1, kind: 'event', event, payload }, location.origin); } catch (e) { /* frame gone */ }
 }
 const themeNow = () => { const key = WorkshopTheme.current(); return { key, scheme: WorkshopTheme.scheme(key) }; };
@@ -241,7 +228,6 @@ function deliverRoute(app, path) {
 }
 // Commands chosen before the app is ready wait for it.
 function deliverCommand(app, id) {
-  if (app.kind !== 'frame') return;
   if (app.readySent) sendTo(app, 'command', { id });
   else (app.pendingCommands ||= []).push(id);
 }
@@ -297,7 +283,6 @@ let palette = null;
 function allCommands() {
   const out = [];
   for (const app of apps) {
-    if (app.kind !== 'frame') continue;
     const seen = new Set();
     for (const c of app.manifest.commands || []) { seen.add(c.id); out.push({ app, id: c.id, title: c.title, route: c.route }); }
     for (const [id, c] of app.runtimeCommands || []) if (!seen.has(id)) out.push({ app, id, title: c.title });
@@ -406,7 +391,7 @@ document.addEventListener('click', e => {
   if (tb) { menu ? closeMenu() : openThemeMenu(tb); return; }
   if (menu && !menu.contains(e.target)) closeMenu();
 });
-// Every app frame gets the theme event; the Dashboard applies it itself.
+// Every app frame gets the theme event (same-origin pages also follow workshop.theme in localStorage).
 WorkshopTheme.onChange(() => { const t = themeNow(); for (const a of apps) sendTo(a, 'theme', t); });
 
 /* ---------- toast ---------- */
@@ -482,9 +467,6 @@ document.addEventListener('click', async e => {
   const p = installPrompt; installPrompt = null; setInstall();
   try { await p.prompt(); await p.userChoice; } catch (err) { /* each prompt works once; the browser offers a fresh one later */ }
 });
-
-// The Dashboard (a classic script) uses go and toast. Nothing else is shared on window.
-window.WorkshopHub = { go: (id, path) => go(id, path), toast: (msg, label, fn, ms) => toast(msg, label, fn, ms) };
 
 /* ---------- start ---------- */
 env = await detectBackend();

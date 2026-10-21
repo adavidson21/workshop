@@ -56,17 +56,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
 .pane[hidden]{display:none}
 .pane>iframe{flex:1;width:100%;min-height:0;border:0;background:var(--bg)}
 
-/* Dashboard page */
-.dhead{display:flex;align-items:center;gap:.6rem 1rem;flex-wrap:wrap;padding:.85rem 1.5rem .75rem}
-.dhead h1{margin:0;font-size:1.3rem;font-weight:600;letter-spacing:-.015em;line-height:1.2}
-.dhead .sub{font-size:.8rem;color:var(--muted)}
-.dhead a.btn{text-decoration:none}
-.dhead .tools{margin-left:auto;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.dbody{flex:1;min-height:0;display:flex;padding:0 1.5rem 1.5rem;overflow:auto}
-.dbody iframe{flex:1;width:100%;min-height:0;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
-.dbody .engcard{align-self:flex-start} /* the card itself is in ../shared/ui.css */
-.engcard p{margin:.3rem 0}
-.engcard .grow{flex:1}
 
 /* phones: the rail becomes a bottom bar */
 @media (max-width:720px){
@@ -75,7 +64,5 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
   .rail .mark,.rail .grow{display:none}
   .app-btn{width:auto;min-width:64px;padding:0 .6rem}
   .app-btn.on::before{left:14px;right:14px;top:-1px;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
-  .dhead{padding:.75rem 1rem}
-  .dbody{padding:0 1rem 1rem}
   .toast{bottom:4.5rem}
 }

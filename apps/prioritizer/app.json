@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Prioritizer",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -21,6 +21,10 @@
   "connectors": [
     {
       "id": "ado",
+      "required": false
+    },
+    {
+      "id": "opencode",
       "required": false
     }
   ],

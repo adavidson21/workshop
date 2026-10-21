@@ -3,35 +3,32 @@
 An engineering manager's hub: one page with a rail of apps, sharing one theme.
 
 - **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
-- **Dashboard** shows your [eng-agents](https://github.com/adavidson21/eng-agents) live dashboard, which runs on your own computer.
+- **Agents** shows your [eng-agents](https://github.com/adavidson21/eng-agents) work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
-Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/dashboard/<work item id>` or `#/prioritizer/task/<task id>`.
+Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
 Everything stays on your device. There are no accounts and no server: data is saved in your browser, or in files on this computer when Workshop runs there, and nothing talks to anything but `127.0.0.1` and the systems you set up in Settings.
 
 Workshop runs three ways (see [docs/run-modes.md](docs/run-modes.md)): from the Workshop agent on this computer (`node agent/start.mjs`, then open the address it prints), as static files with no agent (browser storage only, like the github.io site), or as static files on your own domain paired with the agent (**Connect** on the rail, after you turn on hosted mode in Settings).
 
-## eng-agents dashboard
+## Agents
 
-The Dashboard page needs the live dashboard running on this computer, and allowed to answer this site.
+Agents is the eng-agents live dashboard as a Workshop app. It reads `.work` and follows opencode through the opencode connector ([connectors/opencode/README.md](connectors/opencode/README.md)), so it needs the Workshop agent on this computer. There is nothing to start in eng-agents and no `shellOrigins` to set.
 
-**Once, on the work PC:**
+**Once:**
 
-1. In `~/.config/eng-agents/config.json` (`%USERPROFILE%\.config\eng-agents\config.json` on Windows), add:
-   ```json
-   "dashboard": { "shellOrigins": ["https://adavidson21.github.io"] }
-   ```
-2. Run `/dashboard` in opencode in your workspace. If it was already running, close its minimized window first so it reads the new setting.
-3. Open **Dashboard** in the hub and click Connect. If the browser asks to allow access to apps on this device, choose Allow.
+1. Start Workshop on this computer (`node workshop.mjs start`) and open it.
+2. In **Settings**, turn on the opencode connector and set **Workspace folder** to the folder that holds `.work` and your repos. The connector needs PowerShell (`pwsh` on a Mac) and opencode 1.x or 2.x with eng-agents installed.
+3. Open **Agents**. If the connector can't start, the page says why.
 
-**Every day, including after a restart:** run `/dashboard` in opencode, then open the hub. Once connected, the hub checks every 30 seconds and reconnects on its own. Prioritizer shows each ADO task's eng-agents stage and can start a work item. **Connection** on the Dashboard page has Disconnect.
+Prioritizer shows each ADO task's eng-agents stage and can start a work item, through the same connector. Clicking a stage opens that item in Agents (`#/agents/<work item id>`).
 
-The hub uses the dashboard's shell API (`/api/shell/*`) and a few frame messages. The contract is documented in eng-agents: [docs/shell-api.md](https://github.com/adavidson21/eng-agents/blob/main/docs/shell-api.md).
+eng-agents' own static page (`/dashboard static`) is unchanged.
 
 ## Install it as a desktop app
 
-In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Prioritizer** and **Dashboard** shortcuts.
+In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Prioritizer** and **Agents** shortcuts.
 
 It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
 
@@ -61,13 +58,12 @@ Start at login and hosted mode are off until you turn them on, and never need ad
 ```
 index.html              the shell page: rail + one pane per app
 shell/                  shell.js (rail, routing, palette, theme menu, toast, pairing, the SDK's shell side),
-                        dashboard.js (Dashboard page), shell.css, registry.mjs (writes apps/registry.json)
+                        shell.css, registry.mjs (writes apps/registry.json)
 shared/                 used by the shell and every app
   workshop-sdk.js       the SDK: apps reach the shell, data and connectors only through it (docs/sdk.md)
-  themes.css            the themes: styling source of truth, also for the eng-agents dashboard
+  themes.css            the themes: the styling source of truth for the shell and every app
   theme.js              applies and remembers the theme across pages
   ui.css                buttons, menus, toast, tooltip
-  eng-client.js         eng-agents shell API client and connection settings
   sw-register.js        registers sw.js
   fonts/                self-hosted Inter and JetBrains Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
@@ -77,6 +73,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
   prioritizer/          Prioritizer (also runs on its own at /apps/prioritizer/)
     ado-helper/         the local ADO helper (Python), for when Workshop's ADO connector is not running
+  agents/               Agents (the eng-agents live dashboard, on the opencode connector)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)
@@ -101,7 +98,7 @@ Pages load files from this site only, plus the local helpers on `http://127.0.0.
 
 ### Themes
 
-Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/theme.js` (`node tests/check-themes.mjs` fails until they match). In eng-agents, run `node core/scripts/dashboard/sync-themes.mjs` to copy the change into the dashboard.
+Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/theme.js` (`node tests/check-themes.mjs` fails until they match). Every app, Agents included, loads `themes.css` directly. Until WS8, eng-agents' static page still copies it with `sync-themes.mjs`.
 
 ## Running it locally
 
@@ -111,7 +108,7 @@ With the agent (local mode, connectors and data on disk):
 node agent/start.mjs
 ```
 
-Then open the address it prints. Without it (browser mode), any static web server works, for example `python -m http.server 8000`, then `http://localhost:8000/`. For the Dashboard page, add the page's origin to `shellOrigins` too.
+Then open the address it prints. Without it (browser mode), any static web server works, for example `python -m http.server 8000`, then `http://localhost:8000/`.
 
 ## Checks
 
