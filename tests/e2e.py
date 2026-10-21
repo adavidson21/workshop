@@ -10,6 +10,8 @@ Three parts:
   2. Local mode: the real agent (tests/e2e-agent.mjs) with a temporary home, the repo's apps plus a sample
      app, and the ADO and echo connectors. Settings, required connectors, data events.
   3. Hosted mode: the static site on localhost:8803, paired with that agent. Settings is read-only.
+  4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
+     copy, Excel and backup round trips, two windows in sync, and a failed write.
 Exit 1 if any check fails.
 """
 import functools, http.server, json, os, shutil, subprocess, sys, tempfile, threading
@@ -287,6 +289,123 @@ def agent_checks(b, watch):
         proc.terminate(); proc.wait(10)
         shutil.rmtree(tmp, ignore_errors=True)
 
+# Rows of every sheet of an xlsx file, read with the page's SheetJS. Score is left out: it depends on today.
+SHEET_ROWS = """(b64) => { const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const wb = XLSX.read(bytes, {type: 'array'});
+  return Object.fromEntries(wb.SheetNames.map(n => [n, XLSX.utils.sheet_to_json(wb.Sheets[n], {defval: ''}).map(r => { delete r.Score; return r; })])); }"""
+FIX = os.path.join(ROOT, 'apps', 'prioritizer', 'test', 'fixtures')
+
+
+def b64(path):
+    import base64
+    with open(path, 'rb') as f: return base64.b64encode(f.read()).decode()
+
+
+def storage_checks(b, watch):
+    """Part 4: Prioritizer's board saved through the SDK (WS5)."""
+    with open(os.path.join(FIX, 'today-localstorage.json')) as f: legacy = json.load(f)
+    want = sorted(t['title'] for t in legacy['tasks'])
+    titles = "() => window.__prioritizer.state.tasks.map(t => t.title).sort()"
+
+    # Browser mode: a board saved by the localStorage versions moves into Workshop storage once.
+    ctx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
+    pg = ctx.new_page(); watch(pg)
+    pg.goto(HUB + '/manifest.webmanifest')
+    pg.evaluate("raw => localStorage.setItem('prioritizer.v1', raw)", json.dumps(legacy))
+    pg.goto(HUB + '/apps/prioritizer/'); pg.wait_for_timeout(1200)
+    check('the old browser board moves in on first load', pg.evaluate(titles) == want)
+    stored = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
+      const q = r.result.transaction('data').objectStore('data').get('prioritizer/tasks'); q.onsuccess = () => res(q.result); }; })""")
+    check('browser mode saves the board as a prioritizer.tasks envelope', stored and stored['schema'] == 'prioritizer.tasks' and len(stored['items']) == len(want))
+    check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t1'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't1'))
+    check('the old copy is kept, and marked as moved', pg.evaluate("localStorage.getItem('prioritizer.v1') !== null && localStorage.getItem('prioritizer.v1.moved') !== null"))
+    pg.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
+    pg.reload(); pg.wait_for_timeout(1200)
+    check('it moves only once: a deleted task stays deleted after reload', pg.evaluate(titles) == [t for t in want if t != 'Untriaged idea'])
+    check('the folder icon is a file menu now', pg.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
+    pg.click('#syncBtn'); pg.wait_for_timeout(200)
+    menu = pg.inner_text('.menu')
+    check('the file menu says where the board is saved, and has no folder sync', 'Saved in this browser' in menu and 'Download a backup' in menu and 'folder' not in menu.lower())
+    pg.keyboard.press('Escape')
+    with pg.expect_download() as dl: pg.evaluate('window.__prioritizer.downloadBackup()')
+    bundle_path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(bundle_path)
+    with open(bundle_path) as f: bundle = json.load(f)
+    check('a backup is a Workshop bundle named workshop-<date>.json', bundle['schema'] == 'workshop.bundle' and dl.value.suggested_filename.startswith('workshop-')
+          and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'people', 'settings', 'tasks'])
+    ctx.close()
+
+    tmp = tempfile.mkdtemp()
+    proc, url, token, home = start_agent(tmp)
+    data = os.path.join(home, 'data', 'prioritizer')
+    try:
+        actx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
+        p1 = actx.new_page(); watch(p1)
+        p1.goto(f'{url}/?token={token}'); p1.wait_for_timeout(800)
+        p1.goto(url + '/apps/prioritizer/'); p1.wait_for_timeout(1200)
+
+        # Round trip: export from today's app (the fixture), import, export again: identical tasks.
+        p1.set_input_files('#importFile', os.path.join(FIX, 'today-export.xlsx')); p1.wait_for_timeout(600)
+        p1.evaluate('window.__prioritizer.saved()')
+        with open(os.path.join(data, 'tasks.json')) as f: on_disk = json.load(f)
+        check('with Workshop running, the board is a file in the data folder', on_disk['schema'] == 'prioritizer.tasks' and sorted(t['title'] for t in on_disk['items']) == want)
+        check('lists, people and settings are files too', all(os.path.exists(os.path.join(data, c + '.json')) for c in ('lists', 'people', 'settings')))
+        p1.reload(); p1.wait_for_timeout(1200)
+        with p1.expect_download() as dl: p1.evaluate('window.__prioritizer.exportXlsx()')
+        again = os.path.join(tempfile.mkdtemp(), 'again.xlsx'); dl.value.save_as(again)
+        first, second = p1.evaluate(SHEET_ROWS, b64(os.path.join(FIX, 'today-export.xlsx'))), p1.evaluate(SHEET_ROWS, b64(again))
+        check('round trip: export from today\'s app, import, export again gives identical tasks', first == second and sum(len(v) for k, v in first.items() if k != 'Lists') == len(want))
+
+        # Moving between backends: the browser-mode backup merges into the agent board.
+        p1.set_input_files('#importFile', bundle_path); p1.wait_for_timeout(500)
+        p1.click('[data-merge]'); p1.wait_for_timeout(600); p1.evaluate('window.__prioritizer.saved()')
+        check('a backup from browser mode imports into the agent board without duplicates', p1.evaluate(titles) == want)
+
+        # Two windows stay in sync through the event stream.
+        p2 = actx.new_page(); watch(p2)
+        p2.goto(url + '/apps/prioritizer/'); p2.wait_for_timeout(1200)
+        p1.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w1', title: 'From window one', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+          P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
+        p2.wait_for_timeout(800)
+        check('two windows: the other window shows a new task without reloading', 'From window one' in p2.evaluate(titles))
+        p2.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 'w1').title = 'Edited in window two'; P.commit(); return P.saved(); }")
+        p1.wait_for_timeout(800)
+        check('two windows: an edit in either one reaches the other', 'Edited in window two' in p1.evaluate(titles) and 'From window one' not in p1.evaluate(titles))
+        p1.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 't1').title = 'Plan (one)'; P.commit(); }")
+        p2.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 't2').title = 'Onboarding (two)'; P.commit(); }")
+        p1.wait_for_timeout(1500)
+        both = [p.evaluate(titles) for p in (p1, p2)]
+        check('two windows editing at the same time merge instead of overwriting', both[0] == both[1] and 'Plan (one)' in both[0] and 'Onboarding (two)' in both[0])
+
+        # A failed write never loses the previous file; the edit waits and is saved on retry.
+        with open(os.path.join(data, 'tasks.json')) as f: before = f.read()
+        os.makedirs(os.path.join(data, 'tasks.json.tmp'))  # the agent's temp file can't be created
+        p1.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'f1', title: 'Written while the disk fails', listId: P.state.lists[0].id}); P.state = P.sanitize(P.state); P.commit(); }")
+        p1.wait_for_timeout(1200)
+        with open(os.path.join(data, 'tasks.json')) as f: during = f.read()
+        check('a failed write leaves the previous file as it was', during == before)
+        check('a failed write shows "not saved" and keeps the edit on screen', p1.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error'
+              and 'Written while the disk fails' in p1.evaluate(titles))
+        os.rmdir(os.path.join(data, 'tasks.json.tmp'))
+        p1.wait_for_timeout(6500)
+        with open(os.path.join(data, 'tasks.json')) as f: after = json.load(f)
+        check('once the disk works again, the retry saves it', 'Written while the disk fails' in [t['title'] for t in after['items']]
+              and p1.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
+        p2.wait_for_timeout(300)
+        check('and the other window gets it', 'Written while the disk fails' in p2.evaluate(titles))
+
+        # A data file the agent can't read: Prioritizer says so and writes nothing over it.
+        with open(os.path.join(data, 'tasks.json'), 'w') as f: f.write('{not json')
+        p3 = actx.new_page(); watch(p3)
+        p3.goto(url + '/apps/prioritizer/'); p3.wait_for_timeout(1200)
+        p3.evaluate("() => { const P = window.__prioritizer; P.state.capacity = 7; P.commit(); }"); p3.wait_for_timeout(800)
+        with open(os.path.join(data, 'tasks.json')) as f: damaged = f.read()
+        check('a damaged data file: Prioritizer says it can\'t load and never writes over it', damaged == '{not json'
+              and p3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error' and 'Could not load your board' in p3.inner_text('#toast'))
+        actx.close()
+    finally:
+        proc.terminate(); proc.wait(10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
 
 def main():
     serve(8802, functools.partial(Static, directory=ROOT))
@@ -371,6 +490,7 @@ def main():
         check('Excel import restores the exported tasks', sp.evaluate(tasks) == before)
 
         agent_checks(b, watch)
+        storage_checks(b, watch)
 
         check('no page errors', not errors)
         if errors: print('  ' + '\n  '.join(errors))

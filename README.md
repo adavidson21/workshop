@@ -120,7 +120,8 @@ node tests/check-themes.mjs              theme.js matches themes.css
 node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
 node shell/registry.mjs --check          apps/registry.json lists every app folder
 node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes
+node --test "apps/*/test/*.test.mjs"     apps' own tests (Prioritizer storage)
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Prioritizer storage
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
