@@ -2,7 +2,7 @@
 
 WS3 acceptance: the opencode connector does everything the live dashboard server did in eng-agents [CHANGELOG](https://github.com/adavidson21/eng-agents/blob/e2d202abf5223e74d3af942fcd8ff56bd12cf811/CHANGELOG.md) Dashboard 1.2.0 to 1.6.1, plus the brief's own checks.
 
-Each server-side item has an ID. Tests in `test/` name the ID they cover (search for `[P-run]`). Items that are only about the page are marked **WS6**: the connector supplies the data, the Agents app draws it, and WS6 runs this list again in the UI. Items with no place in a connector are marked **Not carried over** with the reason.
+Each server-side item has an ID. Tests in `test/` name the ID they cover (search for `[P-run]`). Items that are only about the page are marked **WS6**: the connector supplies the data and the Agents app (`apps/agents/`) draws it. WS6 ran them again in the UI; each names the Agents test that covers it. Items with no place in a connector are marked **Not carried over** with the reason.
 
 ## From the brief
 
@@ -18,17 +18,17 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
 | P-remove | Abandon or remove an item: type the item id to confirm; its `.work` folder, sessions and autopilot state are deleted; repos and branches are left alone. | `remove` | `connector.test.mjs` |
-| | The remove dialog lists work still in the repos and the commands to delete branches. | `state` has the repos and branches | **WS6** |
+| | The remove dialog lists work still in the repos and the commands to delete branches. | `state` has the repos and branches | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) |
 | P-state | Ready to ship items show the PR text from `pr.md` per repo. | `state` (`items[].pr`) | `connector.test.mjs` |
-| | Copy buttons, Create PR in ADO, the push command when a branch is not pushed. | `state` | **WS6** |
+| | Copy buttons, Create PR in ADO, the push command when a branch is not pushed. | `state` | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) (Push) |
 | P-state | Recent activity is one line per item per day. | `state` (`activity`, from the parser) | `connector.test.mjs` (present); content is the parser's, unchanged |
-| | Clearer track: checked, current and faint stages. | `status` (`stage`) | **WS6** |
+| | Clearer track: checked, current and faint stages. | `status` (`stage`) | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) |
 
 ## Dashboard 1.2.1
 
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
-| | Pick up here is not repeated in its group; it has its own Abandon button. | `remove` | **WS6** |
+| | Pick up here is not repeated in its group; it has its own Abandon button. | `remove` | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) |
 
 ## Dashboard 1.3.0
 
@@ -43,7 +43,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | P-status | The Next line says the step in plain words. | `status` (`next.text`), `state` (`stepWords`) | `connector.test.mjs` |
 | P-autopilot | **Approve and build** (approve first, then autopilot) and **Build with autopilot**. | `autopilot` (`approve-start`, `start`) | `connector.test.mjs` |
 | P-run | **Run**, **Approve**, **Resume**: one pipeline command in the item's session; `/do-task` in a new one; unknown items and commands opencode lacks are refused; refused while autopilot runs the item. | `run` | `connector.test.mjs`, `agent.test.mjs` |
-| | One main button per step, command in the tooltip, autopilot box only while running or waiting, no terminal hints, simpler header, count chips over 8 items. | | **WS6** |
+| | One main button per step, command in the tooltip, autopilot box only while running or waiting, no terminal hints, simpler header, count chips over 8 items. | | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) |
 | P-refresh | More menu: Refresh. | `refresh`, plus the `.work` watcher and poll | `connector.test.mjs` |
 | P-events | More menu: alerts (a prompt or question needs you, an agent finished). | `agent.waiting`, `agent.done`, `live`, `model`, `autopilot` events | `connector.test.mjs`, `agent.test.mjs` |
 | P-terminal | More menu: open the TUI, the terminal command. | `terminal`; `state` (`liveMode.live.opencode.attach`, `canOpenTerminal`) | `connector.test.mjs` (refusals, the command). Opening a window on Windows and macOS: by hand, see below. |
@@ -54,7 +54,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
 | | `Start-LiveDashboard.ps1 -Detach`. | | **Not carried over**: the agent starts and stops the connector. |
-| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. Revisit in WS6 and WS8. |
+| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. WS6 kept it that way: the Agents app is live only. Revisit in WS8. |
 | | The static page shows whether the live dashboard is running. | | eng-agents, unchanged. **WS8** points it at Workshop. |
 
 ## Core 2.1.0
@@ -76,13 +76,13 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | | The server split into modules. | `lib/`, copied | README.md, Source |
 | P-state | Step wording defined once in `New-Dashboard.ps1`; each next step carries `text`; page data carries `stepWords`. | parser copied unchanged | `connector.test.mjs` |
 | P-status | The shell API reports `api: 1`. | `status` | `connector.test.mjs` |
-| | Themes from the hub's `themes.css`. | | **WS6** |
+| | Themes from the hub's `themes.css`. | | **WS6**, done: the Agents app loads `shared/themes.css` itself. `tests/e2e.py` (part 5) |
 
 ## Dashboard 1.6.1
 
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
-| | Renamed to Workshop; `sync-themes.mjs` reads from there. | | **WS6** deletes `sync-themes.mjs`. |
+| | Renamed to Workshop; `sync-themes.mjs` reads from there. | | **WS8**: eng-agents is frozen until then, so WS6 could not delete `sync-themes.mjs`. The Agents app does not need it. |
 
 ## Also from 1.1.0, still in use
 
