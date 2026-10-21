@@ -59,8 +59,16 @@ Themes live in `shared/themes.css` at the repo root. See the [Workshop README](.
 
 ## Saving
 
-- Everything saves automatically in your browser, so it works offline. Nothing leaves your device: there are no accounts and no server.
-- The folder icon can keep `prioritizer.xlsx` in a folder you choose (Chrome or Edge), and has Download a copy and Import a file. The Excel file has one sheet per list. Files from the previous version still import.
+- Everything saves automatically. With Workshop running on your computer, the board is a set of files in `~/.workshop/data/prioritizer/` (`lists.json`, `tasks.json`, `people.json`, `settings.json`), so other apps can read it. Without Workshop (browser mode, like the github.io site) it is saved in that browser. Nothing leaves your device: there are no accounts and no server.
+- **Two windows stay in sync.** A change in one shows up in the other within a moment, and changes made in both at once are merged task by task: where both changed the same task, the later change wins. Nothing is overwritten wholesale.
+- **If a save fails** (for example the disk is full, or Workshop stopped), the folder icon turns red and says "Not saved yet". Your changes stay on screen and are saved as soon as it works again. The file on disk is never left half written: the previous version stays until the new one is complete.
+- **The folder icon** is the file menu: it says where the board is saved, and has **Download an Excel copy**, **Download a backup (.json)** and **Import a file** (an Excel file, or a backup). The Excel file has one sheet per list; files from earlier versions still import. A backup is a Workshop bundle (`workshop-<date>.json`) with everything, including ADO settings and deletions, and merges into a board instead of replacing it. The **Settings** app can also export and import every app's data.
+- Folder sync (keeping `prioritizer.xlsx` in a folder) is gone: the board is already a file on disk when Workshop runs.
+
+### Moving your board into Workshop
+
+- **Same site, nothing to do.** The first time this version opens, a board saved by an earlier version in the same browser and site moves in by itself, once. The old copy is left in place as a backup.
+- **From the github.io site to Workshop on your computer.** A browser can't read another site's storage, so move it with a file: on the github.io site, open the folder icon and choose **Download an Excel copy** (or **Download a backup (.json)** once that site runs this version). Then in Workshop, folder icon, **Import a file**. Into an empty board it comes in as it was; into a board with tasks, Excel asks whether to add or replace, and a backup merges.
 
 ## Azure DevOps work items
 
@@ -157,11 +165,12 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | --- | --- |
 | `constants.js`, `util.js` | Scales, quadrant names, icons; DOM and date helpers |
 | `model.js` | Implied due, urgency, score, tiers, quadrants (pure functions) |
-| `state.js` | Board shape, migration, sanitize, save with change stamps, per-device UI state |
+| `state.js` | Board shape, migration, sanitize, per-window UI state (view, lens, scope) |
+| `storage.js`, `store.js`, `store-format.js` | Saving through the SDK and keeping windows in step; the file menu; the board as four collections (pure, tested in `test/`) |
 | `quick-add.js`, `actions.js` | Quick add syntax; task actions |
 | `render.js`, `views.js` | Frame, sidebar, header, rows; each view |
 | `drawer.js`, `overlays.js`, `command-bar.js` | Task details; modal, menus, toast; the command bar |
-| `excel.js`, `folder-sync.js` | Excel export and import; autosave to a folder |
+| `excel.js`, `kv.js` | Excel export and import; a small browser cache for Reports |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
 | `ws.js` | The connection to Workshop through the SDK (`../../shared/workshop-sdk.js`): shell, data, connectors |
@@ -169,7 +178,11 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 
 Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`node tests/check-offline.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
 
-`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (see `../../tests/e2e.py`).
+`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (see `../../tests/e2e.py`). `node --test "apps/prioritizer/test/*.test.mjs"` tests the storage format and the save engine in Node. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
+
+### Storage format
+
+The board is four collections in the Workshop data format ([docs/data-format.md](../../docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 ### Upgrading from the previous version
 

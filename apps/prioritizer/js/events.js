@@ -1,15 +1,14 @@
 import { addTask, downgradeUrgent, moveTask, toggleDone, toggleFocus } from './actions.js';
 import { onAdoClick } from './ado.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
-import { EMBEDDED, KEY } from './constants.js';
+import { EMBEDDED } from './constants.js';
 import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
-import { importFile } from './excel.js';
-import { checkExternal, onSyncClick } from './folder-sync.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
-import { canonPerson, commit, inScope, load, saveUi, scopeListIds, setSnap, setState, state, takeSnap, ui } from './state.js';
+import { canonPerson, commit, inScope, saveUi, scopeListIds, state, ui } from './state.js';
+import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
@@ -87,7 +86,7 @@ document.addEventListener('click', e => {
 document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); }, true);
 document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
-  if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); state.capacityAt = Date.now(); } commit(); }
+  if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); } commit(); }
   if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; renderTriage(); }
 });
 document.addEventListener('submit', e => {
@@ -166,12 +165,10 @@ document.addEventListener('keydown', e => {
   else if (k === 't' && sel){ toggleFocus(sel); requestAnimationFrame(focusSel); }
   else if (k === '?'){ showHelp(); }
 });
-window.addEventListener('storage', e => { if (e.key === KEY){ setState(load()); setSnap(takeSnap()); render(); } });
 let lastDay = todayStr();
 const checkDay = () => { if (todayStr() !== lastDay){ lastDay = todayStr(); render(); } };
 setInterval(checkDay, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden){ checkDay(); checkExternal(); } });
-window.addEventListener('focus', () => checkExternal());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 
 /* ---------- tooltips ---------- */
 const tipEl = $('#tip');

@@ -1,0 +1,244 @@
+{
+  "version": 2,
+  "lists": [
+    {
+      "id": "1wnsrikk3nb9",
+      "name": "Team",
+      "parentId": null,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "l_q4",
+      "name": "Q4 planning",
+      "parentId": null,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "l_hire",
+      "name": "Hiring",
+      "parentId": "l_q4",
+      "updatedAt": 1792553550879
+    }
+  ],
+  "scope": "all",
+  "view": "today",
+  "lens": "rank",
+  "colorIdx": 0,
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Draft Q4 plan",
+      "notes": "Outline first\nthen numbers",
+      "listId": "l_q4",
+      "value": 4,
+      "effort": "M",
+      "due": "2026-11-05",
+      "createdAt": "2026-10-01",
+      "ageFrom": "2026-10-01",
+      "people": [
+        "Sam"
+      ],
+      "rank": 1,
+      "waiting": false,
+      "urgentFlag": false,
+      "nudgeOn": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t2",
+      "title": "Review onboarding doc",
+      "listId": "1wnsrikk3nb9",
+      "value": 2,
+      "effort": "S",
+      "createdAt": "2026-10-02",
+      "done": true,
+      "doneAt": "2026-10-10",
+      "rank": 2,
+      "people": [],
+      "waiting": false,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-02",
+      "due": null,
+      "nudgeOn": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t3",
+      "title": "Skip vendor survey",
+      "listId": "1wnsrikk3nb9",
+      "value": 1,
+      "effort": "XS",
+      "createdAt": "2026-10-03",
+      "done": true,
+      "wontDo": true,
+      "doneAt": "2026-10-11",
+      "rank": 3,
+      "people": [],
+      "waiting": false,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-03",
+      "due": null,
+      "nudgeOn": null,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t4",
+      "title": "Fix flaky login test",
+      "listId": "1wnsrikk3nb9",
+      "value": 3,
+      "effort": "L",
+      "urgentFlag": true,
+      "createdAt": "2026-10-04",
+      "ado": {
+        "id": 4101,
+        "type": "Bug",
+        "state": "Active",
+        "url": "https://ado.example.com/c/p/_workitems/edit/4101",
+        "project": "Demo"
+      },
+      "rank": 4,
+      "people": [],
+      "waiting": false,
+      "ageFrom": "2026-10-04",
+      "due": null,
+      "nudgeOn": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t5",
+      "title": "Review PR 77",
+      "listId": "1wnsrikk3nb9",
+      "value": 4,
+      "effort": "S",
+      "createdAt": "2026-10-05",
+      "pr": {
+        "key": "https://ado.example.com/c|Demo|77",
+        "id": 77,
+        "repo": "",
+        "project": "",
+        "url": "https://ado.example.com/c/Demo/_git/web/pullrequest/77",
+        "author": "",
+        "tier": "blocking",
+        "via": [],
+        "waiting": false,
+        "lastBlocker": false
+      },
+      "rank": 5,
+      "people": [],
+      "waiting": false,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-05",
+      "due": null,
+      "nudgeOn": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t6",
+      "title": "Screen backend candidates",
+      "listId": "l_hire",
+      "value": 3,
+      "effort": "XL",
+      "createdAt": "2026-10-06",
+      "people": [
+        "Ana",
+        "Sam"
+      ],
+      "waiting": true,
+      "nudgeOn": "2026-10-25",
+      "rank": 6,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-06",
+      "due": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t7",
+      "title": "Untriaged idea",
+      "listId": "1wnsrikk3nb9",
+      "createdAt": "2026-10-07",
+      "rank": 7,
+      "people": [],
+      "waiting": false,
+      "value": null,
+      "effort": null,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-07",
+      "due": null,
+      "nudgeOn": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    },
+    {
+      "id": "t8",
+      "title": "Focus item, comma, \"quotes\"",
+      "listId": "1wnsrikk3nb9",
+      "value": 2,
+      "effort": "M",
+      "focusOn": "2026-10-20",
+      "createdAt": "2026-10-08",
+      "rank": 8,
+      "people": [],
+      "waiting": false,
+      "urgentFlag": false,
+      "ageFrom": "2026-10-08",
+      "due": null,
+      "nudgeOn": null,
+      "done": false,
+      "doneAt": null,
+      "wontDo": false,
+      "updatedAt": 1792553550879
+    }
+  ],
+  "people": [
+    "Sam",
+    "Ana"
+  ],
+  "capacity": 20,
+  "capacityAt": 0,
+  "ado": {
+    "skip": [],
+    "skipPr": [],
+    "choose": true,
+    "pending": [],
+    "syncMinutes": 10,
+    "prTiers": {
+      "blocking": {
+        "value": 4,
+        "urgent": true
+      },
+      "asked": {
+        "value": 3,
+        "urgent": false
+      },
+      "pool": {
+        "value": 2,
+        "urgent": false
+      }
+    }
+  },
+  "dead": {
+    "tasks": {},
+    "lists": {},
+    "people": {}
+  },
+  "peopleAt": {
+    "sam": 1792553550879,
+    "ana": 1792553550879
+  },
+  "updatedAt": 1792553550879
+}

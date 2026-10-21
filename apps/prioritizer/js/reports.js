@@ -1,7 +1,7 @@
 import { ADO_DOWN, adoCall, adoSetup, adoSync, adoUnreachable } from './ado.js';
 import { ICON } from './constants.js';
 import { NO_XLSX } from './excel.js';
-import { kvGet, kvSet } from './folder-sync.js';
+import { kvGet, kvSet } from './kv.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { main, render, setView } from './render.js';
 import { saveUi, state, ui } from './state.js';

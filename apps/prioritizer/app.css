@@ -406,8 +406,10 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 /* folder save indicator: neutral unless something actually needs attention */
 #syncBtn .mk-ok,#syncBtn .mk-x{display:none}
 #syncBtn[data-sync=on] .mk-ok{display:inline}
-#syncBtn[data-sync=paused],#syncBtn[data-sync=error]{color:var(--danger)}
-#syncBtn[data-sync=paused] .mk-x,#syncBtn[data-sync=error] .mk-x{display:inline}
+#syncBtn[data-sync=error]{color:var(--danger)}
+#syncBtn[data-sync=error] .mk-x{display:inline}
+.menu .mnote{padding:.45rem .65rem .4rem;font-size:.8rem;color:var(--muted);border-bottom:1px solid var(--line);margin-bottom:.25rem;max-width:17rem}
+.menu .mnote.warn{color:var(--danger)}
 
 /* ---------- breakpoints ---------- */
 @media (max-width:1099px){
