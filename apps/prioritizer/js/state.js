@@ -1,13 +1,15 @@
-import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, KEY, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS } from './constants.js';
-import { scheduleWrite } from './folder-sync.js';
+// storage.js comes first: it pulls in events.js and, through it, drawer.js before render.js, the module
+// evaluation order the app's load-time code relies on (drawer.js uses render.js's elements when it loads).
+import { scheduleSave } from './storage.js';
+import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS } from './constants.js';
 import { isStale, isTriaged } from './model.js';
-import { toast } from './overlays.js';
 import { render } from './render.js';
+import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
-/* Prioritizer: Board state: shape, migration, sanitize, load/save with change stamps, per-device UI state, list and scope helpers. */
+/* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
-  const main = {id: uid(), name: 'Main', parentId: null};
+  const main = {id: MAIN_LIST, name: 'Main', parentId: null};
   return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], people: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers()}};
 }
 function normalizeRanks(s){
@@ -93,12 +95,6 @@ function sanitize(s){
   (Array.isArray(s.people) ? s.people : []).forEach(note);
   s.tasks.forEach(t => { (Array.isArray(t.people) ? t.people : []).forEach(note); });
   s.people = [...known.values()];
-  s.dead = s.dead && typeof s.dead === 'object' ? s.dead : {};
-  for (const k of ['tasks','lists','people']) if (!s.dead[k] || typeof s.dead[k] !== 'object') s.dead[k] = {};
-  // forget deletions older than 60 days
-  const cutoff = Date.now() - 60 * 864e5;
-  for (const k of ['tasks','lists','people']) for (const id in s.dead[k]) if (s.dead[k][id] < cutoff) delete s.dead[k][id];
-  s.peopleAt = s.peopleAt && typeof s.peopleAt === 'object' ? s.peopleAt : {};
   s.tasks.forEach(t => {
     t.people = [...new Set((Array.isArray(t.people) ? t.people : []).map(n => known.get(String(n).trim().toLowerCase())).filter(Boolean))];
     t.waiting = t.waiting === true;
@@ -128,51 +124,30 @@ function sanitize(s){
   normalizeRanks(s);
   return s;
 }
-function load(){
-  try { const raw = localStorage.getItem(KEY); if (raw) return sanitize(JSON.parse(raw)); } catch(e) {}
-  return fresh();
-}
-let state = load();
-let saveWarned = false;
-/* Per-item change stamps so two devices can merge instead of overwriting each other. */
-let snap = null;
-// state and snap are module-private. Other modules change them through these setters, because an ES
-// module cannot assign to a binding it imported from here.
-function setState(s){ state = s; }
-function setSnap(s){ snap = s; }
-const stripStamp = o => { const {updatedAt, ...r} = o; return JSON.stringify(r); };
-function takeSnap(){
-  return {tasks: new Map(state.tasks.map(t => [t.id, stripStamp(t)])), lists: new Map(state.lists.map(l => [l.id, stripStamp(l)])),
-          people: new Set(state.people.map(p => p.toLowerCase()))};
-}
-function stampChanges(){
-  const now = Date.now(), cur = takeSnap();
-  state.dead = state.dead || {tasks: {}, lists: {}, people: {}};
-  state.peopleAt = state.peopleAt || {};
-  if (snap){
-    for (const k of ['tasks','lists']){
-      state[k].forEach(x => { if (snap[k].get(x.id) !== cur[k].get(x.id)){ x.updatedAt = now; delete state.dead[k][x.id]; } });
-      snap[k].forEach((_, id) => { if (!cur[k].has(id)) state.dead[k][id] = now; });
-    }
-    cur.people.forEach(p => { if (!snap.people.has(p)){ state.peopleAt[p] = now; delete state.dead.people[p]; } });
-    snap.people.forEach(p => { if (!cur.people.has(p)) state.dead.people[p] = now; });
-  }
-  snap = cur;
-}
-function save(){
-  state.updatedAt = Date.now();
-  stampChanges();
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch(e){ if (!saveWarned){ saveWarned = true; toast('Could not save in this browser. Use Download a copy to keep one.'); } }
-  scheduleWrite();
-}
-function commit(){ save(); render(); }
-
-/* per-device UI state (not synced) */
+/* per-window UI state, kept in this browser (not part of the saved board): sidebar, and which view,
+   lens and scope this window shows, so two windows can look at different things. */
 let ui = {collapsed: false};
 try { ui = Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch(e) {}
 const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch(e) {} };
 delete ui.eng; // eng-agents settings moved to shared/eng-client.js
+
+// The board starts empty; storage.js loads the saved one before the first render.
+let state = Object.assign(fresh(), pickWindow(ui));
+function pickWindow(o){
+  const w = {};
+  for (const k of ['view','lens','scope']) if (typeof o[k] === 'string') w[k] = o[k];
+  if (Number.isFinite(o.colorIdx)) w.colorIdx = o.colorIdx;
+  return w;
+}
+// state is module-private. Other modules replace it through this setter, because an ES module cannot
+// assign to a binding it imported from here.
+function setState(s){ state = s; }
+function save(){
+  const w = pickWindow(state);
+  if (Object.keys(w).some(k => ui[k] !== w[k])){ Object.assign(ui, w); saveUi(); }
+  scheduleSave();
+}
+function commit(){ save(); render(); }
 
 const listById = id => state.lists.find(l => l.id === id);
 const childrenOf = id => state.lists.filter(l => l.parentId === id);
@@ -210,4 +185,4 @@ function canonPerson(n){
 }
 const initials = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
-export { PR_GONES, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, inScope, initials, isDoneToday, isFocus, listById, load, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setSnap, setState, snap, state, stripStamp, takeSnap, topLists, triageQueue, ui };
+export { PR_GONES, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

@@ -14,6 +14,7 @@ jobs:
       - run: node tests/check-contracts.mjs
       - run: node shell/registry.mjs --check
       - run: node --test "shared/test/*.test.mjs"
+      - run: node --test "apps/*/test/*.test.mjs"
       - run: node --test "tests/contract/*.test.mjs"
       - run: node --test "connectors/*/test/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
