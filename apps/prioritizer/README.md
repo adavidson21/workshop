@@ -30,7 +30,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Archive:** a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Reports:** team-wide ADO reports (priority churn, other teams' work, sprint carryover and scope churn, load, aging) with an Excel export. See below.
 
-The **Scope** in the sidebar (All lists, a list, or a section) filters every view.
+The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one.
 
 ## Adding tasks
 

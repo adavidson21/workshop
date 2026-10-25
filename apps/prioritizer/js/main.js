@@ -18,9 +18,9 @@ import { toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 
-// Inside the shell the shell owns the theme picker, the service worker, Alt+<n> and Ctrl+K; on its own,
+// Inside the shell the rail names the app (no second logo), and the shell owns the theme picker, the service worker, Alt+<n> and Ctrl+K; on its own,
 // Prioritizer shows the picker and registers the worker itself.
-if (embedded) { const tb = $('#themeBtn'); if (tb) tb.hidden = true; }
+if (embedded) { document.body.classList.add('embedded'); const tb = $('#themeBtn'); if (tb) tb.hidden = true; }
 else if (window.WorkshopSw) WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
 
 // From the shell, through the SDK: deep links (#/prioritizer/task/<id>), palette commands, ADO status.

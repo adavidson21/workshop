@@ -57,11 +57,14 @@ function renderSide(){
   const open = id => state.tasks.filter(t => !t.done && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
   const item = (l, sub) => {
     const n = sub ? state.tasks.filter(t => !t.done && t.listId === l.id).length : open(l.id);
-    return `<div class="sitem${sub ? ' child' : ''}${state.scope === l.id ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${state.scope === l.id}">
+    const on = state.scope === l.id || (state.lists.length === 1 && state.scope === 'all');
+    return `<div class="sitem${sub ? ' child' : ''}${on ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${on}">
       <i class="dot"></i><span class="lbl">${esc(l.name)}</span>${n ? `<span class="n">${n}</span>` : ''}
       <span class="ibtn more" data-menu="${l.id}" role="button" tabindex="0" aria-label="Options for ${esc(l.name)}" style="width:24px;height:24px">${ICON.dots}</span></div>`;
   };
-  $('#slists').innerHTML = `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done).length || ''}</span></div>`
+  // "All lists" only means something once there are two lists to pick between.
+  const one = state.lists.length === 1;
+  $('#slists').innerHTML = (one ? '' : `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done).length || ''}</span></div>`)
     + topLists().map(l => item(l, false) + childrenOf(l.id).map(c => item(c, true)).join('')).join('');
 }
 
