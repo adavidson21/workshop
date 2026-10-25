@@ -2,10 +2,10 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createAgent } from '../server.mjs';
-import { tempHome, rmHome, get } from './helpers.mjs';
+import { tempHome, rmHome, get, dataDirOf } from './helpers.mjs';
 
 let agent, home;
-before(async () => { home = tempHome(); agent = await createAgent({ home, port: 0 }); });
+before(async () => { home = tempHome(); agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home) }); });
 after(async () => { await agent?.stop(); rmHome(home); });
 
 test('every served page carries the security headers', async () => {

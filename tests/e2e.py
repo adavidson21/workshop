@@ -221,7 +221,7 @@ def agent_checks(b, watch):
         p2.wait_for_timeout(800)
         check('agent backend: other pages hear writes through the event stream', rev == 1 and p2.evaluate('window.__heard') == [1])
         check(f'one event stream for every app and window, not one each ({len(streams)} opened)', len(streams) == 1)
-        with open(os.path.join(home, 'data', 'notes', 'pages.json')) as f:
+        with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
         cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
@@ -295,7 +295,7 @@ def storage_checks(b, watch):
 
     tmp = tempfile.mkdtemp()
     proc, url, token, home = start_agent(tmp)
-    data = os.path.join(home, 'data', 'prioritizer')
+    data = os.path.join(tmp, 'Workshop', 'prioritizer')
     try:
         actx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
         p1 = actx.new_page(); watch(p1)

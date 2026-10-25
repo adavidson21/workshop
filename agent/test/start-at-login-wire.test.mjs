@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createAgent } from '../server.mjs';
 import { loginItem } from '../lib/login.mjs';
-import { tempHome, rmHome, get, put } from './helpers.mjs';
+import { tempHome, rmHome, get, put, dataDirOf } from './helpers.mjs';
 
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-login-wire-'));
 const launcher = dir => loginItem({ platform: process.platform, dir }).path;
@@ -15,7 +15,7 @@ const launcher = dir => loginItem({ platform: process.platform, dir }).path;
 test('PUT /api/config startAtLogin on then off creates then removes the launcher', async () => {
   const home = tempHome();
   const loginDir = tempDir();
-  const agent = await createAgent({ home, port: 0, loginDir });
+  const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), loginDir });
   try {
     assert.equal(fs.existsSync(launcher(loginDir)), false, 'off to begin with');
 
@@ -38,7 +38,7 @@ test('a start reconciles a launcher that disagrees with the flag', async () => {
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({
     configVersion: 1, port: 4380, allowedOrigins: [], features: { startAtLogin: true, hostedMode: false }, connectors: {}
   }));
-  const agent = await createAgent({ home, port: 0, loginDir });
+  const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), loginDir });
   try {
     assert.ok(fs.existsSync(launcher(loginDir)), 'start created the missing launcher');
   } finally { await agent.stop(); rmHome(home); fs.rmSync(loginDir, { recursive: true, force: true }); }
@@ -47,7 +47,7 @@ test('a start reconciles a launcher that disagrees with the flag', async () => {
 test('a normal start with the default config writes no launcher', async () => {
   const home = tempHome();
   const loginDir = tempDir();
-  const agent = await createAgent({ home, port: 0, loginDir });
+  const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), loginDir });
   try {
     assert.equal(fs.existsSync(launcher(loginDir)), false);
     assert.deepEqual(fs.readdirSync(loginDir), [], 'nothing written when start at login is off');

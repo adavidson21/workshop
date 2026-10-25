@@ -2,10 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { createAgent } from '../server.mjs';
-import { start, tempHome, rmHome, get, put, logText, HERE } from './helpers.mjs';
+import { start, tempHome, rmHome, get, put, logText, HERE, dataDirOf } from './helpers.mjs';
 
 test('broken connectors are listed with an error and never stop the agent', async () => {
   const home = tempHome();
@@ -51,7 +52,7 @@ test('a port that is in use gives a plain message', async () => {
   const port = blocker.address().port;
   const home = tempHome();
   try {
-    await assert.rejects(createAgent({ home, port }), e => e.code === 'EADDRINUSE' && /already in use/.test(e.message));
+    await assert.rejects(createAgent({ home, port, dataDir: dataDirOf(home) }), e => e.code === 'EADDRINUSE' && /already in use/.test(e.message));
   } finally { blocker.close(); rmHome(home); }
 });
 
@@ -60,6 +61,8 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
 test('node agent/start.mjs starts the agent and prints the launcher address', { timeout: 20000 }, async () => {
   const home = tempHome();
   const port = await freePort();
+  // The data folder goes in the temp folder too, so this test never creates the real ~/Workshop.
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, dataDir: dataDirOf(home) }));
   // WORKSHOP_LOGIN_DIR sends any start-at-login launcher into the temp home, so this test never writes to
   // the computer's real Startup folder, LaunchAgents or autostart.
   const child = spawn(process.execPath, [path.join(HERE, '..', 'start.mjs'), '--port', String(port), '--quiet'], {
@@ -80,7 +83,10 @@ test('node agent/start.mjs starts the agent and prints the launcher address', { 
     const agent = { port, token: url.token };
     const health = await get(agent, '/api/health', { auth: 'none' });
     assert.equal(health.json.app, 'workshop-agent');
-    assert.equal((await get(agent, '/api/config')).json.home, home);
+    const cfg = (await get(agent, '/api/config')).json;
+    assert.equal(cfg.home, home);
+    assert.equal(cfg.dataDir, dataDirOf(home));
+    assert.ok(fs.statSync(dataDirOf(home)).isDirectory(), 'the data folder is created on start');
   } finally {
     child.kill();
     await new Promise(r => (child.exitCode !== null ? r() : child.on('exit', r)));

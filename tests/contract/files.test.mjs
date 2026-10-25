@@ -1,11 +1,10 @@
-// docs/agent-api.md (Files). The agent keeps these tests as to-do until WS11b lands.
+// docs/agent-api.md (Files).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startAgent, get, put, del, request, expectJson, expectError, envelope, pendingOnAgent, HOSTED } from './helpers.mjs';
+import { startAgent, get, put, del, request, expectJson, expectError, envelope, HOSTED } from './helpers.mjs';
 
-const todo = pendingOnAgent('WS11b');
 const MB = 1024 * 1024;
 const P = '/api/files/notes';
 
@@ -18,7 +17,7 @@ after(async () => { await agent?.stop(); await hosted?.stop(); });
 
 const create = (a, p, content) => put(a, `${P}/${p}`, { content, create: true });
 
-test('create, read, list and replace a file', { todo }, async () => {
+test('create, read, list and replace a file', async () => {
   const made = expectJson(await create(agent, 'summaries/kim/2026-h2.md', '# Kim\n'), 200, 'file-put-response');
   assert.deepEqual({ app: made.app, path: made.path, size: made.size }, { app: 'notes', path: 'summaries/kim/2026-h2.md', size: 6 });
   const file = path.join(agent.dataDir, 'notes', 'summaries', 'kim', '2026-h2.md');
@@ -41,14 +40,14 @@ test('create, read, list and replace a file', { todo }, async () => {
   assert.equal(kim.files[0].mtime, next.mtime);
 });
 
-test('empty lists and missing files', { todo }, async () => {
+test('empty lists and missing files', async () => {
   assert.deepEqual(expectJson(await get(agent, '/api/files/empty-app'), 200, 'file-list'), { app: 'empty-app', files: [] });
   assert.deepEqual(expectJson(await get(agent, `${P}/no/such`), 200, 'file-list').files, []);
   expectError(await get(agent, `${P}/missing.md`), 404, 'not_found');
   expectError(await del(agent, `${P}/missing.md`), 404, 'not_found');
 });
 
-test('a stale mtime is a conflict that returns the file as it is now', { todo }, async () => {
+test('a stale mtime is a conflict that returns the file as it is now', async () => {
   const a = expectJson(await create(agent, 'race.md', 'first'), 200, 'file-put-response');
   const b = expectJson(await put(agent, `${P}/race.md`, { content: 'second', mtime: a.mtime }), 200, 'file-put-response');
   const res = expectJson(await put(agent, `${P}/race.md`, { content: 'third', mtime: a.mtime }), 409, 'file-conflict');
@@ -57,7 +56,7 @@ test('a stale mtime is a conflict that returns the file as it is now', { todo },
   assert.equal((await get(agent, `${P}/race.md`)).json.content, 'second', 'a conflict must not write');
 });
 
-test('a change made outside Workshop is a conflict too', { todo }, async () => {
+test('a change made outside Workshop is a conflict too', async () => {
   const a = expectJson(await create(agent, 'outside.md', 'mine'), 200, 'file-put-response');
   const file = path.join(agent.dataDir, 'notes', 'outside.md');
   fs.writeFileSync(file, 'edited in another program');
@@ -66,25 +65,25 @@ test('a change made outside Workshop is a conflict too', { todo }, async () => {
   assert.equal(res.current.content, 'edited in another program');
 });
 
-test('create means the file must not exist yet', { todo }, async () => {
+test('create means the file must not exist yet', async () => {
   expectJson(await create(agent, 'once.md', 'one'), 200, 'file-put-response');
   const res = expectJson(await create(agent, 'once.md', 'two'), 409, 'file-conflict');
   assert.equal(res.current.content, 'one');
 });
 
-test('replacing a file that is gone is a conflict with current null', { todo }, async () => {
+test('replacing a file that is gone is a conflict with current null', async () => {
   const res = expectJson(await put(agent, `${P}/never.md`, { content: 'x', mtime: 1792330000000 }), 409, 'file-conflict');
   assert.equal(res.current, null);
 });
 
-test('the body needs exactly one of mtime and create', { todo }, async () => {
+test('the body needs exactly one of mtime and create', async () => {
   for (const body of [{ content: 'x' }, { content: 'x', mtime: 1, create: true }, { content: 'x', create: false }, { mtime: 1 }, { content: 1, create: true }, { content: 'x', create: true, extra: 1 }]) {
     expectError(await put(agent, `${P}/body.md`, body), 400, 'bad_request');
   }
   assert.ok(!fs.existsSync(path.join(agent.dataDir, 'notes', 'body.md')));
 });
 
-test('only .md and .json, and .json must be valid JSON', { todo }, async () => {
+test('only .md and .json, and .json must be valid JSON', async () => {
   for (const p of ['notes.txt', 'notes.MD', 'notes.md.bak', 'run.js', 'page.html']) {
     expectError(await request(agent, 'PUT', `${P}/${p}`, { body: { content: 'x', create: true } }), 400, 'bad_request');
   }
@@ -93,7 +92,7 @@ test('only .md and .json, and .json must be valid JSON', { todo }, async () => {
   expectJson(await create(agent, 'good.json', '[1, 2, 3]'), 200, 'file-put-response');
 });
 
-test('file paths follow the name rules', { todo }, async () => {
+test('file paths follow the name rules', async () => {
   const bad = [
     `${P}/a/b/c/d/e.md`,              // 5 segments
     `${P}//etc/passwd.md`,            // empty segment (absolute path)
@@ -118,7 +117,7 @@ test('file paths follow the name rules', { todo }, async () => {
   assert.ok(!fs.existsSync(path.join(agent.root, 'config.md')));
 });
 
-test('file path segments may start with a digit; app ids may not', { todo }, async () => {
+test('file path segments may start with a digit; app ids may not', async () => {
   for (const p of ['2026.md', 'summaries/jordan-lee/2026-h2.md', 'metrics/2026-10/report.json', '1on1s/kim/2026-10-25.md']) {
     const content = p.endsWith('.json') ? '{"ok": true}' : '# note\n';
     expectJson(await create(agent, p, content), 200, 'file-put-response');
@@ -133,21 +132,21 @@ test('file path segments may start with a digit; app ids may not', { todo }, asy
   assert.ok(!fs.existsSync(path.join(agent.dataDir, '1on1s')));
 });
 
-test('files over 10 MB are refused', { todo }, async () => {
+test('files over 10 MB are refused', async () => {
   expectError(await create(agent, 'big.md', 'x'.repeat(10 * MB + 1)), 413, 'too_large');
   expectJson(await create(agent, 'exact.md', 'x'.repeat(10 * MB)), 200, 'file-put-response');
   // JSON escaping may make the body larger than the content; the limit is on the content.
   expectJson(await create(agent, 'quotes.md', '"'.repeat(6 * MB)), 200, 'file-put-response');
 });
 
-test('a file that grew past 10 MB outside Workshop is listed but not read', { todo }, async () => {
+test('a file that grew past 10 MB outside Workshop is listed but not read', async () => {
   fs.mkdirSync(path.join(agent.dataDir, 'notes'), { recursive: true });
   fs.writeFileSync(path.join(agent.dataDir, 'notes', 'huge.md'), 'x'.repeat(10 * MB + 10));
   expectError(await get(agent, `${P}/huge.md`), 413, 'too_large');
   assert.ok(expectJson(await get(agent, P), 200, 'file-list').files.some(f => f.path === 'huge.md' && f.size === 10 * MB + 10));
 });
 
-test('delete moves the file to the trash and never removes it', { todo }, async () => {
+test('delete moves the file to the trash and never removes it', async () => {
   const made = expectJson(await create(agent, 'drafts/old.md', 'keep me'), 200, 'file-put-response');
   const res = expectJson(await del(agent, `${P}/drafts/old.md`), 200, 'file-delete-response');
   assert.match(res.trash, /^\.trash\/notes\/drafts\/old\.\d{8}T\d{9}Z(-\d+)?\.md$/);
@@ -163,7 +162,7 @@ test('delete moves the file to the trash and never removes it', { todo }, async 
   assert.ok(made.mtime > 0);
 });
 
-test('delete with a stale mtime is a conflict and moves nothing', { todo }, async () => {
+test('delete with a stale mtime is a conflict and moves nothing', async () => {
   const a = expectJson(await create(agent, 'keep.md', 'one'), 200, 'file-put-response');
   const b = expectJson(await put(agent, `${P}/keep.md`, { content: 'two', mtime: a.mtime }), 200, 'file-put-response');
   const res = expectJson(await del(agent, `${P}/keep.md?mtime=${a.mtime}`), 409, 'file-conflict');
@@ -172,7 +171,7 @@ test('delete with a stale mtime is a conflict and moves nothing', { todo }, asyn
   expectError(await del(agent, `${P}/keep.md?mtime=soon`), 400, 'bad_request');
 });
 
-test('the files API never touches a collection', { todo }, async () => {
+test('the files API never touches a collection', async () => {
   expectJson(await put(agent, '/api/data/notes/sidecar', envelope('notes', 'sidecar')), 200, 'data-put-response');
   expectError(await get(agent, `${P}/sidecar.json`), 400, 'bad_request');
   expectError(await put(agent, `${P}/sidecar.json`, { content: '{}', mtime: 1 }), 400, 'bad_request');
@@ -189,7 +188,7 @@ test('the files API never touches a collection', { todo }, async () => {
   expectError(await get(agent, '/api/data/notes/plain'), 500, 'internal');
 });
 
-test('writes need the header token; reads accept the cookie', { todo }, async () => {
+test('writes need the header token; reads accept the cookie', async () => {
   await create(agent, 'auth.md', 'x');
   expectJson(await get(agent, `${P}/auth.md`, { auth: 'cookie' }), 200, 'file');
   expectError(await put(agent, `${P}/auth.md`, { content: 'y', create: true }, { auth: 'cookie' }), 401, 'unauthorized');
@@ -197,7 +196,7 @@ test('writes need the header token; reads accept the cookie', { todo }, async ()
   expectError(await get(agent, `${P}/auth.md`, { auth: 'none' }), 401, 'unauthorized');
 });
 
-test('a paired hosted origin has the same access as for data', { todo }, async () => {
+test('a paired hosted origin has the same access as for data', async () => {
   const made = expectJson(await put(hosted, `${P}/hosted.md`, { content: 'from the site', create: true }, { origin: HOSTED }), 200, 'file-put-response');
   const read = await get(hosted, `${P}/hosted.md`, { origin: HOSTED });
   expectJson(read, 200, 'file');
@@ -209,7 +208,7 @@ test('a paired hosted origin has the same access as for data', { todo }, async (
   expectError(await get(agent, `${P}/hosted.md`, { origin: HOSTED }), 403, 'forbidden');
 });
 
-test('wrong methods', { todo }, async () => {
+test('wrong methods', async () => {
   expectError(await request(agent, 'POST', `${P}/x.md`, { body: {} }), 405, 'method_not_allowed');
   expectError(await request(agent, 'PUT', P, { body: { content: 'x', create: true } }), 405, 'method_not_allowed');
   expectError(await request(agent, 'DELETE', `${P}/summaries`), 405, 'method_not_allowed');

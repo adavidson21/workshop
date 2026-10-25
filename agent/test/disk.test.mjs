@@ -1,10 +1,10 @@
-// What the agent keeps on disk: config.json, the token, data files and connector storage
+// What the agent keeps on disk: config.json, the token, data files in the data folder and connector storage
 // (docs/config.md, docs/data-format.md Disk rules, docs/connector.md ctx.storage).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { start, tempHome, rmHome, readJson, get, put, post, envelope } from './helpers.mjs';
+import { start, tempHome, rmHome, readJson, get, put, post, envelope, dataDirOf } from './helpers.mjs';
 import { createAgent } from '../server.mjs';
 
 const item = (id, text, updatedAt = 1792330000000) => ({ id, updatedAt, text });
@@ -30,13 +30,13 @@ test('the token survives a restart', async () => {
   } finally { rmHome(home); }
 });
 
-test('data is one pretty-printed file per collection and survives a restart', async () => {
+test('data is one pretty-printed file per collection in the data folder and survives a restart', async () => {
   const home = tempHome();
   try {
     let agent = await start(home);
     await put(agent, '/api/data/notes/pages', envelope('notes', 'pages', [item('a', 'one')]));
     await agent.stop();
-    const file = path.join(home, 'data', 'notes', 'pages.json');
+    const file = path.join(dataDirOf(home), 'notes', 'pages.json');
     const text = fs.readFileSync(file, 'utf8');
     assert.match(text, /^\{\n {2}"schema": "notes.pages",/);
     assert.equal(readJson(file).rev, 1);
@@ -56,7 +56,7 @@ test('a leftover temp file from an interrupted write is removed and the main fil
     let agent = await start(home);
     await put(agent, '/api/data/notes/pages', envelope('notes', 'pages', [item('a', 'kept')]));
     await agent.stop();
-    const tmp = path.join(home, 'data', 'notes', 'pages.json.tmp');
+    const tmp = path.join(dataDirOf(home), 'notes', 'pages.json.tmp');
     fs.writeFileSync(tmp, '{"half written');
     agent = await start(home);
     assert.equal(fs.existsSync(tmp), false);
@@ -69,7 +69,7 @@ test('a damaged data file is reported and never overwritten', async () => {
   const home = tempHome();
   const agent = await start(home);
   try {
-    const dir = path.join(home, 'data', 'notes');
+    const dir = path.join(dataDirOf(home), 'notes');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'broken.json'), '{not json');
     fs.writeFileSync(path.join(dir, 'wrong.json'), JSON.stringify({ ...envelope('other', 'wrong'), rev: 1 }));
@@ -87,15 +87,17 @@ test('a damaged data file is reported and never overwritten', async () => {
   } finally { await agent.stop(); rmHome(home); }
 });
 
-test('a version bump keeps a copy of the old file', async () => {
+test('a version bump keeps a copy of the old file in .backups', async () => {
   const home = tempHome();
   const agent = await start(home);
   try {
     await put(agent, '/api/data/notes/pages', { ...envelope('notes', 'pages', [item('a', 'v1')]), version: 1 });
     await put(agent, '/api/data/notes/pages', { ...envelope('notes', 'pages', [item('a', 'v2')]), version: 2, rev: 1 });
-    const backup = path.join(home, 'data', 'notes', 'pages.v1.json');
+    const day = new Date().toISOString().slice(0, 10);
+    const backup = path.join(dataDirOf(home), '.backups', day, 'notes', 'pages.v1.json');
     assert.equal(readJson(backup).items[0].text, 'v1');
-    assert.equal(readJson(path.join(home, 'data', 'notes', 'pages.json')).version, 2);
+    assert.equal(readJson(path.join(dataDirOf(home), 'notes', 'pages.json')).version, 2);
+    assert.ok(!fs.existsSync(path.join(dataDirOf(home), 'notes', 'pages.v1.json')), 'never next to the collection');
     const list = (await get(agent, '/api/data/notes')).json;
     assert.deepEqual(list.collections.map(c => c.collection), ['pages'], 'backups are not collections');
   } finally { await agent.stop(); rmHome(home); }
@@ -109,7 +111,7 @@ test('parallel writes from the same rev: exactly one wins', async () => {
     const results = await Promise.all(Array.from({ length: 8 }, (_, i) => put(agent, '/api/data/notes/race', { ...envelope('notes', 'race', [item(`i${i}`, 'x')]), rev: 1 })));
     assert.equal(results.filter(r => r.status === 200).length, 1);
     assert.equal(results.filter(r => r.status === 409).length, 7);
-    assert.equal(readJson(path.join(home, 'data', 'notes', 'race.json')).rev, 2);
+    assert.equal(readJson(path.join(dataDirOf(home), 'notes', 'race.json')).rev, 2);
   } finally { await agent.stop(); rmHome(home); }
 });
 
@@ -136,7 +138,7 @@ test('a config.json that is not valid is never overwritten, and the agent says w
   try {
     for (const text of ['{oops', JSON.stringify({ configVersion: 1, features: { telemetry: true } })]) {
       fs.writeFileSync(path.join(home, 'config.json'), text);
-      await assert.rejects(createAgent({ home, port: 0 }), /config/);
+      await assert.rejects(createAgent({ home, port: 0, dataDir: dataDirOf(home) }), /config/);
       assert.equal(fs.readFileSync(path.join(home, 'config.json'), 'utf8'), text);
     }
   } finally { rmHome(home); }

@@ -14,14 +14,26 @@ export const CONNECTORS = path.join(HERE, 'fixtures', 'connectors');
 export const APPS = path.join(REPO, 'tests', 'fixtures', 'apps');
 export const SECRET = 'probe-secret-value-91c2e7';
 
-export const tempHome = () => fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-agent-'));
-export const rmHome = home => fs.rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+/**
+ * A fresh temp folder holding `home/` (returned, used as the Workshop home) and, next to it, `Workshop/` for the
+ * data folder (see dataDirOf). Tests always pass that data folder, so they never touch the real ~/Workshop.
+ */
+export function tempHome() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-agent-'));
+  const home = path.join(root, 'home');
+  fs.mkdirSync(home);
+  return home;
+}
+/** The data folder that belongs to a tempHome(): a sibling of the home folder, never inside it. */
+export const dataDirOf = home => path.join(path.dirname(home), 'Workshop');
+/** Remove a tempHome() with its data folder. */
+export const rmHome = home => fs.rmSync(path.dirname(home), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 export const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 
-/** Write config.json into home (merged over a valid base), then start an agent on a free port. */
+/** Write config.json into home (merged over a valid base), then start an agent on a free port with its temp data folder. */
 export async function start(home, config, extra = {}) {
   if (config) fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, ...config }, null, 2));
-  return createAgent({ home, port: 0, appsDir: APPS, connectorsDir: CONNECTORS, env: { PROBE_SECRET: SECRET }, ...extra });
+  return createAgent({ home, port: 0, dataDir: dataDirOf(home), appsDir: APPS, connectorsDir: CONNECTORS, env: { PROBE_SECRET: SECRET }, ...extra });
 }
 
 export const logText = agent => { try { return fs.readFileSync(agent.logFile, 'utf8'); } catch { return ''; } };

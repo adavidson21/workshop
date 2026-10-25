@@ -1,4 +1,5 @@
-// The Workshop agent: one local process that serves the UI, stores app data on disk and hosts connectors.
+// The Workshop agent: one local process that serves the UI, stores app data in the data folder and hosts
+// connectors.
 // Implements docs/agent-api.md (api: 1). Node standard library only. It never makes an outbound request
 // itself; only connectors do, to hosts from their own config.
 //
@@ -16,6 +17,10 @@ import { removeTmpFiles, KeyedLock } from './lib/fsutil.mjs';
 import { homePaths, loadConfig, saveConfig, loadToken } from './lib/home.mjs';
 import { createLogger, stripToken } from './lib/log.mjs';
 import { Store } from './lib/store.mjs';
+import { Files } from './lib/files.mjs';
+import { Tracker, FolderWatch } from './lib/watch.mjs';
+import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath } from './lib/datapath.mjs';
+import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData } from './lib/datadir.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { serveStatic } from './lib/static.mjs';
@@ -23,10 +28,11 @@ import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;
+const MTIME_QUERY = /^[0-9]{1,16}$/;
 const ACTION = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$/;
 const CLIENT = /^[A-Za-z0-9_-]{1,64}$/;
 const API_PREFLIGHT = {
-  'Access-Control-Allow-Methods': 'GET, PUT, POST',
+  'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE',
   'Access-Control-Allow-Headers': 'Content-Type, X-Workshop-Token, X-Workshop-Client',
   'Access-Control-Allow-Private-Network': 'true',
   'Access-Control-Max-Age': '600'
@@ -43,6 +49,8 @@ const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.lengt
  * @param {string} [o.connectorsDir]   default <root>/connectors
  * @param {object} [o.env]             environment variables connectors may read (default process.env)
  * @param {number} [o.port]            listen here instead of config.json's port (0 picks a free port)
+ * @param {string} [o.dataDir]         use this data folder for this run instead of config.json's dataDir (absolute).
+ *                                     config.json is not changed. For tests, so they never touch ~/Workshop.
  * @param {boolean} [o.echoLog]        also print log lines to the console
  * @param {boolean} [o.manageStartup]  write and remove the OS start-at-login launcher to match the flag (the
  *                                     real launcher, agent/start.mjs, sets this). Off by default so a test
@@ -50,7 +58,7 @@ const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.lengt
  * @param {string} [o.loginDir]        folder for the start-at-login launcher (default: the platform's own).
  *                                     Passing it (or WORKSHOP_LOGIN_DIR) turns on startup management into that
  *                                     folder, so a test can exercise it in a temp directory.
- * @returns {Promise<{url: string, port: number, token: string, home: string, logFile: string, stop: () => Promise<void>}>}
+ * @returns {Promise<{url: string, port: number, token: string, home: string, dataDir: string, logFile: string, stop: () => Promise<void>}>}
  */
 export async function createAgent(o) {
   if (!o || !o.home) throw new Error('createAgent needs a home folder.');
@@ -78,6 +86,17 @@ export async function createAgent(o) {
   const log = createLogger({ dir: paths.logs, echo: o.echoLog === true, secrets: [token] });
   for (const f of leftovers) log.warn(`Removed a leftover temp file from an interrupted write: ${path.relative(home, f)}`);
 
+  // The data folder (docs/config.md, Data folder). Checked and created before anything else touches it; if it
+  // cannot be used the agent stops with a message rather than fall back to another folder.
+  const dataDirOverride = o.dataDir !== undefined;
+  const dataDirSetting = dataDirOverride ? o.dataDir : (config.dataDir ?? defaultDataDir());
+  const dataRoot = prepareDataDir(dataDirSetting, home);
+  const dataDir = path.resolve(dataRoot.dir);
+  for (const rel of removeDataTmpFiles(dataRoot)) log.warn(`Removed a leftover temp file from an interrupted write: ${rel} in the data folder.`);
+  const tracker = new Tracker();
+  const dataLock = new KeyedLock(); // shared by collections and files: both live in the data folder
+  await moveOldData({ home, root: dataRoot, tracker, log: log.for('data') });
+
   const configLock = new KeyedLock();
   /** Apply a change to the live config and save it. If saving fails, the change is undone. */
   const commitConfig = mutate => configLock.run('config', async () => {
@@ -91,7 +110,9 @@ export async function createAgent(o) {
     }
   });
   const events = new EventHub({ version: VERSION });
-  const store = new Store({ dir: paths.data, schemas, log: log.for('data') });
+  const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
+  const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
+  const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
   const connectors = new ConnectorHost({
     dir: connectorsDir, schemas, env, home, storageDir: path.join(paths.data, '_connectors'), log, events, config: () => config
   });
@@ -102,6 +123,8 @@ export async function createAgent(o) {
   const publicConfig = () => ({
     configVersion: 1,
     port: config.port,
+    // The saved value, or the folder in use when nothing is saved (the default, or this run's override).
+    dataDir: config.dataDir ?? (dataDirOverride ? dataDir : defaultDataDir()),
     allowedOrigins: [...config.allowedOrigins],
     features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true },
     connectors: Object.fromEntries(Object.entries(config.connectors || {}).map(([id, c]) => [id, { enabled: c.enabled === true }])),
@@ -176,7 +199,7 @@ export async function createAgent(o) {
       const queryOk = p === '/api/events' && same(url.searchParams.get('token'), token);
       const authed = headerOk || (cookieOk && own && req.method === 'GET') || queryOk;
       if (!authed) fail('unauthorized', 'Open Workshop from this computer first, or pair this page in Settings.');
-      if ((req.method === 'PUT' || req.method === 'POST') && !headerOk) fail('unauthorized', 'Writes need the X-Workshop-Token header.');
+      if ((req.method === 'PUT' || req.method === 'POST' || req.method === 'DELETE') && !headerOk) fail('unauthorized', 'Writes need the X-Workshop-Token header.');
       await handleApi(req, res, url, { own, cors });
     } catch (e) {
       if (!(e instanceof HttpError)) log.error(`Unexpected error on ${req.method} ${stripToken(req.url)}: ${e && (e.stack || e.message)}`);
@@ -240,19 +263,15 @@ document.getElementById('allow').addEventListener('click', function () {
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); ok(listApps()); return; }
 
-    if (parts[0] === 'data' && (parts.length === 2 || parts.length === 3)) {
-      const app = name(parts[1], 'app');
-      if (parts.length === 2) { only('GET'); ok({ app, collections: await store.list(app) }); return; }
-      const collection = name(parts[2], 'collection');
-      if (m === 'GET') { ok(await store.get(app, collection)); return; }
-      only('GET', 'PUT');
-      const body = await readJsonBody(req, 10 * MB);
-      const saved = await store.put(app, collection, body);
-      const client = req.headers['x-workshop-client'];
-      events.send('data', { app, collection, rev: saved.rev, updatedAt: saved.updatedAt, client: typeof client === 'string' && CLIENT.test(client) ? client : null });
-      ok({ rev: saved.rev, updatedAt: saved.updatedAt });
+    // Data and files paths are checked as the client sent them, segment by segment, before any normalization
+    // (docs/agent-api.md, Endpoints). The URL parser would turn "notes/../pages" into "pages"; this never does.
+    const raw = rawApiSegments(req.url);
+    if (raw[0] === 'data' || raw[0] === 'files') {
+      if (raw.length < 2) fail('not_found', 'Not found.');
+      await (raw[0] === 'data' ? handleData : handleFiles)(req, res, url, raw.slice(1).map(decodeSegment), ok, only);
       return;
     }
+    if (parts[0] === 'data' || parts[0] === 'files') fail('bad_request', 'That path is not valid.');
 
     if (parts[0] === 'connectors') {
       if (parts.length === 1) { only('GET'); ok({ connectors: connectors.list() }); return; }
@@ -296,11 +315,17 @@ document.getElementById('allow').addEventListener('click', function () {
       if (errs.length) fail('invalid_config', `That setting is not valid: ${errs[0]}`);
       const changed = [];
       const toggled = [];
-      const restartRequired = body.port !== undefined && body.port !== port;
+      if (body.dataDir !== undefined) {
+        const problem = dataDirProblem(body.dataDir, home);
+        if (problem) fail('invalid_config', problem);
+      }
+      const restartRequired = (body.port !== undefined && body.port !== port)
+        || (body.dataDir !== undefined && path.relative(path.resolve(body.dataDir), dataDir) !== '');
       const loginBefore = config.features.startAtLogin === true;
       const loginAsked = body.features && Object.prototype.hasOwnProperty.call(body.features, 'startAtLogin');
       await commitConfig(() => {
         if (body.port !== undefined) { config.port = body.port; changed.push('port'); }
+        if (body.dataDir !== undefined) { config.dataDir = body.dataDir; changed.push('dataDir'); }
         if (body.allowedOrigins) { config.allowedOrigins = [...body.allowedOrigins]; changed.push('allowedOrigins'); }
         if (body.features) { config.features = { ...config.features, ...body.features }; changed.push('features'); }
         if (body.connectors) {
@@ -330,6 +355,51 @@ document.getElementById('allow').addEventListener('click', function () {
     fail('not_found', 'Not found.');
   }
 
+  const clientOf = req => { const c = req.headers['x-workshop-client']; return typeof c === 'string' && CLIENT.test(c) ? c : null; };
+
+  /** /api/data/<app>[/<collection>]. `segs` are decoded segments after "data". */
+  async function handleData(req, res, url, segs, ok, only) {
+    const app = appId(segs[0]);
+    if (segs.length === 1) { only('GET'); ok({ app, collections: await store.list(app) }); return; }
+    const collection = collectionName(segs.slice(1));
+    if (req.method === 'GET') { ok(await store.get(app, collection)); return; }
+    only('GET', 'PUT');
+    const body = await readJsonBody(req, 10 * MB);
+    const saved = await store.put(app, collection, body);
+    events.send('data', { app, collection, rev: saved.rev, updatedAt: saved.updatedAt, client: clientOf(req) });
+    ok({ rev: saved.rev, updatedAt: saved.updatedAt });
+  }
+
+  /** /api/files/<app>[/<folder> | /<path>]. A last segment with a "." names a file; otherwise it is a folder. */
+  async function handleFiles(req, res, url, segs, ok, only) {
+    const app = appId(segs[0]);
+    const rest = segs.slice(1);
+    if (!rest.length || !rest[rest.length - 1].includes('.')) {
+      const folder = folderName(rest);
+      only('GET');
+      ok({ app, files: await files.list(app, folder) });
+      return;
+    }
+    const fpath = filePath(rest);
+    if (req.method === 'GET') { ok(await files.read(app, fpath)); return; }
+    if (req.method === 'PUT') {
+      const body = await readJsonBody(req, 64 * MB);
+      const saved = await files.put(app, fpath, body);
+      events.send('file', { app, path: fpath, mtime: saved.mtime, client: clientOf(req) });
+      ok(saved);
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const q = url.searchParams.get('mtime');
+      if (q !== null && !MTIME_QUERY.test(q)) fail('bad_request', 'mtime must be a whole number of milliseconds.');
+      const done = await files.trash(app, fpath, q === null ? null : Number(q));
+      events.send('file', { app, path: fpath, mtime: null, client: clientOf(req) });
+      ok(done);
+      return;
+    }
+    only('GET', 'PUT', 'DELETE');
+  }
+
   // ---------- start
   const server = http.createServer((req, res) => { handle(req, res); });
   server.headersTimeout = 30000;
@@ -347,7 +417,8 @@ document.getElementById('allow').addEventListener('click', function () {
     throw e;
   }
   port = server.address().port;
-  log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}).`);
+  log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}, data folder ${dataDir}).`);
+  watch.start();
   await connectors.startAll();
 
   // Keep the start-at-login launcher in step with the flag, in case config.json was edited by hand or the
@@ -369,9 +440,11 @@ document.getElementById('allow').addEventListener('click', function () {
     port,
     token,
     home,
+    dataDir,
     logFile: log.file,
     stop() {
       stopping ??= (async () => {
+        watch.stop();
         events.closeAll();
         await connectors.stopAll();
         const closed = new Promise(r => server.close(r));

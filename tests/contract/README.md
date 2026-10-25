@@ -40,12 +40,7 @@ WORKSHOP_TARGET=agent/test-target.mjs node --test "tests/contract/*.test.mjs"
 
 A test of a contract that has merged in `docs/` but not yet in the agent passes `{ todo: pendingOnAgent('<workstream>') }`. It runs against every target; against the mock it must pass, and against any other target a failure is reported as to-do instead of failing CI. The workstream that implements the contract removes the marks.
 
-Marked today, for WS11b (the data folder in the agent):
-
-- `folder.test.mjs`, `files.test.mjs`: every test.
-- `events.test.mjs`: nested names in data events, `file` events, changes made outside Workshop.
-- `config.test.mjs`: every test that checks the `config-public` or `config-put-response` schema (they now require `dataDir`), the `dataDir` tests, and "the new origin is honored right away" (it depends on the test before it).
-- `connectors.test.mjs`: "enabling starts it and sends connector-status" (checks `config-put-response`).
+No test is marked today.
 
 ## What is where
 
