@@ -19,25 +19,25 @@ after(async () => { await agent?.stop(); await hosted?.stop(); });
 const create = (a, p, content) => put(a, `${P}/${p}`, { content, create: true });
 
 test('create, read, list and replace a file', { todo }, async () => {
-  const made = expectJson(await create(agent, 'summaries/kim/h2-2026.md', '# Kim\n'), 200, 'file-put-response');
-  assert.deepEqual({ app: made.app, path: made.path, size: made.size }, { app: 'notes', path: 'summaries/kim/h2-2026.md', size: 6 });
-  const file = path.join(agent.dataDir, 'notes', 'summaries', 'kim', 'h2-2026.md');
+  const made = expectJson(await create(agent, 'summaries/kim/2026-h2.md', '# Kim\n'), 200, 'file-put-response');
+  assert.deepEqual({ app: made.app, path: made.path, size: made.size }, { app: 'notes', path: 'summaries/kim/2026-h2.md', size: 6 });
+  const file = path.join(agent.dataDir, 'notes', 'summaries', 'kim', '2026-h2.md');
   assert.equal(fs.readFileSync(file, 'utf8'), '# Kim\n', 'stored as the plain file, byte for byte');
   assert.equal(made.mtime, Math.floor(fs.statSync(file).mtimeMs));
 
-  const read = expectJson(await get(agent, `${P}/summaries/kim/h2-2026.md`), 200, 'file');
-  assert.deepEqual(read, { app: 'notes', path: 'summaries/kim/h2-2026.md', mtime: made.mtime, size: 6, content: '# Kim\n' });
+  const read = expectJson(await get(agent, `${P}/summaries/kim/2026-h2.md`), 200, 'file');
+  assert.deepEqual(read, { app: 'notes', path: 'summaries/kim/2026-h2.md', mtime: made.mtime, size: 6, content: '# Kim\n' });
 
-  const next = expectJson(await put(agent, `${P}/summaries/kim/h2-2026.md`, { content: '# Kim\n\nMore.\n', mtime: read.mtime }), 200, 'file-put-response');
+  const next = expectJson(await put(agent, `${P}/summaries/kim/2026-h2.md`, { content: '# Kim\n\nMore.\n', mtime: read.mtime }), 200, 'file-put-response');
   assert.notEqual(next.mtime, read.mtime, 'every write changes the mtime');
-  assert.equal(expectJson(await get(agent, `${P}/summaries/kim/h2-2026.md`), 200, 'file').content, '# Kim\n\nMore.\n');
+  assert.equal(expectJson(await get(agent, `${P}/summaries/kim/2026-h2.md`), 200, 'file').content, '# Kim\n\nMore.\n');
 
-  await create(agent, 'summaries/ann/h2-2026.md', 'a');
+  await create(agent, 'summaries/ann/2026-h2.md', 'a');
   await create(agent, 'top.json', '{"a": 1}');
   const all = expectJson(await get(agent, P), 200, 'file-list');
-  assert.deepEqual(all.files.map(f => f.path), ['summaries/ann/h2-2026.md', 'summaries/kim/h2-2026.md', 'top.json']);
+  assert.deepEqual(all.files.map(f => f.path), ['summaries/ann/2026-h2.md', 'summaries/kim/2026-h2.md', 'top.json']);
   const kim = expectJson(await get(agent, `${P}/summaries/kim`), 200, 'file-list');
-  assert.deepEqual(kim.files.map(f => f.path), ['summaries/kim/h2-2026.md']);
+  assert.deepEqual(kim.files.map(f => f.path), ['summaries/kim/2026-h2.md']);
   assert.equal(kim.files[0].mtime, next.mtime);
 });
 
@@ -104,7 +104,8 @@ test('file paths follow the name rules', { todo }, async () => {
     `${P}/..%5Cconfig.md`,            // encoded backslash
     `${P}/C:%5Cnotes.md`,             // drive letter
     `${P}/Notes.md`,                  // uppercase
-    `${P}/2026.md`,                   // starts with a digit
+    `${P}/-2026.md`,                  // starts with a hyphen
+    '/api/files/2026/a.md',           // app id starts with a digit
     `${P}/my%20notes.md`,             // space
     '/api/files/Notes/a.md'           // bad app
   ];
@@ -115,6 +116,21 @@ test('file paths follow the name rules', { todo }, async () => {
   expectError(await get(agent, `${P}/a/b/c/d`), 400, 'bad_request'); // a folder has at most 3 segments
   assert.ok(!fs.existsSync(path.join(agent.home, 'config.md')));
   assert.ok(!fs.existsSync(path.join(agent.root, 'config.md')));
+});
+
+test('file path segments may start with a digit; app ids may not', { todo }, async () => {
+  for (const p of ['2026.md', 'summaries/jordan-lee/2026-h2.md', 'metrics/2026-10/report.json', '1on1s/kim/2026-10-25.md']) {
+    const content = p.endsWith('.json') ? '{"ok": true}' : '# note\n';
+    expectJson(await create(agent, p, content), 200, 'file-put-response');
+    assert.equal(expectJson(await get(agent, `${P}/${p}`), 200, 'file').content, content);
+  }
+  const listed = expectJson(await get(agent, `${P}/1on1s`), 200, 'file-list').files.map(f => f.path);
+  assert.deepEqual(listed, ['1on1s/kim/2026-10-25.md']);
+  expectJson(await get(agent, `${P}/metrics/2026-10`), 200, 'file-list');
+  expectError(await get(agent, '/api/files/2026/a.md'), 400, 'bad_request');
+  expectError(await get(agent, '/api/files/2026'), 400, 'bad_request');
+  expectError(await put(agent, '/api/files/1on1s/a.md', { content: 'x', create: true }), 400, 'bad_request');
+  assert.ok(!fs.existsSync(path.join(agent.dataDir, '1on1s')));
 });
 
 test('files over 10 MB are refused', { todo }, async () => {

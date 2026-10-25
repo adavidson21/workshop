@@ -5,26 +5,26 @@
     "name": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{0,39}$",
-      "description": "App id, collection name or connector id."
+      "description": "App id or connector id. Collection names and file paths use collectionName and filePath."
     },
     "collectionName": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,39}(/[a-z][a-z0-9-]{0,39}){0,3}$",
-      "description": "A collection name: 1 to 4 \"/\"-separated segments, each like a name. Maps to subfolders of the app folder."
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}(/[a-z0-9][a-z0-9-]{0,39}){0,3}$",
+      "description": "A collection name: 1 to 4 \"/\"-separated segments, each matching ^[a-z0-9][a-z0-9-]{0,39}$ (may start with a digit). Maps to subfolders of the app folder."
     },
     "schemaName": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9-]{0,39}(/[a-z][a-z0-9-]{0,39}){0,3}$",
+      "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z0-9][a-z0-9-]{0,39}(/[a-z0-9][a-z0-9-]{0,39}){0,3}$",
       "description": "An envelope schema: \"<app>.<collection>\"."
     },
     "filePath": {
       "type": "string",
-      "pattern": "^([a-z][a-z0-9-]{0,39}/){0,3}[a-z][a-z0-9-]{0,39}\\.(md|json)$",
-      "description": "A file path inside an app folder: 1 to 4 \"/\"-separated segments, each like a name, the last one ending in .md or .json."
+      "pattern": "^([a-z0-9][a-z0-9-]{0,39}/){0,3}[a-z0-9][a-z0-9-]{0,39}\\.(md|json)$",
+      "description": "A file path inside an app folder: 1 to 4 \"/\"-separated segments, each matching ^[a-z0-9][a-z0-9-]{0,39}$ (may start with a digit), the last one ending in .md or .json."
     },
     "folderPath": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,39}(/[a-z][a-z0-9-]{0,39}){0,2}$",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}(/[a-z0-9][a-z0-9-]{0,39}){0,2}$",
       "description": "A folder inside an app folder, for listing files."
     },
     "absPath": {

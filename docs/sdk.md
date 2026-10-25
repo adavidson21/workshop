@@ -47,7 +47,7 @@ Events:
 
 | Method | Meaning |
 | --- | --- |
-| `ws.data.get(collection, {app?})` | `collection` may be nested: `'entries/jordan-lee/y2026'` ([data-format.md](data-format.md), Names); the SDK sends each segment as a path segment. The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
+| `ws.data.get(collection, {app?})` | `collection` may be nested: `'entries/jordan-lee/2026'` ([data-format.md](data-format.md), Names); the SDK sends each segment as a path segment. The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
 | `ws.data.put(collection, envelope)` | Writes this app's collection. `envelope.rev` is the revision you read (`0` to create). Resolves `{rev, updatedAt}`. On a stale `rev` rejects with code `conflict` and `err.current` set to the stored envelope: merge (below) and put again with `current.rev`. |
 | `ws.data.subscribe(collection, handler, {app?})` | Calls `handler({app, collection, rev, updatedAt, client})` after every write by anyone else, and after a change made outside Workshop (then `rev`, `updatedAt` and `client` are `null`: re-read). Writes made through this `ws` are filtered out using the client id. Returns an unsubscribe function. |
 | `ws.data.merge(local, remote)` | Merges two envelopes of the same `schema` and `version` with the change-stamp rules in [data-format.md](data-format.md). Returns a new envelope with `remote.rev`. Pure. |
@@ -59,7 +59,7 @@ Bad names reject with `bad_request` before any request is made. The SDK sends `X
 
 ### Files
 
-For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/jordan-lee/h2-2026.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
+For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/jordan-lee/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
 
 | Method | Meaning |
 | --- | --- |

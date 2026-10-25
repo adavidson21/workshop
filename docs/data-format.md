@@ -27,7 +27,7 @@ Schema: [schemas/data-envelope.schema.json](schemas/data-envelope.schema.json). 
 
 | Field | Owner | Meaning |
 | --- | --- | --- |
-| `schema` | app | `<app>.<collection>`, with the full collection name, nested segments included (for example `receipts.entries/jordan-lee/y2026`). Must match the path it is stored under. |
+| `schema` | app | `<app>.<collection>`, with the full collection name, nested segments included (for example `receipts.entries/jordan-lee/2026`). Must match the path it is stored under. |
 | `version` | app | Integer, 1 or more. The version of the item shape in this collection. See Migrations. |
 | `rev` | backend | Integer revision. `0` means "not written yet". The backend adds 1 on every write. A writer sends the `rev` it read; a different stored `rev` is a conflict. |
 | `updatedAt` | backend | ISO 8601 UTC time of the last write. Always present in what the backend returns; ignored on put. |
@@ -37,13 +37,13 @@ Schema: [schemas/data-envelope.schema.json](schemas/data-envelope.schema.json). 
 
 No other top-level fields. Apps that need more state put it in `meta` or in another collection.
 
-Size limit: 10 MB per collection. Collections that grow past that should be split (for example by year, with a nested name like `entries/jordan-lee/y2026`).
+Size limit: 10 MB per collection. Collections that grow past that should be split (for example by year, with a nested name like `entries/jordan-lee/2026`).
 
 ## Names
 
 - An app id is a name: `^[a-z][a-z0-9-]{0,39}$`.
-- A collection name is 1 to 4 segments separated by `/`, each a name (`^[a-z][a-z0-9-]{0,39}$`). Each `/` is a subfolder: `entries/jordan-lee/y2026` is stored at `<dataDir>/<app>/entries/jordan-lee/y2026.json`. Segments start with a letter, so a year is written `y2026`, not `2026`.
-- A file path (files API) follows the same rules, and its last segment ends in `.md` or `.json`: `summaries/jordan-lee/h2-2026.md`.
+- A collection name is 1 to 4 segments separated by `/`, each matching `^[a-z0-9][a-z0-9-]{0,39}$`. Unlike app ids, segments may start with a digit, so years and months work as names: `entries/jordan-lee/2026`, `metrics/jordan-lee/2026-10`. Each `/` is a subfolder: `entries/jordan-lee/2026` is stored at `<dataDir>/<app>/entries/jordan-lee/2026.json`.
+- A file path (files API) follows the same rules, and its last segment ends in `.md` or `.json`: `summaries/jordan-lee/2026-h2.md`.
 - Names are lowercase, so the same name means the same file on case-insensitive disks (Windows, macOS).
 - A collection named `a/b` and a folder `a/b/` holding more collections can exist side by side (`a/b.json` and `a/b/c.json`).
 
@@ -138,10 +138,10 @@ For example:
 ~/Workshop/
   prioritizer/tasks.json
   receipts/config.json
-  receipts/entries/jordan-lee/y2026.json
-  receipts/summaries/jordan-lee/h2-2026.md
-  receipts/summaries/jordan-lee/h2-2026.json
-  .trash/receipts/summaries/jordan-lee/h1-2026.20261025T140500123Z.md
+  receipts/entries/jordan-lee/2026.json
+  receipts/summaries/jordan-lee/2026-h2.md
+  receipts/summaries/jordan-lee/2026-h2.json
+  .trash/receipts/summaries/jordan-lee/2026-h1.20261025T140500123Z.md
   .backups/2026-10-25/prioritizer/tasks.v2.json
 ```
 
@@ -149,14 +149,14 @@ For example:
 
 - A `.json` file is a **collection** when it parses as a JSON object whose `schema` field is `<app>.<collection>` for its own path. Collections are read and written only through the data API (`/api/data`, `ws.data`), which checks `rev`. A collection file that fails the envelope schema is a damaged collection (below), still not a file.
 - Every other `.md` or `.json` file is a **file**, read and written only through the files API (`/api/files`, `ws.files`), which checks the modified time. The files API never reads, writes, lists or trashes a collection, and refuses to write `.json` content that would make one (an envelope for its own path).
-- So a collection and a file can never be the same file, even though both end in `.json`. Receipts' summary `h2-2026.md` (a file) and its sidecar `h2-2026.json` (a collection) sit side by side.
+- So a collection and a file can never be the same file, even though both end in `.json`. Receipts' summary `2026-h2.md` (a file) and its sidecar `2026-h2.json` (a collection) sit side by side.
 
 ### What Workshop ignores
 
 Workshop only sees paths that follow the name rules above, under an app folder. It ignores, and never changes or deletes:
 
 - any file or folder whose name starts with `.` (other than its own `.trash` and `.backups`, which only it writes to), for example `.git`, `.obsidian`, `.DS_Store`;
-- names that break the rules (`Notes.md`, `my notes.md`, `2026.json`), files with other extensions, and anything deeper than 4 segments;
+- names that break the rules (`Notes.md`, `my notes.md`, `-draft.md`), top-level folders that are not app ids (`<dataDir>/2026/`), files with other extensions, and anything deeper than 4 segments;
 - files at the top of the data folder (`<dataDir>/readme.md`);
 - leftover `*.tmp` files (see Disk rules).
 

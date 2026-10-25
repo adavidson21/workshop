@@ -1,9 +1,9 @@
 {
-  "error": "summaries/jordan-lee/h2-2026.md already exists.",
+  "error": "summaries/jordan-lee/2026-h2.md already exists.",
   "code": "conflict",
   "current": {
     "app": "receipts",
-    "path": "summaries/jordan-lee/h2-2026.md",
+    "path": "summaries/jordan-lee/2026-h2.md",
     "mtime": 1792937100000,
     "size": 61,
     "content": "# Jordan Lee, 2026 H2\n\n## Results\n\n- Shipped the export fix.\n"

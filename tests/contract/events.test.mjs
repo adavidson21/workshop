@@ -77,8 +77,8 @@ test('nested collections are named in full in data events', { todo }, async () =
   const es = await openEvents(agent);
   try {
     await es.next('hello');
-    await put(agent, '/api/data/notes/entries/kim/y2026', envelope('notes', 'entries/kim/y2026'), { headers: { 'X-Workshop-Client': 'w-nest' } });
-    const e = await es.next('data', d => d.collection === 'entries/kim/y2026');
+    await put(agent, '/api/data/notes/entries/kim/2026', envelope('notes', 'entries/kim/2026'), { headers: { 'X-Workshop-Client': 'w-nest' } });
+    const e = await es.next('data', d => d.collection === 'entries/kim/2026');
     schemas.assert('event', e, 'nested data event');
     assert.deepEqual({ app: e.data.app, rev: e.data.rev, client: e.data.client }, { app: 'notes', rev: 1, client: 'w-nest' });
   } finally { es.close(); }

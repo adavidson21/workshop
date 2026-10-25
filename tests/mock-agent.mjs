@@ -20,8 +20,9 @@ import { checkConnectorModule } from './lib/connector-check.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
 const VERSION = '0.0.0-mock';
-const NAME = /^[a-z][a-z0-9-]{0,39}$/;
-const FILE_NAME = /^([a-z][a-z0-9-]{0,39})\.(md|json)$/;
+const NAME = /^[a-z][a-z0-9-]{0,39}$/;             // app ids, connector ids
+const SEG = /^[a-z0-9][a-z0-9-]{0,39}$/;           // collection name and file path segments
+const FILE_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json)$/;
 const MAX_SEGMENTS = 4;
 const DEBOUNCE_MS = 300;
 const ACTION = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$/;
@@ -265,20 +266,20 @@ export async function createMockAgent(options = {}) {
   }
   function collectionName(segs) {
     if (segs.length < 1 || segs.length > MAX_SEGMENTS) fail('bad_request', 'A collection name has 1 to 4 parts.');
-    for (const g of segs) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid collection name part.`);
+    for (const g of segs) if (!SEG.test(g)) fail('bad_request', `"${g}" is not a valid collection name part.`);
     return segs.join('/');
   }
   function folderName(segs) {
     if (segs.length > MAX_SEGMENTS - 1) fail('bad_request', 'A folder has 1 to 3 parts.');
-    for (const g of segs) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
+    for (const g of segs) if (!SEG.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
     return segs.join('/');
   }
   function filePath(segs) {
     if (segs.length > MAX_SEGMENTS) fail('bad_request', 'A file path has 1 to 4 parts.');
-    for (const g of segs.slice(0, -1)) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
+    for (const g of segs.slice(0, -1)) if (!SEG.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
     const last = segs[segs.length - 1];
     if (!FILE_NAME.test(last)) {
-      if (/^[a-z][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md and .json files are allowed.');
+      if (/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md and .json files are allowed.');
       fail('bad_request', `"${last}" is not a valid file name.`);
     }
     return segs.join('/');
@@ -384,7 +385,7 @@ export async function createMockAgent(options = {}) {
         let real, st;
         try { real = fs.realpathSync(p); st = fs.statSync(p); } catch { continue; }
         if (!isInside(real, realData)) continue;
-        if (st.isDirectory()) { if (NAME.test(e.name) && relParts.length < MAX_SEGMENTS - 1) visit(p, [...relParts, e.name]); }
+        if (st.isDirectory()) { if (SEG.test(e.name) && relParts.length < MAX_SEGMENTS - 1) visit(p, [...relParts, e.name]); }
         else if (st.isFile() && FILE_NAME.test(e.name)) out.push([[...relParts, e.name].join('/'), p, st]);
       }
     };
@@ -442,7 +443,7 @@ export async function createMockAgent(options = {}) {
   function external(rel) {
     const [app, ...rest] = rel.split('/');
     if (!NAME.test(app || '') || rest.length < 1 || rest.length > MAX_SEGMENTS) return;
-    if (!rest.slice(0, -1).every(g => NAME.test(g)) || !FILE_NAME.test(rest[rest.length - 1])) return;
+    if (!rest.slice(0, -1).every(g => SEG.test(g)) || !FILE_NAME.test(rest[rest.length - 1])) return;
     const abs = path.join(dataDir, ...rel.split('/'));
     let st = null;
     try { st = fs.statSync(abs); } catch { /* gone */ }
@@ -475,7 +476,7 @@ export async function createMockAgent(options = {}) {
     for (const d of fs.readdirSync(old, { withFileTypes: true })) {
       if (!d.isDirectory() || !NAME.test(d.name)) continue;
       for (const f of fs.readdirSync(path.join(old, d.name), { withFileTypes: true })) {
-        if (f.isFile() && f.name.endsWith('.json') && NAME.test(f.name.slice(0, -5))) found.push([d.name, f.name]);
+        if (f.isFile() && f.name.endsWith('.json') && SEG.test(f.name.slice(0, -5))) found.push([d.name, f.name]);
       }
     }
     if (!found.length || hasAppData()) return;

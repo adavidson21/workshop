@@ -25,16 +25,32 @@ test('collections are files in the data folder, not in the Workshop home', { tod
 });
 
 test('nested collection names are subfolders', { todo }, async () => {
-  const name = 'entries/jordan-lee/y2026';
+  const name = 'entries/jordan-lee/2026';
   const body = envelope('notes', name, [item('e1', 'win')]);
   schemas.assert('data-envelope', body, 'nested envelope');
   expectJson(await put(agent, `/api/data/notes/${name}`, body, { headers: { 'X-Workshop-Client': 'w-nest' } }), 200, 'data-put-response');
-  assert.ok(fs.existsSync(onDisk(agent, 'notes', 'entries', 'jordan-lee', 'y2026.json')));
+  assert.ok(fs.existsSync(onDisk(agent, 'notes', 'entries', 'jordan-lee', '2026.json')));
   const read = expectJson(await get(agent, `/api/data/notes/${name}`), 200, 'data-envelope');
-  assert.equal(read.schema, 'notes.entries/jordan-lee/y2026');
+  assert.equal(read.schema, 'notes.entries/jordan-lee/2026');
   const list = expectJson(await get(agent, '/api/data/notes'), 200, 'data-list');
   assert.ok(list.collections.some(c => c.collection === name && c.schema === `notes.${name}`));
   assert.deepEqual(list.collections.map(c => c.collection), [...list.collections.map(c => c.collection)].sort());
+});
+
+test('collection name segments may start with a digit; app ids may not', { todo }, async () => {
+  for (const name of ['2026', 'entries/ann/2026', 'metrics/jordan-lee/2026-10', '1on1s/kim']) {
+    const body = envelope('notes', name, [item('a', name)]);
+    schemas.assert('data-envelope', body, name);
+    expectJson(await put(agent, `/api/data/notes/${name}`, body), 200, 'data-put-response');
+    assert.equal(expectJson(await get(agent, `/api/data/notes/${name}`), 200, 'data-envelope').schema, `notes.${name}`);
+    assert.ok(fs.existsSync(onDisk(agent, 'notes', ...name.split('/')) + '.json'));
+  }
+  const listed = expectJson(await get(agent, '/api/data/notes'), 200, 'data-list').collections.map(c => c.collection);
+  for (const name of ['2026', 'metrics/jordan-lee/2026-10', '1on1s/kim']) assert.ok(listed.includes(name), name);
+  expectError(await get(agent, '/api/data/2026/entries'), 400, 'bad_request');
+  expectError(await get(agent, '/api/data/1on1s'), 400, 'bad_request');
+  expectError(await put(agent, '/api/data/2026/entries', { ...envelope('notes', 'entries'), schema: '2026.entries' }), 400, 'bad_request');
+  assert.ok(!fs.existsSync(onDisk(agent, '2026')));
 });
 
 test('a collection and a folder of the same name live side by side', { todo }, async () => {
@@ -47,11 +63,12 @@ test('a collection and a folder of the same name live side by side', { todo }, a
 test('nested names are checked', { todo }, async () => {
   const bad = [
     '/api/data/notes/a/b/c/d/e',          // 5 segments
-    '/api/data/notes/entries//y2026',     // empty segment
+    '/api/data/notes/entries//2026',     // empty segment
     '/api/data/notes/entries/',           // trailing slash
-    '/api/data/notes/entries/2026',       // segment starts with a digit
-    '/api/data/notes/entries%2Fy2026',    // encoded slash
-    '/api/data/notes/entries%5Cy2026',    // encoded backslash
+    '/api/data/notes/entries/-2026',      // segment starts with a hyphen
+    '/api/data/2026/entries',             // app id starts with a digit
+    '/api/data/notes/entries%2F2026',    // encoded slash
+    '/api/data/notes/entries%5C2026',    // encoded backslash
     '/api/data/notes/entries/Jordan',     // uppercase
     '/api/data/notes/entries.json'        // a dot
   ];

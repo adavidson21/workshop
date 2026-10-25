@@ -92,10 +92,10 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 
 Names in paths: `<app>` and connector `<id>` match `^[a-z][a-z0-9-]{0,39}$`. Action names match `^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$` (for example `sync`, `workitem.get`). Anything else gets `400 bad_request`, except an unknown well-formed name, which gets `404 not_found`.
 
-Nested names ([data-format.md](data-format.md), Names) are sent as path segments, with a plain `/` between them:
+Collection names and file paths ([data-format.md](data-format.md), Names) are made of segments matching `^[a-z0-9][a-z0-9-]{0,39}$` (they may start with a digit; app ids may not), sent as path segments with a plain `/` between them:
 
-- `<collection>` is 1 to 4 segments: `/api/data/receipts/entries/jordan-lee/y2026`.
-- `<path>` is 1 to 4 segments, the last ending in `.md` or `.json`: `/api/files/receipts/summaries/jordan-lee/h2-2026.md`.
+- `<collection>` is 1 to 4 segments: `/api/data/receipts/entries/jordan-lee/2026` or `/api/data/receipts/metrics/jordan-lee/2026-10`.
+- `<path>` is 1 to 4 segments, the last ending in `.md` or `.json`: `/api/files/receipts/summaries/jordan-lee/2026-h2.md`.
 - `<folder>` is 1 to 3 segments with no extension: `/api/files/receipts/summaries/jordan-lee`.
 
 The agent checks the path as the client sent it, before any normalization, one segment at a time, each segment percent-decoded on its own. A segment that is empty (`//`, a trailing `/`), `.` or `..` (raw or encoded as `%2e`), contains `/` or `\` once decoded (`%2F`, `%5C`), or otherwise breaks the name rules gets `400 bad_request`. So does a path with more than 4 segments after the app, a drive letter or any absolute form. A path that, after following symbolic links and junctions, leads outside the data folder also gets `400 bad_request`, whether or not the file exists.
@@ -192,7 +192,7 @@ For app files that are not envelopes, such as Markdown summaries or a JSON file 
 Lists the app's files, or the files under one folder, at every depth, sorted by `path`. Paths are relative to the app folder and use `/`. A missing app or folder gives an empty list, not `404`. Schema [file-list](schemas/file-list.schema.json), example [file-list.summaries.json](examples/file-list.summaries.json).
 
 ```json
-{"app": "receipts", "files": [{"path": "summaries/jordan-lee/h2-2026.md", "mtime": 1792937100000, "size": 61}]}
+{"app": "receipts", "files": [{"path": "summaries/jordan-lee/2026-h2.md", "mtime": 1792937100000, "size": 61}]}
 ```
 
 ### `GET /api/files/<app>/<path>`
@@ -200,7 +200,7 @@ Lists the app's files, or the files under one folder, at every depth, sorted by 
 Schema [file](schemas/file.schema.json), example [file.summary.json](examples/file.summary.json). A missing file gets `404 not_found`.
 
 ```json
-{"app": "receipts", "path": "summaries/jordan-lee/h2-2026.md", "mtime": 1792937100000, "size": 61, "content": "# Jordan Lee, 2026 H2\n"}
+{"app": "receipts", "path": "summaries/jordan-lee/2026-h2.md", "mtime": 1792937100000, "size": 61, "content": "# Jordan Lee, 2026 H2\n"}
 ```
 
 ### `PUT /api/files/<app>/<path>`
@@ -219,7 +219,7 @@ Conflict body: [file-conflict](schemas/file-conflict.schema.json), examples [fil
 On success the agent writes atomically (temp file, then rename), creating folders as needed, sends a `file` event, and answers `200` ([file-put-response](schemas/file-put-response.schema.json)):
 
 ```json
-{"app": "receipts", "path": "summaries/jordan-lee/h2-2026.md", "mtime": 1792937160000, "size": 61}
+{"app": "receipts", "path": "summaries/jordan-lee/2026-h2.md", "mtime": 1792937160000, "size": 61}
 ```
 
 ### `DELETE /api/files/<app>/<path>`
@@ -227,7 +227,7 @@ On success the agent writes atomically (temp file, then rename), creating folder
 Moves the file to the trash, `<dataDir>/.trash/<app>/<path without extension>.<stamp>.<ext>` ([data-format.md](data-format.md), Trash). Never removes it. Optional query `?mtime=<the mtime you read>`: if the file's `mtime` is different, `409 conflict` with `current` and nothing moves. A missing file gets `404 not_found`. Sends a `file` event with `mtime: null`. Response `200` ([file-delete-response](schemas/file-delete-response.schema.json)):
 
 ```json
-{"app": "receipts", "path": "summaries/jordan-lee/h2-2026.md", "trash": ".trash/receipts/summaries/jordan-lee/h2-2026.20261025T140500123Z.md"}
+{"app": "receipts", "path": "summaries/jordan-lee/2026-h2.md", "trash": ".trash/receipts/summaries/jordan-lee/2026-h2.20261025T140500123Z.md"}
 ```
 
 ### `GET /api/connectors` and `GET /api/connectors/<id>`
