@@ -161,7 +161,8 @@ function scopeListIds(){
   return L.parentId ? [L.id] : [L.id, ...childrenOf(L.id).map(c => c.id)];
 }
 function scopeName(){
-  if (state.scope === 'all') return 'All lists';
+  // With one list there is nothing to choose between, so "All lists" is just that list.
+  if (state.scope === 'all') return state.lists.length === 1 ? state.lists[0].name : 'All lists';
   const L = listById(state.scope); if (!L) return 'All lists';
   return L.parentId ? `${listById(L.parentId).name} › ${L.name}` : L.name;
 }

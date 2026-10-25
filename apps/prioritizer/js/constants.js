@@ -23,7 +23,8 @@ const VIEWS = ['today','triage','rank','eisen','ve','people','archive','reports'
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
-const NAV_OF = v => (v in LENSES) ? 'prio' : v;
+// Done (the archive) is a tab inside Prioritize, next to the lenses, not its own sidebar view.
+const NAV_OF = v => (v in LENSES || v === 'archive') ? 'prio' : v;
 // ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
 const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
@@ -48,6 +49,6 @@ const ICON = {
   up: svg('<path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9"/>', 1.6),
   top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6)
 };
-const NAV = [['today','Today',ICON.today],['triage','Triage',ICON.triage],['prio','Prioritize',ICON.prio],['people','People',ICON.people],['archive','Archive',ICON.archive],['reports','Reports',ICON.reports]];
+const NAV = [['today','Today',ICON.today],['triage','Triage',ICON.triage],['prio','Prioritize',ICON.prio],['people','People',ICON.people],['reports','Reports',ICON.reports]];
 
 export { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

@@ -57,11 +57,14 @@ function renderSide(){
   const open = id => state.tasks.filter(t => !t.done && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
   const item = (l, sub) => {
     const n = sub ? state.tasks.filter(t => !t.done && t.listId === l.id).length : open(l.id);
-    return `<div class="sitem${sub ? ' child' : ''}${state.scope === l.id ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${state.scope === l.id}">
+    const on = state.scope === l.id || (state.lists.length === 1 && state.scope === 'all');
+    return `<div class="sitem${sub ? ' child' : ''}${on ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${on}">
       <i class="dot"></i><span class="lbl">${esc(l.name)}</span>${n ? `<span class="n">${n}</span>` : ''}
       <span class="ibtn more" data-menu="${l.id}" role="button" tabindex="0" aria-label="Options for ${esc(l.name)}" style="width:24px;height:24px">${ICON.dots}</span></div>`;
   };
-  $('#slists').innerHTML = `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done).length || ''}</span></div>`
+  // "All lists" only means something once there are two lists to pick between.
+  const one = state.lists.length === 1;
+  $('#slists').innerHTML = (one ? '' : `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done).length || ''}</span></div>`)
     + topLists().map(l => item(l, false) + childrenOf(l.id).map(c => item(c, true)).join('')).join('');
 }
 
@@ -69,14 +72,14 @@ function renderSide(){
 const addBtn = (label = 'Add task') => `<button class="btn primary addbtn" data-add data-tip="Add a task. Shortcut: N or Ctrl+K">${ICON.plus}<span class="lbl">${label}</span><kbd>N</kbd></button>`;
 function renderHead(){
   const v = state.view, nav = NAV_OF(v);
-  const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People', archive: 'Archive'}[nav];
+  const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
   if (v === 'reports') return rpHead();
   let sub = esc(scopeName()), tools = '';
   if (v === 'today') sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
   if (nav === 'prio'){
     const open = scopeOpen().length;
-    sub += ` · ${open} open`;
-    tools = `<div class="lens" role="tablist" aria-label="Prioritize by">${Object.entries(LENSES).map(([k, n]) =>
+    sub += v === 'archive' ? ` · ${state.tasks.filter(t => t.done && scopeListIds().includes(t.listId)).length} done` : ` · ${open} open`;
+    tools = `<div class="lens" role="tablist" aria-label="Prioritize by">${Object.entries({...LENSES, archive: 'Done'}).map(([k, n]) =>
       `<button data-view="${k}" role="tab" aria-selected="${v === k}"${v === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>`;
     if (v === 'rank') tools += `<label class="cap" data-tip="Weekly budget in effort points (XS 1, S 2, M 3, L 5, XL 8)"><span class="hide-sm">Capacity</span> <input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> pts</label>
       ${open > 1 ? `<button class="btn" data-suggest data-tip="Preview an order by score">Suggest order</button>` : ''}`;

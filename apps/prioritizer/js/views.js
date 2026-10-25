@@ -5,7 +5,7 @@ import { toast } from './overlays.js';
 import { capacityCut, doneGroup, emptyHTML, main, openQuad, prevView, render, row, setView, showAllPick, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, initials, isDoneToday, isFocus, listById, orderedLists, scopeListIds, scopeOpen, state, triageQueue } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, parseD, plural, todayStr } from './util.js';
-/* Prioritizer: The views: Prioritize (list and matrices), Today, Triage, People, Archive with the weekly recap. */
+/* Prioritizer: The views: Prioritize (list, matrices, and Done with the weekly recap), Today, Triage, People. */
 function renderRank(){
   const open = scopeOpen();
   const done = state.tasks.filter(t => inScope(t) && isDoneToday(t)).sort((a,b) => (b.doneAt || '').localeCompare(a.doneAt || '') || a.rank - b.rank);
@@ -254,13 +254,13 @@ function renderArchive(){
       ${r.waiting.length ? `<span class="soft">Also lists ${plural(r.waiting.length,'task')} you're waiting on</span>` : ''}</footer>
   </section>`;
   if (!all.length){
-    main.innerHTML = `<div class="archive">${recap}<div class="empty"><b>Nothing archived yet.</b>Finished tasks stay in "Done today", then move here.</div></div>`;
+    main.innerHTML = `<div class="archive">${recap}<div class="empty"><b>Nothing done yet.</b>Finished tasks stay in "Done today", then move here.</div></div>`;
     return;
   }
   const groups = new Map();
   done.forEach(t => { const k = t.doneAt || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
   main.innerHTML = `<div class="archive">${recap}
-    <div class="arch-head"><h3>Completed</h3><span class="count num">${done.length}</span><button class="btn" data-clear-archive>Clear archive</button></div>
+    <div class="arch-head"><h3>Completed</h3><span class="count num">${done.length}</span><button class="btn" data-clear-archive>Clear</button></div>
     ${[...groups].map(([d, ts]) => `<div class="day"><h4>${dayLabel(d)}</h4><div class="rows">${ts.map(t => row(t, {compact: true, showList: true})).join('')}</div></div>`).join('')}
     ${wont.length ? `<div class="arch-head" style="margin-top:1.6rem"><h3>Won't do</h3><span class="count num">${wont.length}</span></div>
       <p class="soft" style="margin:0 0 .5rem">Decided against. Not counted as done.</p>

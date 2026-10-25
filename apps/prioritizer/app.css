@@ -22,7 +22,9 @@ main{flex:1;min-height:0;overflow:auto;padding:.25rem var(--gutter) 2.5rem}
 .logo{width:22px;height:22px;flex:none;color:var(--accent)}
 .logo svg{width:100%;height:100%}
 .sbrand b{font-weight:600;font-size:1rem;letter-spacing:-.01em;white-space:nowrap}
-.sbrand .ibtn{margin-left:auto}
+/* inside Workshop the rail already names the app, so no second logo and title */
+.embedded .sbrand{display:none}
+.embedded .snav{padding-top:.75rem}
 .snav{padding:.2rem .5rem;display:flex;flex-direction:column;gap:1px}
 .sitem{display:flex;align-items:center;gap:.6rem;width:100%;min-height:2.1rem;padding:.3rem .55rem;border-radius:8px;color:var(--muted);font-weight:500;font-size:.92rem;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
 .sitem svg{width:17px;height:17px;flex:none}
@@ -44,9 +46,8 @@ main{flex:1;min-height:0;overflow:auto;padding:.25rem var(--gutter) 2.5rem}
 .sfoot .grow{flex:1}
 /* collapsed: icons only */
 .app.collapsed .side{width:var(--side-mini)}
-.app.collapsed .sbrand{padding-left:.95rem;padding-right:.5rem;flex-direction:column;gap:.6rem;min-height:0}
+.app.collapsed .sbrand{justify-content:center;padding-left:0;padding-right:0}
 .app.collapsed .sbrand b,.app.collapsed .sitem .lbl,.app.collapsed .sitem .n,.app.collapsed .ssec,.app.collapsed .slists,.app.collapsed .sfoot .grow{display:none}
-.app.collapsed .sbrand .ibtn{margin-left:0}
 .app.collapsed .sitem{justify-content:center;padding:.3rem;position:relative}
 .app.collapsed .sitem .badge{position:absolute;top:0;right:0;min-width:1rem;font-size:.6rem;padding:0 .2rem}
 .app.collapsed .sfoot{flex-direction:column;margin-top:auto}

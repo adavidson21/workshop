@@ -14,13 +14,13 @@ import { applySide } from './events.js';
 import { boot, downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
 import { openDrawer } from './drawer.js';
-import { toast } from './overlays.js';
+import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 
-// Inside the shell the shell owns the theme picker, the service worker, Alt+<n> and Ctrl+K; on its own,
+// Inside the shell the rail names the app (no second logo), and the shell owns the theme picker, the service worker, Alt+<n> and Ctrl+K; on its own,
 // Prioritizer shows the picker and registers the worker itself.
-if (embedded) { const tb = $('#themeBtn'); if (tb) tb.hidden = true; }
+if (embedded) { document.body.classList.add('embedded'); const tb = $('#themeBtn'); if (tb) tb.hidden = true; }
 else if (window.WorkshopSw) WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
 
 // From the shell, through the SDK: deep links (#/prioritizer/task/<id>), palette commands, ADO status.
@@ -34,6 +34,7 @@ ready.then(ws => {
   ws.on('command', ({id}) => {
     if (id === 'add-task') openCmd();
     if (id === 'sync-ado') adoSync(true);
+    if (id === 'shortcuts') showHelp();
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));
