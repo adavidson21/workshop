@@ -75,10 +75,8 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="tip" id="tip" role="tooltip"></div>
 
-<!-- Shared with the shell: the theme helper (in <head>), the eng-agents client and the service
-     worker registration. These stay classic scripts, so WorkshopTheme, EngClient and WorkshopSw are
-     on window for the app modules to use. -->
-<script src="../../shared/eng-client.js"></script>
+<!-- Shared with the shell: the theme helper (in <head>) and the service worker registration. These
+     stay classic scripts, so WorkshopTheme and WorkshopSw are on window for the app modules to use. -->
 <script src="../../shared/sw-register.js"></script>
 <!-- Prioritizer is one ES module graph now. main.js imports the rest, and reaches the shell, data
      and connectors through the SDK (../../shared/workshop-sdk.js). -->

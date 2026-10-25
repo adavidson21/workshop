@@ -147,11 +147,11 @@ Settings in `ado-helper.json`: `high_priorities` (default 1 and 2), `escalation_
 
 ## eng-agents stages
 
-When the hub's **Dashboard** page is connected to your [eng-agents](https://github.com/adavidson21/eng-agents) live dashboard (see the [Workshop README](../../README.md#eng-agents-dashboard)), ADO tasks here show their eng-agents stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to jump to that item on the Dashboard page.
+When Workshop runs on this computer with the opencode connector on (see [Agents](../../README.md#agents) in the Workshop README), ADO tasks here show their [eng-agents](https://github.com/adavidson21/eng-agents) stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to open that item in Agents.
 
 An ADO task not started yet gets **Start as feature** or **Start as bug** in its details. That runs `/start` in opencode for you.
 
-Stages refresh every 30 seconds while the page is open, and right away when you switch back to it. On a device without the dashboard (your phone, say) nothing changes.
+Stages update when the connector reports a change, and when you switch back to the page. Without the connector (browser mode, or the connector off) nothing changes.
 
 ## Install it as a desktop app
 
