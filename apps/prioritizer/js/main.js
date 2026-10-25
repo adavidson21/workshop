@@ -14,7 +14,7 @@ import { applySide } from './events.js';
 import { boot, downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
 import { openDrawer } from './drawer.js';
-import { toast } from './overlays.js';
+import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 
@@ -34,6 +34,7 @@ ready.then(ws => {
   ws.on('command', ({id}) => {
     if (id === 'add-task') openCmd();
     if (id === 'sync-ado') adoSync(true);
+    if (id === 'shortcuts') showHelp();
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));

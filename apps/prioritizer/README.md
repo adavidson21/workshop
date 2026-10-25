@@ -27,7 +27,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Triage:** one unsorted or stale task at a time. A task is stale at twice its implied window (4, 8, 14 or 28 days).
 - **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
 - **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda.
-- **Archive:** a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
+- **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Reports:** team-wide ADO reports (priority churn, other teams' work, sprint carryover and scope churn, load, aging) with an Excel export. See below.
 
 The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one.
@@ -93,7 +93,7 @@ With the connector, skip the helper steps below: turn the ADO connector on in Se
 - Added items become tasks in the ADO list. ADO Priority 1 to 4 sets a starting value (High to Trivial); effort is left for you in Triage. ADO's due or target date fills Due.
 - Title, state and due date follow ADO. Your notes, value, effort, rank, Today and people stay yours.
 - Resolved, Closed or Done in ADO: completed here. If it gets reactivated, it reopens. Removed in ADO: marked won't do.
-- Reassigned to someone else: marked won't do with a note saying who and when, so it's in the Archive. If it comes back to you, it reopens.
+- Reassigned to someone else: marked won't do with a note saying who and when, so it's under Done. If it comes back to you, it reopens.
 - Deleting an ADO task here keeps it from coming back.
 
 Work item types and which states count as closed are in `ado-helper.json` (`types`, `closed_states`, `removed_states`). A PAT with Work Items (Read) is enough for work items.

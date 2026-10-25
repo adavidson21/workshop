@@ -72,14 +72,14 @@ function renderSide(){
 const addBtn = (label = 'Add task') => `<button class="btn primary addbtn" data-add data-tip="Add a task. Shortcut: N or Ctrl+K">${ICON.plus}<span class="lbl">${label}</span><kbd>N</kbd></button>`;
 function renderHead(){
   const v = state.view, nav = NAV_OF(v);
-  const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People', archive: 'Archive'}[nav];
+  const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
   if (v === 'reports') return rpHead();
   let sub = esc(scopeName()), tools = '';
   if (v === 'today') sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
   if (nav === 'prio'){
     const open = scopeOpen().length;
-    sub += ` · ${open} open`;
-    tools = `<div class="lens" role="tablist" aria-label="Prioritize by">${Object.entries(LENSES).map(([k, n]) =>
+    sub += v === 'archive' ? ` · ${state.tasks.filter(t => t.done && scopeListIds().includes(t.listId)).length} done` : ` · ${open} open`;
+    tools = `<div class="lens" role="tablist" aria-label="Prioritize by">${Object.entries({...LENSES, archive: 'Done'}).map(([k, n]) =>
       `<button data-view="${k}" role="tab" aria-selected="${v === k}"${v === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>`;
     if (v === 'rank') tools += `<label class="cap" data-tip="Weekly budget in effort points (XS 1, S 2, M 3, L 5, XL 8)"><span class="hide-sm">Capacity</span> <input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> pts</label>
       ${open > 1 ? `<button class="btn" data-suggest data-tip="Preview an order by score">Suggest order</button>` : ''}`;
