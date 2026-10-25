@@ -1,0 +1,15 @@
+{
+  "schema": "receipts.entries/jordan-lee/y2026",
+  "version": 1,
+  "rev": 3,
+  "updatedAt": "2026-10-25T14:00:00.000Z",
+  "items": [
+    {
+      "id": "e_1",
+      "updatedAt": 1792936800000,
+      "date": "2026-10-20",
+      "kind": "win",
+      "note": "Shipped the export fix"
+    }
+  ]
+}

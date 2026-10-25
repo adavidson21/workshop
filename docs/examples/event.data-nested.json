@@ -1,0 +1,10 @@
+{
+  "event": "data",
+  "data": {
+    "app": "receipts",
+    "collection": "entries/jordan-lee/y2026",
+    "rev": 4,
+    "updatedAt": "2026-10-25T14:05:00.000Z",
+    "client": "w-7f3a"
+  }
+}

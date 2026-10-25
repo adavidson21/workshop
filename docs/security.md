@@ -16,10 +16,11 @@ What Workshop stores, where it sends data (almost nowhere), and the checks that 
    (Workshop UI)  <-------- UI, app data, events -----------   (one local process)
                                                                    |
                                         reads and writes           |
-                                                                   v
-                                                        ~/.workshop/  (your disk)
-                                                          config.json, token,
-                                                          data/, logs/
+                                                  +----------------+----------------+
+                                                  v                                 v
+                                     ~/Workshop/  (your data folder)      ~/.workshop/  (this computer)
+                                       one folder per app                   config.json, token,
+                                                                            logs/, connector storage
 
    a connector you turned on, inside the agent, is the only part that reaches out:
 
@@ -27,7 +28,7 @@ What Workshop stores, where it sends data (almost nowhere), and the checks that 
                                                               (for example your ADO server)
 ```
 
-In browser-only mode there is no agent: the UI is static files and app data lives in that browser's IndexedDB. Nothing leaves the browser except loading the page's own files from wherever it is hosted.
+In browser-only mode there is no agent: the UI is static files, and Chrome reads and writes a folder you picked (usually the same data folder), or that browser's IndexedDB until you pick one. Nothing leaves the browser except loading the page's own files from wherever it is hosted.
 
 ## What is stored, and where
 
@@ -35,12 +36,14 @@ In browser-only mode there is no agent: the UI is static files and app data live
 | --- | --- | --- |
 | Settings | `~/.workshop/config.json` | No secrets. Holds the names of environment variables that hold secrets, never the values. |
 | The per-install token | `~/.workshop/token` | Readable by your user only (`0600`). Never shown in the UI or written to a log. |
-| App data | `~/.workshop/data/<app>/<collection>.json` | Your tasks and so on, in local mode. |
-| A connector's private storage | `~/.workshop/data/_connectors/<id>/` | For example a connector's cache. |
+| App data | Your data folder, `~/Workshop` by default (`dataDir` in settings): `<app>/...` | Your tasks, notes and so on. A folder you own: Workshop is a view over it, and deleting Workshop leaves it. Workshop never syncs or uploads it. |
+| Trash and backups | `.trash/` and `.backups/` in your data folder | Files you deleted in Workshop, and copies kept before a format upgrade. Workshop never empties them. |
+| App data from before the data folder | `~/.workshop/data/<app>/` | Copied into the data folder once, then left as a backup. Never deleted by Workshop. |
+| A connector's private storage | `~/.workshop/data/_connectors/<id>/` | For example a connector's cache. Stays on this computer, never in the data folder. |
 | Logs | `~/.workshop/logs/` | Never contain the token, PATs or the contents of your data. |
-| Browser data (browser and hosted modes) | that browser's IndexedDB and `localStorage` | App data (IndexedDB), your theme, and in hosted mode the paired agent address and token (`localStorage`, key `workshop.agent`). |
+| Browser data (browser and hosted modes) | that browser's IndexedDB and `localStorage` | The handle to the folder you picked (IndexedDB), or app data until you pick one (IndexedDB, kept and marked moved after you do), your theme, and in hosted mode the paired agent address and token (`localStorage`, key `workshop.agent`). |
 
-Set `WORKSHOP_HOME` to keep all of the above somewhere other than `~/.workshop`.
+Set `WORKSHOP_HOME` to keep the `~/.workshop` items somewhere else. The data folder is set separately (`dataDir`) and may not be inside the Workshop home.
 
 Secrets (Azure DevOps PATs and the like) live in environment variables, never in `config.json`. A connector's config names the variable (for example `"patEnv": "ADO_PAT"`); the agent reads the value from the environment and never stores, logs or returns it.
 
@@ -58,6 +61,21 @@ No telemetry. Workshop sends no usage data, no analytics and no error reports an
 - **Host check.** It answers only when `Host` is `127.0.0.1:<port>` or `localhost:<port>`. Anything else gets `403`. This blocks DNS rebinding.
 - **Origin check.** A request carrying an `Origin` is refused unless the origin is the agent's own, or hosted mode is on and the origin is in your allowed list.
 - **Token.** Every `/api/*` call except `GET /api/health` needs the per-install token, as a cookie (reads from the agent's own origin), the `X-Workshop-Token` header (required on every write), or a query token (for the event stream only). See [agent-api.md](agent-api.md), Token.
+
+## Data folder access
+
+The agent reads and writes only inside the data folder, and only through `/api/data` and `/api/files`. It never serves the data folder as static files.
+
+- **Names, not paths.** Clients send app ids, collection names and file paths made of lowercase name segments (`receipts/summaries/jordan-lee/h2-2026.md`), at most 4 below the app. The agent checks each segment as sent, before any URL normalization: empty segments, `.` and `..` (raw or percent-encoded), encoded `/` or `\`, drive letters and absolute paths are refused with `400`. See [agent-api.md](agent-api.md), Endpoints.
+- **No way out through links.** After following symbolic links and junctions, the file must still be inside the data folder (compared with where the data folder really is). Otherwise `400`, even for a read, and nothing is created.
+- **Two file types.** The files API handles `.md` and `.json` only, at most 10 MB each. Nothing it writes can be run by the browser or the agent.
+- **Nothing is removed.** Deleting a file moves it to `.trash/` in the data folder. Workshop never empties the trash, never removes backups, and never deletes the old `~/.workshop/data/` files.
+- **Who can write.** A page on the agent's own origin, or a paired hosted origin (when hosted mode is on and that origin is allowed), can read and write app data and files, exactly as with `/api/data`. Neither can see or reach anything outside the data folder.
+- **Hosted pages cannot move the folder.** `dataDir` can be changed only from the agent's own origin (`PUT /api/config` answers `403 local_only` to hosted origins), by hand in `config.json`, and only takes effect after a restart. A hosted page can read the folder's path in `GET /api/config`, as it can read `home`, but can never point the agent at another folder, at the Workshop home or at the token.
+- **Not inside the Workshop home.** `dataDir` may not be `~/.workshop` or a folder inside it, so the files API can never reach `config.json`, the token, logs or connector storage.
+- **Changes outside Workshop** are only announced, never sent: the watcher's events say which collection or file changed, not what is in it.
+
+In browser-only mode Chrome enforces the same boundary: the page can reach only the one folder you picked, and only after you allowed it with a click.
 
 ## Page security headers
 
@@ -79,7 +97,7 @@ If `config.json` is not valid JSON or does not match the config schema, the agen
 
 ## Hosted mode
 
-Hosted mode lets a page on your own domain use the local agent. It is off by default. The trade-off: a hosted page keeps the agent's token in that origin's `localStorage`, so any script that runs on that origin can use the agent. That is why hosted mode is off until you turn it on, why origins are allowed one by one, and why settings changes (`PUT /api/config` and connector config) are refused from a hosted origin: change those from Workshop running on this computer. Pairing is confirmed by you, once per browser, on a page the agent serves that no other site can frame. See [run-modes.md](run-modes.md), Hosted mode.
+Hosted mode lets a page on your own domain use the local agent. It is off by default. The trade-off: a hosted page keeps the agent's token in that origin's `localStorage`, so any script that runs on that origin can use the agent. That is why hosted mode is off until you turn it on, why origins are allowed one by one, and why settings changes (`PUT /api/config`, including the data folder, and connector config) are refused from a hosted origin: change those from Workshop running on this computer. Pairing is confirmed by you, once per browser, on a page the agent serves that no other site can frame. See [run-modes.md](run-modes.md), Hosted mode.
 
 ## Start at login
 
@@ -96,7 +114,7 @@ Each one runs this computer's Node on `agent/start.mjs` quietly. Turning it off 
 ## Updating and uninstalling
 
 - **Update:** `workshop update` runs `git pull` in a git checkout, or tells you to download the latest zip. Check the version with `workshop version`. Open windows notice a new version and offer a reload once you ship it (the service worker's `CACHE`).
-- **Uninstall:** `workshop uninstall` turns off start at login and removes the launcher. It leaves your data in `~/.workshop`; delete that folder yourself if you want it gone. There is nothing else to remove: no system service, no registry entries, no admin install.
+- **Uninstall:** `workshop uninstall` turns off start at login and removes the launcher. It leaves your data folder (`~/Workshop` by default) and `~/.workshop` in place; delete them yourself if you want them gone. There is nothing else to remove: no system service, no registry entries, no admin install.
 
 ## Checking your setup
 

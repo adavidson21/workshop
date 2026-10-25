@@ -1,0 +1,11 @@
+{
+  "error": "That file changed since you loaded it. Reload and try again.",
+  "code": "conflict",
+  "current": {
+    "app": "receipts",
+    "path": "summaries/jordan-lee/h2-2026.md",
+    "mtime": 1792937400000,
+    "size": 61,
+    "content": "# Jordan Lee, 2026 H2\n\n## Results\n\n- Shipped the export fix.\n"
+  }
+}

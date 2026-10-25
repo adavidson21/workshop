@@ -13,6 +13,9 @@
     "port": {
       "$ref": "#/$defs/port"
     },
+    "dataDir": {
+      "$ref": "common.schema.json#/$defs/absPath"
+    },
     "allowedOrigins": {
       "$ref": "#/$defs/origins"
     },

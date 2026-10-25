@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/files/<app> and GET /api/files/<app>/<folder>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "files"
+  ],
+  "properties": {
+    "app": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "mtime",
+          "size"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "common.schema.json#/$defs/filePath"
+          },
+          "mtime": {
+            "$ref": "common.schema.json#/$defs/msTime"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

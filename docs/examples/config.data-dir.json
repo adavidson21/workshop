@@ -1,0 +1,11 @@
+{
+  "configVersion": 1,
+  "port": 4380,
+  "dataDir": "D:\\Notes\\Workshop",
+  "allowedOrigins": [],
+  "features": {
+    "startAtLogin": false,
+    "hostedMode": false
+  },
+  "connectors": {}
+}

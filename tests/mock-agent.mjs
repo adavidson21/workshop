@@ -1,15 +1,18 @@
-// Mock Workshop agent: an in-memory implementation of docs/agent-api.md, so app work can start before
-// the real agent (WS1) ships. It passes the same contract suite (tests/contract/) the real agent must pass.
+// Mock Workshop agent: a small implementation of docs/agent-api.md, so app work can start before the real
+// agent ships. It passes the same contract suite (tests/contract/) the real agent must pass.
 //
 // Run it:   node tests/mock-agent.mjs [--port 4380] [--root .] [--apps <dir>] [--connectors <dir>]
-//                                     [--allow-origin https://x.example] [--token <token>]
-// It serves the repo's static files, keeps data in memory, and prints the URL to open.
+//                                     [--allow-origin https://x.example] [--token <token>] [--data-dir <dir>]
+// It serves the repo's static files, keeps app data in a data folder (docs/data-format.md, Data folder),
+// and prints the URL to open. Without --data-dir (or options.dataDir / config.dataDir) the data folder is a
+// new temporary folder that is removed when the mock stops, so the mock never touches ~/Workshop.
 //
 // Use it from code:  const agent = await createMockAgent({...}); ... await agent.stop();
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SchemaSet } from './lib/schema.mjs';
 import { checkConnectorModule } from './lib/connector-check.mjs';
@@ -18,12 +21,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
 const VERSION = '0.0.0-mock';
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;
+const FILE_NAME = /^([a-z][a-z0-9-]{0,39})\.(md|json)$/;
+const MAX_SEGMENTS = 4;
+const DEBOUNCE_MS = 300;
 const ACTION = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$/;
 const CLIENT = /^[A-Za-z0-9_-]{1,64}$/;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const STATUS_FOR = { bad_request: 400, invalid_config: 400, confirm_required: 400, downgrade: 400, unauthorized: 401, forbidden: 403,
   local_only: 403, not_found: 404, method_not_allowed: 405, conflict: 409, too_large: 413, disabled: 503, unavailable: 503, internal: 500 };
 const MB = 1024 * 1024;
+const FILE_MAX = 10 * MB;
 const STATIC_TOP = new Set(['shell', 'shared', 'icons', 'index.html', 'manifest.webmanifest', 'sw.js']);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -35,6 +42,17 @@ class HttpError extends Error {
 const fail = (code, message, extra) => { throw new HttpError(code, message, extra); };
 
 const DEFAULT_CONFIG = () => ({ configVersion: 1, port: 4380, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: {} });
+
+/** True if child is parent or inside it. */
+function isInside(child, parent) {
+  const rel = path.relative(path.resolve(parent), path.resolve(child));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+const lexists = p => { try { fs.lstatSync(p); return true; } catch { return false; } };
+const isDir = p => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
+const floorMs = st => Math.floor(st.mtimeMs);
+/** UTC stamp for trash names: 20261025T140500123Z. */
+const stamp = (d = new Date()) => d.toISOString().replace(/[-:.]/g, '');
 
 function deepFreeze(o) { if (o && typeof o === 'object') { Object.freeze(o); Object.values(o).forEach(deepFreeze); } return o; }
 
@@ -67,10 +85,23 @@ export async function createMockAgent(options = {}) {
   const appsDir = options.appsDir || path.join(REPO, 'apps');
   const connectorsDir = options.connectorsDir || path.join(REPO, 'connectors');
   const staticRoot = options.staticRoot || null;
-  const home = options.home || '(mock agent: in memory)';
+  const home = options.home || '(mock agent: no home folder)';
+  const homeIsReal = Boolean(options.home) && isDir(options.home);
   const log = options.log || (() => {});
 
-  const data = new Map();      // "<app>/<collection>" -> envelope
+  // ---------- data folder (docs/config.md, Data folder)
+  let dataDir = options.dataDir || config.dataDir;
+  let ownsDataDir = false;
+  if (!dataDir) { dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-mock-data-')); ownsDataDir = true; }
+  if (!path.isAbsolute(dataDir)) throw new Error(`dataDir must be an absolute path: ${dataDir}`);
+  if (homeIsReal && isInside(dataDir, home)) throw new Error(`dataDir may not be inside the Workshop home (${home}).`);
+  fs.mkdirSync(dataDir, { recursive: true });
+  const realData = fs.realpathSync(dataDir);
+  const own = new Map();       // "<app>/<path>.<ext>" -> mtime (ms) or 'gone', for writes the agent made itself
+  const kinds = new Map();     // "<app>/<path>.<ext>" -> 'collection' | 'file', last known
+  const timers = new Map();    // watcher debounce
+  let watcher = null;
+
   const sse = new Set();       // {res, hosted}
   const connectors = new Map(); // id -> {mod, error, ctx, abort, storage, lastState, since}
   let port = 0;
@@ -168,7 +199,7 @@ export async function createMockAgent(options = {}) {
   // ---------- helpers
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const publicConfig = () => ({
-    configVersion: 1, port: config.port, allowedOrigins: [...config.allowedOrigins],
+    configVersion: 1, port: config.port, dataDir: config.dataDir || dataDir, allowedOrigins: [...config.allowedOrigins],
     features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true },
     connectors: Object.fromEntries(Object.entries(config.connectors || {}).map(([id, c]) => [id, { enabled: c.enabled === true }])),
     home
@@ -222,6 +253,242 @@ export async function createMockAgent(options = {}) {
     return { apps };
   }
 
+  // ---------- data folder helpers (docs/data-format.md, Data folder; docs/agent-api.md, Files)
+  const clientOf = req => { const c = req.headers['x-workshop-client']; return typeof c === 'string' && CLIENT.test(c) ? c : null; };
+
+  /** Decode one raw path segment. Empty, ".", "..", or anything that decodes to a separator is refused. */
+  function segment(rawSeg) {
+    let d;
+    try { d = decodeURIComponent(rawSeg); } catch { fail('bad_request', 'That path is not valid.'); }
+    if (!d || d === '.' || d === '..' || /[\\/\0]/.test(d)) fail('bad_request', 'That path is not valid. Use names like notes/2026-plan.md, without "..", empty parts or absolute paths.');
+    return d;
+  }
+  function collectionName(segs) {
+    if (segs.length < 1 || segs.length > MAX_SEGMENTS) fail('bad_request', 'A collection name has 1 to 4 parts.');
+    for (const g of segs) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid collection name part.`);
+    return segs.join('/');
+  }
+  function folderName(segs) {
+    if (segs.length > MAX_SEGMENTS - 1) fail('bad_request', 'A folder has 1 to 3 parts.');
+    for (const g of segs) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
+    return segs.join('/');
+  }
+  function filePath(segs) {
+    if (segs.length > MAX_SEGMENTS) fail('bad_request', 'A file path has 1 to 4 parts.');
+    for (const g of segs.slice(0, -1)) if (!NAME.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
+    const last = segs[segs.length - 1];
+    if (!FILE_NAME.test(last)) {
+      if (/^[a-z][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md and .json files are allowed.');
+      fail('bad_request', `"${last}" is not a valid file name.`);
+    }
+    return segs.join('/');
+  }
+
+  /** The absolute path for a path relative to the data folder, refusing anything that leads outside it. */
+  function inside(rel) {
+    const abs = path.join(dataDir, ...rel.split('/'));
+    let p = abs;
+    while (!lexists(p) && p !== path.dirname(p)) p = path.dirname(p);
+    let real;
+    try { real = fs.realpathSync(p); } catch { fail('bad_request', 'That path leads outside the data folder.'); }
+    if (!isInside(real, realData)) fail('bad_request', 'That path leads outside the data folder.');
+    return abs;
+  }
+
+  /** Does this text, stored at rel ("<app>/<path>.json"), mean to be a collection? JSON whose schema is its own name. */
+  function isCollectionText(rel, text) {
+    if (!rel.endsWith('.json')) return false;
+    let v;
+    try { v = JSON.parse(text); } catch { return false; }
+    const [app, ...rest] = rel.slice(0, -5).split('/');
+    return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && v.schema === `${app}.${rest.join('/')}`;
+  }
+
+  /** A collection file, or null if missing. Anything that cannot be read as this collection is a 500. */
+  function readCollection(rel, file) {
+    let text;
+    try { text = fs.readFileSync(file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    const [app, ...rest] = rel.slice(0, -5).split('/');
+    let v;
+    try { v = JSON.parse(text); } catch { v = undefined; }
+    if (!v || v.schema !== `${app}.${rest.join('/')}` || schemas.validate('data-envelope', v).length) {
+      log('data', 'error', `${rel} cannot be read as a collection. It is left untouched.`);
+      fail('internal', `${rel} cannot be read as a collection. It was left untouched; fix or move the file.`);
+    }
+    kinds.set(rel, 'collection');
+    return v;
+  }
+
+  /** A plain file {app, path, mtime, size, content}, or null if missing. A collection is refused. */
+  function readFile(rel, file) {
+    let st;
+    try { st = fs.statSync(file); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    if (!st.isFile()) fail('bad_request', 'That path is a folder.');
+    const [app, ...rest] = rel.split('/');
+    const view = { app, path: rest.join('/'), mtime: floorMs(st), size: st.size };
+    if (st.size > FILE_MAX) return { ...view, content: '' };
+    const content = fs.readFileSync(file, 'utf8');
+    if (isCollectionText(rel, content)) { kinds.set(rel, 'collection'); fail('bad_request', `${view.path} is a collection. Use the data API.`); }
+    kinds.set(rel, 'file');
+    return { ...view, content };
+  }
+
+  /** Atomic write (temp file, then rename). Makes sure the mtime changes. Returns the new mtime. */
+  function writeAtomic(rel, file, text) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    let prev = null;
+    try { prev = floorMs(fs.statSync(file)); } catch { /* new */ }
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, file);
+    let mt = floorMs(fs.statSync(file));
+    for (let bump = 1; prev !== null && mt <= prev && bump <= 5; bump++) {
+      fs.utimesSync(file, new Date(), new Date(prev + bump));
+      mt = floorMs(fs.statSync(file));
+    }
+    own.set(rel, mt);
+    return mt;
+  }
+
+  /** Keep a copy in .backups/<yyyy-mm-dd>/ before a version upgrade. Never overwrites a copy. */
+  function backup(rel, file, suffix) {
+    const dest = path.join(dataDir, '.backups', new Date().toISOString().slice(0, 10), ...rel.slice(0, -5).split('/')) + suffix;
+    if (lexists(dest)) return;
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(file, dest);
+  }
+
+  /** Move a file to .trash/<app>/... and return where it went, relative to the data folder. */
+  function moveToTrash(rel, file) {
+    const m = rel.match(/^(.*)\.(md|json)$/);
+    const base = `.trash/${m[1]}.${stamp()}`;
+    let dest = `${base}.${m[2]}`;
+    for (let i = 1; lexists(path.join(dataDir, ...dest.split('/'))); i++) dest = `${base}-${i}.${m[2]}`;
+    const abs = path.join(dataDir, ...dest.split('/'));
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.renameSync(file, abs);
+    own.set(rel, 'gone');
+    return dest;
+  }
+
+  /** Every visible .json/.md path under an app folder (or a folder in it), as [rel to app, abs, stat]. */
+  function walk(app, folder) {
+    const out = [];
+    const start = path.join(dataDir, app, ...(folder ? folder.split('/') : []));
+    const visit = (abs, relParts) => {
+      let entries;
+      try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (e.name.startsWith('.')) continue;
+        const p = path.join(abs, e.name);
+        let real, st;
+        try { real = fs.realpathSync(p); st = fs.statSync(p); } catch { continue; }
+        if (!isInside(real, realData)) continue;
+        if (st.isDirectory()) { if (NAME.test(e.name) && relParts.length < MAX_SEGMENTS - 1) visit(p, [...relParts, e.name]); }
+        else if (st.isFile() && FILE_NAME.test(e.name)) out.push([[...relParts, e.name].join('/'), p, st]);
+      }
+    };
+    if (folder) { try { if (!isInside(fs.realpathSync(start), realData)) return out; } catch { return out; } }
+    visit(start, folder ? folder.split('/') : []);
+    return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  }
+
+  function listCollections(app) {
+    const out = [];
+    for (const [r, abs] of walk(app, '')) {
+      if (!r.endsWith('.json')) continue;
+      const rel = `${app}/${r}`;
+      let text;
+      try { text = fs.readFileSync(abs, 'utf8'); } catch { continue; }
+      if (!isCollectionText(rel, text)) continue;
+      const e = JSON.parse(text);
+      if (schemas.validate('data-envelope', e).length || typeof e.updatedAt !== 'string' || e.rev < 1) { log('data', 'error', `${rel} cannot be read as a collection.`); continue; }
+      kinds.set(rel, 'collection');
+      out.push({ collection: r.slice(0, -5), schema: e.schema, version: e.version, rev: e.rev, updatedAt: e.updatedAt, items: e.items.length });
+    }
+    return out;
+  }
+
+  function listFiles(app, folder) {
+    const out = [];
+    for (const [r, abs, st] of walk(app, folder)) {
+      const rel = `${app}/${r}`;
+      if (r.endsWith('.json') && st.size <= FILE_MAX) {
+        let text;
+        try { text = fs.readFileSync(abs, 'utf8'); } catch { continue; }
+        if (isCollectionText(rel, text)) { kinds.set(rel, 'collection'); continue; }
+      }
+      out.push({ path: r, mtime: floorMs(st), size: st.size });
+    }
+    return out;
+  }
+
+  // ---------- changes made outside Workshop (docs/agent-api.md, GET /api/events)
+  function startWatching() {
+    try {
+      watcher = fs.watch(dataDir, { recursive: true }, (type, filename) => {
+        if (!filename) return;
+        const rel = String(filename).split(path.sep).join('/');
+        if (rel.split('/').some(g => g.startsWith('.')) || rel.endsWith('.tmp')) return;
+        clearTimeout(timers.get(rel));
+        const t = setTimeout(() => { timers.delete(rel); external(rel); }, DEBOUNCE_MS);
+        t.unref();
+        timers.set(rel, t);
+      });
+      watcher.on('error', e => log('watch', 'warn', `Watching the data folder stopped: ${e.message}`));
+    } catch (e) { log('watch', 'warn', `Cannot watch the data folder: ${e.message}`); }
+  }
+
+  function external(rel) {
+    const [app, ...rest] = rel.split('/');
+    if (!NAME.test(app || '') || rest.length < 1 || rest.length > MAX_SEGMENTS) return;
+    if (!rest.slice(0, -1).every(g => NAME.test(g)) || !FILE_NAME.test(rest[rest.length - 1])) return;
+    const abs = path.join(dataDir, ...rel.split('/'));
+    let st = null;
+    try { st = fs.statSync(abs); } catch { /* gone */ }
+    if (st && !st.isFile()) return;
+    const now = st ? floorMs(st) : 'gone';
+    if (own.get(rel) === now) return;
+    own.delete(rel);
+    if (st) { try { if (!isInside(fs.realpathSync(abs), realData)) return; } catch { return; } }
+    let kind = 'file';
+    if (rel.endsWith('.json')) {
+      if (st) { let text = ''; try { text = fs.readFileSync(abs, 'utf8'); } catch { /* unreadable */ } kind = isCollectionText(rel, text) ? 'collection' : 'file'; }
+      else kind = kinds.get(rel) || 'file';
+    }
+    kinds.set(rel, kind);
+    if (kind === 'collection') broadcast('data', { app, collection: rest.join('/').slice(0, -5), rev: null, updatedAt: null, client: null });
+    else broadcast('file', { app, path: rest.join('/'), mtime: st ? now : null, client: null });
+  }
+
+  // ---------- moving from ~/.workshop/data (docs/data-format.md)
+  function hasAppData() {
+    let apps = [];
+    try { apps = fs.readdirSync(dataDir, { withFileTypes: true }).filter(d => d.isDirectory() && NAME.test(d.name)).map(d => d.name); } catch { return false; }
+    return apps.some(a => walk(a, '').length > 0);
+  }
+  function moveOldData() {
+    if (!homeIsReal) return;
+    const old = path.join(home, 'data');
+    if (!isDir(old) || lexists(path.join(old, 'moved.json'))) return;
+    const found = [];
+    for (const d of fs.readdirSync(old, { withFileTypes: true })) {
+      if (!d.isDirectory() || !NAME.test(d.name)) continue;
+      for (const f of fs.readdirSync(path.join(old, d.name), { withFileTypes: true })) {
+        if (f.isFile() && f.name.endsWith('.json') && NAME.test(f.name.slice(0, -5))) found.push([d.name, f.name]);
+      }
+    }
+    if (!found.length || hasAppData()) return;
+    for (const [app, f] of found) {
+      fs.mkdirSync(path.join(dataDir, app), { recursive: true });
+      fs.copyFileSync(path.join(old, app, f), path.join(dataDir, app, f));
+    }
+    const marker = { movedTo: dataDir, movedAt: new Date().toISOString(), collections: found.length };
+    fs.writeFileSync(path.join(old, 'moved.json.tmp'), `${JSON.stringify(marker, null, 2)}\n`);
+    fs.renameSync(path.join(old, 'moved.json.tmp'), path.join(old, 'moved.json'));
+    log('data', 'info', `Copied ${found.length} collections from ${old} to ${dataDir}. The old files are kept.`);
+  }
+
   // ---------- request handling
   async function handle(req, res) {
     const url = new URL(req.url, 'http://placeholder');
@@ -244,14 +511,14 @@ export async function createMockAgent(options = {}) {
       if (origin && !own && !hosted) fail('forbidden', 'This site is not allowed to use Workshop.');
       if (hosted) cors = { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
       if (req.method === 'OPTIONS') {
-        res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, PUT, POST', 'Access-Control-Allow-Headers': 'Content-Type, X-Workshop-Token, X-Workshop-Client',
+        res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE', 'Access-Control-Allow-Headers': 'Content-Type, X-Workshop-Token, X-Workshop-Client',
           'Access-Control-Allow-Private-Network': 'true', 'Access-Control-Max-Age': '600', 'Cache-Control': 'no-store' });
         return res.end();
       }
 
       const headerOk = same(req.headers['x-workshop-token'], token);
       const cookieOk = same(cookies(req).workshop_token, token);
-      const write = req.method === 'PUT' || req.method === 'POST';
+      const write = req.method === 'PUT' || req.method === 'POST' || req.method === 'DELETE';
 
       if (!isApi) return await handlePage(req, res, url, { cookieOk });
 
@@ -341,40 +608,91 @@ document.getElementById('allow').addEventListener('click', function () {
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); return ok(listApps()); }
 
-    if (parts[0] === 'data' && (parts.length === 2 || parts.length === 3)) {
-      const app = name(parts[1], 'app');
-      if (parts.length === 2) {
-        only('GET');
-        const collections = [...data.entries()].filter(([k]) => k.startsWith(`${app}/`)).map(([k, e]) => ({
-          collection: k.slice(app.length + 1), schema: e.schema, version: e.version, rev: e.rev, updatedAt: e.updatedAt, items: e.items.length
-        })).sort((a, b) => a.collection.localeCompare(b.collection));
-        return ok({ app, collections });
-      }
-      const collection = name(parts[2], 'collection');
-      const key = `${app}/${collection}`;
+    // Data and files paths are checked as sent, segment by segment, before any normalization.
+    const raw = req.url.split('?')[0].split('/').slice(2); // after "", "api"
+    if (raw[0] === 'data' && raw.length >= 2) {
+      const app = name(segment(raw[1]), 'app');
+      if (raw.length === 2) { only('GET'); return ok({ app, collections: listCollections(app) }); }
+      const segs = raw.slice(2).map(segment);
+      const collection = collectionName(segs);
+      const rel = `${app}/${collection}.json`;
+      const file = inside(rel);
       if (m === 'GET') {
-        if (!data.has(key)) fail('not_found', `${app} has no ${collection} data yet.`);
-        return ok(data.get(key));
+        const stored = readCollection(rel, file);
+        if (!stored) fail('not_found', `${app} has no ${collection} data yet.`);
+        return ok(stored);
       }
       only('GET', 'PUT');
       const body = await readBody(req, 10 * MB);
       const errs = schemas.validate('data-envelope', body);
       if (errs.length) fail('bad_request', `That data does not match the envelope format: ${errs[0]}`);
-      if (body.schema !== key.replace('/', '.')) fail('bad_request', `schema must be "${app}.${collection}".`);
+      if (body.schema !== `${app}.${collection}`) fail('bad_request', `schema must be "${app}.${collection}".`);
       const ids = new Set();
       for (const it of body.items) { if (ids.has(it.id)) fail('bad_request', `Item id "${it.id}" appears more than once.`); ids.add(it.id); }
-      const stored = data.get(key);
+      const stored = readCollection(rel, file);
       const rev = stored ? stored.rev : 0;
       if (body.rev !== rev) fail('conflict', 'That collection changed since you loaded it. Reload and try again.', { current: stored ?? { schema: body.schema, version: body.version, rev: 0, items: [] } });
       if (stored && body.version < stored.version) fail('downgrade', `This data is version ${stored.version}. A version ${body.version} writer cannot save it. Update Workshop.`);
+      if (stored && body.version > stored.version) backup(rel, file, `.v${stored.version}.json`);
       const client = req.headers['x-workshop-client'];
       const next = { ...structuredClone(body), rev: rev + 1, updatedAt: new Date().toISOString() };
       const ordered = { schema: next.schema, version: next.version, rev: next.rev, updatedAt: next.updatedAt, items: next.items };
       if (next.deleted) ordered.deleted = next.deleted;
       if (next.meta) ordered.meta = next.meta;
-      data.set(key, ordered);
-      broadcast('data', { app, collection, rev: ordered.rev, updatedAt: ordered.updatedAt, client: typeof client === 'string' && CLIENT.test(client) ? client : null });
+      writeAtomic(rel, file, `${JSON.stringify(ordered, null, 2)}\n`);
+      kinds.set(rel, 'collection');
+      broadcast('data', { app, collection, rev: ordered.rev, updatedAt: ordered.updatedAt, client: clientOf(req) });
       return ok({ rev: ordered.rev, updatedAt: ordered.updatedAt });
+    }
+
+    if (raw[0] === 'files' && raw.length >= 2) {
+      const app = name(segment(raw[1]), 'app');
+      const segs = raw.slice(2).map(segment);
+      const last = segs[segs.length - 1];
+      if (!segs.length || !last.includes('.')) {
+        only('GET');
+        const folder = segs.length ? folderName(segs) : '';
+        return ok({ app, files: listFiles(app, folder) });
+      }
+      const fpath = filePath(segs);
+      const rel = `${app}/${fpath}`;
+      const file = inside(rel);
+      const current = () => readFile(rel, file);
+      if (m === 'GET') {
+        const cur = current();
+        if (!cur) fail('not_found', `${app} has no file ${fpath}.`);
+        if (cur.size > FILE_MAX) fail('too_large', `${fpath} is larger than 10 MB.`);
+        return ok(cur);
+      }
+      if (m === 'PUT') {
+        const body = await readBody(req, 64 * MB);
+        const errs = schemas.validate('file-put', body);
+        if (errs.length) fail('bad_request', `Send {"content": "...", "mtime": <the mtime you read>} or {"content": "...", "create": true}: ${errs[0]}`);
+        if (Buffer.byteLength(body.content) > FILE_MAX) fail('too_large', 'A file can be at most 10 MB.');
+        if (fpath.endsWith('.json')) {
+          try { JSON.parse(body.content); } catch { fail('bad_request', `${fpath} must hold valid JSON.`); }
+          if (isCollectionText(rel, body.content)) fail('bad_request', `That content is a collection. Save it with the data API instead.`);
+        }
+        const cur = current();
+        if (body.create) { if (cur) fail('conflict', `${fpath} already exists.`, { current: cur }); }
+        else if (!cur) fail('conflict', 'That file is gone. It may have been moved to the trash.', { current: null });
+        else if (cur.mtime !== body.mtime) fail('conflict', 'That file changed since you loaded it. Reload and try again.', { current: cur });
+        const mtime = writeAtomic(rel, file, body.content);
+        kinds.set(rel, 'file');
+        broadcast('file', { app, path: fpath, mtime, client: clientOf(req) });
+        return ok({ app, path: fpath, mtime, size: Buffer.byteLength(body.content) });
+      }
+      if (m === 'DELETE') {
+        const q = url.searchParams.get('mtime');
+        if (q !== null && !/^[0-9]{1,16}$/.test(q)) fail('bad_request', 'mtime must be a whole number of milliseconds.');
+        const cur = current();
+        if (!cur) fail('not_found', `${app} has no file ${fpath}.`);
+        if (q !== null && cur.mtime !== Number(q)) fail('conflict', 'That file changed since you loaded it. Reload and try again.', { current: cur });
+        const trash = moveToTrash(rel, file);
+        broadcast('file', { app, path: fpath, mtime: null, client: clientOf(req) });
+        return ok({ app, path: fpath, trash });
+      }
+      fail('method_not_allowed', 'Use GET, PUT or DELETE.');
     }
 
     if (parts[0] === 'connectors') {
@@ -433,7 +751,9 @@ document.getElementById('allow').addEventListener('click', function () {
       if (errs.length) fail('invalid_config', `That setting is not valid: ${errs[0]}`);
       const changed = [];
       let restartRequired = false;
+      if (body.dataDir !== undefined && homeIsReal && isInside(body.dataDir, home)) fail('invalid_config', 'The data folder may not be inside the Workshop home folder.');
       if (body.port !== undefined) { restartRequired = body.port !== port; config.port = body.port; changed.push('port'); }
+      if (body.dataDir !== undefined) { restartRequired = restartRequired || path.resolve(body.dataDir) !== path.resolve(dataDir); config.dataDir = body.dataDir; changed.push('dataDir'); }
       if (body.allowedOrigins) { config.allowedOrigins = [...body.allowedOrigins]; changed.push('allowedOrigins'); }
       if (body.features) { Object.assign(config.features, body.features); changed.push('features'); }
       if (body.connectors) {
@@ -466,6 +786,8 @@ document.getElementById('allow').addEventListener('click', function () {
   }
 
   // ---------- start
+  moveOldData();
+  startWatching();
   await loadConnectors();
   const server = http.createServer((req, res) => { handle(req, res); });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', resolve); });
@@ -478,13 +800,17 @@ document.getElementById('allow').addEventListener('click', function () {
     port,
     token,
     config,
+    dataDir,
     async stop() {
+      watcher?.close();
+      for (const t of timers.values()) clearTimeout(t);
       for (const c of sse) c.res.end();
       sse.clear();
       for (const entry of connectors.values()) await stopConnector(entry);
       const closed = new Promise(r => server.close(r));
       server.closeAllConnections();
       await closed;
+      if (ownsDataDir) fs.rmSync(dataDir, { recursive: true, force: true });
     }
   };
 }
@@ -501,14 +827,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     else if (a === '--connectors') opt.connectors = path.resolve(v());
     else if (a === '--allow-origin') opt.origins.push(v());
     else if (a === '--token') opt.token = v();
-    else { console.log('Usage: node tests/mock-agent.mjs [--port 4380] [--root .] [--apps dir] [--connectors dir] [--allow-origin url] [--token t]'); process.exit(a === '--help' ? 0 : 1); }
+    else if (a === '--data-dir') opt.dataDir = path.resolve(v());
+    else { console.log('Usage: node tests/mock-agent.mjs [--port 4380] [--root .] [--apps dir] [--connectors dir] [--allow-origin url] [--token t] [--data-dir dir]'); process.exit(a === '--help' ? 0 : 1); }
   }
   const agent = await createMockAgent({
-    port: opt.port, staticRoot: opt.root, appsDir: opt.apps || path.join(opt.root, 'apps'), connectorsDir: opt.connectors || path.join(opt.root, 'connectors'), token: opt.token,
+    port: opt.port, staticRoot: opt.root, dataDir: opt.dataDir, appsDir: opt.apps || path.join(opt.root, 'apps'), connectorsDir: opt.connectors || path.join(opt.root, 'connectors'), token: opt.token,
     config: { port: opt.port, allowedOrigins: opt.origins, features: { hostedMode: opt.origins.length > 0 } },
     log: (who, level, msg) => console.log(`[${who}] ${level}: ${msg}`)
   });
-  console.log(`Mock Workshop agent (data in memory only). Open:\n  ${agent.url}/?token=${agent.token}`);
+  console.log(`Mock Workshop agent. Data folder: ${agent.dataDir}${opt.dataDir ? '' : ' (temporary, removed on exit)'}. Open:\n  ${agent.url}/?token=${agent.token}`);
   const quit = async () => { await agent.stop(); process.exit(0); };
   process.on('SIGINT', quit);
   process.on('SIGTERM', quit);

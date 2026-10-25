@@ -2,6 +2,7 @@
   "config": {
     "configVersion": 1,
     "port": 4380,
+    "dataDir": "/Users/alex/Workshop",
     "allowedOrigins": [
       "https://work.example.org"
     ],

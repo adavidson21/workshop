@@ -68,7 +68,7 @@ The agent creates one `ctx` per start and passes the same object to `start` and 
 | `ctx.env(name)` | Returns the value of environment variable `name`, or `undefined`. Only names that appear in `ctx.config` under a field marked `x-workshop-env` are readable; any other name throws. This is how a connector gets a PAT. Never log, store, emit or return the value. |
 | `ctx.log.info(msg, data?)`, `.warn`, `.error` | Writes to `~/.workshop/logs/` tagged with the connector id. The agent redacts the token and every `ctx.env` value it has handed out, but connectors must not pass them in the first place. |
 | `ctx.storage.get(key)` | Async. The JSON value stored under `key`, or `undefined`. |
-| `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `data/_connectors/<id>/<key>.json`. Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. |
+| `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `~/.workshop/data/_connectors/<id>/<key>.json` (in the Workshop home, never the data folder). Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. |
 | `ctx.emit(event, payload)` | Sends a `connector` event on `/api/events` with `{id, event, payload}`. `event` matches `^[a-z][a-zA-Z0-9.-]{0,63}$`. Payload is JSON, under 64 KB, no secrets. |
 | `ctx.statusChanged()` | Tells the agent to call `status()` again and send `connector-status`. |
 | `ctx.signal` | An `AbortSignal` aborted when `stop()` is called. Pass it to `fetch`. |

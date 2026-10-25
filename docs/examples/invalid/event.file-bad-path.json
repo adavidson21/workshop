@@ -1,0 +1,9 @@
+{
+  "event": "file",
+  "data": {
+    "app": "notes",
+    "path": "/etc/passwd.md",
+    "mtime": 1,
+    "client": null
+  }
+}

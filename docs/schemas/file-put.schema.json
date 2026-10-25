@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PUT /api/files/<app>/<path> body",
+  "description": "Exactly one of mtime (the modified time you read: the file must still have it) or create: true (the file must not exist yet).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content"
+  ],
+  "properties": {
+    "content": {
+      "type": "string"
+    },
+    "mtime": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "create": {
+      "const": true
+    }
+  },
+  "oneOf": [
+    {
+      "required": [
+        "mtime"
+      ],
+      "not": {
+        "required": [
+          "create"
+        ]
+      }
+    },
+    {
+      "required": [
+        "create"
+      ],
+      "not": {
+        "required": [
+          "mtime"
+        ]
+      }
+    }
+  ]
+}

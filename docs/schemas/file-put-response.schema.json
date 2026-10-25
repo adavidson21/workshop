@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PUT /api/files/<app>/<path> response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "path",
+    "mtime",
+    "size"
+  ],
+  "properties": {
+    "app": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "path": {
+      "$ref": "common.schema.json#/$defs/filePath"
+    },
+    "mtime": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10485760
+    }
+  }
+}

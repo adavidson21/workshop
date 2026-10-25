@@ -1,0 +1,10 @@
+{
+  "event": "data",
+  "data": {
+    "app": "prioritizer",
+    "collection": "tasks",
+    "rev": null,
+    "updatedAt": null,
+    "client": null
+  }
+}

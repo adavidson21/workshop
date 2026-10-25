@@ -12,8 +12,7 @@
   ],
   "properties": {
     "schema": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9-]{0,39}$"
+      "$ref": "common.schema.json#/$defs/schemaName"
     },
     "version": {
       "type": "integer",

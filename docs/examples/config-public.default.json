@@ -1,6 +1,7 @@
 {
   "configVersion": 1,
   "port": 4380,
+  "dataDir": "/Users/alex/Workshop",
   "allowedOrigins": [],
   "features": {
     "startAtLogin": false,

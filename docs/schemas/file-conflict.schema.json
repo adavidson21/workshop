@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "409 conflict body for a file put or delete",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error",
+    "code",
+    "current"
+  ],
+  "properties": {
+    "error": {
+      "type": "string",
+      "minLength": 1
+    },
+    "code": {
+      "const": "conflict"
+    },
+    "current": {
+      "description": "The file as it is now, or null if it does not exist.",
+      "oneOf": [
+        {
+          "$ref": "file.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

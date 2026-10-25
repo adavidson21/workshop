@@ -1,7 +1,7 @@
 // docs/agent-api.md (connector endpoints) and docs/connector.md, using tests/fixtures/connectors/echo.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startAgent, get, put, post, request, expectJson, expectError, openEvents, schemas, SECRET } from './helpers.mjs';
+import { startAgent, get, put, post, request, expectJson, expectError, openEvents, schemas, SECRET, pendingOnAgent } from './helpers.mjs';
 
 let agent;
 before(async () => { agent = await startAgent(); });
@@ -25,7 +25,8 @@ test('calling an action on a disabled connector', async () => {
   expectError(await post(agent, '/api/connectors/echo/echo', { args: { text: 'x' } }), 503, 'disabled');
 });
 
-test('enabling starts it and sends connector-status', async () => {
+// The PUT /api/config response now carries dataDir: to-do on the agent until WS11b.
+test('enabling starts it and sends connector-status', { todo: pendingOnAgent('WS11b') }, async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');

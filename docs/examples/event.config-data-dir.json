@@ -1,0 +1,8 @@
+{
+  "event": "config",
+  "data": {
+    "changed": [
+      "dataDir"
+    ]
+  }
+}
