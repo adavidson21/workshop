@@ -54,7 +54,7 @@
             "$ref": "common.schema.json#/$defs/name"
           },
           "collection": {
-            "$ref": "common.schema.json#/$defs/name"
+            "$ref": "common.schema.json#/$defs/collectionName"
           },
           "envelope": {
             "$ref": "data-envelope.schema.json"

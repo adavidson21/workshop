@@ -57,14 +57,103 @@
               "$ref": "common.schema.json#/$defs/name"
             },
             "collection": {
-              "$ref": "common.schema.json#/$defs/name"
+              "$ref": "common.schema.json#/$defs/collectionName"
             },
             "rev": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "minimum": 1
             },
             "updatedAt": {
-              "$ref": "common.schema.json#/$defs/isoTime"
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/isoTime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "client": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/clientId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "description": "Either a write through Workshop (rev, updatedAt and client as written) or a change made outside Workshop (rev, updatedAt and client all null: re-read).",
+          "oneOf": [
+            {
+              "properties": {
+                "rev": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "updatedAt": {
+                  "$ref": "common.schema.json#/$defs/isoTime"
+                }
+              }
+            },
+            {
+              "properties": {
+                "rev": {
+                  "type": "null"
+                },
+                "updatedAt": {
+                  "type": "null"
+                },
+                "client": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "file"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "app",
+            "path",
+            "mtime",
+            "client"
+          ],
+          "description": "A file changed. mtime is the new modified time, or null if the file is gone (moved to the trash or removed). client is the writer, or null for a change made outside Workshop.",
+          "properties": {
+            "app": {
+              "$ref": "common.schema.json#/$defs/name"
+            },
+            "path": {
+              "$ref": "common.schema.json#/$defs/filePath"
+            },
+            "mtime": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/msTime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "client": {
               "oneOf": [
@@ -165,7 +254,7 @@
               "uniqueItems": true,
               "items": {
                 "type": "string",
-                "pattern": "^(features|allowedOrigins|connectors|port|connector:[a-z][a-z0-9-]{0,39})$"
+                "pattern": "^(features|allowedOrigins|connectors|port|dataDir|connector:[a-z][a-z0-9-]{0,39})$"
               }
             }
           }

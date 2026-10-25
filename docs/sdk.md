@@ -1,6 +1,6 @@
 # Workshop SDK
 
-Version: **`sdk: 1`**. Implemented in `shared/workshop-sdk.js` (WS4). Apps use the SDK for everything that leaves the app: navigation, toasts, badges, notifications, commands, theme, data and connectors. No ad hoc `postMessage`, no direct `fetch` to the agent.
+Version: **`sdk: 1`**. Implemented in `shared/workshop-sdk.js` (WS4). Apps use the SDK for everything that leaves the app: navigation, toasts, badges, notifications, commands, theme, data, files and connectors. Apps never touch the data folder directly. No ad hoc `postMessage`, no direct `fetch` to the agent.
 
 ## Connecting
 
@@ -10,7 +10,8 @@ import { connect } from '../../shared/workshop-sdk.js';
 const ws = await connect({ app: 'prioritizer' });
 ws.mode;     // 'local' | 'hosted' | 'browser'
 ws.backend;  // 'agent' | 'browser'
-ws.online;   // false while the agent is unreachable
+ws.storage;  // 'agent' | 'folder' | 'indexeddb'
+ws.online;   // false while the agent (or, with the folder store, the folder) is unreachable
 ws.embedded; // true inside the shell, false when the app page is opened on its own
 ```
 
@@ -46,15 +47,47 @@ Events:
 
 | Method | Meaning |
 | --- | --- |
-| `ws.data.get(collection, {app?})` | The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
+| `ws.data.get(collection, {app?})` | `collection` may be nested: `'entries/jordan-lee/2026'` ([data-format.md](data-format.md), Names); the SDK sends each segment as a path segment. The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
 | `ws.data.put(collection, envelope)` | Writes this app's collection. `envelope.rev` is the revision you read (`0` to create). Resolves `{rev, updatedAt}`. On a stale `rev` rejects with code `conflict` and `err.current` set to the stored envelope: merge (below) and put again with `current.rev`. |
-| `ws.data.subscribe(collection, handler, {app?})` | Calls `handler({app, collection, rev, updatedAt, client})` after every write by anyone else. Writes made through this `ws` are filtered out using the client id. Returns an unsubscribe function. |
+| `ws.data.subscribe(collection, handler, {app?})` | Calls `handler({app, collection, rev, updatedAt, client})` after every write by anyone else, and after a change made outside Workshop (then `rev`, `updatedAt` and `client` are `null`: re-read). Writes made through this `ws` are filtered out using the client id. Returns an unsubscribe function. |
 | `ws.data.merge(local, remote)` | Merges two envelopes of the same `schema` and `version` with the change-stamp rules in [data-format.md](data-format.md). Returns a new envelope with `remote.rev`. Pure. |
 | `ws.data.stamp(before, after)` | Sets `updatedAt` on items that changed between two envelopes and adds tombstones for removed items. The same rules as Prioritizer's `stampChanges`. Returns `after`. |
 | `ws.data.export({apps?})` | A bundle of every collection (or those of the listed apps). |
 | `ws.data.import(bundle)` | Merges a bundle in. Collections that do not exist are created; existing ones are merged and put. Resolves `{created, merged}` (counts). |
 
-The SDK sends `X-Workshop-Client` on every write and the token header on every agent request.
+Bad names reject with `bad_request` before any request is made. The SDK sends `X-Workshop-Client` on every write and the token header on every agent request.
+
+### Files
+
+For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/jordan-lee/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.files.list(folder?, {app?})` | `[{path, mtime, size}]` for every file of the app, or under `folder` (`'summaries/jordan-lee'`), at every depth, sorted by path. `[]` if there are none. |
+| `ws.files.read(path, {app?})` | The file, or `null` if it does not exist. `app` defaults to this app; another app's files are read-only. |
+| `ws.files.write(path, content, {mtime} \| {create: true})` | Writes this app's file. Pass the `mtime` you read to replace it, or `create: true` to create one that must not exist. Resolves `{app, path, mtime, size}`. If the file changed, is gone, or (with `create`) already exists, rejects with code `conflict` and `err.current` set to the file as it is now, or `null` if it does not exist: read the change, decide, and write again with `current.mtime` (or `create: true` if `current` is `null`). |
+| `ws.files.trash(path, {mtime?})` | Moves this app's file to the trash; never removes it. With `mtime`, rejects with `conflict` (and `err.current`) if the file changed. Resolves `{app, path, trash}`. |
+| `ws.files.subscribe(pathOrFolder, handler, {app?})` | Calls `handler({app, path, mtime, client})` after a write or trash by anyone else, or a change made outside Workshop (`client: null`), to that file or any file under that folder. `mtime` is `null` when the file is gone. Writes made through this `ws` are filtered out. Returns an unsubscribe function. |
+
+Write loop for a file:
+
+```
+read   -> {content, mtime: m}
+write  -> write(path, edited, {mtime: m}) -> ok {mtime: m2}             done
+       -> conflict: err.current is the newer file (or null): show or merge, write again with its mtime
+```
+
+### Folder
+
+For the shell and the Settings app, with the browser backend's folder store ([run-modes.md](run-modes.md), Browser backend). Other apps never call these.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.folder.status()` | `{storage, name, permission, moved}`. `storage` is `ws.storage`. `name` is the folder's name (browsers do not reveal its full path), or `null`. `permission` is `'granted'`, `'prompt'` or `'denied'` for the folder store, else `null`. `moved` is `true` if the IndexedDB store was copied into a folder. With the agent, `name` is the agent's `dataDir` from `ws.config.get()`. |
+| `ws.folder.choose()` | Call only from a click. Opens Chrome's folder picker, asks for read and write access, copies the IndexedDB store in (old copy kept, marked moved), saves the handle and reloads the page. Rejects with `unavailable` with the agent (change `dataDir` in settings instead) or in a browser without the File System Access API, and with `bad_request` if the user cancels. |
+| `ws.folder.allow()` | Call only from a click. Asks Chrome again for access to the saved folder. Resolves the new `status()`. On `'granted'`, `ws.online` turns `true` and an `online` event fires. |
+
+`ws.on('online', ...)` fires when folder access is lost or regained, as it does for the agent.
 
 ### Connectors
 
@@ -74,7 +107,7 @@ For the Settings app. Other apps keep their own settings in their own data.
 | Method | Meaning |
 | --- | --- |
 | `ws.config.get()` | The public view of `config.json` ([config.md](config.md)), from `GET /api/config`. In browser mode rejects with `unavailable`. |
-| `ws.config.put(patch)` | Changes features, allowed origins, connectors on and off, or the port (`PUT /api/config`). Resolves `{config, restartRequired}`. From a hosted page rejects with `local_only`. |
+| `ws.config.put(patch)` | Changes features, allowed origins, connectors on and off, the port or the data folder (`PUT /api/config`). Resolves `{config, restartRequired}`. From a hosted page rejects with `local_only`. |
 
 ## Shell messages
 

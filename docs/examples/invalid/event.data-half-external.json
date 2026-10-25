@@ -1,0 +1,10 @@
+{
+  "event": "data",
+  "data": {
+    "app": "notes",
+    "collection": "pages",
+    "rev": null,
+    "updatedAt": null,
+    "client": "w-1"
+  }
+}

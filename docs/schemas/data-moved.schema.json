@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "~/.workshop/data/moved.json",
+  "description": "Written by the agent after it copied app data from ~/.workshop/data/ to the data folder. While it exists, the agent never copies again.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "movedTo",
+    "movedAt",
+    "collections"
+  ],
+  "properties": {
+    "movedTo": {
+      "$ref": "common.schema.json#/$defs/absPath"
+    },
+    "movedAt": {
+      "$ref": "common.schema.json#/$defs/isoTime"
+    },
+    "collections": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

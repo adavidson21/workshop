@@ -1,0 +1,21 @@
+{
+  "app": "receipts",
+  "collections": [
+    {
+      "collection": "config",
+      "schema": "receipts.config",
+      "version": 1,
+      "rev": 2,
+      "updatedAt": "2026-10-25T13:00:00.000Z",
+      "items": 1
+    },
+    {
+      "collection": "entries/jordan-lee/2026",
+      "schema": "receipts.entries/jordan-lee/2026",
+      "version": 1,
+      "rev": 3,
+      "updatedAt": "2026-10-25T14:00:00.000Z",
+      "items": 1
+    }
+  ]
+}

@@ -1,14 +1,14 @@
 # Run modes and data backends
 
-Version 1. Data stays on the user's computer in every mode. No mode sends data to a server.
+Version 1. Data stays on the user's computer in every mode. No mode sends data to a server. App data lives in one folder the user owns, the data folder ([data-format.md](data-format.md), Data folder), in every mode that can reach a folder.
 
 ## Modes
 
 | Mode | Where the UI comes from | Data backend | Connectors | Default |
 | --- | --- | --- | --- | --- |
-| `local` | The agent, at `http://127.0.0.1:<port>/` | `agent` (files in `~/.workshop/data/`) | Available | Yes |
+| `local` | The agent, at `http://127.0.0.1:<port>/` | `agent` (files in the agent's `dataDir`) | Available | Yes |
 | `hosted` | Static files on the user's own domain (for example `https://<name>.alexisdavidson.org`) | `agent` when paired and reachable, else `browser` | Available only with the agent | No, off until `features.hostedMode` is on |
-| `browser` | The same static files, with no agent | `browser` (IndexedDB in that browser) | Unavailable | Used when no agent is reachable |
+| `browser` | The same static files, with no agent | `browser`: files in a folder the user picked in Chrome, or IndexedDB until one is picked | Unavailable | Used when no agent is reachable |
 
 `browser` mode exists for machines where a local server is blocked. Prioritizer works there with file export and import (see [data-format.md](data-format.md), Bundles).
 
@@ -22,20 +22,54 @@ Apps never choose. They call the SDK ([sdk.md](sdk.md)), and the SDK picks once,
 2. **Paired with an agent?** Otherwise, read `workshop.agent` from `localStorage` (`{"url": "http://127.0.0.1:4380", "token": "..."}`, written by pairing, below). If it exists, call `GET <url>/api/health` with `targetAddressSpace: "loopback"` and a 1.5 second timeout, then `GET <url>/api/apps` with the token. If both succeed, the mode is `hosted` and the backend is `agent`.
 3. **Otherwise** the mode is `browser` and the backend is `browser`.
 
-`ws.mode` and `ws.backend` report the result.
+`ws.mode` and `ws.backend` report the result. With the `browser` backend, `ws.storage` says which store it uses: `folder` when a folder handle is saved (see Browser backend), else `indexeddb`. With the agent, `ws.storage` is `agent`.
 
 Rules:
 
-- **No silent switching.** If the agent stops answering after the page loaded, the SDK does not move to browser storage. It reports `ws.online === false`, fires `online` events when it changes, and retries every 5 seconds. Switching backends takes a reload. Two backends are two separate stores, and mixing them silently would split the user's data.
+- **No silent switching.** If the agent stops answering after the page loaded, the SDK does not move to browser storage. It reports `ws.online === false`, fires `online` events when it changes, and retries every 5 seconds. Switching backends takes a reload. When the browser's folder is the agent's data folder, both backends read and write the same files, so a reload loses nothing; but the SDK cannot tell from the browser whether a picked folder is the same one, and IndexedDB is always a separate store, so it never switches on its own.
 - **Moving data between backends** is an explicit export and import of a bundle ([data-format.md](data-format.md)).
-- **Data API is identical.** `data.get`, `data.put`, `data.subscribe`, revisions, conflicts and errors behave the same on both backends. The contract suite tests the agent; the browser backend (WS4) must follow the same rules.
+- **Data and files APIs are identical.** `data.*` and `files.*`, revisions, modified times, conflicts, trash, backups and errors behave the same on every backend. The contract suite tests the agent; the browser backend must follow the same rules.
 
 ## Browser backend
 
-- Storage: IndexedDB database `workshop`, object store `data`, key `<app>/<collection>`, value: the envelope from [data-format.md](data-format.md). `rev` and `updatedAt` are set by the backend exactly as the agent sets them. A put with a stale `rev` fails with code `conflict`.
-- Change events: a `BroadcastChannel` named `workshop-data` carries the same payload as the agent's `data` event, so other tabs update.
-- Connectors: `connectors.list()` returns `[]`; `connectors.call()` rejects with code `unavailable`.
-- Export and import: `data.export()` and `data.import(bundle)` work on both backends.
+Used when no agent is reachable. Chrome only: it needs the File System Access API. It has two stores and uses exactly one at a time.
+
+### Folder store (`ws.storage === 'folder'`)
+
+The browser reads and writes a folder the user picked, with the same layout and rules as the agent's data folder ([data-format.md](data-format.md), Data folder and Disk rules): `<folder>/<app>/<collection>.json`, files, `.trash/` and `.backups/`. Usually the user picks the same folder as the agent's `dataDir` (default `~/Workshop`), so data written with or without the agent is the same data.
+
+- **Only the handle is stored.** The `FileSystemDirectoryHandle` is kept in IndexedDB (database `workshop`, object store `handles`, key `folder`). No app data goes into IndexedDB while a folder is in use.
+- **Picking a folder** happens only from a click, in the Settings app (`ws.folder.choose()`, [sdk.md](sdk.md)): Chrome's folder picker, then a request for read and write access. Then the IndexedDB store is copied in (below) and the page reloads, so every open tab switches together.
+- **Access.** On load, the SDK asks Chrome whether it may still use the folder (`queryPermission({mode: 'readwrite'})`). If Chrome says it must ask again (`prompt`), the SDK does not prompt by itself, because Chrome only shows the prompt after a click. Instead:
+  - `ws.online` is `false`, `ws.folder.status()` reports `permission: 'prompt'`, and data and file calls reject with code `unavailable`, as when the agent is unreachable. Apps keep unsaved edits on screen and retry, as they already do.
+  - The shell shows one bar with a button, "Allow Workshop to use the folder <name>". Clicking it calls `ws.folder.allow()`, which calls `requestPermission({mode: 'readwrite'})`. On success `ws.online` turns `true` and an `online` event fires in every app.
+  - If the user refuses (`denied`), or the folder is gone (moved, renamed, deleted, or the drive is missing), the bar says so and links to Settings to pick a folder again. The SDK never falls back to IndexedDB on its own.
+- **Writes** follow the agent's write rules for collections (`rev` check, `version` downgrade refused, version copy to `.backups/`) and files (modified-time check, `create`, trash, never remove). Before every write the backend reads the file (its `rev` for a collection, and its `lastModified` in both cases) and checks it, and just before writing it reads `lastModified` again; if that changed in between, it starts over with the new file, so a write made meanwhile by the agent, another program or a tab on another origin turns into a normal `conflict` instead of being lost. `mtime` in the files API is the file's `lastModified`.
+- **Change events.** Writes in one tab reach other tabs of the same origin through a `BroadcastChannel` named `workshop-data`, which carries the same payloads as the agent's `data` and `file` events. Changes made outside this origin (the agent, an editor, a tab on another origin) are found by checking the `lastModified` of the collections and files the page subscribed to, every 5 seconds while the page is visible and whenever it becomes visible. They fire the same handlers with `client: null` ("re-read"), exactly as the agent's watcher does.
+- **Paths never leave the folder.** The same name rules apply, and Chrome's handles cannot reach outside the folder, so there is no traversal to check.
+
+### IndexedDB store (`ws.storage === 'indexeddb'`)
+
+Used until a folder is picked, and for browsers that already have data from before the data folder.
+
+- Database `workshop`, object store `data`, key `<app>/<collection>` (nested names keep their `/`), value: the envelope from [data-format.md](data-format.md). Object store `files`, key `<app>/<path>`, value `{content, mtime}`. `rev`, `updatedAt` and `mtime` are set by the backend exactly as the agent sets them (`mtime` is the write time in milliseconds, always greater than the file's previous `mtime`). A stale `rev` or `mtime` fails with code `conflict`. Deleting a file moves it to object store `trash` with the same key plus `.<stamp>`; nothing is removed.
+- Change events: the same `BroadcastChannel` as above.
+
+### Moving the IndexedDB store into the folder
+
+When the user picks a folder and IndexedDB holds data, `ws.folder.choose()` copies it in before the reload:
+
+1. Each collection is created in the folder if missing, or merged with the folder's copy and put (the same steps as `data.import`, [data-format.md](data-format.md), Bundles). Each file is created if missing; if the folder already has a different file at that path, the folder's copy is kept and the IndexedDB copy is written next to it as `<name>-from-browser.<ext>` (or `-from-browser-2` and so on).
+2. The IndexedDB data is kept, never deleted, and marked moved: object store `data`, key `_moved`, value `{movedTo: <folder name>, movedAt: <ISO time>}`.
+3. A store marked moved is never copied again, and the SDK uses it only if the folder handle is cleared, in which case Settings says that the browser data is older than the folder.
+
+### Connectors
+
+`connectors.list()` returns `[]`; `connectors.call()` rejects with code `unavailable`. Export and import (`data.export()`, `data.import(bundle)`) work on every backend.
+
+### Known limit
+
+The agent and a browser-backend tab on another origin (for example the hosted site in browser mode while the agent is also running) could write the same file at the same moment. The SDK uses the agent whenever it is reachable, and the folder backend re-checks `rev` and `lastModified` right before every write, so the window is a few milliseconds and needs the same user acting in two places at once. The loser of such a race overwrites the winner without a conflict. A hand edit that keeps `rev` has the same limit as with the agent ([data-format.md](data-format.md), Changes made outside Workshop).
 
 ## Hosted mode
 

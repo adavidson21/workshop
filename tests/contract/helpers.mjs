@@ -14,23 +14,43 @@ export const schemas = SchemaSet.fromDir(path.join(REPO, 'docs', 'schemas'));
 export const SECRET = 'echo-secret-value-7f3a9c';
 export const HOSTED = 'https://work.example.org';
 
-/** Start the agent under test with the fixtures and the given config. */
-export async function startAgent(config = {}, extra = {}) {
-  const target = process.env.WORKSHOP_TARGET || 'tests/contract/targets/mock.mjs';
-  const { start } = await import(pathToFileURL(path.resolve(REPO, target)).href);
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-contract-'));
+const TARGET = process.env.WORKSHOP_TARGET || 'tests/contract/targets/mock.mjs';
+
+/**
+ * For tests of contracts the real agent does not implement yet. Pass as the test's `todo` option: the test
+ * still runs everywhere, but against the real agent a failure is reported as to-do instead of failing CI.
+ * Remove the mark when the workstream named in `reason` lands.
+ */
+export const pendingOnAgent = reason => (/(^|\/)targets\/mock\.mjs$/.test(TARGET) ? false : `needs the agent from ${reason}`);
+
+/**
+ * Start the agent under test with the fixtures and the given config.
+ * Each agent gets a fresh temp folder `root` holding `home/` (WORKSHOP_HOME) and `Workshop/` (the data folder,
+ * passed as config.dataDir unless the test sets dataDir). `setup({root, home, dataDir})` runs before start.
+ * The returned agent also has `root`, `home` and `dataDir`.
+ */
+export async function startAgent(config = {}, { setup, ...extra } = {}) {
+  const { start } = await import(pathToFileURL(path.resolve(REPO, TARGET)).href);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-contract-'));
+  const home = path.join(root, 'home');
+  fs.mkdirSync(home);
+  const dataDir = config.dataDir ?? path.join(root, 'Workshop');
+  if (setup) await setup({ root, home, dataDir });
   const agent = await start({
     home,
     appsDir: path.join(FIXTURES, 'apps'),
     connectorsDir: path.join(FIXTURES, 'connectors'),
     env: { ECHO_TOKEN: SECRET },
-    config: { configVersion: 1, ...config },
+    config: { configVersion: 1, dataDir, ...config },
     ...extra
   });
   const stop = agent.stop;
-  agent.stop = async () => { await stop(); fs.rmSync(home, { recursive: true, force: true }); };
-  return agent;
+  agent.stop = async () => { await stop(); fs.rmSync(root, { recursive: true, force: true }); };
+  return Object.assign(agent, { root, home, dataDir });
 }
+
+/** Wait a little, for tests that check that something did not happen. */
+export const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /**
  * One HTTP request. auth: 'header' (default), 'cookie', 'both' or 'none'.
@@ -64,6 +84,7 @@ export function request(agent, method, pathname, { body, auth = 'header', origin
 export const get = (agent, p, o) => request(agent, 'GET', p, o);
 export const put = (agent, p, body, o) => request(agent, 'PUT', p, { ...o, body });
 export const post = (agent, p, body, o) => request(agent, 'POST', p, { ...o, body });
+export const del = (agent, p, o) => request(agent, 'DELETE', p, o);
 
 /** Assert a JSON response: status, schema, and the standard API headers. */
 export function expectJson(res, status, schema) {

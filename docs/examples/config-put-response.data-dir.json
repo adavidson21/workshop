@@ -1,0 +1,15 @@
+{
+  "config": {
+    "configVersion": 1,
+    "port": 4380,
+    "dataDir": "/Users/alex/Documents/Workshop",
+    "allowedOrigins": [],
+    "features": {
+      "startAtLogin": false,
+      "hostedMode": false
+    },
+    "connectors": {},
+    "home": "/Users/alex/.workshop"
+  },
+  "restartRequired": true
+}

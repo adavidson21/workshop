@@ -6,11 +6,11 @@ These documents define every interface between the parts of Workshop. Code is wr
 | --- | --- | --- | --- | --- |
 | Run modes and backends | [run-modes.md](run-modes.md) | 1 | none | `tests/contract/security.test.mjs` |
 | Config file | [config.md](config.md) | `configVersion: 1` | `config`, `config-public`, `config-patch`, `config-put-response` | `tests/contract/config.test.mjs` |
-| Agent HTTP API | [agent-api.md](agent-api.md) | `api: 1` | `health`, `session`, `error`, `apps-response`, `data-*`, `connector-*`, `event` | `tests/contract/*.test.mjs` |
+| Agent HTTP API | [agent-api.md](agent-api.md) | `api: 1` | `health`, `session`, `error`, `apps-response`, `data-*`, `file-*`, `connector-*`, `event` | `tests/contract/*.test.mjs` |
 | Connector module | [connector.md](connector.md) | `api: 1` | `config-form` | `tests/contract/connectors.test.mjs`, `tests/check-contracts.mjs` |
 | App manifest | [app-manifest.md](app-manifest.md) | `manifestVersion: 1` | `app` | `tests/contract/apps.test.mjs`, `tests/check-contracts.mjs` |
 | SDK | [sdk.md](sdk.md) | `sdk: 1` | `sdk-message` | `tests/check-contracts.mjs` (examples) |
-| Data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle` | `tests/contract/data.test.mjs`, `tests/contract/merge.test.mjs` |
+| Data folder and data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle`, `data-moved` | `tests/contract/data.test.mjs`, `tests/contract/folder.test.mjs`, `tests/contract/merge.test.mjs` |
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
 
 ## Layout
@@ -20,7 +20,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 - `docs/examples/<name>.<case>.json`: valid examples. Each one must validate against `schemas/<name>.schema.json`.
 - `docs/examples/invalid/<name>.<case>.json`: examples that must fail validation. They prove the schema constrains what the doc says it does.
 - `docs/examples/work/`: a synthetic `.work` folder for [work-format.md](work-format.md).
-- `tests/mock-agent.mjs`: an in-memory agent that implements [agent-api.md](agent-api.md).
+- `tests/mock-agent.mjs`: a small agent that implements [agent-api.md](agent-api.md), keeping data in a data folder (a temporary one unless given `dataDir`).
 - `tests/contract/`: the contract suite. It runs against the mock in CI, and against the real agent once WS1 lands.
 
 ## Schema subset
