@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 1,
+  "id": "agents",
+  "name": "Agents",
+  "version": "1.0.0",
+  "description": "Your eng-agents work items and the opencode agents working on them.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 20,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": ":id",
+      "title": "Show a work item"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "commands": [
+    {
+      "id": "refresh",
+      "title": "Refresh work items"
+    }
+  ],
+  "files": [
+    "agents.css",
+    "js/main.js",
+    "js/state.js",
+    "js/view.js"
+  ]
+}

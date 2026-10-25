@@ -4,14 +4,16 @@
   pip install playwright && python -m playwright install chromium
   python tests/e2e.py
 
-Three parts:
-  1. Browser mode: serves this repo as a static site on 127.0.0.1:8802 with a mock eng-agents live
-     dashboard on 127.0.0.1:4300 (the mock speaks the shell API from eng-agents docs/shell-api.md).
+Five parts:
+  1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
   2. Local mode: the real agent (tests/e2e-agent.mjs) with a temporary home, the repo's apps plus a sample
      app, and the ADO and echo connectors. Settings, required connectors, data events.
   3. Hosted mode: the static site on localhost:8803, paired with that agent. Settings is read-only.
   4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
      copy, Excel and backup round trips, two windows in sync, and a failed write.
+  5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
+     (apps/agents/test/fixture.mjs). The page, its buttons, prompts, deep links, theme, and Prioritizer's
+     stages and Start through the connector.
 Exit 1 if any check fails.
 """
 import functools, http.server, json, os, shutil, subprocess, sys, tempfile, threading
@@ -19,51 +21,6 @@ from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HUB = 'http://127.0.0.1:8802'
-ENG = 'http://127.0.0.1:4300'
-LOG = []
-
-STATUS = {'app': 'eng-agents-dashboard', 'api': 1, 'version': '1.5.0', 'workspace': 'work', 'opencode': {'connected': True}, 'error': None,
-          'items': [{'id': '123', 'title': 'Fix login', 'lane': 'bug', 'stage': 'build', 'tasks': {'done': 2, 'total': 5},
-                     'next': {'command': '/do-task 123 3', 'text': 'Task 3: Add test', 'needsYou': False},
-                     'paused': False, 'blocked': False, 'agent': 'busy', 'waiting': False, 'autopilot': None}],
-          'starting': []}
-PAGE = f"""<!doctype html><body><h3>Mock dashboard</h3><script>
-addEventListener('message', e => {{ if (e.origin === '{HUB}') fetch('/log', {{method: 'POST', body: JSON.stringify(e.data)}}); }});
-parent.postMessage({{type: 'eng-ready'}}, '{HUB}');
-</script>"""
-
-
-class Mock(http.server.BaseHTTPRequestHandler):
-    def log_message(self, *a): pass
-
-    def cors(self):
-        self.send_header('Access-Control-Allow-Origin', HUB)
-        self.send_header('Access-Control-Allow-Headers', 'content-type')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Private-Network', 'true')
-
-    def reply(self, code, body, ctype='application/json', shell=False):
-        self.send_response(code)
-        self.send_header('Content-Type', ctype)
-        if shell: self.cors()
-        if ctype == 'text/html': self.send_header('Content-Security-Policy', f"frame-ancestors 'self' {HUB}")
-        self.end_headers(); self.wfile.write(body.encode())
-
-    def do_OPTIONS(self):
-        self.send_response(204); self.cors(); self.end_headers()
-
-    def do_GET(self):
-        if self.path == '/api/shell/status':
-            return self.reply(200 if self.headers.get('Origin') == HUB else 403, json.dumps(STATUS), shell=True)
-        self.reply(200, PAGE, 'text/html')
-
-    def do_POST(self):
-        body = self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode() or '{}'
-        if self.path == '/log': LOG.append(json.loads(body)); return self.reply(200, '{}')
-        if self.path == '/api/shell/start': LOG.append({'start': json.loads(body)}); return self.reply(200, '{"ok":true}', shell=True)
-        self.reply(404, '{}')
-
-
 class Static(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
@@ -85,12 +42,12 @@ def add_ado_task(frame, tid, title, ado_id, typ):
       P.state = P.sanitize(P.state); P.commit(); }""", [tid, title, ado_id, typ])
 
 
-# Globals a page defines beyond a blank page, minus the shared classic scripts (theme, eng-agents client,
-# service worker registration, SheetJS). Prioritizer is ES modules, so only its test hook should remain.
+# Globals a page defines beyond a blank page, minus the shared classic scripts (theme, service worker
+# registration, SheetJS). Prioritizer is ES modules, so only its test hook should remain.
 PRIORITIZER_GLOBALS = """() => {
   const f = document.createElement('iframe'); document.body.appendChild(f);
   const blank = new Set(Object.getOwnPropertyNames(f.contentWindow)); f.remove();
-  const shared = new Set(['WorkshopTheme', 'EngClient', 'WorkshopSw', 'XLSX', 'cptable', 'make_xlsx_lib', 'DO_NOT_EXPORT_CODEPAGE']);
+  const shared = new Set(['WorkshopTheme', 'WorkshopSw', 'XLSX', 'cptable', 'make_xlsx_lib', 'DO_NOT_EXPORT_CODEPAGE']);
   return Object.getOwnPropertyNames(window).filter(n => !blank.has(n) && !shared.has(n)).sort();
 }"""
 
@@ -126,7 +83,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'dashboard', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -174,7 +131,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
 def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('prioritizer', 'settings'):
+    for name in ('prioritizer', 'agents', 'settings'):
         shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
     for name in ('notes', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
@@ -207,7 +164,7 @@ def agent_checks(b, watch):
         ap.goto(f'{url}/?token={token}'); ap.wait_for_timeout(1500)
         check('agent page runs in local mode', ap.evaluate('document.documentElement.dataset.mode') == 'local')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-        check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'dashboard', 'notes', 'board', 'settings'])
+        check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'agents', 'notes', 'board', 'settings'])
         check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Prioritizer · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
         check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
@@ -407,9 +364,139 @@ def storage_checks(b, watch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def seen(frame, selector, ms=20000, state='attached'):
+    """True once selector is in frame (or gone, with state='detached'), waiting up to ms. For steps that wait on
+    the .work parser (PowerShell)."""
+    try:
+        frame.wait_for_selector(selector, timeout=ms, state=state); return True
+    except Exception:
+        return False
+
+
+def agents_checks(b, watch):
+    """Part 5: the Agents app on the opencode connector (WS6), with a synthetic workspace and a fake opencode."""
+    fx = subprocess.Popen(['node', os.path.join(ROOT, 'apps', 'agents', 'test', 'fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    info = json.loads(fx.stdout.readline())
+    def ask(cmd):
+        fx.stdin.write(json.dumps(cmd) + '\n'); fx.stdin.flush()
+        return json.loads(fx.stdout.readline())
+    tmp = tempfile.mkdtemp()
+    apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
+    for name in ('prioritizer', 'agents', 'settings'):
+        shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
+    shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
+    os.makedirs(home)
+    with open(os.path.join(home, 'config.json'), 'w') as f:
+        json.dump({'configVersion': 1, 'port': 4380, 'allowedOrigins': [], 'features': {'startAtLogin': False, 'hostedMode': False},
+                   'connectors': {'opencode': {'enabled': True, 'config': {'workspace': info['workspace'], 'opencode': {'url': info['opencode'], 'startServer': False}, 'pollSeconds': 20}}}}, f)
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e-agent.mjs'), '--home', home, '--apps', apps, '--connectors', conns],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    a = json.loads(proc.stdout.readline())
+    url = a['url']
+    try:
+        ctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        pg = ctx.new_page(); watch(pg)
+        pg.goto(f"{url}/?token={a['token']}"); pg.wait_for_timeout(1000)
+        pg.goto(url + '/#/agents/41610'); pg.wait_for_timeout(1000)
+        af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
+        if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
+        check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(url) or f.url == 'about:blank' for f in pg.frames))
+        check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
+        ids = af.eval_on_selector_all('.item, .pickup', 'els => els.map(e => e.id)')
+        check('every .work folder is on the page', sorted(ids) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
+        top = af.evaluate("document.getElementById('item-41610').getBoundingClientRect().top")
+        check('#/agents/<id> focuses that item, also when the app is opened there', 0 <= top < 800 and af.evaluate('scrollY') > 0)
+        check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/agents') and af.locator('.brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
+
+        pg.click('#themeBtn'); pg.click('.menu [data-th=dracula]'); pg.wait_for_timeout(400)
+        check('a theme change applies to Agents', af.evaluate('document.documentElement.dataset.theme') == 'dracula')
+        bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
+        check('Agents draws with shared/themes.css colors', bg == 'rgb(40, 42, 54)')
+
+        # The track, the main button, and a write action sent with confirm from the click.
+        pick = af.locator('.pickup')
+        check('Pick up here is the item that needs you, with its own Abandon button', pick.get_attribute('id') == 'item-41300' and pick.locator('[data-remove]').inner_text() == 'Abandon')
+        check('the track: checked, current and faint stages', pick.locator('.stop.done').count() == 1 and pick.locator('.stop.here .name').inner_text() == 'Bug' and pick.locator('.stop:not(.done):not(.here)').count() == 3)
+        approve = pick.locator('[data-run]')
+        check('one main button per step; the command is in the tooltip', pick.locator('.do .btn.primary').count() == 1 and '/approve 41300' in approve.get_attribute('title'))
+        approve.click(); pg.wait_for_timeout(1500)
+        r = ask({'requests': True})
+        cmds = [x['body'] for x in r['bodies'] if x['route'].endswith('/command')]
+        check('Approve only runs /approve in opencode through the connector', {'command': 'approve', 'arguments': '41300'} in cmds and 'Started /approve 41300' in pg.inner_text('#toast'))
+
+        # A file opens in the app.
+        pick.locator('[data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
+        check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.filetext') and af.locator('.sheet h3').inner_text() == '.work/41300-export-retry-fails/bug.md')
+        af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
+
+        # Prompts: shown, counted on the rail badge, answered.
+        ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1200)
+        check('a prompt from opencode shows under Waiting for you', 'npm test' in af.inner_text('.waiting'))
+        check('the rail badge counts open prompts', pg.inner_text('.app-btn[data-app=agents] .badge') == '1')
+        af.click('.waiting [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
+        r = ask({'requests': True})
+        check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('.waiting').count() == 0)
+        check('and the badge clears', pg.locator('.app-btn[data-app=agents] .badge').is_hidden())
+
+        # Ready to ship: copy buttons and Push.
+        ship = af.locator('#item-41610')
+        check('the PR card has Copy title, Copy description and the push command', ship.locator('button.copy', has_text='Copy title').count() == 1
+              and ship.locator('button.copy', has_text='Copy description').count() == 1 and 'git -C gateway push -u origin dev/bug/41610-rate-limit-headers' in ship.inner_text())
+        ship.locator('[data-push]').click()
+        pushed = False
+        for _ in range(40):
+            pushed = 'dev/bug/41610-rate-limit-headers' in ask({'requests': True})['branches']
+            if pushed: break
+            pg.wait_for_timeout(250)
+        check('Push pushes the pr.md branch to origin', pushed)
+
+        # Remove: the dialog, typing the name, and the folder gone.
+        af.locator('#item-spike-cache-options [data-remove]').click(); pg.wait_for_timeout(300)
+        go = af.locator('[data-remove-go]')
+        check('Remove asks you to type the name first', go.is_disabled() and 'cannot be undone' in af.inner_text('.sheet'))
+        af.fill('.sheet input[data-draft]', 'spike-cache-options'); go.click(); pg.wait_for_timeout(1500)
+        gone = seen(af, '#item-spike-cache-options', state='detached')
+        check('Remove deletes the .work folder', gone and not os.path.exists(os.path.join(info['workspace'], '.work', 'spike-cache-options')) and 'Deleted .work/spike-cache-options' in pg.inner_text('#toast'))
+
+        # Prioritizer: stages and Start through the connector.
+        pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
+        pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        add_ado_task(pf, 'w1', 'Login timeout', '41207', 'User Story')
+        add_ado_task(pf, 'w2', 'Brand new', '77777', 'User Story'); pg.wait_for_timeout(800)
+        chip = pf.locator('.chip.eng')
+        check('Prioritizer shows the stage from connectors.call(opencode, status)', chip.count() == 1 and 'Build 2/3' in chip.inner_text())
+        chip.click(); pg.wait_for_timeout(1200)
+        top = af.evaluate("document.getElementById('item-41207').getBoundingClientRect().top")
+        check('the stage chip opens that item in Agents', pg.url.endswith('#/agents') and 0 <= top < 800)
+        pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
+        pf.locator('.row', has_text='Brand new').first.click(); pg.wait_for_timeout(400)
+        pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
+        cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
+        check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
+        pf.press('#drawer', 'Escape')
+
+        # Turning the connector off: both apps notice without a reload.
+        pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1500)
+        sf = next(f for f in pg.frames if '/apps/settings/' in f.url)
+        sf.locator('.conn[data-connector=opencode] [data-enable]').uncheck(); pg.wait_for_timeout(1500)
+        check('with the connector off, Agents says how to turn it on', 'Turn on the opencode connector' in af.inner_text('#app'))
+        check('and Prioritizer drops the stages', pf.locator('.chip.eng').count() == 0)
+        sf.locator('.conn[data-connector=opencode] [data-enable]').check()
+        check('turned on again, Agents comes back by itself', seen(af, '#item-41207') and af.locator('.pill').count() == 1)
+
+        # On its own, the page has the name and a theme menu.
+        sp = ctx.new_page(); watch(sp)
+        sp.goto(url + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
+        check('Agents works on its own page, with its name and theme menu', sp.inner_text('h1') == 'Agents' and sp.locator('[data-theme-menu]').count() == 1 and sp.locator('#item-41502').count() == 1)
+        ctx.close()
+    finally:
+        proc.terminate(); proc.wait(10)
+        fx.stdin.close(); fx.wait(10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     serve(8802, functools.partial(Static, directory=ROOT))
-    serve(4300, Mock)
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
@@ -423,50 +510,39 @@ def main():
 
         # Settings saved under the EM Hub names, as an existing install has them.
         pg.goto(HUB + '/manifest.webmanifest')
-        pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('prioritizer.theme', 'ivory');
-          localStorage.setItem('em.eng', JSON.stringify({on: false, port: 4300})); }""")
+        pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('prioritizer.theme', 'ivory'); }""")
 
         pg.goto(HUB + '/'); pg.wait_for_timeout(800)
-        keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme', 'workshop.eng', 'em.eng'].map(k => [k, localStorage.getItem(k)]))")
+        keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme'].map(k => [k, localStorage.getItem(k)]))")
         check('theme survives the rename', keys['workshop.theme'] == 'dracula' and pg.evaluate('document.documentElement.dataset.theme') == 'dracula')
-        check('dashboard settings survive the rename', json.loads(keys['workshop.eng'] or '{}') == {'on': False, 'port': 4300})
-        check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None and keys['em.eng'] is None)
-        check('old globals are gone', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !!window.WorkshopHub && !!window.WorkshopTheme && !!window.WorkshopSw"))
+        check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
+        check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
         check('opens on Prioritizer at the plain address', pg.url == HUB + '/' and pg.title() == 'Prioritizer · Workshop')
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dracula')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
-        check('no stage chips before the Dashboard connects', frame.locator('.chip.eng').count() == 0)
+        add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
+        check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
+        frame.locator('.row', has_text='Fix login').first.click(); pg.wait_for_timeout(300)
+        check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
+        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-        pg.click('.app-btn[data-app=dashboard]'); pg.wait_for_timeout(1500)
-        check('Dashboard connects and shows the frame', pg.locator('#pane-dashboard iframe').count() == 1)
-        check('Dashboard header shows version and workspace', 'eng-agents 1.5.0 · work' in pg.inner_text('#pane-dashboard .dhead'))
-        check('theme sent to the dashboard', any(m.get('type') == 'eng-theme' for m in LOG))
+        pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
+        af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
+        check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
+        check('Agents in browser mode says it needs Workshop on this computer', af is not None and 'needs Workshop running on this computer' in af.inner_text('#app'))
+        check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
+        pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
+        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Agents · Workshop')
 
-        pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
-        chip = frame.locator('.chip.eng')
-        check('Alt+1 returns to Prioritizer, plain address', pg.url == HUB + '/')
-        check('ADO task shows its stage', chip.count() == 1 and 'Build 2/5' in chip.inner_text())
-        chip.click(); pg.wait_for_timeout(1000)
-        check('stage chip opens the Dashboard at that item', pg.url.endswith('#/dashboard') and {'type': 'eng-focus', 'id': '123'} in LOG)
-
+        pg.goto(HUB + '/'); pg.wait_for_timeout(1000)
+        frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         pg.click('#themeBtn'); pg.click('.menu [data-th=nord]'); pg.wait_for_timeout(500)
         check('theme reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == 'nord')
-        check('theme reaches the dashboard', {'type': 'eng-theme', 'theme': 'nord'} in LOG)
-
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
-        check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/dashboard'))
-
+        check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/agents'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
-        add_ado_task(frame, 'a2', 'New story', '456', 'User Story'); pg.wait_for_timeout(300)
-        frame.locator('.row', has_text='New story').first.click(); pg.wait_for_timeout(300)
-        frame.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(600)
-        check('Start as feature reaches the dashboard', {'start': {'id': '456', 'lane': 'feature'}} in LOG)
-
-        pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1200)
-        pg.click('[data-eng=settings]'); pg.click('[data-eng=off]'); pg.wait_for_timeout(300)
-        check('Disconnect turns stages off', pg.evaluate("JSON.parse(localStorage.getItem('workshop.eng')).on") is False)
 
         browser_mode_checks(ctx, pg, frame, watch)
 
@@ -491,6 +567,7 @@ def main():
 
         agent_checks(b, watch)
         storage_checks(b, watch)
+        agents_checks(b, watch)
 
         check('no page errors', not errors)
         if errors: print('  ' + '\n  '.join(errors))

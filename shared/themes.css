@@ -1,17 +1,16 @@
 /*
-  Shared themes, the single source of truth for the Workshop shell, Prioritizer, and the
-  eng-agents dashboard.
+  Shared themes, the single source of truth for the Workshop shell and every app in it
+  (Prioritizer, Agents, Settings). Apps load this file directly.
 
   Edit themes here only. When you add or change one, also update THEMES and SWATCH in
-  shared/theme.js (`node tests/check-themes.mjs` fails if they disagree). The eng-agents
-  dashboard copies this file into its page with `node core/scripts/dashboard/sync-themes.mjs`
-  and fails its check when the copy drifts.
+  shared/theme.js (`node tests/check-themes.mjs` fails if they disagree). Until WS8, eng-agents'
+  static dashboard page still copies this file with core/scripts/dashboard/sync-themes.mjs.
 
   Each theme sets eight base colors. Everything else is derived below, so a new theme only
   needs these eight. Keep text at WCAG AA (4.5:1) for ink, muted, accent, danger, and warn
   against both bg and surface.
 
-  The line below names every theme in menu order. The sync script reads it, so keep the format.
+  The line below names every theme in menu order. Keep the format: eng-agents' sync script reads it.
   themes: slate=Slate, graphite=Graphite, ivory=Ivory, rose=Rosé, solarized=Solarized Light, nord=Nord, dracula=Dracula
 */
 :root,
@@ -36,7 +35,7 @@
   --warn-soft:color-mix(in srgb,var(--warn) 14%,var(--surface));
   --shadow:0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent),0 8px 24px -10px color-mix(in srgb,var(--ink) 22%,transparent);
   --shadow-lg:0 2px 6px color-mix(in srgb,var(--ink) 10%,transparent),0 24px 48px -16px color-mix(in srgb,var(--ink) 35%,transparent);
-  /* No web fonts, so both apps work offline: Inter and JetBrains Mono when installed, else system fonts. */
+  /* Inter and JetBrains Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
   --sans:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
 }
