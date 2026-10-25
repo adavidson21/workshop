@@ -37,6 +37,10 @@
     {
       "id": "sync-ado",
       "title": "Sync with Azure DevOps"
+    },
+    {
+      "id": "shortcuts",
+      "title": "Prioritizer keyboard shortcuts"
     }
   ],
   "files": [

@@ -54,7 +54,8 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Triage, Prioritize, People, Archive, Reports')}
+      ${r('<kbd>1</kbd> to <kbd>5</kbd>', 'Today, Triage, Prioritize, People, Reports')}
+      ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
       ${r('<kbd>X</kbd>', 'Complete or reopen')}

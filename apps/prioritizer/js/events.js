@@ -50,7 +50,6 @@ document.addEventListener('click', e => {
   if (t.closest('#syncBtn')){ onSyncClick(t.closest('#syncBtn')); return; }
   if (t.closest('#adoBtn')){ onAdoClick(t.closest('#adoBtn')); return; }
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }
-  if (t.closest('#helpBtn')){ showHelp(); return; }
   if (t.closest('[data-add]')){ openCmd(); return; }
   if (t.closest('[data-suggest]')){ suggestPreview(); return; }
   const tv = t.closest('[data-tv]'); if (tv && tri.draft){ const n = +tv.dataset.tv; tri.draft.value = tri.draft.value === n ? null : n; renderTriage(); return; }
@@ -76,7 +75,7 @@ document.addEventListener('click', e => {
   if (t.closest('[data-clear-archive]')){
     const ids = scopeListIds();
     const n = state.tasks.filter(x => x.done && ids.includes(x.listId)).length;
-    confirmBox('Clear archive?', `This permanently deletes ${plural(n,'finished task')} in this scope, including won't do.`, 'Clear', () => {
+    confirmBox('Clear done tasks?', `This permanently deletes ${plural(n,'finished task')} in this scope, including won't do.`, 'Clear', () => {
       state.tasks = state.tasks.filter(x => !(x.done && ids.includes(x.listId))); commit();
     });
     return;
@@ -152,7 +151,7 @@ document.addEventListener('keydown', e => {
   if (state.view === 'triage' && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
-  else if (/^[1-6]$/.test(k)){ const nav = ['today','triage','prio','people','archive','reports'][+k - 1]; setView(nav === 'prio' ? state.lens : nav); }
+  else if (/^[1-5]$/.test(k)){ const nav = ['today','triage','prio','people','reports'][+k - 1]; setView(nav === 'prio' ? state.lens : nav); }
   else if (k === 'j' || k === 'ArrowDown' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(1); }
   else if (k === 'k' || k === 'ArrowUp' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(-1); }
   else if (k === 'Enter' && !onButton){

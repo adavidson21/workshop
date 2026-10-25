@@ -548,7 +548,7 @@ def main():
 
         sp = ctx.new_page(); watch(sp)
         sp.goto(HUB + '/apps/prioritizer/'); sp.wait_for_timeout(600)
-        check('Prioritizer still works on its own', sp.locator('#themeBtn').is_visible() and sp.locator('#snav .sitem').count() == 6)
+        check('Prioritizer still works on its own', sp.locator('#themeBtn').is_visible() and sp.locator('#snav .sitem').count() == 5)
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)
