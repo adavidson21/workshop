@@ -40,6 +40,10 @@
     "order": {
       "type": "number"
     },
+    "home": {
+      "type": "boolean",
+      "description": "The home page: opened by the Workshop logo and the plain address, and not shown as a rail button. The first app with home: true wins."
+    },
     "modes": {
       "type": "array",
       "items": {

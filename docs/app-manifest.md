@@ -50,6 +50,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `icon` | yes | Path to an SVG file in the app folder. 20 by 20 view box, stroke icons using `currentColor`, like today's rail icons. |
 | `entry` | yes | Path to the app's HTML page in the app folder. The shell loads it in a same-origin frame. |
 | `order` | no | Number. Rail position, low first. Ties and missing values sort by `name`. |
+| `home` | no | `true` makes this app the home page. The Workshop logo at the top of the rail and the plain address (no `#`) open it, and it gets no rail button or `Alt+<n>`. If several apps set it, the first by `order` wins. Without a home app, the logo and the plain address open the first app on the rail. |
 | `modes` | no | Run modes the app works in: any of `local`, `hosted`, `browser` ([run-modes.md](run-modes.md)). Default: all three. The shell hides an app in a mode it does not list. |
 | `routes` | no | Deep links the app handles, as patterns after `#/<id>/`. Segments starting with `:` are parameters. The shell passes the rest of the hash to the app (SDK `route` event); patterns document what is valid and power `open()` from other apps. |
 | `connectors` | no | Connectors the app uses: `{id, required}`. If a required connector is unavailable (browser mode, disabled, not ready), the shell shows the app with a notice instead of loading it. |

@@ -2,6 +2,7 @@
 
 An engineering manager's hub: one page with a rail of apps, sharing one theme.
 
+- **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
 - **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
 - **Agents** shows your [eng-agents](https://github.com/adavidson21/eng-agents) work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
