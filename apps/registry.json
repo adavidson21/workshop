@@ -1,6 +1,39 @@
 {
   "apps": [
     {
+      "base": "/apps/home/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "home",
+        "name": "Home",
+        "version": "1.0.0",
+        "description": "Your day at a glance: Today, triage, what's next, your people and your agents.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 0,
+        "home": true,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "connectors": [
+          {
+            "id": "opencode",
+            "required": false
+          }
+        ],
+        "data": [
+          "profile"
+        ],
+        "files": [
+          "home.css",
+          "js/main.js",
+          "js/view.js"
+        ]
+      }
+    },
+    {
       "base": "/apps/prioritizer/",
       "manifest": {
         "manifestVersion": 1,

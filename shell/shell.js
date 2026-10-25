@@ -21,6 +21,8 @@ const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/;
 let env = { mode: 'browser', backend: 'browser', agentUrl: null, token: null };
 let apps = [];            // [{id, manifest, base, frame?, ...}]
 let byId = {};
+let railApps = [];        // apps with a rail button: every app but the home page
+let homeApp = null;       // the app with home: true, opened by the logo and the plain address
 let connectors = [];      // GET /api/connectors, agent backend only
 let current = null;
 const mounted = new Set();
@@ -55,6 +57,8 @@ async function loadApps() {
     .filter(a => !a.manifest.modes || a.manifest.modes.includes(env.mode))
     .sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
+  homeApp = apps.find(a => a.manifest.home === true) || null;
+  railApps = apps.filter(a => a !== homeApp);
 }
 
 // The first required connector of an app that is not usable right now, or null.
@@ -75,13 +79,13 @@ const LINK_ICON = svg('<path d="M8.5 11.5l3-3"/><path d="M10.6 5.9l1.2-1.2a3 3 0
 const BLANK_ICON = svg('<rect x="4" y="4" width="12" height="12" rx="2.5"/>');
 
 function renderRail() {
-  $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="Workshop">${MARK}</a>`
-    + apps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
+  $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
+    + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Use Workshop on this computer" title="Use Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`
     + `<button class="app-btn" id="themeBtn" aria-label="Theme" title="Theme">${THEME_ICON}</button>`;
-  for (const a of apps) loadIcon(a);
+  for (const a of railApps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
 }
 
@@ -117,6 +121,12 @@ function markRail() {
     b.classList.toggle('on', on);
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
+  const mark = $('#rail .mark');
+  if (mark) {
+    const on = !!homeApp && current === homeApp.id;
+    mark.classList.toggle('on', on);
+    if (on) mark.setAttribute('aria-current', 'page'); else mark.removeAttribute('aria-current');
+  }
 }
 function setBadge(appId, count) {
   const el = document.querySelector(`.app-btn[data-app="${appId}"] .badge`);
@@ -126,8 +136,9 @@ function setBadge(appId, count) {
   el.textContent = n ? String(n) : '';
 }
 
-/* ---------- routing: #/<app>[/<path>]. The first app (home) has the bare address, no #. ---------- */
-const homeId = () => apps.length ? apps[0].id : null;
+/* ---------- routing: #/<app>[/<path>]. The home page (or the first rail app) has the bare address, no #. ---------- */
+// The home page if an app is marked home: true, else the first app on the rail.
+const homeId = () => homeApp ? homeApp.id : railApps.length ? railApps[0].id : null;
 // Addresses from before an app was renamed: the Dashboard pane became the Agents app (WS6).
 const RENAMED = { dashboard: 'agents' };
 function parseHash() {
@@ -346,7 +357,7 @@ function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); palette ? closePalette() : openPalette(); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && e.altKey && !e.ctrlKey && !e.metaKey) {
-    const a = apps[+digit[1] - 1];
+    const a = railApps[+digit[1] - 1];
     if (a) { e.preventDefault(); e.stopPropagation(); go(a.id); }
     return;
   }

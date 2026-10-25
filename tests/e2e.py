@@ -95,7 +95,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     tid = frame.evaluate("window.__prioritizer.state.tasks.find(t => t.title === 'Fix login').id")
     pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
-    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/')
+    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/#/prioritizer')
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
     pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
@@ -131,13 +131,13 @@ def browser_mode_checks(ctx, pg, frame, watch):
 def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('prioritizer', 'agents', 'settings'):
+    for name in ('home', 'prioritizer', 'agents', 'settings'):
         shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
     for name in ('notes', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
     board = os.path.join(apps, 'board', 'app.json')
     with open(board) as f: m = json.load(f)
-    m['order'] = 50  # after the repo's apps, so Prioritizer stays home
+    m['order'] = 50  # after the repo's apps, so Prioritizer stays first on the rail
     with open(board, 'w') as f: json.dump(m, f)
     shutil.copytree(os.path.join(ROOT, 'connectors', 'ado'), os.path.join(conns, 'ado'))
     shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'connectors', 'echo'), os.path.join(conns, 'echo'))
@@ -165,6 +165,8 @@ def agent_checks(b, watch):
         check('agent page runs in local mode', ap.evaluate('document.documentElement.dataset.mode') == 'local')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
         check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'agents', 'notes', 'board', 'settings'])
+        check('local mode opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
+        ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
         check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Prioritizer · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
         check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
@@ -517,7 +519,13 @@ def main():
         check('theme survives the rename', keys['workshop.theme'] == 'dracula' and pg.evaluate('document.documentElement.dataset.theme') == 'dracula')
         check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
         check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
-        check('opens on Prioritizer at the plain address', pg.url == HUB + '/' and pg.title() == 'Prioritizer · Workshop')
+        check('opens on Home at the plain address', pg.url == HUB + '/' and pg.title() == 'Home · Workshop' and any('/apps/home/' in f.url for f in pg.frames))
+        hf = next(f for f in pg.frames if '/apps/home/' in f.url)
+        check('Home has no rail button, and the logo shows it is open', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#rail .mark.on').count() == 1)
+        seen(hf, '.hello h1')
+        check('Home with an empty board says so', 'No tasks yet' in hf.inner_text('#app'))
+        pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
+        check('the logo is not marked when another app is open', pg.locator('#rail .mark.on').count() == 0 and pg.url == HUB + '/#/prioritizer')
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dracula')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
@@ -536,8 +544,16 @@ def main():
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
         check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Agents · Workshop')
 
-        pg.goto(HUB + '/'); pg.wait_for_timeout(1000)
+        pg.click('#rail .mark'); pg.wait_for_timeout(800)
+        hf = next(f for f in pg.frames if '/apps/home/' in f.url)
+        seen(hf, '.tiles')
+        check('Home counts the board: two open tasks', '2 open tasks' in hf.inner_text('.tiles'))
+        hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Sam Rivera'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
+        check('Home saves the profile name', 'Sam' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Sam Rivera')
+        hf.locator('[data-task]').first.click(); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
+        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
         pg.click('#themeBtn'); pg.click('.menu [data-th=nord]'); pg.wait_for_timeout(500)
         check('theme reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == 'nord')
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
