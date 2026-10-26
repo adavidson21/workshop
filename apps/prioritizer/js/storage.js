@@ -15,7 +15,7 @@ import { hideTip, placeTip, tipFor } from './events.js';
 import { exportXlsx, importFile as importExcel } from './excel.js';
 import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
 import { render } from './render.js';
-import { sanitize, setState, state } from './state.js';
+import { isWaiting, sanitize, setState, setWaiting, state } from './state.js';
 import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
@@ -73,20 +73,23 @@ async function boot(){
   try { ({empty} = await store.load()); }
   catch (e){
     if (e && e.code === 'unavailable' && ws.backend === 'browser'){
-      // Chrome must be asked again for the data folder (a bar in the shell has the button). Load once it is
-      // allowed; nothing is saved meanwhile, so nothing can be written over.
+      // Chrome must be asked again for the data folder (a bar in the shell has the button). Until then the
+      // board is not shown and cannot be edited (state.js, setWaiting); it loads once access is back.
       store = null; booted = true;
+      setWaiting(true);
       setStatus({state: 'error', error: new Error('waiting for you to allow the Workshop folder'), retry: false});
       const off = ws.on('online', ({online}) => { if (online && !store){ off(); boot().then(render); } });
       return;
     }
     // For example a damaged data file (the agent leaves it untouched and says so). Show what loaded,
     // save nothing, and say why, rather than risk writing over the user's data.
+    setWaiting(false);
     store = null; booted = true;
     setStatus({state: 'error', error: e, retry: false});
     toast(`Could not load your board: ${e.message || e}. Nothing will be saved until this is fixed.`, 60000);
     return;
   }
+  setWaiting(false);
   if (empty){
     const raw = readLegacy();
     if (raw){
@@ -143,6 +146,7 @@ async function downloadBackup(){
 
 /* The import button takes an Excel file (as before) or a Workshop backup (.json). */
 function importFile(file){
+  if (isWaiting()){ toast('Allow Workshop to use your folder first. Then import the file.'); return; }
   if (/\.json$/i.test(file.name) || file.type === 'application/json') return importBackup(file);
   return importExcel(file);
 }

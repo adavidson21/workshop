@@ -509,11 +509,25 @@ def folder_checks(b, watch):
     bar = p3.locator('#folderBar')
     check('when Chrome must ask again, the shell shows a bar with the Allow button', bar.count() == 1 and 'Allow Workshop to use the folder Workshop' in bar.inner_text())
     pf3 = next(f for f in p3.frames if '/apps/prioritizer/' in f.url)
-    check('meanwhile Prioritizer saves nothing and says why', pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error'
-          and 'Saved in the browser first' not in pf3.evaluate(titles))
+    check('meanwhile Prioritizer shows no board, says to allow the folder, and says it is not saving',
+          'Allow Workshop to use your folder to see your board' in pf3.inner_text('#main') and 'in the bar at the top of Workshop' in pf3.inner_text('#main')
+          and pf3.locator('.row').count() == 0 and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error')
+    pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
+    no_key = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
+    p3.keyboard.press('Control+k'); p3.wait_for_timeout(300); p3.keyboard.type('add a task'); p3.keyboard.press('Enter'); p3.wait_for_timeout(400)
+    no_palette = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
+    check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and not pf3.locator('#addList').is_visible())
+    before = pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None])
+    pf3.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w9', title: 'Typed while waiting', listId: P.state.lists[0].id}); P.commit(); }")
+    p3.wait_for_timeout(1200)
+    check('while waiting, nothing is saved over the folder', pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]) == before and pf3.locator('.row').count() == 0)
     bar.locator('[data-allow]').click(); p3.wait_for_timeout(1500)
     check('Allow removes the bar', p3.locator('#folderBar').count() == 0)
-    check('and the app loads the board once access is back', 'Edited in tab one' in pf3.evaluate(titles) and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
+    got = pf3.evaluate(titles)
+    check('after Allow, the saved board appears', 'Edited in tab one' in got and 'Typed while waiting' not in got and pf3.locator('.waiting-empty').count() == 0
+          and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
+    pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
+    check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#addList').is_visible())
     ctx.close()
 
 
