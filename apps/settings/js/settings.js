@@ -1,14 +1,14 @@
-/* Settings: Workshop's own settings (features, allowed sites, port), each connector's settings and on/off
-   switch, and moving data between browsers and computers with bundle files.
+/* Settings: the data folder, Workshop's own settings (features, allowed sites, port), each connector's
+   settings and on/off switch, and moving data between browsers and computers with bundle files.
 
    Everything goes through the SDK (shared/workshop-sdk.js). Connector forms are generated from each
    connector's configSchema (forms.js), so a new connector needs no Settings change. PATs and other secrets
    are never entered here: a connector's settings name the environment variable that holds one, and the
    form shows whether it is set on this computer.
 
-   Local mode (served by the agent): everything can be changed.
+   Local mode (served by the agent): everything can be changed, including the data folder (dataDir).
    Hosted mode (a paired site): read-only. The agent refuses config changes from other sites.
-   Browser mode (no agent): only the data section. */
+   Browser mode (no agent): the data folder Chrome uses (choose or change it) and the data section. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
 
@@ -42,12 +42,102 @@ function header() {
   else if (readOnly) {
     note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer.';
     document.body.classList.add('ro');
-  } else note.textContent = 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in this browser.';
+  } else note.textContent = ws.storage === 'folder'
+    ? 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in the folder you chose.'
+    : 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in this browser.';
+}
+
+/* ---------- data folder (docs/run-modes.md; docs/config.md, Data folder) ----------
+   Agent: the agent's dataDir, changed with PUT /api/config (own origin only) and used after a restart.
+   Browser: the folder Chrome reads and writes (File System Access API); choosing one copies this browser's
+   data in, keeps the old copy, and reloads. Workshop never moves files between folders. */
+const ABSOLUTE = /^(\/|[A-Za-z]:[\\/]|\\\\)/;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+function moveSummary(m) {
+  const name = esc(m.folder || 'the folder');
+  if (m.alreadyMoved) return `<p>Now using <b>${name}</b>. This browser's data was copied into a folder before, so nothing was copied this time.</p>`;
+  const c = m.collections, f = m.files;
+  const lines = [];
+  const copied = c.created.length + c.merged.length;
+  lines.push(copied ? `${plural(copied, 'collection', 'collections')} copied in (${c.created.length} new, ${c.merged.length} merged with what the folder had).` : 'No collections to copy.');
+  if (f.created.length || f.same.length) lines.push(`${plural(f.created.length, 'file', 'files')} copied in${f.same.length ? `, ${f.same.length} already the same` : ''}.`);
+  for (const r of f.renamed) lines.push(`The folder already had a different <code>${esc(r.from)}</code>, so it was kept and this browser's copy is <code>${esc(r.to)}</code>.`);
+  for (const k of c.skipped) lines.push(`Not copied: <code>${esc(k.name)}</code>, because ${esc(k.reason)}. Export it from this browser before you change anything if you need it.`);
+  return `<p>Now using <b>${name}</b>.</p><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul><p>The copy in this browser is kept as it was.</p>`;
+}
+
+async function folderCard(cfg) {
+  const sec = card('Data folder', 'Every app keeps its data here as files, organized by app. The folder is yours: Workshop never syncs it, and if you remove Workshop the files stay.');
+  sec.dataset.folder = ws.storage;
+  const body = document.createElement('div');
+  sec.appendChild(body);
+
+  if (ws.backend === 'agent') {
+    const form = document.createElement('form');
+    form.className = 'cfg';
+    form.innerHTML = `<div class="cfg-row"><label for="dataDir">Folder</label><input id="dataDir" class="cfg-input mono" type="text" spellcheck="false" value="${esc(cfg.dataDir)}">
+      <p class="cfg-help">A full path on this computer, outside <code>${esc(cfg.home)}</code>. A change takes effect after you restart Workshop. Workshop does not move your files: copy them into the new folder yourself if you want them there.</p></div>
+      <div class="acts"><span class="msg" aria-live="polite"></span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`;
+    body.appendChild(form);
+    if (readOnly) form.querySelectorAll('input').forEach(el => { el.disabled = true; });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const msg = form.querySelector('.msg');
+      const dataDir = form.querySelector('#dataDir').value.trim();
+      if (!ABSOLUTE.test(dataDir)) { msg.textContent = 'Use a full path, for example /Users/you/Workshop or C:\\Users\\you\\Workshop.'; return; }
+      msg.textContent = 'Saving...';
+      try {
+        const res = await ws.config.put({ dataDir });
+        msg.textContent = res.restartRequired ? 'Saved. Restart Workshop to use the new folder.' : 'Saved.';
+        toast('Data folder saved', 'success');
+      } catch (err) { msg.textContent = errText(err); }
+    });
+    return;
+  }
+
+  const st = await ws.folder.status();
+  const last = ws.folder.lastMove();
+  if (last) body.insertAdjacentHTML('beforeend', `<div class="moved" role="status">${moveSummary(last)}</div>`);
+  const canPick = typeof window.showDirectoryPicker === 'function';
+  const state = st.storage === 'folder'
+    ? (st.missing ? `<p class="err">The folder <b>${esc(st.name)}</b> is gone. It may have been moved, renamed or deleted. Choose it again.</p>`
+      : st.permission === 'granted' ? `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>.</p>`
+      : `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>, but Chrome needs your OK to use it again.</p>`)
+    : `<p>Saved in this browser.${canPick ? ' Choose a folder to keep app data as files you own. If Workshop also runs on this computer, pick its folder (<code>Workshop</code> in your home folder) so both use the same files.' : ''}</p>`
+      + (st.moved ? '<p class="cfg-help">This browser\'s data was copied into a folder before. What is saved here now may be older than that folder.</p>' : '');
+  body.insertAdjacentHTML('beforeend', state);
+  if (!canPick) {
+    body.insertAdjacentHTML('beforeend', '<p class="cfg-help">This browser cannot use a folder. Open Workshop in Chrome to keep data in one.</p>');
+    return;
+  }
+  const acts = document.createElement('div');
+  acts.className = 'acts left';
+  const needsOk = st.storage === 'folder' && !st.missing && st.permission !== 'granted';
+  acts.innerHTML = (needsOk ? '<button class="btn primary" data-allow>Allow access</button>' : '')
+    + `<button class="btn${st.storage === 'folder' ? '' : ' primary'}" data-choose>${st.storage === 'folder' ? 'Change folder' : 'Choose folder'}</button><span class="msg" aria-live="polite"></span>`;
+  body.appendChild(acts);
+  if (st.storage === 'folder') body.insertAdjacentHTML('beforeend', '<p class="cfg-help">Changing the folder does not copy anything between folders; copy files yourself if you want them in the new one.</p>');
+  const msg = acts.querySelector('.msg');
+  acts.querySelector('[data-choose]').addEventListener('click', async e => {
+    e.target.disabled = true;
+    msg.textContent = 'Choose a folder in the window Chrome opened...';
+    try { await ws.folder.choose(); msg.textContent = 'Copying and switching...'; }
+    catch (err) { msg.textContent = err.code === 'bad_request' ? err.message : errText(err); e.target.disabled = false; }
+  });
+  const allow = acts.querySelector('[data-allow]');
+  if (allow) allow.addEventListener('click', async () => {
+    try {
+      const now = await ws.folder.allow();
+      if (now.permission === 'granted' && !now.missing) { toast('Workshop can use the folder again.', 'success'); content.innerHTML = ''; start(); }
+      else msg.textContent = 'Chrome did not allow it. Choose the folder again to fix this.';
+    } catch (err) { msg.textContent = errText(err); }
+  });
 }
 
 /* ---------- Workshop: features, allowed sites, port ---------- */
 async function workshopCard(cfg) {
-  const sec = card('Workshop', `Data folder: <code>${esc(cfg.home)}</code>`);
+  const sec = card('Workshop', `Settings are kept in <code>${esc(cfg.home)}</code> on this computer.`);
   const form = document.createElement('form');
   form.className = 'cfg';
   const feats = Object.keys(cfg.features);
@@ -201,7 +291,7 @@ function summarize(result) {
 
 /* ---------- data: bundles ---------- */
 function dataCard() {
-  const sec = card('Data', ws.backend === 'agent'
+  const sec = card('Data', ws.backend === 'agent' || ws.storage === 'folder'
     ? 'Apps that keep their data in Workshop save it in the data folder above. Download a copy to move it to another computer or keep a backup.'
     : 'Apps that keep their data in Workshop save it in this browser. Download a copy to move it to Workshop on a computer, or to another browser.');
   sec.insertAdjacentHTML('beforeend', `<div class="acts left"><button class="btn" data-export>Download a copy</button>
@@ -234,16 +324,21 @@ function dataCard() {
 }
 
 /* ---------- start ---------- */
-header();
-if (ws.backend === 'agent') {
-  try {
-    const cfg = await ws.config.get();
-    await workshopCard(cfg);
-    await connectorsCard(cfg);
-  } catch (e) {
-    card('Workshop').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`);
+async function start() {
+  header();
+  if (ws.backend === 'agent') {
+    try {
+      const cfg = await ws.config.get();
+      await folderCard(cfg);
+      await workshopCard(cfg);
+      await connectorsCard(cfg);
+    } catch (e) {
+      card('Workshop').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`);
+    }
+  } else {
+    await folderCard(null);
+    card('Workshop on this computer', `Workshop is not running here, or this page is not connected to it. To use connectors, start Workshop on your computer and open the address it prints${location.protocol === 'https:' ? ', or use Connect on the left to pair this site with it' : ''}.`);
   }
-} else {
-  card('Workshop on this computer', `Workshop is not running here, or this page is not connected to it. To use connectors and keep data in files, start Workshop on your computer and open the address it prints${location.protocol === 'https:' ? ', or use Connect on the left to pair this site with it' : ''}.`);
+  dataCard();
 }
-dataCard();
+await start();

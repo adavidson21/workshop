@@ -1,8 +1,10 @@
 /* Prioritizer: where the board is saved, and the file menu (the folder icon in the sidebar).
 
-   The board is saved through the SDK: with Workshop running, as files in ~/.workshop/data/prioritizer/
-   (other apps can read them); in browser mode, in this browser's storage. store.js does the saving and
-   keeps windows in step; this module connects it to the board, the status icon and the file menu.
+   The board is saved through the SDK as files in the prioritizer folder of the Workshop data folder
+   (~/Workshop/prioritizer/ by default; other apps can read them): by the agent, or in browser mode by Chrome
+   in a folder chosen in Settings. Before a folder is chosen, browser mode saves in this browser's storage.
+   store.js does the saving and keeps windows in step; this module connects it to the board, the status icon
+   and the file menu.
 
    First run: if nothing is saved yet and this browser has a board from the localStorage versions of
    Prioritizer (same site), it is moved in once and the old copy is left in place untouched. A board on
@@ -24,7 +26,8 @@ let store = null, ws = null, booted = false, status = {state: 'saved'};
 
 function where(){
   if (!ws) return 'nowhere';
-  return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder' : 'in this browser';
+  return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder'
+    : ws.storage === 'folder' ? 'in your Workshop folder' : 'in this browser';
 }
 function setStatus(s){
   const was = status.state;
@@ -69,6 +72,14 @@ async function boot(){
   let empty;
   try { ({empty} = await store.load()); }
   catch (e){
+    if (e && e.code === 'unavailable' && ws.backend === 'browser'){
+      // Chrome must be asked again for the data folder (a bar in the shell has the button). Load once it is
+      // allowed; nothing is saved meanwhile, so nothing can be written over.
+      store = null; booted = true;
+      setStatus({state: 'error', error: new Error('waiting for you to allow the Workshop folder'), retry: false});
+      const off = ws.on('online', ({online}) => { if (online && !store){ off(); boot().then(render); } });
+      return;
+    }
     // For example a damaged data file (the agent leaves it untouched and says so). Show what loaded,
     // save nothing, and say why, rather than risk writing over the user's data.
     store = null; booted = true;

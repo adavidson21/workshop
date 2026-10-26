@@ -52,6 +52,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
 .toast[data-kind=warn]{border-left:3px solid var(--warn)}
 .toast[data-kind=error]{border-left:3px solid var(--danger)}
 
+/* folder access bar (browser mode, when Chrome must ask again for the chosen folder) */
+.folder-bar{position:absolute;top:0;left:0;right:0;z-index:5;min-height:48px;box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.45rem 1rem;background:var(--warn-soft);border-bottom:1px solid var(--line);font-size:.88rem}
+.folder-bar span{flex:1;min-width:12rem}
+.folder-bar a.btn{text-decoration:none}
+.panes.has-bar .pane{top:48px}
+
 /* panes: every app keeps its own pane, so switching apps keeps their state */
 .panes{position:relative;min-width:0;min-height:0}
 .pane{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0}

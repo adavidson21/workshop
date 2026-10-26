@@ -14,9 +14,12 @@ Five parts:
   5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
      (apps/agents/test/fixture.mjs). The page, its buttons, prompts, deep links, theme, and Prioritizer's
      stages and Start through the connector.
+  6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
+     hand, since the picker cannot be automated), the move from IndexedDB, files, other tabs and outside
+     changes, the access bar, and Settings in every mode.
 Exit 1 if any check fails.
 """
-import functools, http.server, json, os, shutil, subprocess, sys, tempfile, threading
+import functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading, time
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,6 +70,8 @@ SDK_BROWSER = """async () => {
   out.readRev = read.rev; out.updatedAt = typeof read.updatedAt;
   try { await a.data.put('pages', first); out.conflict = 'none'; } catch (e) { out.conflict = e.code; out.currentRev = e.current && e.current.rev; }
   try { await a.data.put('pages', {...read, version: 0}); } catch (e) { out.badVersion = e.code; }
+  const v2 = await a.data.put('levels', {schema: 'notes.levels', version: 2, rev: 0, items: []});
+  try { await a.data.put('levels', {schema: 'notes.levels', version: 1, rev: v2.rev, items: []}); } catch (e) { out.downgrade = e.code; }
   try { await a.data.put('pages', {...read, schema: 'notes.other'}); } catch (e) { out.badSchema = e.code; }
   const edited = b.data.stamp(read, {...structuredClone(read), items: [...read.items, {id: 'p2', title: 'Two'}]});
   out.put2 = (await b.data.put('pages', edited)).rev;
@@ -101,7 +106,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
     pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
-    check('Settings in browser mode offers only data', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
+    check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
+    check('Settings in browser mode shows the data folder: this browser, with Choose folder', sf is not None and sf.locator('[data-folder=indexeddb]').count() == 1
+          and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
 
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
@@ -113,10 +120,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('browser backend: a new collection reads as null', r['empty'] is None)
     check('browser backend: put sets rev and updatedAt like the agent', r['put1'] and r['put1']['rev'] == 1 and r['readRev'] == 1 and r['updatedAt'] == 'string')
     check('browser backend: a stale rev is a conflict with the stored copy', r['conflict'] == 'conflict' and r['currentRev'] == 1)
-    check('browser backend: lower version and wrong schema are refused', r.get('badVersion') == 'downgrade' and r.get('badSchema') == 'bad_request')
+    check('browser backend: lower version and wrong schema are refused', r.get('downgrade') == 'downgrade' and r.get('badVersion') == 'bad_request' and r.get('badSchema') == 'bad_request')
     check('browser backend: other clients hear writes, the writer does not', r['heard'] == 1 and r['self'] is None and r['put2'] == 2)
     check('browser backend: another tab hears writes (BroadcastChannel)', b2.evaluate('window.__heard') == [1, 2, 3])  # 3: the import merges pages
-    check('browser backend: export and import bundles', r['bundle'] == ['workshop.bundle', 1, 'browser'] and r['imported'] == {'created': 1, 'merged': 1})
+    check('browser backend: export and import bundles', r['bundle'] == ['workshop.bundle', 2, 'browser'] and r['imported'] == {'created': 1, 'merged': 2})
     check('browser backend: connectors are unavailable', r['connectors'] == [] and r['callCode'] == 'unavailable')
     b1.close(); b2.close()
 
@@ -177,6 +184,14 @@ def agent_checks(b, watch):
 
         ap.keyboard.press('Alt+5'); ap.wait_for_timeout(1500)
         sf = next(f for f in ap.frames if '/apps/settings/' in f.url)
+        data_dir = sf.locator('[data-folder=agent] #dataDir')
+        check('Settings shows the agent\'s data folder', data_dir.count() == 1 and os.path.realpath(data_dir.input_value()) == os.path.realpath(os.path.join(tmp, 'Workshop')))
+        other = os.path.join(tmp, 'Elsewhere')
+        data_dir.fill('not/absolute'); sf.locator('[data-folder] button.primary').click(); ap.wait_for_timeout(300)
+        check('Settings asks for a full path', 'full path' in sf.inner_text('[data-folder] .msg'))
+        data_dir.fill(other); sf.locator('[data-folder] button.primary').click(); ap.wait_for_timeout(800)
+        with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
+        check('changing the data folder saves dataDir and says to restart', saved.get('dataDir') == other and 'Restart Workshop' in sf.inner_text('[data-folder] .msg'))
         echo = sf.locator('.conn[data-connector=echo]')
         check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').inner_text() == 'Off')
         echo.locator('[data-enable]').check(); ap.wait_for_timeout(1200)
@@ -223,6 +238,17 @@ def agent_checks(b, watch):
         check(f'one event stream for every app and window, not one each ({len(streams)} opened)', len(streams) == 1)
         with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
+        p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+          window.__files = []; ws.files.subscribe('summaries', e => window.__files.push([e.path, typeof e.mtime])); await new Promise(r => setTimeout(r, 300)); }""")
+        wrote = p1.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+          const f = await ws.files.write('summaries/q4.md', '# Q4\\n', {create: true});
+          let conflict = null; try { await ws.files.write('summaries/q4.md', 'x', {mtime: f.mtime - 1}); } catch (e) { conflict = e.code; }
+          return {mtime: typeof f.mtime, conflict, read: (await ws.files.read('summaries/q4.md')).content}; }""")
+        p2.wait_for_timeout(800)
+        check('agent backend: ws.files writes, reads and refuses a stale mtime', wrote == {'mtime': 'number', 'conflict': 'conflict', 'read': '# Q4\n'})
+        check('agent backend: other pages hear file writes through the event stream', p2.evaluate('window.__files') == [['summaries/q4.md', 'number']])
+        with open(os.path.join(tmp, 'Workshop', 'notes', 'summaries', 'q4.md')) as f:
+            check('agent backend: a file is a file in the data folder', f.read() == '# Q4\n')
         cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
           return (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname); }""")
@@ -243,6 +269,7 @@ def agent_checks(b, watch):
         put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
           try { await ws.config.put({features: {startAtLogin: true}}); return 'saved'; } catch (e) { return e.code; } }""") if hs else None
         check('the agent refuses config changes from a hosted page', put == 'local_only')
+        check('hosted Settings shows the data folder, read-only', hs is not None and hs.locator('[data-folder=agent] #dataDir[disabled]').count() == 1 and hs.locator('[data-folder] button.primary').count() == 0)
         hctx.close()
     finally:
         proc.terminate(); proc.wait(10)
@@ -364,6 +391,130 @@ def storage_checks(b, watch):
     finally:
         proc.terminate(); proc.wait(10)
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+# Chrome's private folder for this site (OPFS) stands in for a folder picked by hand: a real directory handle,
+# but with no picker. These read and write it the way another program would. HANDLES keeps the chosen folder's
+# name in localStorage instead of the handle in IndexedDB (headless Chromium can crash reading a handle back
+# from IndexedDB), so every page and frame of the site finds the same folder, as with a real saved handle.
+OPFS = """async ([path, text]) => { let d = await navigator.storage.getDirectory(); const parts = path.split('/');
+  try { for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, {create: text !== null});
+    const h = await d.getFileHandle(parts.at(-1), {create: text !== null});
+    if (text === null) return await (await h.getFile()).text();
+    const w = await h.createWritable(); await w.write(text); await w.close(); return text;
+  } catch (e) { return null; } }"""
+IDB_GET = """([store, key]) => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
+  const q = r.result.transaction(store).objectStore(store).get(key); q.onsuccess = () => res(q.result === undefined ? null : q.result); }; })"""
+HANDLES = """window.__workshopHandleStore = {
+  async load() { const n = localStorage.getItem('e2e.folder'); return n ? (await navigator.storage.getDirectory()).getDirectoryHandle(n) : null; },
+  async save(h) { localStorage.setItem('e2e.folder', h.name); } };"""
+PICK = """async () => { const root = await navigator.storage.getDirectory(); const dir = await root.getDirectoryHandle('Workshop', {create: true});
+  window.showDirectoryPicker = async () => dir; }"""
+# Chrome forgets a granted folder when the browser restarts. This makes every page of the site report "ask
+# again" until a click allows it, shared through the top window like Chrome's per-site permission.
+ASK_AGAIN = """(() => { if (!window.FileSystemHandle) return; const P = FileSystemHandle.prototype;
+  P.queryPermission = async function () { return top.__allowed ? 'granted' : 'prompt'; };
+  P.requestPermission = async function () { top.__allowed = true; return 'granted'; }; })()"""
+FOLDER_FILES = """async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+  const out = {storage: ws.storage, online: ws.online};
+  const f = await ws.files.write('summaries/h2.md', '# H2', {create: true});
+  try { await ws.files.write('summaries/h2.md', 'x', {create: true}); } catch (e) { out.exists = e.code; }
+  const g = await ws.files.write('summaries/h2.md', '# H2, edited', {mtime: f.mtime});
+  try { await ws.files.write('summaries/h2.md', 'y', {mtime: f.mtime}); } catch (e) { out.stale = e.code; out.current = e.current && e.current.content; }
+  out.newer = g.mtime !== f.mtime;
+  out.list = (await ws.files.list('summaries')).map(x => x.path);
+  out.trash = (await ws.files.trash('summaries/h2.md', {mtime: g.mtime})).trash;
+  out.after = (await ws.files.list('summaries')).map(x => x.path);
+  out.status = await ws.folder.status();
+  return out; }"""
+
+
+def folder_checks(b, watch):
+    """Part 6: the data folder in browser mode, and the move from IndexedDB (WS11c)."""
+    titles = "() => window.__prioritizer.state.tasks.map(t => t.title).sort()"
+    ctx = b.new_context(viewport={'width': 1280, 'height': 800})
+    ctx.add_init_script(HANDLES)
+    pg = ctx.new_page(); watch(pg)
+    pg.goto(HUB + '/#/prioritizer'); pg.wait_for_timeout(1500)
+    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    pf.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'b1', title: 'Saved in the browser first', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+      P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
+    pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+      await ws.files.write('summaries/q4.md', '# Q4 from the browser', {create: true}); }""")
+    check('before a folder is chosen, browser mode saves in IndexedDB, files too', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None
+          and (pg.evaluate(IDB_GET, ['files', 'notes/summaries/q4.md']) or {}).get('content') == '# Q4 from the browser')
+    pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', '# Q4 already in the folder'])
+
+    # Settings: Choose folder. The picker is replaced by the stand-in folder; everything after it is real.
+    pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(1200)
+    sf = next(f for f in pg.frames if '/apps/settings/' in f.url)
+    sf.evaluate(PICK)
+    with pg.expect_navigation(timeout=15000): sf.click('[data-folder] [data-choose]')
+    pg.wait_for_timeout(1500)
+    sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
+    text = sf.inner_text('[data-folder]') if sf else ''
+    check('choosing a folder reloads into folder mode, and Settings names the folder', sf is not None and sf.locator('[data-folder=folder]').count() == 1
+          and sf.inner_text('[data-folder-name]') == 'Workshop' and sf.locator('[data-folder] [data-choose]').inner_text() == 'Change folder')
+    check('Settings summarizes what was copied', 'Now using Workshop' in text and bool(re.search(r'[1-9] collections? copied in \([1-9] new, 0 merged', text)) and 'kept as it was' in text)
+    check('a different file already in the folder is kept, the browser copy is written beside it',
+          pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', None]) == '# Q4 already in the folder'
+          and pg.evaluate(OPFS, ['Workshop/notes/summaries/q4-from-browser.md', None]) == '# Q4 from the browser' and 'q4-from-browser.md' in text)
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]) or '{}')
+    check('the board is copied into the folder as prioritizer/tasks.json', on_disk.get('schema') == 'prioritizer.tasks' and 'Saved in the browser first' in [t['title'] for t in on_disk.get('items', [])])
+    moved = pg.evaluate(IDB_GET, ['data', '_moved'])
+    check('the IndexedDB copy is kept and marked moved', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None and bool(moved) and moved['movedTo'] == 'Workshop')
+
+    # Prioritizer on the folder: round trip through files.
+    pg.evaluate("location.hash = '#/prioritizer'"); pg.wait_for_timeout(1500)
+    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    check('Prioritizer runs on the folder store', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return [ws.backend, ws.storage, ws.online]; }") == ['browser', 'folder', True])
+    check('the board loads from the folder', 'Saved in the browser first' in pf.evaluate(titles))
+    pf.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'f1', title: 'Saved in the folder', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+      P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]))
+    check('an edit is written to the folder', 'Saved in the folder' in [t['title'] for t in on_disk['items']])
+    pg.reload(); pg.wait_for_timeout(1500)
+    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    check('the board round-trips through the folder across a reload', {'Saved in the browser first', 'Saved in the folder'} <= set(pf.evaluate(titles)))
+    pf.evaluate("document.querySelector('#syncBtn').click()"); pg.wait_for_timeout(200)
+    check('the file menu says the board is in the Workshop folder', 'Saved in your Workshop folder' in pf.inner_text('.menu'))
+    pf.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+
+    # Another tab hears writes (BroadcastChannel); a change made outside Workshop is found by lastModified.
+    p2 = ctx.new_page(); watch(p2)
+    p2.goto(HUB + '/apps/prioritizer/'); p2.wait_for_timeout(1500)
+    pf.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 'f1').title = 'Edited in tab one'; P.commit(); return P.saved(); }")
+    p2.wait_for_timeout(1000)
+    check('folder store: another tab shows an edit without reloading', 'Edited in tab one' in p2.evaluate(titles))
+    env = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]))
+    env['rev'] += 1
+    env['items'].append(dict(env['items'][0], id='o1', title='Added outside Workshop', updatedAt=int(time.time() * 1000)))
+    pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', json.dumps(env, indent=2) + '\n'])
+    p2.wait_for_timeout(6500)
+    check('folder store: a change made outside Workshop shows up within the 5-second check', 'Added outside Workshop' in p2.evaluate(titles))
+    p2.close()
+
+    r = pg.evaluate(FOLDER_FILES)
+    check('folder store: ws.files creates, refuses create over a file, replaces with mtime, refuses a stale one',
+          r['storage'] == 'folder' and r['online'] and r.get('exists') == 'conflict' and r.get('stale') == 'conflict' and r.get('current') == '# H2, edited' and r['newer'])
+    check('folder store: ws.files lists and trashes into .trash/', r['list'] == ['summaries/h2.md', 'summaries/q4-from-browser.md', 'summaries/q4.md']
+          and r['trash'].startswith('.trash/notes/summaries/h2.') and r['after'] == ['summaries/q4-from-browser.md', 'summaries/q4.md']
+          and pg.evaluate(OPFS, ['Workshop/' + r['trash'], None]) == '# H2, edited')
+    check('folder status names the folder', r['status'] == {'storage': 'folder', 'name': 'Workshop', 'permission': 'granted', 'moved': True, 'missing': False})
+
+    # After a browser restart Chrome asks again: the shell shows one bar; apps wait, then load on Allow.
+    ctx.add_init_script(ASK_AGAIN)
+    p3 = ctx.new_page(); watch(p3)
+    p3.goto(HUB + '/#/prioritizer'); p3.wait_for_timeout(1800)
+    bar = p3.locator('#folderBar')
+    check('when Chrome must ask again, the shell shows a bar with the Allow button', bar.count() == 1 and 'Allow Workshop to use the folder Workshop' in bar.inner_text())
+    pf3 = next(f for f in p3.frames if '/apps/prioritizer/' in f.url)
+    check('meanwhile Prioritizer saves nothing and says why', pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error'
+          and 'Saved in the browser first' not in pf3.evaluate(titles))
+    bar.locator('[data-allow]').click(); p3.wait_for_timeout(1500)
+    check('Allow removes the bar', p3.locator('#folderBar').count() == 0)
+    check('and the app loads the board once access is back', 'Edited in tab one' in pf3.evaluate(titles) and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
+    ctx.close()
 
 
 def seen(frame, selector, ms=20000, state='attached'):
@@ -583,6 +734,7 @@ def main():
 
         agent_checks(b, watch)
         storage_checks(b, watch)
+        folder_checks(b, watch)
         agents_checks(b, watch)
 
         check('no page errors', not errors)

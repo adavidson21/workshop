@@ -4,6 +4,7 @@
 // need a real browser; tests/e2e.py covers them.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMockAgent } from '../../tests/mock-agent.mjs';
@@ -138,12 +139,68 @@ test('settings: config and connector config read and write', async () => {
   await assert.rejects(ws.connectors.putConfig('echo', { nope: 1 }), e => e.code === 'invalid_config');
 });
 
+test('files on the agent: create, read, conflicts, list and trash (docs/sdk.md, Files)', async () => {
+  const ws = await sdk.connect({ app: 'notes' });
+  assert.equal(await ws.files.read('summaries/q4.md'), null);
+  const made = await ws.files.write('summaries/q4.md', '# Q4\n', { create: true });
+  assert.deepEqual(schemas.validate('file-put-response', made), []);
+  const read = await ws.files.read('summaries/q4.md');
+  assert.deepEqual(schemas.validate('file', read), []);
+  assert.equal(read.content, '# Q4\n');
+  const next = await ws.files.write('summaries/q4.md', '# Q4, edited\n', { mtime: read.mtime });
+  const stale = await ws.files.write('summaries/q4.md', 'x', { mtime: read.mtime }).catch(e => e);
+  assert.equal(stale.code, 'conflict');
+  assert.equal(stale.current.mtime, next.mtime);
+  const exists = await ws.files.write('summaries/q4.md', 'x', { create: true }).catch(e => e);
+  assert.equal(exists.code, 'conflict');
+  const gone = await ws.files.write('summaries/none.md', 'x', { mtime: 1 }).catch(e => e);
+  assert.equal(gone.code, 'conflict');
+  assert.equal(gone.current, null);
+  assert.deepEqual((await ws.files.list('summaries')).map(f => f.path), ['summaries/q4.md']);
+  const other = await sdk.connect({ app: 'board' });
+  assert.equal((await other.files.read('summaries/q4.md', { app: 'notes' })).content, '# Q4, edited\n', 'other apps can read');
+  assert.equal(await other.files.read('summaries/q4.md'), null, 'writes and default reads are the connected app');
+  assert.equal((await ws.files.trash('summaries/q4.md', { mtime: 1 }).catch(e => e)).code, 'conflict');
+  const t = await ws.files.trash('summaries/q4.md', { mtime: next.mtime });
+  assert.match(t.trash, /^\.trash\/notes\/summaries\/q4\.\d{8}T\d{9}Z\.md$/);
+  assert.deepEqual(await ws.files.list(), []);
+});
+
+test('nested collection names reach the agent; bad names are refused before any request', async () => {
+  const ws = await sdk.connect({ app: 'notes' });
+  const env = ws.data.stamp(null, { schema: 'notes.entries/jordan-lee/2026', version: 1, rev: 0, items: [{ id: 'e1' }] });
+  assert.equal((await ws.data.put('entries/jordan-lee/2026', env)).rev, 1);
+  assert.equal((await ws.data.get('entries/jordan-lee/2026')).items[0].id, 'e1');
+  assert.ok(fs.existsSync(path.join(agent.dataDir, 'notes', 'entries', 'jordan-lee', '2026.json')));
+  let calls = 0;
+  const f = globalThis.fetch;
+  globalThis.fetch = (...a) => { calls++; return f(...a); };
+  try {
+    for (const bad of ['../x', 'A', 'a/b/c/d/e']) await assert.rejects(ws.data.get(bad), e => e.code === 'bad_request');
+    await assert.rejects(ws.files.read('notes.txt'), e => e.code === 'bad_request');
+    await assert.rejects(ws.files.write('a.md', 'x', {}), e => e.code === 'bad_request');
+  } finally { globalThis.fetch = f; }
+  assert.equal(calls, 0);
+});
+
+test('folder on the agent: status names dataDir; choose and allow are for the browser backend', async () => {
+  const ws = await sdk.connect({ app: 'settings' });
+  assert.equal(ws.storage, 'agent');
+  const st = await ws.folder.status();
+  assert.equal(st.storage, 'agent');
+  assert.equal(st.name, (await ws.config.get()).dataDir);
+  assert.equal(st.permission, null);
+  await assert.rejects(ws.folder.choose(), e => e.code === 'unavailable');
+  await assert.rejects(ws.folder.allow(), e => e.code === 'unavailable');
+});
+
 test('no agent: browser mode, and agent-only calls say unavailable', async () => {
   pageOn('http://127.0.0.1:1', null); // nothing listens on port 1
   try {
     const ws = await sdk.connect({ app: 'notes' });
     assert.equal(ws.mode, 'browser');
     assert.equal(ws.backend, 'browser');
+    assert.equal(ws.storage, 'indexeddb', 'no folder chosen: the IndexedDB store');
     assert.deepEqual(await ws.connectors.list(), []);
     await assert.rejects(ws.connectors.call('echo', 'echo', { text: 'x' }), e => e.code === 'unavailable');
     await assert.rejects(ws.config.get(), e => e.code === 'unavailable');
