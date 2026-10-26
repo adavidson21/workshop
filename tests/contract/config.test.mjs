@@ -3,16 +3,13 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import { startAgent, get, put, openEvents, expectJson, expectError, envelope, pendingOnAgent, HOSTED } from './helpers.mjs';
-
-// GET /api/config now always carries dataDir, so every test that checks the config-public schema waits for WS11b on the agent.
-const todo = pendingOnAgent('WS11b');
+import { startAgent, get, put, openEvents, expectJson, expectError, envelope, HOSTED } from './helpers.mjs';
 
 let agent;
 before(async () => { agent = await startAgent(); });
 after(async () => { await agent?.stop(); });
 
-test('defaults: everything that could be blocked is off', { todo }, async () => {
+test('defaults: everything that could be blocked is off', async () => {
   const body = expectJson(await get(agent, '/api/config'), 200, 'config-public');
   assert.deepEqual(body.allowedOrigins, []);
   assert.deepEqual(body.features, { startAtLogin: false, hostedMode: false });
@@ -20,7 +17,7 @@ test('defaults: everything that could be blocked is off', { todo }, async () => 
   assert.ok(Object.values(body.connectors).every(c => c.enabled === false));
 });
 
-test('features merge and origins replace', { todo }, async () => {
+test('features merge and origins replace', async () => {
   let body = expectJson(await put(agent, '/api/config', { features: { startAtLogin: true } }), 200, 'config-put-response');
   assert.deepEqual(body.config.features, { startAtLogin: true, hostedMode: false });
   assert.equal(body.restartRequired, false);
@@ -31,13 +28,13 @@ test('features merge and origins replace', { todo }, async () => {
   assert.deepEqual(expectJson(await get(agent, '/api/config'), 200, 'config-public').allowedOrigins, [HOSTED]);
 });
 
-test('the new origin is honored right away', { todo }, async () => { // needs the test above
+test('the new origin is honored right away', async () => { // needs the test above
   const res = await get(agent, '/api/apps', { origin: HOSTED });
   assert.equal(res.status, 200);
   assert.equal(res.headers['access-control-allow-origin'], HOSTED);
 });
 
-test('a port change is saved and needs a restart', { todo }, async () => {
+test('a port change is saved and needs a restart', async () => {
   const body = expectJson(await put(agent, '/api/config', { port: agent.port === 4381 ? 4382 : 4381 }), 200, 'config-put-response');
   assert.equal(body.restartRequired, true);
   assert.notEqual(body.config.port, agent.port);
@@ -60,13 +57,13 @@ test('config writes need the header token', async () => {
   expectError(await put(agent, '/api/config', { features: { hostedMode: false } }, { auth: 'cookie' }), 401, 'unauthorized');
 });
 
-test('the data folder is reported, and is not the Workshop home', { todo }, async () => {
+test('the data folder is reported, and is not the Workshop home', async () => {
   const body = expectJson(await get(agent, '/api/config'), 200, 'config-public');
   assert.equal(body.dataDir, agent.dataDir);
   assert.notEqual(path.resolve(body.dataDir), path.resolve(body.home));
 });
 
-test('a data folder change is saved, needs a restart, and moves nothing until then', { todo }, async () => {
+test('a data folder change is saved, needs a restart, and moves nothing until then', async () => {
   const next = path.join(agent.root, 'Elsewhere');
   const body = expectJson(await put(agent, '/api/config', { dataDir: next }), 200, 'config-put-response');
   assert.equal(body.restartRequired, true);
@@ -79,7 +76,7 @@ test('a data folder change is saved, needs a restart, and moves nothing until th
   assert.equal(same.restartRequired, false, 'back to the folder in use');
 });
 
-test('a data folder change sends a config event', { todo }, async () => {
+test('a data folder change sends a config event', async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');
@@ -88,7 +85,7 @@ test('a data folder change sends a config event', { todo }, async () => {
   } finally { es.close(); }
 });
 
-test('the data folder must be absolute and outside the Workshop home', { todo }, async () => {
+test('the data folder must be absolute and outside the Workshop home', async () => {
   for (const dataDir of ['Workshop', '~/Workshop', './data', '', '$HOME/Workshop', '%USERPROFILE%\\Workshop', 42]) {
     expectError(await put(agent, '/api/config', { dataDir }), 400, 'invalid_config');
   }

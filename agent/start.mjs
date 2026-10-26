@@ -1,7 +1,8 @@
 // Start the Workshop agent: node agent/start.mjs
 //
-// Reads <home>/config.json (created with defaults on first run), listens on 127.0.0.1:<port>, and prints the
-// address to open. Home is ~/.workshop, or WORKSHOP_HOME. Stop it with Ctrl+C.
+// Reads <home>/config.json (created with defaults on first run), opens the data folder (dataDir, default
+// ~/Workshop), listens on 127.0.0.1:<port>, and prints the address to open. Home is ~/.workshop, or WORKSHOP_HOME.
+// Stop it with Ctrl+C.
 //
 // Options:
 //   --port <n>     listen on this port for this run only (config.json is not changed)
@@ -27,7 +28,7 @@ for (let i = 0; i < args.length; i++) {
     opt.port = n;
   } else if (a === '--quiet') opt.echoLog = false;
   else if (a === '--help' || a === '-h') {
-    console.log('Usage: node agent/start.mjs [--port <n>] [--quiet]\nHome folder: ~/.workshop, or set WORKSHOP_HOME.');
+    console.log('Usage: node agent/start.mjs [--port <n>] [--quiet]\nHome folder: ~/.workshop, or set WORKSHOP_HOME.\nData folder: dataDir in config.json, default ~/Workshop.');
     process.exit(0);
   } else { console.error(`Unknown option ${a}. Try --help.`); process.exit(1); }
 }
@@ -43,7 +44,7 @@ try {
 
 // The launcher URL carries the token once; the agent swaps it for a cookie and drops it from the address.
 // It is printed here only, never written to the log.
-console.log(`\nWorkshop ${VERSION} is running. Open this address in Chrome or Edge on this computer:\n\n  ${agent.url}/?token=${agent.token}\n\nHome: ${agent.home}\nLog:  ${agent.logFile}\nPress Ctrl+C to stop.\n`);
+console.log(`\nWorkshop ${VERSION} is running. Open this address in Chrome or Edge on this computer:\n\n  ${agent.url}/?token=${agent.token}\n\nHome: ${agent.home}\nData: ${agent.dataDir}\nLog:  ${agent.logFile}\nPress Ctrl+C to stop.\n`);
 
 let quitting = false;
 const quit = async () => {

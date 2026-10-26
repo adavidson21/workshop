@@ -41,3 +41,8 @@ jobs:
       - name: Connector tests
         if: ${{ !cancelled() }}
         run: node --test "connectors/*/test/*.test.mjs"
+      # Tests must use temp folders only. A fresh runner has neither folder, so finding one means a test wrote there.
+      - name: No test touched the real data folder or Workshop home
+        if: ${{ !cancelled() }}
+        run: |
+          node -e "const fs=require('fs'),p=require('path'),h=require('os').homedir();const found=['Workshop','.workshop'].map(n=>p.join(h,n)).filter(d=>fs.existsSync(d));if(found.length){console.error('Created by a test: '+found.join(', '));process.exit(1)}"

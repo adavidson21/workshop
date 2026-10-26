@@ -1,5 +1,5 @@
 // File helpers: atomic writes (temp file, flush, rename) and a per-key lock so two writes to the same file
-// never interleave. Used for config.json, the token, app data and connector storage.
+// never interleave. Used for config.json, the token, app data, app files and connector storage.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -31,6 +31,22 @@ export async function writeFileAtomic(file, text, { mode } = {}) {
         await fsp.rm(tmp, { force: true }).catch(() => {});
         throw e;
       }
+      await sleep(20 * (attempt + 1));
+    }
+  }
+}
+
+/**
+ * Rename `from` to `to`, retrying briefly when Windows reports the file busy (a virus scanner or indexer may
+ * hold it open for a moment), as writeFileAtomic does.
+ */
+export async function renameWithRetry(from, to) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fsp.rename(from, to);
+      return;
+    } catch (e) {
+      if (!RETRY_CODES.has(e.code) || attempt >= 9) throw e;
       await sleep(20 * (attempt + 1));
     }
   }

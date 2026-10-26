@@ -1,12 +1,10 @@
 // docs/data-format.md (Names, Data folder, Moving from ~/.workshop/data) and docs/agent-api.md (nested names).
-// The agent keeps these tests as to-do until WS11b lands (see pendingOnAgent in helpers.mjs).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startAgent, get, put, request, expectJson, expectError, envelope, pendingOnAgent, schemas } from './helpers.mjs';
+import { startAgent, get, put, request, expectJson, expectError, envelope, schemas } from './helpers.mjs';
 
-const todo = pendingOnAgent('WS11b');
 const item = (id, text, updatedAt = 1792330000000) => ({ id, updatedAt, text });
 const onDisk = (agent, ...parts) => path.join(agent.dataDir, ...parts);
 
@@ -14,7 +12,7 @@ let agent;
 before(async () => { agent = await startAgent(); });
 after(async () => { await agent?.stop(); });
 
-test('collections are files in the data folder, not in the Workshop home', { todo }, async () => {
+test('collections are files in the data folder, not in the Workshop home', async () => {
   expectJson(await put(agent, '/api/data/notes/pages', envelope('notes', 'pages', [item('a', 'one')])), 200, 'data-put-response');
   const file = onDisk(agent, 'notes', 'pages.json');
   assert.ok(fs.existsSync(file), `expected ${file}`);
@@ -24,7 +22,7 @@ test('collections are files in the data folder, not in the Workshop home', { tod
   assert.ok(!fs.existsSync(path.join(agent.home, 'data', 'notes')), 'nothing written under ~/.workshop/data');
 });
 
-test('nested collection names are subfolders', { todo }, async () => {
+test('nested collection names are subfolders', async () => {
   const name = 'entries/jordan-lee/2026';
   const body = envelope('notes', name, [item('e1', 'win')]);
   schemas.assert('data-envelope', body, 'nested envelope');
@@ -37,7 +35,7 @@ test('nested collection names are subfolders', { todo }, async () => {
   assert.deepEqual(list.collections.map(c => c.collection), [...list.collections.map(c => c.collection)].sort());
 });
 
-test('collection name segments may start with a digit; app ids may not', { todo }, async () => {
+test('collection name segments may start with a digit; app ids may not', async () => {
   for (const name of ['2026', 'entries/ann/2026', 'metrics/jordan-lee/2026-10', '1on1s/kim']) {
     const body = envelope('notes', name, [item('a', name)]);
     schemas.assert('data-envelope', body, name);
@@ -53,14 +51,14 @@ test('collection name segments may start with a digit; app ids may not', { todo 
   assert.ok(!fs.existsSync(onDisk(agent, '2026')));
 });
 
-test('a collection and a folder of the same name live side by side', { todo }, async () => {
+test('a collection and a folder of the same name live side by side', async () => {
   expectJson(await put(agent, '/api/data/notes/archive', envelope('notes', 'archive')), 200, 'data-put-response');
   expectJson(await put(agent, '/api/data/notes/archive/old', envelope('notes', 'archive/old')), 200, 'data-put-response');
   assert.equal((await get(agent, '/api/data/notes/archive')).json.schema, 'notes.archive');
   assert.equal((await get(agent, '/api/data/notes/archive/old')).json.schema, 'notes.archive/old');
 });
 
-test('nested names are checked', { todo }, async () => {
+test('nested names are checked', async () => {
   const bad = [
     '/api/data/notes/a/b/c/d/e',          // 5 segments
     '/api/data/notes/entries//2026',     // empty segment
@@ -79,13 +77,13 @@ test('nested names are checked', { todo }, async () => {
   expectError(await put(agent, '/api/data/notes/entries/kim', envelope('notes', 'kim')), 400, 'bad_request');
 });
 
-test('dot segments are refused as sent, not normalized away', { todo }, async () => {
+test('dot segments are refused as sent, not normalized away', async () => {
   for (const p of ['/api/data/notes/../pages', '/api/data/notes/%2e%2e/pages', '/api/data/notes/./pages', '/api/data/notes/x/%2E%2E/pages']) {
     expectError(await get(agent, p), 400, 'bad_request');
   }
 });
 
-test('a version upgrade keeps a copy in .backups, not next to the collection', { todo }, async () => {
+test('a version upgrade keeps a copy in .backups, not next to the collection', async () => {
   await put(agent, '/api/data/notes/versions', { ...envelope('notes', 'versions'), version: 2 });
   expectJson(await put(agent, '/api/data/notes/versions', { ...envelope('notes', 'versions'), version: 3, rev: 1 }), 200, 'data-put-response');
   const day = fs.readdirSync(onDisk(agent, '.backups'));
@@ -97,7 +95,7 @@ test('a version upgrade keeps a copy in .backups, not next to the collection', {
   assert.ok(!(await get(agent, '/api/data/notes')).json.collections.some(c => c.collection.includes('.')));
 });
 
-test('a damaged collection file is reported and never written over', { todo }, async () => {
+test('a damaged collection file is reported and never written over', async () => {
   fs.mkdirSync(onDisk(agent, 'notes'), { recursive: true });
   fs.writeFileSync(onDisk(agent, 'notes', 'broken.json'), '{"schema": "notes.broken", ');
   expectError(await get(agent, '/api/data/notes/broken'), 500, 'internal');
@@ -106,7 +104,7 @@ test('a damaged collection file is reported and never written over', { todo }, a
   assert.ok(!(await get(agent, '/api/data/notes')).json.collections.some(c => c.collection === 'broken'));
 });
 
-test('names Workshop ignores are not listed', { todo }, async () => {
+test('names Workshop ignores are not listed', async () => {
   fs.mkdirSync(onDisk(agent, 'notes', '.git'), { recursive: true });
   fs.writeFileSync(onDisk(agent, 'notes', '.git', 'config.json'), '{}');
   fs.writeFileSync(onDisk(agent, 'notes', 'Upper.json'), JSON.stringify(envelope('notes', 'Upper')));
@@ -117,7 +115,7 @@ test('names Workshop ignores are not listed', { todo }, async () => {
 
 // ---------- symbolic links and junctions
 
-test('paths that lead outside the data folder are refused', { todo }, async (t) => {
+test('paths that lead outside the data folder are refused', async (t) => {
   const outside = path.join(agent.root, 'outside');
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(outside, 'secret.md'), 'outside');
@@ -136,7 +134,7 @@ test('paths that lead outside the data folder are refused', { todo }, async (t) 
   assert.ok(!cols.collections.some(c => c.collection.startsWith('link/')));
 });
 
-test('a data folder that is itself a link works', { todo }, async (t) => {
+test('a data folder that is itself a link works', async (t) => {
   let linked;
   const real = path.join(agent.root, 'real-data');
   fs.mkdirSync(real);
@@ -157,7 +155,7 @@ function writeOld(home, app, collection, env) {
   fs.writeFileSync(path.join(home, 'data', app, `${collection}.json`), `${JSON.stringify(env, null, 2)}\n`);
 }
 
-test('on start, old app data is copied in once and kept', { todo }, async () => {
+test('on start, old app data is copied in once and kept', async () => {
   let a;
   try {
     a = await startAgent({}, {
@@ -180,7 +178,7 @@ test('on start, old app data is copied in once and kept', { todo }, async () => 
   } finally { await a?.stop(); }
 });
 
-test('no copy when the data folder already has app data', { todo }, async () => {
+test('no copy when the data folder already has app data', async () => {
   let a;
   try {
     a = await startAgent({}, {
@@ -195,7 +193,7 @@ test('no copy when the data folder already has app data', { todo }, async () => 
   } finally { await a?.stop(); }
 });
 
-test('no copy once moved.json exists', { todo }, async () => {
+test('no copy once moved.json exists', async () => {
   let a;
   try {
     a = await startAgent({}, {
@@ -208,7 +206,7 @@ test('no copy once moved.json exists', { todo }, async () => {
   } finally { await a?.stop(); }
 });
 
-test('the data folder is created on start if missing', { todo }, async () => {
+test('the data folder is created on start if missing', async () => {
   let a;
   try {
     a = await startAgent({}, { setup: ({ root }) => { assert.ok(!fs.existsSync(path.join(root, 'Workshop'))); } });
@@ -216,7 +214,7 @@ test('the data folder is created on start if missing', { todo }, async () => {
   } finally { await a?.stop(); }
 });
 
-test('the data folder is never served as static files', { todo }, async () => {
+test('the data folder is never served as static files', async () => {
   assert.equal((await get(agent, '/api/data/notes/pages')).status, 200);
   for (const p of ['/notes/pages.json', '/Workshop/notes/pages.json', '/apps/../Workshop/notes/pages.json']) {
     const res = await request(agent, 'GET', p, { auth: 'cookie' });

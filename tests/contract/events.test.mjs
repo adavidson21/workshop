@@ -3,9 +3,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startAgent, put, get, post, del, openEvents, envelope, schemas, HOSTED, expectError, pendingOnAgent, sleep } from './helpers.mjs';
+import { startAgent, put, get, post, del, openEvents, envelope, schemas, HOSTED, expectError, sleep } from './helpers.mjs';
 
-const todo = pendingOnAgent('WS11b');
 
 let agent, hosted;
 before(async () => {
@@ -73,7 +72,7 @@ test('no token, no stream; the query token works only on /api/events', async () 
   expectError(await get(agent, `/api/apps?token=${agent.token}`, { auth: 'none' }), 401, 'unauthorized');
 });
 
-test('nested collections are named in full in data events', { todo }, async () => {
+test('nested collections are named in full in data events', async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');
@@ -84,7 +83,7 @@ test('nested collections are named in full in data events', { todo }, async () =
   } finally { es.close(); }
 });
 
-test('file writes and deletes send file events with no contents', { todo }, async () => {
+test('file writes and deletes send file events with no contents', async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');
@@ -101,7 +100,7 @@ test('file writes and deletes send file events with no contents', { todo }, asyn
   } finally { es.close(); }
 });
 
-test('changes made outside Workshop send re-read events with client null', { todo }, async () => {
+test('changes made outside Workshop send re-read events with client null', async () => {
   await put(agent, '/api/data/notes/watched', envelope('notes', 'watched'));
   const made = (await put(agent, '/api/files/notes/watched.md', { content: 'one', create: true })).json;
   await sleep(700); // let the agent's own writes settle
@@ -133,7 +132,7 @@ test('changes made outside Workshop send re-read events with client null', { tod
   } finally { es.close(); }
 });
 
-test('the agent\'s own writes do not cause outside-change events', { todo }, async () => {
+test('the agent\'s own writes do not cause outside-change events', async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');
@@ -149,7 +148,7 @@ test('the agent\'s own writes do not cause outside-change events', { todo }, asy
   } finally { es.close(); }
 });
 
-test('a burst of outside changes gives one event', { todo }, async () => {
+test('a burst of outside changes gives one event', async () => {
   await put(agent, '/api/files/notes/burst.md', { content: '0', create: true });
   await sleep(700);
   const es = await openEvents(agent);
@@ -163,7 +162,7 @@ test('a burst of outside changes gives one event', { todo }, async () => {
   } finally { es.close(); }
 });
 
-test('paths Workshop ignores send nothing', { todo }, async () => {
+test('paths Workshop ignores send nothing', async () => {
   const es = await openEvents(agent);
   try {
     await es.next('hello');

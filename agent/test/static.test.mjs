@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createAgent } from '../server.mjs';
-import { tempHome, rmHome, get, request, REPO } from './helpers.mjs';
+import { tempHome, rmHome, get, request, REPO, dataDirOf } from './helpers.mjs';
 
 let agent, home;
-before(async () => { home = tempHome(); agent = await createAgent({ home, port: 0 }); });
+before(async () => { home = tempHome(); agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home) }); });
 after(async () => { await agent?.stop(); rmHome(home); });
 
 test('serves the shell, shared files, icons and root files of the repo', async () => {
@@ -54,7 +54,7 @@ test('a symbolic link cannot lead out of an app folder', { skip: process.platfor
   fs.symlinkSync(path.join(REPO, 'agent', 'server.mjs'), path.join(apps, 'demo', 'escape.mjs'));
   fs.writeFileSync(path.join(apps, 'demo', 'ok.txt'), 'ok');
   const h2 = tempHome();
-  const a2 = await createAgent({ home: h2, port: 0, appsDir: apps });
+  const a2 = await createAgent({ home: h2, port: 0, dataDir: dataDirOf(h2), appsDir: apps });
   try {
     assert.equal((await get(a2, '/apps/demo/ok.txt', { auth: 'none' })).status, 200);
     assert.equal((await get(a2, '/apps/demo/escape.mjs', { auth: 'none' })).status, 404);
