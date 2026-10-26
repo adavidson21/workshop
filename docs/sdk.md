@@ -83,11 +83,23 @@ For the shell and the Settings app, with the browser backend's folder store ([ru
 
 | Method | Meaning |
 | --- | --- |
-| `ws.folder.status()` | `{storage, name, permission, moved}`. `storage` is `ws.storage`. `name` is the folder's name (browsers do not reveal its full path), or `null`. `permission` is `'granted'`, `'prompt'` or `'denied'` for the folder store, else `null`. `moved` is `true` if the IndexedDB store was copied into a folder. With the agent, `name` is the agent's `dataDir` from `ws.config.get()`. |
+| `ws.folder.status()` | `{storage, name, permission, moved, missing}`. `storage` is `ws.storage`. `name` is the folder's name (browsers do not reveal its full path), or `null`. `permission` is `'granted'`, `'prompt'` or `'denied'` for the folder store, else `null`. `moved` is `true` if the IndexedDB store was copied into a folder. `missing` is `true` if the saved folder is gone (moved, renamed, deleted, or its drive is missing), else `false`. With the agent, `name` is the agent's `dataDir` from `ws.config.get()`, `moved` and `missing` are `false`. |
 | `ws.folder.choose()` | Call only from a click. Opens Chrome's folder picker, asks for read and write access, copies the IndexedDB store in (old copy kept, marked moved), saves the handle and reloads the page. Rejects with `unavailable` with the agent (change `dataDir` in settings instead) or in a browser without the File System Access API, and with `bad_request` if the user cancels. |
 | `ws.folder.allow()` | Call only from a click. Asks Chrome again for access to the saved folder. Resolves the new `status()`. On `'granted'`, `ws.online` turns `true` and an `online` event fires. |
+| `ws.folder.lastMove()` | What the last `choose()` copied, read once on the page that loads after its reload, then cleared; `null` otherwise. Kept in `sessionStorage`, so only the tab that chose sees it. `{folder, alreadyMoved, collections: {created, merged, skipped}, files: {created, same, renamed}}`: `created`, `merged` and `same` list `<app>/<name>`; `skipped` is `[{name, reason}]` (a collection whose `version` differs from the folder's copy); `renamed` is `[{from, to}]` (a browser file written beside a different one, as `-from-browser`). `alreadyMoved` is `true` when the IndexedDB store was marked moved before, so nothing was copied. Settings shows it as the summary of the move. |
 
 `ws.on('online', ...)` fires when folder access is lost or regained, as it does for the agent.
+
+The shell shows the access bar ([run-modes.md](run-modes.md), Access) without connecting as an app, so the SDK also exports two functions for it. Apps use `ws.folder` instead.
+
+```js
+import { folderState, allowFolder } from '../shared/workshop-sdk.js';
+```
+
+| Function | Meaning |
+| --- | --- |
+| `folderState()` | `{storage, name, permission, missing}` for this browser, read from the saved handle: `storage` is `'folder'` or `'indexeddb'`; the rest as in `ws.folder.status()`. Call it only with the browser backend (the shell checks `detectBackend()` first). Never prompts. |
+| `allowFolder()` | Call only from a click. The same as `ws.folder.allow()`, for the shell's Allow button. Resolves the new `folderState()`. When access is granted, every app on this origin hears it and its `ws.online` turns `true`. Rejects with `unavailable` if no folder is saved. |
 
 ### Connectors
 
