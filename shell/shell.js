@@ -10,7 +10,7 @@
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open,
    toast, badge, notify, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
-import { detectBackend } from '../shared/workshop-sdk.js';
+import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
 
 const $ = s => document.querySelector(s);
 const svg = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -467,6 +467,36 @@ function askPort() {
 }
 document.addEventListener('click', e => { if (e.target.closest('#pairBtn')) startPairing(); });
 
+/* ---------- folder access (docs/run-modes.md, Folder store) ----------
+   In browser mode with a folder chosen, Chrome may need the user to allow it again (after a restart, for
+   example). It only asks after a click, so the shell shows one bar with a button; apps keep their edits and
+   retry, and get an online event when access is back. A refused or missing folder links to Settings. */
+async function folderBar() {
+  if (env.backend !== 'browser') return;
+  let st;
+  try { st = await folderState(); } catch (e) { return; }
+  const bar = document.getElementById('folderBar');
+  if (st.storage !== 'folder' || (st.permission === 'granted' && !st.missing)) { if (bar) bar.remove(); $('#panes').classList.remove('has-bar'); return; }
+  const el = bar || document.createElement('div');
+  el.id = 'folderBar'; el.className = 'folder-bar'; el.setAttribute('role', 'alert');
+  const name = esc(st.name || 'your Workshop folder');
+  el.innerHTML = st.missing ? `<span>The folder <b>${name}</b> is gone. It may have been moved, renamed or deleted.</span><a class="btn" href="#/settings">Choose it in Settings</a>`
+    : st.permission === 'denied' ? `<span>Workshop is not allowed to use the folder <b>${name}</b>, so nothing is saved.</span><button class="btn primary" data-allow>Try again</button><a class="btn ghost" href="#/settings">Settings</a>`
+    : `<span>Chrome needs your OK before Workshop can save again. Your changes wait until then.</span><button class="btn primary" data-allow>Allow Workshop to use the folder ${name}</button>`;
+  if (!bar) $('#panes').prepend(el);
+  $('#panes').classList.add('has-bar');
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest('#folderBar [data-allow]')) return;
+  try {
+    const st = await allowFolder();
+    if (st.permission === 'granted' && !st.missing) toast('Workshop can use the folder again.', null, null, 4000, 'success');
+  } catch (err) { toast(err.message || 'Could not get access to the folder.', null, null, 8000, 'error'); }
+  folderBar();
+});
+// Allowed from another tab or app frame: the bar goes away there too.
+if (typeof BroadcastChannel === 'function') new BroadcastChannel('workshop-data').addEventListener('message', e => { if (e.data && e.data.folder === 'granted') folderBar(); });
+
 /* ---------- install as a desktop app ---------- */
 let installPrompt = null;
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -485,6 +515,7 @@ document.documentElement.dataset.mode = env.mode;
 await loadApps();
 renderRail();
 setInstall();
+folderBar();
 if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found</h2><p>There is no app list for this site. If you publish Workshop as static files, run <code>node shell/registry.mjs</code> first.</p></div>';
 window.addEventListener('hashchange', route);
 route();

@@ -3,7 +3,7 @@ import { flushText } from './drawer.js';
 import { hideTip, placeTip, tipFor } from './events.js';
 import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
 import { setScope, setView } from './render.js';
-import { PR_GONES, canonPerson, cleanAdo, cleanPending, cleanPr, commit, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
+import { PR_GONES, canonPerson, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
 import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
 import { ready } from './ws.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector or the local helper (ado-helper/ado_helper.py). */
@@ -239,7 +239,7 @@ const adoUnreachable = e => e instanceof TypeError || /fetch/i.test(e.message);
 const ADO_DOWN = "Can't reach the ADO helper. Is it running on this computer?";
 
 async function adoSync(manual){
-  if (adoBusy || !ui.ado.on) return;
+  if (adoBusy || !ui.ado.on || isWaiting()) return;
   if (!manual && Date.now() - ui.ado.last < ADO_MIN_GAP) return;
   adoBusy = true; setAdo();
   try {

@@ -142,7 +142,15 @@ function pickWindow(o){
 // state is module-private. Other modules replace it through this setter, because an ES module cannot
 // assign to a binding it imported from here.
 function setState(s){ state = s; }
+/* Waiting for the data folder: in browser mode Chrome must be asked again (after a restart, for example) before
+   the board can load. Until then the board is not shown and nothing can be added or edited, so no edit is made
+   that would be thrown away when the saved board loads. storage.js sets it; render.js shows the empty state. */
+let waiting = false;
+const isWaiting = () => waiting;
+function setWaiting(v){ waiting = !!v; document.body.classList.toggle('waiting', waiting); }
+
 function save(){
+  if (waiting) return;
   const w = pickWindow(state);
   if (Object.keys(w).some(k => ui[k] !== w[k])){ Object.assign(ui, w); saveUi(); }
   scheduleSave();
@@ -186,4 +194,4 @@ function canonPerson(n){
 }
 const initials = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
-export { PR_GONES, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { PR_GONES, isWaiting, setWaiting, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

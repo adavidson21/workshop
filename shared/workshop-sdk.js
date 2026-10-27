@@ -1,7 +1,7 @@
 /* Workshop SDK (sdk: 1). See docs/sdk.md.
 
    Apps use this for everything that leaves the app: navigation, toasts, badges, notifications,
-   commands, theme, data and connectors. No ad hoc postMessage, no direct fetch to the agent.
+   commands, theme, data, files and connectors. No ad hoc postMessage, no direct fetch to the agent.
 
      import { connect } from '../../shared/workshop-sdk.js';
      const ws = await connect({ app: 'prioritizer' });
@@ -11,7 +11,8 @@
         returns the agent) -> mode 'local', backend 'agent'.
      2. Paired (workshop.agent in localStorage, and GET <url>/api/health then /api/apps succeed)
         -> mode 'hosted', backend 'agent'.
-     3. Otherwise -> mode 'browser', backend 'browser' (IndexedDB).
+     3. Otherwise -> mode 'browser', backend 'browser': the folder store when a folder handle is saved
+        (File System Access API), else the IndexedDB store. ws.storage says which.
 
    Shell methods (open, toast, badge, notify, commands, theme, events) travel to the shell by
    postMessage. Data and connector calls go straight to the agent or the browser backend, so an
@@ -162,6 +163,159 @@ async function pickBackend() {
   return { mode: 'browser', backend: 'browser', agentUrl: null, token: null };
 }
 
+/* ---------- names (docs/data-format.md, Names) ----------
+   Checked before any request, on every backend, so a bad name is always bad_request. */
+const APP_RE = /^[a-z][a-z0-9-]{0,39}$/;
+const SEG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+const FILE_RE = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json)$/;
+const MAX_SEGS = 4;
+const FILE_MAX = 10 * 1024 * 1024;
+const bad = (msg) => new WorkshopError('bad_request', msg, 400);
+
+function checkApp(app) {
+  if (typeof app !== 'string' || !APP_RE.test(app)) throw bad(`"${app}" is not a valid app name.`);
+  return app;
+}
+// A collection name: 1 to 4 segments. Returns the segments.
+function checkCollection(name) {
+  const segs = typeof name === 'string' ? name.split('/') : [];
+  if (segs.length < 1 || segs.length > MAX_SEGS || !segs.every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid collection name. Use 1 to 4 parts like entries/jordan-lee/2026.`);
+  return segs;
+}
+// A folder for listing files: 0 to 3 segments.
+function checkFolder(name) {
+  if (name === undefined || name === null || name === '') return [];
+  const segs = typeof name === 'string' ? name.split('/') : [null];
+  if (segs.length > MAX_SEGS - 1 || !segs.every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid folder name.`);
+  return segs;
+}
+// A file path: 1 to 4 segments, the last ending in .md or .json.
+function checkFile(name) {
+  const segs = typeof name === 'string' ? name.split('/') : [];
+  if (segs.length < 1 || segs.length > MAX_SEGS || !segs.slice(0, -1).every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid file path. Use names like notes/2026-plan.md.`);
+  const last = segs[segs.length - 1];
+  if (!FILE_RE.test(last)) throw bad(/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last) ? 'Only .md and .json files are allowed.' : `"${last}" is not a valid file name.`);
+  return segs;
+}
+// Light envelope check before a write (the agent checks the full schema; this catches the same mistakes apps make).
+function checkEnvelope(app, collection, env) {
+  if (!env || typeof env !== 'object' || Array.isArray(env)) throw bad('A collection is an envelope object.');
+  if (env.schema !== `${app}.${collection}`) throw bad(`schema must be "${app}.${collection}".`);
+  if (!Number.isInteger(env.version) || env.version < 1) throw bad('version must be a whole number, 1 or more.');
+  if (!Number.isInteger(env.rev) || env.rev < 0) throw bad('rev must be the revision you read (0 to create).');
+  if (!Array.isArray(env.items)) throw bad('items must be an array.');
+  const ids = new Set();
+  for (const it of env.items) {
+    if (!it || typeof it !== 'object' || typeof it.id !== 'string' || !it.id || it.id.length > 200) throw bad('Every item needs a string id of 1 to 200 characters.');
+    if (ids.has(it.id)) throw bad(`Item id "${it.id}" appears more than once.`);
+    ids.add(it.id);
+  }
+}
+// Does this text, stored at <app>/<path>.json, mean to be a collection? JSON whose schema is its own name.
+function isCollectionText(app, path, text) {
+  if (!path.endsWith('.json')) return false;
+  let v;
+  try { v = JSON.parse(String(text).replace(/^﻿/, '')); } catch (e) { return false; }
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && v.schema === `${app}.${path.slice(0, -5)}`;
+}
+function checkFileContent(app, path, content) {
+  if (typeof content !== 'string') throw bad('File content is text.');
+  const size = new TextEncoder().encode(content).length;
+  if (size > FILE_MAX) throw new WorkshopError('too_large', 'A file can be at most 10 MB.', 413);
+  if (path.endsWith('.json')) {
+    try { JSON.parse(content); } catch (e) { throw bad(`${path} must hold valid JSON.`); }
+    if (isCollectionText(app, path, content)) throw bad('That content is a collection for this path. Save it with ws.data instead.');
+  }
+  return size;
+}
+function checkWriteOpts(opts) {
+  const o = opts || {};
+  const hasM = typeof o.mtime === 'number', hasC = o.create === true;
+  if (hasM === hasC) throw bad('Pass {mtime} (the mtime you read) to replace a file, or {create: true} to create one.');
+  return o;
+}
+const fileConflict = (message, current) => { const e = new WorkshopError('conflict', message, 409); e.current = current; return e; };
+const collectionConflict = (current) => { const e = new WorkshopError('conflict', 'That collection changed since you loaded it. Reload and try again.', 409); e.current = current; return e; };
+const downgrade = (stored, mine) => new WorkshopError('downgrade', `This data is version ${stored}. A version ${mine} writer cannot save it. Update Workshop.`, 400);
+// UTC stamp for trash names: 20261025T140500123Z (docs/data-format.md, Trash).
+const trashStamp = (d) => d.toISOString().replace(/[-:.]/g, '');
+// Does a file event at `path` concern a subscription to `target` (a file path, a folder, or '' for every file)?
+const coversPath = (target, path) => !target || target === path || path.startsWith(target + '/');
+const isFilePath = (s) => /\.(md|json)$/.test(s || '');
+// Envelope as stored: no extra top-level fields, rev and updatedAt set by the backend.
+function storedEnvelope(env, rev, updatedAt) {
+  const next = { schema: env.schema, version: env.version, rev, updatedAt, items: env.items };
+  if (env.deleted !== undefined) next.deleted = env.deleted;
+  if (env.meta !== undefined) next.meta = env.meta;
+  return next;
+}
+
+/* ---------- IndexedDB (docs/run-modes.md, Browser backend) ----------
+   Database "workshop": object stores data (envelopes, plus the _moved mark), files, trash, and handles (the
+   folder handle, key "folder"). Version 2 added files, trash and handles; data from version 1 is kept. */
+const IDB_NAME = 'workshop', IDB_VERSION = 2;
+const IDB_STORES = ['data', 'files', 'trash', 'handles'];
+let idbPromise = null;
+function openIdb() {
+  if (idbPromise) return idbPromise;
+  idbPromise = new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') return reject(new WorkshopError('unavailable', 'This browser has no storage for Workshop.'));
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => { const d = req.result; for (const s of IDB_STORES) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s); };
+    req.onsuccess = () => {
+      const d = req.result;
+      // Another tab opened a newer version: let it upgrade, and open again on the next call.
+      d.onversionchange = () => { d.close(); idbPromise = null; };
+      resolve(d);
+    };
+    req.onerror = () => { idbPromise = null; reject(new WorkshopError('internal', 'Could not open browser storage.')); };
+    req.onblocked = () => { /* another tab holds version 1 open; it closes on versionchange */ };
+  });
+  return idbPromise;
+}
+const reqAsPromise = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+// Run fn(stores) in one transaction over the named stores. Only IndexedDB requests may be awaited inside fn.
+function idbTx(names, mode, fn) {
+  return openIdb().then(d => new Promise((resolve, reject) => {
+    const t = d.transaction(names, mode);
+    const stores = Object.fromEntries([].concat(names).map(n => [n, t.objectStore(n)]));
+    let result, failure = null;
+    Promise.resolve().then(() => fn(stores)).then(r => { result = r; }, e => { failure = e; try { t.abort(); } catch (x) { /* already done */ } });
+    t.oncomplete = () => (failure ? reject(failure) : resolve(result));
+    t.onerror = () => { if (!failure) failure = new WorkshopError('internal', 'Browser storage error.'); };
+    t.onabort = () => reject(failure || new WorkshopError('conflict', 'Browser storage write was aborted.'));
+  }));
+}
+function idbEntries(storeName) {
+  return idbTx(storeName, 'readonly', (s) => new Promise((resolve, reject) => {
+    const out = [];
+    const req = s[storeName].openCursor();
+    req.onsuccess = () => { const c = req.result; if (!c) return resolve(out); out.push([String(c.key), c.value]); c.continue(); };
+    req.onerror = () => reject(req.error);
+  }));
+}
+// The saved folder handle, or null. Never rejects. tests/e2e.py swaps where the handle is kept through
+// window.__workshopHandleStore ({load, save}): some headless test browsers crash reading a directory handle back
+// from IndexedDB, and the folder picker cannot be automated anyway. Nothing else sets it.
+const handleStore = () => (typeof window !== 'undefined' && window.__workshopHandleStore) || null;
+async function savedFolderHandle() {
+  try {
+    const hs = handleStore();
+    if (hs) return (await hs.load()) || null;
+    return (await idbTx('handles', 'readonly', s => reqAsPromise(s.handles.get('folder')))) || null;
+  } catch (e) { return null; }
+}
+function saveFolderHandle(handle) {
+  const hs = handleStore();
+  if (hs) return hs.save(handle);
+  return idbTx('handles', 'readwrite', s => { s.handles.put(handle, 'folder'); });
+}
+async function idbMoved() {
+  try { return (await idbTx('data', 'readonly', s => reqAsPromise(s.data.get('_moved')))) || null; } catch (e) { return null; }
+}
+
+function newChannel() { return typeof BroadcastChannel === 'function' ? new BroadcastChannel('workshop-data') : null; }
+
 /* ---------- agent data backend ---------- */
 function makeAgentBackend(ctx) {
   const base = ctx.agentUrl;
@@ -171,15 +325,18 @@ function makeAgentBackend(ctx) {
     return h;
   };
   const common = { targetAddressSpace: 'loopback' };
+  const enc = (segs) => segs.map(encodeURIComponent).join('/');
 
   async function get(app, collection) {
-    const { res, body } = await fetchJson(`${base}/api/data/${app}/${collection}`, Object.assign({ headers: headers() }, common));
+    const segs = checkCollection(collection);
+    const { res, body } = await fetchJson(`${base}/api/data/${checkApp(app)}/${enc(segs)}`, Object.assign({ headers: headers() }, common));
     if (res.status === 404) return null;
     if (!res.ok) throw errorFrom(body, res.status);
     return body;
   }
   async function put(app, collection, envelope) {
-    const { res, body } = await fetchJson(`${base}/api/data/${app}/${collection}`, Object.assign({
+    const segs = checkCollection(collection);
+    const { res, body } = await fetchJson(`${base}/api/data/${checkApp(app)}/${enc(segs)}`, Object.assign({
       method: 'PUT',
       headers: headers({ 'Content-Type': 'application/json', 'X-Workshop-Client': ctx.clientId }),
       body: JSON.stringify(envelope)
@@ -188,110 +345,645 @@ function makeAgentBackend(ctx) {
     if (!res.ok) throw errorFrom(body, res.status);
     return body; // {rev, updatedAt}
   }
-  return {
-    kind: 'agent', get, put,
-    // Subscriptions come from the event stream (ctx.events).
-    subscribe(app, collection, handler) { return ctx.events.onData(app, collection, handler); },
-    async list(app) {
-      const { res, body } = await fetchJson(`${base}/api/data/${app}`, Object.assign({ headers: headers() }, common));
+  async function list(app) {
+    const { res, body } = await fetchJson(`${base}/api/data/${checkApp(app)}`, Object.assign({ headers: headers() }, common));
+    if (!res.ok) throw errorFrom(body, res.status);
+    return body;
+  }
+
+  // Files (docs/agent-api.md, Files).
+  const files = {
+    async list(app, folder) {
+      const segs = checkFolder(folder);
+      const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}${segs.length ? '/' + enc(segs) : ''}`, Object.assign({ headers: headers() }, common));
+      if (!res.ok) throw errorFrom(body, res.status);
+      return (body && body.files) || [];
+    },
+    async read(app, path) {
+      const segs = checkFile(path);
+      const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({ headers: headers() }, common));
+      if (res.status === 404) return null;
       if (!res.ok) throw errorFrom(body, res.status);
       return body;
     },
+    async write(app, path, content, opts) {
+      const segs = checkFile(path);
+      const o = checkWriteOpts(opts);
+      checkFileContent(app, path, content);
+      const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({
+        method: 'PUT',
+        headers: headers({ 'Content-Type': 'application/json', 'X-Workshop-Client': ctx.clientId }),
+        body: JSON.stringify(o.create ? { content, create: true } : { content, mtime: o.mtime })
+      }, common));
+      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? body.current : null; throw err; }
+      if (!res.ok) throw errorFrom(body, res.status);
+      return body; // {app, path, mtime, size}
+    },
+    async trash(app, path, opts) {
+      const segs = checkFile(path);
+      const m = opts && typeof opts.mtime === 'number' ? `?mtime=${opts.mtime}` : '';
+      const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}${m}`, Object.assign({
+        method: 'DELETE', headers: headers({ 'X-Workshop-Client': ctx.clientId })
+      }, common));
+      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? body.current : null; throw err; }
+      if (!res.ok) throw errorFrom(body, res.status);
+      return body; // {app, path, trash}
+    },
+    subscribe(app, target, handler) { return ctx.events.onFile(app, target, handler); }
+  };
+
+  return {
+    kind: 'agent', storage: 'agent', get, put, list, files,
+    // Subscriptions come from the event stream (ctx.events).
+    subscribe(app, collection, handler) { checkCollection(collection); return ctx.events.onData(app, collection, handler); },
     connectorsAvailable: true
   };
 }
 
-/* ---------- browser data backend (IndexedDB + BroadcastChannel) ---------- */
-function makeBrowserBackend(ctx) {
-  const DB = 'workshop', STORE = 'data';
-  let dbPromise = null;
-  function db() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB, 1);
-      req.onupgradeneeded = () => { const d = req.result; if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE); };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(new WorkshopError('internal', 'Could not open browser storage.'));
-    });
-    return dbPromise;
-  }
-  function tx(mode, fn) {
-    return db().then(d => new Promise((resolve, reject) => {
-      const t = d.transaction(STORE, mode);
-      const store = t.objectStore(STORE);
-      let result;
-      Promise.resolve(fn(store)).then(r => { result = r; }).catch(reject);
-      t.oncomplete = () => resolve(result);
-      t.onerror = () => reject(new WorkshopError('internal', 'Browser storage error.'));
-      t.onabort = () => reject(new WorkshopError('conflict', 'Browser storage write was aborted.'));
-    }));
-  }
-  const reqAsPromise = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
-  const key = (app, collection) => `${app}/${collection}`;
-  const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('workshop-data') : null;
+/* ---------- browser backend, IndexedDB store (docs/run-modes.md) ---------- */
+function makeIdbStore(ctx, opts = {}) {
+  const channel = opts.channel !== undefined ? opts.channel : newChannel();
+  const key = (app, name) => `${app}/${name}`;
+  const nowMs = opts.now || (() => Date.now());
+  const listeners = [];
+  if (channel) channel.addEventListener('message', (e) => { const m = e.data; if (m && m.client !== ctx.clientId) listeners.forEach(fn => fn(m)); });
+  const post = (m) => { if (channel) channel.postMessage(m); };
 
   async function get(app, collection) {
-    const stored = await tx('readonly', s => reqAsPromise(s.get(key(app, collection))));
-    return stored || null;
+    checkApp(app); checkCollection(collection);
+    return (await idbTx('data', 'readonly', s => reqAsPromise(s.data.get(key(app, collection))))) || null;
   }
   async function put(app, collection, envelope) {
-    if (envelope.schema !== `${app}.${collection}`) throw new WorkshopError('bad_request', `schema must be ${app}.${collection}.`);
-    const seen = new Set();
-    for (const it of envelope.items || []) { if (seen.has(it.id)) throw new WorkshopError('bad_request', 'Duplicate item id.'); seen.add(it.id); }
-    const now = new Date().toISOString();
-    const result = await tx('readwrite', async (s) => {
-      const stored = await reqAsPromise(s.get(key(app, collection)));
+    checkApp(app); checkCollection(collection); checkEnvelope(app, collection, envelope);
+    const now = new Date(nowMs()).toISOString();
+    const result = await idbTx('data', 'readwrite', async (s) => {
+      const stored = await reqAsPromise(s.data.get(key(app, collection)));
       const storedRev = stored ? stored.rev : 0;
-      if ((envelope.rev || 0) !== storedRev) {
-        const current = stored || { schema: `${app}.${collection}`, version: envelope.version, rev: 0, updatedAt: now, items: [], deleted: {} };
-        const err = new WorkshopError('conflict', 'That collection changed since you loaded it. Reload and try again.');
-        err.current = current;
-        throw err;
-      }
-      if (stored && envelope.version < stored.version) throw new WorkshopError('downgrade', 'A data put tried to lower the collection version.');
-      // The backend sets rev and updatedAt exactly as the agent does; items/deleted/meta untouched.
-      const next = clone(envelope);
-      next.rev = storedRev + 1;
-      next.updatedAt = now;
-      s.put(next, key(app, collection));
+      if (envelope.rev !== storedRev) throw collectionConflict(stored || { schema: envelope.schema, version: envelope.version, rev: 0, items: [] });
+      if (stored && envelope.version < stored.version) throw downgrade(stored.version, envelope.version);
+      // The backend sets rev and updatedAt exactly as the agent does; items, deleted and meta untouched.
+      const next = clone(storedEnvelope(envelope, storedRev + 1, now));
+      s.data.put(next, key(app, collection));
       return { rev: next.rev, updatedAt: next.updatedAt };
     });
     // Same payload as the agent's data event, so other tabs update.
-    if (channel) channel.postMessage({ app, collection, rev: result.rev, updatedAt: result.updatedAt, client: ctx.clientId });
+    post({ app, collection, rev: result.rev, updatedAt: result.updatedAt, client: ctx.clientId });
     return result;
   }
-  const subscribers = [];
-  if (channel) channel.onmessage = (e) => { const m = e.data; if (m && m.client !== ctx.clientId) subscribers.forEach(fn => fn(m)); };
   function subscribe(app, collection, handler) {
-    const fn = (m) => { if (m.app === app && m.collection === collection) handler(m); };
-    subscribers.push(fn);
-    return () => { const i = subscribers.indexOf(fn); if (i >= 0) subscribers.splice(i, 1); };
+    checkCollection(collection);
+    const fn = (m) => { if (m.collection !== undefined && m.app === app && m.collection === collection) handler(m); };
+    listeners.push(fn);
+    return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+  }
+  // Collections only: keys are <app>/<collection>; the _moved mark has no "/".
+  async function allCollections() {
+    return (await idbEntries('data')).filter(([k]) => k.includes('/')).map(([k, envelope]) => {
+      const i = k.indexOf('/');
+      return { app: k.slice(0, i), collection: k.slice(i + 1), envelope };
+    });
   }
   async function list(app) {
-    const d = await db();
-    const all = await new Promise((resolve, reject) => {
-      const out = [];
-      const t = d.transaction(STORE, 'readonly');
-      const req = t.objectStore(STORE).openCursor();
-      req.onsuccess = () => { const c = req.result; if (!c) return resolve(out); out.push([c.key, c.value]); c.continue(); };
-      req.onerror = () => reject(req.error);
-    });
-    const collections = all.filter(([k]) => k.startsWith(app + '/')).map(([k, env]) => ({
-      collection: k.slice(app.length + 1), schema: env.schema, version: env.version, rev: env.rev, updatedAt: env.updatedAt, items: (env.items || []).length
-    }));
+    checkApp(app);
+    const collections = (await allCollections()).filter(r => r.app === app).map(({ collection, envelope: env }) => ({
+      collection, schema: env.schema, version: env.version, rev: env.rev, updatedAt: env.updatedAt, items: (env.items || []).length
+    })).sort((a, b) => (a.collection < b.collection ? -1 : 1));
     return { app, collections };
   }
-  async function allCollections() {
-    const d = await db();
-    return new Promise((resolve, reject) => {
-      const out = [];
-      const t = d.transaction(STORE, 'readonly');
-      const req = t.objectStore(STORE).openCursor();
-      req.onsuccess = () => { const c = req.result; if (!c) return resolve(out); const [app, collection] = String(c.key).split('/'); out.push({ app, collection, envelope: c.value }); c.continue(); };
-      req.onerror = () => reject(req.error);
+
+  const view = (app, path, v) => ({ app, path, mtime: v.mtime, size: new TextEncoder().encode(v.content).length, content: v.content });
+  const files = {
+    async list(app, folder) {
+      checkApp(app);
+      const segs = checkFolder(folder);
+      const prefix = key(app, segs.length ? segs.join('/') + '/' : '');
+      return (await idbEntries('files')).filter(([k]) => k.startsWith(prefix))
+        .map(([k, v]) => ({ path: k.slice(app.length + 1), mtime: v.mtime, size: new TextEncoder().encode(v.content).length }))
+        .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    },
+    async read(app, path) {
+      checkApp(app); checkFile(path);
+      const v = await idbTx('files', 'readonly', s => reqAsPromise(s.files.get(key(app, path))));
+      return v ? view(app, path, v) : null;
+    },
+    async write(app, path, content, opts) {
+      checkApp(app); checkFile(path);
+      const o = checkWriteOpts(opts);
+      const size = checkFileContent(app, path, content);
+      const result = await idbTx('files', 'readwrite', async (s) => {
+        const cur = await reqAsPromise(s.files.get(key(app, path)));
+        if (o.create && cur) throw fileConflict(`${path} already exists.`, view(app, path, cur));
+        if (!o.create && !cur) throw fileConflict('That file is gone. It may have been moved to the trash.', null);
+        if (!o.create && cur.mtime !== o.mtime) throw fileConflict('That file changed since you loaded it. Reload and try again.', view(app, path, cur));
+        // Always later than the previous mtime, so an mtime names one version of the file.
+        const mtime = Math.max(nowMs(), cur ? cur.mtime + 1 : 0);
+        s.files.put({ content, mtime }, key(app, path));
+        return { app, path, mtime, size };
+      });
+      post({ app, path, mtime: result.mtime, client: ctx.clientId });
+      return result;
+    },
+    async trash(app, path, opts) {
+      checkApp(app); checkFile(path);
+      const want = opts && typeof opts.mtime === 'number' ? opts.mtime : null;
+      const stamp = trashStamp(new Date(nowMs()));
+      const result = await idbTx(['files', 'trash'], 'readwrite', async (s) => {
+        const cur = await reqAsPromise(s.files.get(key(app, path)));
+        if (!cur) throw new WorkshopError('not_found', `${app} has no file ${path}.`, 404);
+        if (want !== null && cur.mtime !== want) throw fileConflict('That file changed since you loaded it. Reload and try again.', view(app, path, cur));
+        let tkey = `${key(app, path)}.${stamp}`;
+        for (let i = 1; await reqAsPromise(s.trash.get(tkey)); i++) tkey = `${key(app, path)}.${stamp}-${i}`;
+        s.trash.put(Object.assign({ app, path, trashedAt: new Date(nowMs()).toISOString() }, cur), tkey);
+        s.files.delete(key(app, path));
+        return { app, path, trash: `.trash/${tkey}` };
+      });
+      post({ app, path, mtime: null, client: ctx.clientId });
+      return result;
+    },
+    subscribe(app, target, handler) {
+      const fn = (m) => { if (m.path !== undefined && m.app === app && coversPath(target, m.path)) handler(m); };
+      listeners.push(fn);
+      return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+    },
+    async all() { return (await idbEntries('files')).map(([k, v]) => { const i = k.indexOf('/'); return { app: k.slice(0, i), path: k.slice(i + 1), content: v.content }; }); }
+  };
+
+  return {
+    kind: 'browser', storage: 'indexeddb', get, put, list, subscribe, files, allCollections, connectorsAvailable: false,
+    online: false, onOnline() { return () => {}; }
+  };
+}
+
+/* ---------- browser backend, folder store (docs/run-modes.md, Folder store) ----------
+   Reads and writes a folder the user picked in Chrome, through the File System Access API, with the same
+   layout and rules as the agent's data folder. `root` is a FileSystemDirectoryHandle (or anything with the
+   same methods; tests pass an in-memory one). Before every write the file is read and checked, and just before
+   writing its lastModified is read again; if it changed in between, the write starts over. Changes made
+   outside this origin are found by checking lastModified of what the page subscribed to, every 5 seconds
+   while the page is visible and whenever it becomes visible. */
+const POLL_MS = 5000;
+const RESTARTS = 5;
+const SAME_MTIME_WAITS = [2, 20, 1100, 2100]; // a file system that keeps the old modified time: write again later
+const isMissing = (e) => e && (e.name === 'NotFoundError' || e.name === 'TypeMismatchError');
+const isDenied = (e) => e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+const sameTime = (a, b) => (a === null ? null : a) === (b === null ? null : b);
+
+function makeFolderStore(ctx, root, opts = {}) {
+  const channel = opts.channel !== undefined ? opts.channel : newChannel();
+  const nowMs = opts.now || (() => Date.now());
+  const sleep = opts.sleep || ((ms) => new Promise(r => setTimeout(r, ms)));
+  const lockFn = opts.lock || webLock;
+  const name = root.name || null;
+  let permission = opts.permission || 'granted';
+  let missing = false;
+  const onlineListeners = new Set();
+  const isOnline = () => permission === 'granted' && !missing;
+  let wasOnline = isOnline();
+  const announce = () => { const now = isOnline(); if (now !== wasOnline) { wasOnline = now; onlineListeners.forEach(fn => fn({ online: now })); } };
+
+  /* -- paths -- */
+  const relKey = (segs) => segs.join('/');
+  async function dirAt(segs, create) { let d = root; for (const s of segs) d = await d.getDirectoryHandle(s, { create }); return d; }
+  async function fileHandle(segs, create) {
+    try { return await (await dirAt(segs.slice(0, -1), create)).getFileHandle(segs[segs.length - 1], { create }); }
+    catch (e) { if (!create && isMissing(e) && await rootAlive()) return null; throw e; }
+  }
+  async function stat(segs) { const h = await fileHandle(segs, false); return h ? h.getFile() : null; }
+  async function exists(segs) { return (await stat(segs).catch(e => { if (isMissing(e)) return null; throw e; })) !== null; }
+  async function writeData(segs, data) {
+    const existed = await fileHandle(segs, false);
+    const h = existed || await fileHandle(segs, true);
+    try {
+      const w = await h.createWritable(); // writes a temporary file, moved into place on close: atomic
+      try { await w.write(data); await w.close(); } catch (e) { try { await w.abort(); } catch (x) { /* closed */ } throw e; }
+    } catch (e) {
+      // Creating the handle made an empty file; a failed first write must not leave it behind as a damaged collection.
+      if (!existed) { try { await (await dirAt(segs.slice(0, -1), false)).removeEntry(segs[segs.length - 1]); } catch (x) { /* already gone */ } }
+      throw e;
+    }
+    return h.getFile();
+  }
+
+  /* -- access: every call goes through here -- */
+  async function rootAlive() {
+    try { const it = root.values(); await it.next(); if (it.return) await it.return(); return true; } catch (e) { return !isMissing(e); }
+  }
+  const unavailable = () => new WorkshopError('unavailable', missing
+    ? `The folder ${name || ''} is gone. It may have been moved, renamed or deleted. Choose it again in Settings.`
+    : `Workshop needs your permission to use the folder ${name || ''}. Click Allow in the bar at the top of Workshop.`, 503);
+  async function access(fn) {
+    if (!isOnline()) throw unavailable();
+    try { return await fn(); }
+    catch (e) {
+      if (e instanceof WorkshopError) throw e;
+      if (isDenied(e)) { await recheck(); throw unavailable(); }
+      if (isMissing(e) && !(await rootAlive())) { missing = true; announce(); throw unavailable(); }
+      throw new WorkshopError('internal', `The folder could not be read or written: ${e && e.message ? e.message : e}`);
+    }
+  }
+  async function recheck() {
+    try { permission = await root.queryPermission({ mode: 'readwrite' }); } catch (e) { permission = 'denied'; }
+    missing = permission === 'granted' ? !(await rootAlive()) : false;
+    announce();
+    return isOnline();
+  }
+
+  /* -- one writer per path: across tabs with Web Locks, else within this page -- */
+  const withLock = (k, fn) => lockFn('workshop-folder ' + (name || '') + ' ' + k, fn);
+
+  /* -- change tracking: our own writes, and outside changes for subscriptions -- */
+  const own = new Map(); // relKey -> lastModified we (or a tab of this origin) wrote, or null for gone
+  const watches = new Set();
+  const listeners = [];
+  const post = (m) => { if (channel) channel.postMessage(m); };
+  if (channel) channel.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!m) return;
+    if (m.folder === 'granted' && !isOnline()) { recheck(); return; }
+    if (m.client === ctx.clientId || m.app === undefined) return;
+    listeners.forEach(fn => fn(m));
+    // Another tab wrote it: learn the new modified time, so the outside-change check does not report it again.
+    let segs;
+    try { segs = m.collection !== undefined ? collectionSegs(m.app, m.collection) : [m.app, ...checkFile(m.path)]; } catch (x) { return; }
+    stat(segs).then(f => own.set(relKey(segs), f ? f.lastModified : null), () => {});
+  });
+
+  /* -- reading -- */
+  function collectionSegs(app, collection) { const segs = [app, ...checkCollection(collection)]; segs[segs.length - 1] += '.json'; return segs; }
+  // {env, text, lm} for the collection, or {env: null, lm: null}. Anything at that path that is not this collection: 500.
+  async function readCollection(app, collection, segs) {
+    const f = await stat(segs);
+    if (!f) return { env: null, text: null, lm: null };
+    const text = await f.text();
+    let env;
+    try { env = JSON.parse(text.replace(/^﻿/, '')); } catch (e) { env = undefined; }
+    const ok = env && typeof env === 'object' && !Array.isArray(env) && env.schema === `${app}.${collection}`
+      && Number.isInteger(env.version) && env.version >= 1 && Number.isInteger(env.rev) && env.rev >= 0 && Array.isArray(env.items);
+    if (!ok) throw new WorkshopError('internal', `${app}/${collection}.json cannot be read as a collection. Workshop left it untouched; fix or move the file.`, 500);
+    return { env, text, lm: f.lastModified };
+  }
+
+  async function get(app, collection) {
+    checkApp(app);
+    const segs = collectionSegs(app, collection);
+    return access(async () => (await readCollection(app, collection, segs)).env);
+  }
+
+  async function put(app, collection, envelope) {
+    checkApp(app);
+    const segs = collectionSegs(app, collection);
+    checkEnvelope(app, collection, envelope);
+    const result = await access(() => withLock(relKey(segs), async () => {
+      for (let attempt = 0; ; attempt++) {
+        const first = await readCollection(app, collection, segs);
+        const storedRev = first.env ? first.env.rev : 0;
+        if (envelope.rev !== storedRev) throw collectionConflict(first.env || { schema: envelope.schema, version: envelope.version, rev: 0, items: [] });
+        if (first.env && envelope.version < first.env.version) throw downgrade(first.env.version, envelope.version);
+        if (first.env && envelope.version > first.env.version) await backup(segs, first.text, first.env.version);
+        const next = storedEnvelope(envelope, storedRev + 1, new Date(nowMs()).toISOString());
+        // Changed since we read it (the agent, another program, a tab on another origin)? Start over with the new file.
+        const again = await stat(segs);
+        if (!sameTime(again ? again.lastModified : null, first.lm)) {
+          if (attempt < RESTARTS) continue;
+          throw collectionConflict((await readCollection(app, collection, segs)).env || { schema: envelope.schema, version: envelope.version, rev: 0, items: [] });
+        }
+        const f = await writeData(segs, JSON.stringify(next, null, 2) + '\n');
+        own.set(relKey(segs), f.lastModified);
+        return { rev: next.rev, updatedAt: next.updatedAt };
+      }
+    }));
+    post({ app, collection, rev: result.rev, updatedAt: result.updatedAt, client: ctx.clientId });
+    return result;
+  }
+
+  // <folder>/.backups/<yyyy-mm-dd>/<app>/<collection>.v<old>.json, never overwritten (docs/data-format.md, Migrations rule 5).
+  async function backup(segs, text, oldVersion) {
+    const dest = ['.backups', new Date(nowMs()).toISOString().slice(0, 10), ...segs];
+    dest[dest.length - 1] = dest[dest.length - 1].replace(/\.json$/, `.v${oldVersion}.json`);
+    if (await exists(dest)) return;
+    await writeData(dest, text);
+  }
+
+  // Every visible .md and .json file under <app>/<folder>, at every depth: [{path, file}], sorted.
+  async function walk(app, folderSegs) {
+    const out = [];
+    let start;
+    try { start = await dirAt([app, ...folderSegs], false); } catch (e) { if (isMissing(e) && await rootAlive()) return out; throw e; }
+    const visit = async (dir, parts) => {
+      for await (const [entry, h] of dir.entries()) {
+        if (entry.startsWith('.')) continue;
+        if (h.kind === 'directory') { if (SEG_RE.test(entry) && parts.length < MAX_SEGS - 1) await visit(h, [...parts, entry]); }
+        else if (FILE_RE.test(entry)) out.push({ path: [...parts, entry].join('/'), file: await h.getFile() });
+      }
+    };
+    await visit(start, folderSegs);
+    return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  }
+  // Is this .json file a collection? Cached per modified time, so the 5-second check reads only changed files.
+  const kinds = new Map();
+  async function isCollectionFile(app, path, file) {
+    if (!path.endsWith('.json')) return false;
+    if (file.size > FILE_MAX) return false;
+    const k = `${app}/${path}`, hit = kinds.get(k);
+    if (hit && hit.lm === file.lastModified) return hit.collection;
+    const collection = isCollectionText(app, path, await file.text());
+    kinds.set(k, { lm: file.lastModified, collection });
+    return collection;
+  }
+
+  async function list(app) {
+    checkApp(app);
+    return access(async () => {
+      const collections = [];
+      for (const { path, file } of await walk(app, [])) {
+        if (!(await isCollectionFile(app, path, file))) continue;
+        const collection = path.slice(0, -5);
+        let r;
+        try { r = await readCollection(app, collection, [app, ...path.split('/')]); } catch (e) { continue; } // damaged: left out
+        if (!r.env || typeof r.env.updatedAt !== 'string' || r.env.rev < 1) continue;
+        collections.push({ collection, schema: r.env.schema, version: r.env.version, rev: r.env.rev, updatedAt: r.env.updatedAt, items: r.env.items.length });
+      }
+      return { app, collections };
     });
   }
-  return { kind: 'browser', get, put, subscribe, list, allCollections, connectorsAvailable: false };
+  async function allCollections() {
+    return access(async () => {
+      const out = [];
+      for await (const [entry, h] of root.entries()) {
+        if (h.kind !== 'directory' || !APP_RE.test(entry)) continue;
+        for (const c of (await list(entry)).collections) {
+          const env = await get(entry, c.collection);
+          if (env) out.push({ app: entry, collection: c.collection, envelope: env });
+        }
+      }
+      return out.sort((a, b) => (a.app + '/' + a.collection < b.app + '/' + b.collection ? -1 : 1));
+    });
+  }
+
+  function subscribe(app, collection, handler) {
+    const segs = collectionSegs(app, collection);
+    const fn = (m) => { if (m.collection !== undefined && m.app === app && m.collection === collection) handler(m); };
+    listeners.push(fn);
+    const w = { paths: async () => { const f = await stat(segs); return new Map([[relKey(segs), f ? f.lastModified : null]]); },
+      fire: () => handler({ app, collection, rev: null, updatedAt: null, client: null }) };
+    return watch(w, fn);
+  }
+
+  /* -- files -- */
+  // The file as {app, path, mtime, size, content}, or null. tooLarge: content '' (the conflict view still describes it).
+  async function current(app, path, segs) {
+    const f = await stat(segs);
+    if (!f) return null;
+    const v = { app, path, mtime: f.lastModified, size: f.size };
+    if (f.size > FILE_MAX) return Object.assign(v, { content: '', tooLarge: true, file: f });
+    const content = await f.text();
+    if (isCollectionText(app, path, content)) throw bad(`${path} is a collection. Use ws.data for it.`);
+    return Object.assign(v, { content, file: f });
+  }
+  const plain = (c) => { if (!c) return null; const { tooLarge, file, ...rest } = c; return rest; };
+
+  const files = {
+    async list(app, folder) {
+      checkApp(app);
+      const fsegs = checkFolder(folder);
+      return access(async () => {
+        const out = [];
+        for (const { path, file } of await walk(app, fsegs)) {
+          if (await isCollectionFile(app, path, file)) continue;
+          out.push({ path, mtime: file.lastModified, size: file.size });
+        }
+        return out;
+      });
+    },
+    async read(app, path) {
+      checkApp(app);
+      const segs = [app, ...checkFile(path)];
+      return access(async () => {
+        const c = await current(app, path, segs);
+        if (c && c.tooLarge) throw new WorkshopError('too_large', `${path} is larger than 10 MB, so Workshop does not read it.`, 413);
+        return plain(c);
+      });
+    },
+    async write(app, path, content, opts) {
+      checkApp(app);
+      const segs = [app, ...checkFile(path)];
+      const o = checkWriteOpts(opts);
+      const size = checkFileContent(app, path, content);
+      const result = await access(() => withLock(relKey(segs), async () => {
+        for (let attempt = 0; ; attempt++) {
+          const cur = await current(app, path, segs);
+          if (o.create && cur) throw fileConflict(`${path} already exists.`, plain(cur));
+          if (!o.create && !cur) throw fileConflict('That file is gone. It may have been moved to the trash.', null);
+          if (!o.create && cur.mtime !== o.mtime) throw fileConflict('That file changed since you loaded it. Reload and try again.', plain(cur));
+          const again = await stat(segs);
+          if (!sameTime(again ? again.lastModified : null, cur ? cur.mtime : null)) {
+            if (attempt < RESTARTS) continue;
+            throw fileConflict('That file keeps changing. Reload and try again.', plain(await current(app, path, segs)));
+          }
+          let f = await writeData(segs, content);
+          // An mtime must name one version: if the file system kept the old time, write again a little later.
+          for (const ms of SAME_MTIME_WAITS) {
+            if (!cur || f.lastModified !== cur.mtime) break;
+            await sleep(ms);
+            f = await writeData(segs, content);
+          }
+          own.set(relKey(segs), f.lastModified);
+          return { app, path, mtime: f.lastModified, size };
+        }
+      }));
+      post({ app, path, mtime: result.mtime, client: ctx.clientId });
+      return result;
+    },
+    async trash(app, path, opts) {
+      checkApp(app);
+      const segs = [app, ...checkFile(path)];
+      const want = opts && typeof opts.mtime === 'number' ? opts.mtime : null;
+      const result = await access(() => withLock(relKey(segs), async () => {
+        const cur = await current(app, path, segs);
+        if (!cur) throw new WorkshopError('not_found', `${app} has no file ${path}.`, 404);
+        if (want !== null && cur.mtime !== want) throw fileConflict('That file changed since you loaded it. Reload and try again.', plain(cur));
+        const m = /^(.*)\.(md|json)$/.exec(relKey(segs));
+        const base = `.trash/${m[1]}.${trashStamp(new Date(nowMs()))}`;
+        let dest = `${base}.${m[2]}`;
+        for (let i = 1; await exists(dest.split('/')); i++) dest = `${base}-${i}.${m[2]}`;
+        // Copy into the trash first, then remove the original: the file is never lost, only moved.
+        await writeData(dest.split('/'), cur.file);
+        await (await dirAt(segs.slice(0, -1), false)).removeEntry(segs[segs.length - 1]);
+        own.set(relKey(segs), null);
+        return { app, path, trash: dest };
+      }));
+      post({ app, path, mtime: null, client: ctx.clientId });
+      return result;
+    },
+    subscribe(app, target, handler) {
+      checkApp(app);
+      const asFile = isFilePath(target);
+      const tsegs = asFile ? checkFile(target) : checkFolder(target);
+      const t = tsegs.join('/');
+      const fn = (m) => { if (m.path !== undefined && m.app === app && coversPath(t, m.path)) handler(m); };
+      listeners.push(fn);
+      const w = {
+        paths: async () => {
+          const out = new Map();
+          if (asFile) { const f = await stat([app, ...tsegs]); out.set(`${app}/${t}`, f ? f.lastModified : null); return out; }
+          for (const { path, file } of await walk(app, tsegs)) if (!(await isCollectionFile(app, path, file))) out.set(`${app}/${path}`, file.lastModified);
+          return out;
+        },
+        fire: (k, lm) => handler({ app, path: k.slice(app.length + 1), mtime: lm, client: null })
+      };
+      return watch(w, fn);
+    },
+    async all() {
+      // Every file of every app (for tests and diagnostics).
+      return access(async () => {
+        const out = [];
+        for await (const [entry, h] of root.entries()) {
+          if (h.kind !== 'directory' || !APP_RE.test(entry)) continue;
+          for (const f of await files.list(entry)) out.push({ app: entry, path: f.path, content: (await files.read(entry, f.path)).content });
+        }
+        return out;
+      });
+    }
+  };
+
+  /* -- the outside-change check -- */
+  function watch(w, fn) {
+    w.seen = null;
+    watches.add(w);
+    // Learn where things stand now; changes after this are reported.
+    if (isOnline()) w.paths().then(p => { if (!w.seen) w.seen = p; }, () => {});
+    startTimer();
+    return () => { watches.delete(w); const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+  }
+  let checking = null;
+  // One check: permission if it was lost, then the modified time of everything subscribed to.
+  function poll() {
+    if (checking) return checking;
+    checking = (async () => {
+      if (!isOnline()) { if (!(await recheck())) return; }
+      for (const w of [...watches]) {
+        let now;
+        try { now = await w.paths(); } catch (e) {
+          if (isDenied(e)) { await recheck(); return; }
+          if (isMissing(e) && !(await rootAlive())) { missing = true; announce(); return; }
+          continue;
+        }
+        if (!w.seen) { w.seen = now; continue; }
+        const keys = [...new Set([...w.seen.keys(), ...now.keys()])].sort();
+        for (const k of keys) {
+          const before = w.seen.has(k) ? w.seen.get(k) : null, after = now.has(k) ? now.get(k) : null;
+          if (sameTime(before, after)) continue;
+          // Our own write (or another tab's, already reported over the channel): nothing to tell.
+          if (own.has(k) && sameTime(own.get(k), after)) continue;
+          w.fire(k, after);
+        }
+        w.seen = now;
+      }
+    })().finally(() => { checking = null; });
+    return checking;
+  }
+  let timer = null;
+  const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+  function startTimer() {
+    if (timer || opts.timers === false) return;
+    timer = setInterval(() => { if (visible()) poll(); }, POLL_MS);
+    if (timer && timer.unref) timer.unref();
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (visible()) poll(); });
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('focus', () => poll());
+  }
+  // Without subscriptions, still notice when access comes back (for example the shell's Allow button).
+  if (!isOnline()) startTimer();
+
+  return {
+    kind: 'browser', storage: 'folder', name, get, put, list, subscribe, files, allCollections, connectorsAvailable: false,
+    get online() { return isOnline(); },
+    onOnline(fn) { onlineListeners.add(fn); return () => onlineListeners.delete(fn); },
+    get permission() { return permission; },
+    get missing() { return missing; },
+    recheck, poll,
+    async allow() {
+      try { permission = await root.requestPermission({ mode: 'readwrite' }); } catch (e) { permission = 'denied'; }
+      missing = permission === 'granted' ? !(await rootAlive()) : false;
+      announce();
+      if (isOnline()) post({ folder: 'granted' });
+      return isOnline();
+    }
+  };
+}
+
+// Web Locks when the browser has them (one writer per path across tabs of this origin), else a queue per page.
+const pageLocks = new Map();
+function webLock(name, fn) {
+  if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request) return navigator.locks.request(name, fn);
+  const prev = pageLocks.get(name) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.catch(() => {});
+  pageLocks.set(name, tail);
+  tail.then(() => { if (pageLocks.get(name) === tail) pageLocks.delete(name); });
+  return run;
+}
+
+/* ---------- moving the IndexedDB store into a folder (docs/run-modes.md) ----------
+   source: {collections(), files(), moved(), markMoved(mark)}; target: a folder store. Collections are created
+   if missing or merged and put; files are created if missing, and a different file already in the folder is
+   kept with the browser's copy written beside it as <name>-from-browser.<ext>. The source is never changed
+   except for the mark. Returns a summary for Settings. */
+async function moveIntoFolder({ source, target, folderName, now = () => Date.now() }) {
+  const summary = { folder: folderName || null, alreadyMoved: false, collections: { created: [], merged: [], skipped: [] }, files: { created: [], same: [], renamed: [] } };
+  if (await source.moved()) { summary.alreadyMoved = true; return summary; }
+  for (const { app, collection, envelope } of await source.collections()) {
+    const name = `${app}/${collection}`;
+    const existing = await target.get(app, collection);
+    if (!existing) {
+      const env = clone(envelope); env.rev = 0;
+      await putMerging(target, app, collection, env);
+      summary.collections.created.push(name);
+    } else if (existing.version !== envelope.version) {
+      summary.collections.skipped.push({ name, reason: `the folder has version ${existing.version}, this browser has version ${envelope.version}` });
+    } else {
+      const combined = mergeEnvelopes(envelope, existing);
+      combined.rev = existing.rev;
+      await putMerging(target, app, collection, combined);
+      summary.collections.merged.push(name);
+    }
+  }
+  for (const { app, path, content } of await source.files()) {
+    const there = await target.files.read(app, path);
+    if (!there) { await target.files.write(app, path, content, { create: true }); summary.files.created.push(`${app}/${path}`); continue; }
+    if (there.content === content) { summary.files.same.push(`${app}/${path}`); continue; }
+    const m = /^(.*\/)?([^/]+)\.(md|json)$/.exec(path);
+    for (let i = 1; ; i++) {
+      const suffix = i === 1 ? '-from-browser' : `-from-browser-${i}`;
+      const alt = `${m[1] || ''}${m[2].slice(0, 40 - suffix.length)}${suffix}.${m[3]}`;
+      try {
+        await target.files.write(app, alt, content, { create: true });
+        summary.files.renamed.push({ from: `${app}/${path}`, to: `${app}/${alt}` });
+        break;
+      } catch (e) { if (!(e instanceof WorkshopError && e.code === 'conflict')) throw e; }
+    }
+  }
+  await source.markMoved({ movedTo: folderName || null, movedAt: new Date(now()).toISOString() });
+  return summary;
+}
+async function putMerging(target, app, collection, envelope) {
+  try { return await target.put(app, collection, envelope); }
+  catch (e) {
+    if (e instanceof WorkshopError && e.code === 'conflict' && e.current) {
+      const combined = e.current.rev ? mergeEnvelopes(envelope, e.current) : clone(envelope);
+      combined.rev = e.current.rev;
+      return target.put(app, collection, combined);
+    }
+    throw e;
+  }
+}
+// The IndexedDB store as a source for moveIntoFolder.
+function idbSource(store) {
+  return {
+    collections: () => store.allCollections(),
+    files: () => store.files.all(),
+    moved: () => idbMoved(),
+    markMoved: (mark) => idbTx('data', 'readwrite', s => { s.data.put(mark, '_moved'); })
+  };
 }
 
 /* ---------- event stream (agent backend) ----------
@@ -323,7 +1015,7 @@ function eventHub(ctx) {
       if (ctx.mode === 'hosted' && ctx.token) u.searchParams.set('token', ctx.token);
       try { source = new EventSource(u.toString(), { withCredentials: ctx.mode === 'local' }); } catch (e) { announce(false); return later(); }
       source.addEventListener('open', () => announce(true));
-      for (const name of ['data', 'connector', 'connector-status', 'config']) {
+      for (const name of ['data', 'file', 'connector', 'connector-status', 'config']) {
         source.addEventListener(name, (e) => { const p = parse(e.data); if (p) { deliver(name, p); relay({ name, payload: p }); } });
       }
       source.addEventListener('error', () => { announce(false); try { source.close(); } catch (e) { /* closed */ } later(); });
@@ -368,6 +1060,9 @@ function makeEventStream(ctx) {
     onData(app, collection, handler) {
       // Writes made through this ws carry its client id and are not reported back to it.
       return on((name, p) => { if (name === 'data' && p.app === app && p.collection === collection && p.client !== ctx.clientId) handler(p); });
+    },
+    onFile(app, target, handler) {
+      return on((name, p) => { if (name === 'file' && p.app === app && coversPath(target, p.path) && p.client !== ctx.clientId) handler(p); });
     },
     onConnector(id, event, fn) { return on((name, p) => { if (name === 'connector' && p.id === id && (event === '*' || p.event === event)) fn(p); }); },
     onStatus(id, fn) { return on((name, p) => { if (name === 'connector-status' && p.id === id) fn(p.status); }); },
@@ -478,6 +1173,41 @@ function makeShellChannel(ctx) {
   return { embedded, request, emit, on(event, fn) { (eventHandlers[event] ||= []).push(fn); return () => { const a = eventHandlers[event]; const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); }; } };
 }
 
+/* ---------- the browser backend's store: folder if one is saved, else IndexedDB ---------- */
+async function openBrowserStore(ctx, opts = {}) {
+  const handle = opts.handle !== undefined ? opts.handle : await savedFolderHandle();
+  if (handle) {
+    let permission;
+    try { permission = await handle.queryPermission({ mode: 'readwrite' }); } catch (e) { permission = 'denied'; }
+    const store = makeFolderStore(ctx, handle, Object.assign({ permission }, opts.folder));
+    if (permission === 'granted') await store.recheck(); // notices a folder that is gone
+    return store;
+  }
+  return makeIdbStore(ctx, opts.idb);
+}
+
+// Folder access for the shell's bar (docs/run-modes.md, Access), without connecting as an app.
+// {storage, name, permission, missing}; storage is 'folder' or 'indexeddb'. Browser backend only.
+export async function folderState() {
+  const handle = await savedFolderHandle();
+  if (!handle) return { storage: 'indexeddb', name: null, permission: null, missing: false };
+  const store = await openBrowserStore({ clientId: randomId('w-') }, { handle, folder: { timers: false, channel: null } });
+  return { storage: 'folder', name: store.name, permission: store.permission, missing: store.missing };
+}
+// Call only from a click. Asks Chrome again for the saved folder; tells every app on this origin when it works.
+export async function allowFolder() {
+  const handle = await savedFolderHandle();
+  if (!handle) throw new WorkshopError('unavailable', 'No folder is chosen. Choose one in Settings.');
+  const channel = newChannel();
+  const store = makeFolderStore({ clientId: randomId('w-') }, handle, { permission: 'prompt', timers: false, channel });
+  await store.allow();
+  if (channel) setTimeout(() => channel.close(), 1000);
+  return { storage: 'folder', name: store.name, permission: store.permission, missing: store.missing };
+}
+
+const MOVE_SUMMARY_KEY = 'workshop.folder.moved';
+function reloadAll() { try { (window.top || window).location.reload(); } catch (e) { location.reload(); } }
+
 /* ---------- connect ---------- */
 export async function connect(options) {
   const app = options && options.app;
@@ -492,9 +1222,18 @@ export async function connect(options) {
     token: picked.token,
     clientId: randomId('w-')
   };
-  ctx.events = (picked.backend === 'agent') ? makeEventStream(ctx) : { get online() { return false; }, onData() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onOnline() { return () => {}; } };
-  const data = (picked.backend === 'agent') ? makeAgentBackend(ctx) : makeBrowserBackend(ctx);
+  const noEvents = { get online() { return false; }, onData() { return () => {}; }, onFile() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onOnline() { return () => {}; } };
+  ctx.events = (picked.backend === 'agent') ? makeEventStream(ctx) : noEvents;
+  const data = (picked.backend === 'agent') ? makeAgentBackend(ctx) : await openBrowserStore(ctx);
+  // ws.online and online events: the agent's event stream, or the folder's access.
+  const status = data.kind === 'agent' ? ctx.events : data;
   const shell = makeShellChannel(ctx);
+
+  // Another tab chose a folder: every tab switches together (docs/run-modes.md, Picking a folder).
+  if (data.kind === 'browser') {
+    const ch = newChannel();
+    if (ch) ch.addEventListener('message', (e) => { if (e.data && e.data.folder === 'reload' && e.data.client !== ctx.clientId) reloadAll(); });
+  }
 
   // Tell the shell the app is ready and learn the initial theme/route/visibility.
   let initial = { theme: null, route: '', visible: true };
@@ -513,13 +1252,14 @@ export async function connect(options) {
     if (t && t.key && root.hasAttribute('data-theme')) root.dataset.theme = t.key;
   });
 
-  // Wire online events: from the event stream (agent) or never (browser).
-  ctx.events.onOnline((p) => shell.emit('online', p));
+  // Wire online events: from the event stream (agent) or the folder's access (browser).
+  status.onOnline((p) => shell.emit('online', p));
 
   const ws = {
     get mode() { return ctx.mode; },
     get backend() { return ctx.backend; },
-    get online() { return ctx.events.online; },
+    get storage() { return data.storage; },
+    get online() { return status.online; },
     get embedded() { return shell.embedded; },
 
     /* shell */
@@ -587,6 +1327,59 @@ export async function connect(options) {
       }
     },
 
+    /* files (docs/sdk.md, Files): this app writes only its own files; any app's files can be read */
+    files: {
+      list(folder, opts) { return data.files.list((opts && opts.app) || app, folder); },
+      read(path, opts) { return data.files.read((opts && opts.app) || app, path); },
+      write(path, content, opts) { return data.files.write(app, path, content, opts); },
+      trash(path, opts) { return data.files.trash(app, path, opts); },
+      subscribe(pathOrFolder, handler, opts) { return data.files.subscribe((opts && opts.app) || app, pathOrFolder || '', handler); }
+    },
+
+    /* the data folder (docs/sdk.md, Folder): for the shell and the Settings app */
+    folder: {
+      async status() {
+        if (data.kind === 'agent') {
+          let name = null;
+          try { name = (await agentCall(ctx, 'GET', '/api/config')).dataDir || null; } catch (e) { /* not reachable */ }
+          return { storage: 'agent', name, permission: null, moved: false, missing: false };
+        }
+        const moved = Boolean(await idbMoved());
+        if (data.storage === 'folder') return { storage: 'folder', name: data.name, permission: data.permission, moved, missing: data.missing };
+        return { storage: 'indexeddb', name: null, permission: null, moved, missing: false };
+      },
+      async choose(opts) {
+        if (data.kind === 'agent') throw new WorkshopError('unavailable', 'Workshop is running on this computer: change its data folder in Settings instead.');
+        const picker = (opts && opts.picker) || (typeof window !== 'undefined' && window.showDirectoryPicker);
+        if (typeof picker !== 'function') throw new WorkshopError('unavailable', 'This browser cannot use a folder. Use Chrome.');
+        let dir;
+        try { dir = await picker.call(typeof window !== 'undefined' ? window : undefined, { id: 'workshop', mode: 'readwrite' }); }
+        catch (e) { if (e && e.name === 'AbortError') throw bad('No folder was chosen.'); throw new WorkshopError('internal', `Chrome could not open that folder: ${e && e.message ? e.message : e}`); }
+        let permission;
+        try { permission = await dir.requestPermission({ mode: 'readwrite' }); } catch (e) { permission = 'denied'; }
+        if (permission !== 'granted') throw bad('Workshop needs permission to read and write that folder.');
+        // Copy this browser's IndexedDB data in (kept, and marked moved), then use the folder from now on.
+        const idb = data.storage === 'indexeddb' ? data : makeIdbStore(ctx, { channel: null });
+        const target = makeFolderStore({ clientId: ctx.clientId }, dir, { timers: false, channel: null });
+        const summary = await moveIntoFolder({ source: idbSource(idb), target, folderName: dir.name });
+        await saveFolderHandle(dir);
+        try { sessionStorage.setItem(MOVE_SUMMARY_KEY, JSON.stringify(summary)); } catch (e) { /* no session storage: Settings shows no summary */ }
+        const ch = newChannel();
+        if (ch) { ch.postMessage({ folder: 'reload', client: ctx.clientId }); setTimeout(() => ch.close(), 1000); }
+        if (!(opts && opts.reload === false)) reloadAll();
+        return summary;
+      },
+      async allow() {
+        if (data.storage !== 'folder') throw new WorkshopError('unavailable', 'No folder is chosen. Choose one in Settings.');
+        await data.allow();
+        return ws.folder.status();
+      },
+      // What the last choose() copied, once, after its reload. For the Settings app.
+      lastMove() {
+        try { const raw = sessionStorage.getItem(MOVE_SUMMARY_KEY); sessionStorage.removeItem(MOVE_SUMMARY_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+      }
+    },
+
     /* connectors */
     connectors: {
       async list() {
@@ -611,12 +1404,13 @@ export async function connect(options) {
     config: {
       // The public view of config.json (GET /api/config).
       get() { return agentCall(ctx, 'GET', '/api/config'); },
-      // Change features, allowedOrigins, connectors on/off or port. Resolves {config, restartRequired}.
+      // Change features, allowedOrigins, connectors on/off, the port or dataDir. Resolves {config, restartRequired}.
       put(patch) { return agentCall(ctx, 'PUT', '/api/config', patch); }
     }
   };
   return ws;
 }
+
 
 // One JSON request to the agent with the token header. Rejects with code unavailable in browser mode.
 async function agentCall(ctx, method, pathname, body) {
@@ -656,4 +1450,7 @@ export const data = { merge: mergeEnvelopes, stamp: stampEnvelope };
 
 export { pickBackend as detectBackend };
 
-export default { connect, WorkshopError, data, detectBackend: pickBackend };
+// Internals for tests (shared/test/): the stores against any directory handle, and the move from IndexedDB.
+export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore };
+
+export default { connect, WorkshopError, data, detectBackend: pickBackend, folderState, allowFolder };

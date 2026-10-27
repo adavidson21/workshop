@@ -7,7 +7,7 @@ import { engOpen } from './eng.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
-import { canonPerson, commit, inScope, saveUi, scopeListIds, state, ui } from './state.js';
+import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
@@ -46,7 +46,7 @@ document.addEventListener('click', e => {
   if (t.closest('#menuBtn')){ mobileOpen = true; applySide(); const f = $('#snav .sitem'); if (f) f.focus(); return; }
   if (t.closest('#scrim')){ closeSide(); return; }
   if (t.closest('#dscrim')){ closeDrawer(); return; }
-  if (t.closest('#addList')){ askText('New list', '', name => { const n = {id: uid(), name, parentId: null}; state.lists.push(n); state.scope = n.id; commit(); }, 'Create'); return; }
+  if (t.closest('#addList')){ if (isWaiting()) return; askText('New list', '', name => { const n = {id: uid(), name, parentId: null}; state.lists.push(n); state.scope = n.id; commit(); }, 'Create'); return; }
   if (t.closest('#syncBtn')){ onSyncClick(t.closest('#syncBtn')); return; }
   if (t.closest('#adoBtn')){ onAdoClick(t.closest('#adoBtn')); return; }
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }

@@ -68,3 +68,9 @@ label.btn{cursor:pointer}
 
 /* hosted: read only */
 .ro .cfg-input:disabled,.ro input:disabled{opacity:.75}
+
+/* data folder */
+[data-folder] p{margin:.3rem 0;font-size:.9rem}
+.moved{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:.5rem .8rem;margin:.3rem 0 .7rem;background:var(--sunk);font-size:.86rem}
+.moved ul{margin:.3rem 0;padding-left:1.2rem}
+.moved p{margin:.2rem 0}
