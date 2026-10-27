@@ -4,7 +4,7 @@ import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
 import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
 import { app, drawer, main, render, sel, setSel } from './render.js';
-import { canonPerson, commit, findTask, orderedLists, save, scopeOpen, state } from './state.js';
+import { canonPerson, commit, findTask, isWaiting, orderedLists, save, scopeOpen, state } from './state.js';
 import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
@@ -33,7 +33,7 @@ function moveSel(d){
 let drawerId = null, drawerReturn = null, textTimer = null;
 const drawerOverlay = () => drawerId && innerWidth < 1100;
 function openDrawer(id, focusTitle = true){
-  if (!findTask(id)) return;
+  if (isWaiting() || !findTask(id)) return;
   if (!drawerId) drawerReturn = document.activeElement;
   drawerId = id; setSel(id);
   app.classList.add('drawer-open');

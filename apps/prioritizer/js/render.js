@@ -5,8 +5,9 @@ import { engChip } from './eng.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
 import { renderReports, rpHead } from './reports.js';
-import { childrenOf, commit, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
+import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
+import { embedded, ws } from './ws.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
@@ -29,6 +30,7 @@ function setScope(id){
   state.scope = id; sel = null; closeSide(); commit();
 }
 function render(){
+  if (isWaiting()) return renderWaiting();
   renderSide();
   renderHead();
   const v = state.view;
@@ -41,6 +43,20 @@ function render(){
   else renderMatrix(v);
   markSel();
   syncDrawer();
+}
+
+/* Waiting for the data folder (state.js, setWaiting): no board, nothing to add or edit, and where to click. */
+function renderWaiting(){
+  $('#snav').innerHTML = '';
+  $('#slists').innerHTML = '';
+  $('#phead').innerHTML = '';
+  $('#main').innerHTML = `<div class="empty waiting-empty" role="status"><b>Allow Workshop to use your folder to see your board</b>`
+    + (embedded ? 'Click <span class="kbdlike">Allow</span> in the bar at the top of Workshop. Chrome asks again after it restarts.'
+      : 'Open Workshop and click <span class="kbdlike">Allow</span> in the bar at the top. Chrome asks again after it restarts.'
+        + '<div class="acts"><button class="btn primary" data-open-workshop>Open Workshop</button></div>')
+    + '<p class="sub">Your board is safe in the folder. It appears here, ready to edit, once Workshop may use the folder.</p></div>';
+  const open = $('#main [data-open-workshop]');
+  if (open) open.addEventListener('click', () => { if (ws) ws.open({app: 'prioritizer'}); });
 }
 
 /* sidebar */

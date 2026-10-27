@@ -1,8 +1,10 @@
 /* Prioritizer: where the board is saved, and the file menu (the folder icon in the sidebar).
 
-   The board is saved through the SDK: with Workshop running, as files in ~/.workshop/data/prioritizer/
-   (other apps can read them); in browser mode, in this browser's storage. store.js does the saving and
-   keeps windows in step; this module connects it to the board, the status icon and the file menu.
+   The board is saved through the SDK as files in the prioritizer folder of the Workshop data folder
+   (~/Workshop/prioritizer/ by default; other apps can read them): by the agent, or in browser mode by Chrome
+   in a folder chosen in Settings. Before a folder is chosen, browser mode saves in this browser's storage.
+   store.js does the saving and keeps windows in step; this module connects it to the board, the status icon
+   and the file menu.
 
    First run: if nothing is saved yet and this browser has a board from the localStorage versions of
    Prioritizer (same site), it is moved in once and the old copy is left in place untouched. A board on
@@ -13,7 +15,7 @@ import { hideTip, placeTip, tipFor } from './events.js';
 import { exportXlsx, importFile as importExcel } from './excel.js';
 import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
 import { render } from './render.js';
-import { sanitize, setState, state } from './state.js';
+import { isWaiting, sanitize, setState, setWaiting, state } from './state.js';
 import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
@@ -24,7 +26,8 @@ let store = null, ws = null, booted = false, status = {state: 'saved'};
 
 function where(){
   if (!ws) return 'nowhere';
-  return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder' : 'in this browser';
+  return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder'
+    : ws.storage === 'folder' ? 'in your Workshop folder' : 'in this browser';
 }
 function setStatus(s){
   const was = status.state;
@@ -69,13 +72,24 @@ async function boot(){
   let empty;
   try { ({empty} = await store.load()); }
   catch (e){
+    if (e && e.code === 'unavailable' && ws.backend === 'browser'){
+      // Chrome must be asked again for the data folder (a bar in the shell has the button). Until then the
+      // board is not shown and cannot be edited (state.js, setWaiting); it loads once access is back.
+      store = null; booted = true;
+      setWaiting(true);
+      setStatus({state: 'error', error: new Error('waiting for you to allow the Workshop folder'), retry: false});
+      const off = ws.on('online', ({online}) => { if (online && !store){ off(); boot().then(render); } });
+      return;
+    }
     // For example a damaged data file (the agent leaves it untouched and says so). Show what loaded,
     // save nothing, and say why, rather than risk writing over the user's data.
+    setWaiting(false);
     store = null; booted = true;
     setStatus({state: 'error', error: e, retry: false});
     toast(`Could not load your board: ${e.message || e}. Nothing will be saved until this is fixed.`, 60000);
     return;
   }
+  setWaiting(false);
   if (empty){
     const raw = readLegacy();
     if (raw){
@@ -132,6 +146,7 @@ async function downloadBackup(){
 
 /* The import button takes an Excel file (as before) or a Workshop backup (.json). */
 function importFile(file){
+  if (isWaiting()){ toast('Allow Workshop to use your folder first. Then import the file.'); return; }
   if (/\.json$/i.test(file.name) || file.type === 'application/json') return importBackup(file);
   return importExcel(file);
 }

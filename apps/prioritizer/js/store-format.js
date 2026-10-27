@@ -1,7 +1,8 @@
 /* Prioritizer: how the board is stored. Pure functions with no DOM, so Node tests can import them.
 
-   The board is four collections in the Workshop data format (docs/data-format.md), stored by the SDK in
-   ~/.workshop/data/prioritizer/ with the agent, or in IndexedDB in browser mode:
+   The board is four collections in the Workshop data format (docs/data-format.md), stored by the SDK as
+   <data folder>/prioritizer/<collection>.json (the agent, or Chrome's folder store in browser mode), or in
+   IndexedDB in browser mode before a folder is chosen:
 
      lists     prioritizer.lists v1     items: {id, name, parentId}
      tasks     prioritizer.tasks v3     items: tasks as the board keeps them; meta: {capacity}

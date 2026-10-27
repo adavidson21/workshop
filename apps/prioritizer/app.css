@@ -457,3 +457,10 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .sheet .tiers .chk{display:flex;gap:.35rem;align-items:center;margin:0;font-weight:400;cursor:pointer}
 .sheet .tiers .chk input{width:auto;margin:0;accent-color:var(--accent)}
 .sheet .fld .hint{margin-left:.4rem}
+
+/* waiting for the data folder (browser mode, Chrome must ask again): no board, nothing to add or edit */
+body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
+.waiting-empty{max-width:30rem;margin:0 auto}
+.waiting-empty .kbdlike{font-weight:600;color:var(--ink)}
+.waiting-empty .acts{margin-top:1rem}
+.waiting-empty .sub{margin-top:1rem;font-size:.84rem}
