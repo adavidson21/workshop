@@ -73,9 +73,10 @@ const fmtDue = (d, today) => {
 const tile = (n, label, sub, tone) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer">
   <span class="n num">${n}</span><span class="lbl">${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
-/* The whole page. `v` is {now, profile, board, boardNote, agents}:
+/* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
    profile {name, role}; board = summarize() or null; boardNote = why there is no board (string) or '';
-   agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message}. */
+   agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message};
+   waiting = true while the browser's folder store needs Allow (data.js); embedded = inside the shell. */
 export function render(v) {
   const today = dateStr(v.now);
   const p = v.profile || {};
@@ -85,8 +86,10 @@ export function render(v) {
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
-    <button class="btn ghost" data-edit-profile>${name ? 'Edit profile' : 'Add your name'}</button>
+    ${v.waiting ? '' : `<button class="btn ghost" data-edit-profile>${name ? 'Edit profile' : 'Add your name'}</button>`}
   </header>`;
+
+  if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
     return head + `<section class="card note"><h2>Prioritizer</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
@@ -120,6 +123,15 @@ export function render(v) {
   </section>`;
 
   return head + tiles + `<div class="cols">${next}<div class="stack">${team}${agentsCard(v.agents)}</div></div>`;
+}
+
+/* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
+export function waitingCard(embedded) {
+  return `<section class="card note waiting" role="status"><h2>Allow Workshop to use your folder to see your day</h2>
+    <p>${embedded ? 'Click <b>Allow</b> in the bar at the top of Workshop. Chrome asks again after it restarts.'
+      : 'Open Workshop and click <b>Allow</b> in the bar at the top. Chrome asks again after it restarts.'}</p>
+    <p>Your data is safe in the folder. It appears here once Workshop may use the folder.</p>
+    ${embedded ? '' : '<p><button class="btn primary" data-open="home">Open Workshop</button></p>'}</section>`;
 }
 
 function agentsCard(a) {

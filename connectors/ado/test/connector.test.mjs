@@ -74,8 +74,6 @@ test('module follows the connector contract and its configSchema fits the settin
 test('the C0 example settings are accepted', async () => {
   const example = (await import('node:fs')).readFileSync(path.join(REPO, 'docs/examples/connector-config-put.ado.json'), 'utf8');
   const cfg = JSON.parse(example).config;
-  // The example also carries Prioritizer settings (syncMinutes, reviewNewItems, prTiers) that live in the app.
-  for (const k of ['syncMinutes', 'reviewNewItems', 'prTiers']) delete cfg[k];
   assert.deepEqual(schemas.validate(configSchema, cfg), []);
   assert.deepEqual(normalize(cfg).problems, []);
 });
