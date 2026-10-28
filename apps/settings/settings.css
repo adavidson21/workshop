@@ -1,20 +1,24 @@
-/* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css. */
+/* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css.
+   Editorial, like tools.alexisdavidson.org: serif title, sections on an ink rule, mono labels. */
 html,body{min-height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
 
-.wrap{max-width:46rem;margin:0 auto;padding:1.25rem 1.5rem 3rem}
-.shead h1{margin:0;font-size:1.3rem;font-weight:600;letter-spacing:-.015em}
-.shead .sub{margin:.2rem 0 1rem;color:var(--muted);font-size:.88rem}
+.wrap{max-width:46rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
+.shead{margin-bottom:2rem;animation:rise .6s ease-out both}
+.shead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;font-variation-settings:"opsz" 144;letter-spacing:-.03em;line-height:1.04}
+.shead h1::after{content:".";color:var(--eyebrow)}
+.shead .sub{margin:.7rem 0 0;max-width:38rem;font-family:var(--serif);font-variation-settings:"opsz" 24;font-size:1.12rem;line-height:1.5;color:var(--muted)}
+.shead .sub:empty{display:none}
 
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.15rem;margin:0 0 1rem}
-.card h2{margin:0 0 .2rem;font-size:1.02rem;font-weight:600}
-.card>.sub{margin:0 0 .8rem;color:var(--muted);font-size:.86rem}
+.card{background:var(--surface);border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);padding:1.3rem 1.4rem 1.4rem;margin:0 0 1.5rem;animation:rise .6s ease-out .08s both}
+.card h2{margin:0 0 .35rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.card>.sub{margin:0 0 1rem;color:var(--muted);font-size:.9rem}
 .err{color:var(--danger);font-size:.88rem}
 
 /* forms (also generated ones, see js/forms.js) */
-.cfg fieldset{border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem .7rem;margin:.6rem 0}
-.cfg legend{padding:0 .3rem;font-size:.86rem;font-weight:600}
+.cfg fieldset{border:1px solid var(--line);border-radius:var(--r-md);padding:.7rem .9rem .8rem;margin:.7rem 0}
+.cfg legend{padding:0 .4rem;font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .cfg-row{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .7rem;margin:.55rem 0}
 .cfg-row>label{min-width:11rem;font-size:.88rem}
 .cfg-row.cfg-check>label{min-width:0}
@@ -22,8 +26,8 @@ code,.mono{font-family:var(--mono);font-size:.86em}
 .cfg-row>.cfg-input{flex:none;width:8rem}
 .cfg-help{flex-basis:100%;margin:0;color:var(--muted);font-size:.8rem}
 .cfg-req{color:var(--muted);font-size:.78rem}
-.cfg-input{width:100%;box-sizing:border-box;padding:.4rem .55rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:.88rem}
-.cfg-input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.cfg-input{width:100%;box-sizing:border-box;min-height:2.3rem;padding:.4rem .65rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit;font-size:.9rem}
+.cfg-input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
 textarea.cfg-input{resize:vertical}
 .cfg input[type=checkbox]{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .cfg-env-status{flex:none;font-size:.78rem;color:var(--muted);white-space:nowrap}
@@ -32,7 +36,7 @@ textarea.cfg-input{resize:vertical}
 .cfg-list{display:flex;flex-direction:column;gap:.5rem}
 .cfg-item{display:flex;gap:.5rem;align-items:flex-start}
 .cfg-item>.cfg-input,.cfg-item>.cfg-item-body{flex:1;min-width:0}
-.cfg-item>fieldset.cfg-item-body,.cfg-item>div.cfg-item-body{border:1px dashed var(--line);border-radius:10px;padding:.2rem .7rem;margin:0}
+.cfg-item>fieldset.cfg-item-body,.cfg-item>div.cfg-item-body{border:1px dashed var(--line);border-radius:var(--r-md);padding:.2rem .7rem;margin:0}
 .cfg-add{margin-top:.5rem}
 .acts{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;margin-top:.8rem}
 .acts.left{justify-content:flex-start}
@@ -41,13 +45,13 @@ textarea.cfg-input{resize:vertical}
 label.btn{cursor:pointer}
 
 /* connectors */
-.conn{border-top:1px solid var(--line);padding:.8rem 0 .4rem}
+.conn{border-top:1px solid var(--line);padding:1rem 0 .6rem}
 .conn:first-of-type{border-top:0}
 .conn-head{display:flex;align-items:center;gap:.8rem}
 .conn-head>div{flex:1;min-width:0}
-.conn h3{display:inline;margin:0;font-size:.95rem;font-weight:600}
-.conn .ver{margin-left:.5rem;color:var(--muted);font:400 .76rem var(--mono)}
-.state{font-size:.76rem;padding:.1rem .5rem;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.conn h3{display:inline;margin:0;font:600 1.15rem/1.25 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em}
+.conn .ver{margin-left:.5rem;color:var(--muted);font:400 .74rem var(--mono)}
+.state{font:500 10.5px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:.2rem .55rem;border-radius:999px;background:var(--sunk);color:var(--muted)}
 .state[data-state=ready]{background:var(--accent-soft);color:var(--ink)}
 .state[data-state=error]{background:var(--danger-soft);color:var(--danger)}
 .state[data-state=starting]{background:var(--warn-soft);color:var(--ink)}
@@ -56,7 +60,7 @@ label.btn{cursor:pointer}
 .switch{display:flex;align-items:center;gap:.35rem;font-size:.84rem;cursor:pointer}
 .switch input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .conn details{margin-top:.5rem}
-.conn summary{cursor:pointer;font-size:.88rem;color:var(--accent)}
+.conn summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent)}
 .test{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.6rem;font-size:.88rem}
 .test .cfg-input{width:10rem}
 .test-out{flex-basis:100%;font-size:.86rem}
@@ -71,6 +75,6 @@ label.btn{cursor:pointer}
 
 /* data folder */
 [data-folder] p{margin:.3rem 0;font-size:.9rem}
-.moved{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:.5rem .8rem;margin:.3rem 0 .7rem;background:var(--sunk);font-size:.86rem}
+.moved{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:.5rem .8rem;margin:.3rem 0 .7rem;background:var(--sunk);font-size:.86rem}
 .moved ul{margin:.3rem 0;padding-left:1.2rem}
 .moved p{margin:.2rem 0}

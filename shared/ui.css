@@ -1,40 +1,65 @@
-/* Shared UI pieces for the shell and its apps: buttons, icon buttons, links, menus, theme
-   swatches, toast, tooltip, and the centered card (.engcard) for setup and empty states.
-   Load after themes.css and before an app's own styles. */
+/* Shared UI pieces for the shell and its apps: buttons, icon buttons, links, menus, the light/dark
+   toggle, toast, tooltip, the centered card (.engcard) for setup and empty states, and the editorial
+   type helpers (.eyebrow, .title, .section-label). Load after themes.css and before an app's own styles.
+   Style matches tools.alexisdavidson.org: flat, hairlines, serif headings, mono labels. */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0}
 svg{display:block}
 .mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-kbd{font-family:var(--mono);font-size:.72rem;padding:.02rem .32rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;color:var(--muted);background:var(--surface);line-height:1.3}
+kbd{font-family:var(--mono);font-size:.7rem;padding:.02rem .32rem;border:1px solid var(--line);border-radius:4px;color:var(--muted);background:var(--surface);line-height:1.3}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.btn{display:inline-flex;align-items:center;gap:.4rem;min-height:2rem;padding:.35rem .8rem;border-radius:8px;font-size:.86rem;font-weight:500;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--ink)}
-.btn:hover{background:var(--hover)}
+::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
+
+/* editorial type */
+.eyebrow{margin:0;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(30px,4vw,40px);font-variation-settings:"opsz" 72;letter-spacing:-.025em;line-height:1.08;color:var(--ink)}
+.page-title.dot::after{content:".";color:var(--eyebrow)}
+.section-label{display:flex;align-items:center;gap:14px;margin:0;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.38rem .85rem;border-radius:var(--r-sm);font-size:.86rem;font-weight:500;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--ink);transition:background-color .2s,border-color .2s,color .2s}
+.btn:hover{background:var(--hover);border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}
+.btn:active{transform:translateY(1px)}
 .btn svg{width:14px;height:14px}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.btn.primary:hover{background:color-mix(in srgb,var(--accent) 88%,var(--ink))}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 86%,var(--ink));border-color:color-mix(in srgb,var(--accent) 86%,var(--ink))}
 .btn.primary kbd{background:transparent;color:var(--on-accent);border-color:color-mix(in srgb,var(--on-accent) 40%,transparent)}
 .btn.danger{background:var(--danger);border-color:var(--danger);color:var(--surface)}
 .btn.ghost{border-color:transparent;background:transparent}
 .btn.ghost:hover{background:var(--hover)}
 .btn.text-danger{border-color:transparent;background:transparent;color:var(--danger)}
 .btn.text-danger:hover{background:var(--danger-soft)}
-.btn:disabled{opacity:.5;cursor:default}
-.ibtn{position:relative;width:2rem;height:2rem;min-width:24px;min-height:24px;border-radius:8px;display:grid;place-items:center;color:var(--muted);flex:none}
+.btn:disabled{opacity:.5;cursor:default;transform:none}
+.ibtn{position:relative;width:2rem;height:2rem;min-width:24px;min-height:24px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--muted);flex:none;transition:background-color .2s,color .2s}
 .ibtn svg{width:17px;height:17px}
 .ibtn:hover{background:var(--hover);color:var(--ink)}
-.lnk{font-size:.84rem;color:var(--accent);font-weight:500;border-radius:6px;padding:.1rem .3rem;white-space:nowrap}
+.lnk{font-size:.84rem;color:var(--accent);font-weight:500;border-radius:4px;padding:.1rem .3rem;white-space:nowrap;text-decoration:none}
 .lnk:hover{background:var(--accent-soft);color:var(--ink)}
-.engcard{max-width:36rem;margin:2.5rem auto;padding:1.4rem 1.5rem;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);font-size:.9rem;color:var(--muted)}
-.engcard h2{margin:0 0 .4rem;font-size:1.05rem;font-weight:600;color:var(--ink)}
-.engcard ol{margin:.6rem 0 0;padding-left:1.2rem;display:grid;gap:.45rem}
-.engcard code{font-family:var(--mono);font-size:.8rem;color:var(--ink);background:var(--hover);padding:.05rem .3rem;border-radius:5px;word-break:break-all}
-.engcard .acts{display:flex;align-items:center;gap:.5rem;margin-top:1.1rem;flex-wrap:wrap}
+
+/* the light/dark toggle: the same round button as on tools.alexisdavidson.org (theme.js renders it) */
+.theme-toggle{position:absolute;z-index:20;top:var(--theme-top,16px);right:16px;width:38px;height:38px;display:grid;place-items:center;padding:0;margin:0;flex:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);transition:color .2s,border-color .2s,transform .2s;-webkit-tap-highlight-color:transparent}
+.theme-toggle:hover{color:var(--ink);border-color:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.theme-toggle:active{transform:scale(.94)}
+.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.theme-toggle svg{width:18px;height:18px;display:block;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.theme-toggle:hover svg{transform:rotate(-20deg)}
+
+/* centered card for setup and empty states: an ink rule on top, hairlines, no shadow */
+.engcard{max-width:36rem;margin:2.5rem auto;padding:1.4rem 1.5rem 1.5rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);font-size:.92rem;color:var(--muted)}
+.engcard h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em;color:var(--ink)}
+.engcard ol{margin:.7rem 0 0;padding-left:1.2rem;display:grid;gap:.45rem}
+.engcard code{font-family:var(--mono);font-size:.8rem;color:var(--ink);background:var(--panel);padding:.05rem .3rem;border-radius:4px;word-break:break-all}
+.engcard .acts{display:flex;align-items:center;gap:.5rem;margin-top:1.15rem;flex-wrap:wrap}
 .engcard .fld{display:flex;align-items:center;gap:.5rem}
-.engcard input{width:6.5rem;min-height:2rem;padding:.3rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
-.menu{position:fixed;z-index:46;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-lg);padding:.3rem;min-width:11rem;animation:pop .12s ease}
-.menu button{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;padding:.45rem .65rem;border-radius:7px;font-size:.88rem;min-height:28px}
+.engcard input{width:6.5rem;min-height:2.1rem;padding:.3rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg)}
+
+/* menus */
+.menu{position:fixed;z-index:46;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:.3rem;min-width:11rem;animation:pop .12s ease}
+.menu button{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;padding:.45rem .65rem;border-radius:var(--r-sm);font-size:.88rem;min-height:28px}
 .menu button:hover,.menu button:focus-visible{background:var(--hover);outline:none}
 .menu button.on{font-weight:600}
 .menu b{font-weight:600}
@@ -42,12 +67,16 @@ kbd{font-family:var(--mono);font-size:.72rem;padding:.02rem .32rem;border:1px so
 .menu .sep{height:1px;background:var(--line);margin:.25rem .2rem}
 .sw{width:16px;height:16px;border-radius:50%;flex:none;border:1px solid var(--line);position:relative;overflow:hidden}
 .sw i{position:absolute;right:0;bottom:0;width:50%;height:50%;border-top-left-radius:100%}
-.toast{position:fixed;left:50%;bottom:1.5rem;z-index:60;transform:translate(-50%,1rem);opacity:0;pointer-events:none;background:var(--ink);color:var(--surface);padding:.55rem .6rem .55rem 1rem;border-radius:10px;display:flex;gap:.5rem;align-items:center;font-size:.88rem;box-shadow:var(--shadow-lg);transition:opacity .2s,transform .2s;max-width:calc(100vw - 2rem)}
+
+/* toast and tooltip */
+.toast{position:fixed;left:50%;bottom:1.5rem;z-index:60;transform:translate(-50%,1rem);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:.6rem .65rem .6rem 1rem;border-radius:var(--r-sm);display:flex;gap:.5rem;align-items:center;font-size:.88rem;box-shadow:var(--shadow-lg);transition:opacity .2s,transform .2s;max-width:calc(100vw - 2rem)}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast span{margin-right:.4rem}
-.toast button{color:var(--surface);font-weight:600;padding:.2rem .5rem;border-radius:6px;text-decoration:underline;text-underline-offset:2px;min-height:24px}
-.toast button:hover{background:color-mix(in srgb,var(--surface) 16%,transparent)}
-.tip{position:fixed;z-index:70;max-width:16rem;background:var(--ink);color:var(--surface);font-size:.76rem;line-height:1.35;padding:.38rem .6rem;border-radius:7px;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:var(--shadow)}
+.toast button{color:var(--bg);font-weight:600;padding:.2rem .5rem;border-radius:4px;text-decoration:underline;text-underline-offset:3px;min-height:24px}
+.toast button:hover{background:color-mix(in srgb,var(--bg) 16%,transparent)}
+.tip{position:fixed;z-index:70;max-width:16rem;background:var(--ink);color:var(--bg);font-size:.76rem;line-height:1.35;padding:.38rem .6rem;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .12s}
 .tip.show{opacity:1}
 @keyframes pop{from{opacity:0;transform:scale(.98) translateY(4px)}to{opacity:1;transform:none}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

@@ -1,51 +1,66 @@
-/* Workshop shell: the app rail and the panes each app lives in. Colors come from ../shared/themes.css,
-   buttons, menus and toast from ../shared/ui.css. */
+/* Workshop shell: the app rail, the top bar and the panes each app lives in. Colors come from
+   ../shared/themes.css, buttons, menus, the toggle and toast from ../shared/ui.css. Editorial style,
+   like tools.alexisdavidson.org: flat paper background, hairlines, mono labels. */
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden}
 
 .hub{display:grid;grid-template-columns:auto minmax(0,1fr);height:100%}
+.stage{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0}
 
-/* rail: one icon per app, theme at the bottom */
-.rail{width:60px;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.75rem 0;background:var(--side);border-right:1px solid var(--line)}
+/* rail: the Workshop mark, one button per app, Connect and Install at the bottom */
+.rail{width:68px;display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:.9rem 0;background:var(--bg);border-right:1px solid var(--line)}
 .rail a{color:inherit}
-.rail .mark{width:28px;height:28px;color:var(--accent);margin-bottom:.6rem}
+.rail .mark{width:34px;height:34px;color:var(--accent);margin-bottom:.75rem;border-radius:var(--r-sm);outline-offset:3px;transition:transform .2s ease}
 .rail .mark svg{width:100%;height:100%}
-.rail .mark{border-radius:8px;outline-offset:3px}
-.rail .mark.on{outline:2px solid var(--accent-soft)}
+.rail .mark:hover{transform:translateY(-1px)}
+.rail .mark.on{outline:1px solid var(--line);outline-offset:3px}
 .rail .grow{flex:1}
-.app-btn{position:relative;text-decoration:none;width:44px;min-height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:.62rem;font-weight:500}
+.app-btn{position:relative;text-decoration:none;width:56px;min-height:48px;border-radius:var(--r-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:.64rem;font-weight:500;letter-spacing:.01em;transition:color .2s,background-color .2s}
 .app-btn svg{width:19px;height:19px}
-.app-btn:hover{background:var(--hover);color:var(--ink)}
-.app-btn.on{background:var(--accent-soft);color:var(--ink)}
-.app-btn.on::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.app-btn:hover{background:var(--surface);color:var(--ink)}
+.app-btn.on{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.app-btn.on .ico{color:var(--accent)}
+.app-btn.on::before{content:"";position:absolute;left:-6px;top:12px;bottom:12px;width:2px;background:var(--ink)}
 .app-btn .lbl{line-height:1.1}
 .app-btn .ico{display:flex}
 .app-btn .ico svg{width:19px;height:19px}
-.app-btn .badge{position:absolute;top:4px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:.6rem;font-weight:700;line-height:16px;text-align:center}
+.app-btn .badge{position:absolute;top:4px;right:7px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--on-accent);font:600 .6rem/16px var(--mono);text-align:center}
+
+/* top bar: crumbs (back up to LifeKit on alexisdavidson.org) and the light/dark toggle, top right */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:60px;padding:0 20px 0 28px;border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.crumbs a{color:inherit;text-decoration:none;padding:4px 0;border-radius:2px}
+.crumbs a:hover{color:var(--ink)}
+.crumbs span[aria-hidden]{margin:0 8px;opacity:.5}
+.crumbs .here{color:var(--ink)}
+.topbar .theme-toggle{position:static}
 
 /* command palette (Ctrl+K) */
 .cmdk{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center}
-.cmdk-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28);z-index:-1}
-.cmdk-box{margin-top:12vh;width:min(560px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
-.cmdk-input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;padding:.9rem 1rem;font:400 15px var(--sans);outline:none}
-.cmdk-list{list-style:none;margin:0;padding:.3rem;max-height:46vh;overflow:auto}
-.cmdk-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem .7rem;border-radius:8px;cursor:pointer}
+.cmdk-backdrop{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 22%,transparent);z-index:-1}
+.cmdk-box{margin-top:12vh;width:min(560px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-top:1px solid var(--ink);border-radius:2px 2px var(--r-md) var(--r-md);box-shadow:var(--shadow-lg);overflow:hidden;animation:pop .14s ease}
+.cmdk-input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;padding:1rem 1.1rem;font:400 19px var(--serif);font-variation-settings:"opsz" 24;outline:none}
+.cmdk-input::placeholder{color:var(--muted)}
+.cmdk-list{list-style:none;margin:0;padding:.35rem;max-height:46vh;overflow:auto}
+.cmdk-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem .75rem;border-radius:var(--r-sm);cursor:pointer}
 .cmdk-list li.on{background:var(--accent-soft)}
 .cmdk-list li:hover{background:var(--hover)}
-.cmdk-app{font-size:.75rem;color:var(--muted)}
+.cmdk-app{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .cmdk-empty{color:var(--muted);cursor:default}
 .cmdk-empty:hover{background:none}
-.cmdk-box.pair{padding:1.1rem 1.25rem}
-.cmdk-box.pair h2{margin:0 0 .4rem;font-size:1.05rem}
-.cmdk-box.pair p{margin:0 0 .8rem;color:var(--muted);font-size:.88rem}
+.cmdk-box.pair{padding:1.3rem 1.4rem}
+.cmdk-box.pair h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.cmdk-box.pair p{margin:0 0 .9rem;color:var(--muted);font-size:.9rem}
 .cmdk-box.pair label{display:flex;align-items:center;gap:.6rem;font-size:.88rem}
-.cmdk-box.pair input{width:7rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
-.cmdk-box.pair .acts{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}
+.cmdk-box.pair input{width:7rem;padding:.4rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit}
+.cmdk-box.pair .acts{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1.1rem}
 
 /* a pane that cannot load its app (a required connector is missing), or an empty app list */
-.notice{margin:12vh auto 0;max-width:30rem;padding:0 1.5rem;text-align:center}
-.notice h2{font-size:1.15rem;margin:0 0 .4rem}
-.notice p{color:var(--muted);margin:.3rem 0 .9rem}
+.notice{margin:12vh auto 0;max-width:32rem;padding:0 1.5rem;text-align:center}
+.notice h2{margin:0 0 .5rem;font:600 1.9rem/1.15 var(--serif);font-variation-settings:"opsz" 72;letter-spacing:-.02em}
+.notice h2::after{content:".";color:var(--eyebrow)}
+.notice p{color:var(--muted);margin:.3rem 0 1rem}
+.notice code{font-family:var(--mono);font-size:.82rem;color:var(--ink)}
 .notice a.btn{text-decoration:none}
 
 /* toast kinds from the SDK */
@@ -53,7 +68,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
 .toast[data-kind=error]{border-left:3px solid var(--danger)}
 
 /* folder access bar (browser mode, when Chrome must ask again for the chosen folder) */
-.folder-bar{position:absolute;top:0;left:0;right:0;z-index:5;min-height:48px;box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.45rem 1rem;background:var(--warn-soft);border-bottom:1px solid var(--line);font-size:.88rem}
+.folder-bar{position:absolute;top:0;left:0;right:0;z-index:5;min-height:48px;box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.45rem 1.75rem;background:var(--warn-soft);border-bottom:1px solid var(--line);font-size:.88rem}
 .folder-bar span{flex:1;min-width:12rem}
 .folder-bar a.btn{text-decoration:none}
 .panes.has-bar .pane{top:48px}
@@ -64,13 +79,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--san
 .pane[hidden]{display:none}
 .pane>iframe{flex:1;width:100%;min-height:0;border:0;background:var(--bg)}
 
-
-/* phones: the rail becomes a bottom bar */
+/* phones: the rail becomes a bottom bar; the top bar keeps the crumbs short and the toggle top right */
 @media (max-width:720px){
   .hub{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-  .rail{grid-row:2;width:auto;height:56px;flex-direction:row;justify-content:space-around;padding:0 .5rem env(safe-area-inset-bottom);border-right:0;border-top:1px solid var(--line)}
+  .stage{grid-row:1}
+  .rail{grid-row:2;width:auto;height:60px;flex-direction:row;justify-content:space-around;padding:0 .5rem env(safe-area-inset-bottom);border-right:0;border-top:1px solid var(--line)}
   .rail .mark,.rail .grow{display:none}
   .app-btn{width:auto;min-width:64px;padding:0 .6rem}
-  .app-btn.on::before{left:14px;right:14px;top:-1px;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
-  .toast{bottom:4.5rem}
+  .app-btn.on{box-shadow:none;background:transparent}
+  .app-btn.on::before{left:16px;right:16px;top:-1px;bottom:auto;width:auto;height:2px}
+  .topbar{min-height:56px;padding:env(safe-area-inset-top) 12px 0 16px}
+  .crumbs a:not(.ws),.crumbs a:not(.ws)+span{display:none}
+  .toast{bottom:4.75rem}
 }

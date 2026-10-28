@@ -1,41 +1,45 @@
 /*
   Shared themes, the single source of truth for the Workshop shell and every app in it
-  (Prioritizer, Agents, Settings). Apps load this file directly.
+  (Home, Prioritizer, Agents, Settings). Apps load this file directly.
+
+  The look matches tools.alexisdavidson.org (LifeKit) and alexisdavidson.org: an editorial style with
+  paper-toned flat backgrounds (no gradients), Source Serif 4 headings, JetBrains Mono labels, Inter
+  body text, hairline rules instead of shadowed boxes, and the Office section's slate as the accent.
+  There are two themes, Light and Dark, picked with the round toggle in the top right corner (or the
+  device setting until you use it).
 
   Edit themes here only. When you add or change one, also update THEMES and SWATCH in
-  shared/theme.js (`node tests/check-themes.mjs` fails if they disagree). Until WS8, eng-agents'
-  static dashboard page still copies this file with core/scripts/dashboard/sync-themes.mjs.
+  shared/theme.js (`node tests/check-themes.mjs` fails if they disagree). eng-agents' static
+  dashboard page still copies this file with core/scripts/dashboard/sync-themes.mjs.
 
-  Each theme sets eight base colors. Everything else is derived below, so a new theme only
-  needs these eight. Keep text at WCAG AA (4.5:1) for ink, muted, accent, danger, and warn
-  against both bg and surface.
+  Each theme sets the base colors below; everything else is derived. Keep text at WCAG AA (4.5:1)
+  for ink, muted, accent, danger, and warn against both bg and surface.
 
   The line below names every theme in menu order. Keep the format: eng-agents' sync script reads it.
-  themes: slate=Slate, graphite=Graphite, ivory=Ivory, rose=Rosé, solarized=Solarized Light, nord=Nord, dracula=Dracula
+  themes: light=Light, dark=Dark
 */
 :root,
-:root[data-theme=slate]    {--bg:#F7F7F8;--surface:#FFFFFF;--ink:#1C1D21;--muted:#5C5F66;--accent:#4F46E5;--on-accent:#FFFFFF;--danger:#B42318;--warn:#94570A;color-scheme:light}
-:root[data-theme=graphite] {--bg:#141518;--surface:#1C1E22;--ink:#E8E9EC;--muted:#A0A4AB;--accent:#8C88FF;--on-accent:#141518;--danger:#F97066;--warn:#E3A64A;color-scheme:dark}
-:root[data-theme=ivory]    {--bg:#FBF8F1;--surface:#FFFDF8;--ink:#3A3230;--muted:#6B5F59;--accent:#9C5A6A;--on-accent:#FFFFFF;--danger:#B42318;--warn:#8F560B;color-scheme:light}
-:root[data-theme=rose]     {--bg:#FBF4F2;--surface:#FFFAF9;--ink:#3B2F33;--muted:#6F5D63;--accent:#A04F6C;--on-accent:#FFFFFF;--danger:#B42318;--warn:#8F560B;color-scheme:light}
-:root[data-theme=solarized]{--bg:#FDF6E3;--surface:#FFFCF4;--ink:#073642;--muted:#4F646B;--accent:#1F6FA8;--on-accent:#FFFFFF;--danger:#B42318;--warn:#8A5A00;color-scheme:light}
-:root[data-theme=nord]     {--bg:#2E3440;--surface:#3B4252;--ink:#ECEFF4;--muted:#BCC4D2;--accent:#88C0D0;--on-accent:#2E3440;--danger:#F4B6BC;--warn:#EBCB8B;color-scheme:dark}
-:root[data-theme=dracula]  {--bg:#282A36;--surface:#303241;--ink:#F8F8F2;--muted:#B0B6D3;--accent:#BD93F9;--on-accent:#282A36;--danger:#FF9494;--warn:#FFB86C;color-scheme:dark}
-/* No theme set: follow the system (Graphite when it is dark). */
+:root[data-theme=light]{--bg:#F4F1EA;--surface:#FBF9F5;--panel:#ECE7DD;--ink:#2A2627;--muted:#675F5A;--line:#DCD4C6;--eyebrow:#8B6340;--accent:#4F6B78;--on-accent:#FFFFFF;--danger:#9B2C24;--warn:#8A5A12;color-scheme:light}
+:root[data-theme=dark]{--bg:#161514;--surface:#1D1C1A;--panel:#211F1D;--ink:#EEEBE7;--muted:#A8A29C;--line:#34312E;--eyebrow:#CBA684;--accent:#A9BCC6;--on-accent:#111A1F;--danger:#F2BDB7;--warn:#E2B66D;color-scheme:dark}
+/* No theme set (scripts off): follow the device. */
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme]){--bg:#141518;--surface:#1C1E22;--ink:#E8E9EC;--muted:#A0A4AB;--accent:#8C88FF;--on-accent:#141518;--danger:#F97066;--warn:#E3A64A;color-scheme:dark}
+  :root:not([data-theme]){--bg:#161514;--surface:#1D1C1A;--panel:#211F1D;--ink:#EEEBE7;--muted:#A8A29C;--line:#34312E;--eyebrow:#CBA684;--accent:#A9BCC6;--on-accent:#111A1F;--danger:#F2BDB7;--warn:#E2B66D;color-scheme:dark}
 }
 :root{
-  --line:color-mix(in srgb,var(--ink) 12%,var(--surface));
   --hover:color-mix(in srgb,var(--ink) 5%,var(--surface));
   --sunk:color-mix(in srgb,var(--ink) 4%,var(--bg));
-  --side:color-mix(in srgb,var(--ink) 3%,var(--bg));
+  --side:var(--bg);
+  --rule:var(--ink);
   --accent-soft:color-mix(in srgb,var(--accent) 14%,var(--surface));
   --danger-soft:color-mix(in srgb,var(--danger) 10%,var(--surface));
   --warn-soft:color-mix(in srgb,var(--warn) 14%,var(--surface));
-  --shadow:0 1px 2px color-mix(in srgb,var(--ink) 8%,transparent),0 8px 24px -10px color-mix(in srgb,var(--ink) 22%,transparent);
-  --shadow-lg:0 2px 6px color-mix(in srgb,var(--ink) 10%,transparent),0 24px 48px -16px color-mix(in srgb,var(--ink) 35%,transparent);
-  /* Inter and JetBrains Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
+  /* Flat: surfaces sit on hairlines, not shadows. Only floating things (menus, the palette, toasts) lift. */
+  --shadow:none;
+  --shadow-lg:0 10px 30px color-mix(in srgb,#000 12%,transparent);
+  --r-sm:6px;
+  --r-md:8px;
+  /* Inter, Source Serif 4 and JetBrains Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
   --sans:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
 }

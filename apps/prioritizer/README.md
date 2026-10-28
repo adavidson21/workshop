@@ -53,7 +53,7 @@ Example: `Review promo doc @Brandon !3 ~s ^fri #eng`
 
 ## Themes
 
-Slate (light) and Graphite (dark) follow your system setting by default. Also available: Ivory (warm light), Rosé, Solarized Light, Nord and Dracula, all tuned so text meets WCAG AA contrast. Inside the hub, pick one from the theme button on the hub's rail; on its own, Prioritizer has the button at the bottom of its sidebar. The choice is saved per device and shared by every page of the hub.
+Light and Dark, in the same editorial style as tools.alexisdavidson.org, follow your system setting by default and meet WCAG AA contrast. Inside the hub, flip between them with the round toggle in the top right corner; on its own, Prioritizer has a theme button at the bottom of its sidebar. The choice is saved per device and shared by every page of the hub. Themes from earlier versions (Slate, Nord, Dracula and the rest) carry over as the closer of Light or Dark.
 
 Themes live in `shared/themes.css` at the repo root. See the [Workshop README](../../README.md#themes) to change them.
 
