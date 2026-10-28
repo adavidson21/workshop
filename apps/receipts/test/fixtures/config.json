@@ -1,0 +1,198 @@
+{
+  "schema": "receipts.config",
+  "version": 1,
+  "rev": 3,
+  "items": [
+    {
+      "id": "me",
+      "updatedAt": 1792508400000,
+      "name": "Avery Quinn",
+      "relation": "self",
+      "role": "engineering-manager",
+      "level": "",
+      "active": true
+    },
+    {
+      "id": "jordan-lee",
+      "updatedAt": 1792508400000,
+      "name": "Jordan Lee",
+      "relation": "report",
+      "role": "engineer-ic",
+      "level": "Senior",
+      "active": true
+    },
+    {
+      "id": "sam-okafor",
+      "updatedAt": 1792508400000,
+      "name": "Sam Okafor",
+      "relation": "report",
+      "role": "engineer-ic",
+      "level": "Mid",
+      "active": true
+    },
+    {
+      "id": "riley-park",
+      "updatedAt": 1792508400000,
+      "name": "Riley Park",
+      "relation": "manager",
+      "role": "engineering-manager",
+      "level": "",
+      "active": true
+    }
+  ],
+  "deleted": {},
+  "meta": {
+    "updatedAt": 1792508400000,
+    "rubric": [
+      {
+        "id": "results",
+        "name": "Results",
+        "description": "Delivered outcomes, met commitments, measurable impact."
+      },
+      {
+        "id": "craft",
+        "name": "Craft",
+        "description": "Quality of work, technical or functional depth, sound decisions."
+      },
+      {
+        "id": "ownership",
+        "name": "Ownership",
+        "description": "Initiative, follow-through, fixing problems without being asked."
+      },
+      {
+        "id": "collaboration",
+        "name": "Collaboration",
+        "description": "Working across people and teams, unblocking others."
+      },
+      {
+        "id": "communication",
+        "name": "Communication",
+        "description": "Clarity in writing and speaking, keeping the right people informed."
+      },
+      {
+        "id": "leadership",
+        "name": "Leadership",
+        "description": "Mentoring, raising the bar, influence without authority, developing people."
+      },
+      {
+        "id": "growth",
+        "name": "Growth",
+        "description": "New skills, acting on feedback, stretch work."
+      }
+    ],
+    "roles": [
+      {
+        "id": "engineer-ic",
+        "name": "Engineer IC"
+      },
+      {
+        "id": "engineering-manager",
+        "name": "Engineering Manager"
+      },
+      {
+        "id": "product-ic",
+        "name": "Product IC"
+      },
+      {
+        "id": "product-manager",
+        "name": "Product Manager"
+      }
+    ],
+    "categories": {
+      "engineer-ic": [
+        "Feature delivery",
+        "Technical design",
+        "Reliability and on-call",
+        "Performance and scaling",
+        "Quality and testing",
+        "Security and risk reduction",
+        "Developer experience and tooling",
+        "Documentation and runbooks",
+        "Mentoring and knowledge sharing",
+        "Refactoring and tech debt"
+      ],
+      "engineering-manager": [
+        "Delivery and execution",
+        "Incident leadership",
+        "Cross-team leadership",
+        "Stakeholder management",
+        "Technical strategy",
+        "Process improvement",
+        "Delegation and scaling the team",
+        "Hiring and staffing",
+        "Coaching and growth",
+        "Operational excellence"
+      ],
+      "product-ic": [
+        "Discovery and research",
+        "Requirements",
+        "Roadmap and prioritization",
+        "Stakeholder alignment",
+        "Delivery and execution",
+        "Experiments",
+        "Metrics and analytics",
+        "Customer feedback",
+        "Launch",
+        "Process improvement"
+      ],
+      "product-manager": [
+        "Product strategy",
+        "Portfolio and roadmap planning",
+        "Cross-functional leadership",
+        "Stakeholder and exec alignment",
+        "Team execution",
+        "Coaching and development",
+        "Hiring and staffing",
+        "Operating rhythm",
+        "Customer and market strategy",
+        "Metrics and outcomes"
+      ]
+    },
+    "cycles": [
+      {
+        "id": "2026-h1",
+        "name": "H1 2026",
+        "start": "2026-01-01",
+        "end": "2026-06-30",
+        "due": "2026-07-14"
+      },
+      {
+        "id": "2026-h2",
+        "name": "H2 2026",
+        "start": "2026-07-01",
+        "end": "2026-12-31",
+        "due": "2027-01-14"
+      }
+    ],
+    "nudgeDays": 14,
+    "csvColumns": [
+      "EntryId",
+      "Date",
+      "Quarter",
+      "Year",
+      "Person",
+      "Relation",
+      "Role",
+      "Kind",
+      "Category",
+      "RubricPrimary",
+      "RubricSecondary",
+      "Visibility",
+      "Impact",
+      "Strategic",
+      "Effort",
+      "RiskReduced",
+      "Metric",
+      "MetricSource",
+      "Collaborators",
+      "Artifact",
+      "Links",
+      "Bullet",
+      "Note",
+      "Tags",
+      "NeedsReview",
+      "Source"
+    ]
+  },
+  "updatedAt": "2026-10-20T15:00:00.000Z"
+}

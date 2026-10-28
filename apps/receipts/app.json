@@ -1,0 +1,70 @@
+{
+  "manifestVersion": 1,
+  "id": "receipts",
+  "name": "Receipts",
+  "version": "1.0.0",
+  "description": "Performance evidence for you, your reports and your manager, turned into review-ready summaries.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 30,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": "log/:person",
+      "title": "Log a receipt for a person"
+    },
+    {
+      "path": "person/:person/:cycle",
+      "title": "A person's entries in a cycle"
+    },
+    {
+      "path": "review",
+      "title": "Entries that need review"
+    },
+    {
+      "path": "team/:cycle",
+      "title": "The team in a cycle"
+    },
+    {
+      "path": "packet/:person/:cycle",
+      "title": "A review packet"
+    },
+    {
+      "path": "settings",
+      "title": "Receipts settings"
+    }
+  ],
+  "data": [
+    "config",
+    "entries",
+    "metrics",
+    "summaries"
+  ],
+  "commands": [
+    {
+      "id": "log",
+      "title": "Log a receipt",
+      "route": "log"
+    },
+    {
+      "id": "blur",
+      "title": "Blur Receipts for screen sharing"
+    }
+  ],
+  "files": [
+    "receipts.css",
+    "js/main.js",
+    "js/model.js",
+    "js/store.js",
+    "js/summary.js",
+    "js/export.js",
+    "js/view.js",
+    "js/summarize/template.js",
+    "js/collect/index.js",
+    "js/import/index.js"
+  ]
+}

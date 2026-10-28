@@ -17,6 +17,9 @@ Five parts:
   6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
      hand, since the picker cannot be automated), the move from IndexedDB, files, other tabs and outside
      changes, the access bar, and Settings in every mode.
+  7. Receipts (WS10): on the real agent, add a person, log three entries, generate a summary, edit it,
+     regenerate, export CSV, and find the files in the data folder; then in browser mode on a folder, the
+     wait for Allow.
 Exit 1 if any check fails.
 """
 import functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading, time
@@ -88,7 +91,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -103,7 +106,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/#/prioritizer')
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -135,10 +138,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
     pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
 
-def start_agent(tmp, config=None):
+def start_agent(tmp, config=None, extra=()):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('home', 'prioritizer', 'agents', 'settings'):
+    for name in ('home', 'prioritizer', 'agents', 'settings', *extra):
         shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
     for name in ('notes', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
@@ -663,6 +666,148 @@ def agents_checks(b, watch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def frame_of(pg, part, ms=10000):
+    """The frame whose URL holds part, waiting up to ms."""
+    end = time.time() + ms / 1000
+    while time.time() < end:
+        f = next((f for f in pg.frames if part in f.url), None)
+        if f: return f
+        pg.wait_for_timeout(100)
+    return None
+
+
+def log_receipt(rf, note, kind, rubric=(), bullet=None, links=None):
+    rf.fill('form[data-form=log] [name=note]', note)
+    rf.click(f'form[data-form=log] [data-chips=kind] [data-chip={kind}]')
+    for r in rubric: rf.click(f'form[data-form=log] [data-chips=rubric] [data-chip={r}]')
+    if bullet is not None or links is not None:
+        if not rf.evaluate("document.querySelector('form[data-form=log] details.more').open"): rf.click('form[data-form=log] details.more summary')
+        if bullet is not None: rf.fill('form[data-form=log] [name=bullet]', bullet)
+        if links is not None: rf.fill('form[data-form=log] [name=links]', links)
+    rf.press('form[data-form=log] [name=note]', 'Control+Enter')
+    rf.wait_for_timeout(300)
+    rf.evaluate('window.__receipts.saved()')
+
+
+def receipts_checks(b, watch):
+    """Part 7: Receipts (WS10) on the real agent, then in browser mode on a folder, with the wait for Allow."""
+    tmp = tempfile.mkdtemp()
+    proc, url, token, home = start_agent(tmp, extra=('receipts',))
+    data = os.path.join(tmp, 'Workshop', 'receipts')
+    def disk(rel):
+        p = os.path.join(data, *rel.split('/'))
+        if not os.path.exists(p): return None
+        with open(p, encoding='utf-8') as f: return f.read()
+    try:
+        ctx = b.new_context(viewport={'width': 1280, 'height': 900}, accept_downloads=True)
+        pg = ctx.new_page(); watch(pg)
+        pg.goto(f'{url}/?token={token}#/receipts')
+        rf = frame_of(pg, '/apps/receipts/')
+        check('Receipts is on the rail and opens in the shell', rf is not None and pg.locator('.app-btn[data-app=receipts]').count() == 1 and seen(rf, 'form[data-form=log]'))
+        cfg = json.loads(disk('config.json') or '{}')
+        check('first run writes receipts/config.json with you as self and the generic rubric', cfg.get('schema') == 'receipts.config'
+              and [(p['id'], p['relation']) for p in cfg.get('items', [])] == [('me', 'self')]
+              and [r['id'] for r in cfg['meta']['rubric']] == ['results', 'craft', 'ownership', 'collaboration', 'communication', 'leadership', 'growth'])
+        today, cycle = rf.evaluate('[window.__receipts.V.today, window.__receipts.V.cycleId]')
+        year = today[:4]
+
+        # Settings: add a person.
+        rf.click('[data-tab=settings]'); seen(rf, 'form[data-settings=people]')
+        rf.fill('[data-person-row=""] [name=name]', 'Jordan Lee')
+        rf.select_option('[data-person-row=""] [name=role]', 'engineer-ic')
+        rf.click('form[data-settings=people] button.primary'); rf.evaluate('window.__receipts.saved()'); pg.wait_for_timeout(300)
+        cfg = json.loads(disk('config.json'))
+        check('adding a person saves them in config with a stable id', any(p['id'] == 'jordan-lee' and p['relation'] == 'report' and p['role'] == 'engineer-ic' for p in cfg['items']))
+
+        # Log three entries for Jordan.
+        rf.click('[data-tab=log]'); seen(rf, 'form[data-form=log]')
+        rf.select_option('form[data-form=log] [data-pick=person]', 'jordan-lee'); pg.wait_for_timeout(300)
+        check('the log form shows the person\'s role categories', 'Performance and scaling' in rf.inner_text('form[data-form=log]'))
+        log_receipt(rf, 'Led the cache rollout for the reading list.', 'win', ('results', 'craft'), bullet='Led the cache rollout that cut p95 latency by 40%.')
+        log_receipt(rf, 'Asked for feedback on the design notes and acted on it.', 'growth', ('growth',))
+        log_receipt(rf, '<script>window.__pwned = 1</script><img src=x onerror="window.__pwned = 2"> paired on deploys', 'note', links='https://example.com/pr/1')
+        env = json.loads(disk(f'entries/jordan-lee/{year}.json') or '{}')
+        items = env.get('items', [])
+        check('three entries saved at once in receipts/entries/jordan-lee/<year>.json', env.get('schema') == f'receipts.entries/jordan-lee/{year}' and len(items) == 3)
+        first = next((i for i in items if i['note'].startswith('Led the cache')), {})
+        check('rubric order is kept: the first section is primary', first.get('rubric') == ['results', 'craft'] and first.get('kind') == 'win' and first.get('date') == today)
+        check('entry text is escaped on the page: a <script> in a note stays text', rf.evaluate('window.__pwned') is None
+              and rf.locator('.recent script, .recent img').count() == 0 and '<script>window.__pwned = 1</script>' in rf.inner_text('.recent'))
+        check('only http(s) links are clickable', rf.locator('.recent a[href="https://example.com/pr/1"]').count() == 1 and rf.locator('.recent a[href^="javascript"]').count() == 0)
+        log_receipt(rf, 'This one has a bad link', 'note', links='javascript:alert(1)')
+        check('a javascript: link is refused and nothing is saved', len(json.loads(disk(f'entries/jordan-lee/{year}.json'))['items']) == 3 and 'http' in pg.inner_text('#toast'))
+        rf.fill('form[data-form=log] [name=note]', '')
+        check('Needs review counts entries without a bullet or rubric section', rf.inner_text('[data-tab=review] .count') == '2')
+
+        # Review packet: generate, edit, regenerate.
+        rf.click('[data-tab=packet]'); pg.wait_for_timeout(500)
+        rf.click('[data-generate]'); seen(rf, '[data-summary]'); pg.wait_for_timeout(300)
+        md = disk(f'summaries/jordan-lee/{cycle}.md') or ''
+        side = json.loads(disk(f'summaries/jordan-lee/{cycle}.json') or '{}')
+        check('Generate writes summaries/<person>/<cycle>.md and its sidecar', md.startswith('# Jordan Lee: ') and '## Results (1)' in md and 'cut p95 latency by 40%' in md
+              and side.get('schema') == f'receipts.summaries/jordan-lee/{cycle}' and side['items'][0]['generator'] == 'template@1')
+        rf.fill('[data-summary]', md + '\nMy own closing line.\n')
+        rf.click('[data-save-summary]'); pg.wait_for_timeout(600)
+        check('your edit is saved to the Markdown file', (disk(f'summaries/jordan-lee/{cycle}.md') or '').endswith('My own closing line.\n'))
+        rf.click('[data-generate]'); pg.wait_for_timeout(800)
+        check('regenerate keeps the edited summary and writes version 2 beside it', (disk(f'summaries/jordan-lee/{cycle}.md') or '').endswith('My own closing line.\n')
+              and (disk(f'summaries/jordan-lee/{cycle}-v2.md') or '') == md and 'Version 2 is new' in rf.inner_text('.packet'))
+
+        # Export CSV.
+        with pg.expect_download() as dl: rf.click('[data-export=csv]')
+        out = os.path.join(tmp, 'export.csv'); dl.value.save_as(out)
+        with open(out, 'rb') as f: raw = f.read()
+        rows = raw.decode('utf-8-sig').split('\r\n')
+        check('Export CSV: BOM, CRLF, a header and one row per entry', raw.startswith(b'\xef\xbb\xbf') and rows[0].startswith('EntryId,Date,') and len([r for r in rows[1:] if r]) == 3
+              and dl.value.suggested_filename == f'receipts-jordan-lee-{cycle}.csv')
+
+        files = sorted(os.path.relpath(os.path.join(d, n), data).replace(os.sep, '/') for d, _, ns in os.walk(data) for n in ns)
+        check('the files are in the data folder, organized by person', files == ['config.json', f'entries/jordan-lee/{year}.json', f'summaries/jordan-lee/{cycle}-v2.json',
+              f'summaries/jordan-lee/{cycle}-v2.md', f'summaries/jordan-lee/{cycle}.json', f'summaries/jordan-lee/{cycle}.md'])
+
+        rf.click('[data-blur]'); pg.wait_for_timeout(200)
+        check('the blur toggle blurs names and notes', rf.evaluate("document.body.classList.contains('blurred')") and rf.evaluate("getComputedStyle(document.querySelector('[data-summary]')).filter").startswith('blur'))
+        rf.click('[data-blur]')
+        pg.keyboard.press('Control+k'); pg.wait_for_timeout(300); pg.keyboard.type('Log a receipt'); pg.keyboard.press('Enter'); pg.wait_for_timeout(600)
+        check('the palette command Log a receipt opens the log form', rf.evaluate('window.__receipts.V.view') == 'log' and rf.locator('form[data-form=log]').count() == 1)
+        ctx.close()
+    finally:
+        proc.terminate(); proc.wait(10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # Browser mode on a folder: Receipts saves into it, and waits for Allow after Chrome forgets the folder.
+    ctx = b.new_context(viewport={'width': 1280, 'height': 900})
+    ctx.add_init_script(HANDLES)
+    pg = ctx.new_page(); watch(pg)
+    pg.goto(HUB + '/#/settings'); pg.wait_for_timeout(1200)
+    sf = frame_of(pg, '/apps/settings/')
+    sf.evaluate(PICK)
+    with pg.expect_navigation(timeout=15000): sf.click('[data-folder] [data-choose]')
+    pg.wait_for_timeout(1200)
+    pg.evaluate("location.hash = '#/receipts'")
+    rf = frame_of(pg, '/apps/receipts/')
+    seen(rf, 'form[data-form=log]')
+    check('Receipts runs on the folder store in browser mode', rf.evaluate('[window.__receipts.ws.backend, window.__receipts.ws.storage]') == ['browser', 'folder'])
+    year = rf.evaluate('window.__receipts.V.today')[:4]
+    log_receipt(rf, 'Logged without the agent.', 'win', ('ownership',))
+    on_disk = json.loads(pg.evaluate(OPFS, [f'Workshop/receipts/entries/me/{year}.json', None]) or '{}')
+    check('browser mode: the entry is a file in the chosen folder', [i['note'] for i in on_disk.get('items', [])] == ['Logged without the agent.'])
+
+    ctx.add_init_script(ASK_AGAIN)
+    p3 = ctx.new_page(); watch(p3)
+    p3.goto(HUB + '/#/receipts'); p3.wait_for_timeout(1800)
+    rf3 = frame_of(p3, '/apps/receipts/')
+    check('while Chrome must ask again, Receipts shows no data and points to the Allow bar', p3.locator('#folderBar').count() == 1
+          and seen(rf3, '.waiting-empty') and 'in the bar at the top of Workshop' in rf3.inner_text('#app') and rf3.locator('form, .entry').count() == 0
+          and rf3.locator('.tab:not([disabled])').count() == 0)
+    p3.keyboard.press('Control+k'); p3.wait_for_timeout(300); p3.keyboard.type('Log a receipt'); p3.keyboard.press('Enter'); p3.wait_for_timeout(500)
+    check('while waiting, the palette cannot open the log form', rf3.locator('form').count() == 0)
+    p3.locator('#folderBar [data-allow]').click(); p3.wait_for_timeout(1500)
+    check('after Allow, Receipts loads and editing works again', seen(rf3, 'form[data-form=log]') and rf3.locator('.waiting-empty').count() == 0
+          and 'Logged without the agent.' in rf3.evaluate("JSON.stringify(window.__receipts.V.entries)"))
+    ctx.close()
+
+
 def main():
     serve(8802, functools.partial(Static, directory=ROOT))
     with sync_playwright() as p:
@@ -752,6 +897,7 @@ def main():
         storage_checks(b, watch)
         folder_checks(b, watch)
         agents_checks(b, watch)
+        receipts_checks(b, watch)
 
         check('no page errors', not errors)
         if errors: print('  ' + '\n  '.join(errors))

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "receipts.summaries/<person>/<cycle>",
+  "description": "The sidecar of one summary Markdown file: how and when it was generated, and the hashes that tell whether you edited it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "rev",
+    "items"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^receipts\\.summaries/[a-z0-9][a-z0-9-]{0,39}/[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "version": {
+      "const": 1
+    },
+    "rev": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "updatedAt",
+          "cycleId",
+          "generator",
+          "generatedAt",
+          "inputHash",
+          "outputHash",
+          "edited",
+          "file"
+        ],
+        "properties": {
+          "id": {
+            "const": "summary"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cycleId": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+          },
+          "generator": {
+            "type": "string",
+            "pattern": "^(template@\\d+|ai:[^@\\s]+@\\d+)$"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputHash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "outputHash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^summaries/[a-z0-9][a-z0-9-]{0,39}/[a-z0-9][a-z0-9-]{0,39}\\.md$"
+          }
+        }
+      },
+      "maxItems": 1
+    },
+    "deleted": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

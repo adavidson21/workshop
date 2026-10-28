@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this site, plus Workshop on 127.0.0.1 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Receipts</title>
+<meta name="theme-color" content="#F4F1EA">
+<!-- sets the theme before first paint so there is no flash -->
+<script src="../../shared/theme.js"></script>
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<script src="../../shared/vendor/xlsx.full.min.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="../../icons/favicon.svg">
+<link rel="stylesheet" href="../../shared/themes.css">
+<link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="receipts.css">
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
