@@ -1,0 +1,175 @@
+{
+  "schema": "receipts.entries/jordan-lee/2026",
+  "version": 1,
+  "rev": 7,
+  "updatedAt": "2026-10-20T15:00:00.000Z",
+  "items": [
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h1a",
+      "source": "manual",
+      "date": "2026-03-12",
+      "kind": "win",
+      "note": "Shipped the importer for the sample catalog.",
+      "rubric": [
+        "results"
+      ],
+      "bullet": "Shipped the catalog importer two weeks early.",
+      "category": "",
+      "impact": null,
+      "effort": null,
+      "strategic": false,
+      "riskReduced": null,
+      "visibility": null,
+      "collaborators": [],
+      "artifact": "",
+      "links": [],
+      "metric": "",
+      "metricSource": "",
+      "tags": [],
+      "review": false,
+      "sourceRef": ""
+    },
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h2a",
+      "source": "manual",
+      "date": "2026-07-08",
+      "kind": "win",
+      "note": "Led the cache rollout for the reading list service.\nCut p95 latency on the list page.",
+      "rubric": [
+        "results",
+        "craft"
+      ],
+      "category": "Performance and scaling",
+      "bullet": "Led the cache rollout that cut list page p95 latency by 40%.",
+      "impact": 4,
+      "effort": "L",
+      "strategic": true,
+      "riskReduced": 2,
+      "visibility": "Org",
+      "metric": "p95 latency -40%",
+      "metricSource": "Dashboard",
+      "links": [
+        "https://example.com/dash/latency"
+      ],
+      "tags": [
+        "performance"
+      ],
+      "collaborators": [],
+      "artifact": "",
+      "review": false,
+      "sourceRef": ""
+    },
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h2b",
+      "source": "manual",
+      "date": "2026-08-19",
+      "kind": "feedback",
+      "note": "Peer said the design review notes were the clearest they had read this year.",
+      "rubric": [
+        "communication"
+      ],
+      "bullet": "Wrote design review notes that peers called the clearest of the year.",
+      "category": "",
+      "impact": null,
+      "effort": null,
+      "strategic": false,
+      "riskReduced": null,
+      "visibility": null,
+      "collaborators": [],
+      "artifact": "",
+      "links": [],
+      "metric": "",
+      "metricSource": "",
+      "tags": [],
+      "review": false,
+      "sourceRef": ""
+    },
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h2c",
+      "source": "manual",
+      "date": "2026-09-02",
+      "kind": "growth",
+      "note": "Ran the on-call handoff for the first time.",
+      "rubric": [
+        "growth",
+        "ownership"
+      ],
+      "category": "Reliability and on-call",
+      "bullet": "",
+      "impact": null,
+      "effort": null,
+      "strategic": false,
+      "riskReduced": null,
+      "visibility": null,
+      "collaborators": [],
+      "artifact": "",
+      "links": [],
+      "metric": "",
+      "metricSource": "",
+      "tags": [],
+      "review": false,
+      "sourceRef": ""
+    },
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h2d",
+      "source": "manual",
+      "date": "2026-09-25",
+      "kind": "concern",
+      "note": "Missed the estimate on the search refactor by a sprint without raising it early.",
+      "rubric": [
+        "ownership"
+      ],
+      "bullet": "Raise slipping estimates earlier.",
+      "review": true,
+      "category": "",
+      "impact": null,
+      "effort": null,
+      "strategic": false,
+      "riskReduced": null,
+      "visibility": null,
+      "collaborators": [],
+      "artifact": "",
+      "links": [],
+      "metric": "",
+      "metricSource": "",
+      "tags": [],
+      "sourceRef": ""
+    },
+    {
+      "updatedAt": 1792508400000,
+      "id": "r_h2e",
+      "source": "manual",
+      "date": "2026-10-14",
+      "kind": "win",
+      "note": "Paired with a new teammate on the deploy pipeline for two weeks.",
+      "collaborators": [
+        "Sam Okafor"
+      ],
+      "links": [
+        "https://example.com/pr/123"
+      ],
+      "rubric": [],
+      "category": "",
+      "bullet": "",
+      "impact": null,
+      "effort": null,
+      "strategic": false,
+      "riskReduced": null,
+      "visibility": null,
+      "artifact": "",
+      "metric": "",
+      "metricSource": "",
+      "tags": [],
+      "review": false,
+      "sourceRef": ""
+    }
+  ],
+  "deleted": {
+    "r_old": 1792422000000
+  }
+}

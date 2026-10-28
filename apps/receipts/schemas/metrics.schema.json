@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "receipts.metrics/<person>/<yyyy-mm>",
+  "description": "A month of gathered numbers for one person. Written by collectors (V1.1); a refresh replaces it. Receipts V1 only reads it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "rev",
+    "items",
+    "meta"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^receipts\\.metrics/[a-z0-9][a-z0-9-]{0,39}/\\d{4}-\\d{2}$"
+    },
+    "version": {
+      "const": 1
+    },
+    "rev": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "updatedAt",
+          "source",
+          "value",
+          "unit",
+          "detail",
+          "collectedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.[a-z0-9.-]+$"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,39}$"
+          },
+          "value": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "detail": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "collectedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "deleted": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "updatedAt",
+        "personId",
+        "month",
+        "collectedAt"
+      ],
+      "properties": {
+        "updatedAt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "personId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "month": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "collectedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

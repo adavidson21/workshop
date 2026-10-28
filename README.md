@@ -5,6 +5,7 @@ An engineering manager's hub: one page with a rail of apps, sharing one theme.
 - **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
 - **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
 - **Agents** shows your [eng-agents](https://github.com/adavidson21/eng-agents) work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
+- **Receipts** keeps performance evidence for you, your direct reports and your manager, and turns it into review summaries you can edit, plus CSV and Excel exports. Everything is a file in your Workshop folder. Guide: [apps/receipts/README.md](apps/receipts/README.md).
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
@@ -75,6 +76,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   prioritizer/          Prioritizer (also runs on its own at /apps/prioritizer/)
     ado-helper/         the local ADO helper (Python), for when Workshop's ADO connector is not running
   agents/               Agents (the eng-agents live dashboard, on the opencode connector)
+  receipts/             Receipts (performance evidence and review summaries)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)
@@ -118,8 +120,8 @@ node tests/check-themes.mjs              theme.js matches themes.css
 node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
 node shell/registry.mjs --check          apps/registry.json lists every app folder
 node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
-node --test "apps/*/test/*.test.mjs"     apps' own tests (Prioritizer storage)
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Prioritizer storage
+node --test "apps/*/test/*.test.mjs"     apps' own tests (Prioritizer storage, Agents, Home, Receipts)
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Prioritizer storage, Receipts
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
