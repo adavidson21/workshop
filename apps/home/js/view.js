@@ -82,8 +82,8 @@ export function render(v) {
   const name = (p.name || '').trim(), role = (p.role || '').trim();
   const head = `<header class="hello">
     <div class="who">
-      <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
     <button class="btn ghost" data-edit-profile>${name ? 'Edit profile' : 'Add your name'}</button>
   </header>`;

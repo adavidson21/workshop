@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="slate">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Workshop</title>
 <meta name="description" content="An engineering manager's hub: Prioritizer, Agents (your eng-agents work) and Settings in one place.">
-<meta name="theme-color" content="#F7F7F8">
+<meta name="theme-color" content="#F4F1EA">
 <!-- sets the theme before first paint so there's no flash -->
 <script src="shared/theme.js"></script>
 <link rel="stylesheet" href="shared/fonts/fonts.css">
@@ -25,7 +25,10 @@
 <body>
 <div class="hub">
   <nav class="rail" id="rail" aria-label="Apps"></nav>
-  <main class="panes" id="panes"></main>
+  <div class="stage">
+    <header class="topbar" id="topbar"></header>
+    <main class="panes" id="panes"></main>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

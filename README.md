@@ -58,7 +58,7 @@ Start at login and hosted mode are off until you turn them on, and never need ad
 
 ```
 index.html              the shell page: rail + one pane per app
-shell/                  shell.js (rail, routing, palette, theme menu, toast, pairing, the SDK's shell side),
+shell/                  shell.js (rail, routing, palette, light/dark toggle, toast, pairing, the SDK's shell side),
                         shell.css, registry.mjs (writes apps/registry.json)
 shared/                 used by the shell and every app
   workshop-sdk.js       the SDK: apps reach the shell, data and connectors only through it (docs/sdk.md)

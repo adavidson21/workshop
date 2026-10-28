@@ -1,4 +1,4 @@
-/* Workshop shell: the app rail, routing between apps, the theme picker, the toast, the command palette,
+/* Workshop shell: the app rail, the top bar (crumbs and the light/dark toggle), routing between apps, the toast, the command palette,
    hosted pairing, and the shell side of the SDK message protocol (docs/sdk.md).
 
    The rail, routes, Alt+<n>, shortcuts and palette are built from the app manifests: GET /api/apps when
@@ -72,7 +72,6 @@ function missingConnector(app) {
 }
 
 /* ---------- rail ---------- */
-const THEME_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor"/></svg>';
 const MARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="var(--on-accent)"><rect x="5" y="5" width="6.2" height="6.2" rx="1.8"/><rect x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/></g></svg>';
 const INSTALL_ICON = svg('<rect x="3" y="3.5" width="14" height="10" rx="1.8"/><path d="M7 17h6M10 6.5v4.5M8 9l2 2 2-2"/>');
 const LINK_ICON = svg('<path d="M8.5 11.5l3-3"/><path d="M10.6 5.9l1.2-1.2a3 3 0 0 1 4.2 4.2l-1.2 1.2M9.4 14.1l-1.2 1.2a3 3 0 0 1-4.2-4.2l1.2-1.2"/>');
@@ -83,8 +82,7 @@ function renderRail() {
     + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Use Workshop on this computer" title="Use Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
-    + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`
-    + `<button class="app-btn" id="themeBtn" aria-label="Theme" title="Theme">${THEME_ICON}</button>`;
+    + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`;
   for (const a of railApps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
 }
@@ -115,7 +113,31 @@ async function loadIcon(app) {
   } catch (e) { /* keep the blank icon */ }
 }
 
+/* ---------- top bar: crumbs on the left, the light/dark toggle in the top right corner ---------- */
+// On alexisdavidson.org the crumbs lead back up to LifeKit (tools.alexisdavidson.org), like every
+// other tool there. Anywhere else (the agent on 127.0.0.1, another company's domain) they start at Workshop.
+const LIFEKIT = /(^|\.)alexisdavidson\.org$/.test(location.hostname)
+  ? [{ title: 'LifeKit', href: 'https://tools.alexisdavidson.org/' }, { title: 'Office', href: 'https://tools.alexisdavidson.org/office/' }]
+  : [];
+function renderTopbar() {
+  const bar = $('#topbar');
+  if (!bar) return;
+  bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
+    + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span></nav>`
+    + WorkshopTheme.toggleHtml();
+}
+function markTopbar() {
+  const here = $('#topbar .here');
+  if (!here) return;
+  const app = byId[current];
+  const show = !!app && !(homeApp && current === homeApp.id);
+  here.textContent = show ? app.manifest.name : '';
+  here.hidden = !show;
+  $('#topbar .here-sep').hidden = !show;
+}
+
 function markRail() {
+  markTopbar();
   document.querySelectorAll('.app-btn[data-app]').forEach(b => {
     const on = b.dataset.app === current;
     b.classList.toggle('on', on);
@@ -377,31 +399,11 @@ function onKey(e) {
   }
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && menu) { closeMenu(); $('#themeBtn').focus(); return; }
   onKey(e);
 });
 
-/* ---------- theme menu ---------- */
-let menu = null;
-function closeMenu() { if (menu) { menu.remove(); menu = null; } }
-function openThemeMenu(anchor) {
-  closeMenu();
-  menu = document.createElement('div');
-  menu.className = 'menu'; menu.setAttribute('role', 'menu');
-  menu.innerHTML = WorkshopTheme.menuHtml();
-  document.body.appendChild(menu);
-  const r = anchor.getBoundingClientRect(), m = menu.getBoundingClientRect();
-  menu.style.left = Math.max(8, Math.min(window.innerWidth - m.width - 8, r.right + 8)) + 'px';
-  menu.style.top = Math.max(8, r.bottom - m.height) + 'px';
-  menu.addEventListener('click', e => { const b = e.target.closest('[data-th]'); if (b) { WorkshopTheme.set(b.dataset.th); closeMenu(); anchor.focus(); } });
-  const first = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
-  if (first) first.focus();
-}
-document.addEventListener('click', e => {
-  const tb = e.target.closest('#themeBtn');
-  if (tb) { menu ? closeMenu() : openThemeMenu(tb); return; }
-  if (menu && !menu.contains(e.target)) closeMenu();
-});
+/* ---------- theme ---------- */
+// The toggle in the top bar flips Light and Dark (shared/theme.js handles the click).
 // Every app frame gets the theme event (same-origin pages also follow workshop.theme in localStorage).
 WorkshopTheme.onChange(() => { const t = themeNow(); for (const a of apps) sendTo(a, 'theme', t); });
 
@@ -514,6 +516,7 @@ env = await detectBackend();
 document.documentElement.dataset.mode = env.mode;
 await loadApps();
 renderRail();
+renderTopbar();
 setInstall();
 folderBar();
 if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found</h2><p>There is no app list for this site. If you publish Workshop as static files, run <code>node shell/registry.mjs</code> first.</p></div>';

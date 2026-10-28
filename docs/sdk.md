@@ -30,7 +30,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | `ws.badge(count)` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. |
 | `ws.notify({title, body?, route?})` | System notification if the user allowed them, else a toast. Clicking it opens `route` in this app. |
 | `ws.commands.register({id, title, shortcut?})` | Adds a command to the shell palette (`Ctrl+K`). Returns an unregister function. `id` is unique within the app; the shell scopes it to the app. Running it sends the app a `command` event. |
-| `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (for example `slate`, `nord`, or `system`); `scheme` is `light` or `dark`. |
+| `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (`light`, `dark`, or `system`); `scheme` is `light` or `dark`. |
 | `ws.on(event, handler)` | Subscribe to `theme`, `route`, `command`, `visible` or `online`. Returns an unsubscribe function. |
 
 Events:
@@ -130,7 +130,7 @@ Every message is an object with `workshop: 1`. Schema [sdk-message](schemas/sdk-
 ```json
 {"workshop": 1, "kind": "request", "id": "r7", "method": "toast", "params": {"text": "Saved", "kind": "success"}}
 {"workshop": 1, "kind": "response", "id": "r7", "ok": true, "result": null}
-{"workshop": 1, "kind": "event", "event": "theme", "payload": {"key": "nord", "scheme": "dark"}}
+{"workshop": 1, "kind": "event", "event": "theme", "payload": {"key": "dark", "scheme": "dark"}}
 ```
 
 | `kind` | Direction | Fields |

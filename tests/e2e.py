@@ -193,9 +193,9 @@ def agent_checks(b, watch):
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         check('changing the data folder saves dataDir and says to restart', saved.get('dataDir') == other and 'Restart Workshop' in sf.inner_text('[data-folder] .msg'))
         echo = sf.locator('.conn[data-connector=echo]')
-        check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').inner_text() == 'Off')
+        check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').text_content().strip() == 'Off')
         echo.locator('[data-enable]').check(); ap.wait_for_timeout(1200)
-        check('turning a connector on starts it', echo.locator('[data-state]').inner_text() == 'Ready')
+        check('turning a connector on starts it', echo.locator('[data-state]').text_content().strip() == 'Ready')
         echo.locator('summary').click(); ap.wait_for_timeout(600)
         greeting = echo.get_by_label('Greeting (required)', exact=True)
         check('a connector form is generated from its configSchema', greeting.input_value() == 'Hello' and echo.locator('select').count() == 1 and echo.locator('.cfg-env-status').inner_text() == 'set on this computer')
@@ -207,7 +207,7 @@ def agent_checks(b, watch):
 
         ado = sf.locator('.conn[data-connector=ado]')
         ado.locator('summary').click(); ap.wait_for_timeout(800)
-        legends = ado.locator('legend').all_inner_texts()
+        legends = [t.strip() for t in ado.locator('legend').all_text_contents()]  # labels are uppercased by CSS
         check('the ADO form has connections and repo and path mapping', 'Connections' in legends and 'Repo and path mapping' in legends)
         conn = ado.locator('fieldset', has=sf.locator('legend', has_text='Connections')).first
         conn.locator('> .cfg-add').click(); ap.wait_for_timeout(200)
@@ -575,10 +575,11 @@ def agents_checks(b, watch):
         check('#/agents/<id> focuses that item, also when the app is opened there', 0 <= top < 800 and af.evaluate('scrollY') > 0)
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/agents') and af.locator('.brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
-        pg.click('#themeBtn'); pg.click('.menu [data-th=dracula]'); pg.wait_for_timeout(400)
-        check('a theme change applies to Agents', af.evaluate('document.documentElement.dataset.theme') == 'dracula')
+        want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
+        pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(400)
+        check('the light/dark toggle applies to Agents', af.evaluate('document.documentElement.dataset.theme') == want)
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
-        check('Agents draws with shared/themes.css colors', bg == 'rgb(40, 42, 54)')
+        check('Agents draws with shared/themes.css colors', bg == ('rgb(22, 21, 20)' if want == 'dark' else 'rgb(244, 241, 234)'))
 
         # The track, the main button, and a write action sent with confirm from the click.
         pick = af.locator('.pickup')
@@ -681,7 +682,7 @@ def main():
 
         pg.goto(HUB + '/'); pg.wait_for_timeout(800)
         keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme'].map(k => [k, localStorage.getItem(k)]))")
-        check('theme survives the rename', keys['workshop.theme'] == 'dracula' and pg.evaluate('document.documentElement.dataset.theme') == 'dracula')
+        check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
         check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
         check('opens on Home at the plain address', pg.url == HUB + '/' and pg.title() == 'Home · Workshop' and any('/apps/home/' in f.url for f in pg.frames))
@@ -692,7 +693,7 @@ def main():
         pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
         check('the logo is not marked when another app is open', pg.locator('#rail .mark.on').count() == 0 and pg.url == HUB + '/#/prioritizer')
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dracula')
+        check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
         add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
@@ -719,8 +720,9 @@ def main():
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
-        pg.click('#themeBtn'); pg.click('.menu [data-th=nord]'); pg.wait_for_timeout(500)
-        check('theme reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == 'nord')
+        want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
+        pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
+        check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
         check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/agents'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
