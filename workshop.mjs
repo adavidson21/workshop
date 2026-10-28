@@ -3,11 +3,11 @@
 //
 //   workshop start [--port n] [--quiet]   Start the agent (same as node agent/start.mjs).
 //   workshop install [--login]            First run: create ~/.workshop. --login also turns on start at login.
-//   workshop uninstall                     Turn off start at login. Leaves your data in place.
-//   workshop doctor                        Check Node, config.json, the port, start at login and hosted mode.
+//   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
+//   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
-//   workshop update                        Update this checkout (git pull) and show the version.
+//   workshop update                        Update this checkout (git pull) and show the version. Other installs: how to update.
 //   workshop version                       Print the agent version.
 //   workshop help                          This help.
 //
@@ -22,6 +22,7 @@ import { VERSION } from './agent/version.mjs';
 import { SchemaSet } from './agent/lib/schema.mjs';
 import { resolveHome, homePaths, defaultConfig, DEFAULT_PORT } from './agent/lib/home.mjs';
 import { writeJsonAtomic } from './agent/lib/fsutil.mjs';
+import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 
@@ -33,15 +34,17 @@ const USAGE = `Usage: workshop <command> [options]
 
   start [--port <n>] [--quiet]   Start the agent, print the address to open.
   install [--login]              Create ~/.workshop. --login also turns on start at login (no admin).
-  uninstall                      Turn off start at login. Your data stays in ~/.workshop.
-  doctor                         Check Node, config.json, the port, start at login and hosted mode.
+  uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
+                                 and ~/.workshop in place.
+  doctor                         Check Node, config.json, the port, the data folder, start at login and hosted mode.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
   publish [--out <dir>]          Build the static site for hosted or browser mode (default out: dist/).
   update                         Update this checkout (git pull) and print the version.
   version                        Print the agent version.
   help                           Show this.
 
-Home folder: ~/.workshop, or set WORKSHOP_HOME. See docs/security.md.`;
+Home folder: ~/.workshop, or set WORKSHOP_HOME. Data folder: dataDir in config.json, default ~/Workshop.
+See docs/security.md.`;
 
 // --------------------------------------------------------------- helpers
 
@@ -82,13 +85,53 @@ export function inspectConfig(file, schemas) {
   return { state: 'ok', problems: [], config: value };
 }
 
+/** The data folder config.json names, or the default (~/Workshop) when it names none. */
+export const configDataDir = (config, defaultDir = defaultDataDir()) =>
+  (config && typeof config.dataDir === 'string' && config.dataDir) || defaultDir;
+
+/**
+ * What `workshop doctor` says about the data folder, without changing it (a write check leaves no file
+ * behind). The agent's own rules decide what is allowed (agent/lib/datadir.mjs, dataDirProblem). A missing
+ * folder is fine: the agent creates it on start.
+ */
+export function inspectDataDir(dir, home) {
+  const problem = dataDirProblem(dir, home);
+  if (problem) return { state: 'invalid', problem };
+  const st = fs.statSync(dir, { throwIfNoEntry: false });
+  if (!st) return { state: 'missing' };
+  if (!st.isDirectory()) return { state: 'invalid', problem: `${dir} is a file, not a folder.` };
+  // A real write, as the agent does: on Windows, access checks miss folder permissions. The name starts with
+  // "." and ends in ".tmp", so the agent never treats it as data.
+  const probe = path.join(dir, `.workshop-doctor-check-${process.pid}.tmp`);
+  try {
+    fs.readdirSync(dir);
+    fs.writeFileSync(probe, 'ok');
+    fs.rmSync(probe, { force: true });
+    return { state: 'ok' };
+  } catch (e) {
+    try { fs.rmSync(probe, { force: true }); } catch { /* nothing to clean up */ }
+    return { state: 'readonly', problem: `Workshop cannot read and write it (${e.code || e.message}).` };
+  }
+}
+
+/** Whether the one-time copy from <home>/data into the data folder has run: <home>/data/moved.json. */
+export function inspectOldData(home) {
+  const old = path.join(home, 'data');
+  if (!fs.statSync(old, { throwIfNoEntry: false })?.isDirectory()) return { state: 'none', old };
+  const file = path.join(old, 'moved.json');
+  if (!fs.existsSync(file)) return { state: 'pending', old };
+  let moved = null;
+  try { moved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* still done: the file is the marker */ }
+  return { state: 'done', old, movedTo: moved?.movedTo, movedAt: moved?.movedAt };
+}
+
 // --------------------------------------------------------------- doctor
 
 /**
  * Build the lines `workshop doctor` prints and its exit code. `probe` checks whether the agent answers on a
  * port (defaults to the real health check); tests pass their own.
  */
-export async function doctorReport({ home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth } = {}) {
+export async function doctorReport({ home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth, defaultDir = defaultDataDir() } = {}) {
   const schemas = loadSchemas();
   const paths = homePaths(home);
   const lines = [];
@@ -112,6 +155,27 @@ export async function doctorReport({ home = resolveHome(), env = process.env, pl
     for (const p of info.problems) lines.push(`  ${p}`);
     lines.push(`  Fix ${paths.config}, or move it away to start fresh, then run this again.`);
     bad = true;
+  }
+
+  const dataDir = configDataDir(info.config, defaultDir);
+  const fromConfig = dataDir !== defaultDir;
+  const dd = inspectDataDir(dataDir, home);
+  const label = `Data folder: ${dataDir}${fromConfig ? '' : ' (the default)'}`;
+  if (dd.state === 'ok') lines.push(`${label}: ok, exists and is writable.`);
+  else if (dd.state === 'missing') lines.push(`${label}: not created yet. The agent creates it when it starts.`);
+  else {
+    lines.push(`${label}: there is a problem, so the agent will not start until it is fixed:`);
+    lines.push(`  ${dd.problem}`);
+    lines.push(`  Change "dataDir" in ${paths.config} or in Settings, then run this again.`);
+    bad = true;
+  }
+  const old = inspectOldData(home);
+  if (old.state === 'done') {
+    lines.push(`Old data in ${old.old}: copied to the data folder${old.movedTo ? ` (${old.movedTo})` : ''}${old.movedAt ? ` on ${old.movedAt}` : ''}. The old files are kept.`);
+  } else if (old.state === 'pending') {
+    lines.push(`Old data in ${old.old}: not copied yet. The agent copies it once, on start, if the data folder has no app data.`);
+  } else {
+    lines.push(`Old data in ${old.old}: none, nothing to copy.`);
   }
 
   const port = info.config?.port ?? DEFAULT_PORT;
@@ -232,7 +296,8 @@ async function runUninstall(io) {
   try { await setStartAtLoginFlag(home, schemas, false); } catch (e) { io.out(e.message); return 1; }
   const r = await disableStartAtLogin({ repo: REPO, env: io.env, dir: io.env.WORKSHOP_LOGIN_DIR });
   io.out(r.removed ? `Start at login is off. Removed ${r.path}.` : 'Start at login was already off.');
-  io.out(`Your data is still in ${home}. Delete that folder yourself if you want it gone.`);
+  const dataDir = configDataDir(inspectConfig(homePaths(home).config, schemas).config, io.defaultDataDir);
+  io.out(`Uninstall left your data folder (${dataDir}) and the Workshop home folder (${home}) in place. Delete them yourself if you want them gone.`);
   return 0;
 }
 
@@ -249,10 +314,30 @@ function runStart(rest) {
   });
 }
 
+/**
+ * Where to get a new release, from package.json (`homepage`, or `repository` as a string or {url}) if this
+ * install has one. Null otherwise: Workshop names no repo of its own, so other companies' copies stay generic.
+ */
+export function releaseSource(repo = REPO) {
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')); } catch { return null; }
+  const raw = pkg && (pkg.homepage || (typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url));
+  const url = typeof raw === 'string' ? raw.replace(/^git\+/, '') : '';
+  return /^https?:\/\//.test(url) ? url : null;
+}
+
+/** What `workshop update` says when this folder is not a git checkout. */
+export function manualUpdateLines(repo = REPO) {
+  const src = releaseSource(repo);
+  return [
+    `This is not a git checkout. Download the latest release of Workshop${src ? ` (${src})` : ''} and replace this folder with it.`,
+    `Current version: ${VERSION}.`
+  ];
+}
+
 function runUpdate(io) {
   if (!fs.existsSync(path.join(REPO, '.git'))) {
-    io.out(`This is not a git checkout. Download the latest from https://github.com/adavidson21/workshop and replace this folder.`);
-    io.out(`Current version: ${VERSION}.`);
+    for (const l of manualUpdateLines()) io.out(l);
     return Promise.resolve(0);
   }
   return new Promise(resolve => {

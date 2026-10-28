@@ -24,6 +24,7 @@
   ],
   "files": [
     "home.css",
+    "js/data.js",
     "js/main.js",
     "js/view.js"
   ]

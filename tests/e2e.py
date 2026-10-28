@@ -528,6 +528,22 @@ def folder_checks(b, watch):
           and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
     pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
     check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#addList').is_visible())
+
+    # Home waits the same way: a message instead of an empty page, no profile editing, then loads on Allow.
+    p4 = ctx.new_page(); watch(p4)
+    p4.goto(HUB + '/'); p4.wait_for_timeout(1800)
+    hf4 = next(f for f in p4.frames if '/apps/home/' in f.url)
+    seen(hf4, '.waiting')
+    check('meanwhile Home says to allow the folder instead of showing an empty page',
+          'Allow Workshop to use your folder to see your day' in hf4.inner_text('#app') and 'in the bar at the top of Workshop' in hf4.inner_text('#app')
+          and hf4.locator('.tiles').count() == 0 and 'No tasks yet' not in hf4.inner_text('#app'))
+    check('while waiting, Home offers no profile editing and saves nothing',
+          hf4.locator('[data-edit-profile]').count() == 0 and pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) is None)
+    p4.locator('#folderBar [data-allow]').click()
+    seen(hf4, '.tiles')
+    check('after Allow, Home loads the board without a reload', hf4.locator('.waiting').count() == 0 and 'open task' in hf4.inner_text('.tiles'))
+    hf4.click('[data-edit-profile]'); hf4.fill('input[name=name]', 'Riley Park'); hf4.click('.pform .btn.primary'); p4.wait_for_timeout(600)
+    check('and Home saves the profile to the folder again', 'Riley Park' in (pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) or ''))
     ctx.close()
 
 
