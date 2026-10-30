@@ -683,7 +683,7 @@ export function setupHtml() {
     body = '<p>This copy of Workshop has no <code>connectors/opencode</code> folder.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
-    body = '<p>Dispatch shows your eng-agents work items and the opencode agents working on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
+    body = '<p>Dispatch is the front end for Tandem: your work items and the opencode agents Tandem runs on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
     act = 'settings';
   } else if (c.state === 'starting') {
     title = 'Starting the opencode connector';

@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Workshop",
   "short_name": "Workshop",
-  "description": "Decide what to work on next, and watch your eng-agents work in one place.",
+  "description": "Decide what to work on next, and follow the coding agents Tandem runs, in one place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

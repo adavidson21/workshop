@@ -76,7 +76,7 @@ function engLabel(i){
 }
 function engTip(i){
   const n = i.next || {};
-  if (i.paused) return 'Paused in eng-agents. Open Dispatch to resume.';
+  if (i.paused) return 'Paused in Tandem. Open Dispatch to resume.';
   if (i.waiting) return 'The agent is waiting for an answer. Open Dispatch.';
   if (engAuto(i, 'waiting')) return `Autopilot needs you: ${i.autopilot.message || 'see Dispatch'}`;
   if (engAuto(i, 'running')) return `Autopilot is building it. Now: ${engStep(n) || 'working'}`;
@@ -106,14 +106,14 @@ function engDrawer(t){
     const what = engAuto(i, 'waiting') ? ` · <b>Autopilot needs you</b>${i.autopilot.message ? `: ${esc(i.autopilot.message)}` : ''}`
       : engAuto(i, 'running') ? ` · autopilot is on it${step ? `: ${esc(step)}` : ''}`
       : step ? ` · next: ${esc(step)}` : '';
-    return `<div class="deng"><span>eng-agents <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Dispatch</button></div>`;
+    return `<div class="deng"><span>Tandem <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Dispatch</button></div>`;
   }
   const st = eng.starting.get(String(t.ado.id));
   if (st) return `<div class="deng"><span><b>Starting</b> in opencode${st.error ? `: ${esc(st.error)}` : '...'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Watch it</button></div>`;
   if (t.done) return '';
   const bug = /bug/i.test(t.ado.type || '');
   const oc = eng.data && eng.data.opencode && eng.data.opencode.connected;
-  return `<div class="deng col"><span>Not started in eng-agents.</span>${oc
+  return `<div class="deng col"><span>Not started in Tandem.</span>${oc
     ? `<div class="acts"><button class="btn${bug ? '' : ' primary'}" data-d="eng-start" data-lane="feature" title="Runs /start ${esc(t.ado.id)} feature in opencode">Start as feature</button><button class="btn${bug ? ' primary' : ''}" data-d="eng-start" data-lane="bug" title="Runs /start ${esc(t.ado.id)} bug in opencode">Start as bug</button></div>`
     : '<span class="hint">opencode is not connected to Workshop.</span>'}</div>`;
 }

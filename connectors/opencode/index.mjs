@@ -72,8 +72,8 @@ export const configSchema = {
     },
     engAgentsConfig: {
       type: "string",
-      title: "eng-agents config.json",
-      description: "Used only to build work item links. Leave empty for ~/.config/eng-agents/config.json.",
+      title: "Tandem config.json",
+      description: "Used only to build work item links. Leave empty for ~/.config/eng-agents/config.json (Tandem's default).",
     },
     pollSeconds: {
       type: "integer",

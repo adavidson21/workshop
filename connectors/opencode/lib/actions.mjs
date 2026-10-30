@@ -40,7 +40,7 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
   if (!item) throw httpError(404, `No work item folder "${folder}". Refresh the page.`);
   const cmd = parseCommand(command);
   if (!cmd) throw httpError(400, `Not a command: ${command}`);
-  if (oc.commands.size && !oc.commands.has(cmd.name)) throw httpError(400, `opencode has no /${cmd.name} command. Re-run eng-agents install.ps1, then restart opencode.`);
+  if (oc.commands.size && !oc.commands.has(cmd.name)) throw httpError(400, `opencode has no /${cmd.name} command. Re-run Tandem's install.ps1 (eng-agents repo), then restart opencode.`);
   if (!fromAuto && autoActive(folder)) throw httpError(409, "Autopilot is running this item. Stop it first.");
 
   let sid = fresh || FRESH_SESSION.has(cmd.name) ? null : currentSession(folder);
@@ -94,7 +94,7 @@ export async function startItem({ id, lane }) {
   if (folderForToken(wid)) throw httpError(409, `Work item ${wid} is already started. Open the dashboard to continue it.`);
   const prev = starting.get(wid);
   if (prev && (sessions.get(prev.sid) || {}).status !== "idle") throw httpError(409, `Work item ${wid} is already starting.`);
-  if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run eng-agents install.ps1, then restart opencode.");
+  if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run Tandem's install.ps1 (eng-agents repo), then restart opencode.");
 
   const args = `${wid} ${lane}`;
   const created = await oc.api.createSession(`${wid}: /start ${args}`);
