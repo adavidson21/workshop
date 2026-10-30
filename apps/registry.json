@@ -38,7 +38,7 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "prioritizer",
-        "name": "Prioritizer",
+        "name": "Docket",
         "version": "4.2.0",
         "description": "Decide what to work on next.",
         "icon": "icon.svg",
@@ -77,7 +77,7 @@
           },
           {
             "id": "shortcuts",
-            "title": "Prioritizer keyboard shortcuts"
+            "title": "Docket keyboard shortcuts"
           }
         ],
         "files": [
@@ -114,9 +114,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "agents",
-        "name": "Agents",
+        "name": "Dispatch",
         "version": "1.0.0",
-        "description": "Your eng-agents work items and the opencode agents working on them.",
+        "description": "The front end for Tandem: your work items and the opencode agents working on them.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 20,

@@ -89,12 +89,12 @@ export function render(v) {
   </header>`;
 
   if (!v.board) {
-    return head + `<section class="card note"><h2>Prioritizer</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
+    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
   }
   const b = v.board;
   if (!b.total) {
-    return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Prioritizer and they show up here.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Prioritizer</button></p></section>` + agentsCard(v.agents);
+    return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
   }
 
   const tiles = `<section class="tiles" aria-label="Today at a glance">
@@ -116,7 +116,7 @@ export function render(v) {
     <div class="ch"><h2>People</h2></div>
     ${b.team.length ? `<ul class="team">${b.team.slice(0, 8).map(m => `<li><span class="av" aria-hidden="true">${esc(m.name.trim()[0].toUpperCase())}</span><span class="nm">${esc(m.name)}</span>
       <span class="ct">${m.open ? `${m.open} open` : 'Nothing open'}${m.waiting ? ` · ${m.waiting} waiting` : ''}</span></li>`).join('')}</ul>`
-      : `<p class="soft">Add people in Prioritizer to see who has what.</p>`}
+      : `<p class="soft">Add people in Docket to see who has what.</p>`}
   </section>`;
 
   return head + tiles + `<div class="cols">${next}<div class="stack">${team}${agentsCard(v.agents)}</div></div>`;
@@ -129,10 +129,10 @@ function agentsCard(a) {
     body = `<div class="pair">
       <button class="stat${a.needYou ? ' warn' : ''}" data-open="agents"><span class="n num">${a.needYou}</span><span class="lbl">Need you</span></button>
       <button class="stat" data-open="agents"><span class="n num">${a.working}</span><span class="lbl">Working</span></button></div>`;
-  } else if (a.state === 'browser') body = '<p class="soft">Agents need Workshop running on this computer.</p>';
+  } else if (a.state === 'browser') body = '<p class="soft">Dispatch needs Workshop running on this computer.</p>';
   else if (a.state === 'off') body = `<p class="soft">${esc(a.message || 'The opencode connector is off. Turn it on in Settings.')}</p>`;
   else body = '<p class="soft">Checking…</p>';
-  return `<section class="card"><div class="ch"><h2>Agents</h2><button class="lnk" data-open="agents">Open</button></div>${body}</section>`;
+  return `<section class="card"><div class="ch"><h2>Dispatch</h2><button class="lnk" data-open="agents">Open</button></div>${body}</section>`;
 }
 
 export function profileForm(p) {

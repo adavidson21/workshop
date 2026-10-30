@@ -24,9 +24,12 @@ main{flex:1;min-height:0;overflow:auto;padding:.25rem var(--gutter) 2.5rem}
 .logo{width:22px;height:22px;flex:none;color:var(--accent)}
 .logo svg{width:100%;height:100%}
 .sbrand b{font:600 1.15rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em;white-space:nowrap}
-/* inside Workshop the rail already names the app, so no second logo and title */
-.embedded .sbrand{display:none}
-.embedded .snav{padding-top:.75rem}
+/* inside Workshop the rail already names the app, and on its own page the top bar's crumbs do, so no second logo and title */
+.embedded .sbrand,.standalone .sbrand{display:none}
+.embedded .snav,.standalone .snav{padding-top:.75rem}
+/* on its own page: the top bar (shared/standalone-bar.js) above the app */
+body.standalone{display:flex;flex-direction:column}
+body.standalone>.app{flex:1;min-height:0;height:auto}
 .snav{padding:.2rem .5rem;display:flex;flex-direction:column;gap:1px}
 .sitem{position:relative;display:flex;align-items:center;gap:.6rem;width:100%;min-height:2.1rem;padding:.3rem .55rem;border-radius:var(--r-sm);color:var(--muted);font-weight:500;font-size:.92rem;text-align:left;white-space:nowrap;cursor:pointer;user-select:none;transition:background-color .2s,color .2s}
 .sitem svg{width:17px;height:17px;flex:none}

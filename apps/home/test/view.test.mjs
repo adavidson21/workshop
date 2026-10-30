@@ -61,7 +61,7 @@ test('the page: profile, empty board, and escaping', () => {
   assert.match(empty, /Good morning</);
   assert.match(empty, /Add your name/);
   assert.match(empty, /No tasks yet/);
-  assert.match(empty, /need Workshop running/);
+  assert.match(empty, /needs Workshop running/);
   const bad = [t('x', { title: '<img src=x onerror=alert(1)>' })];
   const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: summarize({ tasks: bad, lists, people: [] }, TODAY), agents: { state: 'ready', needYou: 2, working: 1 } });
   assert.match(html, /Good morning, Test</);

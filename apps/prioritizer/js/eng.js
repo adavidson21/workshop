@@ -76,13 +76,13 @@ function engLabel(i){
 }
 function engTip(i){
   const n = i.next || {};
-  if (i.paused) return 'Paused in eng-agents. Open Agents to resume.';
-  if (i.waiting) return 'The agent is waiting for an answer. Open Agents.';
-  if (engAuto(i, 'waiting')) return `Autopilot needs you: ${i.autopilot.message || 'see Agents'}`;
+  if (i.paused) return 'Paused in Tandem. Open Dispatch to resume.';
+  if (i.waiting) return 'The agent is waiting for an answer. Open Dispatch.';
+  if (engAuto(i, 'waiting')) return `Autopilot needs you: ${i.autopilot.message || 'see Dispatch'}`;
   if (engAuto(i, 'running')) return `Autopilot is building it. Now: ${engStep(n) || 'working'}`;
-  if (n.needsYou) return `Needs you: ${engStep(n) || 'see Agents'}`;
+  if (n.needsYou) return `Needs you: ${engStep(n) || 'see Dispatch'}`;
   if (i.agent === 'busy') return 'The agent is working on it';
-  return engStep(n) ? `Next: ${engStep(n)}` : 'Open in Agents';
+  return engStep(n) ? `Next: ${engStep(n)}` : 'Open in Dispatch';
 }
 function engChip(adoId){
   const i = engItem(adoId);
@@ -90,7 +90,7 @@ function engChip(adoId){
     const st = eng.status === 'ok' && eng.starting.get(String(adoId));
     if (!st) return '';
     return st.waiting || st.error || st.agent === 'idle'
-      ? `<button class="chip eng gate" data-act="eng" data-ado="${esc(adoId)}" data-tip="${esc(st.error || (st.waiting ? '/start is asking you something. Open Agents.' : 'Finishing /start'))}">Starting</button>`
+      ? `<button class="chip eng gate" data-act="eng" data-ado="${esc(adoId)}" data-tip="${esc(st.error || (st.waiting ? '/start is asking you something. Open Dispatch.' : 'Finishing /start'))}">Starting</button>`
       : `<button class="chip eng" data-act="eng" data-ado="${esc(adoId)}" data-tip="Running /start in opencode"><i class="live"></i>Starting</button>`;
   }
   const gate = i.paused || i.waiting || engAuto(i, 'waiting') || (i.next && i.next.needsYou && !engAuto(i, 'running')) || i.blocked;
@@ -99,21 +99,21 @@ function engChip(adoId){
 }
 function engDrawer(t){
   if (!engOn()) return '';
-  if (eng.status !== 'ok') return `<div class="deng"><span>The opencode connector is not ready${eng.error ? `: ${esc(eng.error)}` : '.'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open Agents</button></div>`;
+  if (eng.status !== 'ok') return `<div class="deng"><span>The opencode connector is not ready${eng.error ? `: ${esc(eng.error)}` : '.'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open Dispatch</button></div>`;
   const i = engItem(t.ado.id), n = i && i.next || {};
   if (i){
     const step = engStep(n);
     const what = engAuto(i, 'waiting') ? ` · <b>Autopilot needs you</b>${i.autopilot.message ? `: ${esc(i.autopilot.message)}` : ''}`
       : engAuto(i, 'running') ? ` · autopilot is on it${step ? `: ${esc(step)}` : ''}`
       : step ? ` · next: ${esc(step)}` : '';
-    return `<div class="deng"><span>eng-agents <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Agents</button></div>`;
+    return `<div class="deng"><span>Tandem <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Dispatch</button></div>`;
   }
   const st = eng.starting.get(String(t.ado.id));
   if (st) return `<div class="deng"><span><b>Starting</b> in opencode${st.error ? `: ${esc(st.error)}` : '...'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Watch it</button></div>`;
   if (t.done) return '';
   const bug = /bug/i.test(t.ado.type || '');
   const oc = eng.data && eng.data.opencode && eng.data.opencode.connected;
-  return `<div class="deng col"><span>Not started in eng-agents.</span>${oc
+  return `<div class="deng col"><span>Not started in Tandem.</span>${oc
     ? `<div class="acts"><button class="btn${bug ? '' : ' primary'}" data-d="eng-start" data-lane="feature" title="Runs /start ${esc(t.ado.id)} feature in opencode">Start as feature</button><button class="btn${bug ? ' primary' : ''}" data-d="eng-start" data-lane="bug" title="Runs /start ${esc(t.ado.id)} bug in opencode">Start as bug</button></div>`
     : '<span class="hint">opencode is not connected to Workshop.</span>'}</div>`;
 }

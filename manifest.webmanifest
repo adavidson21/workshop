@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Workshop",
   "short_name": "Workshop",
-  "description": "Decide what to work on next, and watch your eng-agents work in one place.",
+  "description": "Decide what to work on next, and follow the coding agents Tandem runs, in one place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -16,11 +16,11 @@
     {"src": "icons/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
-    {"name": "Prioritizer", "url": "./", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]},
-    {"name": "Agents", "url": "./#/agents", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]}
+    {"name": "Docket", "url": "./#/prioritizer", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]},
+    {"name": "Dispatch", "url": "./#/agents", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]}
   ],
   "screenshots": [
-    {"src": "shared/screenshots/wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Prioritizer: today's short list and what's up next"},
-    {"src": "shared/screenshots/narrow.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Prioritizer on a phone"}
+    {"src": "shared/screenshots/wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Docket: today's short list and what's up next"},
+    {"src": "shared/screenshots/narrow.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Docket on a phone"}
   ]
 }

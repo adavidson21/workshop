@@ -23,7 +23,7 @@ async function loadBoard() {
   try {
     const [tasks, lists, people] = await Promise.all(['tasks', 'lists', 'people'].map(c => ws.data.get(c, P)));
     if (tasks && (tasks.schema !== 'prioritizer.tasks' || tasks.version !== TASKS_VERSION)) {
-      v.board = null; v.boardNote = 'Your board was saved by a newer Prioritizer. Update Workshop to see it here.';
+      v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.';
     } else {
       v.board = summarize({ tasks: tasks ? tasks.items : [], lists: lists ? lists.items : [], people: people ? people.items : [] }, dateKey());
       v.boardNote = '';

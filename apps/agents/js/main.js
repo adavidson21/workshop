@@ -7,6 +7,7 @@
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey } from './view.js';
 
@@ -17,6 +18,8 @@ S.mode = ws.mode;
 S.embedded = ws.embedded;
 S.canNotify = typeof window.Notification === 'function';
 document.documentElement.classList.toggle('embed', ws.embedded);
+// On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
+if (!ws.embedded) mountBar('Dispatch');
 
 const errText = e => (e && e.message) || 'Something went wrong.';
 const toast = (text, bad) => ws.toast(text, { kind: bad ? 'error' : 'info' });

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Only this site, plus the local helpers on 127.0.0.1 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>Prioritizer</title>
+<title>Docket</title>
 <meta name="theme-color" content="#F4F1EA">
 <!-- sets the theme before first paint so there's no flash -->
 <script src="../../shared/theme.js"></script>
@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="../../icons/app-touch-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Prioritizer">
+<meta name="apple-mobile-web-app-title" content="Docket">
 <link rel="stylesheet" href="../../shared/themes.css">
 <link rel="stylesheet" href="../../shared/ui.css">
 <link rel="stylesheet" href="app.css">
@@ -26,7 +26,7 @@
 <div class="app" id="app">
   <aside class="side" id="side" aria-label="Sidebar">
     <div class="sbrand">
-      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="var(--on-accent)"><rect x="5" y="5" width="6.2" height="6.2" rx="1.8"/><path d="M6.6 8.3l1.2 1.1 2-2.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><rect x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/></g></svg></span><b>Prioritizer</b>
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="var(--on-accent)"><rect x="5" y="5" width="6.2" height="6.2" rx="1.8"/><path d="M6.6 8.3l1.2 1.1 2-2.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><rect x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/></g></svg></span><b>Docket</b>
     </div>
     <nav class="snav" id="snav" aria-label="Views"></nav>
     <div class="ssec"><span>Lists</span><button class="ibtn" id="addList" aria-label="New list" data-tip="New list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button></div>
@@ -42,9 +42,6 @@
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9.5A6 6 0 0 0 5.2 6.2M4 10.5a6 6 0 0 0 10.8 3.3"/><path d="M16.3 4.8v4.7h-4.6M3.7 15.2v-4.7h4.6"/><path class="mk-x" d="M8.6 8.6l2.8 2.8M11.4 8.6l-2.8 2.8"/></svg>
       </button>
       <span class="grow"></span>
-      <button class="ibtn" id="themeBtn" aria-label="Theme" data-tip="Theme">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor"/></svg>
-      </button>
       <input type="file" id="importFile" accept=".xlsx,.xls,.csv,.json" hidden>
     </div>
   </aside>

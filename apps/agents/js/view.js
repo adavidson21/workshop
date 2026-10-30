@@ -642,7 +642,7 @@ function menuHtml() {
 // Inside the shell the shell shows the name and owns the theme. Opened on its own, the page has both.
 function brandHtml() {
   if (S.embedded) return '';
-  return `<div class="brand"><span class="logo" aria-hidden="true"><i></i></span><h1>Agents</h1>${S.version ? `<span class="ver">v${h(S.version)}</span>` : ''}</div>`;
+  return `<div class="brand"><span class="logo" aria-hidden="true"><i></i></span><h1>Dispatch</h1>${S.version ? `<span class="ver">v${h(S.version)}</span>` : ''}</div>`;
 }
 export function pill() {
   const o = (L() && L().opencode) || {};
@@ -655,10 +655,9 @@ function headerHtml() {
   const o = (L() && L().opencode) || {};
   const st = pill();
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
-  const themeBtn = S.embedded ? '' : `<button type="button" class="ibtn" data-theme-menu="1" aria-label="Theme" title="Theme">${ICON.theme}</button>`;
   return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button>${themeBtn}</span></header>`;
+    `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
   let out = '';
@@ -674,7 +673,7 @@ export function setupHtml() {
   const c = S.connector;
   let title, body, act = '';
   if (S.mode === 'browser') {
-    title = 'Agents needs Workshop running on this computer';
+    title = 'Dispatch needs Workshop running on this computer';
     body = '<p>The agents and your <code>.work</code> folder are on your computer. Start Workshop there (<code>node workshop.mjs start</code>) and open it at <code>127.0.0.1</code>.</p>';
   } else if (!c) {
     title = 'Connecting to Workshop';
@@ -684,7 +683,7 @@ export function setupHtml() {
     body = '<p>This copy of Workshop has no <code>connectors/opencode</code> folder.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
-    body = '<p>Agents shows your eng-agents work items and the opencode agents working on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
+    body = '<p>Dispatch is the front end for Tandem: your work items and the opencode agents Tandem runs on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
     act = 'settings';
   } else if (c.state === 'starting') {
     title = 'Starting the opencode connector';

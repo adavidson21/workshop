@@ -398,7 +398,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
   .sheet { padding: 16px; }
 }
 /* ---------- embedded in a shell: the shell shows the name and owns the theme */
-.embed .brand { display: none; }
+.embed .brand, .standalone .brand { display: none; }
 .embed .wrap { padding-top: 28px; }
 .picked {
   display: flex; gap: 10px; align-items: baseline; text-decoration: none; min-width: 0;
