@@ -79,7 +79,7 @@ const task = (id, title, extra = {}) => ({id, title, listId: MAIN_LIST, rank: 1,
 test('a board saved by the localStorage app becomes four valid envelopes, keeping stamps and tombstones', () => {
   const raw = legacy();
   raw.dead = {tasks: {gone1: 1792000000000}, lists: {}, people: {}};
-  raw.peopleAt = {sam: 1791000000000};
+  raw.peopleAt = {deva: 1791000000000};
   const envs = legacyToEnvelopes(raw, 1);
   assert.deepEqual(Object.keys(envs), COLLECTIONS);
   for (const col of COLLECTIONS){
@@ -92,7 +92,7 @@ test('a board saved by the localStorage app becomes four valid envelopes, keepin
   assert.deepEqual(envs.tasks.deleted, {gone1: 1792000000000});
   assert.equal(envs.tasks.meta.capacity, raw.capacity);
   assert.deepEqual(envs.people.items.map(p => p.name).sort(), [...raw.people].sort());
-  assert.equal(envs.people.items.find(p => p.id === 'sam').updatedAt, 1791000000000);
+  assert.equal(envs.people.items.find(p => p.id === 'deva').updatedAt, 1791000000000);
   assert.deepEqual(envs.settings.meta.ado, raw.ado);
 });
 
