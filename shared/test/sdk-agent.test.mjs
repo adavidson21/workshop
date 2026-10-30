@@ -168,10 +168,10 @@ test('files on the agent: create, read, conflicts, list and trash (docs/sdk.md, 
 
 test('nested collection names reach the agent; bad names are refused before any request', async () => {
   const ws = await sdk.connect({ app: 'notes' });
-  const env = ws.data.stamp(null, { schema: 'notes.entries/jordan-lee/2026', version: 1, rev: 0, items: [{ id: 'e1' }] });
-  assert.equal((await ws.data.put('entries/jordan-lee/2026', env)).rev, 1);
-  assert.equal((await ws.data.get('entries/jordan-lee/2026')).items[0].id, 'e1');
-  assert.ok(fs.existsSync(path.join(agent.dataDir, 'notes', 'entries', 'jordan-lee', '2026.json')));
+  const env = ws.data.stamp(null, { schema: 'notes.entries/person-one/2026', version: 1, rev: 0, items: [{ id: 'e1' }] });
+  assert.equal((await ws.data.put('entries/person-one/2026', env)).rev, 1);
+  assert.equal((await ws.data.get('entries/person-one/2026')).items[0].id, 'e1');
+  assert.ok(fs.existsSync(path.join(agent.dataDir, 'notes', 'entries', 'person-one', '2026.json')));
   let calls = 0;
   const f = globalThis.fetch;
   globalThis.fetch = (...a) => { calls++; return f(...a); };

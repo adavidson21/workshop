@@ -23,20 +23,20 @@ test('collections are files in the data folder, not in the Workshop home', async
 });
 
 test('nested collection names are subfolders', async () => {
-  const name = 'entries/jordan-lee/2026';
+  const name = 'entries/person-one/2026';
   const body = envelope('notes', name, [item('e1', 'win')]);
   schemas.assert('data-envelope', body, 'nested envelope');
   expectJson(await put(agent, `/api/data/notes/${name}`, body, { headers: { 'X-Workshop-Client': 'w-nest' } }), 200, 'data-put-response');
-  assert.ok(fs.existsSync(onDisk(agent, 'notes', 'entries', 'jordan-lee', '2026.json')));
+  assert.ok(fs.existsSync(onDisk(agent, 'notes', 'entries', 'person-one', '2026.json')));
   const read = expectJson(await get(agent, `/api/data/notes/${name}`), 200, 'data-envelope');
-  assert.equal(read.schema, 'notes.entries/jordan-lee/2026');
+  assert.equal(read.schema, 'notes.entries/person-one/2026');
   const list = expectJson(await get(agent, '/api/data/notes'), 200, 'data-list');
   assert.ok(list.collections.some(c => c.collection === name && c.schema === `notes.${name}`));
   assert.deepEqual(list.collections.map(c => c.collection), [...list.collections.map(c => c.collection)].sort());
 });
 
 test('collection name segments may start with a digit; app ids may not', async () => {
-  for (const name of ['2026', 'entries/ann/2026', 'metrics/jordan-lee/2026-10', '1on1s/kim']) {
+  for (const name of ['2026', 'entries/two/2026', 'metrics/person-one/2026-10', '1on1s/one']) {
     const body = envelope('notes', name, [item('a', name)]);
     schemas.assert('data-envelope', body, name);
     expectJson(await put(agent, `/api/data/notes/${name}`, body), 200, 'data-put-response');
@@ -44,7 +44,7 @@ test('collection name segments may start with a digit; app ids may not', async (
     assert.ok(fs.existsSync(onDisk(agent, 'notes', ...name.split('/')) + '.json'));
   }
   const listed = expectJson(await get(agent, '/api/data/notes'), 200, 'data-list').collections.map(c => c.collection);
-  for (const name of ['2026', 'metrics/jordan-lee/2026-10', '1on1s/kim']) assert.ok(listed.includes(name), name);
+  for (const name of ['2026', 'metrics/person-one/2026-10', '1on1s/one']) assert.ok(listed.includes(name), name);
   expectError(await get(agent, '/api/data/2026/entries'), 400, 'bad_request');
   expectError(await get(agent, '/api/data/1on1s'), 400, 'bad_request');
   expectError(await put(agent, '/api/data/2026/entries', { ...envelope('notes', 'entries'), schema: '2026.entries' }), 400, 'bad_request');
@@ -67,14 +67,14 @@ test('nested names are checked', async () => {
     '/api/data/2026/entries',             // app id starts with a digit
     '/api/data/notes/entries%2F2026',    // encoded slash
     '/api/data/notes/entries%5C2026',    // encoded backslash
-    '/api/data/notes/entries/Jordan',     // uppercase
+    '/api/data/notes/entries/Person',     // uppercase
     '/api/data/notes/entries.json'        // a dot
   ];
   for (const p of bad) expectError(await get(agent, p), 400, 'bad_request');
   expectError(await put(agent, '/api/data/notes/a/b/c/d/e', envelope('notes', 'a/b/c/d/e')), 400, 'bad_request');
   // schema must name the full nested path
-  expectError(await put(agent, '/api/data/notes/entries/kim', envelope('notes', 'entries')), 400, 'bad_request');
-  expectError(await put(agent, '/api/data/notes/entries/kim', envelope('notes', 'kim')), 400, 'bad_request');
+  expectError(await put(agent, '/api/data/notes/entries/one', envelope('notes', 'entries')), 400, 'bad_request');
+  expectError(await put(agent, '/api/data/notes/entries/one', envelope('notes', 'one')), 400, 'bad_request');
 });
 
 test('dot segments are refused as sent, not normalized away', async () => {

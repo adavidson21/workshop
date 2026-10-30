@@ -5,16 +5,16 @@ import { agentCounts, render, summarize, greeting, profileForm } from '../js/vie
 
 const TODAY = '2026-10-21';
 const lists = [{ id: 'l_main', name: 'Main', parentId: null }, { id: 'l2', name: 'Side', parentId: null }];
-const people = [{ id: 'sam', name: 'Sam' }, { id: 'ada', name: 'Ada' }, { id: 'kim', name: 'Kim' }];
+const people = [{ id: 'deva', name: 'DevA' }, { id: 'devb', name: 'DevB' }, { id: 'devc', name: 'DevC' }];
 const t = (id, o) => Object.assign({ id, title: 'Task ' + id, listId: 'l_main', done: false, rank: 0, value: 3, effort: 'M', ageFrom: TODAY, people: [] }, o);
 const tasks = [
   t('a', { rank: 3, focusOn: TODAY }),
   t('b', { rank: 1, focusOn: TODAY, done: true, doneAt: TODAY }),
-  t('c', { rank: 2, value: null, effort: null, people: ['Sam'] }),           // untriaged
-  t('d', { rank: 4, due: '2026-10-20', people: ['sam'] }),                     // overdue
+  t('c', { rank: 2, value: null, effort: null, people: ['DevA'] }),           // untriaged
+  t('d', { rank: 4, due: '2026-10-20', people: ['deva'] }),                     // overdue
   t('e', { rank: 5, due: '2026-10-28', listId: 'l2' }),                        // due in 7 days
   t('f', { rank: 6, due: '2026-10-29' }),                                      // due in 8 days
-  t('g', { rank: 0, waiting: true, people: ['Ada'] }),                         // waiting: not up next
+  t('g', { rank: 0, waiting: true, people: ['DevB'] }),                         // waiting: not up next
   t('h', { rank: 7, value: 4, ageFrom: '2026-10-15' }),                        // stale (value 4 window 2, 6 days)
   t('i', { rank: 8, focusOn: TODAY, done: true, wontDo: true, doneAt: TODAY }), // won't do: not on Today
   t('z', { listId: 'gone' })                                                    // list not on the board
@@ -40,7 +40,7 @@ test('up next is the top 3 open by rank, without waiting tasks', () => {
 
 test('people: open and waiting per person, case-insensitive, busiest first', () => {
   const s = summarize({ tasks, lists, people }, TODAY);
-  assert.deepEqual(s.team, [{ name: 'Sam', open: 2, waiting: 0 }, { name: 'Ada', open: 1, waiting: 1 }, { name: 'Kim', open: 0, waiting: 0 }]);
+  assert.deepEqual(s.team, [{ name: 'DevA', open: 2, waiting: 0 }, { name: 'DevB', open: 1, waiting: 1 }, { name: 'DevC', open: 0, waiting: 0 }]);
 });
 
 test('agent counts from the connector state', () => {
@@ -63,8 +63,8 @@ test('the page: profile, empty board, and escaping', () => {
   assert.match(empty, /No tasks yet/);
   assert.match(empty, /need Workshop running/);
   const bad = [t('x', { title: '<img src=x onerror=alert(1)>' })];
-  const html = render({ now, profile: { name: 'Alexis Davidson', role: 'EM <b>' }, board: summarize({ tasks: bad, lists, people: [] }, TODAY), agents: { state: 'ready', needYou: 2, working: 1 } });
-  assert.match(html, /Good morning, Alexis</);
+  const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: summarize({ tasks: bad, lists, people: [] }, TODAY), agents: { state: 'ready', needYou: 2, working: 1 } });
+  assert.match(html, /Good morning, Test</);
   assert.ok(!html.includes('<img') && !html.includes('<b>'));
   assert.match(html, /Need you/);
   assert.ok(!profileForm({ name: '"><script>' }).includes('<script>'));
