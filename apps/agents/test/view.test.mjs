@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey } from '../js/view.js';
+import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -200,11 +200,13 @@ test('before the connector is ready, the page says what is wrong and how to fix 
   S.mode = 'browser'; S.connector = null; S.D = null;
   assert.match(render(), /Connect Dispatch to your computer/, 'browser mode shows the setup guide');
   S.mode = 'local'; S.connector = { state: 'disabled', message: null };
-  assert.match(setupHtml(), /Turn on the opencode connector.*data-settings="1">Open Settings/s);
+  assert.match(setupHtml(), /Turn on the opencode connector.*data-cfg-open="1">Open opencode settings/s, 'local: the settings sheet can turn it on');
   S.connector = { state: 'error', message: 'No PowerShell found. Install `pwsh`.' };
   assert.match(setupHtml(), /can't start.*No PowerShell found\. Install <code>pwsh<\/code>\./s);
   S.mode = 'hosted';
-  assert.doesNotMatch(setupHtml(), /data-settings/, 'a hosted page cannot change settings');
+  assert.match(setupHtml(), /data-cfg-open="1"/, 'hosted: settings are fixed here too');
+  S.connector = { state: 'disabled', message: null };
+  assert.doesNotMatch(setupHtml(), /data-cfg-open/, 'a hosted page cannot turn the connector on');
   S.agentUrl = 'http://127.0.0.1:4380';
   assert.match(setupHtml(), /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"[^>]*>Open Settings in Workshop/, 'paired: a link to Settings on this computer');
   S.agentUrl = null;
@@ -219,29 +221,71 @@ test('an empty .work says how to start', () => {
   assert.match(render(), /No work in \.work yet.*\/start &lt;id&gt; feature/s);
 });
 
-test('the setup guide walks through Tandem, Workshop, allowing this site, and connecting', () => {
+test('the setup guide is one install command, then connect', () => {
   S.mode = 'browser'; S.connector = null; S.D = null; S.origin = 'https://dispatch.example.org';
   S.setup = guideDefaults();
   let html = render();
-  assert.equal(count(html, /<li class="gstep/g), 4, 'four steps');
-  assert.match(html, /Set up, 0 of 4 done/);
-  assert.match(html, /class="gstep open">.*Install Tandem/s, 'the first step is open');
-  assert.match(html, /git clone https:\/\/github\.com\/adavidson21\/eng-agents C:\\tools\\eng-agents/, 'Windows commands by default');
-  assert.match(html, /\.\\install\.ps1/);
-  S.setup = { ...guideDefaults(), os: 'mac' };
-  assert.match(render(), /pwsh \.\/install\.ps1/, 'Mac or Linux commands');
-  S.setup = { ...guideDefaults(), done: { tandem: true }, port: 4555 };
+  assert.equal(count(html, /<li class="gstep/g), 2, 'two steps');
+  assert.match(html, /Set up, 0 of 2 done/);
+  assert.match(html, /class="gstep open">.*Install Tandem and Workshop/s, 'the first step is open');
+  assert.match(html, /<code>irm https:\/\/dispatch\.example\.org\/install\.ps1 \| iex<\/code>/, 'Windows command by default, for this site');
+  assert.doesNotMatch(html, /git clone|onboarding-/, 'no manual steps');
+  assert.match(html, /data-gcheck/);
+  S.setup = { ...guideDefaults(), os: 'mac', port: 4555 };
   html = render();
-  assert.match(html, /Set up, 1 of 4 done/);
-  assert.match(html, /class="gstep open">.*Start Workshop on this computer.*node workshop\.mjs start.*data-gcheck/s, 'the next step opens');
+  assert.match(html, /<code>curl -fsSL https:\/\/dispatch\.example\.org\/install\.sh \| bash<\/code>/, 'Mac or Linux command');
   assert.match(html, /value="4555"/);
-  S.setup = { ...guideDefaults(), done: { tandem: true, workshop: true }, port: 4555 };
+  S.setup = { ...guideDefaults(), done: { install: true } };
   html = render();
-  assert.match(html, /href="http:\/\/127\.0\.0\.1:4555\/#\/settings"/, 'Settings on the chosen port');
-  assert.match(html, /<code>https:\/\/dispatch\.example\.org<\/code>/, 'this site, ready to copy');
-  S.setup = { ...guideDefaults(), done: { tandem: true, workshop: true, allow: true } };
-  assert.match(render(), /data-gpair>Connect to Workshop/);
+  assert.match(html, /Set up, 1 of 2 done/);
+  assert.match(html, /class="gstep open">.*data-gpair>Connect to Workshop/s, 'the next step opens');
+  assert.match(html, /workshop open/);
+  S.setup = { ...guideDefaults(), open: 'tandem' };
+  assert.match(render(), /class="gstep open">.*Install Tandem and Workshop/s, 'an old saved step falls back to the first open one');
   S.wasPaired = true;
   assert.match(render(), /was connected to Workshop before/);
   S.wasPaired = false;
+});
+
+test('opencode settings: a form from the connector schema; hosted pages edit only marked fields', () => {
+  const schema = {
+    type: 'object', required: ['workspace'],
+    properties: {
+      workspace: { type: 'string', title: 'Workspace folder', 'x-workshop-hosted': true },
+      opencode: { type: 'object', title: 'opencode', properties: {
+        command: { type: 'string', title: 'Command that runs opencode', default: 'opencode' },
+        startServer: { type: 'boolean', title: 'Start opencode if it is not running', default: true, 'x-workshop-hosted': true },
+        passwordEnv: { type: 'string', title: 'Password variable', 'x-workshop-env': true }
+      } },
+      pollSeconds: { type: 'integer', title: 'Re-read every (seconds)', minimum: 5, maximum: 3600, 'x-workshop-hosted': true }
+    }
+  };
+  const view = { id: 'opencode', schema, config: { workspace: '~/work', opencode: { command: 'opencode', startServer: true, passwordEnv: 'OC_PW' }, pollSeconds: 20 }, env: { OC_PW: { set: false } } };
+  S.mode = 'hosted'; S.agentUrl = 'http://127.0.0.1:4380';
+  S.ui.settings = { view, error: null, saving: false, enabled: true };
+  let html = render();
+  assert.match(html, /<h3 id="cfg-h">opencode settings<\/h3>/);
+  assert.match(html, /data-cfg="workspace" data-draft="cfg:workspace" value="~\/work"(?! disabled)/, 'workspace is editable from a hosted page');
+  assert.match(html, /data-cfg="opencode\.command"[^>]* disabled/, 'the command is not');
+  assert.match(html, /data-cfg="opencode\.startServer" checked>/, 'a marked checkbox is editable');
+  assert.match(html, /Not set on this computer/, 'env variables say whether they are set, never their value');
+  assert.match(html, /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"/, 'greyed out fields link to Workshop');
+  assert.doesNotMatch(html, /data-cfg-enabled/, 'a hosted page cannot turn the connector on or off');
+  S.mode = 'local';
+  html = render();
+  assert.doesNotMatch(html, /data-cfg="opencode\.command"[^>]* disabled/, 'everything is editable locally');
+  assert.match(html, /data-cfg-enabled="1" checked/);
+
+  S.ui.drafts['cfg:workspace'] = ' ~/code ';
+  S.ui.drafts['cfg:opencode.startServer'] = false;
+  S.ui.drafts['cfg:pollSeconds'] = '45';
+  assert.deepEqual(cfgBuild(), { config: { workspace: '~/code', opencode: { command: 'opencode', startServer: false, passwordEnv: 'OC_PW' }, pollSeconds: 45 } });
+  S.ui.drafts['cfg:opencode.command'] = '';
+  assert.equal(cfgBuild().config.opencode.command, undefined, 'an emptied optional field goes back to its default');
+  S.ui.drafts['cfg:pollSeconds'] = '2';
+  assert.match(cfgBuild().error, /from 5 to 3600/);
+  S.ui.drafts['cfg:pollSeconds'] = '45';
+  S.ui.drafts['cfg:workspace'] = '  ';
+  assert.match(cfgBuild().error, /Workspace folder is needed/);
+  S.agentUrl = null;
 });

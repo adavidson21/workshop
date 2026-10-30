@@ -68,6 +68,18 @@ function applyDefaults(schema, value) {
   return out;
 }
 
+/** Fields that differ between two configs and are not marked x-workshop-hosted (agent/lib/connectors.mjs). */
+function lockedChanges(schema, before, after, prefix = '', acc = []) {
+  for (const [k, s] of Object.entries((schema && schema.properties) || {})) {
+    const at = prefix ? `${prefix}.${k}` : k;
+    const a = before && typeof before === 'object' ? before[k] : undefined;
+    const b = after && typeof after === 'object' ? after[k] : undefined;
+    if (s.type === 'object') { lockedChanges(s, a, b, at, acc); continue; }
+    if (JSON.stringify(a) !== JSON.stringify(b) && s['x-workshop-hosted'] !== true) acc.push(at);
+  }
+  return acc;
+}
+
 /** Every environment variable name a config holds in fields marked x-workshop-env. */
 function envNames(schema, value, acc = new Set()) {
   if (!schema || value === undefined || value === null) return acc;
@@ -713,12 +725,16 @@ document.getElementById('allow').addEventListener('click', function () {
         if (!entry.mod) fail('unavailable', `The ${id} connector did not load: ${entry.error}`);
         if (m === 'GET') return ok(connectorConfigView(entry));
         only('GET', 'PUT');
-        if (!own) fail('local_only', 'Change connector settings from Workshop on this computer.');
         const body = await readBody(req, MB);
         const e1 = schemas.validate('connector-config-put', body);
         if (e1.length) fail('bad_request', `Send {"config": {...}}: ${e1[0]}`);
         const e2 = schemas.validate(entry.mod.configSchema, applyDefaults(entry.mod.configSchema, body.config));
         if (e2.length) fail('invalid_config', `That ${entry.mod.name} setting is not valid: ${e2[0]}`);
+        if (!own) {
+          const sch = entry.mod.configSchema;
+          const locked = lockedChanges(sch, applyDefaults(sch, config.connectors[id]?.config), applyDefaults(sch, body.config));
+          if (locked.length) fail('local_only', `Change ${locked.join(', ')} from Workshop on this computer.`);
+        }
         config.connectors[id] = { ...(config.connectors[id] || { enabled: false }), config: structuredClone(body.config) };
         if (enabled(id)) { await stopConnector(entry); await startConnector(entry); }
         broadcast('config', { changed: [`connector:${id}`] });

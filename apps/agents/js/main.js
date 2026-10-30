@@ -14,7 +14,7 @@ if (window.parent === window && location.hostname === 'workshop.alexisdavidson.o
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild } from './view.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -37,6 +37,9 @@ S.origin = location.origin;
 S.agentUrl = ws.mode === 'hosted' && paired && paired.url ? paired.url : null;
 S.wasPaired = ws.mode === 'browser' && !!(paired && paired.url);
 S.setup = Object.assign(guideDefaults(), savedGuide || {}, { check: null, pair: null });
+// Progress saved by the older four-step guide does not carry over.
+if (S.setup.open && S.setup.open !== 'none' && !GUIDE_STEPS.includes(S.setup.open)) S.setup.open = null;
+S.setup.done = Object.fromEntries(Object.entries(S.setup.done || {}).filter(([k]) => GUIDE_STEPS.includes(k)));
 if (!savedGuide && !/Win/i.test(navigator.platform || navigator.userAgent || '')) S.setup.os = 'mac';
 if (S.wasPaired) { try { S.setup.port = +new URL(paired.url).port || S.setup.port; } catch (e) { /* keep the saved port */ } }
 function saveGuide() {
@@ -48,20 +51,29 @@ function stepDone(k) { S.setup.done[k] = true; S.setup.open = nextStep(); saveGu
 
 // Is Workshop answering on this port? A no-cors request succeeds whenever the agent is up, before this
 // site is allowed (a CORS request would fail either way until then).
-async function checkWorkshop() {
+// silent: the background check while the install step is open, which only speaks up when it finds Workshop.
+async function checkWorkshop(silent) {
   const port = S.setup.port;
-  S.setup.check = { ok: null, text: `Looking for Workshop on port ${port}.` }; paint();
+  if (!silent) { S.setup.check = { ok: null, text: `Looking for Workshop on port ${port}.` }; paint(); }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 3000);
   try {
     await fetch(`http://127.0.0.1:${port}/api/health`, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal, targetAddressSpace: 'loopback' });
     S.setup.check = { ok: true, text: `Found Workshop on port ${port}.` };
-    stepDone('workshop');
+    stepDone('install');
   } catch (e) {
-    S.setup.check = { ok: false, text: `Workshop is not answering on port ${port}. Is \`node workshop.mjs start\` still running? If your browser asked to allow access to your local network, allow it and check again.` };
+    if (silent) return;
+    S.setup.check = { ok: false, text: `Workshop is not answering on port ${port} yet. If the install command is still running, wait for it to say Done. If your browser asked to allow access to your local network, allow it and check again.` };
   } finally { clearTimeout(timer); }
   paint();
 }
+// While the install step is open, look for Workshop every few seconds so the step ticks itself off.
+let polling = false;
+setInterval(async () => {
+  if (polling || S.mode !== 'browser' || document.hidden || S.setup.done.install || (S.setup.open && S.setup.open !== 'install')) return;
+  polling = true;
+  try { await checkWorkshop(true); } finally { polling = false; }
+}, 4000);
 
 let pairWin = null;
 function startPairing() {
@@ -241,7 +253,42 @@ document.addEventListener('pointerup', () => {
 
 /* ---------- input ---------- */
 const ui = () => S.ui;
-function closeOverlays() { ui().menu = null; ui().remove = null; ui().file = null; }
+function closeOverlays() {
+  ui().menu = null; ui().remove = null; ui().file = null;
+  if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
+}
+
+/* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
+async function openSettings() {
+  if (ws.backend !== 'agent') { toast('Connect this page to Workshop first.', true); return; }
+  closeOverlays();
+  ui().settings = { view: null, error: null, saving: false, enabled: !!(S.connector && S.connector.state !== 'disabled') };
+  paint();
+  try {
+    const view = await ws.connectors.getConfig(OC);
+    if (ui().settings) ui().settings.view = view;
+  } catch (e) { if (ui().settings) ui().settings.error = errText(e); }
+  schedule();
+}
+async function saveSettings() {
+  const st = ui().settings;
+  if (!st || !st.view || st.saving) return;
+  const built = cfgBuild();
+  if (built.error) { st.error = built.error; paint(); return; }
+  st.saving = true; st.error = null; paint();
+  try {
+    await ws.connectors.putConfig(OC, built.config);
+    const wasOn = !!(S.connector && S.connector.state !== 'disabled');
+    if (S.mode === 'local' && st.enabled !== wasOn) await ws.config.put({ connectors: { [OC]: { enabled: st.enabled } } });
+    closeOverlays();
+    toast('Saved. The opencode connector restarts with the new settings.');
+    await loadStatus();
+    fetchSoon();
+  } catch (e) {
+    if (ui().settings) { ui().settings.saving = false; ui().settings.error = errText(e); }
+  }
+  schedule();
+}
 
 async function act(fn, done, busyKey) {
   if (busyKey) { ui().busy[busyKey] = true; schedule(); }
@@ -307,7 +354,7 @@ app.addEventListener('click', ev => {
   if (gd) { stepDone(gd.getAttribute('data-gdone')); paint(); return; }
   const gos = t.closest('[data-gos]');
   if (gos) { S.setup.os = gos.getAttribute('data-gos'); saveGuide(); paint(); return; }
-  if (t.closest('[data-gcheck]')) { checkWorkshop(); return; }
+  if (t.closest('[data-gcheck]')) { checkWorkshop(false); return; }
   if (t.closest('[data-gpair]')) { startPairing(); return; }
   const cb = t.closest('button.copy');
   if (cb) { copy(cb); return; }
@@ -331,6 +378,8 @@ app.addEventListener('click', ev => {
   else if (ui().menu && t.closest('.menu button:not(.copy)')) { ui().menu = null; schedule(); } // the action below still runs
 
   if (t.closest('[data-settings]')) { ws.open({ app: 'settings' }).catch(() => {}); return; }
+  if (t.closest('[data-cfg-open]')) { openSettings(); return; }
+  if (t.closest('[data-cfg-save]')) { saveSettings(); return; }
   if (t.closest('[data-close-sheet]')) { closeOverlays(); paint(); return; }
   const fb = t.closest('[data-file]');
   if (fb) { openFile(fb.getAttribute('data-file'), fb.getAttribute('data-name')); return; }
@@ -397,6 +446,11 @@ app.addEventListener('input', ev => {
   }
 });
 app.addEventListener('change', ev => {
+  if (ev.target.type === 'checkbox' && ui().settings) {
+    if (ev.target.hasAttribute('data-cfg-enabled')) { ui().settings.enabled = ev.target.checked; return; }
+    const p = ev.target.getAttribute('data-cfg');
+    if (p) { ui().drafts['cfg:' + p] = ev.target.checked; return; }
+  }
   const id = ev.target.getAttribute('data-qpick');
   if (!id) return;
   const i = +ev.target.getAttribute('data-qi');
@@ -406,10 +460,11 @@ app.addEventListener('change', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file) { closeOverlays(); paint(); }
+  if (ui().menu || ui().remove || ui().file || ui().settings) { closeOverlays(); paint(); }
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
+  if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
     ev.preventDefault();
     const go = app.querySelector('[data-remove-go]');

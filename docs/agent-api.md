@@ -283,7 +283,7 @@ Body ([connector-config-put](schemas/connector-config-put.schema.json)):
 {"config": {"connections": [{"name": "work", "serverUrl": "https://ado.example.com", "collection": "Main", "project": "Web", "patEnv": "ADO_PAT"}]}}
 ```
 
-Own origin only: from a hosted origin, `403 local_only`. A connector config names servers and environment variables, so a script on a hosted origin that could change it could point a connector at another server and send it any environment variable.
+From a hosted origin, only fields the connector marks `x-workshop-hosted: true` may change ([connector.md](connector.md), Config schema and the settings form). A request that changes any other field answers `403 local_only`, names the fields in `error`, and saves nothing. A connector config names servers, commands and environment variables, so a script on a hosted origin that could change those could point a connector at another server, run another command, or send it any environment variable. Fields such as a folder or a polling interval do none of that and can be marked.
 
 The agent validates `config` against the connector's `configSchema` (unknown keys are rejected: `400 invalid_config`), saves it to `config.json`, and if the connector is enabled, calls `stop()` then `start(ctx)` with the new config. Response: the same shape as `GET`.
 

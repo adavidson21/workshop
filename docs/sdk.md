@@ -110,7 +110,7 @@ import { folderState, allowFolder } from '../shared/workshop-sdk.js';
 | `ws.connectors.on(id, event, handler)` | Listens to `connector` events from that connector. `event` `*` matches all. Returns an unsubscribe function. |
 | `ws.connectors.onStatus(id, handler)` | Listens to `connector-status` for that connector. |
 | `ws.connectors.getConfig(id)` | That connector's settings, form schema and environment variable status, from `GET /api/connectors/<id>/config`. Works whether or not the connector is on. In browser mode rejects with `unavailable`. |
-| `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page rejects with `local_only`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
+| `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page it rejects with `local_only` if it changes a field the connector does not mark `x-workshop-hosted`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
 
 ### Settings
 

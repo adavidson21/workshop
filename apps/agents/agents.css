@@ -466,3 +466,31 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 .setup p { margin: 6px 0; color: var(--muted); }
 .setup .acts { margin-top: 14px; display: flex; justify-content: flex-end; }
 .menu .hint { color: var(--muted); font-size: 12px; }
+
+/* ---------- opencode settings (view.js settingsSheetHtml): a form built from the connector's configSchema */
+.cfg { display: grid; gap: 14px; margin-top: 14px; }
+.cfg-row { display: grid; gap: 4px; font-size: 13.5px; }
+.cfg-t { font: 500 10.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
+.cfg-d { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.cfg-d code { font-size: 12px; }
+.cfg-row input[type="text"], .cfg-row input[type="number"] {
+  font: 13px var(--mono); padding: 6px 10px; min-height: 32px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); outline: none; width: 100%; box-sizing: border-box;
+}
+.cfg-row input[type="number"] { width: 8rem; }
+.cfg-row input:focus { border-color: var(--accent); }
+.cfg-row input:disabled { background: var(--bg); color: var(--muted); cursor: not-allowed; }
+.cfg-check { grid-template-columns: auto 1fr; align-items: start; gap: 10px; cursor: pointer; }
+.cfg-check > span { display: grid; gap: 2px; }
+.cfg-check input { margin-top: 2px; accent-color: var(--accent); }
+.cfg-check:has(input:disabled) { cursor: not-allowed; opacity: .7; }
+.cfg-on { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.cfg-group { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px 12px; margin: 0; display: grid; gap: 12px; min-width: 0; }
+.cfg-group legend { padding: 0 6px; font: 600 15px/1.3 var(--serif); }
+.cfg-env { font: 500 10.5px/1.4 var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.cfg-env.ok { color: var(--accent); }
+.cfg-env.bad { color: var(--stop); }
+.gport { font-size: 13px; color: var(--muted); }
+.gport summary { cursor: pointer; }
+.gport label { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; font: 500 10.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
+.gport input { width: 6.5rem; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: 13px var(--mono); letter-spacing: 0; }

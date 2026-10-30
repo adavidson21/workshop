@@ -7,7 +7,7 @@ An engineering manager's hub: one page with a rail of apps, sharing one theme. W
 - **Dispatch** (formerly Agents; code and URLs still say `agents`) is the front end for [Tandem](https://github.com/adavidson21/eng-agents) (the eng-agents repo), the agent scaffolding that drives opencode. It shows your work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
-Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a step-by-step setup guide: install Tandem, start Workshop, allow the site, and connect.
+Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
@@ -41,6 +41,17 @@ The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/n
 
 The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<port>`, keeps your data on disk, and hosts connectors. Node 22 or later, no admin rights, no npm install.
 
+### One-line install (Workshop and Tandem)
+
+This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node and opencode if they are missing (plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode, turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, turns on start at login, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
+
+- Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
+- macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`
+
+The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (`worker/index.js`) serves them at `/install.ps1` and `/install.sh` on either domain, with the site filled in. They install into `%LOCALAPPDATA%\Workshop` or `~/.local/share/workshop` (set `WORKSHOP_INSTALL_DIR` to change it; `WORKSHOP_WORKSPACE` changes the workspace folder) and put a `workshop` command on PATH. `workshop open` opens Workshop signed in; `workshop open --print` prints the address for another browser.
+
+### By hand
+
 1. Get the code: `git clone https://github.com/adavidson21/workshop` (or download the zip).
 2. Install, per user:
    - macOS or Linux: `bash scripts/install.sh`
@@ -50,6 +61,8 @@ The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<
 
 Other commands:
 
+- `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
+- `node workshop.mjs open` opens Workshop in your default browser, signed in.
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, start at login and hosted mode. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs update` updates this checkout. `node workshop.mjs uninstall` turns off start at login (your data stays in `~/.workshop`).
