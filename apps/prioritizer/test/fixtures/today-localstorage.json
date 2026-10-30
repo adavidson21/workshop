@@ -36,7 +36,7 @@
       "createdAt": "2026-10-01",
       "ageFrom": "2026-10-01",
       "people": [
-        "Sam"
+        "DevA"
       ],
       "rank": 1,
       "waiting": false,
@@ -150,8 +150,8 @@
       "effort": "XL",
       "createdAt": "2026-10-06",
       "people": [
-        "Ana",
-        "Sam"
+        "DevB",
+        "DevA"
       ],
       "waiting": true,
       "nudgeOn": "2026-10-25",
@@ -205,8 +205,8 @@
     }
   ],
   "people": [
-    "Sam",
-    "Ana"
+    "DevA",
+    "DevB"
   ],
   "capacity": 20,
   "capacityAt": 0,
@@ -237,8 +237,8 @@
     "people": {}
   },
   "peopleAt": {
-    "sam": 1792553550879,
-    "ana": 1792553550879
+    "deva": 1792553550879,
+    "devb": 1792553550879
   },
   "updatedAt": 1792553550879
 }

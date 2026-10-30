@@ -48,7 +48,7 @@
           "area": "Web App\\Team A",
           "iteration": "Web App\\Sprint 12",
           "created": "2026-09-10",
-          "createdBy": "Pat Kim",
+          "createdBy": "Engineer C",
           "closed": "2026-10-01",
           "effort": 5,
           "effortField": "Effort",
@@ -70,7 +70,7 @@
           "area": "Web App\\Team A",
           "iteration": "Web App\\Release 3\\Sprint 13",
           "created": "2026-09-04",
-          "createdBy": "Pat Kim",
+          "createdBy": "Engineer C",
           "closed": null,
           "effort": 3.5,
           "effortField": "StoryPoints",
@@ -157,7 +157,7 @@
         {
           "id": 301,
           "date": "2026-09-10T09:00:00",
-          "by": "Pat Kim",
+          "by": "Engineer C",
           "kind": "created",
           "priority": 2,
           "iteration": "Web App\\Sprint 11",
@@ -169,7 +169,7 @@
         {
           "id": 301,
           "date": "2026-09-12T10:00:00",
-          "by": "Pat Kim",
+          "by": "Engineer C",
           "kind": "priority",
           "from": 2,
           "to": 1

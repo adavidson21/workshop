@@ -160,7 +160,7 @@ function renderPeople(){
   const ppl = state.people;
   const tasksFor = n => state.tasks.filter(t => inScope(t) && t.people.includes(n) && (!t.done || isDoneToday(t))).sort((a,b) => a.rank - b.rank);
   if (!ppl.length){
-    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review promo doc @Brandon", or click Person.</div>`;
+    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or click Person.</div>`;
     return;
   }
   main.innerHTML = `<div class="people">${ppl.map(p => {

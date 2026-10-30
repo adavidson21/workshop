@@ -66,7 +66,7 @@ No telemetry. Workshop sends no usage data, no analytics and no error reports an
 
 The agent reads and writes only inside the data folder, and only through `/api/data` and `/api/files`. It never serves the data folder as static files.
 
-- **Names, not paths.** Clients send app ids, collection names and file paths made of lowercase name segments (letters, digits and `-`) (`receipts/summaries/jordan-lee/2026-h2.md`), at most 4 below the app. The agent checks each segment as sent, before any URL normalization: empty segments, `.` and `..` (raw or percent-encoded), encoded `/` or `\`, drive letters and absolute paths are refused with `400`. See [agent-api.md](agent-api.md), Endpoints.
+- **Names, not paths.** Clients send app ids, collection names and file paths made of lowercase name segments (letters, digits and `-`) (`receipts/summaries/person-one/2026-h2.md`), at most 4 below the app. The agent checks each segment as sent, before any URL normalization: empty segments, `.` and `..` (raw or percent-encoded), encoded `/` or `\`, drive letters and absolute paths are refused with `400`. See [agent-api.md](agent-api.md), Endpoints.
 - **No way out through links.** After following symbolic links and junctions, the file must still be inside the data folder (compared with where the data folder really is). Otherwise `400`, even for a read, and nothing is created.
 - **Two file types.** The files API handles `.md` and `.json` only, at most 10 MB each. Nothing it writes can be run by the browser or the agent.
 - **Nothing is removed.** Deleting a file moves it to `.trash/` in the data folder. Workshop never empties the trash, never removes backups, and never deletes the old `~/.workshop/data/` files.

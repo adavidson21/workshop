@@ -38,14 +38,14 @@ Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; in
 
 | Tag | Sets | Example |
 | --- | --- | --- |
-| `@name` | Person | `@Brandon` |
+| `@name` | Person | `@Teammate` |
 | `!1` to `!4` | Value | `!4` |
 | `!!` | Urgent | `!!` |
 | `~xs` to `~xl` | Effort | `~m` |
 | `^date` | Due: `today`, `tomorrow`, a weekday, `+3d`, or `YYYY-MM-DD` | `^fri` |
 | `#name` | List or section (prefix match) | `#eng` |
 
-Example: `Review promo doc @Brandon !3 ~s ^fri #eng`
+Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 

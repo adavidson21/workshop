@@ -179,7 +179,7 @@ function checkApp(app) {
 // A collection name: 1 to 4 segments. Returns the segments.
 function checkCollection(name) {
   const segs = typeof name === 'string' ? name.split('/') : [];
-  if (segs.length < 1 || segs.length > MAX_SEGS || !segs.every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid collection name. Use 1 to 4 parts like entries/jordan-lee/2026.`);
+  if (segs.length < 1 || segs.length > MAX_SEGS || !segs.every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid collection name. Use 1 to 4 parts like entries/person-one/2026.`);
   return segs;
 }
 // A folder for listing files: 0 to 3 segments.

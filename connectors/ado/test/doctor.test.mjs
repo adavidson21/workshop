@@ -76,7 +76,7 @@ test('--compare prints counts only and writes nothing', { skip: python ? false :
     assert.match(text, /^Dataset events: [1-9]\d* match, 0 differ/m); // real clock here, so the count depends on today
     assert.match(text, /^Result: everything matches\.$/m);
     // Counts only: no titles, names, URLs, project names or secrets.
-    for (const bad of ['Synthetic', 'Sam Lee', 'Dev One', '127.0.0.1', 'Web App', PAT]) assert.ok(!text.includes(bad), `printed ${bad}`);
+    for (const bad of ['Synthetic', 'Engineer A', 'Dev One', '127.0.0.1', 'Web App', PAT]) assert.ok(!text.includes(bad), `printed ${bad}`);
     assert.deepEqual(listAll(dir), before, 'compare wrote a file');
     fs.rmSync(dir, { recursive: true, force: true });
   });

@@ -198,11 +198,11 @@ test('connection choice follows eng-agents order', () => {
     paths: [{ path: '~/src/*', connection: 'one' }, { path: '~/src/legacy-*', connection: 'two' }]
   });
   assert.equal(config.connections[1].base, 'https://a.example.com/B');
-  const home = 'C:\\Users\\sam';
-  assert.equal(pathKey('~\\src\\Thing\\', home), 'c:/users/sam/src/thing');
-  assert.equal(resolveConnection(config, { path: 'C:/Users/Sam/src/legacy-api', home }).connection.name, 'two');
-  assert.equal(resolveConnection(config, { path: 'C:/Users/Sam/src/new-api', home }).connection.name, 'one');
-  assert.equal(resolveConnection(config, { connection: 'two', path: 'C:/Users/Sam/src/new-api', home }).connection.name, 'two');
+  const home = 'C:\\Users\\me';
+  assert.equal(pathKey('~\\src\\Thing\\', home), 'c:/users/me/src/thing');
+  assert.equal(resolveConnection(config, { path: 'C:/Users/me/src/legacy-api', home }).connection.name, 'two');
+  assert.equal(resolveConnection(config, { path: 'C:/Users/me/src/new-api', home }).connection.name, 'one');
+  assert.equal(resolveConnection(config, { connection: 'two', path: 'C:/Users/me/src/new-api', home }).connection.name, 'two');
   assert.throws(() => resolveConnection(config, { path: 'D:/other', home }), /Could not tell which ADO connection/);
   const single = normalize({ connections: [{ name: 'solo', serverUrl: 'https://a.example.com', collection: 'A', patEnv: 'X' }] }).config;
   assert.equal(resolveConnection(single, {}).reason, 'only connection');
