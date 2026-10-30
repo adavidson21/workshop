@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey } from '../js/view.js';
+import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -198,13 +198,16 @@ test('in the shell, the shell owns the name and theme; on its own, the page has 
 
 test('before the connector is ready, the page says what is wrong and how to fix it', () => {
   S.mode = 'browser'; S.connector = null; S.D = null;
-  assert.match(render(), /Dispatch needs Workshop running on this computer/);
+  assert.match(render(), /Connect Dispatch to your computer/, 'browser mode shows the setup guide');
   S.mode = 'local'; S.connector = { state: 'disabled', message: null };
   assert.match(setupHtml(), /Turn on the opencode connector.*data-settings="1">Open Settings/s);
   S.connector = { state: 'error', message: 'No PowerShell found. Install `pwsh`.' };
   assert.match(setupHtml(), /can't start.*No PowerShell found\. Install <code>pwsh<\/code>\./s);
   S.mode = 'hosted';
   assert.doesNotMatch(setupHtml(), /data-settings/, 'a hosted page cannot change settings');
+  S.agentUrl = 'http://127.0.0.1:4380';
+  assert.match(setupHtml(), /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"[^>]*>Open Settings in Workshop/, 'paired: a link to Settings on this computer');
+  S.agentUrl = null;
   S.connector = { state: 'missing', message: null };
   assert.match(setupHtml(), /not installed/);
 });
@@ -214,4 +217,31 @@ test('an empty .work says how to start', () => {
   empty.items = []; empty.activity = [];
   load(empty);
   assert.match(render(), /No work in \.work yet.*\/start &lt;id&gt; feature/s);
+});
+
+test('the setup guide walks through Tandem, Workshop, allowing this site, and connecting', () => {
+  S.mode = 'browser'; S.connector = null; S.D = null; S.origin = 'https://dispatch.example.org';
+  S.setup = guideDefaults();
+  let html = render();
+  assert.equal(count(html, /<li class="gstep/g), 4, 'four steps');
+  assert.match(html, /Set up, 0 of 4 done/);
+  assert.match(html, /class="gstep open">.*Install Tandem/s, 'the first step is open');
+  assert.match(html, /git clone https:\/\/github\.com\/adavidson21\/eng-agents C:\\tools\\eng-agents/, 'Windows commands by default');
+  assert.match(html, /\.\\install\.ps1/);
+  S.setup = { ...guideDefaults(), os: 'mac' };
+  assert.match(render(), /pwsh \.\/install\.ps1/, 'Mac or Linux commands');
+  S.setup = { ...guideDefaults(), done: { tandem: true }, port: 4555 };
+  html = render();
+  assert.match(html, /Set up, 1 of 4 done/);
+  assert.match(html, /class="gstep open">.*Start Workshop on this computer.*node workshop\.mjs start.*data-gcheck/s, 'the next step opens');
+  assert.match(html, /value="4555"/);
+  S.setup = { ...guideDefaults(), done: { tandem: true, workshop: true }, port: 4555 };
+  html = render();
+  assert.match(html, /href="http:\/\/127\.0\.0\.1:4555\/#\/settings"/, 'Settings on the chosen port');
+  assert.match(html, /<code>https:\/\/dispatch\.example\.org<\/code>/, 'this site, ready to copy');
+  S.setup = { ...guideDefaults(), done: { tandem: true, workshop: true, allow: true } };
+  assert.match(render(), /data-gpair>Connect to Workshop/);
+  S.wasPaired = true;
+  assert.match(render(), /was connected to Workshop before/);
+  S.wasPaired = false;
 });

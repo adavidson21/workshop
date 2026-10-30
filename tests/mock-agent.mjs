@@ -561,7 +561,14 @@ export async function createMockAgent(options = {}) {
 
   function pairPage(res, url, cookieOk) {
     const origin = url.searchParams.get('origin') || '';
-    if (!cookieOk) return html(res, 401, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Open Workshop on this computer first, then try pairing again.</p>');
+    if (!cookieOk) {
+      // Same as the agent: one same-site reload (the SameSite=Strict cookie skips the cross-site first visit), then 401.
+      if (url.searchParams.get('again') !== '1') {
+        const again = new URL(url); again.searchParams.set('again', '1');
+        return html(res, 200, `<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Checking that Workshop is open in this browser.</p><script>location.replace(${JSON.stringify(again.pathname + again.search).replace(/</g, '\\u003c')});</script>`);
+      }
+      return html(res, 401, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Open Workshop on this computer first, in this browser, then try pairing again.</p>');
+    }
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>That pairing link is not valid.</p>');
     }

@@ -705,7 +705,7 @@ def main():
         pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
         af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
         check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
-        check('Agents in browser mode says it needs Workshop on this computer', af is not None and 'needs Workshop running on this computer' in af.inner_text('#app'))
+        check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 4)
         check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
         check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')

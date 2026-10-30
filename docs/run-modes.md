@@ -80,7 +80,7 @@ Hosted mode is off by default. To use it, the user turns on `features.hostedMode
 A hosted page cannot read the agent's cookie, so it gets the token by pairing, once per browser:
 
 1. The hosted shell opens a popup: `http://127.0.0.1:<port>/pair?origin=<hosted origin, URL-encoded>`.
-2. The agent answers only if the browser already has the agent cookie (the user opened Workshop locally at least once), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing.
+2. The agent answers only if the browser already has the agent cookie (the user opened Workshop locally at least once), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing. The cookie is `SameSite=Strict`, so the popup's first, cross-site request arrives without it: the page then reloads itself once (`&again=1`), a same-site navigation that carries it.
 3. The page shows the origin and a button: "Allow <origin> to use Workshop on this computer". Nothing is sent until the user clicks it.
 4. On click, the page calls `window.opener.postMessage({type: "workshop-pair", api: 1, url, token}, <origin>)` and closes. `url` is the agent's own origin.
 5. The hosted shell stores `{url, token}` as `workshop.agent` in its `localStorage`.
