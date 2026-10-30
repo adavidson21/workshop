@@ -7,7 +7,7 @@ An engineering manager's hub: one page with a rail of apps, sharing one theme. W
 - **Dispatch** (formerly Agents; code and URLs still say `agents`) is the front end for [Tandem](https://github.com/adavidson21/eng-agents) (the eng-agents repo), the agent scaffolding that drives opencode. It shows your work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
-Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Dispatch has its own address, https://dispatch.alexisdavidson.org: `functions/_middleware.js` serves `apps/agents/` there from the same Cloudflare Pages project (add the domain under the project's Custom domains), and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a step-by-step setup guide: install Tandem, start Workshop, allow the site, and connect.
+Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a step-by-step setup guide: install Tandem, start Workshop, allow the site, and connect.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
@@ -128,7 +128,7 @@ python tests/e2e.py                      Workshop in headless Chromium: browser,
 
 ## Shipping
 
-GitHub Pages serves the repo root. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
+A Cloudflare Worker serves the repo root (`wrangler.jsonc`; Cloudflare's Git integration runs `npx wrangler deploy` on every push to `main`). Files that are not part of the site are listed in `.assetsignore`. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
 
 Workshop lives at https://adavidson21.github.io/workshop/ (Prioritizer on its own: `/workshop/apps/prioritizer/`; the old `/workshop/prioritizer/` address forwards there). Same github.io site as before, so tasks saved in the browser carry over. If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in `apps/prioritizer/ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
 

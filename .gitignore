@@ -5,3 +5,4 @@ dist/
 apps/prioritizer/ado-helper/ado-helper.json
 apps/prioritizer/ado-helper/ado-helper.log
 .DS_Store
+.wrangler/
