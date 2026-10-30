@@ -412,6 +412,47 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media print { .copy, .btn, .ibtn, .reply { display: none; } body { background: #fff; } }
 
+/* ---------- the setup guide: shown while this page can't reach Workshop (view.js guideHtml) */
+.guide { max-width: 720px; margin: 8px auto 48px; animation: rise .6s ease-out both; }
+.guide .eyebrow { margin: 0 0 12px; font: 500 11.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
+.guide > h2 { margin: 0; font: 600 clamp(32px, 4.4vw, 46px)/1.06 var(--serif); font-variation-settings: "opsz" 144; letter-spacing: -0.03em; }
+.guide > h2::after { content: "."; color: var(--eyebrow); }
+.guide .lede { margin: 14px 0 28px; max-width: 36rem; font: 400 18px/1.55 var(--serif); font-variation-settings: "opsz" 24; color: var(--muted); }
+.guide .banner { margin-bottom: 22px; }
+.gsteps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.gstep { border-bottom: 1px solid var(--line); }
+.ghead { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px 4px; border: 0; background: transparent; text-align: left; cursor: pointer; color: var(--ink); }
+.ghead:hover .gt { color: var(--accent); }
+.gnum { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); font: 500 12px/1 var(--mono); color: var(--muted); }
+.gnum svg { width: 13px; height: 13px; }
+.gstep.open .gnum { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.gstep.done .gnum { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.gt { flex: 1; min-width: 0; font: 600 20px/1.25 var(--serif); font-variation-settings: "opsz" 32; letter-spacing: -0.012em; transition: color .2s; }
+.gstep.done:not(.open) .gt { color: var(--muted); }
+.gstate { font: 500 10.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.gbody { padding: 0 4px 22px 46px; display: grid; gap: 12px; color: var(--ink); }
+.gbody p { margin: 0; }
+.gbody a { color: var(--accent); }
+.gbody .note { margin: 0; }
+.gneed { color: var(--muted); }
+.gcmd { padding: 6px 10px; }
+.gcmd code { font-size: 12.5px; }
+.gos { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--r-sm); justify-self: start; }
+.gos button { border: 0; background: transparent; padding: 4px 12px; border-radius: 4px; font: 500 12.5px var(--sans); color: var(--muted); cursor: pointer; }
+.gos button:hover { color: var(--ink); }
+.gos button.on { background: var(--ink); color: var(--bg); }
+.gsub { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.gsub .gcmd { margin-top: 8px; }
+.gcheck { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gcheck label { display: inline-flex; align-items: center; gap: 8px; font: 500 10.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
+.gcheck input { width: 6.5rem; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: 13px var(--mono); letter-spacing: 0; }
+.gacts { display: flex; gap: 8px; flex-wrap: wrap; }
+.gmsg { font-size: 13.5px; color: var(--muted); }
+.gmsg:empty { display: none; }
+.gmsg.ok { color: var(--accent); font-weight: 500; }
+.gmsg.bad { color: var(--stop); }
+@media (max-width: 600px) { .gbody { padding-left: 4px; } .guide > h2 { font-size: 30px; } .guide .lede { font-size: 16.5px; } }
+
 /* ---------- Workshop additions */
 .lnk { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; }
 .lnk:hover { text-decoration-color: currentColor; }

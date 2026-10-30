@@ -667,14 +667,73 @@ function bannersHtml() {
   return out;
 }
 
+// --------------------------------------------------------- the setup guide
+// Browser mode (this page can't reach Workshop on this computer): a step-by-step guide to install Tandem,
+// start Workshop's local helper, allow this site, and connect. Its state (S.setup) is kept per browser by
+// main.js; steps 2 and 4 check themselves, 1 and 3 are marked done by the user.
+export const GUIDE_STEPS = ['tandem', 'workshop', 'allow', 'connect'];
+const REPO = 'https://github.com/adavidson21/eng-agents';
+const CHECK_SVG = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
+export function guideDefaults() { return { done: {}, open: null, port: 4380, os: 'win', check: null, pair: null }; }
+function cmds(lines) {
+  return `<div class="kit gcmd">${lines.map(l => `<div class="kit-line"><code>${h(l)}</code>${copyBtn(l)}</div>`).join('')}</div>`;
+}
+function gmsg(m) { return m ? `<p class="gmsg${m.ok === true ? ' ok' : m.ok === false ? ' bad' : ''}" role="status">${md(m.text)}</p>` : '<p class="gmsg" role="status"></p>'; }
+export function guideHtml() {
+  const g = Object.assign(guideDefaults(), S.setup || {});
+  const open = g.open || GUIDE_STEPS.find(k => !g.done[k]) || 'connect';
+  const win = g.os !== 'mac';
+  const base = `http://127.0.0.1:${g.port}`;
+  const origin = S.origin || '';
+  const osPick = `<div class="gos" role="group" aria-label="Your computer">` +
+    `<button type="button" data-gos="win" aria-pressed="${win}"${win ? ' class="on"' : ''}>Windows</button>` +
+    `<button type="button" data-gos="mac" aria-pressed="${!win}"${!win ? ' class="on"' : ''}>Mac or Linux</button></div>`;
+  const doneBtn = (id, label) => `<div class="gacts"><button type="button" class="btn primary" data-gdone="${id}">${label}</button></div>`;
+  const bodies = {
+    tandem: `<p>Tandem is the agent scaffolding behind Dispatch. It installs into opencode and takes a work item to a ready-to-open pull request in small steps you approve.</p>` +
+      `<p class="gneed">You need <a href="https://git-scm.com/downloads" target="_blank" rel="noopener">git</a>, <a href="https://opencode.ai" target="_blank" rel="noopener">opencode</a>, and ${win ? 'PowerShell (built in)' : '<a href="https://learn.microsoft.com/powershell/scripting/install/installing-powershell" target="_blank" rel="noopener">PowerShell 7</a> (<code>pwsh</code>)'}.</p>` +
+      osPick +
+      cmds(win ? [`git clone ${REPO} C:\\tools\\eng-agents`, 'cd C:\\tools\\eng-agents', '.\\install.ps1'] : [`git clone ${REPO} ~/tools/eng-agents`, 'cd ~/tools/eng-agents', 'pwsh ./install.ps1']) +
+      `<p class="note">Setting it up for real work? Tandem's <a href="${REPO}/blob/main/docs/onboarding-personal.md" target="_blank" rel="noopener">personal setup</a> and <a href="${REPO}/blob/main/docs/onboarding-company.md" target="_blank" rel="noopener">work setup</a> guides cover your own fork, connecting to Azure DevOps, and your workspace folder.</p>` +
+      doneBtn('tandem', 'Tandem is installed'),
+    workshop: `<p>Dispatch reaches Tandem through Workshop's small helper, which runs only on this computer, at <code>127.0.0.1</code>. It needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node 22</a> or later, and no admin rights.</p>` +
+      osPick +
+      cmds(win ? ['git clone https://github.com/adavidson21/workshop C:\\tools\\workshop', 'cd C:\\tools\\workshop', 'node workshop.mjs start'] : ['git clone https://github.com/adavidson21/workshop ~/tools/workshop', 'cd ~/tools/workshop', 'node workshop.mjs start']) +
+      `<p>Then open the address it prints, once, in this browser. That signs this browser in to Workshop.</p>` +
+      `<div class="gcheck"><label>Port <input type="number" class="mono" data-gport min="1024" max="65535" value="${h(g.port)}"></label>` +
+      `<button type="button" class="btn primary" data-gcheck>Check for Workshop</button></div>` + gmsg(g.check),
+    allow: `<p>Workshop only talks to sites you list. In Workshop on this computer, open <a href="${h(base)}/#/settings" target="_blank" rel="noopener">Settings</a>, then:</p>` +
+      `<ol class="gsub"><li>Under <b>Workshop</b>, turn on <b>Hosted mode</b>, add this site to <b>Allowed sites</b>, and save.` +
+      `<div class="kit gcmd"><div class="kit-line"><code>${h(origin)}</code>${copyBtn(origin)}</div></div></li>` +
+      `<li>Under <b>opencode</b>, turn the connector on and set <b>Workspace folder</b> to the folder that holds <code>.work</code> and your repos (where you run opencode). Save.</li></ol>` +
+      doneBtn('allow', 'Done in Settings'),
+    connect: `<p>A small Workshop window opens and asks you to allow this site. Your browser may also ask to let this site reach devices on your network: allow it, that is how it reaches <code>127.0.0.1</code>.</p>` +
+      `<div class="gacts"><button type="button" class="btn primary" data-gpair>Connect to Workshop</button></div>` + gmsg(g.pair) +
+      `<p class="note">If the window says to open Workshop first, open <a href="${h(base)}/" target="_blank" rel="noopener">${h(base)}</a> once, then connect again.</p>`
+  };
+  const titles = { tandem: 'Install Tandem', workshop: 'Start Workshop on this computer', allow: 'Allow this site, and point it at your work', connect: 'Connect this page' };
+  const doneCount = GUIDE_STEPS.filter(k => g.done[k]).length;
+  const steps = GUIDE_STEPS.map((k, i) => {
+    const isOpen = k === open, done = !!g.done[k];
+    return `<li class="gstep${done ? ' done' : ''}${isOpen ? ' open' : ''}">` +
+      `<button type="button" class="ghead" data-gopen="${k}" aria-expanded="${isOpen}"><span class="gnum" aria-hidden="true">${done ? CHECK_SVG : i + 1}</span>` +
+      `<span class="gt">${titles[k]}</span>${done ? '<span class="gstate">Done</span>' : ''}</button>` +
+      (isOpen ? `<div class="gbody">${bodies[k]}</div>` : '') + '</li>';
+  }).join('');
+  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Start it again (<code>node workshop.mjs start</code>), then reload. If that does not help, connect again below.</div>' : '';
+  return `<section class="guide">${lost}<p class="eyebrow">Set up, ${doneCount} of ${GUIDE_STEPS.length} done</p>` +
+    `<h2>Connect Dispatch to your computer</h2>` +
+    `<p class="lede">Dispatch is the front end for Tandem, which runs coding agents in opencode on your computer. Your code and work items stay there: this page talks straight to your computer, never to a server.</p>` +
+    `<ol class="gsteps">${steps}</ol></section>`;
+}
+
 // --------------------------------------------------------- before the connector is ready
-// Browser mode, the connector off, starting or in error: say what is wrong and how to fix it.
+// The connector off, starting or in error: say what is wrong and how to fix it.
 export function setupHtml() {
   const c = S.connector;
   let title, body, act = '';
   if (S.mode === 'browser') {
-    title = 'Dispatch needs Workshop running on this computer';
-    body = '<p>The agents and your <code>.work</code> folder are on your computer. Start Workshop there (<code>node workshop.mjs start</code>) and open it at <code>127.0.0.1</code>.</p>';
+    return guideHtml();
   } else if (!c) {
     title = 'Connecting to Workshop';
     body = '<p>Looking for the opencode connector.</p>';
@@ -694,6 +753,7 @@ export function setupHtml() {
     act = 'settings';
   }
   const btn = act && S.mode === 'local' ? '<div class="acts"><button type="button" class="btn primary" data-settings="1">Open Settings</button></div>'
+    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Settings can only be changed in Workshop on this computer.</p>`
     : act ? '<p class="note">Change it in Settings, in Workshop on this computer.</p>' : '';
   return `<div class="setup"><h2>${title}</h2>${body}${btn}</div>`;
 }

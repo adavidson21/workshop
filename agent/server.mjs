@@ -231,7 +231,18 @@ export async function createAgent(o) {
 
   function pairPage(res, url, cookieOk) {
     const origin = url.searchParams.get('origin') || '';
-    if (!cookieOk) { sendHtml(res, 401, page('Workshop', '<p>Open Workshop on this computer first, then try pairing again.</p>')); return; }
+    if (!cookieOk) {
+      // The cookie is SameSite=Strict, so a pairing window opened from the hosted site (a cross-site
+      // navigation) arrives without it. Reload once from this page, a same-site navigation that carries it.
+      if (url.searchParams.get('again') !== '1') {
+        const again = new URL(url); again.searchParams.set('again', '1');
+        const target = JSON.stringify(again.pathname + again.search).replace(/</g, '\\u003c');
+        sendHtml(res, 200, page('Workshop', `<p>Checking that Workshop is open in this browser.</p><script>location.replace(${target});</script>`));
+        return;
+      }
+      sendHtml(res, 401, page('Workshop', '<p>Open Workshop on this computer first, in this browser, then try pairing again.</p>'));
+      return;
+    }
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       sendHtml(res, 403, page('Workshop', '<p>That pairing link is not valid.</p>'));
       return;

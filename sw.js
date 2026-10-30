@@ -9,7 +9,7 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '5.1.0';
+const VERSION = '5.2.0';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',

@@ -6,10 +6,15 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
+// On its own page on alexisdavidson.org, Dispatch lives at dispatch.alexisdavidson.org (functions/_middleware.js
+// serves it there). The old address forwards; inside the Workshop shell (an iframe) it stays put.
+const HOME = 'https://dispatch.alexisdavidson.org/';
+if (window.parent === window && location.hostname === 'workshop.alexisdavidson.org') location.replace(HOME + location.hash);
+
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS } from './view.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -20,6 +25,63 @@ S.canNotify = typeof window.Notification === 'function';
 document.documentElement.classList.toggle('embed', ws.embedded);
 // On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
 if (!ws.embedded) mountBar('Dispatch');
+
+/* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------
+   Progress, the port and the computer type are kept per browser. Pairing works like the shell's Connect
+   (docs/run-modes.md, Pairing): the agent's /pair window posts {url, token} back, stored as workshop.agent. */
+const PAIR_KEY = 'workshop.agent', GUIDE_KEY = 'dispatch.setup';
+const readJson = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+const paired = readJson(PAIR_KEY);
+const savedGuide = readJson(GUIDE_KEY);
+S.origin = location.origin;
+S.agentUrl = ws.mode === 'hosted' && paired && paired.url ? paired.url : null;
+S.wasPaired = ws.mode === 'browser' && !!(paired && paired.url);
+S.setup = Object.assign(guideDefaults(), savedGuide || {}, { check: null, pair: null });
+if (!savedGuide && !/Win/i.test(navigator.platform || navigator.userAgent || '')) S.setup.os = 'mac';
+if (S.wasPaired) { try { S.setup.port = +new URL(paired.url).port || S.setup.port; } catch (e) { /* keep the saved port */ } }
+function saveGuide() {
+  const { done, open, port, os } = S.setup;
+  try { localStorage.setItem(GUIDE_KEY, JSON.stringify({ done, open, port, os })); } catch (e) { /* private mode: this visit only */ }
+}
+const nextStep = () => GUIDE_STEPS.find(k => !S.setup.done[k]) || 'connect';
+function stepDone(k) { S.setup.done[k] = true; S.setup.open = nextStep(); saveGuide(); }
+
+// Is Workshop answering on this port? A no-cors request succeeds whenever the agent is up, before this
+// site is allowed (a CORS request would fail either way until then).
+async function checkWorkshop() {
+  const port = S.setup.port;
+  S.setup.check = { ok: null, text: `Looking for Workshop on port ${port}.` }; paint();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/health`, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal, targetAddressSpace: 'loopback' });
+    S.setup.check = { ok: true, text: `Found Workshop on port ${port}.` };
+    stepDone('workshop');
+  } catch (e) {
+    S.setup.check = { ok: false, text: `Workshop is not answering on port ${port}. Is \`node workshop.mjs start\` still running? If your browser asked to allow access to your local network, allow it and check again.` };
+  } finally { clearTimeout(timer); }
+  paint();
+}
+
+let pairWin = null;
+function startPairing() {
+  const base = `http://127.0.0.1:${S.setup.port}`;
+  pairWin = window.open(`${base}/pair?origin=${encodeURIComponent(location.origin)}`, 'workshop-pair', 'popup,width=520,height=420');
+  S.setup.pair = pairWin
+    ? { ok: null, text: 'Waiting for you to allow this site in the Workshop window.' }
+    : { ok: false, text: 'Your browser blocked the window. Allow pop-ups for this site and try again.' };
+  paint();
+}
+window.addEventListener('message', e => {
+  const m = e.data;
+  if (!pairWin || e.source !== pairWin || !m || m.type !== 'workshop-pair' || m.api !== 1) return;
+  if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(e.origin) || m.url !== e.origin || typeof m.token !== 'string' || !m.token) return;
+  try { localStorage.setItem(PAIR_KEY, JSON.stringify({ url: m.url, token: m.token })); }
+  catch (err) { S.setup.pair = { ok: false, text: 'This browser would not save the connection.' }; paint(); return; }
+  pairWin = null;
+  stepDone('connect');
+  (ws.embedded ? window.top : window).location.reload();
+});
 
 const errText = e => (e && e.message) || 'Something went wrong.';
 const toast = (text, bad) => ws.toast(text, { kind: bad ? 'error' : 'info' });
@@ -230,9 +292,23 @@ async function copy(b) {
   }
 }
 
+app.addEventListener('change', ev => {
+  const pi = ev.target.closest && ev.target.closest('[data-gport]');
+  if (!pi) return;
+  const n = Math.round(+pi.value);
+  if (n >= 1024 && n <= 65535) { S.setup.port = n; S.setup.check = null; saveGuide(); schedule(); }
+});
 app.addEventListener('click', ev => {
   const t = ev.target;
   if (!t.closest) return;
+  const go = t.closest('[data-gopen]');
+  if (go) { const k = go.getAttribute('data-gopen'); const cur = S.setup.open || nextStep(); S.setup.open = cur === k ? 'none' : k; saveGuide(); paint(); return; }
+  const gd = t.closest('[data-gdone]');
+  if (gd) { stepDone(gd.getAttribute('data-gdone')); paint(); return; }
+  const gos = t.closest('[data-gos]');
+  if (gos) { S.setup.os = gos.getAttribute('data-gos'); saveGuide(); paint(); return; }
+  if (t.closest('[data-gcheck]')) { checkWorkshop(); return; }
+  if (t.closest('[data-gpair]')) { startPairing(); return; }
   const cb = t.closest('button.copy');
   if (cb) { copy(cb); return; }
   const jump = t.closest('[data-jump]');
