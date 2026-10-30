@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "prioritizer",
-  "name": "Prioritizer",
+  "name": "Docket",
   "version": "4.2.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",
@@ -40,7 +40,7 @@
     },
     {
       "id": "shortcuts",
-      "title": "Prioritizer keyboard shortcuts"
+      "title": "Docket keyboard shortcuts"
     }
   ],
   "files": [
