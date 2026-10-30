@@ -3,9 +3,11 @@
 An engineering manager's hub: one page with a rail of apps, sharing one theme.
 
 - **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
-- **Prioritizer** decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
-- **Agents** shows your [eng-agents](https://github.com/adavidson21/eng-agents) work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
+- **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
+- **Dispatch** (formerly Agents; code and URLs still say `agents`) shows your [eng-agents](https://github.com/adavidson21/eng-agents) work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
+
+Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 

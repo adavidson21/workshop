@@ -103,7 +103,7 @@ async function boot(){
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
   if (store.isNew && ws.backend === 'agent'){
-    toast('Moving from the Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
+    toast('Moving from the old Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
   }
 }
 

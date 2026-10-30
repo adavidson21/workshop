@@ -188,16 +188,17 @@ test('header: Live only when Workshop and opencode are both connected', () => {
   assert.match(render(), /Workshop stopped or restarted/);
 });
 
-test('in the shell, the shell owns the name and theme; on its own, the page has both', () => {
+test('in the shell, the shell owns the name and theme; on its own, the page has its name (the top bar has the toggle)', () => {
   assert.doesNotMatch(render(), /class="brand"|data-theme-menu/);
   S.embedded = false;
   S.version = '1.0.0';
-  assert.match(render(), /<h1>Agents<\/h1><span class="ver">v1\.0\.0<\/span>.*data-theme-menu="1"/s);
+  assert.match(render(), /<h1>Dispatch<\/h1><span class="ver">v1\.0\.0<\/span>/);
+  assert.doesNotMatch(render(), /data-theme-menu/);
 });
 
 test('before the connector is ready, the page says what is wrong and how to fix it', () => {
   S.mode = 'browser'; S.connector = null; S.D = null;
-  assert.match(render(), /Agents needs Workshop running on this computer/);
+  assert.match(render(), /Dispatch needs Workshop running on this computer/);
   S.mode = 'local'; S.connector = { state: 'disabled', message: null };
   assert.match(setupHtml(), /Turn on the opencode connector.*data-settings="1">Open Settings/s);
   S.connector = { state: 'error', message: 'No PowerShell found. Install `pwsh`.' };

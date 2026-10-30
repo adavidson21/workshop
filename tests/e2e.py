@@ -174,7 +174,7 @@ def agent_checks(b, watch):
         check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'agents', 'notes', 'board', 'settings'])
         check('local mode opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
         ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
-        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Prioritizer · Workshop')
+        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
         check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
         ap.keyboard.press('Alt+3'); ap.wait_for_timeout(800)
@@ -655,7 +655,7 @@ def agents_checks(b, watch):
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
         sp.goto(url + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
-        check('Agents works on its own page, with its name and theme menu', sp.inner_text('h1') == 'Agents' and sp.locator('[data-theme-menu]').count() == 1 and sp.locator('#item-41502').count() == 1)
+        check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('#item-41502').count() == 1)
         ctx.close()
     finally:
         proc.terminate(); proc.wait(10)
@@ -708,7 +708,7 @@ def main():
         check('Agents in browser mode says it needs Workshop on this computer', af is not None and 'needs Workshop running on this computer' in af.inner_text('#app'))
         check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
-        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Agents · Workshop')
+        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
 
         pg.click('#rail .mark'); pg.wait_for_timeout(800)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
@@ -731,7 +731,7 @@ def main():
 
         sp = ctx.new_page(); watch(sp)
         sp.goto(HUB + '/apps/prioritizer/'); sp.wait_for_timeout(600)
-        check('Prioritizer still works on its own', sp.locator('#themeBtn').is_visible() and sp.locator('#snav .sitem').count() == 5)
+        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 5)
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)

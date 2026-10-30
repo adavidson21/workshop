@@ -135,7 +135,7 @@ test('backups: Prioritizer collections are taken, bad files say what is wrong', 
   assert.throws(() => envelopesFromBundle({...bundle, version: 2}), /newer Workshop/);
   const newer = clone(bundle); newer.collections[1].envelope.version = 99;
   assert.throws(() => envelopesFromBundle(newer), /newer Workshop/);
-  assert.throws(() => envelopesFromBundle({...bundle, collections: bundle.collections.slice(4)}), /no Prioritizer board/);
+  assert.throws(() => envelopesFromBundle({...bundle, collections: bundle.collections.slice(4)}), /no Docket board/);
 });
 
 /* ---------- saving and windows ---------- */
