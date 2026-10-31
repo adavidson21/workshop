@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Docket</string>
+    <string name="title_activity_main">Docket</string>
+    <string name="package_name">org.alexisdavidson.docket</string>
+    <string name="custom_url_scheme">org.alexisdavidson.docket</string>
+</resources>

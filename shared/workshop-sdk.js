@@ -17,6 +17,8 @@
    Shell methods (open, toast, badge, notify, commands, theme, events) travel to the shell by
    postMessage. Data and connector calls go straight to the agent or the browser backend, so an
    app also works when opened on its own (ws.embedded === false). */
+import { deviceAvailable, openDeviceRoot } from './device-fs.js';
+
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
 const HEALTH_TIMEOUT_MS = 1500;
@@ -534,6 +536,7 @@ function makeFolderStore(ctx, root, opts = {}) {
   const sleep = opts.sleep || ((ms) => new Promise(r => setTimeout(r, ms)));
   const lockFn = opts.lock || webLock;
   const name = root.name || null;
+  const storage = opts.storage || 'folder'; // 'device' in the Android app (shared/device-fs.js)
   let permission = opts.permission || 'granted';
   let missing = false;
   const onlineListeners = new Set();
@@ -568,7 +571,9 @@ function makeFolderStore(ctx, root, opts = {}) {
   async function rootAlive() {
     try { const it = root.values(); await it.next(); if (it.return) await it.return(); return true; } catch (e) { return !isMissing(e); }
   }
-  const unavailable = () => new WorkshopError('unavailable', missing
+  const unavailable = () => new WorkshopError('unavailable', storage === 'device'
+    ? 'Workshop could not reach its storage on this device. Close the app and open it again.'
+    : missing
     ? `The folder ${name || ''} is gone. It may have been moved, renamed or deleted. Choose it again in Settings.`
     : `Workshop needs your permission to use the folder ${name || ''}. Click Allow in the bar at the top of Workshop.`, 503);
   async function access(fn) {
@@ -895,7 +900,7 @@ function makeFolderStore(ctx, root, opts = {}) {
   if (!isOnline()) startTimer();
 
   return {
-    kind: 'browser', storage: 'folder', name, get, put, list, subscribe, files, allCollections, connectorsAvailable: false,
+    kind: 'browser', storage, name, get, put, list, subscribe, files, allCollections, connectorsAvailable: false,
     get online() { return isOnline(); },
     onOnline(fn) { onlineListeners.add(fn); return () => onlineListeners.delete(fn); },
     get permission() { return permission; },
@@ -1173,8 +1178,10 @@ function makeShellChannel(ctx) {
   return { embedded, request, emit, on(event, fn) { (eventHandlers[event] ||= []).push(fn); return () => { const a = eventHandlers[event]; const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); }; } };
 }
 
-/* ---------- the browser backend's store: folder if one is saved, else IndexedDB ---------- */
+/* ---------- the browser backend's store: the device in the Android app, else folder if one is saved, else IndexedDB ---------- */
 async function openBrowserStore(ctx, opts = {}) {
+  const device = opts.device !== undefined ? opts.device : (deviceAvailable() ? await openDeviceRoot() : null);
+  if (device) return makeFolderStore(ctx, device, Object.assign({}, opts.folder, { storage: 'device' }));
   const handle = opts.handle !== undefined ? opts.handle : await savedFolderHandle();
   if (handle) {
     let permission;
@@ -1187,8 +1194,9 @@ async function openBrowserStore(ctx, opts = {}) {
 }
 
 // Folder access for the shell's bar (docs/run-modes.md, Access), without connecting as an app.
-// {storage, name, permission, missing}; storage is 'folder' or 'indexeddb'. Browser backend only.
+// {storage, name, permission, missing}; storage is 'device' (the Android app), 'folder' or 'indexeddb'. Browser backend only.
 export async function folderState() {
+  if (deviceAvailable()) return { storage: 'device', name: null, permission: null, missing: false };
   const handle = await savedFolderHandle();
   if (!handle) return { storage: 'indexeddb', name: null, permission: null, missing: false };
   const store = await openBrowserStore({ clientId: randomId('w-') }, { handle, folder: { timers: false, channel: null } });
@@ -1344,12 +1352,14 @@ export async function connect(options) {
           try { name = (await agentCall(ctx, 'GET', '/api/config')).dataDir || null; } catch (e) { /* not reachable */ }
           return { storage: 'agent', name, permission: null, moved: false, missing: false };
         }
+        if (data.storage === 'device') return { storage: 'device', name: null, permission: null, moved: false, missing: false };
         const moved = Boolean(await idbMoved());
         if (data.storage === 'folder') return { storage: 'folder', name: data.name, permission: data.permission, moved, missing: data.missing };
         return { storage: 'indexeddb', name: null, permission: null, moved, missing: false };
       },
       async choose(opts) {
         if (data.kind === 'agent') throw new WorkshopError('unavailable', 'Workshop is running on this computer: change its data folder in Settings instead.');
+        if (data.storage === 'device') throw new WorkshopError('unavailable', 'The app keeps your data on this device. Use a backup file to move it.');
         const picker = (opts && opts.picker) || (typeof window !== 'undefined' && window.showDirectoryPicker);
         if (typeof picker !== 'function') throw new WorkshopError('unavailable', 'This browser cannot use a folder. Use Chrome.');
         let dir;

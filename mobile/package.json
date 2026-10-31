@@ -1,0 +1,21 @@
+{
+  "name": "docket-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Docket as an Android app: Docket's web files in a Capacitor shell, with its data in the app's own storage on the phone.",
+  "type": "module",
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "sync": "node scripts/build-web.mjs && cap sync android",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

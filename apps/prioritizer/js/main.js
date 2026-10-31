@@ -18,11 +18,12 @@ import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
+import { mountAppBanner } from './app-banner.js';
 
 // Inside the shell the rail names the app (no second logo), and the shell owns the light/dark toggle, the service worker, Alt+<n> and Ctrl+K.
 // On its own page, Prioritizer gets the same top bar as the other tools (crumbs and the toggle) and registers the worker itself.
 if (embedded) document.body.classList.add('embedded');
-else { mountBar('Docket'); if (window.WorkshopSw) WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000)); }
+else { mountBar('Docket'); mountAppBanner(); if (window.WorkshopSw) WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000)); }
 
 // From the shell, through the SDK: deep links (#/prioritizer/task/<id>), palette commands, ADO status.
 const loaded = boot();
