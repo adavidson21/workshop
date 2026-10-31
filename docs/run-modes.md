@@ -32,7 +32,7 @@ Rules:
 
 ## Browser backend
 
-Used when no agent is reachable. Chrome only: it needs the File System Access API. It has two stores and uses exactly one at a time.
+Used when no agent is reachable. In a browser it has two stores (the folder store needs Chrome's File System Access API) and uses exactly one at a time. In the Android app it uses the device store instead.
 
 ### Folder store (`ws.storage === 'folder'`)
 
@@ -62,6 +62,16 @@ When the user picks a folder and IndexedDB holds data, `ws.folder.choose()` copi
 1. Each collection is created in the folder if missing, or merged with the folder's copy and put (the same steps as `data.import`, [data-format.md](data-format.md), Bundles). Each file is created if missing; if the folder already has a different file at that path, the folder's copy is kept and the IndexedDB copy is written next to it as `<name>-from-browser.<ext>` (or `-from-browser-2` and so on).
 2. The IndexedDB data is kept, never deleted, and marked moved: object store `data`, key `_moved`, value `{movedTo: <folder name>, movedAt: <ISO time>}`.
 3. A store marked moved is never copied again, and the SDK uses it only if the folder handle is cleared, in which case Settings says that the browser data is older than the folder.
+
+### Device store (`ws.storage === 'device'`)
+
+Used in the Android app ([mobile/README.md](../mobile/README.md)), where there is no agent and no folder picker. The SDK chooses it before anything else when the page runs in that app (Capacitor's native bridge is there with its Filesystem plugin; `shared/device-fs.js`, `deviceAvailable()`).
+
+- **It is the folder store** on a different folder: the app's private data folder on the phone, under `workshop/` (`workshop/<app>/<collection>.json` and so on). `shared/device-fs.js` gives the folder store a directory handle backed by Capacitor's Filesystem plugin, so the layout and every rule above apply unchanged: `rev` checks, `version` downgrade refused, backups, trash, the `lastModified` check before every write, change events and the outside-change check.
+- **No permission, nothing to choose.** `ws.folder.status()` is `{storage: 'device', name: null, permission: null, moved: false, missing: false}`; `ws.folder.choose()` rejects with `unavailable`. IndexedDB is never used for app data.
+- **Atomic writes.** A file is written to a hidden temporary file beside it (`.<name>.workshop-tmp`), which then replaces it. If renaming over an existing file fails, the old file is removed and the rename tried again. A read that finds no file but a temporary file older than 10 seconds puts the temporary file in place (the app stopped mid-write). Lists never show temporary files.
+- **Never leaves the phone.** The app is left out of Google's cloud backup. Files go elsewhere only when the user shares them (`shared/save-file.js` hands backups and exports to Android's share sheet).
+- `ws.online` is `false` only if the folder cannot be reached at all; data calls then reject with `unavailable`.
 
 ### Connectors
 

@@ -1,6 +1,6 @@
 import { ADO_DOWN, adoCall, adoSetup, adoSync, adoUnreachable } from './ado.js';
 import { ICON } from './constants.js';
-import { NO_XLSX } from './excel.js';
+import { NO_XLSX, saveWorkbook } from './excel.js';
 import { kvGet, kvSet } from './kv.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { main, render, setView } from './render.js';
@@ -327,8 +327,7 @@ document.addEventListener('change', e => {
 /* export: the Workload tracker plus every report, pre-filled from ADO, with Summary formulas */
 function exportReports(d){
   if (!window.XLSX){ toast(NO_XLSX); return; }
-  XLSX.writeFile(buildReportsWorkbook(d), `team-reports-${todayStr()}.xlsx`);
-  toast('Reports exported to Excel');
+  return saveWorkbook(buildReportsWorkbook(d), `team-reports-${todayStr()}.xlsx`, 'Reports exported to Excel');
 }
 function buildReportsWorkbook(d){
   const c = rpCompute(d), wb = XLSX.utils.book_new(), N = 5000, weeks = rpOne(c.weeks);

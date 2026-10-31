@@ -35,6 +35,10 @@ In Chrome or Edge, open Workshop and click **Install** on the rail (or the insta
 
 It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
 
+## Docket on Android
+
+Docket is also an Android app, with its board saved in the app's own storage on the phone (never on a server, and not cleared like browser storage). Android visitors to Docket's page get a "Get the app" banner linking to the latest build. See [mobile/README.md](mobile/README.md).
+
 The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
 
 ## Install and run the agent
@@ -81,6 +85,8 @@ shared/                 used by the shell and every app
   theme.js              applies and remembers the theme across pages
   ui.css                buttons, menus, toast, tooltip
   sw-register.js        registers sw.js
+  device-fs.js          the Android app's storage on the phone, for the SDK's device store
+  save-file.js          downloads in a browser, Android's share sheet in the app
   fonts/                self-hosted Inter and JetBrains Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
   screenshots/          images for the install dialog
@@ -93,6 +99,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)
+mobile/                 Docket as an Android app (Capacitor), built by .github/workflows/android.yml
 docs/                   the contracts every part is written against
 sw.js                   offline cache for the whole site
 tests/                  checks (see below)
