@@ -292,12 +292,16 @@ document.getElementById('allow').addEventListener('click', function () {
       if (parts.length === 3 && parts[2] === 'config') {
         if (m === 'GET') { ok(connectors.configView(id)); return; }
         only('GET', 'PUT');
-        if (!own) fail('local_only', 'Change connector settings from Workshop on this computer.');
         connectors.configView(id); // 503 if the module did not load
         const body = await readJsonBody(req, MB);
         const errs = schemas.validate('connector-config-put', body);
         if (errs.length) fail('bad_request', `Send {"config": {...}}: ${errs[0]}`);
         connectors.checkConfig(id, body.config);
+        // A hosted page may change only fields the connector marks x-workshop-hosted.
+        if (!own) {
+          const locked = connectors.hostedLocked(id, body.config);
+          if (locked.length) fail('local_only', `Change ${locked.join(', ')} from Workshop on this computer.`);
+        }
         await commitConfig(() => {
           config.connectors[id] = { ...(config.connectors[id] || { enabled: false }), config: structuredClone(body.config) };
         });

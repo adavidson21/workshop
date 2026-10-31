@@ -114,8 +114,15 @@ test('config changes are refused from hosted origins', async () => {
   expectError(await put(hosted, '/api/config', { features: { startAtLogin: true } }, { origin: HOSTED }), 403, 'local_only');
 });
 
-test('connector config changes are refused from hosted origins', async () => {
-  expectError(await put(hosted, '/api/connectors/echo/config', { config: { tokenEnv: 'OTHER_SECRET' } }, { origin: HOSTED }), 403, 'local_only');
+test('connector config changes are refused from hosted origins, except fields marked x-workshop-hosted', async () => {
+  expectError(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hello', tokenEnv: 'OTHER_SECRET' } }, { origin: HOSTED }), 403, 'local_only');
+  // A field the connector marks x-workshop-hosted can be changed from a paired hosted page.
+  const saved = expectJson(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hi there' } }, { origin: HOSTED }), 200, 'connector-config');
+  assert.equal(saved.config.greeting, 'Hi there');
+  // Changing a marked field together with an unmarked one is refused as a whole, and nothing is saved.
+  const mixed = expectError(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hey', mode: 'loud' } }, { origin: HOSTED }), 403, 'local_only');
+  assert.match(mixed.error, /mode/);
+  assert.equal(expectJson(await get(hosted, '/api/connectors/echo/config', { origin: HOSTED }), 200, 'connector-config').config.greeting, 'Hi there');
 });
 
 test('pairing needs the cookie, hosted mode, and a listed origin', async () => {

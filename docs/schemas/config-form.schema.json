@@ -207,6 +207,9 @@
         },
         "x-workshop-multiline": {
           "type": "boolean"
+        },
+        "x-workshop-hosted": {
+          "type": "boolean"
         }
       }
     },
@@ -241,6 +244,9 @@
         },
         "maximum": {
           "type": "number"
+        },
+        "x-workshop-hosted": {
+          "type": "boolean"
         }
       }
     },
@@ -265,6 +271,9 @@
           "const": "boolean"
         },
         "default": {
+          "type": "boolean"
+        },
+        "x-workshop-hosted": {
           "type": "boolean"
         }
       }
@@ -308,6 +317,9 @@
           "minimum": 1
         },
         "uniqueItems": {
+          "type": "boolean"
+        },
+        "x-workshop-hosted": {
           "type": "boolean"
         }
       }

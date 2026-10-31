@@ -2,7 +2,11 @@
 // The `workshop` command: one entry point for running and looking after the local agent.
 //
 //   workshop start [--port n] [--quiet]   Start the agent (same as node agent/start.mjs).
-//   workshop install [--login]            First run: create ~/.workshop. --login also turns on start at login.
+//   workshop install [--login] [setup]    First run: create ~/.workshop. --login also turns on start at login.
+//                                          Setup options (used by the one-line installer, scripts/bootstrap.*):
+//                                          --allow <origin>, --workspace <folder>, --opencode <command>,
+//                                          --powershell <command>. See setupFromFlags below.
+//   workshop open [--print]                Open Workshop in the default browser, signed in. --print only prints.
 //   workshop uninstall                     Turn off start at login. Leaves your data in place.
 //   workshop doctor                        Check Node, config.json, the port, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
@@ -32,7 +36,13 @@ const SERVED_FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
 const USAGE = `Usage: workshop <command> [options]
 
   start [--port <n>] [--quiet]   Start the agent, print the address to open.
-  install [--login]              Create ~/.workshop. --login also turns on start at login (no admin).
+  install [--login] [options]    Create ~/.workshop. --login also turns on start at login (no admin).
+                                 --allow <origin>       turn on hosted mode and allow this site
+                                 --workspace <folder>   turn on the opencode connector with this workspace
+                                 --opencode <command>   the command that runs opencode (if not set yet)
+                                 --powershell <command> the PowerShell command (if not set yet)
+  open [--print]                 Open Workshop in your default browser, signed in (Workshop must be running).
+                                 --print only prints the sign-in address, to open in another browser.
   uninstall                      Turn off start at login. Your data stays in ~/.workshop.
   doctor                         Check Node, config.json, the port, start at login and hosted mode.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
@@ -200,6 +210,51 @@ async function setStartAtLoginFlag(home, schemas, on) {
   await writeJsonAtomic(paths.config, config);
 }
 
+/** Read install's setup options. Returns {opts} or {error}. --allow can be given more than once. */
+export function parseInstallArgs(rest) {
+  const opts = { login: false, allow: [] };
+  const value = { '--workspace': 'workspace', '--opencode': 'opencode', '--powershell': 'powershell' };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--login') { opts.login = true; continue; }
+    if (a === '--allow' || value[a]) {
+      const v = rest[++i];
+      if (v === undefined || v === '' || v.startsWith('--')) return { error: `${a} needs a value.` };
+      if (a === '--allow') opts.allow.push(v.replace(/\/+$/, '')); else opts[value[a]] = v;
+      continue;
+    }
+    return { error: `Unknown option ${a}. Run "workshop help".` };
+  }
+  return { opts };
+}
+
+/**
+ * Apply install's setup options to a config object (changed in place). It only adds: an origin already
+ * allowed stays, and connector settings already saved are kept, so running the installer again never undoes
+ * what the user changed in Settings. Returns plain-words lines saying what changed.
+ */
+export function setupFromFlags(config, opts, schemas) {
+  const said = [];
+  for (const origin of opts.allow || []) {
+    if (schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) throw new Error(`${origin} is not a site address like https://example.org.`);
+    config.features = { ...defaultConfig().features, ...(config.features || {}), hostedMode: true };
+    config.allowedOrigins = config.allowedOrigins || [];
+    if (!config.allowedOrigins.includes(origin)) { config.allowedOrigins.push(origin); said.push(`Allowed ${origin} (hosted mode is on).`); }
+  }
+  if (opts.workspace || opts.opencode || opts.powershell) {
+    config.connectors = config.connectors || {};
+    const entry = config.connectors.opencode || { enabled: false };
+    const cfg = { ...(entry.config || {}) };
+    if (opts.workspace && !cfg.workspace) { cfg.workspace = opts.workspace; said.push(`opencode workspace folder: ${opts.workspace}`); }
+    if (opts.opencode && !(cfg.opencode && cfg.opencode.command)) { cfg.opencode = { ...(cfg.opencode || {}), command: opts.opencode }; said.push(`opencode command: ${opts.opencode}`); }
+    if (opts.powershell && !cfg.powershell) { cfg.powershell = opts.powershell; said.push(`PowerShell command: ${opts.powershell}`); }
+    if (!cfg.workspace) throw new Error('Pass --workspace too: the opencode connector needs a workspace folder.');
+    if (opts.workspace && entry.enabled !== true && !entry.config) { entry.enabled = true; said.push('Turned on the opencode connector.'); }
+    config.connectors.opencode = { ...entry, config: cfg };
+  }
+  return said;
+}
+
 async function runInstall(opts, io) {
   const home = resolveHome(io.env);
   const schemas = loadSchemas();
@@ -210,6 +265,16 @@ async function runInstall(opts, io) {
   }
   const created = await ensureHome(home);
   io.out(created ? `Created ${home} with default settings (everything off).` : `Using ${home}.`);
+  if (opts.allow?.length || opts.workspace || opts.opencode || opts.powershell) {
+    const info = inspectConfig(homePaths(home).config, schemas);
+    if (info.state !== 'ok') { io.out('config.json has a problem. Run "workshop doctor" and fix it first.'); return 1; }
+    let said;
+    try { said = setupFromFlags(info.config, opts, schemas); } catch (e) { io.out(e.message); return 1; }
+    const errs = schemas.validate('config', info.config);
+    if (errs.length) { io.out(`Those settings are not valid: ${errs[0]}`); return 1; }
+    await writeJsonAtomic(homePaths(home).config, info.config);
+    for (const line of said) io.out(line);
+  }
   if (opts.login !== true) {
     io.out('Start at login is off. Turn it on in Settings, or run "workshop install --login".');
   } else {
@@ -262,6 +327,27 @@ function runUpdate(io) {
   });
 }
 
+// --------------------------------------------------------------- open
+
+/** The sign-in address for the running agent: http://127.0.0.1:<port>/?token=<token>. */
+export function signInUrl(home, port) {
+  const token = fs.readFileSync(homePaths(home).token, 'utf8').trim();
+  return `http://127.0.0.1:${port}/?token=${token}`;
+}
+
+async function runOpen(rest, io) {
+  const home = resolveHome(io.env);
+  const port = (inspectConfig(homePaths(home).config, loadSchemas()).config?.port) ?? DEFAULT_PORT;
+  if (!(await agentHealth(port))) { io.out(`Workshop is not running on port ${port}. Log out and back in, or run: workshop start`); return 1; }
+  let url;
+  try { url = signInUrl(home, port); } catch { io.out(`Could not read the token in ${home}.`); return 1; }
+  io.out(`Open this address in the browser you use Dispatch in. It signs that browser in to Workshop:\n\n  ${url}\n`);
+  if (rest.includes('--print')) return 0;
+  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  try { spawn(cmd, args, { stdio: 'ignore', detached: true, windowsVerbatimArguments: process.platform === 'win32' }).on('error', () => {}).unref(); } catch { /* printed above */ }
+  return 0;
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
@@ -290,8 +376,13 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
     return code;
   }
 
-  if (cmd === 'install') return runInstall({ login: rest.includes('--login') }, io);
+  if (cmd === 'install') {
+    const parsed = parseInstallArgs(rest);
+    if (parsed.error) { io.out(parsed.error); return 1; }
+    return runInstall(parsed.opts, io);
+  }
   if (cmd === 'uninstall') return runUninstall(io);
+  if (cmd === 'open') return runOpen(rest, io);
 
   if (cmd === 'publish') {
     const i = rest.indexOf('--out');

@@ -91,6 +91,7 @@ The Settings app (WS4) builds each connector's form from `configSchema` alone, s
 | --- | --- |
 | `type: "string"` | Text field. `format: "uri"` makes it a URL field. `x-workshop-multiline: true` makes it a text area. |
 | `type: "string"` with `enum` | Select. `x-workshop-labels` (same length as `enum`) gives the option labels. |
+| `x-workshop-hosted: true` on any field | A paired hosted page may change this field (`PUT /api/connectors/<id>/config`). Unmarked fields change only from the agent's own origin. Never mark a field that names a server, a command, a file to read, or an environment variable. |
 | `type: "string"` with `x-workshop-env: true` | Environment variable name field. The form shows the name and whether it is set (from `env` in `GET /api/connectors/<id>/config`). There is no field for the value. |
 | `type: "integer"` or `"number"` | Number field, with `minimum` and `maximum`. |
 | `type: "boolean"` | Checkbox or switch. |

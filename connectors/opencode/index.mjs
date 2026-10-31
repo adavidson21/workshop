@@ -24,6 +24,7 @@ export const configSchema = {
       title: "Workspace folder",
       description: "The folder that holds .work and your repos, where you run opencode. ~ is your home folder.",
       minLength: 1,
+      "x-workshop-hosted": true,
     },
     opencode: {
       type: "object",
@@ -47,6 +48,7 @@ export const configSchema = {
           title: "Start opencode if it is not running",
           description: "2.x: opencode service start. 1.x: opencode serve, stopped again when this connector stops.",
           default: true,
+          "x-workshop-hosted": true,
         },
         passwordEnv: {
           type: "string",
@@ -81,6 +83,7 @@ export const configSchema = {
       minimum: 5,
       maximum: 3600,
       default: 20,
+      "x-workshop-hosted": true,
     },
   },
 };

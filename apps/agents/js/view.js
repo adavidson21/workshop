@@ -628,7 +628,7 @@ function moreMenuHtml() {
   }
   if (L() && L().canOpenTerminal && o.connected) items += '<button type="button" role="menuitem" data-term="">Open the opencode TUI</button>';
   if (o.attach) items += copyBtn(o.attach, 'Copy terminal command');
-  if (S.mode === 'local') items += '<div class="sep"></div><button type="button" role="menuitem" data-settings="1">opencode settings</button>';
+  items += '<div class="sep"></div><button type="button" role="menuitem" data-cfg-open="1">opencode settings</button>';
   return `<div class="menu" role="menu" style="top:${S.ui.menu.top}px;right:${S.ui.menu.right}px">${items}</div>`;
 }
 function themeMenuHtml() {
@@ -657,6 +657,7 @@ function headerHtml() {
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
   return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
+    `<button type="button" class="btn primary" data-start-open="1" title="Run /start for a new work item in opencode">Start a work item</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -668,50 +669,45 @@ function bannersHtml() {
 }
 
 // --------------------------------------------------------- the setup guide
-// Browser mode (this page can't reach Workshop on this computer): a step-by-step guide to install Tandem,
-// start Workshop's local helper, allow this site, and connect. Its state (S.setup) is kept per browser by
-// main.js; steps 2 and 4 check themselves, 1 and 3 are marked done by the user.
-export const GUIDE_STEPS = ['tandem', 'workshop', 'allow', 'connect'];
-const REPO = 'https://github.com/adavidson21/eng-agents';
+// Browser mode (this page can't reach Workshop on this computer): two steps. 1. Paste one command that
+// installs Tandem, Workshop and anything missing, starts Workshop and allows this site (scripts/bootstrap.*,
+// served by worker/index.js at /install.ps1 and /install.sh). It checks itself: main.js looks for Workshop
+// every few seconds while this step is open. 2. Connect: pair this page. Its state (S.setup) is kept per
+// browser by main.js.
+export const GUIDE_STEPS = ['install', 'connect'];
+const SOURCE = 'https://github.com/adavidson21/workshop/blob/main/scripts';
 const CHECK_SVG = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
 export function guideDefaults() { return { done: {}, open: null, port: 4380, os: 'win', check: null, pair: null }; }
+/** The one-line install command for this site. */
+export function installCommand(win, origin) {
+  return win ? `irm ${origin}/install.ps1 | iex` : `curl -fsSL ${origin}/install.sh | bash`;
+}
 function cmds(lines) {
   return `<div class="kit gcmd">${lines.map(l => `<div class="kit-line"><code>${h(l)}</code>${copyBtn(l)}</div>`).join('')}</div>`;
 }
 function gmsg(m) { return m ? `<p class="gmsg${m.ok === true ? ' ok' : m.ok === false ? ' bad' : ''}" role="status">${md(m.text)}</p>` : '<p class="gmsg" role="status"></p>'; }
 export function guideHtml() {
   const g = Object.assign(guideDefaults(), S.setup || {});
-  const open = g.open || GUIDE_STEPS.find(k => !g.done[k]) || 'connect';
+  const open = GUIDE_STEPS.includes(g.open) || g.open === 'none' ? g.open : GUIDE_STEPS.find(k => !g.done[k]) || 'connect';
   const win = g.os !== 'mac';
-  const base = `http://127.0.0.1:${g.port}`;
   const origin = S.origin || '';
   const osPick = `<div class="gos" role="group" aria-label="Your computer">` +
     `<button type="button" data-gos="win" aria-pressed="${win}"${win ? ' class="on"' : ''}>Windows</button>` +
     `<button type="button" data-gos="mac" aria-pressed="${!win}"${!win ? ' class="on"' : ''}>Mac or Linux</button></div>`;
-  const doneBtn = (id, label) => `<div class="gacts"><button type="button" class="btn primary" data-gdone="${id}">${label}</button></div>`;
   const bodies = {
-    tandem: `<p>Tandem is the agent scaffolding behind Dispatch. It installs into opencode and takes a work item to a ready-to-open pull request in small steps you approve.</p>` +
-      `<p class="gneed">You need <a href="https://git-scm.com/downloads" target="_blank" rel="noopener">git</a>, <a href="https://opencode.ai" target="_blank" rel="noopener">opencode</a>, and ${win ? 'PowerShell (built in)' : '<a href="https://learn.microsoft.com/powershell/scripting/install/installing-powershell" target="_blank" rel="noopener">PowerShell 7</a> (<code>pwsh</code>)'}.</p>` +
+    install: `<p>One command sets up everything Dispatch needs, for your user only, with no admin rights: Tandem, Workshop's small helper that runs only on this computer, and opencode and Node if you don't have them. It starts Workshop now and whenever you log in, and allows this site.</p>` +
       osPick +
-      cmds(win ? [`git clone ${REPO} C:\\tools\\eng-agents`, 'cd C:\\tools\\eng-agents', '.\\install.ps1'] : [`git clone ${REPO} ~/tools/eng-agents`, 'cd ~/tools/eng-agents', 'pwsh ./install.ps1']) +
-      `<p class="note">Setting it up for real work? Tandem's <a href="${REPO}/blob/main/docs/onboarding-personal.md" target="_blank" rel="noopener">personal setup</a> and <a href="${REPO}/blob/main/docs/onboarding-company.md" target="_blank" rel="noopener">work setup</a> guides cover your own fork, connecting to Azure DevOps, and your workspace folder.</p>` +
-      doneBtn('tandem', 'Tandem is installed'),
-    workshop: `<p>Dispatch reaches Tandem through Workshop's small helper, which runs only on this computer, at <code>127.0.0.1</code>. It needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node 22</a> or later, and no admin rights.</p>` +
-      osPick +
-      cmds(win ? ['git clone https://github.com/adavidson21/workshop C:\\tools\\workshop', 'cd C:\\tools\\workshop', 'node workshop.mjs start'] : ['git clone https://github.com/adavidson21/workshop ~/tools/workshop', 'cd ~/tools/workshop', 'node workshop.mjs start']) +
-      `<p>Then open the address it prints, once, in this browser. That signs this browser in to Workshop.</p>` +
-      `<div class="gcheck"><label>Port <input type="number" class="mono" data-gport min="1024" max="65535" value="${h(g.port)}"></label>` +
-      `<button type="button" class="btn primary" data-gcheck>Check for Workshop</button></div>` + gmsg(g.check),
-    allow: `<p>Workshop only talks to sites you list. In Workshop on this computer, open <a href="${h(base)}/#/settings" target="_blank" rel="noopener">Settings</a>, then:</p>` +
-      `<ol class="gsub"><li>Under <b>Workshop</b>, turn on <b>Hosted mode</b>, add this site to <b>Allowed sites</b>, and save.` +
-      `<div class="kit gcmd"><div class="kit-line"><code>${h(origin)}</code>${copyBtn(origin)}</div></div></li>` +
-      `<li>Under <b>opencode</b>, turn the connector on and set <b>Workspace folder</b> to the folder that holds <code>.work</code> and your repos (where you run opencode). Save.</li></ol>` +
-      doneBtn('allow', 'Done in Settings'),
-    connect: `<p>A small Workshop window opens and asks you to allow this site. Your browser may also ask to let this site reach devices on your network: allow it, that is how it reaches <code>127.0.0.1</code>.</p>` +
+      `<p class="gneed">${win ? 'Open <b>PowerShell</b> (Start menu, type PowerShell) and paste this:' : 'Open <b>Terminal</b> and paste this:'}</p>` +
+      cmds([installCommand(win, origin)]) +
+      `<p class="note">Your work goes in <code>~/work</code>. You can change that later in opencode settings, here in Dispatch. Running the command again updates everything and keeps your settings. <a href="${SOURCE}/bootstrap.${win ? 'ps1' : 'sh'}" target="_blank" rel="noopener">See what it does</a>.</p>` +
+      `<div class="gcheck"><button type="button" class="btn primary" data-gcheck>Check for Workshop</button>` +
+      `<details class="gport"><summary>Using another port?</summary><label>Port <input type="number" class="mono" data-gport min="1024" max="65535" value="${h(g.port)}"></label></details></div>` +
+      gmsg(g.check || { ok: null, text: 'This step ticks itself off when Workshop answers.' }),
+    connect: `<p>The installer opened Workshop in your browser once, which signs this browser in. Now click Connect and allow this site in the small Workshop window. Your browser may also ask to let this site reach devices on your network: allow it, that is how it reaches <code>127.0.0.1</code>.</p>` +
       `<div class="gacts"><button type="button" class="btn primary" data-gpair>Connect to Workshop</button></div>` + gmsg(g.pair) +
-      `<p class="note">If the window says to open Workshop first, open <a href="${h(base)}/" target="_blank" rel="noopener">${h(base)}</a> once, then connect again.</p>`
+      `<p class="note">If the window says to open Workshop first, Workshop signed in to a different browser. Run <code>workshop open</code> in a new ${win ? 'PowerShell' : 'Terminal'} window, open the address it prints in this browser, then connect again.</p>`
   };
-  const titles = { tandem: 'Install Tandem', workshop: 'Start Workshop on this computer', allow: 'Allow this site, and point it at your work', connect: 'Connect this page' };
+  const titles = { install: 'Install Tandem and Workshop', connect: 'Connect this page' };
   const doneCount = GUIDE_STEPS.filter(k => g.done[k]).length;
   const steps = GUIDE_STEPS.map((k, i) => {
     const isOpen = k === open, done = !!g.done[k];
@@ -720,7 +716,7 @@ export function guideHtml() {
       `<span class="gt">${titles[k]}</span>${done ? '<span class="gstate">Done</span>' : ''}</button>` +
       (isOpen ? `<div class="gbody">${bodies[k]}</div>` : '') + '</li>';
   }).join('');
-  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Start it again (<code>node workshop.mjs start</code>), then reload. If that does not help, connect again below.</div>' : '';
+  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Log out and back in, or run the install command below again, which starts it. If that does not help, connect again below.</div>' : '';
   return `<section class="guide">${lost}<p class="eyebrow">Set up, ${doneCount} of ${GUIDE_STEPS.length} done</p>` +
     `<h2>Connect Dispatch to your computer</h2>` +
     `<p class="lede">Dispatch is the front end for Tandem, which runs coding agents in opencode on your computer. Your code and work items stay there: this page talks straight to your computer, never to a server.</p>` +
@@ -752,8 +748,11 @@ export function setupHtml() {
     body = `<p>${md(c.message || 'It stopped.')}</p><p>Check its settings: the workspace folder, PowerShell, and the opencode server.</p>`;
     act = 'settings';
   }
-  const btn = act && S.mode === 'local' ? '<div class="acts"><button type="button" class="btn primary" data-settings="1">Open Settings</button></div>'
-    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Settings can only be changed in Workshop on this computer.</p>`
+  // Fixing settings happens here (the opencode settings sheet). Only turning the connector on is a Workshop
+  // setting, which a hosted page cannot change.
+  const here = act && (S.mode === 'local' || c.state !== 'disabled');
+  const btn = here ? '<div class="acts"><button type="button" class="btn primary" data-cfg-open="1">Open opencode settings</button></div>'
+    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Turning the connector on can only be done in Workshop on this computer.</p>`
     : act ? '<p class="note">Change it in Settings, in Workshop on this computer.</p>' : '';
   return `<div class="setup"><h2>${title}</h2>${body}${btn}</div>`;
 }
@@ -775,8 +774,123 @@ export function pickItem(items, by) {
   return newest(askingItems) || newest((by.needs || []).concat(by.active || []).filter(it => it.kind === 'item')) || newest(by.paused || []);
 }
 
+// --------------------------------------------------------- opencode settings
+// The opencode connector's settings, edited here instead of in Workshop. The form is built from the
+// connector's configSchema (GET /api/connectors/opencode/config). From a hosted page only fields the
+// connector marks x-workshop-hosted can be changed (docs/agent-api.md); the rest show their value and say
+// where to change them. S.ui.settings: {view, error, saving, enabled}; typed values live in S.ui.drafts as
+// "cfg:<path>".
+export const cfgGet = (obj, p) => p.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), obj);
+export const hostedOnly = () => S.mode !== 'local';
+export function cfgEditable(field) { return !hostedOnly() || field['x-workshop-hosted'] === true; }
+/** The value shown for a field: what the user typed, else the saved value. */
+export function cfgValue(p, field) {
+  const d = S.ui.drafts['cfg:' + p];
+  if (d !== undefined) return d;
+  const v = cfgGet(S.ui.settings && S.ui.settings.view && S.ui.settings.view.config, p);
+  return v === undefined ? (field.type === 'boolean' ? false : '') : v;
+}
+function cfgFields(schema, prefix, env) {
+  let out = '';
+  for (const [k, f] of Object.entries(schema.properties || {})) {
+    const p = prefix ? prefix + '.' + k : k;
+    if (f.type === 'object') { out += `<fieldset class="cfg-group"><legend>${h(f.title || k)}</legend>${cfgFields(f, p, env)}</fieldset>`; continue; }
+    const v = cfgValue(p, f);
+    const off = cfgEditable(f) ? '' : ' disabled';
+    const desc = f.description ? `<span class="cfg-d">${md(f.description)}</span>` : '';
+    let envNote = '';
+    if (f['x-workshop-env'] && typeof v === 'string' && v && env && env[v]) envNote = `<span class="cfg-env ${env[v].set ? 'ok' : 'bad'}">${env[v].set ? 'Set on this computer' : 'Not set on this computer'}</span>`;
+    if (f.type === 'boolean') {
+      out += `<label class="cfg-row cfg-check"><input type="checkbox" data-cfg="${h(p)}"${v === true ? ' checked' : ''}${off}><span><span class="cfg-t">${h(f.title || k)}</span>${desc}</span></label>`;
+    } else {
+      const num = f.type === 'integer' || f.type === 'number';
+      const attrs = num ? ` type="number" inputmode="numeric"${f.minimum != null ? ` min="${f.minimum}"` : ''}${f.maximum != null ? ` max="${f.maximum}"` : ''}` : ' type="text" spellcheck="false" autocomplete="off"';
+      const ph = f.default != null && !num ? ` placeholder="${h(f.default)}"` : '';
+      out += `<label class="cfg-row"><span class="cfg-t">${h(f.title || k)}</span>${desc}` +
+        `<input${attrs} class="mono" data-cfg="${h(p)}" data-draft="cfg:${h(p)}" value="${h(v)}"${ph}${off}>${envNote}</label>`;
+    }
+  }
+  return out;
+}
+function settingsSheetHtml() {
+  const st = S.ui.settings;
+  const head = `<div class="sheet-head"><h3 id="cfg-h">opencode settings</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  let body;
+  if (st.error && !st.view) body = `<p class="gmsg bad">${md(st.error)}</p>`;
+  else if (!st.view) body = '<p>Loading the settings from Workshop on your computer.</p>';
+  else {
+    const locked = hostedOnly() && Object.keys(st.view.schema.properties || {}).length > 0;
+    const toggle = S.mode === 'local'
+      ? `<label class="cfg-row cfg-check cfg-on"><input type="checkbox" data-cfg-enabled="1"${st.enabled ? ' checked' : ''}><span><span class="cfg-t">Turn on the opencode connector</span><span class="cfg-d">Dispatch needs it on to show your work.</span></span></label>`
+      : '';
+    body = `<p>How Dispatch finds your work and talks to opencode on this computer. Saving restarts the connector.</p>` +
+      `<form class="cfg" data-cfg-form="1" novalidate>${toggle}${cfgFields(st.view.schema, '', st.view.env)}</form>` +
+      (locked ? `<p class="note">Greyed out settings run commands or read secrets on your computer, so they can only be changed in Workshop there${S.agentUrl ? `: <a href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">open Workshop settings</a>` : ''}.</p>` : '') +
+      (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+  }
+  const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+    (st.view ? `<button type="button" class="btn primary" data-cfg-save="1"${st.saving ? ' disabled' : ''}>${st.saving ? 'Saving' : 'Save'}</button>` : '');
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cfg-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+/**
+ * The config to save: the saved config with what the user typed on top. Empty optional text fields are
+ * left out (the connector's default applies); numbers are parsed. Returns {config} or {error}.
+ */
+export function cfgBuild() {
+  const st = S.ui.settings;
+  const config = structuredClone(st.view.config || {});
+  const walk = (schema, prefix, target) => {
+    for (const [k, f] of Object.entries(schema.properties || {})) {
+      const p = prefix ? prefix + '.' + k : k;
+      if (f.type === 'object') { target[k] = target[k] && typeof target[k] === 'object' ? target[k] : {}; const e = walk(f, p, target[k]); if (e) return e; if (!Object.keys(target[k]).length) delete target[k]; continue; }
+      const d = S.ui.drafts['cfg:' + p];
+      if (d === undefined) continue;
+      if (f.type === 'boolean') { target[k] = d === true; continue; }
+      const text = String(d).trim();
+      const required = (schema.required || []).includes(k);
+      if (!text) { if (required) return `${f.title || k} is needed.`; delete target[k]; continue; }
+      if (f.type === 'integer' || f.type === 'number') {
+        const n = Number(text);
+        if (!Number.isFinite(n) || (f.type === 'integer' && !Number.isInteger(n))) return `${f.title || k} must be a number.`;
+        if ((f.minimum != null && n < f.minimum) || (f.maximum != null && n > f.maximum)) return `${f.title || k} must be from ${f.minimum} to ${f.maximum}.`;
+        target[k] = n;
+      } else target[k] = text;
+    }
+    return null;
+  };
+  const error = walk(st.view.schema, '', config);
+  return error ? { error } : { config };
+}
+
+// --------------------------------------------------------- start a work item
+// Runs /start <id> <lane> in opencode (the connector's `start` action), like Docket's Start buttons.
+// S.ui.start: {lane, busy, error}; the id the user types lives in S.ui.drafts['start:id'].
+export function startCheck(raw, lane) {
+  const id = String(raw || '').trim().replace(/^#/, '');
+  if (!/^[0-9]{1,10}$/.test(id)) return { error: 'Type the work item number, like 12345.' };
+  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if ((S.D && S.D.items || []).some(it => String(it.id) === id)) return { error: `#${id} is already started. It is in the list.` };
+  return { id, lane };
+}
+function startSheetHtml() {
+  const st = S.ui.start;
+  const o = (L() && L().opencode) || {};
+  const lane = st.lane;
+  const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">Start a work item</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const body = `<p>Tandem reads the work item, sets up its folder in <code>.work</code> and your branch, then waits for you. It runs <code>/start</code> in opencode.</p>` +
+    `<form class="cfg" data-start-form="1" novalidate>` +
+    `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id" data-draft="start:id" value="${h(S.ui.drafts['start:id'] || '')}" placeholder="12345" autocomplete="off"></label>` +
+    `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div></form>` +
+    (o.connected ? '' : '<p class="gmsg bad">opencode is not connected to Workshop, so nothing can start yet.</p>') +
+    (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+  const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+    `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : 'Start'}</button>`;
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
 function overlaysHtml() {
-  return menuHtml() + (S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  return menuHtml() + (S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
 }
 
 /** The whole page. Resets the copy list, so call it once per paint. */
@@ -789,7 +903,8 @@ export function render() {
   let html = headerHtml() + bannersHtml();
   if (!items.length) {
     html += waitingHtml();
-    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><span class="cmd">/start &lt;id&gt; feature</span></div></div>';
+    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start a work item</button></div>' +
+      '<p class="hint">Or type <span class="cmd">/start &lt;id&gt; feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
     return html + overlaysHtml();
   }

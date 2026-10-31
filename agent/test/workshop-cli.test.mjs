@@ -100,3 +100,32 @@ test('install leaves start at login off unless --login is passed', async () => {
     assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).features.startAtLogin, true);
   } finally { rm(home); rm(loginDir); }
 });
+
+test('install --allow and --workspace set up hosted mode and the opencode connector, and never undo later changes', async () => {
+  const home = tempDir('workshop-cli-setup-');
+  const env = { WORKSHOP_HOME: home, WORKSHOP_LOGIN_DIR: tempDir('workshop-cli-login-') };
+  const out = [];
+  const io = { out: s => out.push(s), env };
+  const read = () => JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'));
+  try {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, port: 4398, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: {} }));
+    const args = ['install', '--allow', 'https://dispatch.example.org/', '--workspace', '~/work', '--opencode', '/opt/oc/bin/opencode'];
+    assert.equal(await main(args, io), 0, out.join('\n'));
+    let c = read();
+    assert.equal(c.features.hostedMode, true);
+    assert.deepEqual(c.allowedOrigins, ['https://dispatch.example.org']);
+    assert.deepEqual(c.connectors.opencode, { enabled: true, config: { workspace: '~/work', opencode: { command: '/opt/oc/bin/opencode' } } });
+
+    // The user changes things in Settings; running the installer again keeps them.
+    c.connectors.opencode = { enabled: false, config: { workspace: '~/code', opencode: { command: 'opencode' } } };
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(c));
+    assert.equal(await main(args, io), 0);
+    c = read();
+    assert.deepEqual(c.connectors.opencode, { enabled: false, config: { workspace: '~/code', opencode: { command: 'opencode' } } });
+    assert.deepEqual(c.allowedOrigins, ['https://dispatch.example.org']);
+
+    assert.equal(await main(['install', '--allow', 'not a site'], io), 1);
+    assert.equal(await main(['install', '--workspace'], io), 1);
+    assert.equal(await main(['install', '--bogus'], io), 1);
+  } finally { rm(home); rm(env.WORKSHOP_LOGIN_DIR); }
+});
