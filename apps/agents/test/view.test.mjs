@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild } from '../js/view.js';
+import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -218,7 +218,7 @@ test('an empty .work says how to start', () => {
   const empty = clone(FIXTURE);
   empty.items = []; empty.activity = [];
   load(empty);
-  assert.match(render(), /No work in \.work yet.*\/start &lt;id&gt; feature/s);
+  assert.match(render(), /No work in \.work yet.*data-start-open="1">Start a work item.*\/start &lt;id&gt; feature/s);
 });
 
 test('the setup guide is one install command, then connect', () => {
@@ -288,4 +288,24 @@ test('opencode settings: a form from the connector schema; hosted pages edit onl
   S.ui.drafts['cfg:workspace'] = '  ';
   assert.match(cfgBuild().error, /Workspace folder is needed/);
   S.agentUrl = null;
+});
+
+test('start a work item: a button in the header opens a sheet that runs /start', () => {
+  load(clone(FIXTURE));
+  let html = render();
+  assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start a work item/s, 'the header has the button');
+  S.ui.start = { lane: 'feature', busy: false, error: null };
+  S.L.opencode = { ...(S.L.opencode || {}), connected: true };
+  html = render();
+  assert.match(html, /<h3 id="start-h">Start a work item<\/h3>/);
+  assert.match(html, /data-start-lane="feature" aria-pressed="true" class="on"/);
+  assert.match(html, /data-start-go="1">Start</);
+  S.L.opencode.connected = false;
+  assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
+
+  assert.deepEqual(startCheck(' #9988776 ', 'bug'), { id: '9988776', lane: 'bug' });
+  assert.match(startCheck('abc', 'feature').error, /work item number/);
+  assert.match(startCheck('1', 'other').error, /Feature or Bug/);
+  const taken = (S.D.items || []).find(it => it.id);
+  if (taken) assert.match(startCheck(String(taken.id), 'feature').error, /already started/);
 });

@@ -12,9 +12,9 @@ export const S = {
   now: 0, today: '', yest: '',
   copyStore: [],        // texts for the Copy buttons in the last paint, by index
   // UI state that must survive repaints: open sections, drafts, question picks, busy buttons, overlays.
-  ui: { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null }
+  ui: { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null }
 };
 
 export function resetUi() {
-  S.ui = { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null };
+  S.ui = { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null };
 }

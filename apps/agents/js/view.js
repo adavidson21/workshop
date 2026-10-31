@@ -657,6 +657,7 @@ function headerHtml() {
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
   return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
+    `<button type="button" class="btn primary" data-start-open="1" title="Run /start for a new work item in opencode">Start a work item</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -861,8 +862,35 @@ export function cfgBuild() {
   return error ? { error } : { config };
 }
 
+// --------------------------------------------------------- start a work item
+// Runs /start <id> <lane> in opencode (the connector's `start` action), like Docket's Start buttons.
+// S.ui.start: {lane, busy, error}; the id the user types lives in S.ui.drafts['start:id'].
+export function startCheck(raw, lane) {
+  const id = String(raw || '').trim().replace(/^#/, '');
+  if (!/^[0-9]{1,10}$/.test(id)) return { error: 'Type the work item number, like 12345.' };
+  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if ((S.D && S.D.items || []).some(it => String(it.id) === id)) return { error: `#${id} is already started. It is in the list.` };
+  return { id, lane };
+}
+function startSheetHtml() {
+  const st = S.ui.start;
+  const o = (L() && L().opencode) || {};
+  const lane = st.lane;
+  const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">Start a work item</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const body = `<p>Tandem reads the work item, sets up its folder in <code>.work</code> and your branch, then waits for you. It runs <code>/start</code> in opencode.</p>` +
+    `<form class="cfg" data-start-form="1" novalidate>` +
+    `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id" data-draft="start:id" value="${h(S.ui.drafts['start:id'] || '')}" placeholder="12345" autocomplete="off"></label>` +
+    `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div></form>` +
+    (o.connected ? '' : '<p class="gmsg bad">opencode is not connected to Workshop, so nothing can start yet.</p>') +
+    (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+  const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+    `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : 'Start'}</button>`;
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
 function overlaysHtml() {
-  return menuHtml() + (S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  return menuHtml() + (S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
 }
 
 /** The whole page. Resets the copy list, so call it once per paint. */
@@ -875,7 +903,8 @@ export function render() {
   let html = headerHtml() + bannersHtml();
   if (!items.length) {
     html += waitingHtml();
-    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><span class="cmd">/start &lt;id&gt; feature</span></div></div>';
+    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start a work item</button></div>' +
+      '<p class="hint">Or type <span class="cmd">/start &lt;id&gt; feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
     return html + overlaysHtml();
   }

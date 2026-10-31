@@ -14,7 +14,7 @@ if (window.parent === window && location.hostname === 'workshop.alexisdavidson.o
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startCheck } from './view.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -254,8 +254,34 @@ document.addEventListener('pointerup', () => {
 /* ---------- input ---------- */
 const ui = () => S.ui;
 function closeOverlays() {
-  ui().menu = null; ui().remove = null; ui().file = null;
+  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null;
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
+}
+
+/* ---------- start a work item (view.js startSheetHtml) ---------- */
+function openStart() {
+  closeOverlays();
+  ui().start = { lane: 'feature', busy: false, error: null };
+  paint();
+  const box = app.querySelector('.start-id'); if (box) box.focus();
+}
+// The click on Start is the approval for this write action.
+async function startGo() {
+  const st = ui().start;
+  if (!st || st.busy) return;
+  const r = startCheck(ui().drafts['start:id'], st.lane);
+  if (r.error) { st.error = r.error; paint(); return; }
+  st.busy = true; st.error = null; paint();
+  try {
+    await write('start', { id: r.id, lane: r.lane });
+    delete ui().drafts['start:id'];
+    closeOverlays();
+    toast(`Starting #${r.id} as a ${r.lane} in opencode. It shows up here when its folder is ready.`);
+  } catch (e) {
+    if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
+  }
+  fetchSoon();
+  schedule();
 }
 
 /* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
@@ -379,6 +405,10 @@ app.addEventListener('click', ev => {
 
   if (t.closest('[data-settings]')) { ws.open({ app: 'settings' }).catch(() => {}); return; }
   if (t.closest('[data-cfg-open]')) { openSettings(); return; }
+  if (t.closest('[data-start-open]')) { openStart(); return; }
+  if (t.closest('[data-start-go]')) { startGo(); return; }
+  const sl = t.closest('[data-start-lane]');
+  if (sl && ui().start) { ui().start.lane = sl.getAttribute('data-start-lane'); ui().start.error = null; paint(); return; }
   if (t.closest('[data-cfg-save]')) { saveSettings(); return; }
   if (t.closest('[data-close-sheet]')) { closeOverlays(); paint(); return; }
   const fb = t.closest('[data-file]');
@@ -460,11 +490,12 @@ app.addEventListener('change', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file || ui().settings) { closeOverlays(); paint(); }
+  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start) { closeOverlays(); paint(); }
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
+  if (ev.key === 'Enter' && dk === 'start:id') { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
     ev.preventDefault();
     const go = app.querySelector('[data-remove-go]');
@@ -479,7 +510,11 @@ app.addEventListener('keydown', ev => {
 
 /* ---------- palette commands ---------- */
 ws.commands.register({ id: 'refresh', title: 'Refresh work items' });
-ws.on('command', ({ id }) => { if (id === 'refresh') act(() => read('refresh')); });
+ws.commands.register({ id: 'start', title: 'Start a work item' });
+ws.on('command', ({ id }) => {
+  if (id === 'refresh') act(() => read('refresh'));
+  if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
+});
 
 /* ---------- start ---------- */
 document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchSoon(); });
