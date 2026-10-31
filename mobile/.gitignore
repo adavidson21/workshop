@@ -1,0 +1,6 @@
+node_modules/
+www/
+# Signing material never goes in the repo (see README.md, Signing).
+*.jks
+*.keystore
+keystore.properties

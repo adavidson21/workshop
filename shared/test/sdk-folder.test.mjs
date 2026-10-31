@@ -6,6 +6,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { _internals, data as sdkData } from '../workshop-sdk.js';
 import { FakeFolder } from './fake-dir.mjs';
+import { capacitorOver } from './fake-capacitor.mjs';
+import { deviceRoot } from '../device-fs.js';
+
+// sdk-device.test.mjs runs this file again with the Android app's device storage (shared/device-fs.js) under
+// the folder store, over the same in-memory folder. Tests of Chrome's folder access and the IndexedDB move
+// do not apply there and are skipped.
+const DEVICE = globalThis.__workshopDeviceStore === true;
+const rootOf = (fs) => (DEVICE ? deviceRoot({ call: capacitorOver(fs), base: '', name: fs.node.name, now: () => fs.time + 60_000 }) : fs.root);
+const chromeOnly = DEVICE && 'Chrome folder access only';
 
 const { makeFolderStore, moveIntoFolder, openBrowserStore } = _internals;
 
@@ -25,7 +34,7 @@ function bus() {
   return make;
 }
 const tick = () => new Promise(r => setTimeout(r, 5));
-const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, fs.root, Object.assign({ timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, opts));
+const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, rootOf(fs), Object.assign({ timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, DEVICE ? { storage: 'device' } : {}, opts));
 const envelope = (items, extra = {}) => Object.assign({ schema: 'notes.pages', version: 1, rev: 0, items }, extra);
 const codeOf = async (p) => p.then(() => 'ok', e => e.code);
 
@@ -40,7 +49,7 @@ test('collections: create, read back, stored as the agent stores them', async ()
   assert.ok(text.endsWith('\n') && text.includes('\n  "schema"'), 'pretty-printed with 2 spaces and a final newline');
   const back = await s.get('notes', 'pages');
   assert.deepEqual(back, { schema: 'notes.pages', version: 1, rev: 1, updatedAt: '2026-10-25T14:05:00.123Z', items: [{ id: 'p1', updatedAt: 1, title: 'One' }] });
-  assert.equal(s.storage, 'folder');
+  assert.equal(s.storage, DEVICE ? 'device' : 'folder');
   assert.equal(s.online, true);
 });
 
@@ -314,7 +323,7 @@ test('events: changes made outside Workshop are found by lastModified and say "r
   assert.equal(files.length, 3, 'each change is reported once');
 });
 
-test('access: without permission calls say unavailable; allow() brings it back and tells other tabs', async () => {
+test('access: without permission calls say unavailable; allow() brings it back and tells other tabs', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   fs.permission = 'prompt';
   const make = bus();
@@ -349,7 +358,7 @@ test('access: without permission calls say unavailable; allow() brings it back a
   assert.equal(b.online, true);
 });
 
-test('access: a folder that is gone is reported, never replaced by browser storage', async () => {
+test('access: a folder that is gone is reported, never replaced by browser storage', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   const s = store(fs);
   await s.put('notes', 'pages', envelope([]));
@@ -362,7 +371,7 @@ test('access: a folder that is gone is reported, never replaced by browser stora
   assert.equal(opened.missing, true);
 });
 
-test('openBrowserStore: a saved handle that needs asking again is the folder store, offline until allowed', async () => {
+test('openBrowserStore: a saved handle that needs asking again is the folder store, offline until allowed', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder('MyWorkshop');
   fs.permission = 'prompt';
   const s = await openBrowserStore({ clientId: 'w-x' }, { handle: fs.root, folder: { timers: false, channel: null } });
@@ -378,7 +387,7 @@ function memorySource(collections, files) {
   return src;
 }
 
-test('moving from IndexedDB: collections created or merged, files kept side by side, the old copy marked moved', async () => {
+test('moving from IndexedDB: collections created or merged, files kept side by side, the old copy marked moved', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder('Workshop');
   const target = store(fs);
   // Already in the folder: tasks (to merge), lists at another version, and a summary that differs.
@@ -427,7 +436,7 @@ test('moving from IndexedDB: collections created or merged, files kept side by s
   assert.equal(fs.writes, writes, 'a store marked moved is never copied again');
 });
 
-test('moving from IndexedDB: a long file name still fits the name rules', async () => {
+test('moving from IndexedDB: a long file name still fits the name rules', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   const target = store(fs);
   const long = 'a'.repeat(40);

@@ -1,0 +1,100 @@
+name: android
+# Builds Docket's Android app (mobile/). On main it signs the APK with the release key from repository secrets
+# and publishes it to the "docket-android" release, where the site's install banner links. Pull requests build
+# a debug APK only, to show the app still builds. See mobile/README.md.
+on:
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'apps/prioritizer/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['mobile/**', 'apps/prioritizer/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # publish the release (main only)
+    env:
+      RELEASE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - uses: android-actions/setup-android@v3
+
+      - name: Docket's web files into the app
+        working-directory: mobile
+        run: |
+          npm ci
+          npm test
+          node scripts/build-web.mjs
+          npx cap sync android
+
+      - name: Checks in a browser with a stand-in for the phone
+        run: |
+          pip install playwright && python -m playwright install --with-deps chromium
+          python mobile/test/e2e_app.py
+
+      - name: Debug APK (pull requests)
+        if: env.RELEASE != 'true'
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Release key
+        if: env.RELEASE == 'true'
+        env:
+          KEYSTORE: ${{ secrets.DOCKET_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::The DOCKET_KEYSTORE_BASE64 secret is missing. Add the signing secrets (mobile/README.md, Signing)."
+            exit 1
+          fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/docket-release.jks"
+
+      - name: Signed release APK
+        if: env.RELEASE == 'true'
+        working-directory: mobile/android
+        env:
+          DOCKET_KEYSTORE_FILE: ${{ runner.temp }}/docket-release.jks
+          DOCKET_KEYSTORE_PASSWORD: ${{ secrets.DOCKET_KEYSTORE_PASSWORD }}
+          DOCKET_KEY_ALIAS: ${{ secrets.DOCKET_KEY_ALIAS }}
+          DOCKET_KEY_PASSWORD: ${{ secrets.DOCKET_KEY_PASSWORD }}
+          DOCKET_VERSION_CODE: ${{ github.run_number }}
+          DOCKET_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --print-certs "$APK"
+          cp "$APK" "$RUNNER_TEMP/docket.apk"
+          rm -f "$RUNNER_TEMP/docket-release.jks"
+
+      - name: Publish to the docket-android release
+        if: env.RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: 1.0.${{ github.run_number }}
+        run: |
+          NOTES="Docket for Android, version $VERSION, built from ${GITHUB_SHA::7}. Install docket.apk on your phone. Your board stays on the phone; nothing is sent to a server."
+          if gh release view docket-android >/dev/null 2>&1; then
+            gh release edit docket-android --title "Docket for Android $VERSION" --notes "$NOTES" --latest=false
+          else
+            gh release create docket-android --title "Docket for Android $VERSION" --notes "$NOTES" --latest=false --target "$GITHUB_SHA"
+          fi
+          gh release upload docket-android "$RUNNER_TEMP/docket.apk" --clobber
+
+      - name: Keep the APK with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: docket-apk
+          path: |
+            mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            ${{ runner.temp }}/docket.apk
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,13 @@
+<!-- The launcher icon for Android before 8 (no adaptive icons): the mark on a flat circle (round icon). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <circle cx="54" cy="54" r="48" fill="#4F6B78"/>
+  <g transform="translate(29 29) scale(2.0833)">
+    <g fill="#FFFFFF">
+      <rect x="0" y="0" width="10.8" height="10.8" rx="3.1"/>
+      <rect x="13.2" y="0" width="10.8" height="10.8" rx="3.1" opacity=".38"/>
+      <rect x="0" y="13.2" width="10.8" height="10.8" rx="3.1" opacity=".38"/>
+      <rect x="13.2" y="13.2" width="10.8" height="10.8" rx="3.1" opacity=".38"/>
+    </g>
+    <path d="M2.8 5.8l2.1 1.9 3.5-3.8" fill="none" stroke="#4F6B78" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

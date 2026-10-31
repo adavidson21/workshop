@@ -1,0 +1,10 @@
+{
+  "appId": "org.alexisdavidson.docket",
+  "appName": "Docket",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}
