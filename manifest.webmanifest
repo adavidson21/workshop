@@ -17,7 +17,8 @@
   ],
   "shortcuts": [
     {"name": "Docket", "url": "./#/prioritizer", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]},
-    {"name": "Dispatch", "url": "./#/agents", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]}
+    {"name": "Dispatch", "url": "./#/agents", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]},
+    {"name": "Receipts", "url": "./#/receipts", "icons": [{"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png"}]}
   ],
   "screenshots": [
     {"src": "shared/screenshots/wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Docket: today's short list and what's up next"},
