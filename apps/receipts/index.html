@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Nothing leaves this device: only this site, plus Workshop on 127.0.0.1 when you pair it. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'none'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<title>Receipts</title>
+<meta name="description" content="Keep the receipts for your performance reviews: your wins, your reports' wins, and upward notes. Stays on your device.">
+<meta name="theme-color" content="#F4F1EA">
+<script src="../../shared/theme.js"></script>
+<script src="../../shared/sw-register.js"></script>
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<link rel="icon" type="image/svg+xml" href="../../icons/favicon.svg">
+<link rel="apple-touch-icon" href="../../icons/app-touch-180.png">
+<link rel="stylesheet" href="../../shared/themes.css">
+<link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap" id="app"><p class="loading">Loading your receipts.</p></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
