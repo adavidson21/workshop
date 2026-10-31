@@ -1,8 +1,7 @@
 // npm test  (Node 22, no dependencies)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as R from '../apps/receipts/js/state.js';
-import { appPath } from '../worker/index.js';
+import * as R from '../js/state.js';
 
 const NOW = new Date(2026, 9, 31); // Oct 31 2026
 const e = (o) => R.cleanEntry({ id: o.id || R.newId('r'), about: 'me', kind: 'win', text: 'x', date: '2026-10-01', ...o });
@@ -83,11 +82,4 @@ test('toCsv: BOM, CRLF, quoting', () => {
   assert.ok(csv.startsWith('﻿Date,Quarter,About'));
   assert.ok(csv.includes('"Said ""hi"", then left\nlater"'));
   assert.ok(csv.endsWith('TRUE\r\n'));
-});
-
-test('worker: app is the whole site, shared files as they are', () => {
-  assert.equal(appPath('/'), '/apps/receipts/');
-  assert.equal(appPath('/js/main.js'), '/apps/receipts/js/main.js');
-  assert.equal(appPath('/shared/themes.css'), null);
-  assert.equal(appPath('/sw.js'), null);
 });

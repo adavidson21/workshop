@@ -37,7 +37,7 @@ apps/receipts/          the app (a Workshop app: app.json, index.html, app.css, 
 shared/                 copied from the workshop repo: the SDK (storage), themes, fonts, top bar
 worker/index.js         Cloudflare Worker: serves apps/receipts/ at "/" and adds security headers
 sw.js                   service worker: install as an app, open offline
-test/                   node tests for state.js and the Worker routing
+apps/receipts/test/      node tests for state.js (test/ has the Worker routing test)
 ```
 
 Data uses Workshop's envelope format (three collections: `entries`, `people`, `config`) with change stamps, so two open windows merge instead of overwriting each other.
