@@ -1,0 +1,6 @@
+# Keep LF line endings in every checkout, including Windows, so tests that read files byte for byte pass.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.woff2 binary
+*.xlsx binary

@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "receipts",
+  "name": "Receipts",
+  "version": "1.0.0",
+  "description": "Keep the receipts for performance reviews: yours, your reports', and upward.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 30,
+  "modes": ["local", "hosted", "browser"],
+  "routes": [
+    {"path": "me", "title": "My receipts"},
+    {"path": "team", "title": "Reports"},
+    {"path": "team/:id", "title": "A report's receipts"},
+    {"path": "up", "title": "Upward"},
+    {"path": "review", "title": "Build a review"},
+    {"path": "settings", "title": "Receipts settings"}
+  ],
+  "data": ["entries", "people", "config"],
+  "commands": [
+    {"id": "new", "title": "Add a receipt", "route": "me"},
+    {"id": "review", "title": "Build a review", "route": "review"}
+  ],
+  "files": ["app.css", "js/main.js", "js/state.js"]
+}

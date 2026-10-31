@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>
+    .tile{fill:#2A2627}.paper{fill:#FBF9F5}.ink{stroke:#2A2627}
+    @media (prefers-color-scheme: dark){.tile{fill:#EEEBE7}.paper{fill:#1D1C1A}.ink{stroke:#EEEBE7}}
+  </style>
+  <rect class="tile" width="24" height="24" rx="6.5"/>
+  <path class="paper" d="M7 4.5h10v15l-1.67-1.2-1.66 1.2-1.67-1.2-1.67 1.2-1.66-1.2L7 19.5z"/>
+  <path class="ink" d="M9.2 8.2h5.6M9.2 11h5.6M9.2 13.8h3.4" fill="none" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
