@@ -2,12 +2,16 @@ name: android
 # Builds Docket's Android app (mobile/). On main it signs the APK with the release key from repository secrets
 # and publishes it to the "docket-android" release, where the site's install banner links. Pull requests build
 # a debug APK only, to show the app still builds. See mobile/README.md.
+#
+# versionCode is VERSION_BASE + the run number. The app was built from the workshop repo before (versionCode =
+# its run number), and Android only installs an update with a higher versionCode, so the base keeps every build
+# here above those.
 on:
   push:
     branches: [main]
-    paths: ['mobile/**', 'apps/prioritizer/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+    paths: ['mobile/**', 'index.html', 'app.css', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
   pull_request:
-    paths: ['mobile/**', 'apps/prioritizer/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+    paths: ['mobile/**', 'index.html', 'app.css', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +26,7 @@ jobs:
       contents: write   # publish the release (main only)
     env:
       RELEASE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      VERSION_BASE: 1000
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -71,9 +76,9 @@ jobs:
           DOCKET_KEYSTORE_PASSWORD: ${{ secrets.DOCKET_KEYSTORE_PASSWORD }}
           DOCKET_KEY_ALIAS: ${{ secrets.DOCKET_KEY_ALIAS }}
           DOCKET_KEY_PASSWORD: ${{ secrets.DOCKET_KEY_PASSWORD }}
-          DOCKET_VERSION_CODE: ${{ github.run_number }}
-          DOCKET_VERSION_NAME: 1.0.${{ github.run_number }}
+          DOCKET_VERSION_NAME: 1.1.${{ github.run_number }}
         run: |
+          export DOCKET_VERSION_CODE=$((VERSION_BASE + GITHUB_RUN_NUMBER))
           ./gradlew --no-daemon assembleRelease
           APK=app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --print-certs "$APK"
@@ -84,7 +89,7 @@ jobs:
         if: env.RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: 1.0.${{ github.run_number }}
+          VERSION: 1.1.${{ github.run_number }}
         run: |
           NOTES="Docket for Android, version $VERSION, built from ${GITHUB_SHA::7}. Install docket.apk on your phone. Your board stays on the phone; nothing is sent to a server."
           if gh release view docket-android >/dev/null 2>&1; then

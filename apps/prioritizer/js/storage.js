@@ -20,7 +20,7 @@ import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
-import { saveFile } from '../../../shared/save-file.js';
+import { saveFile } from '../shared/save-file.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, ws = null, booted = false, status = {state: 'saved'};

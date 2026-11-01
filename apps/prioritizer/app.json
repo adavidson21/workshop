@@ -45,6 +45,12 @@
   ],
   "files": [
     "app.css",
+    "icons/app-192.png",
+    "icons/app-512.png",
+    "icons/app-maskable-512.png",
+    "icons/app-touch-180.png",
+    "icons/favicon-32.png",
+    "icons/favicon.svg",
     "js/actions.js",
     "js/ado.js",
     "js/app-banner.js",
@@ -69,6 +75,22 @@
     "js/store.js",
     "js/util.js",
     "js/views.js",
-    "js/ws.js"
+    "js/ws.js",
+    "shared/device-fs.js",
+    "shared/fonts/fonts.css",
+    "shared/fonts/inter-latin-ext-wght-normal.woff2",
+    "shared/fonts/inter-latin-wght-normal.woff2",
+    "shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2",
+    "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
+    "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
+    "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
+    "shared/save-file.js",
+    "shared/standalone-bar.js",
+    "shared/sw-register.js",
+    "shared/theme.js",
+    "shared/themes.css",
+    "shared/ui.css",
+    "shared/vendor/xlsx.full.min.js",
+    "shared/workshop-sdk.js"
   ]
 }

@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Docket",
+  "short_name": "Docket",
+  "description": "Decide what to work on next.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "launch_handler": {"client_mode": ["focus-existing", "auto"]},
+  "background_color": "#F4F1EA",
+  "theme_color": "#F4F1EA",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {"src": "icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

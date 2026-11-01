@@ -7,14 +7,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { data as sdk } from '../../../shared/workshop-sdk.js';
-import { SchemaSet } from '../../../tests/lib/schema.mjs';
+import { data as sdk } from '../shared/workshop-sdk.js';
+import { SchemaSet } from './workshop/schema.mjs';
 import { COLLECTIONS, MAIN_LIST, VERSIONS, applyEnvelope, envelopeFromBoard, envelopesFromBundle, legacyToEnvelopes } from '../js/store-format.js';
 import { createStore } from '../js/store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(HERE, '..', '..', '..');
-const schemas = SchemaSet.fromDir(path.join(REPO, 'docs', 'schemas'));
+
+const schemas = SchemaSet.fromDir(path.join(HERE, 'workshop', 'schemas'));
 const legacy = () => JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'today-localstorage.json'), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
 const settle = () => new Promise(r => setTimeout(r, 15));

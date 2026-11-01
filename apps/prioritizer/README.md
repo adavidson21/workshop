@@ -1,7 +1,10 @@
-# Prioritizer
+# Docket
 
-Part of the [Workshop](../../README.md). It also runs on its own at `/workshop/apps/prioritizer/`.
+Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`) runs in three places, all from this repo:
 
+- **On its own** at https://docket.alexisdavidson.org, with nothing else installed. The board is saved in your browser, or in a folder you pick.
+- **Inside [Workshop](https://github.com/adavidson21/workshop)** at https://workshop.alexisdavidson.org, as one of its apps. Workshop's Worker proxies `/apps/prioritizer/*` to this site, so every deploy here shows up in Workshop too. With Workshop's agent running, the board is files on your computer that Workshop's Home also reads.
+- **On Android** as an app built from `mobile/` (see [mobile/README.md](mobile/README.md)). The board stays on the phone.
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
 
@@ -53,9 +56,9 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Themes
 
-Light and Dark, in the same editorial style as tools.alexisdavidson.org, follow your system setting by default and meet WCAG AA contrast. Inside the hub, flip between them with the round toggle in the top right corner; on its own, Prioritizer has a theme button at the bottom of its sidebar. The choice is saved per device and shared by every page of the hub. Themes from earlier versions (Slate, Nord, Dracula and the rest) carry over as the closer of Light or Dark.
+Light and Dark, in the same editorial style as tools.alexisdavidson.org, follow your system setting by default and meet WCAG AA contrast. Inside the hub, flip between them with the round toggle in the top right corner; on its own, Docket has a theme button at the bottom of its sidebar. The choice is saved per device and shared by every page of the hub. Themes from earlier versions (Slate, Nord, Dracula and the rest) carry over as the closer of Light or Dark.
 
-Themes live in `shared/themes.css` at the repo root. See the [Workshop README](../../README.md#themes) to change them.
+Themes live in `shared/themes.css`, copied from Workshop (see Files from Workshop below). Change them in Workshop: see the [Workshop README](https://github.com/adavidson21/workshop#themes).
 
 ## Saving
 
@@ -75,7 +78,7 @@ Themes live in `shared/themes.css` at the repo root. See the [Workshop README](.
 
 Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waiting on your review, show up as tasks in an **ADO** list, and in All lists next to everything else. Read-only for now.
 
-**How it connects:** when Workshop runs on your computer (`node agent/start.mjs`) and its ADO connector is on in **Settings**, Prioritizer syncs through the connector, which keeps its connections (server, collection, project, which repo maps to which) in Workshop's settings. Otherwise a small helper (`apps/prioritizer/ado-helper/ado_helper.py`, Python standard library only) runs on your computer instead. Either way your PAT stays in an environment variable on your computer and never touches the page. The helper only answers this site and only on this computer.
+**How it connects:** when Workshop runs on your computer (`node agent/start.mjs`) and its ADO connector is on in **Settings**, Prioritizer syncs through the connector, which keeps its connections (server, collection, project, which repo maps to which) in Workshop's settings. Otherwise a small helper (`ado-helper/ado_helper.py`, Python standard library only) runs on your computer instead. Either way your PAT stays in an environment variable on your computer and never touches the page. The helper only answers this site and only on this computer.
 
 **Prioritizer's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings, so they stay the same whichever way Prioritizer connects.
 
@@ -83,7 +86,7 @@ With the connector, skip the helper steps below: turn the ADO connector on in Se
 
 **Setup on the work PC:**
 
-1. Download `ado_helper.py` from the ADO button in the sidebar (or from `apps/prioritizer/ado-helper/` in this repo) into a folder you keep.
+1. Download `ado_helper.py` from the ADO button in the sidebar (or from `ado-helper/` in this repo) into a folder you keep.
 2. Run `py ado_helper.py`. The first run asks for your collection URL (for example `https://tfs.yourcompany.com/DefaultCollection`) and the name of your PAT environment variable. Settings save to `ado-helper.json` next to the script.
 3. Optional: `py ado_helper.py --test` checks the connection and lists what it finds. `py ado_helper.py --startup` starts it hidden at login (`--no-startup` undoes it).
 4. In the app, click the ADO button (sync arrows, bottom of the sidebar) and Connect. If the browser asks to allow access to apps on this device, choose Allow.
@@ -148,7 +151,7 @@ Settings in `ado-helper.json`: `high_priorities` (default 1 and 2), `escalation_
 
 ## eng-agents stages
 
-When Workshop runs on this computer with the opencode connector on (see [Agents](../../README.md#agents) in the Workshop README), ADO tasks here show their [eng-agents](https://github.com/adavidson21/eng-agents) stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to open that item in Agents.
+When Workshop runs on this computer with the opencode connector on (see [Agents](https://github.com/adavidson21/workshop#agents) in the Workshop README), ADO tasks here show their [eng-agents](https://github.com/adavidson21/eng-agents) stage next to the ADO chip (Spec, Plan, Build 2/5, Review, and so on). Amber means it needs you, including when autopilot stops for you; a pulsing dot means an agent or autopilot is working. Hover for the next step in plain words, or click to open that item in Agents.
 
 An ADO task not started yet gets **Start as feature** or **Start as bug** in its details. That runs `/start` in opencode for you.
 
@@ -156,11 +159,11 @@ Stages update when the connector reports a change, and when you switch back to t
 
 ## Install it as a desktop app
 
-Install Workshop, not Prioritizer on its own: see the [Workshop README](../../README.md#install-it-as-a-desktop-app).
+Open https://docket.alexisdavidson.org in Chrome or Edge and choose Install in the address bar. Docket installs as its own app and opens offline. To use it with the rest of your tools, install Workshop instead: see the [Workshop README](https://github.com/adavidson21/workshop#install-it-as-a-desktop-app).
 
 ## Code
 
-No build step. `index.html` is the page; `app.json` describes the app to Workshop ([docs/app-manifest.md](../../docs/app-manifest.md)); `app.css` is Prioritizer's own styles (shared buttons, menus and themes come from `../../shared/`). The code is in `js/`, one ES module per concern:
+No build step. `index.html` is the page; `app.json` describes the app to Workshop ([docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md)) and lists the files to keep for offline use; `app.css` is Docket's own styles (shared buttons, menus and themes come from `shared/`). `sw.js` and `manifest.webmanifest` make the standalone site installable and offline-ready. The code is in `js/`, one ES module per concern:
 
 | File | What's in it |
 | --- | --- |
@@ -174,16 +177,28 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `excel.js`, `kv.js` | Excel export and import; a small browser cache for Reports |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
-| `ws.js` | The connection to Workshop through the SDK (`../../shared/workshop-sdk.js`): shell, data, connectors |
+| `ws.js` | The connection to Workshop through the SDK (`shared/workshop-sdk.js`): shell, data, connectors |
 | `main.js` | Startup: the one module `index.html` loads; it imports the rest |
 
-Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`node tests/check-offline.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
+Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`test/app-files.test.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
 
-`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (see `../../tests/e2e.py`). `node --test "apps/prioritizer/test/*.test.mjs"` tests the storage format and the save engine in Node. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
+`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (`test/e2e.py` here, and Workshop's `tests/e2e.py`, which runs against this repo). `node --test "test/*.test.mjs"` tests the storage format, the save engine and the file list in Node; `python test/e2e.py` runs Docket on its own in headless Chrome. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
+
+### Files from Workshop
+
+These are exact copies of Workshop files, listed in `workshop-files.json` with the Workshop commit they came from: `shared/` (the SDK, themes, fonts, file saving, the top bar, SheetJS), `icons/`, and the data contract schemas in `test/workshop/`. Docket keeps them so it runs on its own, and so Docket inside Workshop reads and writes data exactly as Workshop's other apps do.
+
+- **Never edit them here.** Change the file in Workshop, then run `node scripts/sync-workshop.mjs --update` to copy the latest and pin that commit.
+- CI runs `node scripts/sync-workshop.mjs --check`, which fails if any copy differs from the pinned commit.
+- Add `--from <path to a workshop checkout>` to either to read from disk instead of GitHub.
+
+### Deploying
+
+`npx wrangler deploy` publishes this repo to the `docket` Cloudflare Worker at https://docket.alexisdavidson.org (`wrangler.jsonc`; `.assetsignore` keeps tests, scripts and `mobile/` off the site). Workshop reaches it through a service binding to that Worker, so keep the Worker's name. Docket's data id stays `prioritizer`: saved boards, Workshop's Home and the ADO connector all use it.
 
 ### Storage format
 
-The board is four collections in the Workshop data format ([docs/data-format.md](../../docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 ### Upgrading from the previous version
 

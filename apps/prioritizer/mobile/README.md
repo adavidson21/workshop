@@ -1,6 +1,6 @@
 # Docket for Android
 
-Docket as an Android app. It is Docket's web files (`apps/prioritizer/` and `shared/`) inside a [Capacitor](https://capacitorjs.com) shell, with one difference: the board is saved as files in the app's own private storage on the phone, through the SDK's device store ([docs/run-modes.md](../docs/run-modes.md), Device store). Nothing is sent to a server.
+Docket as an Android app. It is Docket's web files (`index.html`, `js/`, `shared/`, `icons/`) inside a [Capacitor](https://capacitorjs.com) shell, with one difference: the board is saved as files in the app's own private storage on the phone, through the SDK's device store ([Workshop's docs/run-modes.md](https://github.com/adavidson21/workshop/blob/main/docs/run-modes.md), Device store). Nothing is sent to a server.
 
 ## Where the data lives
 
@@ -12,7 +12,7 @@ Docket as an Android app. It is Docket's web files (`apps/prioritizer/` and `sha
 
 ## Installing
 
-Android visitors to Docket's page see a "Get the app" banner. It links to `docket.apk` on the repo's [`docket-android` release](https://github.com/adavidson21/workshop/releases/tag/docket-android), which every build of `main` replaces. The first time, Android asks you to allow installs from your browser. Updates install over the old app and keep your board, as long as they are signed with the same key (below).
+Android visitors to Docket's page see a "Get the app" banner. It links to `docket.apk` on the repo's [`docket-android` release](https://github.com/adavidson21/docket/releases/tag/docket-android), which every build of `main` replaces. (Builds before the move to this repo are on the [workshop repo's release](https://github.com/adavidson21/workshop/releases/tag/docket-android); this repo's builds install over them.) The first time, Android asks you to allow installs from your browser. Updates install over the old app and keep your board, as long as they are signed with the same key (below).
 
 ## Signing
 
@@ -42,7 +42,7 @@ base64 -w0 docket-release.jks   # the value of DOCKET_KEYSTORE_BASE64 (macOS: ba
 2. `node scripts/build-web.mjs` copies Docket's files into `www/` with the site's layout, leaving out the service worker and web manifest, and fails if any page or module refers to a file the app doesn't have.
 3. `npx cap sync android` puts them in the Android project.
 4. `test/e2e_app.py` runs Docket from `www/` in headless Chrome with a stand-in for the phone's file storage: it must pick the device store, save the board as files, keep it across a restart, and send backups to the share sheet.
-5. On pull requests, a debug APK, to show it still builds. On `main`, a release APK signed from the secrets (versionCode is the run number, so each build is an update), published to the `docket-android` release.
+5. On pull requests, a debug APK, to show it still builds. On `main`, a release APK signed from the secrets (versionCode is 1000 plus the run number, so each build is an update, including over builds from the workshop repo), published to the `docket-android` release.
 
 To build on your own computer you need Node 22, JDK 21 and the Android SDK (Android Studio installs it):
 

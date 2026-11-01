@@ -19,5 +19,5 @@ test('app banner: Android browsers only, not dismissed, not in the app or the sh
 });
 
 test('app banner: links to the APK on the docket-android release', () => {
-  assert.equal(APK_URL, 'https://github.com/adavidson21/workshop/releases/download/docket-android/docket.apk');
+  assert.equal(APK_URL, 'https://github.com/adavidson21/docket/releases/download/docket-android/docket.apk');
 });

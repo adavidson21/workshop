@@ -12,12 +12,12 @@ test('build-web: Docket and what it needs, nothing else', () => {
   try {
     const { files } = build({ www });
     assert.ok(files > 20);
-    for (const f of ['index.html', 'apps/prioritizer/index.html', 'apps/prioritizer/js/main.js', 'shared/workshop-sdk.js', 'shared/device-fs.js', 'shared/save-file.js', 'shared/vendor/xlsx.full.min.js'])
+    for (const f of ['index.html', 'js/main.js', 'shared/workshop-sdk.js', 'shared/device-fs.js', 'shared/save-file.js', 'shared/vendor/xlsx.full.min.js', 'icons/favicon.svg'])
       assert.ok(existsSync(join(www, f)), f);
-    for (const f of ['sw.js', 'manifest.webmanifest', 'apps/prioritizer/test', 'apps/prioritizer/ado-helper', 'shared/test', 'apps/agents', 'apps/home'])
+    for (const f of ['sw.js', 'manifest.webmanifest', 'test', 'ado-helper', 'mobile', 'README.md', 'app.json', 'scripts', 'wrangler.jsonc'])
       assert.ok(!existsSync(join(www, f)), `${f} is left out`);
-    assert.match(readFileSync(join(www, 'index.html'), 'utf8'), /url=apps\/prioritizer\//);
-    assert.doesNotMatch(readFileSync(join(www, 'apps/prioritizer/index.html'), 'utf8'), /rel="manifest"/);
+    assert.match(readFileSync(join(www, 'index.html'), 'utf8'), /<title>Docket<\/title>/);
+    assert.doesNotMatch(readFileSync(join(www, 'index.html'), 'utf8'), /rel="manifest"/);
     assert.deepEqual(checkRefs(www), []);
   } finally { rmSync(www, { recursive: true, force: true }); }
 });
@@ -26,7 +26,7 @@ test('build-web: a reference to a file the app does not have is reported', () =>
   const www = mkdtempSync(join(tmpdir(), 'docket-www-'));
   try {
     build({ www });
-    writeFileSync(join(www, 'apps/prioritizer/js/extra.js'), "import { x } from '../../agents/js/main.js';\n// import { y } from './in-a-comment.js';\n");
-    assert.deepEqual(checkRefs(www), ['apps/prioritizer/js/extra.js -> ../../agents/js/main.js']);
+    writeFileSync(join(www, 'js/extra.js'), "import { x } from './missing.js';\n// import { y } from './in-a-comment.js';\n");
+    assert.deepEqual(checkRefs(www), ['js/extra.js -> ./missing.js']);
   } finally { rmSync(www, { recursive: true, force: true }); }
 });

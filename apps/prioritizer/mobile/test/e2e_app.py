@@ -107,7 +107,7 @@ def main():
             pg.on('pageerror', lambda e: errors.append(str(e)))
             url = f'http://127.0.0.1:{port}/'
             pg.goto(url)
-            pg.wait_for_url('**/apps/prioritizer/')
+            pg.wait_for_load_state('load')
             pg.wait_for_function('window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000)
             pg.wait_for_timeout(800)
 

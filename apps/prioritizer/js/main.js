@@ -17,7 +17,7 @@ import { openDrawer } from './drawer.js';
 import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
-import { mountBar } from '../../../shared/standalone-bar.js';
+import { mountBar } from '../shared/standalone-bar.js';
 import { mountAppBanner } from './app-banner.js';
 
 // Inside the shell the rail names the app (no second logo), and the shell owns the light/dark toggle, the service worker, Alt+<n> and Ctrl+K.

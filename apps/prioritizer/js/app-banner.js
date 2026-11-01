@@ -4,10 +4,10 @@
    banner links to the APK the Android workflow publishes (.github/workflows/android.yml). It shows until it
    is dismissed, never in the app itself, inside the Workshop shell, or on a computer. The app starts with an
    empty board: a backup downloaded here (the folder icon) and imported there moves it across. */
-import { deviceAvailable } from '../../../shared/device-fs.js';
+import { deviceAvailable } from '../shared/device-fs.js';
 
 // The asset on the repo's docket-android release, replaced by every build of main.
-export const APK_URL = 'https://github.com/adavidson21/workshop/releases/download/docket-android/docket.apk';
+export const APK_URL = 'https://github.com/adavidson21/docket/releases/download/docket-android/docket.apk';
 const DISMISSED = 'docket.appBanner.dismissed';
 
 const CSS = `
