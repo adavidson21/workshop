@@ -69,6 +69,9 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `project.update` | yes | `id`, then any field above (an empty string clears it, except `name`) | (new) | `{project}`. Inbox cannot be changed. |
 | `project.delete` | yes | `id` | (new) | Removes the project; its runs move to Inbox. `.work` folders are not touched. `{ok, movedToInbox}`. |
 | `run.assign` | yes | `folder`, `project` (`inbox` for none) | (new) | Moves a run to a project. `{folder, project}`. |
+| `review.session` | no | `id`, `repo` | (new) | The `ReviewSession` for one repo of a work item. See [Code review](#code-review). |
+| `review.file` | no | `id`, `repo`, `path`, `side` (`old`, `new` or `prev`) | (new) | `FileContent` for one file. |
+| `review.submit` | yes | `id`, `repo`, `feedback` (a `ReviewFeedback`) | (new) | Approve (records the verdict only, nothing is pushed) or request changes (the agent revises). `{ok, status, revision, submittedAt}`. |
 | `terminal` | no | `session` (optional) | `POST /api/terminal` | Opens the opencode TUI in a terminal window (Windows and macOS). Not marked write: it changes nothing outside this computer. |
 
 Errors are plain words with a code: `bad_request`, `not_found`, `conflict` (for example, autopilot is running the item), `unavailable` (opencode is not connected, or the connector is not ready). The live server's `501` becomes `bad_request` and its `502` becomes `unavailable`, since the agent API has no codes for those.
@@ -85,6 +88,7 @@ The live server pushed the whole page model on its own event stream. Connector e
 | `agent.done` | `{folder, session, error}` | A session tied to a work item finished a turn. |
 | `autopilot` | `{folder, status, message}` | Autopilot started, resumed, waits for you, finished or stopped. |
 | `projects` | `{change}` (`create`, `update`, `delete`, `run`) | A project or a run's project changed. Call `state` for the data. |
+| `review` | `{id, folder, repo, status, revision}` | A code review got a verdict, or its revision run started, failed or finished. Call `review.session` for the data. |
 
 ## Projects
 
@@ -95,6 +99,60 @@ Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/
 Project instructions reach the agent through `workitem.md` for runs started with `start.local`. Runs started from an ADO item (`start`) join the project, but `/start` writes their `workitem.md` itself, so the instructions are not added there yet. `model` and `agent` are stored for later; runs do not use them yet.
 
 Status `details`: `{workspace, opencode: {connected, kind, version, error}, parserError}`.
+
+## Code review
+
+The review screen in Dispatch: the reviewer reads a branch's diff, comments on lines, and approves or sends the comments to the agent as one revision. One review per work item and repo, matching `push`. `repo` is the repo folder from the item's `pr.md`.
+
+Copied from eng-agents branch `dev/feature/review-api` at `2626601` (the live server's `/api/shell/code-review/*` routes): `lib/review-git.mjs`, `lib/code-review.mjs`, `lib/revision-runner.mjs`. `lib/review.mjs` wires them to this connector. Errors are plain words with the usual codes; on any `conflict` from `review.submit`, reload the review.
+
+### Types
+
+```ts
+type ReviewSession = {
+  workItemId: string;
+  repo: string;
+  revision: number;                     // 1, 2, 3...
+  branch: string;
+  baseBranch: string;                   // origin/<pr.md target> if the clone has it, else <target>
+  baseSha: string;                      // merge-base of baseBranch and the branch head
+  headSha: string;
+  status: 'awaiting_review' | 'revising' | 'approved';
+  files: ChangedFile[];
+  previousFeedback?: ReviewFeedback;    // revision 2 and later
+  previousResponses?: ReviewResponse[]; // the agent's answers to previousFeedback
+  sinceLastReview?: ChangedFile[];      // files changed from previousFeedback.headSha to headSha
+  revisionRun?: { status: 'running' | 'failed' | 'done'; message: string | null; session: string | null; revision: number };
+};
+type ChangedFile = { path: string; oldPath?: string; status: 'added' | 'modified' | 'deleted' | 'renamed'; additions: number; deletions: number; binary: boolean };
+type ReviewComment = {
+  id: string; path: string; side: 'old' | 'new'; startLine: number; endLine: number;
+  quotedCode: string;                   // the lines at baseSha (old) or headSha (new)
+  type: 'must_fix' | 'suggestion' | 'question'; body: string; suggestedCode?: string;
+};
+type ReviewFeedback = {
+  workItemId: string; repo: string; revision: number; headSha: string;
+  verdict: 'approve' | 'request_changes'; summary?: string; comments: ReviewComment[];
+  submittedAt: string;                  // set by the connector when it saves
+};
+type ReviewResponse = { commentId: string; status: 'fixed' | 'declined' | 'answered'; note: string };
+type FileContent = { kind: 'text' | 'binary' | 'too_large' | 'absent'; text?: string; size?: number };
+```
+
+### Rules
+
+- `review.session` and `review.file` answer once the item is at the `pr` stage (the step before Push), and from then on whatever stage it shows. Before that: `conflict`, with the stage in the message.
+- `review.file`: `old` is the file at `baseSha`, `new` at `headSha`, `prev` at the last reviewed head (revision 2 and later). Pass `oldPath` with `old` for a renamed file. `absent` is the missing side of an added or deleted file. Binary files and files over 1 MB come back without `text`.
+- `review.submit` is refused with `conflict` if the branch head moved since the review loaded, the revision number is wrong, or the review is not awaiting a verdict. Nothing is saved. Request changes needs a comment or a summary, and is refused with `unavailable` while opencode is not connected.
+- Comments made in the "changes since last review" view go on the `new` side.
+
+### Revision runner
+
+Request changes saves the feedback, sets the review to `revising`, and sends one revision prompt (the spec's template, plus the repo folder) through the same launcher as `reply`: in the item's current session if it is idle, else a new one linked to the item. When that turn ends, the runner checks that the agent wrote a valid `rev-<n>-response.json` and that the branch still contains the reviewed commit. Then the review becomes revision `n+1`, `awaiting_review`. If a check fails, it stays `revising` and `revisionRun` says why; replying to the agent in that session runs the checks again when its turn ends. Unfinished runs are followed again after a restart.
+
+### Storage
+
+`.work/<folder>/code-review/<repo>/`: `state.json` (`{revision, status, lastReviewedHeadSha}`; missing means revision 1, awaiting review), `rev-<n>.json` (the feedback), `rev-<n>-response.json` (the agent's answers), `run.json` (the latest revision run).
 
 ## Not carried over
 
@@ -119,6 +177,7 @@ node --test "connectors/opencode/test/*.test.mjs"
 ```
 
 - `test/fake-opencode.mjs`: fake opencode 1.x and 2.x servers on `127.0.0.1` with their event streams, built from what the adapters call. `test/harness.mjs` adds a fake `opencode` CLI (for finding the 2.x service) and copies `docs/examples/work/` into a temporary workspace. No work data.
+- `review-git.test.mjs`, `code-review.test.mjs`, `revision-runner.test.mjs`: the code review modules against throwaway git repos and a fake launcher. They need only git.
 - `connector.test.mjs`: every action and event against both versions, through a `ctx` like the agent's. Each test names the [PARITY.md](PARITY.md) item it covers.
 - `agent.test.mjs`: the module against the connector contract, and the connector through the real agent (confirm, events, restarts on a config change, the password never in responses, events or logs).
 
