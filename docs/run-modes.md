@@ -65,7 +65,7 @@ When the user picks a folder and IndexedDB holds data, `ws.folder.choose()` copi
 
 ### Device store (`ws.storage === 'device'`)
 
-Used in the Android app ([mobile/README.md](../mobile/README.md)), where there is no agent and no folder picker. The SDK chooses it before anything else when the page runs in that app (Capacitor's native bridge is there with its Filesystem plugin; `shared/device-fs.js`, `deviceAvailable()`).
+Used in the Android app (built in Docket's repo; see its [mobile/README.md](https://github.com/adavidson21/docket/blob/main/mobile/README.md)), where there is no agent and no folder picker. The SDK chooses it before anything else when the page runs in that app (Capacitor's native bridge is there with its Filesystem plugin; `shared/device-fs.js`, `deviceAvailable()`).
 
 - **It is the folder store** on a different folder: the app's private data folder on the phone, under `workshop/` (`workshop/<app>/<collection>.json` and so on). `shared/device-fs.js` gives the folder store a directory handle backed by Capacitor's Filesystem plugin, so the layout and every rule above apply unchanged: `rev` checks, `version` downgrade refused, backups, trash, the `lastModified` check before every write, change events and the outside-change check.
 - **No permission, nothing to choose.** `ws.folder.status()` is `{storage: 'device', name: null, permission: null, moved: false, missing: false}`; `ws.folder.choose()` rejects with `unavailable`. IndexedDB is never used for app data.

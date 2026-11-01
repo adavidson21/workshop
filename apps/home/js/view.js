@@ -1,7 +1,7 @@
 /* Home: the numbers and the HTML. Pure functions with no DOM or SDK, so Node tests can import them.
    Home reads other apps' data read-only (docs/sdk.md, ws.data.get with {app}). It does not import
    their code (docs/app-manifest.md, Rules), so the few Prioritizer rules it needs are repeated here
-   and named after the function they mirror in apps/prioritizer/js/model.js. */
+   and named after the function they mirror in Docket's js/model.js (adavidson21/docket). */
 
 export const TASKS_VERSION = 3; // prioritizer.tasks: the version Home knows how to read
 const WINDOW = { 4: 2, 3: 4, 2: 7, 1: 14 }; // implied due window in days, by value (Prioritizer's WINDOW)

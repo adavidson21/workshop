@@ -59,6 +59,12 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `shortcuts` | no | `{keys, command, scope}`. `keys` is like `Ctrl+Shift+A` or `Alt+N`: modifiers `Ctrl`, `Alt`, `Shift`, `Meta` (in that order), then one key name. `scope: "app"` works only while the app is shown; `"global"` works anywhere in the shell. `Alt+1` to `Alt+9` and `Ctrl+K` are reserved for the shell. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
 
+## Apps from another site
+
+An app can live in its own repo and site and still appear here: list it in `apps/remote.json` instead of adding a folder. Its `app.json` follows this document as usual, with paths relative to the root of its site. The Worker serves that site under `/apps/<id>/`, so the shell's frame stays same-origin, and `apps/registry.json` lists it from the snapshot in `remote.json` (the Worker swaps in the live `app.json`). Docket (`id` `prioritizer`, https://docket.alexisdavidson.org) is the first. See "Apps from another site" in the [README](../README.md#apps-from-another-site).
+
+The agent's own app list (`GET /api/apps`, local mode) lists app folders only, so remote apps do not appear when the agent serves the page.
+
 ## Rules
 
 - An app folder holds everything the app needs except what is in `shared/`. Apps do not import from other app folders.

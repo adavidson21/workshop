@@ -7,7 +7,7 @@ import test from 'node:test';
 import { main, parseArgs } from '../doctor.mjs';
 import { compareLists } from '../lib/compare.mjs';
 import { PAT } from './fixtures/team.mjs';
-import { HELPER, findPython, testEnv, withServer } from './harness.mjs';
+import { HELPER, findPython, HELPER_MISSING, testEnv, withServer } from './harness.mjs';
 
 function tmpdir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-ado-doctor-'));
@@ -55,7 +55,7 @@ test('doctor checks each connection and lists what a sync finds', async () => {
 
 const python = findPython();
 
-test('--compare prints counts only and writes nothing', { skip: python ? false : 'Python 3 not found' }, async () => {
+test('--compare prints counts only and writes nothing', { skip: python ? HELPER_MISSING : 'Python 3 not found' }, async () => {
   await withServer(async srv => {
     const dir = tmpdir();
     const helper = path.join(dir, 'ado_helper.py');

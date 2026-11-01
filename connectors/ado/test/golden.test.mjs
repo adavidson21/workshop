@@ -1,11 +1,11 @@
-// Golden tests: the connector must produce the same JSON as apps/prioritizer/ado-helper/ado_helper.py, and make
+// Golden tests: the connector must produce the same JSON as Docket's ado-helper/ado_helper.py, and make
 // the same ADO calls, for the synthetic fixtures. Goldens come from the helper (make-goldens.mjs).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { cases } from './fixtures/team.mjs';
-import { GOLDENS, comparable, comparableRequests, findPython, runNodeCase, runPythonCase, withServer } from './harness.mjs';
+import { GOLDENS, comparable, comparableRequests, findPython, HELPER_MISSING, runNodeCase, runPythonCase, withServer } from './harness.mjs';
 
 const golden = name => JSON.parse(fs.readFileSync(path.join(GOLDENS, `${name}.json`), 'utf8'));
 
@@ -22,7 +22,7 @@ for (const c of cases) {
 
 const python = findPython();
 for (const c of cases) {
-  test(`goldens are current with the helper: ${c.name}`, { skip: python ? false : 'Python 3 not found' }, async () => {
+  test(`goldens are current with the helper: ${c.name}`, { skip: python ? HELPER_MISSING : 'Python 3 not found' }, async () => {
     const g = golden(c.name);
     await withServer(async srv => {
       const result = await runPythonCase(python, c, srv);

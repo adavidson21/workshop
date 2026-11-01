@@ -3,12 +3,12 @@
 An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Receipts, and Tandem, the agent scaffolding Dispatch runs on.
 
 - **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
-- **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. User guide: [apps/prioritizer/README.md](apps/prioritizer/README.md).
+- **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. Its code lives in its own repo, [adavidson21/docket](https://github.com/adavidson21/docket), and its own site, https://docket.alexisdavidson.org; Workshop shows it inside the shell by serving that site under `apps/prioritizer/` (see Apps from another site below). User guide: [Docket's README](https://github.com/adavidson21/docket#readme).
 - **Dispatch** (formerly Agents; code and URLs still say `agents`) is the front end for [Tandem](https://github.com/adavidson21/eng-agents) (the eng-agents repo), the agent scaffolding that drives opencode. It shows your work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Receipts** keeps the receipts for performance reviews: your own (the main use), each direct report's, and optional upward notes, then builds a review draft grouped by your review form's sections. Its home is its own repo, [adavidson21/receipts](https://github.com/adavidson21/receipts), and its own site, https://receipts.alexisdavidson.org; `apps/receipts/` here is a copy of that repo's `apps/receipts/` (copy it again after changing the app there, then run `node shell/registry.mjs`). Guide: [apps/receipts/README.md](apps/receipts/README.md).
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
 
-Docket and Dispatch also open on their own pages (`apps/prioritizer/` and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
+Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.org and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Opening `apps/prioritizer/` on its own here goes to Docket's site. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
@@ -38,7 +38,7 @@ It installs per user from the browser, with no admin rights or executable. If In
 
 ## Docket on Android
 
-Docket is also an Android app, with its board saved in the app's own storage on the phone (never on a server, and not cleared like browser storage). Android visitors to Docket's page get a "Get the app" banner linking to the latest build. See [mobile/README.md](mobile/README.md).
+Docket is also an Android app, with its board saved in the app's own storage on the phone (never on a server, and not cleared like browser storage). Android visitors to Docket's page get a "Get the app" banner linking to the latest build. It is built in Docket's repo: see [mobile/README.md](https://github.com/adavidson21/docket/blob/main/mobile/README.md) there.
 
 The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
 
@@ -94,13 +94,11 @@ shared/                 used by the shell and every app
   test/                 SDK tests
 apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
-  prioritizer/          Prioritizer (also runs on its own at /apps/prioritizer/)
-    ado-helper/         the local ADO helper (Python), for when Workshop's ADO connector is not running
+  remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket)
   agents/               Agents (the eng-agents live dashboard, on the opencode connector)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)
-mobile/                 Docket as an Android app (Capacitor), built by .github/workflows/android.yml
 docs/                   the contracts every part is written against
 sw.js                   offline cache for the whole site
 tests/                  checks (see below)
@@ -115,6 +113,18 @@ An app is a folder. No shell or service worker edits.
 3. Run `node shell/registry.mjs` so static sites list it too. The agent finds it on its own.
 
 The rail, routes, `Alt+<n>`, shortcuts and the palette come from `app.json`. See `apps/settings/` for a small app.
+
+### Apps from another site
+
+An app can live in its own repo and deploy to its own site, and still open inside Workshop. Docket works this way. The shell only frames pages from its own origin, so the Worker (`worker/index.js`) serves the app's site under `/apps/<id>/`:
+
+- `apps/remote.json` lists each one: its `id`, `site`, `repo`, the name of a service `binding` in `wrangler.jsonc` (optional; without it the Worker fetches the site over the internet), and a snapshot of its `app.json`.
+- `/apps/<id>/<path>` comes from `<site>/<path>`. A deploy of the app's site shows up in Workshop right away.
+- `/apps/registry.json` gets the app's live `app.json` from its site, so a new file or command needs no Workshop change. The snapshot is the fallback if the site is down; `node shell/registry.mjs --refresh-remote` updates it.
+- Opening `/apps/<id>/` on its own (not in the shell) goes to the app's site, its standalone address.
+- The app keeps exact copies of the `shared/` files it uses, so it also runs on its own. After changing one of those here, update the copies in the app's repo (Docket: `node scripts/sync-workshop.mjs --update`).
+- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer`.
+- Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
 
 ### No third-party requests
 
@@ -139,10 +149,12 @@ Then open the address it prints. Without it (browser mode), any static web serve
 ```
 node tests/check-themes.mjs              theme.js matches themes.css
 node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
-node shell/registry.mjs --check          apps/registry.json lists every app folder
+node tests/check-remote.mjs              apps from another site: Home still reads Docket's tasks (needs .remote/)
+node shell/registry.mjs --check          apps/registry.json lists every app folder and remote app
 node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
-node --test "apps/*/test/*.test.mjs"     apps' own tests (Prioritizer storage)
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Prioritizer storage
+node --test "apps/*/test/*.test.mjs"     apps' own tests
+node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, apps from another site
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage (needs .remote/prioritizer)
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
@@ -151,7 +163,7 @@ python tests/e2e.py                      Workshop in headless Chromium: browser,
 
 A Cloudflare Worker serves the repo root (`wrangler.jsonc`; Cloudflare's Git integration runs `npx wrangler deploy` on every push to `main`). Files that are not part of the site are listed in `.assetsignore`. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
 
-Workshop lives at https://adavidson21.github.io/workshop/ (Prioritizer on its own: `/workshop/apps/prioritizer/`; the old `/workshop/prioritizer/` address forwards there). Same github.io site as before, so tasks saved in the browser carry over. If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in `apps/prioritizer/ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
+Workshop lives at https://workshop.alexisdavidson.org. Docket deploys from its own repo to https://docket.alexisdavidson.org, and the `DOCKET` service binding in `wrangler.jsonc` connects the two (see Apps from another site). If the site moves to another host, update `shellOrigins` (above) and `allowed_origins` in Docket's `ado-helper/ado_helper.py` (or your `ado-helper.json`); browser storage does not move between hosts, so export from the old one and import on the new one.
 
 ## License
 
