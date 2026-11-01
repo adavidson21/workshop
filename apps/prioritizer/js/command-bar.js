@@ -1,5 +1,5 @@
 import { addTask } from './actions.js';
-import { VALUE } from './constants.js';
+import { TOUCH, VALUE } from './constants.js';
 import { hideTip } from './events.js';
 import { closeMenu } from './overlays.js';
 import { parseQuick } from './quick-add.js';
@@ -35,7 +35,7 @@ function cmdPreview(){
   const where = `Adds to <b>${esc(L ? L.name : '')}</b>${state.view === 'today' ? ' and Today' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
     ? bits.join('') + `<span style="margin-left:auto">${where}</span>`
-    : (cmdAdded ? `<span class="added">Added "${esc(cmdAdded)}". Keep going, or press Esc.</span>` : `<span>${where}. Type a task; tags are optional.</span>`);
+    : (cmdAdded ? `<span class="added">Added "${esc(cmdAdded)}". Keep going, or ${TOUCH ? 'tap Done' : 'press Esc'}.</span>` : `<span>${where}. Type a task; tags are optional.</span>`);
 }
 cmdInput.addEventListener('input', cmdPreview);
 cmdInput.addEventListener('keydown', e => {

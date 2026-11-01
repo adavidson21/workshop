@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Docket's page background in the light theme (shared/themes.css, --bg) -->
+    <color name="docket_page">#F4F1EA</color>
+</resources>
