@@ -6,13 +6,14 @@
 # What it does, all inside %LOCALAPPDATA%\Workshop unless something is already installed:
 #   1. Node 22 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
-#   3. opencode: uses yours, or installs it with npm into the Workshop folder.
+#   3. opencode: uses yours, or installs it with npm into the Workshop folder. git: uses yours, or
+#      downloads MinGit (Git for Windows' portable build) into the Workshop folder.
 #   4. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
 #      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
 #   5. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~\work, start at login.
 #   6. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
-# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE.
+# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI.
 
 & {
 $ErrorActionPreference = 'Stop'
@@ -122,6 +123,26 @@ else {
   if ($LASTEXITCODE -ne 0) { Fail 'npm could not install opencode. Install it from https://opencode.ai, then run this again.' }
   Add-UserPath $ocDir
   $opencode = Join-Path $ocDir 'opencode.cmd'
+}
+
+# ---------------------------------------------------------------- git
+# Agents use git for branches, diffs and pushes. Use yours, or download MinGit (Git for Windows' portable
+# build, no installer, no admin) into the Workshop folder and put it on your PATH.
+Step 'git'
+$gitDir = Join-Path $Root 'git'
+$haveGit = Get-Command git -ErrorAction SilentlyContinue
+if ($haveGit -and ($haveGit.Source -notlike "$gitDir*")) { Say "Using your $((git --version) -replace '^git version ', 'git ')." }
+else {
+  if (-not (Test-Path (Join-Path $gitDir 'cmd\git.exe'))) {
+    try {
+      $rel = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/git-for-windows/git/releases/latest'
+      $want = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-arm64\.zip$' } else { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-64-bit\.zip$' }
+      $asset = @($rel.assets | Where-Object { $_.name -match $want }) | Select-Object -First 1
+      if ($asset) { Say "Downloading git ($($asset.name))."; Get-Zip $asset.browser_download_url $gitDir }
+      else { Say 'Could not find a git download. Install git from https://git-scm.com/downloads' }
+    } catch { Say "Could not download git ($($_.Exception.Message)). Install it from https://git-scm.com/downloads" }
+  }
+  if (Test-Path (Join-Path $gitDir 'cmd\git.exe')) { Add-UserPath (Join-Path $gitDir 'cmd'); Say "Using Workshop's $((& (Join-Path $gitDir 'cmd\git.exe') --version) -replace '^git version ', 'git ')." }
 }
 
 # ---------------------------------------------------------------- 4. Tandem into opencode

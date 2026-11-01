@@ -8,13 +8,14 @@
 #   1. Node 22 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
-#   4. PowerShell 7 (pwsh), which Tandem runs on: uses yours, or downloads a private copy.
+#   4. git: uses yours; on a Mac, asks macOS to install its command line tools (which include git).
+#      PowerShell 7 (pwsh), which Tandem runs on: uses yours, or downloads a private copy.
 #   5. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
 #      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
 #   6. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~/work, start at login.
 #   7. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
-# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE.
+# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI.
 set -euo pipefail
 
 main() {
@@ -102,6 +103,18 @@ main() {
     "$NPM" install --global --prefix "$ROOT/opencode" --no-fund --no-audit opencode-ai@latest \
       || fail "npm could not install opencode. Install it from https://opencode.ai, then run this again."
     OPENCODE="$ROOT/opencode/bin/opencode"
+  fi
+
+  # ------------------------------------------------------------ git
+  # Agents use git for branches, diffs and pushes. On a Mac, git comes with Apple's command line tools
+  # (/usr/bin/git is only a stub until they are installed): ask macOS to install them. On Linux, say how.
+  step "git"
+  if git --version >/dev/null 2>&1; then say "Using your $(git --version | sed 's/^git version /git /')."
+  elif [ "$os" = darwin ]; then
+    xcode-select --install >/dev/null 2>&1 || true
+    say "macOS is asking to install its command line tools, which include git. Click Install in that window."
+    say "This install carries on meanwhile; agents need git before they can make branches."
+  else say "git is not installed. Install it with your package manager (for example: sudo apt install git), then agents can make branches."
   fi
 
   # ------------------------------------------------------------ 4. PowerShell 7
