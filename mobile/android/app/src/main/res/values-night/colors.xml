@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Docket's page background in the dark theme (shared/themes.css, --bg) -->
+    <!-- Docket's page background in the dark theme (the bg color in shared/themes.css) -->
     <color name="docket_page">#161514</color>
 </resources>
