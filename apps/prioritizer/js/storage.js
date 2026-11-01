@@ -20,6 +20,7 @@ import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
+import { saveFile } from '../../../shared/save-file.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, ws = null, booted = false, status = {state: 'saved'};
@@ -27,6 +28,7 @@ let store = null, ws = null, booted = false, status = {state: 'saved'};
 function where(){
   if (!ws) return 'nowhere';
   return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder'
+    : ws.storage === 'device' ? 'on this phone, in the app\'s storage'
     : ws.storage === 'folder' ? 'in your Workshop folder' : 'in this browser';
 }
 function setStatus(s){
@@ -135,12 +137,8 @@ async function downloadBackup(){
   try {
     if (store) await store.idle();
     const bundle = await ws.data.export({apps: ['prioritizer']});
-    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2) + '\n'], {type: 'application/json'}));
-    const a = document.createElement('a');
-    a.href = url; a.download = `workshop-${todayStr()}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Backup downloaded');
+    const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
+    if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
   } catch (e){ toast('Could not make a backup.'); }
 }
 

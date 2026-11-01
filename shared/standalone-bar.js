@@ -1,13 +1,16 @@
 /* The top bar for an app opened on its own page (not inside the Workshop shell), so it looks like every
    other tool on tools.alexisdavidson.org: breadcrumbs on the left and the round light/dark toggle in the top
-   right corner. On alexisdavidson.org the crumbs lead back up to LifeKit and its Office section; anywhere else
-   (the agent on 127.0.0.1, another company's domain) they start at Workshop.
+   right corner. On alexisdavidson.org the crumbs lead back up to LifeKit and its Office section; in the Android
+   app there is only the app's name; anywhere else (the agent on 127.0.0.1, another company's domain) they
+   start at Workshop.
 
    import { mountBar } from '../../shared/standalone-bar.js';
    mountBar('Prioritizer');   // adds <header class="ws-bar"> as the first child of <body> and body.standalone
 
    Needs shared/theme.js (for the toggle) and shared/themes.css (colors). Styles are injected here because not
    every app loads shared/ui.css. A page lays itself out around the bar with body.standalone. */
+
+import { deviceAvailable } from './device-fs.js';
 
 const LIFEKIT = /(^|\.)alexisdavidson\.org$/.test(location.hostname);
 
@@ -35,7 +38,9 @@ export function mountBar(name) {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
-  const up = LIFEKIT
+  // In the Android app (mobile/) the app is the whole world: no crumbs leading to a site it does not have.
+  const up = deviceAvailable() ? []
+    : LIFEKIT
     ? [['LifeKit', 'https://tools.alexisdavidson.org/'], ['Office', 'https://tools.alexisdavidson.org/office/']]
     : [['Workshop', '../../']];
   const bar = document.createElement('header');

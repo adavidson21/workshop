@@ -3,14 +3,22 @@ import { score } from './model.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { commit, listById, migrateTask, orderedLists, sanitize, setState, state, topLists } from './state.js';
 import { dateStr, isDate, plural, todayStr, uid } from './util.js';
+import { saveFile } from '../../../shared/save-file.js';
 /* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
 /* ---------- excel export / import ---------- */
 const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
 const NO_XLSX = 'Excel tools did not load. Reload the page.';
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+// An Excel file as a download, or the share sheet in the Android app (shared/save-file.js).
+async function saveWorkbook(wb, name, done){
+  try {
+    const how = await saveFile(name, XLSX.write(wb, {bookType: 'xlsx', type: 'array'}), XLSX_TYPE);
+    if (how !== 'canceled') toast(done);
+  } catch (e){ toast('Could not save the Excel file.'); }
+}
 function exportXlsx(){
   if (!window.XLSX){ toast(NO_XLSX); return; }
-  XLSX.writeFile(buildWorkbook(), `prioritizer-${todayStr()}.xlsx`);
-  toast('Exported to Excel');
+  return saveWorkbook(buildWorkbook(), `prioritizer-${todayStr()}.xlsx`, 'Exported to Excel');
 }
 function buildWorkbook(){
   const wb = XLSX.utils.book_new();
@@ -189,4 +197,4 @@ function importFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-export { NO_XLSX, buildWorkbook, doImport, exportXlsx, importFile, parseWorkbook };
+export { NO_XLSX, buildWorkbook, doImport, exportXlsx, importFile, parseWorkbook, saveWorkbook };

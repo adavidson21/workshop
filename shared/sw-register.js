@@ -5,7 +5,9 @@
   'use strict';
   // This file lives in /shared/, so the worker and its scope are one level up: the site root.
   const root = new URL('../', document.currentScript.src);
-  const ok = () => 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname));
+  // Not in the Android app (mobile/): it ships its files inside the app, and a cached copy would outlive an update.
+  const native = () => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
+  const ok = () => 'serviceWorker' in navigator && !native() && (location.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname));
 
   function register(ask) {
     if (!ok()) return;
