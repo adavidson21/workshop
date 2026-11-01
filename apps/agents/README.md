@@ -5,9 +5,16 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 ## How it works
 
 - **Data:** the opencode connector's `state` action ([connectors/opencode/README.md](../../connectors/opencode/README.md)). The app fetches it again after the connector's events (`model`, `live`, `autopilot`, `agent.waiting`, `agent.done`) and when the connector's status changes. No polling.
-- **Buttons:** the connector's actions. Write actions (`run`, `reply`, `answer`, `abort`, `remove`, `push`, `autopilot`) send `confirm: true`, only from the click that says what will happen. `.work` files open in a sheet through `file.read`.
+- **Buttons:** the connector's actions. Write actions (`run`, `start`, `start.local`, `spike`, `repo.add`, `repo.guide`, `reply`, `answer`, `abort`, `remove`, `push`, `autopilot`) send `confirm: true`, only from the click that says what will happen. `.work` files open in a sheet through `file.read`.
 - **Shell:** `#/agents/<id>` scrolls to that item (a work item id, or the folder name of a spike, doc or TSD). The rail badge counts open prompts. A notification, if allowed, when an agent waits for you or finishes while the app is out of sight. **Refresh work items** is in the `Ctrl+K` palette.
 - **Theme:** the page loads `shared/themes.css` and `shared/theme.js`, and the SDK applies theme changes. Inside the shell, the shell owns the theme and the name; opened on its own (`/apps/agents/`), the page has both.
+
+**Using Dispatch on its own** (no Docket, no terminal):
+
+- **Getting set up:** after Workshop connects, a checklist shows until three things are done: an AI model connected to opencode (from `opencode.ai`; it shows the `opencode auth login` command and how to use Claude with an Anthropic API key), a repo in the workspace, and a first piece of work. If the AI step cannot be checked (an opencode that does not say), it is not counted as missing.
+- **Start work:** *Describe it* (the default: title, description, repro steps for a bug; the `start.local` action, no tracker), *ADO work item* (by number; only shown when Tandem has ADO connections), or *Investigate* (`spike`).
+- **Repos:** *Add a repo* clones by URL into the workspace and lists it in the repo map (`repo.add`), then offers *Draft its guide* (`repo.guide`, `/onboard-repo`). The repos panel has both for every repo.
+- Spikes and repo guides started here show under **Investigations and repo guides**, with the agent's questions and a reply box, until dismissed.
 
 Before the connector is ready, the page says what is wrong: browser mode, the connector off (with a button to Settings), starting, or its error message.
 

@@ -11,6 +11,7 @@ import { currentSession, folderForSession, links } from "./links.mjs";
 import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { attachCommand } from "./actions.mjs";
 import { autoData, autopilot } from "./autopilot.mjs";
+import { adoConfigured, loose, looseData } from "./workspace.mjs";
 
 export function liveData() {
   const items = {};
@@ -20,16 +21,17 @@ export function liveData() {
   const tracked = {};
   for (const [id, s] of sessions) {
     const f = folderForSession(id);
-    const relevant = f || s.status !== "idle" || [...permissions.values()].some((p) => p.sessionID === id) || [...questions.values()].some((q) => q.sessionID === id);
+    const relevant = f || loose.has(id) || s.status !== "idle" || [...permissions.values()].some((p) => p.sessionID === id) || [...questions.values()].some((q) => q.sessionID === id);
     if (relevant) tracked[id] = { ...s, folder: f, attach: attachCommand(id) };
   }
   return {
-    opencode: { url: oc.url, kind: oc.kind, connected: oc.connected, version: oc.version, error: oc.error, started: oc.started, attach: attachCommand(null) },
+    opencode: { url: oc.url, kind: oc.kind, connected: oc.connected, version: oc.version, error: oc.error, started: oc.started, attach: attachCommand(null), ai: oc.ai },
     items,
     sessions: tracked,
     permissions: [...permissions.values()].map((p) => ({ ...p, folder: folderForSession(p.sessionID) })),
     questions: [...questions.values()].map((q) => ({ id: q.id, sessionID: q.sessionID, questions: q.questions, folder: folderForSession(q.sessionID) })),
     autopilot: autoData(),
+    others: looseData(), // spikes and repo guides started from Dispatch (lib/workspace.mjs)
     canOpenTerminal: isWin || process.platform === "darwin",
   };
 }
@@ -37,7 +39,7 @@ export function liveData() {
 /** The `state` action: the model from New-Dashboard.ps1 plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, liveMode: { error: modelError, live: liveData() } };
+  return { ...base, tandem: { ado: adoConfigured() }, liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events

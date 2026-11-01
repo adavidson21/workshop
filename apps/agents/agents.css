@@ -504,3 +504,25 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 .lanes button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .empty .hint { margin-top: 14px; font-size: 13px; }
 @media (max-width: 600px) { .lanes { grid-template-columns: 1fr; } .top .btn[data-start-open] { order: -1; } }
+
+/* ---------- start work modes, repos, getting set up (view.js) */
+.start-modes { margin: 10px 0 2px; }
+.cfg-row textarea {
+  font: 13.5px/1.5 var(--sans); padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); outline: none; width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px;
+}
+.cfg-row textarea:focus { border-color: var(--accent); }
+.cfg-row input[type="text"]:not(.mono) { font-family: var(--sans); font-size: 13.5px; }
+.onboard { margin: 0 0 28px; max-width: none; animation: none; }
+.onboard .gsteps { border-top-color: var(--line); }
+.onboard .ghead { cursor: default; padding: 12px 4px; }
+.onboard .gt { font-size: 18px; }
+.onboard .ghead:hover .gt { color: inherit; }
+.repo-acts { margin: 10px 0 0; font-size: 13px; }
+.repo-guides { margin-top: 10px; font-size: 13px; }
+.repo-guides summary { cursor: pointer; color: var(--muted); }
+.repo-guides p { margin: 6px 0; font-size: 12.5px; }
+.repo-guides ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.repo-guides li { display: flex; align-items: center; gap: 8px; justify-content: space-between; min-width: 0; }
+.repo-guides li .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.repo-guides .btn { min-height: 26px; padding: 1px 9px; font-size: 12.5px; }

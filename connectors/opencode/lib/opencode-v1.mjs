@@ -5,7 +5,7 @@
 
 import { httpError, later, opt } from "./context.mjs";
 import { folderForArgs, linkFrom } from "./links.mjs";
-import { appendText, errText, httpJson, oc, permissions, questions, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
+import { appendText, errText, httpJson, oc, parseProviders, permissions, questions, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 import { loadState } from "./opencode-connect.mjs";
 import { broadcastLive } from "./live.mjs";
 
@@ -54,6 +54,14 @@ export function makeV1(url) {
     async loadCommands() {
       const r = await call("/command");
       if (r.ok && Array.isArray(r.data)) oc.commands = new Set(r.data.map((c) => c.name));
+    },
+    async loadProviders() {
+      for (const p of ["/provider", "/config/providers"]) {
+        const r = await call(p, { timeout: 5000 });
+        const list = r.ok ? parseProviders(r.data) : null;
+        if (list) return (oc.ai = { known: true, providers: list });
+      }
+      return (oc.ai = { known: false, providers: [] });
     },
     async loadSessions() {
       const r = await call("/session");

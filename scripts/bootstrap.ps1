@@ -7,7 +7,8 @@
 #   1. Node 22 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
-#   4. Installs Tandem into opencode (eng-agents install.ps1).
+#   4. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
+#      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
 #   5. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~\work, start at login.
 #   6. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
@@ -130,6 +131,31 @@ $personal = Join-Path $env:USERPROFILE '.config\eng-agents\personal'
 if (Test-Path $personal) { $tandemArgs += @('-Personal', $personal); Say "Using your personal layer at $personal." }
 & powershell.exe @tandemArgs
 if ($LASTEXITCODE -ne 0) { Fail 'Tandem install failed. See the messages above.' }
+
+# ---------------------------------------------------------------- AI model
+# Agents need an AI provider in opencode. Ask once, unless opencode already has one (saved credentials or a
+# known API key variable). Skipped: Dispatch's Getting set up says how to connect one later.
+Step 'AI model'
+$ocCmd = if ($opencode) { $opencode } else { $oc.Source }
+$hasAi = $false
+foreach ($f in @((Join-Path $env:USERPROFILE '.local\share\opencode\auth.json'), (Join-Path $env:LOCALAPPDATA 'opencode\auth.json'))) {
+  if (Test-Path $f) { try { if (@((Get-Content -Raw $f | ConvertFrom-Json).PSObject.Properties).Count -gt 0) { $hasAi = $true } } catch { } }
+}
+foreach ($v in @('ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENROUTER_API_KEY', 'GROQ_API_KEY', 'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'MISTRAL_API_KEY')) {
+  if ([Environment]::GetEnvironmentVariable($v)) { $hasAi = $true }
+}
+if ($hasAi) { Say 'opencode already has an AI provider.' }
+elseif ($env:WORKSHOP_SKIP_AI -or -not [Environment]::UserInteractive) { Say 'Later: run  opencode auth login  to connect an AI model. Dispatch shows how.' }
+else {
+  Say 'Agents need an AI model. You pick a provider and paste its API key; it stays in opencode on this computer.'
+  Say 'For Claude, pick Anthropic and use a key from https://console.anthropic.com'
+  $ans = Read-Host '  Connect one now? [Y/n]'
+  if ($ans -match '^(n|no)$') { Say 'Skipped. Dispatch shows how to connect one later.' }
+  else {
+    & $ocCmd auth login
+    if ($LASTEXITCODE -ne 0) { Say 'Not connected. Run  opencode auth login  later; Dispatch shows how.' }
+  }
+}
 
 # ---------------------------------------------------------------- 5. Workshop setup
 Step 'Setting up Workshop'

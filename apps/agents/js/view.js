@@ -297,6 +297,18 @@ export function agentHtml(it) {
   const perms = itemPerms(it), qs = itemQs(it);
   const links = L().items[it.folder];
   if (!s && !perms.length && !qs.length) return '';
+  let out = sessionBox(s, perms, qs, `Reply to the agent, or type a command (for example /status ${it.id || it.folder}). Ctrl+Enter sends.`, true);
+  if (links && links.sessions.length > 1) {
+    const older = links.sessions.slice(0, -1).reverse();
+    out = out.slice(0, -'</div>'.length) + `<details${openAttr('h:' + it.folder, false)}><summary>Earlier sessions for this item (${older.length})</summary>` +
+      '<ul class="hist" style="margin-top:6px">' + older.map(x =>
+        `<li><span class="ht" title="${h(x.id)}">${h(x.title || x.command || x.id)}</span>` +
+        (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(x.id)}">Open</button>` : '') + '</li>').join('') + '</ul></details></div>';
+  }
+  return out;
+}
+/** One opencode session as a box: state, Stop, its prompts and questions, what it said, and a reply field. */
+function sessionBox(s, perms, qs, hint) {
   const busy = isBusy(s);
   const ask = perms.length + qs.length > 0;
   let out = `<div class="agent${ask ? ' asking' : busy ? ' busy' : ''}">`;
@@ -309,7 +321,7 @@ export function agentHtml(it) {
       (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(s.id)}" title="Opens the opencode TUI on this session">Open in terminal</button>` : '') +
       (s.attach ? copyBtn(s.attach, 'Copy terminal command') : '') + '</span></div>';
     if (busy && s.activity && !ask) out += `<div class="activity" title="${h(s.activity)}">${h(s.activity)}</div>`;
-    if (s.error) out += `<p class="err">${h(s.error)}</p>`;
+    if (s.error) out += `<p class="err">${h(s.error)}${aiState() === 'off' ? ' <b>No AI model is connected:</b> see Getting set up.' : ''}</p>`;
   }
   perms.forEach(p => { out += permHtml(p, false); });
   qs.forEach(q => { out += questionHtml(q, false); });
@@ -320,15 +332,8 @@ export function agentHtml(it) {
   }
   if (s && !busy) {
     const dk = 'r:' + s.id;
-    out += `<div class="reply"><textarea data-draft="${h(dk)}" data-sid="${h(s.id)}" placeholder="Reply to the agent, or type a command (for example /status ${h(it.id || it.folder)}). Ctrl+Enter sends." aria-label="Reply to the agent">` +
+    out += `<div class="reply"><textarea data-draft="${h(dk)}" data-sid="${h(s.id)}" placeholder="${h(hint)}" aria-label="Reply to the agent">` +
       h(S.ui.drafts[dk] || '') + `</textarea><button type="button" class="btn" data-reply="${h(s.id)}">Send</button></div>`;
-  }
-  if (links && links.sessions.length > 1) {
-    const older = links.sessions.slice(0, -1).reverse();
-    out += `<details${openAttr('h:' + it.folder, false)}><summary>Earlier sessions for this item (${older.length})</summary>` +
-      '<ul class="hist" style="margin-top:6px">' + older.map(x =>
-        `<li><span class="ht" title="${h(x.id)}">${h(x.title || x.command || x.id)}</span>` +
-        (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(x.id)}">Open</button>` : '') + '</li>').join('') + '</ul></details>';
   }
   return out + '</div>';
 }
@@ -346,8 +351,9 @@ function agentNote(it) {
 // Prompts from sessions that are not linked to a .work item (for example, started in the TUI).
 function waitingHtml() {
   if (!L()) return '';
-  const perms = L().permissions.filter(p => !p.folder);
-  const qs = L().questions.filter(q => !q.folder);
+  const loose = new Set(looseSessions().map(o => o.session));
+  const perms = L().permissions.filter(p => !p.folder && !loose.has(p.sessionID));
+  const qs = L().questions.filter(q => !q.folder && !loose.has(q.sessionID));
   if (!perms.length && !qs.length) return '';
   return '<section class="waiting" aria-label="Waiting for you"><h3 style="margin:0;font-size:15px">Waiting for you</h3>' +
     perms.map(p => permHtml(p, true)).join('') + qs.map(q => questionHtml(q, true)).join('') + '</section>';
@@ -543,7 +549,8 @@ export function pickupHtml(it) {
 // -------------------------------------------------------------- sidebar
 function reposPanel() {
   const repos = (S.D && S.D.repos) || [];
-  if (!repos.length) return '';
+  const add = '<button type="button" class="lnk plain" data-repo-open="1">Add a repo</button>';
+  if (!repos.length) return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos <span class="n">0</span></h3><p class="dim" style="margin:0">No repos in your workspace yet. ${add}</p></section>`;
   const busy = [], clean = [];
   repos.forEach(r => {
     const g = r.git || {};
@@ -562,8 +569,10 @@ function reposPanel() {
       (g.lastSha ? `<div class="lc" title="${h(g.lastMsg)}"><span class="mono">${h(g.lastSha)}</span> ${h(g.lastMsg)}</div>` : '') + '</li>';
   }).join('');
   const cleanTxt = clean.length ? `<p class="clean-list">${plural(clean.length, 'repo')} clean on their default branch: ${clean.map(r => h(r.folder)).join(', ')}.</p>` : '';
+  const guides = `<details class="repo-guides"${openAttr('repo-guides', false)} data-key="repo-guides"><summary>Repo guides</summary><p class="dim">An agent reads a repo and drafts its guide (how to build, test and find things), for you to review. Do it once per repo, and again when it changes a lot.</p><ul>` +
+    repos.map(r => `<li><span class="mono">${h(r.folder)}</span><button type="button" class="btn" data-guide="${h(r.folder)}">Draft guide</button></li>`).join('') + '</ul></details>';
   return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos with work in progress <span class="n">${busy.length}</span></h3>` +
-    (busy.length ? `<ul class="repo-list">${li}</ul>` : '<p class="dim" style="margin:0">Every repo is clean on its default branch.</p>') + cleanTxt + '</section>';
+    (busy.length ? `<ul class="repo-list">${li}</ul>` : '<p class="dim" style="margin:0">Every repo is clean on its default branch.</p>') + cleanTxt + `<p class="repo-acts">${add}</p>` + guides + '</section>';
 }
 
 // One line per item per day: what moved, not every log entry. null: commands that do not move an item.
@@ -657,7 +666,7 @@ function headerHtml() {
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
   return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="btn primary" data-start-open="1" title="Run /start for a new work item in opencode">Start a work item</button>` +
+    `<button type="button" class="btn primary" data-start-open="1" title="Describe a change, start an ADO work item, or investigate a question">Start work</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -863,8 +872,36 @@ export function cfgBuild() {
 }
 
 // --------------------------------------------------------- start a work item
-// Runs /start <id> <lane> in opencode (the connector's `start` action), like Docket's Start buttons.
-// S.ui.start: {lane, busy, error}; the id the user types lives in S.ui.drafts['start:id'].
+// Three ways to start, each a connector action:
+//   describe: work with no tracker item. `start.local` writes .work/L<n>-<name>/workitem.md from what the
+//             person types, then runs /start L<n> <lane>. The default: no tracker needed.
+//   ado:      an ADO work item by number (`start`: /start <id> <lane>). Shown when Tandem has ADO set up.
+//   spike:    a question to investigate, no code changes (`spike`: /spike <topic>).
+// S.ui.start: {mode, lane, busy, error}. What the person types lives in S.ui.drafts['start:<field>'].
+export const START_MODES = ['describe', 'ado', 'spike'];
+export const adoOn = () => !!(S.D && S.D.tandem && S.D.tandem.ado);
+/** The action and args for the start sheet as filled in, or {error}. */
+export function startRequest(st, drafts) {
+  const d = k => String(drafts['start:' + k] || '').trim();
+  const lane = st.lane;
+  if (st.mode === 'spike') {
+    const topic = d('topic');
+    if (!topic) return { error: 'Say what to investigate.' };
+    return { action: 'spike', args: { topic: topic.replace(/\s+/g, ' ').slice(0, 500) } };
+  }
+  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if (st.mode === 'ado') {
+    const r = startCheck(d('id'), lane);
+    return r.error ? r : { action: 'start', args: { id: r.id, lane } };
+  }
+  const title = d('title').replace(/\s+/g, ' ');
+  if (!title) return { error: 'Give the work a short title.' };
+  if (title.length > 200) return { error: 'Keep the title under 200 characters.' };
+  const args = { title, lane };
+  if (d('desc')) args.description = d('desc');
+  if (lane === 'bug' && d('repro')) args.repro = d('repro');
+  return { action: 'start.local', args };
+}
 export function startCheck(raw, lane) {
   const id = String(raw || '').trim().replace(/^#/, '');
   if (!/^[0-9]{1,10}$/.test(id)) return { error: 'Type the work item number, like 12345.' };
@@ -875,22 +912,132 @@ export function startCheck(raw, lane) {
 function startSheetHtml() {
   const st = S.ui.start;
   const o = (L() && L().opencode) || {};
+  const mode = st.mode === 'ado' && !adoOn() ? 'describe' : st.mode;
   const lane = st.lane;
+  const dv = k => h(S.ui.drafts['start:' + k] || '');
+  const tab = (k, label) => `<button type="button" data-start-mode="${k}" aria-pressed="${mode === k}"${mode === k ? ' class="on"' : ''}>${label}</button>`;
   const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
-  const head = `<div class="sheet-head"><h3 id="start-h">Start a work item</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
-  const body = `<p>Tandem reads the work item, sets up its folder in <code>.work</code> and your branch, then waits for you. It runs <code>/start</code> in opencode.</p>` +
-    `<form class="cfg" data-start-form="1" novalidate>` +
-    `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id" data-draft="start:id" value="${h(S.ui.drafts['start:id'] || '')}" placeholder="12345" autocomplete="off"></label>` +
-    `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div></form>` +
+  const lanes = `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">Start work</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const tabs = `<div class="gos start-modes" role="group" aria-label="How to start">${tab('describe', 'Describe it')}${adoOn() ? tab('ado', 'ADO work item') : ''}${tab('spike', 'Investigate')}</div>`;
+  let form;
+  if (mode === 'spike') {
+    form = `<p>An agent reads the code and answers a question, with options and a recommendation. It changes no code. It runs <code>/spike</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">What to investigate</span><textarea class="start-first" rows="3" data-draft="start:topic" placeholder="How does login refresh its token, and what would it take to make sessions last 8 hours?">${dv('topic')}</textarea></label>`;
+  } else if (mode === 'ado') {
+    form = `<p>Tandem fetches the work item from Azure DevOps, sets up its folder in <code>.work</code> and your branches, then waits for you. It runs <code>/start</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id start-first" data-draft="start:id" value="${dv('id')}" placeholder="12345" autocomplete="off"></label>` + lanes;
+  } else {
+    form = `<p>Describe the change in your own words. Tandem saves it as a work item, picks the repos, makes your branches, then waits for you. No tracker needed.</p>` +
+      lanes +
+      `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="${lane === 'bug' ? 'Export fails after one retry' : 'Add CSV export to reports'}" maxlength="200" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">What should change, and why</span><textarea rows="5" data-draft="start:desc" placeholder="The more you say, the fewer questions the agent asks.">${dv('desc')}</textarea></label>` +
+      (lane === 'bug' ? `<label class="cfg-row"><span class="cfg-t">Steps to reproduce</span><textarea rows="3" data-draft="start:repro" placeholder="1. Open reports 2. Click Export twice">${dv('repro')}</textarea></label>` : '');
+  }
+  const body = tabs + `<form class="cfg" data-start-form="1" novalidate>${form}</form>` +
     (o.connected ? '' : '<p class="gmsg bad">opencode is not connected to Workshop, so nothing can start yet.</p>') +
     (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
   const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
-    `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : 'Start'}</button>`;
+    `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : mode === 'spike' ? 'Investigate' : 'Start'}</button>`;
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
 }
 
+// --------------------------------------------------------- repos
+// Add a repo (`repo.add`: git clone into the workspace and list it in the repo map), then offer to draft its
+// guide (`repo.guide`: /onboard-repo). S.ui.repo: {busy, error, added: {folder, repoMap} | null}.
+export function repoUrlCheck(raw) {
+  const u = String(raw || '').trim();
+  if (!u) return { error: 'Paste the repo\'s clone URL.' };
+  if (/\s/.test(u)) return { error: 'A clone URL has no spaces.' };
+  if (!/^(https?:\/\/[^/]+\/.+|ssh:\/\/[^/]+\/.+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+)$/i.test(u)) return { error: 'That does not look like a git URL. Copy it from the repo\'s Clone button, for example https://github.com/owner/repo.git' };
+  return { url: u };
+}
+function repoSheetHtml() {
+  const st = S.ui.repo;
+  const head = `<div class="sheet-head"><h3 id="repo-h">${st.added ? 'Repo added' : 'Add a repo'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  let body, foot;
+  if (st.added) {
+    const a = st.added;
+    body = `<p><b>${h(a.folder)}</b> is in your workspace${a.repoMap === 'listed' ? '' : a.repoMap === 'created' ? ', and Dispatch started a repo map (<code>AGENTS.md</code> in the workspace) that lists it' : ', and it is listed in the repo map (<code>AGENTS.md</code> in the workspace)'}.</p>` +
+      `<p>Next, let an agent read it and draft its guide: how to build it, test it, and how it is laid out. Agents use the guide on every task in this repo. You review the draft before anything relies on it. It runs <code>/onboard-repo</code>.</p>`;
+    foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Later</button>' +
+      `<button type="button" class="btn primary" data-guide="${h(a.folder)}">Draft its guide</button>`;
+  } else {
+    body = `<p>Dispatch clones it into your workspace, next to your other repos, so agents can work in it. It uses the git sign-in already on this computer.</p>` +
+      `<form class="cfg" data-repo-form="1" novalidate>` +
+      `<label class="cfg-row"><span class="cfg-t">Clone URL</span><input type="text" class="mono repo-url" data-draft="repo:url" value="${h(S.ui.drafts['repo:url'] || '')}" placeholder="https://github.com/owner/repo.git" spellcheck="false" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">What it is, in one line (optional)</span><span class="cfg-d">Helps agents pick the right repo for a task.</span><input type="text" data-draft="repo:about" value="${h(S.ui.drafts['repo:about'] || '')}" placeholder="The web app customers use" maxlength="200" autocomplete="off"></label></form>` +
+      `<p class="note">Already have the code on this computer? Move or clone the folder into your workspace (<code>${h(S.D && S.D.workspace)}</code>) and it shows up here.</p>` +
+      (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+    foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+      `<button type="button" class="btn primary" data-repo-go="1"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning' : 'Add repo'}</button>`;
+  }
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="repo-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
+// --------------------------------------------------------- getting set up
+// After Workshop is connected, three things stand between "installed" and "an agent is on my task": an AI
+// provider in opencode, a repo in the workspace, and a first piece of work. This checklist shows until all
+// three are done. AI status comes from the connector (liveMode.live.opencode.ai): {known, providers}.
+export function aiState() {
+  const ai = L() && L().opencode && L().opencode.ai;
+  if (!ai || !ai.known) return 'unknown';
+  return (ai.providers || []).length ? 'on' : 'off';
+}
+export const AI_LOGIN = 'opencode auth login';
+function aiHelpHtml() {
+  return `<p>Agents need an AI model. Open ${((S.setup && S.setup.os) || 'win') === 'win' ? 'PowerShell' : 'Terminal'}, run this, pick a provider and paste its API key:</p>` +
+    `<div class="kit gcmd"><div class="kit-line"><code>${AI_LOGIN}</code>${copyBtn(AI_LOGIN)}</div></div>` +
+    `<p class="note">For Claude, pick <b>Anthropic</b> and use an API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. OpenAI, Google, OpenRouter and others work the same way. The key stays in opencode on this computer.</p>`;
+}
+export function onboardSteps() {
+  const ai = aiState();
+  const repos = ((S.D && S.D.repos) || []).length;
+  const items = ((S.D && S.D.items) || []).length;
+  return [
+    { k: 'ai', done: ai !== 'off', title: ai === 'on' ? `AI connected: ${L().opencode.ai.providers.join(', ')}` : ai === 'unknown' ? 'Connect an AI model' : 'Connect an AI model' },
+    { k: 'repo', done: repos > 0, title: repos ? `${plural(repos, 'repo')} in your workspace` : 'Add a repo' },
+    { k: 'work', done: items > 0, title: 'Start your first piece of work' }
+  ];
+}
+function onboardHtml() {
+  const steps = onboardSteps();
+  if (steps.every(x => x.done)) return '';
+  const open = (steps.find(x => !x.done) || {}).k;
+  const ai = aiState();
+  const bodies = {
+    ai: aiHelpHtml() + `<div class="gacts"><button type="button" class="btn primary" data-ai-check="1">I connected one, check again</button></div>` +
+      (ai === 'unknown' ? '<p class="note">This version of opencode does not say which providers are connected, so Dispatch cannot check. If you already logged in, skip this.</p>' : ''),
+    repo: `<p>Agents work in git repos inside your workspace folder. Add the code you want them to work on.</p><div class="gacts"><button type="button" class="btn primary" data-repo-open="1">Add a repo</button></div>`,
+    work: `<p>Describe a change in your own words, or ask a question about the code. No tracker needed.</p><div class="gacts"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>`
+  };
+  const li = steps.map((x, i) => `<li class="gstep${x.done ? ' done' : ''}${x.k === open ? ' open' : ''}"><div class="ghead"><span class="gnum" aria-hidden="true">${x.done ? CHECK_SVG : i + 1}</span><span class="gt">${h(x.title)}</span>${x.done ? '<span class="gstate">Done</span>' : ''}</div>` +
+    (x.k === open ? `<div class="gbody">${bodies[x.k]}</div>` : '') + '</li>').join('');
+  return `<section class="guide onboard" aria-label="Getting set up"><p class="eyebrow">Getting set up, ${steps.filter(x => x.done).length} of 3 done</p><ol class="gsteps">${li}</ol></section>`;
+}
+
+// --------------------------------------------------------- spikes and repo guides
+// Sessions started from Dispatch that are not (yet) tied to a .work item: a spike before its folder exists,
+// and repo guides (liveMode.live.others). Drawn like an item's agent box, with a Dismiss button once idle.
+export function looseSessions() {
+  if (!L() || !L().others) return [];
+  return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
+}
+function looseHtml() {
+  const list = looseSessions();
+  if (!list.length) return '';
+  return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
+    list.map(o => {
+      const s = o.s;
+      const perms = L().permissions.filter(p => p.sessionID === o.session), qs = L().questions.filter(q => q.sessionID === o.session);
+      const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
+      return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+        sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
+    }).join('') + '</div></section>';
+}
+
 function overlaysHtml() {
-  return menuHtml() + (S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  return menuHtml() + (S.ui.repo ? repoSheetHtml() : S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
 }
 
 /** The whole page. Resets the copy list, so call it once per paint. */
@@ -901,15 +1048,16 @@ export function render() {
   const by = {};
   items.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
   let html = headerHtml() + bannersHtml();
+  const setup = onboardHtml();
   if (!items.length) {
-    html += waitingHtml();
-    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start a work item</button></div>' +
-      '<p class="hint">Or type <span class="cmd">/start &lt;id&gt; feature</span> in opencode.</p></div>';
+    html += setup + waitingHtml() + looseHtml();
+    if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change, or ask a question about the code, and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
+      '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
     return html + overlaysHtml();
   }
   const pick = pickItem(items, by);
-  html += '<div class="grid"><main>' + waitingHtml();
+  html += '<div class="grid"><main>' + setup + waitingHtml() + looseHtml();
   if (pick) html += pickupHtml(pick);
   if (items.length > 8) {
     html += '<ul class="counts" aria-label="Jump to a group">' + GROUPS.map(g => {

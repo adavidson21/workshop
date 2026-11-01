@@ -96,7 +96,13 @@ export function configure(c) {
   }
   if (!opt.workspace) return "Set the workspace folder (the folder that holds .work) in Settings.";
   workRoot = path.join(opt.workspace, ".work");
-  if (!fs.existsSync(workRoot)) return `No .work folder in ${opt.workspace}. Set the workspace folder to the one that holds .work.`;
+  // A new workspace has no .work yet: create it, so a fresh install works before the first /start.
+  if (!fs.existsSync(opt.workspace)) return `The workspace folder ${opt.workspace} does not exist. Create it, or pick another one in opencode settings.`;
+  try {
+    fs.mkdirSync(workRoot, { recursive: true });
+  } catch (e) {
+    return `Could not create ${workRoot}: ${e.code || e.message}`;
+  }
   stateDir = path.join(workRoot, "_dashboard");
   sessionsFile = path.join(stateDir, "sessions.json");
   if (!fs.existsSync(scriptPath)) return `Missing ${scriptPath}. Reinstall Workshop.`;

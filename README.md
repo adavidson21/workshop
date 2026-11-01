@@ -44,7 +44,7 @@ The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<
 
 ### One-line install (Workshop and Tandem)
 
-This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node and opencode if they are missing (plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode, turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, turns on start at login, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
+This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node and opencode if they are missing (plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode, asks to connect an AI model (`opencode auth login`) unless opencode already has one, turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, turns on start at login, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
 
 - Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
 - macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`

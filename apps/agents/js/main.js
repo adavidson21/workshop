@@ -14,7 +14,7 @@ if (window.parent === window && location.hostname === 'workshop.alexisdavidson.o
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startCheck } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -254,34 +254,68 @@ document.addEventListener('pointerup', () => {
 /* ---------- input ---------- */
 const ui = () => S.ui;
 function closeOverlays() {
-  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null;
+  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null;
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
 }
 
-/* ---------- start a work item (view.js startSheetHtml) ---------- */
-function openStart() {
+/* ---------- start work (view.js startSheetHtml) ---------- */
+let lastMode = 'describe', lastLane = 'feature';
+function focusFirst(sel) { const box = app.querySelector(sel); if (box) box.focus(); }
+function openStart(mode) {
   closeOverlays();
-  ui().start = { lane: 'feature', busy: false, error: null };
+  ui().start = { mode: mode || lastMode, lane: lastLane, busy: false, error: null };
   paint();
-  const box = app.querySelector('.start-id'); if (box) box.focus();
+  focusFirst('.start-first');
 }
 // The click on Start is the approval for this write action.
 async function startGo() {
   const st = ui().start;
   if (!st || st.busy) return;
-  const r = startCheck(ui().drafts['start:id'], st.lane);
+  const r = startRequest(st, ui().drafts);
   if (r.error) { st.error = r.error; paint(); return; }
   st.busy = true; st.error = null; paint();
   try {
-    await write('start', { id: r.id, lane: r.lane });
-    delete ui().drafts['start:id'];
+    const res = await write(r.action, r.args);
+    for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
+    lastMode = st.mode; lastLane = st.lane;
     closeOverlays();
-    toast(`Starting #${r.id} as a ${r.lane} in opencode. It shows up here when its folder is ready.`);
+    toast(r.action === 'spike' ? 'Investigating in opencode. Its answers show up here.'
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}. The agent picks repos and may ask you to confirm them here.`
+      : `Starting #${r.args.id} as a ${r.args.lane} in opencode. It shows up here when its folder is ready.`);
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
   fetchSoon();
   schedule();
+}
+
+/* ---------- repos (view.js repoSheetHtml) ---------- */
+function openRepo() {
+  closeOverlays();
+  ui().repo = { busy: false, error: null, added: null };
+  paint();
+  focusFirst('.repo-url');
+}
+async function repoGo() {
+  const st = ui().repo;
+  if (!st || st.busy) return;
+  const r = repoUrlCheck(ui().drafts['repo:url']);
+  if (r.error) { st.error = r.error; paint(); return; }
+  st.busy = true; st.error = null; paint();
+  try {
+    const about = String(ui().drafts['repo:about'] || '').trim();
+    const res = await write('repo.add', about ? { url: r.url, about } : { url: r.url });
+    delete ui().drafts['repo:url']; delete ui().drafts['repo:about'];
+    if (ui().repo) { ui().repo.busy = false; ui().repo.added = res; }
+  } catch (e) {
+    if (ui().repo) { ui().repo.busy = false; ui().repo.error = errText(e); }
+  }
+  fetchSoon();
+  schedule();
+}
+function draftGuide(folder) {
+  closeOverlays();
+  act(() => write('repo.guide', { repo: folder }), () => toast(`An agent is reading ${folder} to draft its guide. Follow it under Investigations and repo guides.`));
 }
 
 /* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
@@ -409,6 +443,16 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-start-go]')) { startGo(); return; }
   const sl = t.closest('[data-start-lane]');
   if (sl && ui().start) { ui().start.lane = sl.getAttribute('data-start-lane'); ui().start.error = null; paint(); return; }
+  const sm = t.closest('[data-start-mode]');
+  if (sm && ui().start) { ui().start.mode = sm.getAttribute('data-start-mode'); ui().start.error = null; paint(); focusFirst('.start-first'); return; }
+  if (t.closest('[data-repo-open]')) { openRepo(); return; }
+  if (t.closest('[data-repo-go]')) { repoGo(); return; }
+  const gb = t.closest('[data-guide]');
+  if (gb) { draftGuide(gb.getAttribute('data-guide')); return; }
+  const dm = t.closest('[data-dismiss]');
+  if (dm) { act(() => read('session.dismiss', { session: dm.getAttribute('data-dismiss') })); return; }
+  const ac = t.closest('[data-ai-check]');
+  if (ac) { act(() => read('refresh'), () => toast('Checked opencode for AI providers.'), 'ai'); return; }
   if (t.closest('[data-cfg-save]')) { saveSettings(); return; }
   if (t.closest('[data-close-sheet]')) { closeOverlays(); paint(); return; }
   const fb = t.closest('[data-file]');
@@ -490,12 +534,14 @@ app.addEventListener('change', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start) { closeOverlays(); paint(); }
+  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo) { closeOverlays(); paint(); }
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
-  if (ev.key === 'Enter' && dk === 'start:id') { ev.preventDefault(); startGo(); return; }
+  if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title')) { ev.preventDefault(); startGo(); return; }
+  if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('start:')) { ev.preventDefault(); startGo(); return; }
+  if (ev.key === 'Enter' && dk && dk.startsWith('repo:')) { ev.preventDefault(); repoGo(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
     ev.preventDefault();
     const go = app.querySelector('[data-remove-go]');
@@ -510,10 +556,12 @@ app.addEventListener('keydown', ev => {
 
 /* ---------- palette commands ---------- */
 ws.commands.register({ id: 'refresh', title: 'Refresh work items' });
-ws.commands.register({ id: 'start', title: 'Start a work item' });
+ws.commands.register({ id: 'start', title: 'Start work' });
+ws.commands.register({ id: 'repo', title: 'Add a repo' });
 ws.on('command', ({ id }) => {
   if (id === 'refresh') act(() => read('refresh'));
   if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
+  if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
 });
 
 /* ---------- start ---------- */

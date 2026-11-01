@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck } from '../js/view.js';
+import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, onboardSteps, aiState, looseSessions } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -217,8 +217,16 @@ test('before the connector is ready, the page says what is wrong and how to fix 
 test('an empty .work says how to start', () => {
   const empty = clone(FIXTURE);
   empty.items = []; empty.activity = [];
+  empty.liveMode.live.opencode.ai = { known: true, providers: ['Anthropic'] };
   load(empty);
-  assert.match(render(), /No work in \.work yet.*data-start-open="1">Start a work item.*\/start &lt;id&gt; feature/s);
+  let html = render();
+  assert.match(html, /Getting set up, 2 of 3 done.*class="gstep open">.*Start your first piece of work.*data-start-open="1">Start work/s, 'the checklist leads to the first piece of work');
+  assert.match(html, /AI connected: Anthropic/);
+  S.L.opencode.ai = { known: false, providers: [] };
+  S.D.repos = [];
+  html = render();
+  assert.match(html, /class="gstep open">.*Add a repo.*data-repo-open="1"/s, 'no repos: adding one is next');
+  assert.match(html, /No repos in your workspace yet/);
 });
 
 test('the setup guide is one install command, then connect', () => {
@@ -290,22 +298,79 @@ test('opencode settings: a form from the connector schema; hosted pages edit onl
   S.agentUrl = null;
 });
 
-test('start a work item: a button in the header opens a sheet that runs /start', () => {
+test('start work: describe it (default), an ADO number when ADO is set up, or investigate', () => {
   load(clone(FIXTURE));
   let html = render();
-  assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start a work item/s, 'the header has the button');
-  S.ui.start = { lane: 'feature', busy: false, error: null };
+  assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start work/s, 'the header has the button');
+  S.ui.start = { mode: 'describe', lane: 'feature', busy: false, error: null };
   S.L.opencode = { ...(S.L.opencode || {}), connected: true };
   html = render();
-  assert.match(html, /<h3 id="start-h">Start a work item<\/h3>/);
-  assert.match(html, /data-start-lane="feature" aria-pressed="true" class="on"/);
-  assert.match(html, /data-start-go="1">Start</);
+  assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
+  assert.match(html, /data-start-mode="describe" aria-pressed="true"/);
+  assert.doesNotMatch(html, /data-start-mode="ado"/, 'no ADO tab when Tandem has no ADO set up');
+  assert.match(html, /data-draft="start:title"/);
+  assert.doesNotMatch(html, /start:repro/, 'no repro steps for a feature');
+  S.ui.start.lane = 'bug';
+  assert.match(render(), /data-draft="start:repro"/);
+  S.D.tandem = { ado: true };
+  S.ui.start.mode = 'ado';
+  html = render();
+  assert.match(html, /data-start-mode="ado" aria-pressed="true".*Work item number/s);
+  S.ui.start.mode = 'spike';
+  assert.match(render(), /data-draft="start:topic".*data-start-go="1">Investigate</s);
   S.L.opencode.connected = false;
   assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
+
+  const req = (st, drafts) => startRequest({ lane: 'feature', ...st }, drafts);
+  assert.deepEqual(req({ mode: 'describe' }, { 'start:title': '  Add  CSV export ', 'start:desc': 'For the reports page.' }), { action: 'start.local', args: { title: 'Add CSV export', lane: 'feature', description: 'For the reports page.' } });
+  assert.deepEqual(req({ mode: 'describe', lane: 'bug' }, { 'start:title': 'Export fails', 'start:repro': '1. Export twice' }), { action: 'start.local', args: { title: 'Export fails', lane: 'bug', repro: '1. Export twice' } });
+  assert.match(req({ mode: 'describe' }, {}).error, /title/);
+  assert.deepEqual(req({ mode: 'ado' }, { 'start:id': '#9988776' }), { action: 'start', args: { id: '9988776', lane: 'feature' } });
+  assert.deepEqual(req({ mode: 'spike' }, { 'start:topic': 'How does\nlogin work?' }), { action: 'spike', args: { topic: 'How does login work?' } });
+  assert.match(req({ mode: 'spike' }, {}).error, /investigate/);
 
   assert.deepEqual(startCheck(' #9988776 ', 'bug'), { id: '9988776', lane: 'bug' });
   assert.match(startCheck('abc', 'feature').error, /work item number/);
   assert.match(startCheck('1', 'other').error, /Feature or Bug/);
-  const taken = (S.D.items || []).find(it => it.id);
+  const taken = (S.D.items || []).find(it => /^\d+$/.test(String(it.id)));
   if (taken) assert.match(startCheck(String(taken.id), 'feature').error, /already started/);
+});
+
+test('add a repo: a clone URL, then an offer to draft its guide', () => {
+  load(clone(FIXTURE));
+  assert.match(render(), /data-repo-open="1">Add a repo.*data-guide="gateway">Draft guide/s, 'the repos panel can add a repo and draft guides');
+  S.ui.repo = { busy: false, error: null, added: null };
+  assert.match(render(), /<h3 id="repo-h">Add a repo<\/h3>.*data-draft="repo:url".*data-repo-go="1">Add repo/s);
+  S.ui.repo.added = { folder: 'web-app', repoMap: 'created' };
+  assert.match(render(), /Repo added.*started a repo map.*data-guide="web-app">Draft its guide/s);
+  assert.deepEqual(repoUrlCheck(' https://github.com/owner/repo.git '), { url: 'https://github.com/owner/repo.git' });
+  assert.deepEqual(repoUrlCheck('git@github.com:owner/repo.git'), { url: 'git@github.com:owner/repo.git' });
+  assert.match(repoUrlCheck('owner/repo').error, /git URL/);
+  assert.match(repoUrlCheck('').error, /clone URL/);
+});
+
+test('AI: the checklist and a banner say how to connect one; unknown is not treated as missing', () => {
+  load(clone(FIXTURE));
+  S.L.opencode.ai = { known: true, providers: [] };
+  assert.equal(aiState(), 'off');
+  let html = render();
+  assert.match(html, /Getting set up, 2 of 3 done.*class="gstep open">.*Connect an AI model.*opencode auth login.*data-ai-check="1"/s);
+  assert.match(html, /console\.anthropic\.com/, 'says how to use Claude');
+  S.L.opencode.ai = { known: false, providers: [] };
+  assert.equal(aiState(), 'unknown');
+  assert.equal(onboardSteps()[0].done, true);
+  assert.doesNotMatch(render(), /Getting set up/, 'all set: no checklist');
+  S.L.opencode.ai = { known: true, providers: ['OpenAI'] };
+  assert.equal(aiState(), 'on');
+});
+
+test('spikes and repo guides started from Dispatch show with their own reply box until dismissed', () => {
+  load(clone(FIXTURE));
+  S.L.sessions.ses_loose = { id: 'ses_loose', title: '/spike how does login work', status: 'idle', command: '/spike how does login work', text: 'Two options.', folder: null };
+  S.L.others = [{ session: 'ses_loose', command: '/spike how does login work', at: S.now - 60000 }];
+  assert.equal(looseSessions().length, 1);
+  const html = render();
+  assert.match(html, /Investigations and repo guides.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
+  S.L.sessions.ses_loose.folder = 'spike-login';
+  assert.equal(looseSessions().length, 0, 'once its folder exists, it is drawn with that item');
 });

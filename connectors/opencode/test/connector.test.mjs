@@ -341,8 +341,8 @@ describe("settings and lifecycle", { skip }, () => {
       await oc.stop();
       await startConnector(configFor(path.join(ws.dir, "missing")));
       assert.equal(oc.status().state, "error");
-      assert.match(oc.status().message, /No \.work folder/);
-      await rejects(call("status"), "unavailable", /No \.work folder/);
+      assert.match(oc.status().message, /does not exist/);
+      await rejects(call("status"), "unavailable", /does not exist/);
       await oc.stop();
       await startConnector({ ...configFor(ws.dir, { url: "http://127.0.0.1:9" }), powershell: "no-such-powershell-xyz" });
       assert.equal(oc.status().state, "error");

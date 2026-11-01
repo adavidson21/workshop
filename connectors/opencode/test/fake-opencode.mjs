@@ -15,8 +15,9 @@ const json = (res, status, body) => {
  * @param {string} [o.password]   2.x: required basic auth password (user "opencode" unless o.username)
  * @param {string} [o.username]
  * @param {string[]} [o.commands]
+ * @param {string[]|null} [o.providers]  connected AI provider ids (null: the provider route is missing)
  */
-export async function startFakeOpencode({ kind, version, password = null, username = "opencode", commands = ["start", "spec", "plan", "approve", "tasks", "do-task", "review", "pr", "bug"] }) {
+export async function startFakeOpencode({ kind, version, password = null, username = "opencode", commands = ["start", "spec", "plan", "approve", "tasks", "do-task", "review", "pr", "bug", "spike", "onboard-repo"], providers = ["anthropic"] }) {
   const s = {
     kind,
     version: version || (kind === "v2" ? "2.0.4" : "1.14.2"),
@@ -27,6 +28,7 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     permissions: [], // raw permission objects (version-specific shape)
     forms: [], // raw question or form objects
     streams: new Set(),
+    providers, // tests may change this
     n: 0,
     commandResult: null, // set to {status, body} to make the next command call fail
   };
@@ -60,6 +62,7 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     let r;
     if (req.method === "GET" && p === "/global/health") return json(res, 200, { healthy: true, version: s.version });
     if (req.method === "GET" && p === "/command") return json(res, 200, commands.map((name) => ({ name })));
+    if (req.method === "GET" && p === "/provider" && s.providers) return json(res, 200, { all: [{ id: "anthropic", name: "Anthropic" }, { id: "openai", name: "OpenAI" }], connected: s.providers, default: {} });
     if (req.method === "GET" && p === "/session") return json(res, 200, [...s.sessions.values()].map((x) => ({ id: x.id, title: x.title, time: { updated: 1 } })));
     if (req.method === "GET" && p === "/session/status") return json(res, 200, Object.fromEntries([...s.active].map((id) => [id, { type: "busy" }])));
     if (req.method === "GET" && p === "/permission") return json(res, 200, s.permissions);
@@ -99,6 +102,7 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     let r;
     if (req.method === "GET" && p === "/api/info") return json(res, 200, { version: s.version });
     if (req.method === "GET" && p === "/api/command") return json(res, 200, { data: commands.map((name) => ({ name })) });
+    if (req.method === "GET" && p === "/api/provider" && s.providers) return json(res, 200, { data: { all: [{ id: "anthropic", name: "Anthropic" }, { id: "openai", name: "OpenAI" }], connected: s.providers } });
     if (req.method === "GET" && p === "/api/session") return json(res, 200, { data: [...s.sessions.values()].map((x) => ({ id: x.id, title: x.title, time: { updated: 1 } })) });
     if (req.method === "GET" && p === "/api/session/active") return json(res, 200, { data: Object.fromEntries([...s.active].map((id) => [id, true])) });
     if (req.method === "GET" && p === "/api/permission/request") return json(res, 200, { data: s.permissions });

@@ -9,7 +9,8 @@
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
 #   4. PowerShell 7 (pwsh), which Tandem runs on: uses yours, or downloads a private copy.
-#   5. Installs Tandem into opencode (eng-agents install.ps1).
+#   5. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
+#      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
 #   6. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~/work, start at login.
 #   7. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
@@ -139,6 +140,29 @@ main() {
   local targs=(-NoProfile -File "$ROOT/eng-agents/install.ps1")
   if [ -d "$HOME/.config/eng-agents/personal" ]; then targs+=(-Personal "$HOME/.config/eng-agents/personal"); say "Using your personal layer at ~/.config/eng-agents/personal."; fi
   "$PWSH" "${targs[@]}" || fail "Tandem install failed. See the messages above."
+
+  # ------------------------------------------------------------ AI model
+  # Agents need an AI provider in opencode. Ask once, unless opencode already has one (saved credentials or a
+  # known API key variable). The script itself arrives on stdin, so the question reads from the terminal.
+  step "AI model"
+  local has_ai="" auth="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
+  if [ -s "$auth" ] && "$NODE" -e 'process.exit(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))).length ? 0 : 1)' "$auth" 2>/dev/null; then has_ai=1; fi
+  for v in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY OPENROUTER_API_KEY GROQ_API_KEY XAI_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY; do
+    if [ -n "$(printenv "$v" 2>/dev/null || true)" ]; then has_ai=1; fi
+  done
+  if [ -n "$has_ai" ]; then say "opencode already has an AI provider."
+  elif [ -n "${WORKSHOP_SKIP_AI:-}" ] || ! (exec < /dev/tty) 2>/dev/null; then say "Later: run  opencode auth login  to connect an AI model. Dispatch shows how."
+  else
+    say "Agents need an AI model. You pick a provider and paste its API key; it stays in opencode on this computer."
+    say "For Claude, pick Anthropic and use a key from https://console.anthropic.com"
+    local ans=""
+    printf '  Connect one now? [Y/n] '
+    read -r ans < /dev/tty || ans=n
+    case "$ans" in
+      n|N|no|No|NO) say "Skipped. Dispatch shows how to connect one later." ;;
+      *) "$OPENCODE" auth login < /dev/tty || say "Not connected. Run  opencode auth login  later; Dispatch shows how." ;;
+    esac
+  fi
 
   # ------------------------------------------------------------ 6. Workshop setup
   step "Setting up Workshop"

@@ -5,7 +5,7 @@
 
 import { httpError, inWorkspace, opt } from "./context.mjs";
 import { folderForArgs, folderForPrompt, linkFrom } from "./links.mjs";
-import { appendText, errText, httpJson, oc, permissions, questions, refreshPromptsSoon, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
+import { appendText, errText, httpJson, oc, parseProviders, permissions, questions, refreshPromptsSoon, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 
 export function makeV2(url, password) {
   const base = url.replace(/\/+$/, "");
@@ -53,6 +53,11 @@ export function makeV2(url, password) {
     async loadCommands() {
       const r = await call(`/api/command?${loc()}`);
       if (r.ok && r.data && Array.isArray(r.data.data)) oc.commands = new Set(r.data.data.map((c) => c.name));
+    },
+    async loadProviders() {
+      const r = await call(`/api/provider?${loc()}`, { timeout: 5000 });
+      const list = r.ok ? parseProviders(r.data) : null;
+      return (oc.ai = list ? { known: true, providers: list } : { known: false, providers: [] });
     },
     async loadSessions() {
       const r = await call(`/api/session?directory=${encodeURIComponent(opt.workspace)}&limit=200`);

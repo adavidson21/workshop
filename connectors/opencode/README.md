@@ -49,11 +49,16 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | Action | Write | Args | Live server route | Result |
 | --- | --- | --- | --- | --- |
 | `status` | no | | `GET /api/shell/status` | The shell API 1 shape, unchanged: `{app: "eng-agents-dashboard", api: 1, version, workspace, opencode, error, items[]}`. Each item has `stage`, `next` (with `text`), `busy`, `waiting`, `autopilot`. `version` is the connector's. |
-| `state` | no | | the page data | Everything the dashboard page got: the parser's model (items, repos, activity, `stepWords`, PR text) plus `liveMode.live` (sessions, prompts, questions, autopilot, `canOpenTerminal`). |
-| `refresh` | no | | `POST /api/refresh` | Reads `.work` again. `{ok, error}`. |
+| `state` | no | | the page data | Everything the dashboard page got: the parser's model (items, repos, activity, `stepWords`, PR text) plus `liveMode.live` (sessions, prompts, questions, autopilot, `canOpenTerminal`, `others`, and `opencode.ai`: `{known, providers}`, the AI providers opencode can use, or `known: false` when this opencode does not say) and `tandem.ado` (whether Tandem has ADO connections set up). |
+| `refresh` | no | | `POST /api/refresh` | Reads `.work` again and asks opencode for its AI providers again. `{ok, error}`. |
 | `file.read` | no | `folder`, `file` | `GET /files/<folder>/<file>` | `{folder, file, text}`. Only `.work/<folder>/<name>.md`. |
 | `run` | yes | `folder`, `command` | `POST /api/run` | Runs a pipeline command (`/plan 41207`) in the item's session; `/do-task` and `/check-docs` get a new one. `{session}`. |
 | `start` | yes | `id`, `lane` (`feature` or `bug`) | `POST /api/shell/start` | Runs `/start <id> <lane>` in a new session. |
+| `start.local` | yes | `title`, `lane`, optional `description`, `repro` | (new) | Work with no tracker item: writes `.work/L<n>-<name>/workitem.md` (same shape as eng-agents `New-LocalWorkItem.ps1`; numbers are never reused, see `.work/.local-ids`), then runs `/start L<n> <lane>` in a new session. `{id, folder, session}`. |
+| `spike` | yes | `topic` | (new) | Runs `/spike <topic>` in a new session. Until its `spike-*` folder exists, the session is listed in `liveMode.live.others`. `{session}`. |
+| `repo.add` | yes | `url`, optional `about` | (new) | `git clone` into the workspace (no terminal prompts; credential helpers still work), then adds a row to the repo map (`AGENTS.md` in the workspace, created if missing). `{folder, repoMap: "created" | "added" | "listed"}`. |
+| `repo.guide` | yes | `repo` (a folder in the workspace) | (new) | Runs `/onboard-repo <repo>` in a new session, listed in `liveMode.live.others`. `{session}`. |
+| `session.dismiss` | no | `session` | (new) | Stops listing a spike or repo guide session in `others`. The opencode session is kept. |
 | `reply` | yes | `session`, `text` | `POST /api/reply` | Sends text to the session; a `/command` runs in the item's pipeline. |
 | `answer` | yes | `kind` (`permission` or `question`), `id`, then `reply` (`once`, `always`, `reject`) or `answers` / `reject` | `POST /api/permission`, `POST /api/question` | |
 | `abort` | yes | `session` | `POST /api/abort` | |

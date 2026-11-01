@@ -13,6 +13,8 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
+import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startSpike } from "./lib/workspace.mjs";
+import { loadProviders } from "./lib/opencode-connect.mjs";
 
 export const configSchema = {
   type: "object",
@@ -102,6 +104,7 @@ function setPhase(p, msg = null) {
 
 function resetAll() {
   shutdown();
+  resetWorkspace();
   disconnectOpencode();
   resetModel();
   resetLive();
@@ -171,6 +174,7 @@ const actions = {
     async run() {
       needReady();
       await refresh();
+      await loadProviders(); // "Check again" after connecting an AI provider
       return { ok: true, error: modelError };
     },
   },
@@ -199,6 +203,56 @@ const actions = {
     async run(args) {
       needReady();
       return startItem(args);
+    },
+  },
+  "start.local": {
+    title: "Start work with no tracker item (describe it)",
+    write: true,
+    argsSchema: obj(["title", "lane"], {
+      title: str("Title", { minLength: 1, maxLength: 200 }),
+      description: str("Description", { maxLength: 20000 }),
+      repro: str("Steps to reproduce (bugs)", { maxLength: 20000 }),
+      lane: { type: "string", title: "Lane", enum: ["feature", "bug"] },
+    }),
+    async run(args) {
+      needReady();
+      return startLocal(args);
+    },
+  },
+  spike: {
+    title: "Start a spike (investigate, no code changes)",
+    write: true,
+    argsSchema: obj(["topic"], { topic: str("What to investigate", { minLength: 1, maxLength: 500 }) }),
+    async run(args) {
+      needReady();
+      return startSpike(args);
+    },
+  },
+  "repo.add": {
+    title: "Clone a repo into the workspace",
+    write: true,
+    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      return addRepo(args);
+    },
+  },
+  "repo.guide": {
+    title: "Draft a repo's guide (/onboard-repo)",
+    write: true,
+    argsSchema: obj(["repo"], { repo: str("Repo folder", { minLength: 1, maxLength: 100 }) }),
+    async run(args) {
+      needReady();
+      return onboardRepo(args);
+    },
+  },
+  "session.dismiss": {
+    title: "Stop showing a spike or repo guide session",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return dismissLoose(args);
     },
   },
   reply: {
