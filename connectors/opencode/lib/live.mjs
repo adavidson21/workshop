@@ -7,7 +7,8 @@
 
 import { cancel, ctx, isWin, later, opt, running } from "./context.mjs";
 import { model, modelError } from "./model.mjs";
-import { currentSession, folderForSession, links } from "./links.mjs";
+import { currentSession, folderForSession, folderForToken, links } from "./links.mjs";
+import { projectsData } from "./projects.mjs";
 import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { attachCommand } from "./actions.mjs";
 import { autoData, autopilot } from "./autopilot.mjs";
@@ -39,7 +40,7 @@ export function liveData() {
 /** The `state` action: the model from New-Dashboard.ps1 plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, tandem: { ado: adoConfigured() }, liveMode: { error: modelError, live: liveData() } };
+  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events
@@ -102,6 +103,11 @@ export function broadcastLive() {
       autopilot: Object.values(autopilot).filter((a) => a.status === "running").length,
     });
   }, 200);
+}
+
+/** `projects`: a project was added, changed or removed, or a run moved. Apps call `state` again. */
+export function emitProjects(change) {
+  emit("projects", { change });
 }
 
 /** `agent.done`: a session tied to a work item finished a turn. */

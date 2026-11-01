@@ -19,7 +19,7 @@ test("module follows the connector contract and its configSchema fits the settin
   assert.equal(oc.api, 1);
   assert.deepEqual(schemas.validate("config-form", configSchema), []);
   const writes = Object.entries(oc.actions).filter(([, a]) => a.write).map(([n]) => n).sort();
-  assert.deepEqual(writes, ["abort", "answer", "autopilot", "push", "remove", "reply", "repo.add", "repo.guide", "run", "spike", "start", "start.local"], "everything that changes opencode, git, .work or the workspace needs confirm");
+  assert.deepEqual(writes, ["abort", "answer", "autopilot", "project.create", "project.delete", "project.update", "push", "remove", "reply", "repo.add", "repo.guide", "run", "run.assign", "spike", "start", "start.local"], "everything that changes opencode, git, .work or the workspace needs confirm");
   for (const n of ["status", "state", "refresh", "file.read", "terminal", "session.dismiss"]) assert.equal(oc.actions[n].write, false);
 });
 
