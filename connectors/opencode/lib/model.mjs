@@ -28,6 +28,8 @@ export function resetModel() {
   modelError = null;
   refreshing = false;
   refreshAgain = false;
+  for (const w of waiters) w();
+  waiters = [];
   if (watcher) {
     try { watcher.close(); } catch {}
   }
@@ -63,13 +65,19 @@ export function runModel() {
   });
 }
 
+// Callers waiting for a read that starts after their change (for example start.local reading back the
+// folder it just made). A call during a read used to return at once, before the new folder was seen.
+let waiters = [];
+
 export async function refresh() {
   if (!running) return;
   if (refreshing) {
     refreshAgain = true;
-    return;
+    return new Promise((resolve) => waiters.push(resolve));
   }
   refreshing = true;
+  const done = waiters;
+  waiters = [];
   const apply = current((r) => {
     if (r.error) {
       modelError = r.error;
@@ -84,9 +92,13 @@ export async function refresh() {
     apply(await runModel());
   } finally {
     refreshing = false;
+    for (const w of done) w();
     if (refreshAgain && running) {
       refreshAgain = false;
-      later(refresh, 50);
+      refresh();
+    } else {
+      for (const w of waiters) w();
+      waiters = [];
     }
   }
 }
