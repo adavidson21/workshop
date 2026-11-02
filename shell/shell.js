@@ -11,12 +11,11 @@
    toast, badge, notify, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
+import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 
 const $ = s => document.querySelector(s);
 const svg = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const PAIR_KEY = 'workshop.agent';
-const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/;
 
 let env = { mode: 'browser', backend: 'browser', agentUrl: null, token: null };
 let apps = [];            // [{id, manifest, base, frame?, ...}]
@@ -420,30 +419,14 @@ function toast(msg, label, fn, ms = 4000, kind) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
-/* ---------- hosted pairing (docs/run-modes.md, Pairing) ----------
-   On a static site (not the agent's own page), the user can pair this browser with Workshop on their
-   computer. The agent's /pair page asks them to allow this origin, then posts {type: 'workshop-pair', api,
-   url, token} back. The pair is stored as workshop.agent; on reload the SDK uses the agent. */
-const canPair = () => env.mode === 'browser' && location.protocol === 'https:';
-let pairWin = null;
+/* ---------- hosted pairing (docs/run-modes.md, Pairing; shared/pair.js) ----------
+   On the site (not the agent's own page), the user can pair this browser with Workshop on their computer. */
+const canPair = () => canPairWith(env);
 async function startPairing() {
   const port = await askPort();
   if (!port) return;
-  const agent = `http://127.0.0.1:${port}`;
-  pairWin = window.open(`${agent}/pair?origin=${encodeURIComponent(location.origin)}`, 'workshop-pair', 'popup,width=520,height=420');
-  if (!pairWin) toast('Your browser blocked the window. Allow pop-ups for this site and try again.', null, null, 8000, 'warn');
-}
-window.addEventListener('message', e => {
-  const m = e.data;
-  if (!pairWin || e.source !== pairWin || !m || m.type !== 'workshop-pair' || m.api !== 1) return;
-  if (!LOOPBACK.test(e.origin) || m.url !== e.origin || typeof m.token !== 'string' || !m.token) return;
-  try { localStorage.setItem(PAIR_KEY, JSON.stringify({ url: m.url, token: m.token })); } catch (err) { return toast('This browser would not save the connection.', null, null, 8000, 'error'); }
-  pairWin = null;
-  location.reload();
-});
-function forgetPairing() {
-  try { localStorage.removeItem(PAIR_KEY); } catch (e) { /* nothing stored */ }
-  location.reload();
+  if (pairWith(port, { onError: m => toast(m, null, null, 8000, 'error') }) === 'blocked')
+    toast('Your browser blocked the window. Allow pop-ups for this site and try again.', null, null, 8000, 'warn');
 }
 function askPort() {
   return new Promise(resolve => {
@@ -451,7 +434,7 @@ function askPort() {
     d.className = 'cmdk';
     d.innerHTML = `<div class="cmdk-backdrop"></div><form class="cmdk-box pair" role="dialog" aria-modal="true" aria-labelledby="pairTitle">
       <h2 id="pairTitle">Use Workshop on this computer</h2>
-      <p>Your data stays on this computer. Workshop must be running, hosted mode must be on, and this site must be in its allowed origins (Settings, on this computer).</p>
+      <p>${esc(PAIR_HELP)}</p>
       <label>Port <input class="mono" type="number" min="1024" max="65535" value="4380" required></label>
       <div class="acts"><button type="button" class="btn ghost" data-x>Cancel</button><button class="btn primary">Continue</button></div></form>`;
     document.body.appendChild(d);
