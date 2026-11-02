@@ -22,8 +22,15 @@ let refreshAgain = false;
 let watcher = null;
 let poller = null;
 let debounce = null;
+// The parser process running now, if any. Its working folder is the workspace, so on Windows the folder
+// cannot be removed until it exits: stop ends it and waits (parserGone).
+let child = null;
+let childExit = Promise.resolve();
 
 export function resetModel() {
+  if (child) {
+    try { child.kill(); } catch {}
+  }
   model = null;
   modelError = null;
   refreshing = false;
@@ -49,6 +56,13 @@ export function runModel() {
     } catch (e) {
       return resolve({ error: e.message });
     }
+    child = p;
+    childExit = new Promise((gone) => {
+      p.on("close", gone);
+      p.on("error", gone);
+    }).then(() => {
+      if (child === p) child = null;
+    });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
@@ -68,6 +82,11 @@ export function runModel() {
 // Callers waiting for a read that starts after their change (for example start.local reading back the
 // folder it just made). A call during a read used to return at once, before the new folder was seen.
 let waiters = [];
+
+/** Resolves once no parser process is running (after resetModel ends it). */
+export function parserGone() {
+  return childExit;
+}
 
 export async function refresh() {
   if (!running) return;

@@ -586,6 +586,14 @@ def seen(frame, selector, ms=20000, state='attached'):
         return False
 
 
+def toast_has(page, text, ms=10000):
+    """True once the shell's toast says text, waiting up to ms."""
+    try:
+        page.wait_for_function('t => (document.querySelector("#toast") || {}).innerText?.includes(t)', arg=text, timeout=ms); return True
+    except Exception:
+        return False
+
+
 def agents_checks(b, watch):
     """Part 5: the Agents app on the opencode connector (WS6), with a synthetic workspace and a fake opencode."""
     fx = subprocess.Popen(['node', os.path.join(ROOT, 'apps', 'agents', 'test', 'fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -663,6 +671,8 @@ def agents_checks(b, watch):
             if pushed: break
             pg.wait_for_timeout(250)
         check('Push pushes the pr.md branch to origin', pushed)
+        # The branch reaches origin before Push answers; wait for its toast so it cannot replace the next one.
+        toast_has(pg, 'Pushed ')
 
         # Remove: the dialog, typing the name, and the folder gone.
         af.locator('#item-spike-cache-options [data-remove]').click(); pg.wait_for_timeout(300)
@@ -670,7 +680,7 @@ def agents_checks(b, watch):
         check('Remove asks you to type the name first', go.is_disabled() and 'cannot be undone' in af.inner_text('.sheet'))
         af.fill('.sheet input[data-draft]', 'spike-cache-options'); go.click(); pg.wait_for_timeout(1500)
         gone = seen(af, '#item-spike-cache-options', state='detached')
-        check('Remove deletes the .work folder', gone and not os.path.exists(os.path.join(info['workspace'], '.work', 'spike-cache-options')) and 'Deleted .work/spike-cache-options' in pg.inner_text('#toast'))
+        check('Remove deletes the .work folder', gone and not os.path.exists(os.path.join(info['workspace'], '.work', 'spike-cache-options')) and toast_has(pg, 'Deleted .work/spike-cache-options'))
 
         # Prioritizer: stages and Start through the connector.
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
