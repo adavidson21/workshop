@@ -35,9 +35,13 @@ export function build({ repo = REPO, www = WWW } = {}) {
       filter: (p) => { const rel = relative(src, p); return !skip.some(s => rel === s || rel.startsWith(s + sep)); }
     });
   }
-  // Docket's page without the web app manifest (an installed site's file; the app has its own).
+  // Docket's page without the web app manifest (an installed site's file; the app has its own), drawn edge to
+  // edge behind the status and gesture bars (the page keeps clear of them with the safe-area insets).
   const page = join(www, 'apps/prioritizer/index.html');
-  writeFileSync(page, readFileSync(page, 'utf8').replace(/^\s*<link rel="manifest"[^>]*>\n/m, ''));
+  let html = readFileSync(page, 'utf8').replace(/^\s*<link rel="manifest"[^>]*>\n/m, '');
+  html = html.replace('<meta name="viewport" content="width=device-width, initial-scale=1">', '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
+  if (!html.includes('viewport-fit=cover')) throw new Error('Docket\'s viewport meta tag changed; update build-web.mjs.');
+  writeFileSync(page, html);
   writeFileSync(join(www, 'index.html'), `<!doctype html>
 <html lang="en">
 <head>

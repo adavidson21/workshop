@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Docket's page color (values-night: the dark theme's), behind the status and gesture bars -->
+        <item name="android:windowBackground">@color/docket_page</item>
     </style>
 
 

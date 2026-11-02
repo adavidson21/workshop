@@ -30,3 +30,20 @@ test('build-web: a reference to a file the app does not have is reported', () =>
     assert.deepEqual(checkRefs(www), ['apps/prioritizer/js/extra.js -> ../../agents/js/main.js']);
   } finally { rmSync(www, { recursive: true, force: true }); }
 });
+
+// Android's resource compiler rejects XML a browser would forgive (for example "--" inside a comment).
+test('android: every resource and the manifest are well-formed XML', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const root = join(import.meta.dirname, '..', 'android', 'app', 'src', 'main');
+  const walk = (d) => readdirSync(d).flatMap(n => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : [p]; });
+  const xml = walk(root).filter(p => p.endsWith('.xml') && !p.includes(`${join('assets', 'public')}`));
+  assert.ok(xml.length >= 5);
+  for (const f of xml) {
+    const text = readFileSync(f, 'utf8');
+    for (const [, c] of text.matchAll(/<!--([\s\S]*?)-->/g)) assert.ok(!c.includes('--'), `${f}: "--" inside a comment`);
+    // A real XML parser where one is available (python3 ships one); otherwise the comment check above.
+    try { execFileSync('python3', ['-c', 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])', f], { stdio: 'pipe' }); }
+    catch (e) { if (e.code !== 'ENOENT') assert.fail(`${f}: ${String(e.stderr || e.message).trim().split('\n').pop()}`); }
+  }
+});

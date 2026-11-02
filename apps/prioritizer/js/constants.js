@@ -22,6 +22,8 @@ const VQ = {
 const VIEWS = ['today','triage','rank','eisen','ve','people','archive','reports'];
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
+// A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
 // Done (the archive) is a tab inside Prioritize, next to the lenses, not its own sidebar view.
 const NAV_OF = v => (v in LENSES || v === 'archive') ? 'prio' : v;
@@ -51,4 +53,4 @@ const ICON = {
 };
 const NAV = [['today','Today',ICON.today],['triage','Triage',ICON.triage],['prio','Prioritize',ICON.prio],['people','People',ICON.people],['reports','Reports',ICON.reports]];
 
-export { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
+export { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
