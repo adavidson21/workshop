@@ -200,7 +200,7 @@ When a step has an action (rules 3, 5, 7, 9, 12, 14), the action text is shown i
 
 These are current behavior. A port must reproduce them until a contract change says otherwise.
 
-1. `/publish` writes `Status: PUBLISHED to <path> on <date>`. The `gate` regex allows only letters and spaces, so that line reads as `UNKNOWN`, not `PUBLISHED`. The static dashboard's TSD state treats `PUBLISHED` and `APPROVED` as published, so a published TSD shows as a draft there.
+1. `/publish` writes `Status: PUBLISHED to <path> on <date>`. The `gate` regex allows only letters and spaces, so that line's gate value reads as `UNKNOWN`, not `PUBLISHED`. Since eng-agents dashboard 1.7.1 the TSD's state also checks for the word `PUBLISHED` on its Status line, so a published TSD shows as Published (before, it showed as a draft).
 2. Rule 11 compares file modification times, so touching `tasks.md` without changing it asks for a new review.
 3. `field` matches the first line with that label anywhere in the file, including inside a description that happens to start a line with `Type:`.
 
