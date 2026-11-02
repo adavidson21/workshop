@@ -15,6 +15,7 @@ import { linkFrom } from "./links.mjs";
 import { oc, upsertSession } from "./opencode-state.mjs";
 import { broadcastLive } from "./live.mjs";
 import { needOpencode, runCommand } from "./actions.mjs";
+import { INBOX, assignRun, checkProject, instructionsBlock } from "./projects.mjs";
 
 // ------------------------------------------------------------------ local work items
 
@@ -43,7 +44,7 @@ export function nextLocalNumber(root) {
 }
 
 /** workitem.md for a local item. Same shape as New-LocalWorkItem.ps1 writes. */
-export function localWorkItemText({ id, title, type, description, repro, date }) {
+export function localWorkItemText({ id, title, type, description, repro, date, extra }) {
   const desc = String(description || "").trim() || "<describe the work here>";
   const steps = type === "Bug" ? String(repro || "").trim() || "See the description" : "Not a bug";
   return `# Work item ${id}: ${title}
@@ -66,12 +67,12 @@ ${steps}
 
 ## Extra context from the engineer
 
-None
+${String(extra || "").trim() || "None"}
 `;
 }
 
 /** Create .work/L<n>-<slug>/workitem.md. Returns {id, folder}. */
-export function createLocalItem({ title, description, repro, lane }, root = workRoot) {
+export function createLocalItem({ title, description, repro, lane, extra }, root = workRoot) {
   const t = String(title || "").replace(/[\r\n]+/g, " ").trim();
   if (!t) throw httpError(400, "Give the work a title.");
   if (t.length > 200) throw httpError(400, "Keep the title under 200 characters.");
@@ -82,21 +83,26 @@ export function createLocalItem({ title, description, repro, lane }, root = work
   fs.writeFileSync(path.join(root, ".local-ids"), `${n}\n`);
   fs.mkdirSync(path.join(root, folder));
   const date = new Date().toISOString().slice(0, 10);
-  fs.writeFileSync(path.join(root, folder, "workitem.md"), localWorkItemText({ id, title: t, type: lane === "bug" ? "Bug" : "Feature", description, repro, date }));
+  fs.writeFileSync(path.join(root, folder, "workitem.md"), localWorkItemText({ id, title: t, type: lane === "bug" ? "Bug" : "Feature", description, repro, date, extra }));
   return { id, folder };
 }
 
-/** Describe-it start: create the local item, then run /start L<n> <lane> in a new session. */
-export async function startLocal({ title, description, repro, lane }) {
+/**
+ * Describe-it start: create the local item, then run /start L<n> <lane> in a new session. With a project,
+ * the run is put in it and the project's instructions go in workitem.md (lib/projects.mjs).
+ */
+export async function startLocal({ title, description, repro, lane, project }) {
   needOpencode();
   if (lane !== "feature" && lane !== "bug") throw httpError(400, 'Lane must be "feature" or "bug".');
   if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Run the Tandem install command again, then restart opencode.");
-  const { id, folder } = createLocalItem({ title, description, repro, lane });
+  const pid = checkProject(project);
+  const { id, folder } = createLocalItem({ title, description, repro, lane, extra: pid ? instructionsBlock(pid) : null });
+  if (pid) assignRun({ folder, project: pid });
   await refresh();
   if (!model || !(model.items || []).some((i) => i.folder === folder)) throw httpError(500, `Created .work/${folder}, but could not read it back. Refresh the page and click its Start step.`);
   const r = await runCommand({ folder, command: `/start ${id} ${lane}` }, { fresh: true });
   log(`local item ${id} (${folder}) started`);
-  return { id, folder, session: r.session };
+  return { id, folder, session: r.session, project: pid || INBOX };
 }
 
 // ------------------------------------------------------------------ sessions with no work item

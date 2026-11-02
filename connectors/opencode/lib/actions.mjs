@@ -14,6 +14,7 @@ import { currentSession, folderForSession, folderForToken, linkFrom, linkSession
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { autoActive, autoOnFail, autoOnReply, autopilot, saveAuto } from "./autopilot.mjs";
 import { broadcastLive } from "./live.mjs";
+import { assignPending, checkProject, forgetRun } from "./projects.mjs";
 
 export function parseCommand(text) {
   const m = /^\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(String(text || "").trim());
@@ -86,7 +87,7 @@ export function resetActions() {
   starting.clear();
   pushing.clear();
 }
-export async function startItem({ id, lane }) {
+export async function startItem({ id, lane, project }) {
   needOpencode();
   const wid = String(id || "").trim();
   if (!/^\d{1,10}$/.test(wid)) throw httpError(400, "The work item id must be a number.");
@@ -95,11 +96,13 @@ export async function startItem({ id, lane }) {
   const prev = starting.get(wid);
   if (prev && (sessions.get(prev.sid) || {}).status !== "idle") throw httpError(409, `Work item ${wid} is already starting.`);
   if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run Tandem's install.ps1 (eng-agents repo), then restart opencode.");
+  const pid = checkProject(project);
 
   const args = `${wid} ${lane}`;
   const created = await oc.api.createSession(`${wid}: /start ${args}`);
   const sid = created.id;
   starting.set(wid, { sid, at: Date.now() });
+  if (pid) assignPending(wid, pid); // moves to the run's folder once /start creates it (projects.mjs)
   upsertSession(sid, { title: created.title, status: "busy", busySince: Date.now(), activity: "Starting /start", error: null, text: null, command: `/start ${args}` });
   linkFrom(sid, () => folderForToken(wid), `/start ${args}`);
   broadcastLive();
@@ -328,6 +331,7 @@ export async function removeItem({ folder, confirm }) {
   if (links[folder]) {
     delete links[folder];
     saveLinks();
+    forgetRun(folder);
   }
   if (autopilot[folder]) {
     delete autopilot[folder];
