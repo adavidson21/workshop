@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "b38b13f857da043ac74111fb2c4744efef464be7",
+  "commit": "ce6a6229abf32475e8e7fd069b1c0b093c9fe5eb",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -19,6 +19,7 @@
     "shared/fonts/jetbrains-mono-latin-wght-normal.woff2": "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
     "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
     "shared/fonts/source-serif-4-latin-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
+    "shared/pair.js": "shared/pair.js",
     "shared/save-file.js": "shared/save-file.js",
     "shared/standalone-bar.js": "shared/standalone-bar.js",
     "shared/sw-register.js": "shared/sw-register.js",

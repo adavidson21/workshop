@@ -77,6 +77,10 @@ def main():
         pg.click('#syncBtn'); pg.wait_for_timeout(200)
         menu = pg.inner_text('.menu')
         check('the file menu says the board is saved in this browser', 'Saved in this browser' in menu and 'Download a backup' in menu)
+        check('no Connect item off https (pairing needs the real site)', 'Use Workshop on this computer' not in menu)
+        items = pg.evaluate("""async () => { const m = await import('/js/connect.js');
+          return [m.connectItems({mode: 'browser', storage: 'indexeddb'}), m.connectItems({mode: 'hosted', storage: 'agent'}), m.connectItems({mode: 'browser', storage: 'device'})]; }""")
+        check('paired, the file menu offers to stop using Workshop on this computer; never in the Android app', 'Stop using Workshop on this computer' in items[1] and items[2] == '')
         pg.keyboard.press('Escape')
         with pg.expect_download() as dl: pg.evaluate('window.__prioritizer.downloadBackup()')
         path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(path)

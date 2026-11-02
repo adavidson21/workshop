@@ -20,6 +20,7 @@ import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
+import { connectAction, connectItems } from './connect.js';
 import { saveFile } from '../shared/save-file.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
@@ -121,10 +122,12 @@ function onSyncClick(btn){
     : `<div class="mnote">Saved ${esc(where())}.</div>`;
   const verb = ws && ws.storage === 'device' ? 'Save' : 'Download'; // the app hands files to the share sheet
   popMenu(note + `<button data-s="download">${verb} an Excel copy</button><button data-s="backup">${verb} a backup (.json)</button>`
-    + `<button data-s="import">Import a file</button>` + (status.state === 'error' && store ? `<div class="sep"></div><button data-s="retry">Try saving now</button>` : ''), btn)
+    + `<button data-s="import">Import a file</button>` + (status.state === 'error' && store ? `<div class="sep"></div><button data-s="retry">Try saving now</button>` : '')
+    + connectItems(ws), btn)
     .addEventListener('click', e => {
       const b = e.target.closest('[data-s]'); if (!b) return;
       closeMenu();
+      if (connectAction(b.dataset.s)) return;
       if (b.dataset.s === 'download') exportXlsx();
       if (b.dataset.s === 'backup') downloadBackup();
       if (b.dataset.s === 'import') $('#importFile').click();

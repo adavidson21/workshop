@@ -2,7 +2,7 @@
 
 Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`) runs in three places, all from this repo:
 
-- **On its own** at https://docket.alexisdavidson.org, with nothing else installed. The board is saved in your browser, or in a folder you pick.
+- **On its own** at https://docket.alexisdavidson.org, with nothing else installed. The board is saved in your browser. With Workshop installed on your computer, the folder icon has **Use Workshop on this computer**: it pairs this site with Workshop (the same Connect as in Workshop), and the board becomes files in Workshop's data folder, shared with Workshop's Home. To bring a browser board along, download a backup before connecting and import it after.
 - **Inside [Workshop](https://github.com/adavidson21/workshop)** at https://workshop.alexisdavidson.org, as one of its apps. Workshop's Worker proxies `/apps/prioritizer/*` to this site, so every deploy here shows up in Workshop too. With Workshop's agent running, the board is files on your computer that Workshop's Home also reads.
 - **On Android** as an app built from `mobile/` (see [mobile/README.md](mobile/README.md)). The board stays on the phone.
 
