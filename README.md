@@ -48,7 +48,9 @@ The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<
 
 ### One-line install (Workshop and Tandem)
 
-This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node, opencode and git if they are missing (git as MinGit on Windows; on a Mac it asks macOS to install its command line tools; plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode, asks to connect an AI model (`opencode auth login`) unless opencode already has one, turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, turns on start at login, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
+This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node, opencode and git if they are missing (git as MinGit on Windows; on a Mac it asks macOS to install its command line tools; plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode, asks to connect an AI model (`opencode auth login`) unless opencode already has one, turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
+
+Start at login stays off (run Workshop by hand for a few days first; turn it on later in Workshop on this computer), unless you set `WORKSHOP_LOGIN=1` before running the installer; a setting you turned on earlier is kept. opencode and Tandem are only needed for Dispatch: if a company network blocks installing them (for example npm behind an HTTPS-inspecting proxy), the installer says so and carries on, so Workshop, Docket, Receipts and Home still work. npm runs with Node's `--use-system-ca` so it trusts the certificates your computer trusts. Run the installer again later to add them.
 
 - Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
 - macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`
@@ -69,9 +71,9 @@ Other commands:
 
 - `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
 - `node workshop.mjs open` opens Workshop in your default browser, signed in.
-- `node workshop.mjs doctor` checks Node, `config.json`, the port, start at login and hosted mode. `node workshop.mjs doctor ado` checks the ADO connector.
+- `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login and hosted mode. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
-- `node workshop.mjs update` updates this checkout. `node workshop.mjs uninstall` turns off start at login (your data stays in `~/.workshop`).
+- `node workshop.mjs update` updates this checkout. `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
 
 Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
 

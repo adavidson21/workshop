@@ -10,10 +10,13 @@
 #      downloads MinGit (Git for Windows' portable build) into the Workshop folder.
 #   4. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
 #      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
-#   5. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~\work, start at login.
+#      opencode and Tandem are only for Dispatch: if either cannot be installed (for example a company network
+#      blocks npm), the install carries on without them, and running this again later adds them.
+#   5. Sets up Workshop: hosted mode for this site, and the opencode connector with workspace ~\work when opencode
+#      is installed. Start at login stays as it is (off on a new install); WORKSHOP_LOGIN=1 turns it on.
 #   6. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
-# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI.
+# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI, WORKSHOP_LOGIN.
 
 & {
 $ErrorActionPreference = 'Stop'
@@ -116,13 +119,31 @@ Step 'opencode'
 $opencode = $null
 $oc = Get-Command opencode -ErrorAction SilentlyContinue
 $ocDir = Join-Path $Root 'opencode'
-if ($oc -and ($oc.Source -notlike "$ocDir*")) { Say "Using your opencode at $($oc.Source)." }
+$ocCmd = $null # the opencode command to use from here on, or $null when there is none
+if ($oc -and ($oc.Source -notlike "$ocDir*")) { $ocCmd = $oc.Source; Say "Using your opencode at $ocCmd." }
 else {
   Say $(if ($oc) { 'Updating opencode.' } else { 'Installing opencode.' })
-  & $npm install --global --prefix $ocDir --no-fund --no-audit opencode-ai@latest
-  if ($LASTEXITCODE -ne 0) { Fail 'npm could not install opencode. Install it from https://opencode.ai, then run this again.' }
-  Add-UserPath $ocDir
-  $opencode = Join-Path $ocDir 'opencode.cmd'
+  # A company network that inspects HTTPS uses its own certificate, which Windows trusts and npm does not.
+  # Node 22.15 and later can use the Windows certificate store for this one npm run.
+  $nodeVer = [version]((& $node -v).TrimStart('v'))
+  $oldNodeOptions = $env:NODE_OPTIONS
+  if ($nodeVer -ge [version]'22.15.0') { $env:NODE_OPTIONS = (@($oldNodeOptions, '--use-system-ca') | Where-Object { $_ }) -join ' ' }
+  try { & $npm install --global --prefix $ocDir --no-fund --no-audit opencode-ai@latest } catch { $global:LASTEXITCODE = 1 }
+  $env:NODE_OPTIONS = $oldNodeOptions
+  $ocFile = Join-Path $ocDir 'opencode.cmd'
+  if ($LASTEXITCODE -eq 0 -and (Test-Path $ocFile)) {
+    Add-UserPath $ocDir
+    $opencode = $ocFile
+    $ocCmd = $ocFile
+  } elseif (Test-Path $ocFile) {
+    Add-UserPath $ocDir
+    $opencode = $ocFile
+    $ocCmd = $ocFile
+    Say 'npm could not update opencode, so the copy you have stays.'
+  } else {
+    Write-Host '  npm could not install opencode. Workshop, Docket, Receipts and Home do not need it; Dispatch does.' -ForegroundColor Yellow
+    Write-Host '  Carrying on without it. Install it from https://opencode.ai, or run this installer again later.' -ForegroundColor Yellow
+  }
 }
 
 # ---------------------------------------------------------------- git
@@ -147,17 +168,21 @@ else {
 
 # ---------------------------------------------------------------- 4. Tandem into opencode
 Step 'Installing Tandem into opencode'
-$tandemArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $engDir 'install.ps1'))
-$personal = Join-Path $env:USERPROFILE '.config\eng-agents\personal'
-if (Test-Path $personal) { $tandemArgs += @('-Personal', $personal); Say "Using your personal layer at $personal." }
-& powershell.exe @tandemArgs
-if ($LASTEXITCODE -ne 0) { Fail 'Tandem install failed. See the messages above.' }
+$tandemOk = $false
+if (-not $ocCmd) { Say 'Skipped: Tandem runs in opencode, which is not installed.' }
+else {
+  $tandemArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $engDir 'install.ps1'))
+  $personal = Join-Path $env:USERPROFILE '.config\eng-agents\personal'
+  if (Test-Path $personal) { $tandemArgs += @('-Personal', $personal); Say "Using your personal layer at $personal." }
+  & powershell.exe @tandemArgs
+  if ($LASTEXITCODE -eq 0) { $tandemOk = $true }
+  else { Write-Host '  Tandem did not install (see the messages above). Carrying on; Dispatch needs it, the other apps do not.' -ForegroundColor Yellow }
+}
 
 # ---------------------------------------------------------------- AI model
 # Agents need an AI provider in opencode. Ask once, unless opencode already has one (saved credentials or a
 # known API key variable). Skipped: Dispatch's Getting set up says how to connect one later.
 Step 'AI model'
-$ocCmd = if ($opencode) { $opencode } else { $oc.Source }
 $hasAi = $false
 foreach ($f in @((Join-Path $env:USERPROFILE '.local\share\opencode\auth.json'), (Join-Path $env:LOCALAPPDATA 'opencode\auth.json'))) {
   if (Test-Path $f) { try { if (@((Get-Content -Raw $f | ConvertFrom-Json).PSObject.Properties).Count -gt 0) { $hasAi = $true } } catch { } }
@@ -165,7 +190,8 @@ foreach ($f in @((Join-Path $env:USERPROFILE '.local\share\opencode\auth.json'),
 foreach ($v in @('ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENROUTER_API_KEY', 'GROQ_API_KEY', 'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'MISTRAL_API_KEY')) {
   if ([Environment]::GetEnvironmentVariable($v)) { $hasAi = $true }
 }
-if ($hasAi) { Say 'opencode already has an AI provider.' }
+if (-not $ocCmd) { Say 'Skipped: opencode is not installed.' }
+elseif ($hasAi) { Say 'opencode already has an AI provider.' }
 elseif ($env:WORKSHOP_SKIP_AI -or -not [Environment]::UserInteractive) { Say 'Later: run  opencode auth login  to connect an AI model. Dispatch shows how.' }
 else {
   Say 'Agents need an AI model. You pick a provider and paste its API key; it stays in opencode on this computer.'
@@ -181,9 +207,14 @@ else {
 # ---------------------------------------------------------------- 5. Workshop setup
 Step 'Setting up Workshop'
 $wsPath = $Workspace -replace '^~', $env:USERPROFILE
-New-Item -ItemType Directory -Force -Path $wsPath | Out-Null
-$wsArgs = @((Join-Path $wsDir 'workshop.mjs'), 'install', '--login', '--allow', $Site, '--workspace', $Workspace)
-if ($opencode) { $wsArgs += @('--opencode', $opencode) }
+$wsArgs = @((Join-Path $wsDir 'workshop.mjs'), 'install', '--allow', $Site)
+# Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
+if ($env:WORKSHOP_LOGIN -eq '1') { $wsArgs += '--login' }
+if ($ocCmd) {
+  New-Item -ItemType Directory -Force -Path $wsPath | Out-Null
+  $wsArgs += @('--workspace', $Workspace)
+  if ($opencode) { $wsArgs += @('--opencode', $opencode) }
+}
 & $node @wsArgs
 if ($LASTEXITCODE -ne 0) { Fail 'Workshop setup failed. See the messages above.' }
 
@@ -205,9 +236,16 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   Write-Host ""
   Write-Host "Note: git is not installed. Tandem needs it to make branches and pull requests: https://git-scm.com/downloads" -ForegroundColor Yellow
 }
+$loginOn = $false
+try { $cfgNow = Get-Content -Raw $cfgFile | ConvertFrom-Json; $loginOn = ($cfgNow.features.startAtLogin -eq $true) } catch { }
 Write-Host ""
-Write-Host "Done. Workshop is running and starts when you log in." -ForegroundColor Green
+if ($loginOn) { Write-Host "Done. Workshop is running and starts when you log in." -ForegroundColor Green }
+else {
+  Write-Host "Done. Workshop is running." -ForegroundColor Green
+  Write-Host "It does not start by itself when you log in. Start it with  workshop start  in a new PowerShell window, or turn on Start at login in Workshop on this computer (workshop open)."
+}
 Write-Host "Workshop opened in your browser once to sign it in. Go back to $Site and click Connect."
 Write-Host "Using a different browser for Dispatch? Run  workshop open --print  in a new PowerShell window and open that address there."
-Write-Host "Your work goes in $wsPath. Change it any time in Dispatch, under opencode settings."
+if ($ocCmd -and $tandemOk) { Write-Host "Your work goes in $wsPath. Change it any time in Dispatch, under opencode settings." }
+else { Write-Host "Dispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it." -ForegroundColor Yellow }
 }
