@@ -7,6 +7,7 @@
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
 import { S } from './state.js';
+import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -506,6 +507,7 @@ export function itemCard(it, noAgent) {
   meta.push(`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`);
   if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
   meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">Touched ${ago(it.modifiedMs)}</span>`);
+  meta.push(projectChip(it));
   meta.push(removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<article class="item" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
@@ -521,7 +523,7 @@ function noteCard(it) {
   if (it.summary) body += `<p class="pre" style="margin:6px 0 0">${md(it.summary)}</p>`;
   if (it.nextText) body += `<div class="next-line"><span class="lbl">Next</span><span>${md(liveNote(it.nextText))}</span>${runBtn(it, noteCommand(it))}</div>`;
   return `<article class="item" id="item-${h(it.folder)}" style="--state:${asking(it) ? 'var(--gate)' : 'var(--line)'}"><div class="item-head"><h4 class="t">${h(it.title)}</h4><div class="meta"><span class="tag">${label}` +
-    `</span><span>Touched ${ago(it.modifiedMs)}</span>${removeBtn(it)}</div></div>${body}${agentHtml(it)}` +
+    `</span><span>Touched ${ago(it.modifiedMs)}</span>${projectChip(it)}${removeBtn(it)}</div></div>${body}${agentHtml(it)}` +
     (it.files && it.files.length ? `<details${openAttr('d:' + it.folder, false)}><summary>Files</summary><div class="detail-body">${filesHtml(it)}</div></details>` : '') + '</article>';
 }
 
@@ -538,7 +540,7 @@ export function pickupHtml(it) {
   else if (it.last) lo = `<p class="why"><strong>Last:</strong> ${h(dayName(it.last.date))}, <code>${h(it.last.command)}</code>: ${md(it.last.did || '')}</p>`;
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<section class="pickup" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}" aria-labelledby="pickup-h">` +
-    `<div class="pick-top"><p class="eyebrow">Pick up here, touched ${ago(it.modifiedMs)}</p>${removeBtn(it)}</div>` +
+    `<div class="pick-top"><p class="eyebrow">Pick up here, touched ${ago(it.modifiedMs)}</p>${projectChip(it)}${removeBtn(it)}</div>` +
     `<h2 id="pickup-h">${idLink(it)}${title}</h2>` +
     track(it) + nextHtml(it, true) + autoHtml(it) + agentHtml(it) +
     (why ? `<p class="why">${why}</p>` : '') + lo +
@@ -624,7 +626,8 @@ function activityPanel() {
 export const ICON = {
   theme: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor"/></svg>',
   more: '<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg>',
-  x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>'
+  x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>',
+  menu: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg>'
 };
 function moreMenuHtml() {
   const o = (L() && L().opencode) || {};
@@ -664,9 +667,10 @@ function headerHtml() {
   const o = (L() && L().opencode) || {};
   const st = pill();
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
-  return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
+  const toggle = `<button type="button" class="ibtn side-open" data-side-open="1" aria-label="Runs and projects" title="Runs and projects">${ICON.menu}</button>`;
+  return `<header class="top">${toggle}${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="btn primary" data-start-open="1" title="Describe a change, start an ADO work item, or investigate a question">Start work</button>` +
+    `<button type="button" class="btn primary top-start" data-start-open="1" title="Describe a change, start an ADO work item, or investigate a question">Start work</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -892,7 +896,10 @@ export function startRequest(st, drafts) {
   if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
   if (st.mode === 'ado') {
     const r = startCheck(d('id'), lane);
-    return r.error ? r : { action: 'start', args: { id: r.id, lane } };
+    if (r.error) return r;
+    const args = { id: r.id, lane };
+    if (st.project && st.project !== INBOX) args.project = st.project;
+    return { action: 'start', args };
   }
   const title = d('title').replace(/\s+/g, ' ');
   if (!title) return { error: 'Give the work a short title.' };
@@ -900,6 +907,7 @@ export function startRequest(st, drafts) {
   const args = { title, lane };
   if (d('desc')) args.description = d('desc');
   if (lane === 'bug' && d('repro')) args.repro = d('repro');
+  if (st.project && st.project !== INBOX) args.project = st.project;
   return { action: 'start.local', args };
 }
 export function startCheck(raw, lane) {
@@ -917,7 +925,10 @@ function startSheetHtml() {
   const dv = k => h(S.ui.drafts['start:' + k] || '');
   const tab = (k, label) => `<button type="button" data-start-mode="${k}" aria-pressed="${mode === k}"${mode === k ? ' class="on"' : ''}>${label}</button>`;
   const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
-  const lanes = `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div>`;
+  const pnow = st.project || INBOX;
+  const projectPick = projectsOn() && projectList().length > 1 ? `<label class="cfg-row"><span class="cfg-t">Project</span><span class="cfg-d">The run gets the project's instructions.</span><select data-start-project="1">` +
+    projectList().map(p => `<option value="${h(p.id)}"${p.id === pnow ? ' selected' : ''}>${h(p.name)}</option>`).join('') + '</select></label>' : '';
+  const lanes = projectPick + `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div>`;
   const head = `<div class="sheet-head"><h3 id="start-h">Start work</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   const tabs = `<div class="gos start-modes" role="group" aria-label="How to start">${tab('describe', 'Describe it')}${adoOn() ? tab('ado', 'ADO work item') : ''}${tab('spike', 'Investigate')}</div>`;
   let form;
@@ -1037,28 +1048,39 @@ function looseHtml() {
 }
 
 function overlaysHtml() {
-  return menuHtml() + (S.ui.repo ? repoSheetHtml() : S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  return menuHtml() + (S.ui.project ? projectSheetHtml() : S.ui.folder ? folderSheetHtml() : S.ui.move ? moveSheetHtml() : S.ui.repo ? repoSheetHtml() : S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
 }
 
 /** The whole page. Resets the copy list, so call it once per paint. */
 export function render() {
   S.copyStore = [];
   if (!S.connector || S.connector.state !== 'ready' || !S.D) return setupHtml() + overlaysHtml();
-  const items = S.D.items || [];
+  return `<div class="layout">${sidebarHtml()}<div class="content">${mainHtml()}</div></div>` + overlaysHtml();
+}
+
+// The page to the right of the sidebar: header, then the runs in scope (all, a project, or Needs review).
+function mainHtml() {
+  const all = S.D.items || [];
+  const items = all.filter(inScope);
   const by = {};
   items.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
   let html = headerHtml() + bannersHtml();
   const setup = onboardHtml();
-  if (!items.length) {
+  if (!all.length) {
     html += setup + waitingHtml() + looseHtml();
     if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change, or ask a question about the code, and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
       '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
-    return html + overlaysHtml();
+    return html;
   }
-  const pick = pickItem(items, by);
-  html += '<div class="grid"><main>' + setup + waitingHtml() + looseHtml();
+  const sc = scope();
+  const pick = sc.kind === 'all' ? pickItem(items, by) : null;
+  html += '<div class="grid"><main>' + scopeHeadHtml() + (sc.kind === 'all' ? setup + waitingHtml() + looseHtml() : '');
   if (pick) html += pickupHtml(pick);
+  if (!items.length) {
+    html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you. Runs land here when an agent asks a question, a draft needs approval, or review finds something.</p></div>'
+      : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">New run</button></div></div>`;
+  }
   if (items.length > 8) {
     html += '<ul class="counts" aria-label="Jump to a group">' + GROUPS.map(g => {
       const n = (by[g[0]] || []).length;
@@ -1074,7 +1096,7 @@ export function render() {
   });
   if (!S.D.gitAvailable) html += '<p class="note">git was not found on PATH, so repo state is missing.</p>';
   html += `</main><aside>${reposPanel()}${activityPanel()}</aside></div>`;
-  return html + overlaysHtml();
+  return html;
 }
 
 /** Open prompts and questions, for the rail badge and alerts. */
