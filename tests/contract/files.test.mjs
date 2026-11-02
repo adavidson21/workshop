@@ -18,26 +18,26 @@ after(async () => { await agent?.stop(); await hosted?.stop(); });
 const create = (a, p, content) => put(a, `${P}/${p}`, { content, create: true });
 
 test('create, read, list and replace a file', async () => {
-  const made = expectJson(await create(agent, 'summaries/kim/2026-h2.md', '# Kim\n'), 200, 'file-put-response');
-  assert.deepEqual({ app: made.app, path: made.path, size: made.size }, { app: 'notes', path: 'summaries/kim/2026-h2.md', size: 6 });
-  const file = path.join(agent.dataDir, 'notes', 'summaries', 'kim', '2026-h2.md');
-  assert.equal(fs.readFileSync(file, 'utf8'), '# Kim\n', 'stored as the plain file, byte for byte');
+  const made = expectJson(await create(agent, 'summaries/one/2026-h2.md', '# One\n'), 200, 'file-put-response');
+  assert.deepEqual({ app: made.app, path: made.path, size: made.size }, { app: 'notes', path: 'summaries/one/2026-h2.md', size: 6 });
+  const file = path.join(agent.dataDir, 'notes', 'summaries', 'one', '2026-h2.md');
+  assert.equal(fs.readFileSync(file, 'utf8'), '# One\n', 'stored as the plain file, byte for byte');
   assert.equal(made.mtime, Math.floor(fs.statSync(file).mtimeMs));
 
-  const read = expectJson(await get(agent, `${P}/summaries/kim/2026-h2.md`), 200, 'file');
-  assert.deepEqual(read, { app: 'notes', path: 'summaries/kim/2026-h2.md', mtime: made.mtime, size: 6, content: '# Kim\n' });
+  const read = expectJson(await get(agent, `${P}/summaries/one/2026-h2.md`), 200, 'file');
+  assert.deepEqual(read, { app: 'notes', path: 'summaries/one/2026-h2.md', mtime: made.mtime, size: 6, content: '# One\n' });
 
-  const next = expectJson(await put(agent, `${P}/summaries/kim/2026-h2.md`, { content: '# Kim\n\nMore.\n', mtime: read.mtime }), 200, 'file-put-response');
+  const next = expectJson(await put(agent, `${P}/summaries/one/2026-h2.md`, { content: '# One\n\nMore.\n', mtime: read.mtime }), 200, 'file-put-response');
   assert.notEqual(next.mtime, read.mtime, 'every write changes the mtime');
-  assert.equal(expectJson(await get(agent, `${P}/summaries/kim/2026-h2.md`), 200, 'file').content, '# Kim\n\nMore.\n');
+  assert.equal(expectJson(await get(agent, `${P}/summaries/one/2026-h2.md`), 200, 'file').content, '# One\n\nMore.\n');
 
-  await create(agent, 'summaries/ann/2026-h2.md', 'a');
+  await create(agent, 'summaries/alpha/2026-h2.md', 'a');
   await create(agent, 'top.json', '{"a": 1}');
   const all = expectJson(await get(agent, P), 200, 'file-list');
-  assert.deepEqual(all.files.map(f => f.path), ['summaries/ann/2026-h2.md', 'summaries/kim/2026-h2.md', 'top.json']);
-  const kim = expectJson(await get(agent, `${P}/summaries/kim`), 200, 'file-list');
-  assert.deepEqual(kim.files.map(f => f.path), ['summaries/kim/2026-h2.md']);
-  assert.equal(kim.files[0].mtime, next.mtime);
+  assert.deepEqual(all.files.map(f => f.path), ['summaries/alpha/2026-h2.md', 'summaries/one/2026-h2.md', 'top.json']);
+  const listed = expectJson(await get(agent, `${P}/summaries/one`), 200, 'file-list');
+  assert.deepEqual(listed.files.map(f => f.path), ['summaries/one/2026-h2.md']);
+  assert.equal(listed.files[0].mtime, next.mtime);
 });
 
 test('empty lists and missing files', async () => {
@@ -118,13 +118,13 @@ test('file paths follow the name rules', async () => {
 });
 
 test('file path segments may start with a digit; app ids may not', async () => {
-  for (const p of ['2026.md', 'summaries/jordan-lee/2026-h2.md', 'metrics/2026-10/report.json', '1on1s/kim/2026-10-25.md']) {
+  for (const p of ['2026.md', 'summaries/person-one/2026-h2.md', 'metrics/2026-10/report.json', '1on1s/one/2026-10-25.md']) {
     const content = p.endsWith('.json') ? '{"ok": true}' : '# note\n';
     expectJson(await create(agent, p, content), 200, 'file-put-response');
     assert.equal(expectJson(await get(agent, `${P}/${p}`), 200, 'file').content, content);
   }
   const listed = expectJson(await get(agent, `${P}/1on1s`), 200, 'file-list').files.map(f => f.path);
-  assert.deepEqual(listed, ['1on1s/kim/2026-10-25.md']);
+  assert.deepEqual(listed, ['1on1s/one/2026-10-25.md']);
   expectJson(await get(agent, `${P}/metrics/2026-10`), 200, 'file-list');
   expectError(await get(agent, '/api/files/2026/a.md'), 400, 'bad_request');
   expectError(await get(agent, '/api/files/2026'), 400, 'bad_request');

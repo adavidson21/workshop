@@ -77,9 +77,9 @@ test('a data folder that already holds app data is left untouched and nothing is
     fs.mkdirSync(path.join(data, 'notes'), { recursive: true });
     const mine = path.join(data, 'notes', 'pages.json');
     fs.writeFileSync(mine, `${JSON.stringify(oldEnv('notes', 'pages', 2, 'new'), null, 2)}\n`);
-    const nested = path.join(data, 'receipts', 'summaries', 'kim.md');
+    const nested = path.join(data, 'receipts', 'summaries', 'one.md');
     fs.mkdirSync(path.dirname(nested), { recursive: true });
-    fs.writeFileSync(nested, '# Kim\n');
+    fs.writeFileSync(nested, '# One\n');
     const before = { mine: sha(mine), nested: sha(nested) };
     const agent = await start(home);
     try {
@@ -209,7 +209,7 @@ test('leftover temp files next to collections and files are removed on start; no
   const home = tempHome();
   const data = dataDirOf(home);
   try {
-    const leftovers = ['notes/pages.json.tmp', 'notes/entries/kim/2026.json.tmp', 'receipts/summary.md.tmp'];
+    const leftovers = ['notes/pages.json.tmp', 'notes/entries/one/2026.json.tmp', 'receipts/summary.md.tmp'];
     const kept = ['notes/.git/index.tmp', 'notes/Notes.md.tmp', 'notes/other.tmp', 'top.json.tmp', '.trash/notes/x.md.tmp'];
     for (const rel of [...leftovers, ...kept]) {
       const abs = path.join(data, ...rel.split('/'));
@@ -316,15 +316,15 @@ test('outside changes in nested folders are named in full', async () => {
   const home = tempHome();
   const agent = await start(home);
   try {
-    await put(agent, '/api/files/notes/summaries/kim/2026-h2.md', { content: 'one', create: true });
+    await put(agent, '/api/files/notes/summaries/one/2026-h2.md', { content: 'one', create: true });
     await sleep(700);
     const es = await openEvents(agent);
     try {
       await es.next('hello');
-      const file = path.join(agent.dataDir, 'notes', 'summaries', 'kim', '2026-h2.md');
+      const file = path.join(agent.dataDir, 'notes', 'summaries', 'one', '2026-h2.md');
       fs.writeFileSync(file, 'two, by hand');
       fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
-      const e = await es.next('file', d => d.path === 'summaries/kim/2026-h2.md', 5000);
+      const e = await es.next('file', d => d.path === 'summaries/one/2026-h2.md', 5000);
       assert.equal(e.data.client, null);
       assert.equal(e.data.mtime, Math.floor(fs.statSync(file).mtimeMs));
     } finally { es.close(); }

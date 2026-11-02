@@ -13,6 +13,11 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
+import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startSpike } from "./lib/workspace.mjs";
+import { loadProviders } from "./lib/opencode-connect.mjs";
+import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
+import { findItem } from "./lib/actions.mjs";
+import { emitProjects } from "./lib/live.mjs";
 
 export const configSchema = {
   type: "object",
@@ -24,6 +29,7 @@ export const configSchema = {
       title: "Workspace folder",
       description: "The folder that holds .work and your repos, where you run opencode. ~ is your home folder.",
       minLength: 1,
+      "x-workshop-hosted": true,
     },
     opencode: {
       type: "object",
@@ -47,6 +53,7 @@ export const configSchema = {
           title: "Start opencode if it is not running",
           description: "2.x: opencode service start. 1.x: opencode serve, stopped again when this connector stops.",
           default: true,
+          "x-workshop-hosted": true,
         },
         passwordEnv: {
           type: "string",
@@ -72,8 +79,8 @@ export const configSchema = {
     },
     engAgentsConfig: {
       type: "string",
-      title: "eng-agents config.json",
-      description: "Used only to build work item links. Leave empty for ~/.config/eng-agents/config.json.",
+      title: "Tandem config.json",
+      description: "Used only to build work item links. Leave empty for ~/.config/eng-agents/config.json (Tandem's default).",
     },
     pollSeconds: {
       type: "integer",
@@ -81,6 +88,7 @@ export const configSchema = {
       minimum: 5,
       maximum: 3600,
       default: 20,
+      "x-workshop-hosted": true,
     },
   },
 };
@@ -99,11 +107,13 @@ function setPhase(p, msg = null) {
 
 function resetAll() {
   shutdown();
+  resetWorkspace();
   disconnectOpencode();
   resetModel();
   resetLive();
   resetState();
   resetActions();
+  resetProjects();
 }
 
 async function init() {
@@ -144,6 +154,17 @@ const str = (title, extra = {}) => ({ type: "string", title, maxLength: 4000, ..
 const obj = (required, properties) => ({ type: "object", additionalProperties: false, ...(required.length ? { required } : {}), properties });
 const folder = str("Item folder", { minLength: 1, maxLength: 200 });
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
+const projectId = str("Project id (Inbox when left out)", { minLength: 1, maxLength: 80 });
+const projectFields = {
+  name: str("Name", { minLength: 1, maxLength: 80 }),
+  color: { type: "string", title: "Color", enum: COLORS },
+  repo: str("Repo folder in the workspace", { maxLength: 100 }),
+  baseBranch: str("Default base branch", { maxLength: 200 }),
+  instructions: str("Instructions for the agent", { maxLength: 20000 }),
+  model: str("opencode model override", { maxLength: 200 }),
+  agent: str("opencode agent override", { maxLength: 200 }),
+  tracker: str("Tracker link", { maxLength: 500 }),
+};
 
 const actions = {
   status: {
@@ -168,6 +189,7 @@ const actions = {
     async run() {
       needReady();
       await refresh();
+      await loadProviders(); // "Check again" after connecting an AI provider
       return { ok: true, error: modelError };
     },
   },
@@ -192,10 +214,65 @@ const actions = {
   start: {
     title: "Start a work item",
     write: true,
-    argsSchema: obj(["id", "lane"], { id: str("Work item id", { pattern: "^[0-9]{1,10}$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug"] } }),
+    argsSchema: obj(["id", "lane"], { id: str("Work item id", { pattern: "^[0-9]{1,10}$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug"] }, project: projectId }),
     async run(args) {
       needReady();
-      return startItem(args);
+      const r = await startItem(args);
+      if (args.project && args.project !== INBOX) emitProjects("run");
+      return r;
+    },
+  },
+  "start.local": {
+    title: "Start work with no tracker item (describe it)",
+    write: true,
+    argsSchema: obj(["title", "lane"], {
+      title: str("Title", { minLength: 1, maxLength: 200 }),
+      description: str("Description", { maxLength: 20000 }),
+      repro: str("Steps to reproduce (bugs)", { maxLength: 20000 }),
+      lane: { type: "string", title: "Lane", enum: ["feature", "bug"] },
+      project: projectId,
+    }),
+    async run(args) {
+      needReady();
+      const r = await startLocal(args);
+      if (r.project !== INBOX) emitProjects("run");
+      return r;
+    },
+  },
+  spike: {
+    title: "Start a spike (investigate, no code changes)",
+    write: true,
+    argsSchema: obj(["topic"], { topic: str("What to investigate", { minLength: 1, maxLength: 500 }) }),
+    async run(args) {
+      needReady();
+      return startSpike(args);
+    },
+  },
+  "repo.add": {
+    title: "Clone a repo into the workspace",
+    write: true,
+    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      return addRepo(args);
+    },
+  },
+  "repo.guide": {
+    title: "Draft a repo's guide (/onboard-repo)",
+    write: true,
+    argsSchema: obj(["repo"], { repo: str("Repo folder", { minLength: 1, maxLength: 100 }) }),
+    async run(args) {
+      needReady();
+      return onboardRepo(args);
+    },
+  },
+  "session.dismiss": {
+    title: "Stop showing a spike or repo guide session",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return dismissLoose(args);
     },
   },
   reply: {
@@ -259,6 +336,50 @@ const actions = {
       return autopilotAction(args);
     },
   },
+  "project.create": {
+    title: "Add a Dispatch project",
+    write: true,
+    argsSchema: obj(["name"], projectFields),
+    async run(args) {
+      needReady();
+      const r = createProject(args);
+      emitProjects("create");
+      return r;
+    },
+  },
+  "project.update": {
+    title: "Change a Dispatch project",
+    write: true,
+    argsSchema: obj(["id"], { id: projectId, ...projectFields }),
+    async run(args) {
+      needReady();
+      const r = updateProject(args);
+      emitProjects("update");
+      return r;
+    },
+  },
+  "project.delete": {
+    title: "Remove a Dispatch project (its runs move to Inbox)",
+    write: true,
+    argsSchema: obj(["id"], { id: projectId }),
+    async run(args) {
+      needReady();
+      const r = deleteProject(args);
+      emitProjects("delete");
+      return r;
+    },
+  },
+  "run.assign": {
+    title: "Move a run to a project",
+    write: true,
+    argsSchema: obj(["folder", "project"], { folder, project: projectId }),
+    async run(args) {
+      needReady();
+      const r = assignRun(args, (f) => !!findItem(f));
+      emitProjects("run");
+      return r;
+    },
+  },
   terminal: {
     title: "Open the opencode TUI in a terminal",
     write: false,
@@ -289,6 +410,7 @@ export default {
     }
     loadLinks();
     loadAuto();
+    loadProjects();
     phase = "starting";
     problem = null;
     init().catch((e) => {

@@ -31,7 +31,7 @@ It writes in two places. See [docs/config.md](../docs/config.md) and [docs/data-
 
 | Path | What |
 | --- | --- |
-| `<app>/<collection>.json` | One collection, written atomically. Nested names are subfolders (`receipts/entries/kim/2026.json`). |
+| `<app>/<collection>.json` | One collection, written atomically. Nested names are subfolders (`receipts/entries/one/2026.json`). |
 | `<app>/<path>.md`, `<app>/<path>.json` | Plain files written through the files API. |
 | `.trash/<app>/...` | Files deleted through the files API. Never emptied by Workshop. |
 | `.backups/<yyyy-mm-dd>/<app>/...` | Copies kept before a version upgrade. Never removed by Workshop. |

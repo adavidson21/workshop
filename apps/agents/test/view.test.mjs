@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey } from '../js/view.js';
+import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, onboardSteps, aiState, looseSessions } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -188,22 +188,28 @@ test('header: Live only when Workshop and opencode are both connected', () => {
   assert.match(render(), /Workshop stopped or restarted/);
 });
 
-test('in the shell, the shell owns the name and theme; on its own, the page has both', () => {
+test('in the shell, the shell owns the name and theme; on its own, the page has its name (the top bar has the toggle)', () => {
   assert.doesNotMatch(render(), /class="brand"|data-theme-menu/);
   S.embedded = false;
   S.version = '1.0.0';
-  assert.match(render(), /<h1>Agents<\/h1><span class="ver">v1\.0\.0<\/span>.*data-theme-menu="1"/s);
+  assert.match(render(), /<h1>Dispatch<\/h1><span class="ver">v1\.0\.0<\/span>/);
+  assert.doesNotMatch(render(), /data-theme-menu/);
 });
 
 test('before the connector is ready, the page says what is wrong and how to fix it', () => {
   S.mode = 'browser'; S.connector = null; S.D = null;
-  assert.match(render(), /Agents needs Workshop running on this computer/);
+  assert.match(render(), /Connect Dispatch to your computer/, 'browser mode shows the setup guide');
   S.mode = 'local'; S.connector = { state: 'disabled', message: null };
-  assert.match(setupHtml(), /Turn on the opencode connector.*data-settings="1">Open Settings/s);
+  assert.match(setupHtml(), /Turn on the opencode connector.*data-cfg-open="1">Open opencode settings/s, 'local: the settings sheet can turn it on');
   S.connector = { state: 'error', message: 'No PowerShell found. Install `pwsh`.' };
   assert.match(setupHtml(), /can't start.*No PowerShell found\. Install <code>pwsh<\/code>\./s);
   S.mode = 'hosted';
-  assert.doesNotMatch(setupHtml(), /data-settings/, 'a hosted page cannot change settings');
+  assert.match(setupHtml(), /data-cfg-open="1"/, 'hosted: settings are fixed here too');
+  S.connector = { state: 'disabled', message: null };
+  assert.doesNotMatch(setupHtml(), /data-cfg-open/, 'a hosted page cannot turn the connector on');
+  S.agentUrl = 'http://127.0.0.1:4380';
+  assert.match(setupHtml(), /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"[^>]*>Open Settings in Workshop/, 'paired: a link to Settings on this computer');
+  S.agentUrl = null;
   S.connector = { state: 'missing', message: null };
   assert.match(setupHtml(), /not installed/);
 });
@@ -211,6 +217,160 @@ test('before the connector is ready, the page says what is wrong and how to fix 
 test('an empty .work says how to start', () => {
   const empty = clone(FIXTURE);
   empty.items = []; empty.activity = [];
+  empty.liveMode.live.opencode.ai = { known: true, providers: ['Anthropic'] };
   load(empty);
-  assert.match(render(), /No work in \.work yet.*\/start &lt;id&gt; feature/s);
+  let html = render();
+  assert.match(html, /Getting set up, 2 of 3 done.*class="gstep open">.*Start your first piece of work.*data-start-open="1">Start work/s, 'the checklist leads to the first piece of work');
+  assert.match(html, /AI connected: Anthropic/);
+  S.L.opencode.ai = { known: false, providers: [] };
+  S.D.repos = [];
+  html = render();
+  assert.match(html, /class="gstep open">.*Add a repo.*data-repo-open="1"/s, 'no repos: adding one is next');
+  assert.match(html, /No repos in your workspace yet/);
+});
+
+test('the setup guide is one install command, then connect', () => {
+  S.mode = 'browser'; S.connector = null; S.D = null; S.origin = 'https://dispatch.example.org';
+  S.setup = guideDefaults();
+  let html = render();
+  assert.equal(count(html, /<li class="gstep/g), 2, 'two steps');
+  assert.match(html, /Set up, 0 of 2 done/);
+  assert.match(html, /class="gstep open">.*Install Tandem and Workshop/s, 'the first step is open');
+  assert.match(html, /<code>irm https:\/\/dispatch\.example\.org\/install\.ps1 \| iex<\/code>/, 'Windows command by default, for this site');
+  assert.doesNotMatch(html, /git clone|onboarding-/, 'no manual steps');
+  assert.match(html, /data-gcheck/);
+  S.setup = { ...guideDefaults(), os: 'mac', port: 4555 };
+  html = render();
+  assert.match(html, /<code>curl -fsSL https:\/\/dispatch\.example\.org\/install\.sh \| bash<\/code>/, 'Mac or Linux command');
+  assert.match(html, /value="4555"/);
+  S.setup = { ...guideDefaults(), done: { install: true } };
+  html = render();
+  assert.match(html, /Set up, 1 of 2 done/);
+  assert.match(html, /class="gstep open">.*data-gpair>Connect to Workshop/s, 'the next step opens');
+  assert.match(html, /workshop open/);
+  S.setup = { ...guideDefaults(), open: 'tandem' };
+  assert.match(render(), /class="gstep open">.*Install Tandem and Workshop/s, 'an old saved step falls back to the first open one');
+  S.wasPaired = true;
+  assert.match(render(), /was connected to Workshop before/);
+  S.wasPaired = false;
+});
+
+test('opencode settings: a form from the connector schema; hosted pages edit only marked fields', () => {
+  const schema = {
+    type: 'object', required: ['workspace'],
+    properties: {
+      workspace: { type: 'string', title: 'Workspace folder', 'x-workshop-hosted': true },
+      opencode: { type: 'object', title: 'opencode', properties: {
+        command: { type: 'string', title: 'Command that runs opencode', default: 'opencode' },
+        startServer: { type: 'boolean', title: 'Start opencode if it is not running', default: true, 'x-workshop-hosted': true },
+        passwordEnv: { type: 'string', title: 'Password variable', 'x-workshop-env': true }
+      } },
+      pollSeconds: { type: 'integer', title: 'Re-read every (seconds)', minimum: 5, maximum: 3600, 'x-workshop-hosted': true }
+    }
+  };
+  const view = { id: 'opencode', schema, config: { workspace: '~/work', opencode: { command: 'opencode', startServer: true, passwordEnv: 'OC_PW' }, pollSeconds: 20 }, env: { OC_PW: { set: false } } };
+  S.mode = 'hosted'; S.agentUrl = 'http://127.0.0.1:4380';
+  S.ui.settings = { view, error: null, saving: false, enabled: true };
+  let html = render();
+  assert.match(html, /<h3 id="cfg-h">opencode settings<\/h3>/);
+  assert.match(html, /data-cfg="workspace" data-draft="cfg:workspace" value="~\/work"(?! disabled)/, 'workspace is editable from a hosted page');
+  assert.match(html, /data-cfg="opencode\.command"[^>]* disabled/, 'the command is not');
+  assert.match(html, /data-cfg="opencode\.startServer" checked>/, 'a marked checkbox is editable');
+  assert.match(html, /Not set on this computer/, 'env variables say whether they are set, never their value');
+  assert.match(html, /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"/, 'greyed out fields link to Workshop');
+  assert.doesNotMatch(html, /data-cfg-enabled/, 'a hosted page cannot turn the connector on or off');
+  S.mode = 'local';
+  html = render();
+  assert.doesNotMatch(html, /data-cfg="opencode\.command"[^>]* disabled/, 'everything is editable locally');
+  assert.match(html, /data-cfg-enabled="1" checked/);
+
+  S.ui.drafts['cfg:workspace'] = ' ~/code ';
+  S.ui.drafts['cfg:opencode.startServer'] = false;
+  S.ui.drafts['cfg:pollSeconds'] = '45';
+  assert.deepEqual(cfgBuild(), { config: { workspace: '~/code', opencode: { command: 'opencode', startServer: false, passwordEnv: 'OC_PW' }, pollSeconds: 45 } });
+  S.ui.drafts['cfg:opencode.command'] = '';
+  assert.equal(cfgBuild().config.opencode.command, undefined, 'an emptied optional field goes back to its default');
+  S.ui.drafts['cfg:pollSeconds'] = '2';
+  assert.match(cfgBuild().error, /from 5 to 3600/);
+  S.ui.drafts['cfg:pollSeconds'] = '45';
+  S.ui.drafts['cfg:workspace'] = '  ';
+  assert.match(cfgBuild().error, /Workspace folder is needed/);
+  S.agentUrl = null;
+});
+
+test('start work: describe it (default), an ADO number when ADO is set up, or investigate', () => {
+  load(clone(FIXTURE));
+  let html = render();
+  assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start work/s, 'the header has the button');
+  S.ui.start = { mode: 'describe', lane: 'feature', busy: false, error: null };
+  S.L.opencode = { ...(S.L.opencode || {}), connected: true };
+  html = render();
+  assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
+  assert.match(html, /data-start-mode="describe" aria-pressed="true"/);
+  assert.doesNotMatch(html, /data-start-mode="ado"/, 'no ADO tab when Tandem has no ADO set up');
+  assert.match(html, /data-draft="start:title"/);
+  assert.doesNotMatch(html, /start:repro/, 'no repro steps for a feature');
+  S.ui.start.lane = 'bug';
+  assert.match(render(), /data-draft="start:repro"/);
+  S.D.tandem = { ado: true };
+  S.ui.start.mode = 'ado';
+  html = render();
+  assert.match(html, /data-start-mode="ado" aria-pressed="true".*Work item number/s);
+  S.ui.start.mode = 'spike';
+  assert.match(render(), /data-draft="start:topic".*data-start-go="1">Investigate</s);
+  S.L.opencode.connected = false;
+  assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
+
+  const req = (st, drafts) => startRequest({ lane: 'feature', ...st }, drafts);
+  assert.deepEqual(req({ mode: 'describe' }, { 'start:title': '  Add  CSV export ', 'start:desc': 'For the reports page.' }), { action: 'start.local', args: { title: 'Add CSV export', lane: 'feature', description: 'For the reports page.' } });
+  assert.deepEqual(req({ mode: 'describe', lane: 'bug' }, { 'start:title': 'Export fails', 'start:repro': '1. Export twice' }), { action: 'start.local', args: { title: 'Export fails', lane: 'bug', repro: '1. Export twice' } });
+  assert.match(req({ mode: 'describe' }, {}).error, /title/);
+  assert.deepEqual(req({ mode: 'ado' }, { 'start:id': '#9988776' }), { action: 'start', args: { id: '9988776', lane: 'feature' } });
+  assert.deepEqual(req({ mode: 'spike' }, { 'start:topic': 'How does\nlogin work?' }), { action: 'spike', args: { topic: 'How does login work?' } });
+  assert.match(req({ mode: 'spike' }, {}).error, /investigate/);
+
+  assert.deepEqual(startCheck(' #9988776 ', 'bug'), { id: '9988776', lane: 'bug' });
+  assert.match(startCheck('abc', 'feature').error, /work item number/);
+  assert.match(startCheck('1', 'other').error, /Feature or Bug/);
+  const taken = (S.D.items || []).find(it => /^\d+$/.test(String(it.id)));
+  if (taken) assert.match(startCheck(String(taken.id), 'feature').error, /already started/);
+});
+
+test('add a repo: a clone URL, then an offer to draft its guide', () => {
+  load(clone(FIXTURE));
+  assert.match(render(), /data-repo-open="1">Add a repo.*data-guide="gateway">Draft guide/s, 'the repos panel can add a repo and draft guides');
+  S.ui.repo = { busy: false, error: null, added: null };
+  assert.match(render(), /<h3 id="repo-h">Add a repo<\/h3>.*data-draft="repo:url".*data-repo-go="1">Add repo/s);
+  S.ui.repo.added = { folder: 'web-app', repoMap: 'created' };
+  assert.match(render(), /Repo added.*started a repo map.*data-guide="web-app">Draft its guide/s);
+  assert.deepEqual(repoUrlCheck(' https://github.com/owner/repo.git '), { url: 'https://github.com/owner/repo.git' });
+  assert.deepEqual(repoUrlCheck('git@github.com:owner/repo.git'), { url: 'git@github.com:owner/repo.git' });
+  assert.match(repoUrlCheck('owner/repo').error, /git URL/);
+  assert.match(repoUrlCheck('').error, /clone URL/);
+});
+
+test('AI: the checklist and a banner say how to connect one; unknown is not treated as missing', () => {
+  load(clone(FIXTURE));
+  S.L.opencode.ai = { known: true, providers: [] };
+  assert.equal(aiState(), 'off');
+  let html = render();
+  assert.match(html, /Getting set up, 2 of 3 done.*class="gstep open">.*Connect an AI model.*opencode auth login.*data-ai-check="1"/s);
+  assert.match(html, /console\.anthropic\.com/, 'says how to use Claude');
+  S.L.opencode.ai = { known: false, providers: [] };
+  assert.equal(aiState(), 'unknown');
+  assert.equal(onboardSteps()[0].done, true);
+  assert.doesNotMatch(render(), /Getting set up/, 'all set: no checklist');
+  S.L.opencode.ai = { known: true, providers: ['OpenAI'] };
+  assert.equal(aiState(), 'on');
+});
+
+test('spikes and repo guides started from Dispatch show with their own reply box until dismissed', () => {
+  load(clone(FIXTURE));
+  S.L.sessions.ses_loose = { id: 'ses_loose', title: '/spike how does login work', status: 'idle', command: '/spike how does login work', text: 'Two options.', folder: null };
+  S.L.others = [{ session: 'ses_loose', command: '/spike how does login work', at: S.now - 60000 }];
+  assert.equal(looseSessions().length, 1);
+  const html = render();
+  assert.match(html, /Investigations and repo guides.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
+  S.L.sessions.ses_loose.folder = 'spike-login';
+  assert.equal(looseSessions().length, 0, 'once its folder exists, it is drawn with that item');
 });

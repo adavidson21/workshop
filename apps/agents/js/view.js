@@ -7,6 +7,7 @@
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
 import { S } from './state.js';
+import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -297,6 +298,18 @@ export function agentHtml(it) {
   const perms = itemPerms(it), qs = itemQs(it);
   const links = L().items[it.folder];
   if (!s && !perms.length && !qs.length) return '';
+  let out = sessionBox(s, perms, qs, `Reply to the agent, or type a command (for example /status ${it.id || it.folder}). Ctrl+Enter sends.`, true);
+  if (links && links.sessions.length > 1) {
+    const older = links.sessions.slice(0, -1).reverse();
+    out = out.slice(0, -'</div>'.length) + `<details${openAttr('h:' + it.folder, false)}><summary>Earlier sessions for this item (${older.length})</summary>` +
+      '<ul class="hist" style="margin-top:6px">' + older.map(x =>
+        `<li><span class="ht" title="${h(x.id)}">${h(x.title || x.command || x.id)}</span>` +
+        (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(x.id)}">Open</button>` : '') + '</li>').join('') + '</ul></details></div>';
+  }
+  return out;
+}
+/** One opencode session as a box: state, Stop, its prompts and questions, what it said, and a reply field. */
+function sessionBox(s, perms, qs, hint) {
   const busy = isBusy(s);
   const ask = perms.length + qs.length > 0;
   let out = `<div class="agent${ask ? ' asking' : busy ? ' busy' : ''}">`;
@@ -309,7 +322,7 @@ export function agentHtml(it) {
       (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(s.id)}" title="Opens the opencode TUI on this session">Open in terminal</button>` : '') +
       (s.attach ? copyBtn(s.attach, 'Copy terminal command') : '') + '</span></div>';
     if (busy && s.activity && !ask) out += `<div class="activity" title="${h(s.activity)}">${h(s.activity)}</div>`;
-    if (s.error) out += `<p class="err">${h(s.error)}</p>`;
+    if (s.error) out += `<p class="err">${h(s.error)}${aiState() === 'off' ? ' <b>No AI model is connected:</b> see Getting set up.' : ''}</p>`;
   }
   perms.forEach(p => { out += permHtml(p, false); });
   qs.forEach(q => { out += questionHtml(q, false); });
@@ -320,15 +333,8 @@ export function agentHtml(it) {
   }
   if (s && !busy) {
     const dk = 'r:' + s.id;
-    out += `<div class="reply"><textarea data-draft="${h(dk)}" data-sid="${h(s.id)}" placeholder="Reply to the agent, or type a command (for example /status ${h(it.id || it.folder)}). Ctrl+Enter sends." aria-label="Reply to the agent">` +
+    out += `<div class="reply"><textarea data-draft="${h(dk)}" data-sid="${h(s.id)}" placeholder="${h(hint)}" aria-label="Reply to the agent">` +
       h(S.ui.drafts[dk] || '') + `</textarea><button type="button" class="btn" data-reply="${h(s.id)}">Send</button></div>`;
-  }
-  if (links && links.sessions.length > 1) {
-    const older = links.sessions.slice(0, -1).reverse();
-    out += `<details${openAttr('h:' + it.folder, false)}><summary>Earlier sessions for this item (${older.length})</summary>` +
-      '<ul class="hist" style="margin-top:6px">' + older.map(x =>
-        `<li><span class="ht" title="${h(x.id)}">${h(x.title || x.command || x.id)}</span>` +
-        (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(x.id)}">Open</button>` : '') + '</li>').join('') + '</ul></details>';
   }
   return out + '</div>';
 }
@@ -346,8 +352,9 @@ function agentNote(it) {
 // Prompts from sessions that are not linked to a .work item (for example, started in the TUI).
 function waitingHtml() {
   if (!L()) return '';
-  const perms = L().permissions.filter(p => !p.folder);
-  const qs = L().questions.filter(q => !q.folder);
+  const loose = new Set(looseSessions().map(o => o.session));
+  const perms = L().permissions.filter(p => !p.folder && !loose.has(p.sessionID));
+  const qs = L().questions.filter(q => !q.folder && !loose.has(q.sessionID));
   if (!perms.length && !qs.length) return '';
   return '<section class="waiting" aria-label="Waiting for you"><h3 style="margin:0;font-size:15px">Waiting for you</h3>' +
     perms.map(p => permHtml(p, true)).join('') + qs.map(q => questionHtml(q, true)).join('') + '</section>';
@@ -500,6 +507,7 @@ export function itemCard(it, noAgent) {
   meta.push(`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`);
   if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
   meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">Touched ${ago(it.modifiedMs)}</span>`);
+  meta.push(projectChip(it));
   meta.push(removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<article class="item" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
@@ -515,7 +523,7 @@ function noteCard(it) {
   if (it.summary) body += `<p class="pre" style="margin:6px 0 0">${md(it.summary)}</p>`;
   if (it.nextText) body += `<div class="next-line"><span class="lbl">Next</span><span>${md(liveNote(it.nextText))}</span>${runBtn(it, noteCommand(it))}</div>`;
   return `<article class="item" id="item-${h(it.folder)}" style="--state:${asking(it) ? 'var(--gate)' : 'var(--line)'}"><div class="item-head"><h4 class="t">${h(it.title)}</h4><div class="meta"><span class="tag">${label}` +
-    `</span><span>Touched ${ago(it.modifiedMs)}</span>${removeBtn(it)}</div></div>${body}${agentHtml(it)}` +
+    `</span><span>Touched ${ago(it.modifiedMs)}</span>${projectChip(it)}${removeBtn(it)}</div></div>${body}${agentHtml(it)}` +
     (it.files && it.files.length ? `<details${openAttr('d:' + it.folder, false)}><summary>Files</summary><div class="detail-body">${filesHtml(it)}</div></details>` : '') + '</article>';
 }
 
@@ -532,7 +540,7 @@ export function pickupHtml(it) {
   else if (it.last) lo = `<p class="why"><strong>Last:</strong> ${h(dayName(it.last.date))}, <code>${h(it.last.command)}</code>: ${md(it.last.did || '')}</p>`;
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<section class="pickup" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}" aria-labelledby="pickup-h">` +
-    `<div class="pick-top"><p class="eyebrow">Pick up here, touched ${ago(it.modifiedMs)}</p>${removeBtn(it)}</div>` +
+    `<div class="pick-top"><p class="eyebrow">Pick up here, touched ${ago(it.modifiedMs)}</p>${projectChip(it)}${removeBtn(it)}</div>` +
     `<h2 id="pickup-h">${idLink(it)}${title}</h2>` +
     track(it) + nextHtml(it, true) + autoHtml(it) + agentHtml(it) +
     (why ? `<p class="why">${why}</p>` : '') + lo +
@@ -543,7 +551,8 @@ export function pickupHtml(it) {
 // -------------------------------------------------------------- sidebar
 function reposPanel() {
   const repos = (S.D && S.D.repos) || [];
-  if (!repos.length) return '';
+  const add = '<button type="button" class="lnk plain" data-repo-open="1">Add a repo</button>';
+  if (!repos.length) return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos <span class="n">0</span></h3><p class="dim" style="margin:0">No repos in your workspace yet. ${add}</p></section>`;
   const busy = [], clean = [];
   repos.forEach(r => {
     const g = r.git || {};
@@ -562,8 +571,10 @@ function reposPanel() {
       (g.lastSha ? `<div class="lc" title="${h(g.lastMsg)}"><span class="mono">${h(g.lastSha)}</span> ${h(g.lastMsg)}</div>` : '') + '</li>';
   }).join('');
   const cleanTxt = clean.length ? `<p class="clean-list">${plural(clean.length, 'repo')} clean on their default branch: ${clean.map(r => h(r.folder)).join(', ')}.</p>` : '';
+  const guides = `<details class="repo-guides"${openAttr('repo-guides', false)} data-key="repo-guides"><summary>Repo guides</summary><p class="dim">An agent reads a repo and drafts its guide (how to build, test and find things), for you to review. Do it once per repo, and again when it changes a lot.</p><ul>` +
+    repos.map(r => `<li><span class="mono">${h(r.folder)}</span><button type="button" class="btn" data-guide="${h(r.folder)}">Draft guide</button></li>`).join('') + '</ul></details>';
   return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos with work in progress <span class="n">${busy.length}</span></h3>` +
-    (busy.length ? `<ul class="repo-list">${li}</ul>` : '<p class="dim" style="margin:0">Every repo is clean on its default branch.</p>') + cleanTxt + '</section>';
+    (busy.length ? `<ul class="repo-list">${li}</ul>` : '<p class="dim" style="margin:0">Every repo is clean on its default branch.</p>') + cleanTxt + `<p class="repo-acts">${add}</p>` + guides + '</section>';
 }
 
 // One line per item per day: what moved, not every log entry. null: commands that do not move an item.
@@ -615,7 +626,8 @@ function activityPanel() {
 export const ICON = {
   theme: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor"/></svg>',
   more: '<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg>',
-  x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>'
+  x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>',
+  menu: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg>'
 };
 function moreMenuHtml() {
   const o = (L() && L().opencode) || {};
@@ -628,7 +640,7 @@ function moreMenuHtml() {
   }
   if (L() && L().canOpenTerminal && o.connected) items += '<button type="button" role="menuitem" data-term="">Open the opencode TUI</button>';
   if (o.attach) items += copyBtn(o.attach, 'Copy terminal command');
-  if (S.mode === 'local') items += '<div class="sep"></div><button type="button" role="menuitem" data-settings="1">opencode settings</button>';
+  items += '<div class="sep"></div><button type="button" role="menuitem" data-cfg-open="1">opencode settings</button>';
   return `<div class="menu" role="menu" style="top:${S.ui.menu.top}px;right:${S.ui.menu.right}px">${items}</div>`;
 }
 function themeMenuHtml() {
@@ -642,7 +654,7 @@ function menuHtml() {
 // Inside the shell the shell shows the name and owns the theme. Opened on its own, the page has both.
 function brandHtml() {
   if (S.embedded) return '';
-  return `<div class="brand"><span class="logo" aria-hidden="true"><i></i></span><h1>Agents</h1>${S.version ? `<span class="ver">v${h(S.version)}</span>` : ''}</div>`;
+  return `<div class="brand"><span class="logo" aria-hidden="true"><i></i></span><h1>Dispatch</h1>${S.version ? `<span class="ver">v${h(S.version)}</span>` : ''}</div>`;
 }
 export function pill() {
   const o = (L() && L().opencode) || {};
@@ -655,10 +667,11 @@ function headerHtml() {
   const o = (L() && L().opencode) || {};
   const st = pill();
   const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
-  const themeBtn = S.embedded ? '' : `<button type="button" class="ibtn" data-theme-menu="1" aria-label="Theme" title="Theme">${ICON.theme}</button>`;
-  return `<header class="top">${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
+  const toggle = `<button type="button" class="ibtn side-open" data-side-open="1" aria-label="Runs and projects" title="Runs and projects">${ICON.menu}</button>`;
+  return `<header class="top">${toggle}${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button>${themeBtn}</span></header>`;
+    `<button type="button" class="btn primary top-start" data-start-open="1" title="Describe a change, start an ADO work item, or investigate a question">Start work</button>` +
+    `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
   let out = '';
@@ -668,14 +681,68 @@ function bannersHtml() {
   return out;
 }
 
+// --------------------------------------------------------- the setup guide
+// Browser mode (this page can't reach Workshop on this computer): two steps. 1. Paste one command that
+// installs Tandem, Workshop and anything missing, starts Workshop and allows this site (scripts/bootstrap.*,
+// served by worker/index.js at /install.ps1 and /install.sh). It checks itself: main.js looks for Workshop
+// every few seconds while this step is open. 2. Connect: pair this page. Its state (S.setup) is kept per
+// browser by main.js.
+export const GUIDE_STEPS = ['install', 'connect'];
+const SOURCE = 'https://github.com/adavidson21/workshop/blob/main/scripts';
+const CHECK_SVG = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
+export function guideDefaults() { return { done: {}, open: null, port: 4380, os: 'win', check: null, pair: null }; }
+/** The one-line install command for this site. */
+export function installCommand(win, origin) {
+  return win ? `irm ${origin}/install.ps1 | iex` : `curl -fsSL ${origin}/install.sh | bash`;
+}
+function cmds(lines) {
+  return `<div class="kit gcmd">${lines.map(l => `<div class="kit-line"><code>${h(l)}</code>${copyBtn(l)}</div>`).join('')}</div>`;
+}
+function gmsg(m) { return m ? `<p class="gmsg${m.ok === true ? ' ok' : m.ok === false ? ' bad' : ''}" role="status">${md(m.text)}</p>` : '<p class="gmsg" role="status"></p>'; }
+export function guideHtml() {
+  const g = Object.assign(guideDefaults(), S.setup || {});
+  const open = GUIDE_STEPS.includes(g.open) || g.open === 'none' ? g.open : GUIDE_STEPS.find(k => !g.done[k]) || 'connect';
+  const win = g.os !== 'mac';
+  const origin = S.origin || '';
+  const osPick = `<div class="gos" role="group" aria-label="Your computer">` +
+    `<button type="button" data-gos="win" aria-pressed="${win}"${win ? ' class="on"' : ''}>Windows</button>` +
+    `<button type="button" data-gos="mac" aria-pressed="${!win}"${!win ? ' class="on"' : ''}>Mac or Linux</button></div>`;
+  const bodies = {
+    install: `<p>One command sets up everything Dispatch needs, for your user only, with no admin rights: Tandem, Workshop's small helper that runs only on this computer, and opencode and Node if you don't have them. It starts Workshop now and whenever you log in, and allows this site.</p>` +
+      osPick +
+      `<p class="gneed">${win ? 'Open <b>PowerShell</b> (Start menu, type PowerShell) and paste this:' : 'Open <b>Terminal</b> and paste this:'}</p>` +
+      cmds([installCommand(win, origin)]) +
+      `<p class="note">Your work goes in <code>~/work</code>. You can change that later in opencode settings, here in Dispatch. Running the command again updates everything and keeps your settings. <a href="${SOURCE}/bootstrap.${win ? 'ps1' : 'sh'}" target="_blank" rel="noopener">See what it does</a>.</p>` +
+      `<div class="gcheck"><button type="button" class="btn primary" data-gcheck>Check for Workshop</button>` +
+      `<details class="gport"><summary>Using another port?</summary><label>Port <input type="number" class="mono" data-gport min="1024" max="65535" value="${h(g.port)}"></label></details></div>` +
+      gmsg(g.check || { ok: null, text: 'This step ticks itself off when Workshop answers.' }),
+    connect: `<p>The installer opened Workshop in your browser once, which signs this browser in. Now click Connect and allow this site in the small Workshop window. Your browser may also ask to let this site reach devices on your network: allow it, that is how it reaches <code>127.0.0.1</code>.</p>` +
+      `<div class="gacts"><button type="button" class="btn primary" data-gpair>Connect to Workshop</button></div>` + gmsg(g.pair) +
+      `<p class="note">If the window says to open Workshop first, Workshop signed in to a different browser. Run <code>workshop open</code> in a new ${win ? 'PowerShell' : 'Terminal'} window, open the address it prints in this browser, then connect again.</p>`
+  };
+  const titles = { install: 'Install Tandem and Workshop', connect: 'Connect this page' };
+  const doneCount = GUIDE_STEPS.filter(k => g.done[k]).length;
+  const steps = GUIDE_STEPS.map((k, i) => {
+    const isOpen = k === open, done = !!g.done[k];
+    return `<li class="gstep${done ? ' done' : ''}${isOpen ? ' open' : ''}">` +
+      `<button type="button" class="ghead" data-gopen="${k}" aria-expanded="${isOpen}"><span class="gnum" aria-hidden="true">${done ? CHECK_SVG : i + 1}</span>` +
+      `<span class="gt">${titles[k]}</span>${done ? '<span class="gstate">Done</span>' : ''}</button>` +
+      (isOpen ? `<div class="gbody">${bodies[k]}</div>` : '') + '</li>';
+  }).join('');
+  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Log out and back in, or run the install command below again, which starts it. If that does not help, connect again below.</div>' : '';
+  return `<section class="guide">${lost}<p class="eyebrow">Set up, ${doneCount} of ${GUIDE_STEPS.length} done</p>` +
+    `<h2>Connect Dispatch to your computer</h2>` +
+    `<p class="lede">Dispatch is the front end for Tandem, which runs coding agents in opencode on your computer. Your code and work items stay there: this page talks straight to your computer, never to a server.</p>` +
+    `<ol class="gsteps">${steps}</ol></section>`;
+}
+
 // --------------------------------------------------------- before the connector is ready
-// Browser mode, the connector off, starting or in error: say what is wrong and how to fix it.
+// The connector off, starting or in error: say what is wrong and how to fix it.
 export function setupHtml() {
   const c = S.connector;
   let title, body, act = '';
   if (S.mode === 'browser') {
-    title = 'Agents needs Workshop running on this computer';
-    body = '<p>The agents and your <code>.work</code> folder are on your computer. Start Workshop there (<code>node workshop.mjs start</code>) and open it at <code>127.0.0.1</code>.</p>';
+    return guideHtml();
   } else if (!c) {
     title = 'Connecting to Workshop';
     body = '<p>Looking for the opencode connector.</p>';
@@ -684,7 +751,7 @@ export function setupHtml() {
     body = '<p>This copy of Workshop has no <code>connectors/opencode</code> folder.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
-    body = '<p>Agents shows your eng-agents work items and the opencode agents working on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
+    body = '<p>Dispatch is the front end for Tandem: your work items and the opencode agents Tandem runs on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
     act = 'settings';
   } else if (c.state === 'starting') {
     title = 'Starting the opencode connector';
@@ -694,7 +761,11 @@ export function setupHtml() {
     body = `<p>${md(c.message || 'It stopped.')}</p><p>Check its settings: the workspace folder, PowerShell, and the opencode server.</p>`;
     act = 'settings';
   }
-  const btn = act && S.mode === 'local' ? '<div class="acts"><button type="button" class="btn primary" data-settings="1">Open Settings</button></div>'
+  // Fixing settings happens here (the opencode settings sheet). Only turning the connector on is a Workshop
+  // setting, which a hosted page cannot change.
+  const here = act && (S.mode === 'local' || c.state !== 'disabled');
+  const btn = here ? '<div class="acts"><button type="button" class="btn primary" data-cfg-open="1">Open opencode settings</button></div>'
+    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Turning the connector on can only be done in Workshop on this computer.</p>`
     : act ? '<p class="note">Change it in Settings, in Workshop on this computer.</p>' : '';
   return `<div class="setup"><h2>${title}</h2>${body}${btn}</div>`;
 }
@@ -716,27 +787,300 @@ export function pickItem(items, by) {
   return newest(askingItems) || newest((by.needs || []).concat(by.active || []).filter(it => it.kind === 'item')) || newest(by.paused || []);
 }
 
+// --------------------------------------------------------- opencode settings
+// The opencode connector's settings, edited here instead of in Workshop. The form is built from the
+// connector's configSchema (GET /api/connectors/opencode/config). From a hosted page only fields the
+// connector marks x-workshop-hosted can be changed (docs/agent-api.md); the rest show their value and say
+// where to change them. S.ui.settings: {view, error, saving, enabled}; typed values live in S.ui.drafts as
+// "cfg:<path>".
+export const cfgGet = (obj, p) => p.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), obj);
+export const hostedOnly = () => S.mode !== 'local';
+export function cfgEditable(field) { return !hostedOnly() || field['x-workshop-hosted'] === true; }
+/** The value shown for a field: what the user typed, else the saved value. */
+export function cfgValue(p, field) {
+  const d = S.ui.drafts['cfg:' + p];
+  if (d !== undefined) return d;
+  const v = cfgGet(S.ui.settings && S.ui.settings.view && S.ui.settings.view.config, p);
+  return v === undefined ? (field.type === 'boolean' ? false : '') : v;
+}
+function cfgFields(schema, prefix, env) {
+  let out = '';
+  for (const [k, f] of Object.entries(schema.properties || {})) {
+    const p = prefix ? prefix + '.' + k : k;
+    if (f.type === 'object') { out += `<fieldset class="cfg-group"><legend>${h(f.title || k)}</legend>${cfgFields(f, p, env)}</fieldset>`; continue; }
+    const v = cfgValue(p, f);
+    const off = cfgEditable(f) ? '' : ' disabled';
+    const desc = f.description ? `<span class="cfg-d">${md(f.description)}</span>` : '';
+    let envNote = '';
+    if (f['x-workshop-env'] && typeof v === 'string' && v && env && env[v]) envNote = `<span class="cfg-env ${env[v].set ? 'ok' : 'bad'}">${env[v].set ? 'Set on this computer' : 'Not set on this computer'}</span>`;
+    if (f.type === 'boolean') {
+      out += `<label class="cfg-row cfg-check"><input type="checkbox" data-cfg="${h(p)}"${v === true ? ' checked' : ''}${off}><span><span class="cfg-t">${h(f.title || k)}</span>${desc}</span></label>`;
+    } else {
+      const num = f.type === 'integer' || f.type === 'number';
+      const attrs = num ? ` type="number" inputmode="numeric"${f.minimum != null ? ` min="${f.minimum}"` : ''}${f.maximum != null ? ` max="${f.maximum}"` : ''}` : ' type="text" spellcheck="false" autocomplete="off"';
+      const ph = f.default != null && !num ? ` placeholder="${h(f.default)}"` : '';
+      out += `<label class="cfg-row"><span class="cfg-t">${h(f.title || k)}</span>${desc}` +
+        `<input${attrs} class="mono" data-cfg="${h(p)}" data-draft="cfg:${h(p)}" value="${h(v)}"${ph}${off}>${envNote}</label>`;
+    }
+  }
+  return out;
+}
+function settingsSheetHtml() {
+  const st = S.ui.settings;
+  const head = `<div class="sheet-head"><h3 id="cfg-h">opencode settings</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  let body;
+  if (st.error && !st.view) body = `<p class="gmsg bad">${md(st.error)}</p>`;
+  else if (!st.view) body = '<p>Loading the settings from Workshop on your computer.</p>';
+  else {
+    const locked = hostedOnly() && Object.keys(st.view.schema.properties || {}).length > 0;
+    const toggle = S.mode === 'local'
+      ? `<label class="cfg-row cfg-check cfg-on"><input type="checkbox" data-cfg-enabled="1"${st.enabled ? ' checked' : ''}><span><span class="cfg-t">Turn on the opencode connector</span><span class="cfg-d">Dispatch needs it on to show your work.</span></span></label>`
+      : '';
+    body = `<p>How Dispatch finds your work and talks to opencode on this computer. Saving restarts the connector.</p>` +
+      `<form class="cfg" data-cfg-form="1" novalidate>${toggle}${cfgFields(st.view.schema, '', st.view.env)}</form>` +
+      (locked ? `<p class="note">Greyed out settings run commands or read secrets on your computer, so they can only be changed in Workshop there${S.agentUrl ? `: <a href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">open Workshop settings</a>` : ''}.</p>` : '') +
+      (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+  }
+  const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+    (st.view ? `<button type="button" class="btn primary" data-cfg-save="1"${st.saving ? ' disabled' : ''}>${st.saving ? 'Saving' : 'Save'}</button>` : '');
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cfg-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+/**
+ * The config to save: the saved config with what the user typed on top. Empty optional text fields are
+ * left out (the connector's default applies); numbers are parsed. Returns {config} or {error}.
+ */
+export function cfgBuild() {
+  const st = S.ui.settings;
+  const config = structuredClone(st.view.config || {});
+  const walk = (schema, prefix, target) => {
+    for (const [k, f] of Object.entries(schema.properties || {})) {
+      const p = prefix ? prefix + '.' + k : k;
+      if (f.type === 'object') { target[k] = target[k] && typeof target[k] === 'object' ? target[k] : {}; const e = walk(f, p, target[k]); if (e) return e; if (!Object.keys(target[k]).length) delete target[k]; continue; }
+      const d = S.ui.drafts['cfg:' + p];
+      if (d === undefined) continue;
+      if (f.type === 'boolean') { target[k] = d === true; continue; }
+      const text = String(d).trim();
+      const required = (schema.required || []).includes(k);
+      if (!text) { if (required) return `${f.title || k} is needed.`; delete target[k]; continue; }
+      if (f.type === 'integer' || f.type === 'number') {
+        const n = Number(text);
+        if (!Number.isFinite(n) || (f.type === 'integer' && !Number.isInteger(n))) return `${f.title || k} must be a number.`;
+        if ((f.minimum != null && n < f.minimum) || (f.maximum != null && n > f.maximum)) return `${f.title || k} must be from ${f.minimum} to ${f.maximum}.`;
+        target[k] = n;
+      } else target[k] = text;
+    }
+    return null;
+  };
+  const error = walk(st.view.schema, '', config);
+  return error ? { error } : { config };
+}
+
+// --------------------------------------------------------- start a work item
+// Three ways to start, each a connector action:
+//   describe: work with no tracker item. `start.local` writes .work/L<n>-<name>/workitem.md from what the
+//             person types, then runs /start L<n> <lane>. The default: no tracker needed.
+//   ado:      an ADO work item by number (`start`: /start <id> <lane>). Shown when Tandem has ADO set up.
+//   spike:    a question to investigate, no code changes (`spike`: /spike <topic>).
+// S.ui.start: {mode, lane, busy, error}. What the person types lives in S.ui.drafts['start:<field>'].
+export const START_MODES = ['describe', 'ado', 'spike'];
+export const adoOn = () => !!(S.D && S.D.tandem && S.D.tandem.ado);
+/** The action and args for the start sheet as filled in, or {error}. */
+export function startRequest(st, drafts) {
+  const d = k => String(drafts['start:' + k] || '').trim();
+  const lane = st.lane;
+  if (st.mode === 'spike') {
+    const topic = d('topic');
+    if (!topic) return { error: 'Say what to investigate.' };
+    return { action: 'spike', args: { topic: topic.replace(/\s+/g, ' ').slice(0, 500) } };
+  }
+  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if (st.mode === 'ado') {
+    const r = startCheck(d('id'), lane);
+    if (r.error) return r;
+    const args = { id: r.id, lane };
+    if (st.project && st.project !== INBOX) args.project = st.project;
+    return { action: 'start', args };
+  }
+  const title = d('title').replace(/\s+/g, ' ');
+  if (!title) return { error: 'Give the work a short title.' };
+  if (title.length > 200) return { error: 'Keep the title under 200 characters.' };
+  const args = { title, lane };
+  if (d('desc')) args.description = d('desc');
+  if (lane === 'bug' && d('repro')) args.repro = d('repro');
+  if (st.project && st.project !== INBOX) args.project = st.project;
+  return { action: 'start.local', args };
+}
+export function startCheck(raw, lane) {
+  const id = String(raw || '').trim().replace(/^#/, '');
+  if (!/^[0-9]{1,10}$/.test(id)) return { error: 'Type the work item number, like 12345.' };
+  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if ((S.D && S.D.items || []).some(it => String(it.id) === id)) return { error: `#${id} is already started. It is in the list.` };
+  return { id, lane };
+}
+function startSheetHtml() {
+  const st = S.ui.start;
+  const o = (L() && L().opencode) || {};
+  const mode = st.mode === 'ado' && !adoOn() ? 'describe' : st.mode;
+  const lane = st.lane;
+  const dv = k => h(S.ui.drafts['start:' + k] || '');
+  const tab = (k, label) => `<button type="button" data-start-mode="${k}" aria-pressed="${mode === k}"${mode === k ? ' class="on"' : ''}>${label}</button>`;
+  const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
+  const pnow = st.project || INBOX;
+  const projectPick = projectsOn() && projectList().length > 1 ? `<label class="cfg-row"><span class="cfg-t">Project</span><span class="cfg-d">The run gets the project's instructions.</span><select data-start-project="1">` +
+    projectList().map(p => `<option value="${h(p.id)}"${p.id === pnow ? ' selected' : ''}>${h(p.name)}</option>`).join('') + '</select></label>' : '';
+  const lanes = projectPick + `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">Start work</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const tabs = `<div class="gos start-modes" role="group" aria-label="How to start">${tab('describe', 'Describe it')}${adoOn() ? tab('ado', 'ADO work item') : ''}${tab('spike', 'Investigate')}</div>`;
+  let form;
+  if (mode === 'spike') {
+    form = `<p>An agent reads the code and answers a question, with options and a recommendation. It changes no code. It runs <code>/spike</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">What to investigate</span><textarea class="start-first" rows="3" data-draft="start:topic" placeholder="How does login refresh its token, and what would it take to make sessions last 8 hours?">${dv('topic')}</textarea></label>`;
+  } else if (mode === 'ado') {
+    form = `<p>Tandem fetches the work item from Azure DevOps, sets up its folder in <code>.work</code> and your branches, then waits for you. It runs <code>/start</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id start-first" data-draft="start:id" value="${dv('id')}" placeholder="12345" autocomplete="off"></label>` + lanes;
+  } else {
+    form = `<p>Describe the change in your own words. Tandem saves it as a work item, picks the repos, makes your branches, then waits for you. No tracker needed.</p>` +
+      lanes +
+      `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="${lane === 'bug' ? 'Export fails after one retry' : 'Add CSV export to reports'}" maxlength="200" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">What should change, and why</span><textarea rows="5" data-draft="start:desc" placeholder="The more you say, the fewer questions the agent asks.">${dv('desc')}</textarea></label>` +
+      (lane === 'bug' ? `<label class="cfg-row"><span class="cfg-t">Steps to reproduce</span><textarea rows="3" data-draft="start:repro" placeholder="1. Open reports 2. Click Export twice">${dv('repro')}</textarea></label>` : '');
+  }
+  const body = tabs + `<form class="cfg" data-start-form="1" novalidate>${form}</form>` +
+    (o.connected ? '' : '<p class="gmsg bad">opencode is not connected to Workshop, so nothing can start yet.</p>') +
+    (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+  const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+    `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : mode === 'spike' ? 'Investigate' : 'Start'}</button>`;
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
+// --------------------------------------------------------- repos
+// Add a repo (`repo.add`: git clone into the workspace and list it in the repo map), then offer to draft its
+// guide (`repo.guide`: /onboard-repo). S.ui.repo: {busy, error, added: {folder, repoMap} | null}.
+export function repoUrlCheck(raw) {
+  const u = String(raw || '').trim();
+  if (!u) return { error: 'Paste the repo\'s clone URL.' };
+  if (/\s/.test(u)) return { error: 'A clone URL has no spaces.' };
+  if (!/^(https?:\/\/[^/]+\/.+|ssh:\/\/[^/]+\/.+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+)$/i.test(u)) return { error: 'That does not look like a git URL. Copy it from the repo\'s Clone button, for example https://github.com/owner/repo.git' };
+  return { url: u };
+}
+function repoSheetHtml() {
+  const st = S.ui.repo;
+  const head = `<div class="sheet-head"><h3 id="repo-h">${st.added ? 'Repo added' : 'Add a repo'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  let body, foot;
+  if (st.added) {
+    const a = st.added;
+    body = `<p><b>${h(a.folder)}</b> is in your workspace${a.repoMap === 'listed' ? '' : a.repoMap === 'created' ? ', and Dispatch started a repo map (<code>AGENTS.md</code> in the workspace) that lists it' : ', and it is listed in the repo map (<code>AGENTS.md</code> in the workspace)'}.</p>` +
+      `<p>Next, let an agent read it and draft its guide: how to build it, test it, and how it is laid out. Agents use the guide on every task in this repo. You review the draft before anything relies on it. It runs <code>/onboard-repo</code>.</p>`;
+    foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Later</button>' +
+      `<button type="button" class="btn primary" data-guide="${h(a.folder)}">Draft its guide</button>`;
+  } else {
+    body = `<p>Dispatch clones it into your workspace, next to your other repos, so agents can work in it. It uses the git sign-in already on this computer.</p>` +
+      `<form class="cfg" data-repo-form="1" novalidate>` +
+      `<label class="cfg-row"><span class="cfg-t">Clone URL</span><input type="text" class="mono repo-url" data-draft="repo:url" value="${h(S.ui.drafts['repo:url'] || '')}" placeholder="https://github.com/owner/repo.git" spellcheck="false" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">What it is, in one line (optional)</span><span class="cfg-d">Helps agents pick the right repo for a task.</span><input type="text" data-draft="repo:about" value="${h(S.ui.drafts['repo:about'] || '')}" placeholder="The web app customers use" maxlength="200" autocomplete="off"></label></form>` +
+      `<p class="note">Already have the code on this computer? Move or clone the folder into your workspace (<code>${h(S.D && S.D.workspace)}</code>) and it shows up here.</p>` +
+      (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
+    foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
+      `<button type="button" class="btn primary" data-repo-go="1"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning' : 'Add repo'}</button>`;
+  }
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="repo-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
+// --------------------------------------------------------- getting set up
+// After Workshop is connected, three things stand between "installed" and "an agent is on my task": an AI
+// provider in opencode, a repo in the workspace, and a first piece of work. This checklist shows until all
+// three are done. AI status comes from the connector (liveMode.live.opencode.ai): {known, providers}.
+export function aiState() {
+  const ai = L() && L().opencode && L().opencode.ai;
+  if (!ai || !ai.known) return 'unknown';
+  return (ai.providers || []).length ? 'on' : 'off';
+}
+export const AI_LOGIN = 'opencode auth login';
+function aiHelpHtml() {
+  return `<p>Agents need an AI model. Open ${((S.setup && S.setup.os) || 'win') === 'win' ? 'PowerShell' : 'Terminal'}, run this, pick a provider and paste its API key:</p>` +
+    `<div class="kit gcmd"><div class="kit-line"><code>${AI_LOGIN}</code>${copyBtn(AI_LOGIN)}</div></div>` +
+    `<p class="note">For Claude, pick <b>Anthropic</b> and use an API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. OpenAI, Google, OpenRouter and others work the same way. The key stays in opencode on this computer.</p>`;
+}
+export function onboardSteps() {
+  const ai = aiState();
+  const repos = ((S.D && S.D.repos) || []).length;
+  const items = ((S.D && S.D.items) || []).length;
+  return [
+    { k: 'ai', done: ai !== 'off', title: ai === 'on' ? `AI connected: ${L().opencode.ai.providers.join(', ')}` : ai === 'unknown' ? 'Connect an AI model' : 'Connect an AI model' },
+    { k: 'repo', done: repos > 0, title: repos ? `${plural(repos, 'repo')} in your workspace` : 'Add a repo' },
+    { k: 'work', done: items > 0, title: 'Start your first piece of work' }
+  ];
+}
+function onboardHtml() {
+  const steps = onboardSteps();
+  if (steps.every(x => x.done)) return '';
+  const open = (steps.find(x => !x.done) || {}).k;
+  const ai = aiState();
+  const bodies = {
+    ai: aiHelpHtml() + `<div class="gacts"><button type="button" class="btn primary" data-ai-check="1">I connected one, check again</button></div>` +
+      (ai === 'unknown' ? '<p class="note">This version of opencode does not say which providers are connected, so Dispatch cannot check. If you already logged in, skip this.</p>' : ''),
+    repo: `<p>Agents work in git repos inside your workspace folder. Add the code you want them to work on.</p><div class="gacts"><button type="button" class="btn primary" data-repo-open="1">Add a repo</button></div>`,
+    work: `<p>Describe a change in your own words, or ask a question about the code. No tracker needed.</p><div class="gacts"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>`
+  };
+  const li = steps.map((x, i) => `<li class="gstep${x.done ? ' done' : ''}${x.k === open ? ' open' : ''}"><div class="ghead"><span class="gnum" aria-hidden="true">${x.done ? CHECK_SVG : i + 1}</span><span class="gt">${h(x.title)}</span>${x.done ? '<span class="gstate">Done</span>' : ''}</div>` +
+    (x.k === open ? `<div class="gbody">${bodies[x.k]}</div>` : '') + '</li>').join('');
+  return `<section class="guide onboard" aria-label="Getting set up"><p class="eyebrow">Getting set up, ${steps.filter(x => x.done).length} of 3 done</p><ol class="gsteps">${li}</ol></section>`;
+}
+
+// --------------------------------------------------------- spikes and repo guides
+// Sessions started from Dispatch that are not (yet) tied to a .work item: a spike before its folder exists,
+// and repo guides (liveMode.live.others). Drawn like an item's agent box, with a Dismiss button once idle.
+export function looseSessions() {
+  if (!L() || !L().others) return [];
+  return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
+}
+function looseHtml() {
+  const list = looseSessions();
+  if (!list.length) return '';
+  return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
+    list.map(o => {
+      const s = o.s;
+      const perms = L().permissions.filter(p => p.sessionID === o.session), qs = L().questions.filter(q => q.sessionID === o.session);
+      const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
+      return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+        sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
+    }).join('') + '</div></section>';
+}
+
 function overlaysHtml() {
-  return menuHtml() + (S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  return menuHtml() + (S.ui.project ? projectSheetHtml() : S.ui.folder ? folderSheetHtml() : S.ui.move ? moveSheetHtml() : S.ui.repo ? repoSheetHtml() : S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
 }
 
 /** The whole page. Resets the copy list, so call it once per paint. */
 export function render() {
   S.copyStore = [];
   if (!S.connector || S.connector.state !== 'ready' || !S.D) return setupHtml() + overlaysHtml();
-  const items = S.D.items || [];
+  return `<div class="layout">${sidebarHtml()}<div class="content">${mainHtml()}</div></div>` + overlaysHtml();
+}
+
+// The page to the right of the sidebar: header, then the runs in scope (all, a project, or Needs review).
+function mainHtml() {
+  const all = S.D.items || [];
+  const items = all.filter(inScope);
   const by = {};
   items.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
   let html = headerHtml() + bannersHtml();
-  if (!items.length) {
-    html += waitingHtml();
-    html += '<div class="empty"><h2>No work in .work yet</h2><p>Start a work item and it shows up here.</p><div class="do"><span class="cmd">/start &lt;id&gt; feature</span></div></div>';
+  const setup = onboardHtml();
+  if (!all.length) {
+    html += setup + waitingHtml() + looseHtml();
+    if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change, or ask a question about the code, and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
+      '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
-    return html + overlaysHtml();
+    return html;
   }
-  const pick = pickItem(items, by);
-  html += '<div class="grid"><main>' + waitingHtml();
+  const sc = scope();
+  const pick = sc.kind === 'all' ? pickItem(items, by) : null;
+  html += '<div class="grid"><main>' + scopeHeadHtml() + (sc.kind === 'all' ? setup + waitingHtml() + looseHtml() : '');
   if (pick) html += pickupHtml(pick);
+  if (!items.length) {
+    html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you. Runs land here when an agent asks a question, a draft needs approval, or review finds something.</p></div>'
+      : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">New run</button></div></div>`;
+  }
   if (items.length > 8) {
     html += '<ul class="counts" aria-label="Jump to a group">' + GROUPS.map(g => {
       const n = (by[g[0]] || []).length;
@@ -752,7 +1096,7 @@ export function render() {
   });
   if (!S.D.gitAvailable) html += '<p class="note">git was not found on PATH, so repo state is missing.</p>';
   html += `</main><aside>${reposPanel()}${activityPanel()}</aside></div>`;
-  return html + overlaysHtml();
+  return html;
 }
 
 /** Open prompts and questions, for the rail badge and alerts. */

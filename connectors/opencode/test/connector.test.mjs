@@ -175,6 +175,26 @@ for (const kind of ["v1", "v2"]) {
       await waitFor(async () => (await call("status", {}, ctx())).starting[0]?.agent === "idle", "/start to end");
     });
 
+    test("projects: create, start a described run in one, see it in state, move it, remove the project", async () => {
+      const { project } = await call("project.create", { name: "Orders", instructions: "Run the repo's tests first." }, ctx());
+      assert.equal(project.id, "p-orders");
+      await waitFor(() => f.rec.events.some((e) => e.event === "projects"), "the projects event");
+      const r = await call("start.local", { title: "Add CSV export", lane: "feature", project: project.id }, ctx());
+      assert.equal(r.project, project.id);
+      const wi = fs.readFileSync(path.join(ws.dir, ".work", r.folder, "workitem.md"), "utf8");
+      assert.match(wi, /## Extra context from the engineer\n\nProject: Orders\n\nRun the repo's tests first\./);
+      let st = await call("state", {}, ctx());
+      assert.deepEqual(st.projects.projects.map((p) => p.id), ["inbox", "p-orders"]);
+      assert.equal(st.projects.runs[r.folder], project.id);
+      await call("run.assign", { folder: "41207-fix-login-timeout", project: project.id }, ctx());
+      await rejects(call("run.assign", { folder: "nope", project: project.id }, ctx()), "not_found", /No work item folder/);
+      await rejects(call("start.local", { title: "X", lane: "feature", project: "p-missing" }, ctx()), "not_found", /No project/);
+      assert.deepEqual(await call("project.delete", { id: project.id }, ctx()), { ok: true, movedToInbox: 2 });
+      st = await call("state", {}, ctx());
+      assert.deepEqual(st.projects.runs, {});
+      await finish(r.session);
+    });
+
     test("[P-reply] reply sends text to the session, and a /command to the item's pipeline", async () => {
       const r = await call("run", { folder: "41300-export-retry-fails", command: "/bug 41300" }, ctx());
       await finish(r.session);
@@ -341,8 +361,8 @@ describe("settings and lifecycle", { skip }, () => {
       await oc.stop();
       await startConnector(configFor(path.join(ws.dir, "missing")));
       assert.equal(oc.status().state, "error");
-      assert.match(oc.status().message, /No \.work folder/);
-      await rejects(call("status"), "unavailable", /No \.work folder/);
+      assert.match(oc.status().message, /does not exist/);
+      await rejects(call("status"), "unavailable", /does not exist/);
       await oc.stop();
       await startConnector({ ...configFor(ws.dir, { url: "http://127.0.0.1:9" }), powershell: "no-such-powershell-xyz" });
       assert.equal(oc.status().state, "error");

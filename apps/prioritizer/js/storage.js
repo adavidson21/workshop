@@ -20,6 +20,7 @@ import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
+import { saveFile } from '../../../shared/save-file.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, ws = null, booted = false, status = {state: 'saved'};
@@ -27,6 +28,7 @@ let store = null, ws = null, booted = false, status = {state: 'saved'};
 function where(){
   if (!ws) return 'nowhere';
   return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder'
+    : ws.storage === 'device' ? 'on this phone, in the app\'s storage'
     : ws.storage === 'folder' ? 'in your Workshop folder' : 'in this browser';
 }
 function setStatus(s){
@@ -103,7 +105,7 @@ async function boot(){
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
   if (store.isNew && ws.backend === 'agent'){
-    toast('Moving from the Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
+    toast('Moving from the old Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
   }
 }
 
@@ -117,7 +119,8 @@ function onSyncClick(btn){
   const note = status.state === 'error' ? `<div class="mnote warn">${status.retry === false ? `Not saving: ${why}` : `Not saved yet: ${why}. Retrying every few seconds.`}</div>`
     : status.state === 'readonly' ? `<div class="mnote warn">Read only. This board was saved by a newer Workshop.</div>`
     : `<div class="mnote">Saved ${esc(where())}.</div>`;
-  popMenu(note + `<button data-s="download">Download an Excel copy</button><button data-s="backup">Download a backup (.json)</button>`
+  const verb = ws && ws.storage === 'device' ? 'Save' : 'Download'; // the app hands files to the share sheet
+  popMenu(note + `<button data-s="download">${verb} an Excel copy</button><button data-s="backup">${verb} a backup (.json)</button>`
     + `<button data-s="import">Import a file</button>` + (status.state === 'error' && store ? `<div class="sep"></div><button data-s="retry">Try saving now</button>` : ''), btn)
     .addEventListener('click', e => {
       const b = e.target.closest('[data-s]'); if (!b) return;
@@ -135,12 +138,8 @@ async function downloadBackup(){
   try {
     if (store) await store.idle();
     const bundle = await ws.data.export({apps: ['prioritizer']});
-    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2) + '\n'], {type: 'application/json'}));
-    const a = document.createElement('a');
-    a.href = url; a.download = `workshop-${todayStr()}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Backup downloaded');
+    const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
+    if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
   } catch (e){ toast('Could not make a backup.'); }
 }
 

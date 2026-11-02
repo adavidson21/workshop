@@ -6,6 +6,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { _internals, data as sdkData } from '../workshop-sdk.js';
 import { FakeFolder } from './fake-dir.mjs';
+import { capacitorOver } from './fake-capacitor.mjs';
+import { deviceRoot } from '../device-fs.js';
+
+// sdk-device.test.mjs runs this file again with the Android app's device storage (shared/device-fs.js) under
+// the folder store, over the same in-memory folder. Tests of Chrome's folder access and the IndexedDB move
+// do not apply there and are skipped.
+const DEVICE = globalThis.__workshopDeviceStore === true;
+const rootOf = (fs) => (DEVICE ? deviceRoot({ call: capacitorOver(fs), base: '', name: fs.node.name, now: () => fs.time + 60_000 }) : fs.root);
+const chromeOnly = DEVICE && 'Chrome folder access only';
 
 const { makeFolderStore, moveIntoFolder, openBrowserStore } = _internals;
 
@@ -25,7 +34,7 @@ function bus() {
   return make;
 }
 const tick = () => new Promise(r => setTimeout(r, 5));
-const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, fs.root, Object.assign({ timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, opts));
+const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, rootOf(fs), Object.assign({ timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, DEVICE ? { storage: 'device' } : {}, opts));
 const envelope = (items, extra = {}) => Object.assign({ schema: 'notes.pages', version: 1, rev: 0, items }, extra);
 const codeOf = async (p) => p.then(() => 'ok', e => e.code);
 
@@ -40,7 +49,7 @@ test('collections: create, read back, stored as the agent stores them', async ()
   assert.ok(text.endsWith('\n') && text.includes('\n  "schema"'), 'pretty-printed with 2 spaces and a final newline');
   const back = await s.get('notes', 'pages');
   assert.deepEqual(back, { schema: 'notes.pages', version: 1, rev: 1, updatedAt: '2026-10-25T14:05:00.123Z', items: [{ id: 'p1', updatedAt: 1, title: 'One' }] });
-  assert.equal(s.storage, 'folder');
+  assert.equal(s.storage, DEVICE ? 'device' : 'folder');
   assert.equal(s.online, true);
 });
 
@@ -113,17 +122,17 @@ test('names: bad names and bad envelopes are refused before anything is written'
 test('nested names: subfolders, digits first, listed with their full name', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const env = { schema: 'receipts.entries/jordan-lee/2026', version: 1, rev: 0, items: [{ id: 'e1', updatedAt: 1 }] };
-  await s.put('receipts', 'entries/jordan-lee/2026', env);
+  const env = { schema: 'receipts.entries/person-one/2026', version: 1, rev: 0, items: [{ id: 'e1', updatedAt: 1 }] };
+  await s.put('receipts', 'entries/person-one/2026', env);
   await s.put('receipts', 'config', { schema: 'receipts.config', version: 1, rev: 0, items: [] });
-  assert.ok(fs.exists('receipts/entries/jordan-lee/2026.json'));
-  assert.equal((await s.get('receipts', 'entries/jordan-lee/2026')).rev, 1);
-  fs.write('receipts/entries/jordan-lee/notes.md', '# not a collection');
+  assert.ok(fs.exists('receipts/entries/person-one/2026.json'));
+  assert.equal((await s.get('receipts', 'entries/person-one/2026')).rev, 1);
+  fs.write('receipts/entries/person-one/notes.md', '# not a collection');
   fs.write('receipts/.git/config.json', '{}');
   const listed = await s.list('receipts');
-  assert.deepEqual(listed.collections.map(c => c.collection), ['config', 'entries/jordan-lee/2026']);
+  assert.deepEqual(listed.collections.map(c => c.collection), ['config', 'entries/person-one/2026']);
   const all = await s.allCollections();
-  assert.deepEqual(all.map(r => `${r.app}/${r.collection}`), ['receipts/config', 'receipts/entries/jordan-lee/2026']);
+  assert.deepEqual(all.map(r => `${r.app}/${r.collection}`), ['receipts/config', 'receipts/entries/person-one/2026']);
 });
 
 test('a damaged collection file is never written over', async () => {
@@ -173,22 +182,22 @@ test('lastModified: a change that keeps rev also restarts, and the write then la
 test('files: create, read, replace with mtime, and every kind of conflict', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const made = await s.files.write('receipts', 'summaries/jordan-lee/2026-h2.md', '# Jordan\n', { create: true });
+  const made = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# Person\n', { create: true });
   assert.deepEqual(Object.keys(made).sort(), ['app', 'mtime', 'path', 'size']);
   assert.equal(made.size, 9);
-  assert.equal(fs.read('receipts/summaries/jordan-lee/2026-h2.md'), '# Jordan\n');
-  const read = await s.files.read('receipts', 'summaries/jordan-lee/2026-h2.md');
-  assert.deepEqual(read, { app: 'receipts', path: 'summaries/jordan-lee/2026-h2.md', mtime: made.mtime, size: 9, content: '# Jordan\n' });
+  assert.equal(fs.read('receipts/summaries/person-one/2026-h2.md'), '# Person\n');
+  const read = await s.files.read('receipts', 'summaries/person-one/2026-h2.md');
+  assert.deepEqual(read, { app: 'receipts', path: 'summaries/person-one/2026-h2.md', mtime: made.mtime, size: 9, content: '# Person\n' });
   assert.equal(await s.files.read('receipts', 'summaries/none.md'), null);
 
-  const again = await s.files.write('receipts', 'summaries/jordan-lee/2026-h2.md', '# Jordan Lee\n', { mtime: read.mtime });
+  const again = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# Person One\n', { mtime: read.mtime });
   assert.ok(again.mtime !== read.mtime, 'a new mtime names the new version');
 
-  const stale = await s.files.write('receipts', 'summaries/jordan-lee/2026-h2.md', 'x', { mtime: read.mtime }).catch(e => e);
+  const stale = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', 'x', { mtime: read.mtime }).catch(e => e);
   assert.equal(stale.code, 'conflict');
-  assert.equal(stale.current.content, '# Jordan Lee\n');
+  assert.equal(stale.current.content, '# Person One\n');
   assert.equal(stale.current.mtime, again.mtime);
-  const exists = await s.files.write('receipts', 'summaries/jordan-lee/2026-h2.md', 'x', { create: true }).catch(e => e);
+  const exists = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', 'x', { create: true }).catch(e => e);
   assert.equal(exists.code, 'conflict');
   assert.equal(exists.current.mtime, again.mtime);
   const gone = await s.files.write('receipts', 'summaries/gone.md', 'x', { mtime: 5 }).catch(e => e);
@@ -208,19 +217,19 @@ test('files: what may be written, and what the files API never touches', async (
   assert.equal(await codeOf(s.files.write('receipts', 'big.md', 'x'.repeat(10 * 1024 * 1024 + 1), { create: true })), 'too_large');
   assert.equal(fs.writes, 0);
 
-  await s.put('receipts', 'summaries/jordan-lee/2026-h2', { schema: 'receipts.summaries/jordan-lee/2026-h2', version: 1, rev: 0, items: [] });
-  await s.files.write('receipts', 'summaries/jordan-lee/2026-h2.md', '# H2', { create: true });
+  await s.put('receipts', 'summaries/person-one/2026-h2', { schema: 'receipts.summaries/person-one/2026-h2', version: 1, rev: 0, items: [] });
+  await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# H2', { create: true });
   await s.files.write('receipts', 'a.json', '{"plain": true}', { create: true });
   fs.write('receipts/Notes.md', 'bad name');
   fs.write('receipts/.obsidian/x.md', 'dot folder');
   fs.write('receipts/a/b/c/d/deep.md', 'too deep');
   fs.write('receipts/readme.txt', 'other extension');
   const listed = await s.files.list('receipts');
-  assert.deepEqual(listed.map(f => f.path), ['a.json', 'summaries/jordan-lee/2026-h2.md'], 'sorted, collections and ignored names left out');
-  assert.deepEqual((await s.files.list('receipts', 'summaries')).map(f => f.path), ['summaries/jordan-lee/2026-h2.md']);
+  assert.deepEqual(listed.map(f => f.path), ['a.json', 'summaries/person-one/2026-h2.md'], 'sorted, collections and ignored names left out');
+  assert.deepEqual((await s.files.list('receipts', 'summaries')).map(f => f.path), ['summaries/person-one/2026-h2.md']);
   assert.deepEqual(await s.files.list('receipts', 'nothing'), []);
   assert.deepEqual(await s.files.list('nobody'), []);
-  assert.equal(await codeOf(s.files.read('receipts', 'summaries/jordan-lee/2026-h2.json')), 'bad_request', 'a collection is not a file');
+  assert.equal(await codeOf(s.files.read('receipts', 'summaries/person-one/2026-h2.json')), 'bad_request', 'a collection is not a file');
   fs.write('receipts/huge.md', 'x'.repeat(10 * 1024 * 1024 + 1));
   assert.equal(await codeOf(s.files.read('receipts', 'huge.md')), 'too_large');
   assert.ok((await s.files.list('receipts')).some(f => f.path === 'huge.md'), 'a file too large to read is still listed');
@@ -229,18 +238,18 @@ test('files: what may be written, and what the files API never touches', async (
 test('files: trash moves the file, never removes it', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const a = await s.files.write('receipts', 'summaries/jordan-lee/2026-h1.md', 'first', { create: true });
-  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/jordan-lee/2026-h1.md', { mtime: a.mtime - 1 })), 'conflict');
-  const t1 = await s.files.trash('receipts', 'summaries/jordan-lee/2026-h1.md', { mtime: a.mtime });
-  assert.deepEqual(t1, { app: 'receipts', path: 'summaries/jordan-lee/2026-h1.md', trash: '.trash/receipts/summaries/jordan-lee/2026-h1.20261025T140500123Z.md' });
+  const a = await s.files.write('receipts', 'summaries/person-one/2026-h1.md', 'first', { create: true });
+  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/person-one/2026-h1.md', { mtime: a.mtime - 1 })), 'conflict');
+  const t1 = await s.files.trash('receipts', 'summaries/person-one/2026-h1.md', { mtime: a.mtime });
+  assert.deepEqual(t1, { app: 'receipts', path: 'summaries/person-one/2026-h1.md', trash: '.trash/receipts/summaries/person-one/2026-h1.20261025T140500123Z.md' });
   assert.equal(fs.read(t1.trash), 'first');
-  assert.equal(fs.exists('receipts/summaries/jordan-lee/2026-h1.md'), false);
-  await s.files.write('receipts', 'summaries/jordan-lee/2026-h1.md', 'second', { create: true });
-  const t2 = await s.files.trash('receipts', 'summaries/jordan-lee/2026-h1.md');
-  assert.equal(t2.trash, '.trash/receipts/summaries/jordan-lee/2026-h1.20261025T140500123Z-1.md', 'a taken name gets -1');
+  assert.equal(fs.exists('receipts/summaries/person-one/2026-h1.md'), false);
+  await s.files.write('receipts', 'summaries/person-one/2026-h1.md', 'second', { create: true });
+  const t2 = await s.files.trash('receipts', 'summaries/person-one/2026-h1.md');
+  assert.equal(t2.trash, '.trash/receipts/summaries/person-one/2026-h1.20261025T140500123Z-1.md', 'a taken name gets -1');
   assert.equal(fs.read(t2.trash), 'second');
   assert.equal(fs.read(t1.trash), 'first');
-  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/jordan-lee/2026-h1.md')), 'not_found');
+  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/person-one/2026-h1.md')), 'not_found');
   assert.deepEqual(await s.files.list('receipts'), [], 'the trash is not listed');
 });
 
@@ -314,7 +323,7 @@ test('events: changes made outside Workshop are found by lastModified and say "r
   assert.equal(files.length, 3, 'each change is reported once');
 });
 
-test('access: without permission calls say unavailable; allow() brings it back and tells other tabs', async () => {
+test('access: without permission calls say unavailable; allow() brings it back and tells other tabs', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   fs.permission = 'prompt';
   const make = bus();
@@ -349,7 +358,7 @@ test('access: without permission calls say unavailable; allow() brings it back a
   assert.equal(b.online, true);
 });
 
-test('access: a folder that is gone is reported, never replaced by browser storage', async () => {
+test('access: a folder that is gone is reported, never replaced by browser storage', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   const s = store(fs);
   await s.put('notes', 'pages', envelope([]));
@@ -362,7 +371,7 @@ test('access: a folder that is gone is reported, never replaced by browser stora
   assert.equal(opened.missing, true);
 });
 
-test('openBrowserStore: a saved handle that needs asking again is the folder store, offline until allowed', async () => {
+test('openBrowserStore: a saved handle that needs asking again is the folder store, offline until allowed', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder('MyWorkshop');
   fs.permission = 'prompt';
   const s = await openBrowserStore({ clientId: 'w-x' }, { handle: fs.root, folder: { timers: false, channel: null } });
@@ -378,7 +387,7 @@ function memorySource(collections, files) {
   return src;
 }
 
-test('moving from IndexedDB: collections created or merged, files kept side by side, the old copy marked moved', async () => {
+test('moving from IndexedDB: collections created or merged, files kept side by side, the old copy marked moved', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder('Workshop');
   const target = store(fs);
   // Already in the folder: tasks (to merge), lists at another version, and a summary that differs.
@@ -427,7 +436,7 @@ test('moving from IndexedDB: collections created or merged, files kept side by s
   assert.equal(fs.writes, writes, 'a store marked moved is never copied again');
 });
 
-test('moving from IndexedDB: a long file name still fits the name rules', async () => {
+test('moving from IndexedDB: a long file name still fits the name rules', { skip: chromeOnly }, async () => {
   const fs = new FakeFolder();
   const target = store(fs);
   const long = 'a'.repeat(40);

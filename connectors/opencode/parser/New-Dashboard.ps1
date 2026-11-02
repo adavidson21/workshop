@@ -565,7 +565,9 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
         continue
     }
 
-    if ($dir.Name -notmatch '^(\d+)-(.*)$') {
+    # A work item folder is <id>-<short-name>. The id is a tracker number (ADO) or a local id, L<number>,
+    # for work that has no tracker item (New-LocalWorkItem.ps1, or Dispatch's Start a work item).
+    if ($dir.Name -notmatch '^(\d+|L\d+)-(.*)$') {
         $base.kind = "other"; $base.id = $null; $base.title = $dir.Name; $base.bucket = "notes"
         [void]$items.Add($base)
         continue
@@ -579,8 +581,8 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
     $pausedText = Read-Text (Join-Path $folder "paused.md")
 
     $title = $null
-    if ($wi -and $wi -match '(?m)^#\s+Work item\s+\d+\s*:\s*(.+?)\s*$') { $title = Get-CleanValue $Matches[1] }
-    if (-not $title -and $progressText -and $progressText -match '(?m)^#\s+Progress:\s*\d+\s+(.+?)\s*$') { $title = Get-CleanValue $Matches[1] }
+    if ($wi -and $wi -match '(?m)^#\s+Work item\s+L?\d+\s*:\s*(.+?)\s*$') { $title = Get-CleanValue $Matches[1] }
+    if (-not $title -and $progressText -and $progressText -match '(?m)^#\s+Progress:\s*L?\d+\s+(.+?)\s*$') { $title = Get-CleanValue $Matches[1] }
     if (-not $title) { $title = ($slug -replace '-', ' ') }
 
     $type = Get-Field $wi "Type"
@@ -663,7 +665,8 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
         kind = "item"; id = $id; folder = $base.folder; title = $title
         type = $type; adoState = (Get-Field $wi "State"); fetched = (Get-Field $wi "Fetched")
         lane = $lane; laneGuessed = $laneGuessed
-        url = (Get-WorkItemUrl $id $wi $(@($repoStates | ForEach-Object { $_.git })))
+        # A local item has no tracker, so only its own Link field (if the engineer added one) is a link.
+        url = $(if ($id -like 'L*') { $l = Get-Field $wi "Link"; if ($l -match '^(?i)https?://') { $l } else { $null } } else { (Get-WorkItemUrl $id $wi $(@($repoStates | ForEach-Object { $_.git }))) })
         hasRepos = [bool]$reposText; hasPr = (Test-Path -LiteralPath (Join-Path $folder "pr.md"))
         gates = [ordered]@{
             spec = (Get-GateStatus (Join-Path $folder "spec.md"))
@@ -731,7 +734,7 @@ foreach ($d in @(Get-ChildItem -LiteralPath $workspace -Directory -ErrorAction S
     if (-not (Test-Path -LiteralPath (Join-Path $d.FullName ".git"))) { continue }
     $gs = Get-RepoState $d.FullName
     $owner = $null
-    if ($gs.branch -and $gs.branch -match '^dev/[^/]+/(\d+)-') { $owner = $Matches[1] }
+    if ($gs.branch -and $gs.branch -match '^dev/[^/]+/(\d+|L\d+)-') { $owner = $Matches[1] }
     [void]$repos.Add([ordered]@{
             folder = $d.Name
             git = $gs

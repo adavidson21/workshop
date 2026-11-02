@@ -154,8 +154,19 @@ export async function connectOpencode() {
   if (running) followEvents();
 }
 
+/** Which AI providers opencode can use (oc.ai). Never throws: unknown is fine. */
+export async function loadProviders() {
+  if (!oc.api || !oc.api.loadProviders) return oc.ai;
+  try {
+    return await oc.api.loadProviders();
+  } catch {
+    return (oc.ai = { known: false, providers: [] });
+  }
+}
+
 export async function loadState() {
   await oc.api.loadCommands().catch(() => {});
+  await loadProviders();
   const ids = await oc.api.loadSessions();
   // Drop links to sessions that no longer exist.
   if (ids) {

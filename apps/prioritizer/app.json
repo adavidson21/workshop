@@ -1,8 +1,8 @@
 {
   "manifestVersion": 1,
   "id": "prioritizer",
-  "name": "Prioritizer",
-  "version": "4.2.0",
+  "name": "Docket",
+  "version": "4.4.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -40,13 +40,14 @@
     },
     {
       "id": "shortcuts",
-      "title": "Prioritizer keyboard shortcuts"
+      "title": "Docket keyboard shortcuts"
     }
   ],
   "files": [
     "app.css",
     "js/actions.js",
     "js/ado.js",
+    "js/app-banner.js",
     "js/command-bar.js",
     "js/constants.js",
     "js/drag-drop.js",
@@ -57,6 +58,7 @@
     "js/kv.js",
     "js/main.js",
     "js/model.js",
+    "js/native.js",
     "js/overlays.js",
     "js/people.js",
     "js/quick-add.js",

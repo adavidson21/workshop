@@ -14,7 +14,7 @@ export default {
     additionalProperties: false,
     required: ['greeting'],
     properties: {
-      greeting: { type: 'string', title: 'Greeting', default: 'Hello', maxLength: 40 },
+      greeting: { type: 'string', title: 'Greeting', default: 'Hello', maxLength: 40, 'x-workshop-hosted': true },
       tokenEnv: { type: 'string', title: 'Token environment variable', 'x-workshop-env': true, default: 'ECHO_TOKEN' },
       mode: { type: 'string', title: 'Mode', enum: ['plain', 'loud'], 'x-workshop-labels': ['As typed', 'Upper case'], default: 'plain' },
       failStart: { type: 'boolean', title: 'Fail on start (for tests)', default: false }

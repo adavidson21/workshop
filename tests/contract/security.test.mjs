@@ -114,13 +114,26 @@ test('config changes are refused from hosted origins', async () => {
   expectError(await put(hosted, '/api/config', { features: { startAtLogin: true } }, { origin: HOSTED }), 403, 'local_only');
 });
 
-test('connector config changes are refused from hosted origins', async () => {
-  expectError(await put(hosted, '/api/connectors/echo/config', { config: { tokenEnv: 'OTHER_SECRET' } }, { origin: HOSTED }), 403, 'local_only');
+test('connector config changes are refused from hosted origins, except fields marked x-workshop-hosted', async () => {
+  expectError(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hello', tokenEnv: 'OTHER_SECRET' } }, { origin: HOSTED }), 403, 'local_only');
+  // A field the connector marks x-workshop-hosted can be changed from a paired hosted page.
+  const saved = expectJson(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hi there' } }, { origin: HOSTED }), 200, 'connector-config');
+  assert.equal(saved.config.greeting, 'Hi there');
+  // Changing a marked field together with an unmarked one is refused as a whole, and nothing is saved.
+  const mixed = expectError(await put(hosted, '/api/connectors/echo/config', { config: { greeting: 'Hey', mode: 'loud' } }, { origin: HOSTED }), 403, 'local_only');
+  assert.match(mixed.error, /mode/);
+  assert.equal(expectJson(await get(hosted, '/api/connectors/echo/config', { origin: HOSTED }), 200, 'connector-config').config.greeting, 'Hi there');
 });
 
 test('pairing needs the cookie, hosted mode, and a listed origin', async () => {
   const enc = encodeURIComponent(HOSTED);
-  const noCookie = await get(hosted, `/pair?origin=${enc}`, { auth: 'none' });
+  // A pairing window opened from the hosted site arrives without the SameSite=Strict cookie: the page reloads
+  // itself once (a same-site navigation, which carries it), and only then says to open Workshop first.
+  const first = await get(hosted, `/pair?origin=${enc}`, { auth: 'none' });
+  assert.equal(first.status, 200);
+  assert.ok(first.text.includes('location.replace(') && first.text.includes('again=1'), 'reloads once, same-site');
+  assert.ok(!first.text.includes('workshop-pair'), 'no token without the cookie');
+  const noCookie = await get(hosted, `/pair?origin=${enc}&again=1`, { auth: 'none' });
   assert.equal(noCookie.status, 401);
   const notListed = await get(hosted, `/pair?origin=${encodeURIComponent('https://other.example.org')}`, { auth: 'cookie' });
   assert.equal(notListed.status, 403);
@@ -133,7 +146,7 @@ test('pairing needs the cookie, hosted mode, and a listed origin', async () => {
   assert.match(ok.headers['content-type'], /^text\/html/);
   assert.ok(ok.text.includes(HOSTED));
   assert.ok(ok.text.includes('workshop-pair'));
-  for (const r of [noCookie, notListed, bad, off, ok]) {
+  for (const r of [first, noCookie, notListed, bad, off, ok]) {
     assert.match(r.headers['content-security-policy'] || '', /frame-ancestors 'none'/);
     assert.equal(r.headers['x-frame-options'], 'DENY');
   }

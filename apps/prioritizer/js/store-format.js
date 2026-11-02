@@ -103,7 +103,7 @@ function envelopesFromBundle(bundle){
     if (env.version < VERSIONS[row.collection]) throw new Error(`That backup has ${row.collection} in a format this version can't read.`);
     out[row.collection] = clone(env);
   }
-  if (!Object.keys(out).length) throw new Error('That backup has no Prioritizer board in it.');
+  if (!Object.keys(out).length) throw new Error('That backup has no Docket board in it.');
   return out;
 }
 

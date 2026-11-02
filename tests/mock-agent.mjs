@@ -68,6 +68,18 @@ function applyDefaults(schema, value) {
   return out;
 }
 
+/** Fields that differ between two configs and are not marked x-workshop-hosted (agent/lib/connectors.mjs). */
+function lockedChanges(schema, before, after, prefix = '', acc = []) {
+  for (const [k, s] of Object.entries((schema && schema.properties) || {})) {
+    const at = prefix ? `${prefix}.${k}` : k;
+    const a = before && typeof before === 'object' ? before[k] : undefined;
+    const b = after && typeof after === 'object' ? after[k] : undefined;
+    if (s.type === 'object') { lockedChanges(s, a, b, at, acc); continue; }
+    if (JSON.stringify(a) !== JSON.stringify(b) && s['x-workshop-hosted'] !== true) acc.push(at);
+  }
+  return acc;
+}
+
 /** Every environment variable name a config holds in fields marked x-workshop-env. */
 function envNames(schema, value, acc = new Set()) {
   if (!schema || value === undefined || value === null) return acc;
@@ -561,7 +573,14 @@ export async function createMockAgent(options = {}) {
 
   function pairPage(res, url, cookieOk) {
     const origin = url.searchParams.get('origin') || '';
-    if (!cookieOk) return html(res, 401, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Open Workshop on this computer first, then try pairing again.</p>');
+    if (!cookieOk) {
+      // Same as the agent: one same-site reload (the SameSite=Strict cookie skips the cross-site first visit), then 401.
+      if (url.searchParams.get('again') !== '1') {
+        const again = new URL(url); again.searchParams.set('again', '1');
+        return html(res, 200, `<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Checking that Workshop is open in this browser.</p><script>location.replace(${JSON.stringify(again.pathname + again.search).replace(/</g, '\\u003c')});</script>`);
+      }
+      return html(res, 401, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Open Workshop on this computer first, in this browser, then try pairing again.</p>');
+    }
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>That pairing link is not valid.</p>');
     }
@@ -706,12 +725,16 @@ document.getElementById('allow').addEventListener('click', function () {
         if (!entry.mod) fail('unavailable', `The ${id} connector did not load: ${entry.error}`);
         if (m === 'GET') return ok(connectorConfigView(entry));
         only('GET', 'PUT');
-        if (!own) fail('local_only', 'Change connector settings from Workshop on this computer.');
         const body = await readBody(req, MB);
         const e1 = schemas.validate('connector-config-put', body);
         if (e1.length) fail('bad_request', `Send {"config": {...}}: ${e1[0]}`);
         const e2 = schemas.validate(entry.mod.configSchema, applyDefaults(entry.mod.configSchema, body.config));
         if (e2.length) fail('invalid_config', `That ${entry.mod.name} setting is not valid: ${e2[0]}`);
+        if (!own) {
+          const sch = entry.mod.configSchema;
+          const locked = lockedChanges(sch, applyDefaults(sch, config.connectors[id]?.config), applyDefaults(sch, body.config));
+          if (locked.length) fail('local_only', `Change ${locked.join(', ')} from Workshop on this computer.`);
+        }
         config.connectors[id] = { ...(config.connectors[id] || { enabled: false }), config: structuredClone(body.config) };
         if (enabled(id)) { await stopConnector(entry); await startConnector(entry); }
         broadcast('config', { changed: [`connector:${id}`] });

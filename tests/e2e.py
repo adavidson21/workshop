@@ -88,7 +88,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -104,6 +104,13 @@ def browser_mode_checks(ctx, pg, frame, watch):
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
     pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+    check('Receipts opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
+    if rf:
+        rf.fill('.composer textarea', 'Shipped the e2e check'); rf.press('.composer textarea', 'Control+Enter'); pg.wait_for_timeout(500)
+        check('Receipts saves a receipt in browser storage', rf.locator('.entry').count() == 1)
+
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -174,7 +181,7 @@ def agent_checks(b, watch):
         check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'agents', 'notes', 'board', 'settings'])
         check('local mode opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
         ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
-        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Prioritizer · Workshop')
+        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
         check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
         ap.keyboard.press('Alt+3'); ap.wait_for_timeout(800)
@@ -671,7 +678,20 @@ def agents_checks(b, watch):
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
         sp.goto(url + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
-        check('Agents works on its own page, with its name and theme menu', sp.inner_text('h1') == 'Agents' and sp.locator('[data-theme-menu]').count() == 1 and sp.locator('#item-41502').count() == 1)
+        check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('#item-41502').count() == 1)
+
+        # The sidebar (Dispatch App Experience Plan, P2): projects through the connector, folders and pins in the browser.
+        check('the sidebar counts Needs review across all projects', sp.inner_text('.side [data-side-scope=needs] .cnt') == '2')
+        sp.click('.side [data-proj-new]'); sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]')
+        check('New project saves through the connector and shows only its runs', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Orders API' and sp.locator('article.item').count() == 0)
+        sp.click('.scope-head [data-side-scope=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")')
+        check('a run moves to a project from its card', seen(sp, 'li:has(> .sproj [data-side-id^="p-"]) > .sruns [data-side-run="41207-fix-login-timeout"]'))
+        sp.click('.sproj [data-side-scope=project]:has-text("Orders API")'); sp.click('.side .new-run')
+        check('New run starts in the project in view', sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
+        sp.keyboard.press('Escape')
+        sp.click('[data-pin="run"][data-pin-id="41502-csv-export"]', force=True)
+        sp.reload(); seen(sp, '.side')
+        check('pins stay in this browser after a reload', seen(sp, '#sh-pin') and sp.locator('.side [data-pin-id="41502-csv-export"].on').count() >= 1)
         ctx.close()
     finally:
         proc.terminate(); proc.wait(10)
@@ -721,17 +741,17 @@ def main():
         pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
         af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
         check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
-        check('Agents in browser mode says it needs Workshop on this computer', af is not None and 'needs Workshop running on this computer' in af.inner_text('#app'))
+        check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
         check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
-        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Agents · Workshop')
+        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
 
         pg.click('#rail .mark'); pg.wait_for_timeout(800)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
         seen(hf, '.tiles')
         check('Home counts the board: two open tasks', '2 open tasks' in hf.inner_text('.tiles'))
-        hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Sam Rivera'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
-        check('Home saves the profile name', 'Sam' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Sam Rivera')
+        hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Test User'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
+        check('Home saves the profile name', 'Test' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Test User')
         hf.locator('[data-task]').first.click(); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
@@ -747,7 +767,7 @@ def main():
 
         sp = ctx.new_page(); watch(sp)
         sp.goto(HUB + '/apps/prioritizer/'); sp.wait_for_timeout(600)
-        check('Prioritizer still works on its own', sp.locator('#themeBtn').is_visible() and sp.locator('#snav .sitem').count() == 5)
+        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 5)
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)

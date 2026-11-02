@@ -7,7 +7,7 @@ export const NOW = '2026-10-15T12:00:00+00:00';
 
 const ME = 'u-me';
 const id = (displayName, uniqueName) => ({ displayName, uniqueName, id: `u-${displayName.toLowerCase().replace(/\s+/g, '-')}` });
-const SAM = id('Sam Lee', 'Sam.Lee@example.com');
+const DEV_A = id('Engineer A', 'engineer.a@example.com');
 const DEV1 = id('Dev One', 'dev.one@example.com');
 const DEV2 = id('Dev Two', 'dev.two@example.com');
 
@@ -33,23 +33,23 @@ const base = (n, type, state, project, extra = {}) => ({
 });
 
 const workItems = {
-  101: wi(101, base(101, 'Bug', 'Active', 'Web App', { 'System.AssignedTo': SAM, 'Microsoft.VSTS.Common.Priority': 2, 'Microsoft.VSTS.Scheduling.DueDate': '2026-10-20T00:00:00Z', 'System.Title': "Fix the user's renewal timeout" })),
-  102: wi(102, base(102, 'User Story', 'New', 'Mobile', { 'System.AssignedTo': 'Sam Lee <Sam.Lee@example.com>', 'Microsoft.VSTS.Common.Priority': 3, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-01T00:00:00Z' }), { link: false }),
-  103: wi(103, base(103, 'Issue', 'Active', 'Web App', { 'System.AssignedTo': SAM })),
-  201: wi(201, base(201, 'Bug', 'Closed', 'Web App', { 'System.AssignedTo': SAM })),
-  202: wi(202, base(202, 'Bug', 'Removed', 'Web App', { 'System.AssignedTo': SAM })),
-  203: wi(203, base(203, 'Task', 'Active', 'Web App', { 'System.AssignedTo': SAM })),
+  101: wi(101, base(101, 'Bug', 'Active', 'Web App', { 'System.AssignedTo': DEV_A, 'Microsoft.VSTS.Common.Priority': 2, 'Microsoft.VSTS.Scheduling.DueDate': '2026-10-20T00:00:00Z', 'System.Title': "Fix the user's renewal timeout" })),
+  102: wi(102, base(102, 'User Story', 'New', 'Mobile', { 'System.AssignedTo': 'Engineer A <engineer.a@example.com>', 'Microsoft.VSTS.Common.Priority': 3, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-01T00:00:00Z' }), { link: false }),
+  103: wi(103, base(103, 'Issue', 'Active', 'Web App', { 'System.AssignedTo': DEV_A })),
+  201: wi(201, base(201, 'Bug', 'Closed', 'Web App', { 'System.AssignedTo': DEV_A })),
+  202: wi(202, base(202, 'Bug', 'Removed', 'Web App', { 'System.AssignedTo': DEV_A })),
+  203: wi(203, base(203, 'Task', 'Active', 'Web App', { 'System.AssignedTo': DEV_A })),
   204: wi(204, base(204, 'Bug', 'Active', 'Web App', { 'System.AssignedTo': DEV2, 'Microsoft.VSTS.Common.Priority': 1 })),
   // 205 does not exist
   301: wi(301, base(301, 'Bug', 'Closed', 'Web App', {
     'System.AssignedTo': DEV2, 'System.AreaPath': 'Web App\\Team A', 'System.IterationPath': 'Web App\\Sprint 12',
-    'System.CreatedDate': '2026-09-10T09:00:00.123Z', 'System.CreatedBy': id('Pat Kim', 'pat.kim@example.com'),
+    'System.CreatedDate': '2026-09-10T09:00:00.123Z', 'System.CreatedBy': id('Engineer C', 'engineer.c@example.com'),
     'Microsoft.VSTS.Common.ClosedDate': '2026-10-01T11:00:00Z', 'Microsoft.VSTS.Common.Priority': 1,
     'Microsoft.VSTS.Scheduling.RemainingWork': null, 'Microsoft.VSTS.Scheduling.Effort': 5, 'System.Tags': 'api; urgent'
   })),
   302: wi(302, base(302, 'User Story', 'Active', 'Web App', {
     'System.AssignedTo': 'Dev One <dev.one@example.com>', 'System.AreaPath': 'Web App\\Team A', 'System.IterationPath': 'Web App\\Release 3\\Sprint 13',
-    'System.CreatedDate': '2026-09-04T00:00:00Z', 'System.CreatedBy': 'Pat Kim <pat.kim@example.com>',
+    'System.CreatedDate': '2026-09-04T00:00:00Z', 'System.CreatedBy': 'Engineer C <engineer.c@example.com>',
     'Microsoft.VSTS.Scheduling.StoryPoints': 3.5, 'Microsoft.VSTS.Common.Priority': 2
   })),
   303: wi(303, base(303, 'Bug', 'Active', 'Web App', {
@@ -77,9 +77,9 @@ const updates = {
   301: [
     upd(1, { 'System.ChangedDate': field(undefined, '2026-09-10T09:00:00.123Z'), 'Microsoft.VSTS.Common.Priority': field(undefined, 2),
       'System.IterationPath': field(undefined, 'Web App\\Sprint 11'), 'System.AssignedTo': field(undefined, DEV1),
-      'System.ChangedBy': field(undefined, id('Pat Kim', 'pat.kim@example.com')) }),
+      'System.ChangedBy': field(undefined, id('Engineer C', 'engineer.c@example.com')) }),
     upd(2, { 'System.ChangedDate': field('2026-09-10T09:00:00.123Z', '2026-09-12T10:00:00Z'), 'Microsoft.VSTS.Common.Priority': field(2, 1),
-      'System.ChangedBy': field(undefined, 'Pat Kim <pat.kim@example.com>') }),
+      'System.ChangedBy': field(undefined, 'Engineer C <engineer.c@example.com>') }),
     upd(3, { 'System.ChangedDate': field(undefined, '2026-09-20T08:00:00Z'), 'System.IterationPath': field('Web App\\Sprint 11', 'Web App\\Sprint 12') }),
     upd(4, { 'System.ChangedDate': field(undefined, '2026-09-21T08:00:00Z'), 'System.AssignedTo': field(DEV1, DEV2) }),
     upd(5, { 'System.AuthorizedDate': field(undefined, '2026-10-01T11:00:00Z'), 'System.State': field('Active', 'Closed') }, { revisedBy: id('Dev Two', 'dev.two@example.com') }),
@@ -119,7 +119,7 @@ const pr = (n, repo, reviewers, extra = {}) => ({
   status: 'active',
   title: `Synthetic change ${n}`,
   repository: { id: `r-${repo}`, name: repo },
-  createdBy: { id: 'u-ana', displayName: 'Ana Ruiz', uniqueName: 'ana.ruiz@example.com' },
+  createdBy: { id: 'u-b', displayName: 'Engineer B', uniqueName: 'engineer.b@example.com' },
   creationDate: '2026-10-12T14:00:00.5Z',
   isDraft: false,
   reviewers,
@@ -131,7 +131,7 @@ const prsWeb = [
   pr(502, 'web-api', [reviewer(ME, -5)]),
   pr(503, 'web ui', [reviewer('t-platform', 0)]),
   pr(504, 'web-api', [reviewer('t-platform', 0), reviewer('u-bo', 10, { votedFor: [{ id: 't-platform' }] })]),
-  pr(505, 'web-api', [reviewer(ME, 0)], { createdBy: { id: ME, displayName: 'Sam Lee' } }),
+  pr(505, 'web-api', [reviewer(ME, 0)], { createdBy: { id: ME, displayName: 'Engineer A' } }),
   pr(506, 'web-api', [reviewer(ME, 0)], { isDraft: true }),
   pr(507, 'web-api', [reviewer(ME, 10)]),
   pr(508, 'web-api', [reviewer(ME, 0)], { status: 'completed' }),
@@ -146,10 +146,10 @@ const prsField = [
 
 export const scenario = {
   pat: PAT,
-  root: { connectionData: { authenticatedUser: { id: ME, providerDisplayName: 'Sam Lee' }, instanceId: 'i-1' } },
+  root: { connectionData: { authenticatedUser: { id: ME, providerDisplayName: 'Engineer A' }, instanceId: 'i-1' } },
   collections: {
     Main: {
-      connectionData: { authenticatedUser: { id: ME, providerDisplayName: 'Sam Lee' }, instanceId: 'i-1' },
+      connectionData: { authenticatedUser: { id: ME, providerDisplayName: 'Engineer A' }, instanceId: 'i-1' },
       wiql: [
         { match: ['[System.AssignedTo] = @Me'], ids: [101, 102, 103] },
         { match: ['[System.ChangedDate] >= @Today - '], ids: [301, 302, 303] },

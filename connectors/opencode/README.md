@@ -49,17 +49,26 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | Action | Write | Args | Live server route | Result |
 | --- | --- | --- | --- | --- |
 | `status` | no | | `GET /api/shell/status` | The shell API 1 shape, unchanged: `{app: "eng-agents-dashboard", api: 1, version, workspace, opencode, error, items[]}`. Each item has `stage`, `next` (with `text`), `busy`, `waiting`, `autopilot`. `version` is the connector's. |
-| `state` | no | | the page data | Everything the dashboard page got: the parser's model (items, repos, activity, `stepWords`, PR text) plus `liveMode.live` (sessions, prompts, questions, autopilot, `canOpenTerminal`). |
-| `refresh` | no | | `POST /api/refresh` | Reads `.work` again. `{ok, error}`. |
+| `state` | no | | the page data | Everything the dashboard page got: the parser's model (items, repos, activity, `stepWords`, PR text), `projects` (see Projects), plus `liveMode.live` (sessions, prompts, questions, autopilot, `canOpenTerminal`, `others`, and `opencode.ai`: `{known, providers}`, the AI providers opencode can use, or `known: false` when this opencode does not say) and `tandem.ado` (whether Tandem has ADO connections set up). |
+| `refresh` | no | | `POST /api/refresh` | Reads `.work` again and asks opencode for its AI providers again. `{ok, error}`. |
 | `file.read` | no | `folder`, `file` | `GET /files/<folder>/<file>` | `{folder, file, text}`. Only `.work/<folder>/<name>.md`. |
 | `run` | yes | `folder`, `command` | `POST /api/run` | Runs a pipeline command (`/plan 41207`) in the item's session; `/do-task` and `/check-docs` get a new one. `{session}`. |
-| `start` | yes | `id`, `lane` (`feature` or `bug`) | `POST /api/shell/start` | Runs `/start <id> <lane>` in a new session. |
+| `start` | yes | `id`, `lane` (`feature` or `bug`), optional `project` | `POST /api/shell/start` | Runs `/start <id> <lane>` in a new session. With `project`, the run joins it once its `.work` folder exists. |
+| `start.local` | yes | `title`, `lane`, optional `description`, `repro`, `project` | (new) | Work with no tracker item: writes `.work/L<n>-<name>/workitem.md` (same shape as eng-agents `New-LocalWorkItem.ps1`; numbers are never reused, see `.work/.local-ids`), then runs `/start L<n> <lane>` in a new session. With `project`, the project's instructions, repo and base branch go under "Extra context from the engineer" and the run joins the project. `{id, folder, session, project}`. |
+| `spike` | yes | `topic` | (new) | Runs `/spike <topic>` in a new session. Until its `spike-*` folder exists, the session is listed in `liveMode.live.others`. `{session}`. |
+| `repo.add` | yes | `url`, optional `about` | (new) | `git clone` into the workspace (no terminal prompts; credential helpers still work), then adds a row to the repo map (`AGENTS.md` in the workspace, created if missing). `{folder, repoMap: "created" | "added" | "listed"}`. |
+| `repo.guide` | yes | `repo` (a folder in the workspace) | (new) | Runs `/onboard-repo <repo>` in a new session, listed in `liveMode.live.others`. `{session}`. |
+| `session.dismiss` | no | `session` | (new) | Stops listing a spike or repo guide session in `others`. The opencode session is kept. |
 | `reply` | yes | `session`, `text` | `POST /api/reply` | Sends text to the session; a `/command` runs in the item's pipeline. |
 | `answer` | yes | `kind` (`permission` or `question`), `id`, then `reply` (`once`, `always`, `reject`) or `answers` / `reject` | `POST /api/permission`, `POST /api/question` | |
 | `abort` | yes | `session` | `POST /api/abort` | |
 | `remove` | yes | `folder`, `confirm` (the item id typed, or the folder name for spikes, docs and TSDs) | `POST /api/remove` | Deletes the item's `.work` folder, session links and autopilot state. Repos, branches and opencode sessions are left alone. `{ok, removed}`. Refused while the agent or autopilot is working on it. |
 | `push` | yes | `folder`, `repo` | `POST /api/push` | `git -C <repo> push -u origin <branch>` for the branch in `pr.md`. Never `main`, `master`, `develop`, `dev` or the PR's target branch, never `--force`, only repo folders inside the workspace. |
 | `autopilot` | yes | `folder`, `action` (`start`, `approve-start`, `resume`, `stop`, `dismiss`) | `POST /api/autopilot` | |
+| `project.create` | yes | `name`, optional `color`, `repo`, `baseBranch`, `instructions`, `model`, `agent`, `tracker` | (new) | Adds a Dispatch project. `repo` must be a folder in the workspace. `{project}`. |
+| `project.update` | yes | `id`, then any field above (an empty string clears it, except `name`) | (new) | `{project}`. Inbox cannot be changed. |
+| `project.delete` | yes | `id` | (new) | Removes the project; its runs move to Inbox. `.work` folders are not touched. `{ok, movedToInbox}`. |
+| `run.assign` | yes | `folder`, `project` (`inbox` for none) | (new) | Moves a run to a project. `{folder, project}`. |
 | `terminal` | no | `session` (optional) | `POST /api/terminal` | Opens the opencode TUI in a terminal window (Windows and macOS). Not marked write: it changes nothing outside this computer. |
 
 Errors are plain words with a code: `bad_request`, `not_found`, `conflict` (for example, autopilot is running the item), `unavailable` (opencode is not connected, or the connector is not ready). The live server's `501` becomes `bad_request` and its `502` becomes `unavailable`, since the agent API has no codes for those.
@@ -75,6 +84,15 @@ The live server pushed the whole page model on its own event stream. Connector e
 | `agent.waiting` | `{folder, session, kind, question}` | A new permission prompt or question. |
 | `agent.done` | `{folder, session, error}` | A session tied to a work item finished a turn. |
 | `autopilot` | `{folder, status, message}` | Autopilot started, resumed, waits for you, finished or stopped. |
+| `projects` | `{change}` (`create`, `update`, `delete`, `run`) | A project or a run's project changed. Call `state` for the data. |
+
+## Projects
+
+Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/_dashboard/projects.json`, next to `sessions.json`, so they never leave this computer (`lib/projects.mjs`). Folders and pins in Dispatch's sidebar are view state and stay in the browser.
+
+`state.projects`: `{inbox: "inbox", colors: [...], projects: [{id, name, color, repo, baseBranch, instructions, model, agent, tracker, created, builtIn}], runs: {"<folder>": "<project id>"}}`. Inbox is always first; any run not in `runs` is in Inbox. One repo per project for now.
+
+Project instructions reach the agent through `workitem.md` for runs started with `start.local`. Runs started from an ADO item (`start`) join the project, but `/start` writes their `workitem.md` itself, so the instructions are not added there yet. `model` and `agent` are stored for later; runs do not use them yet.
 
 Status `details`: `{workspace, opencode: {connected, kind, version, error}, parserError}`.
 

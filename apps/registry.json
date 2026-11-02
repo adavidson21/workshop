@@ -39,8 +39,8 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "prioritizer",
-        "name": "Prioritizer",
-        "version": "4.2.0",
+        "name": "Docket",
+        "version": "4.4.0",
         "description": "Decide what to work on next.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -78,13 +78,14 @@
           },
           {
             "id": "shortcuts",
-            "title": "Prioritizer keyboard shortcuts"
+            "title": "Docket keyboard shortcuts"
           }
         ],
         "files": [
           "app.css",
           "js/actions.js",
           "js/ado.js",
+          "js/app-banner.js",
           "js/command-bar.js",
           "js/constants.js",
           "js/drag-drop.js",
@@ -95,6 +96,7 @@
           "js/kv.js",
           "js/main.js",
           "js/model.js",
+          "js/native.js",
           "js/overlays.js",
           "js/people.js",
           "js/quick-add.js",
@@ -115,9 +117,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "agents",
-        "name": "Agents",
+        "name": "Dispatch",
         "version": "1.0.0",
-        "description": "Your eng-agents work items and the opencode agents working on them.",
+        "description": "The front end for Tandem: your work items and the opencode agents working on them.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 20,
@@ -148,7 +150,75 @@
           "agents.css",
           "js/main.js",
           "js/state.js",
-          "js/view.js"
+          "js/view.js",
+          "js/sidebar.js",
+          "js/local.js"
+        ]
+      }
+    },
+    {
+      "base": "/apps/receipts/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "receipts",
+        "name": "Receipts",
+        "version": "1.0.0",
+        "description": "Keep the receipts for performance reviews: yours, your reports', and upward.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 30,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "routes": [
+          {
+            "path": "me",
+            "title": "My receipts"
+          },
+          {
+            "path": "team",
+            "title": "Reports"
+          },
+          {
+            "path": "team/:id",
+            "title": "A report's receipts"
+          },
+          {
+            "path": "up",
+            "title": "Upward"
+          },
+          {
+            "path": "review",
+            "title": "Build a review"
+          },
+          {
+            "path": "settings",
+            "title": "Receipts settings"
+          }
+        ],
+        "data": [
+          "entries",
+          "people",
+          "config"
+        ],
+        "commands": [
+          {
+            "id": "new",
+            "title": "Add a receipt",
+            "route": "me"
+          },
+          {
+            "id": "review",
+            "title": "Build a review",
+            "route": "review"
+          }
+        ],
+        "files": [
+          "app.css",
+          "js/main.js",
+          "js/state.js"
         ]
       }
     },

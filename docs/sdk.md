@@ -10,7 +10,7 @@ import { connect } from '../../shared/workshop-sdk.js';
 const ws = await connect({ app: 'prioritizer' });
 ws.mode;     // 'local' | 'hosted' | 'browser'
 ws.backend;  // 'agent' | 'browser'
-ws.storage;  // 'agent' | 'folder' | 'indexeddb'
+ws.storage;  // 'agent' | 'folder' | 'indexeddb' | 'device' (the Android app)
 ws.online;   // false while the agent (or, with the folder store, the folder) is unreachable
 ws.embedded; // true inside the shell, false when the app page is opened on its own
 ```
@@ -47,7 +47,7 @@ Events:
 
 | Method | Meaning |
 | --- | --- |
-| `ws.data.get(collection, {app?})` | `collection` may be nested: `'entries/jordan-lee/2026'` ([data-format.md](data-format.md), Names); the SDK sends each segment as a path segment. The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
+| `ws.data.get(collection, {app?})` | `collection` may be nested: `'entries/person-one/2026'` ([data-format.md](data-format.md), Names); the SDK sends each segment as a path segment. The envelope ([data-format.md](data-format.md)), or `null` if it was never written. `app` defaults to this app; another app's collections are read-only. |
 | `ws.data.put(collection, envelope)` | Writes this app's collection. `envelope.rev` is the revision you read (`0` to create). Resolves `{rev, updatedAt}`. On a stale `rev` rejects with code `conflict` and `err.current` set to the stored envelope: merge (below) and put again with `current.rev`. |
 | `ws.data.subscribe(collection, handler, {app?})` | Calls `handler({app, collection, rev, updatedAt, client})` after every write by anyone else, and after a change made outside Workshop (then `rev`, `updatedAt` and `client` are `null`: re-read). Writes made through this `ws` are filtered out using the client id. Returns an unsubscribe function. |
 | `ws.data.merge(local, remote)` | Merges two envelopes of the same `schema` and `version` with the change-stamp rules in [data-format.md](data-format.md). Returns a new envelope with `remote.rev`. Pure. |
@@ -59,11 +59,11 @@ Bad names reject with `bad_request` before any request is made. The SDK sends `X
 
 ### Files
 
-For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/jordan-lee/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
+For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/person-one/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
 
 | Method | Meaning |
 | --- | --- |
-| `ws.files.list(folder?, {app?})` | `[{path, mtime, size}]` for every file of the app, or under `folder` (`'summaries/jordan-lee'`), at every depth, sorted by path. `[]` if there are none. |
+| `ws.files.list(folder?, {app?})` | `[{path, mtime, size}]` for every file of the app, or under `folder` (`'summaries/person-one'`), at every depth, sorted by path. `[]` if there are none. |
 | `ws.files.read(path, {app?})` | The file, or `null` if it does not exist. `app` defaults to this app; another app's files are read-only. |
 | `ws.files.write(path, content, {mtime} \| {create: true})` | Writes this app's file. Pass the `mtime` you read to replace it, or `create: true` to create one that must not exist. Resolves `{app, path, mtime, size}`. If the file changed, is gone, or (with `create`) already exists, rejects with code `conflict` and `err.current` set to the file as it is now, or `null` if it does not exist: read the change, decide, and write again with `current.mtime` (or `create: true` if `current` is `null`). |
 | `ws.files.trash(path, {mtime?})` | Moves this app's file to the trash; never removes it. With `mtime`, rejects with `conflict` (and `err.current`) if the file changed. Resolves `{app, path, trash}`. |
@@ -83,8 +83,8 @@ For the shell and the Settings app, with the browser backend's folder store ([ru
 
 | Method | Meaning |
 | --- | --- |
-| `ws.folder.status()` | `{storage, name, permission, moved, missing}`. `storage` is `ws.storage`. `name` is the folder's name (browsers do not reveal its full path), or `null`. `permission` is `'granted'`, `'prompt'` or `'denied'` for the folder store, else `null`. `moved` is `true` if the IndexedDB store was copied into a folder. `missing` is `true` if the saved folder is gone (moved, renamed, deleted, or its drive is missing), else `false`. With the agent, `name` is the agent's `dataDir` from `ws.config.get()`, `moved` and `missing` are `false`. |
-| `ws.folder.choose()` | Call only from a click. Opens Chrome's folder picker, asks for read and write access, copies the IndexedDB store in (old copy kept, marked moved), saves the handle and reloads the page. Rejects with `unavailable` with the agent (change `dataDir` in settings instead) or in a browser without the File System Access API, and with `bad_request` if the user cancels. |
+| `ws.folder.status()` | `{storage, name, permission, moved, missing}`. `storage` is `ws.storage`. `name` is the folder's name (browsers do not reveal its full path), or `null`. `permission` is `'granted'`, `'prompt'` or `'denied'` for the folder store, else `null`. `moved` is `true` if the IndexedDB store was copied into a folder. `missing` is `true` if the saved folder is gone (moved, renamed, deleted, or its drive is missing), else `false`. With the agent, `name` is the agent's `dataDir` from `ws.config.get()`, `moved` and `missing` are `false`. In the Android app it is `{storage: 'device', name: null, permission: null, moved: false, missing: false}`. |
+| `ws.folder.choose()` | Call only from a click. Opens Chrome's folder picker, asks for read and write access, copies the IndexedDB store in (old copy kept, marked moved), saves the handle and reloads the page. Rejects with `unavailable` with the agent (change `dataDir` in settings instead), in the Android app, or in a browser without the File System Access API, and with `bad_request` if the user cancels. |
 | `ws.folder.allow()` | Call only from a click. Asks Chrome again for access to the saved folder. Resolves the new `status()`. On `'granted'`, `ws.online` turns `true` and an `online` event fires. |
 | `ws.folder.lastMove()` | What the last `choose()` copied, read once on the page that loads after its reload, then cleared; `null` otherwise. Kept in `sessionStorage`, so only the tab that chose sees it. `{folder, alreadyMoved, collections: {created, merged, skipped}, files: {created, same, renamed}}`: `created`, `merged` and `same` list `<app>/<name>`; `skipped` is `[{name, reason}]` (a collection whose `version` differs from the folder's copy); `renamed` is `[{from, to}]` (a browser file written beside a different one, as `-from-browser`). `alreadyMoved` is `true` when the IndexedDB store was marked moved before, so nothing was copied. Settings shows it as the summary of the move. |
 
@@ -98,7 +98,7 @@ import { folderState, allowFolder } from '../shared/workshop-sdk.js';
 
 | Function | Meaning |
 | --- | --- |
-| `folderState()` | `{storage, name, permission, missing}` for this browser, read from the saved handle: `storage` is `'folder'` or `'indexeddb'`; the rest as in `ws.folder.status()`. Call it only with the browser backend (the shell checks `detectBackend()` first). Never prompts. |
+| `folderState()` | `{storage, name, permission, missing}` for this browser, read from the saved handle: `storage` is `'folder'` or `'indexeddb'` (`'device'` in the Android app); the rest as in `ws.folder.status()`. Call it only with the browser backend (the shell checks `detectBackend()` first). Never prompts. |
 | `allowFolder()` | Call only from a click. The same as `ws.folder.allow()`, for the shell's Allow button. Resolves the new `folderState()`. When access is granted, every app on this origin hears it and its `ws.online` turns `true`. Rejects with `unavailable` if no folder is saved. |
 
 ### Connectors
@@ -110,7 +110,7 @@ import { folderState, allowFolder } from '../shared/workshop-sdk.js';
 | `ws.connectors.on(id, event, handler)` | Listens to `connector` events from that connector. `event` `*` matches all. Returns an unsubscribe function. |
 | `ws.connectors.onStatus(id, handler)` | Listens to `connector-status` for that connector. |
 | `ws.connectors.getConfig(id)` | That connector's settings, form schema and environment variable status, from `GET /api/connectors/<id>/config`. Works whether or not the connector is on. In browser mode rejects with `unavailable`. |
-| `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page rejects with `local_only`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
+| `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page it rejects with `local_only` if it changes a field the connector does not mark `x-workshop-hosted`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
 
 ### Settings
 

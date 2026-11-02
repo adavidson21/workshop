@@ -45,6 +45,22 @@ export function envNames(schema, value, acc = new Set()) {
   return acc;
 }
 
+/**
+ * The fields (dotted paths) that differ between two configs and are not marked x-workshop-hosted. A hosted
+ * page may save a connector config only when this is empty (docs/agent-api.md, PUT connector config).
+ * Objects are walked field by field; arrays and leaves are compared whole.
+ */
+export function lockedChanges(schema, before, after, prefix = '', acc = []) {
+  for (const [k, s] of Object.entries((schema && schema.properties) || {})) {
+    const at = prefix ? `${prefix}.${k}` : k;
+    const a = before && typeof before === 'object' ? before[k] : undefined;
+    const b = after && typeof after === 'object' ? after[k] : undefined;
+    if (s.type === 'object') { lockedChanges(s, a, b, at, acc); continue; }
+    if (JSON.stringify(a) !== JSON.stringify(b) && s['x-workshop-hosted'] !== true) acc.push(at);
+  }
+  return acc;
+}
+
 const timeout = (ms, what) => new Promise((_, reject) => {
   const t = setTimeout(() => reject(new Error(`${what} took longer than ${ms / 1000} seconds.`)), ms);
   t.unref();
@@ -234,6 +250,13 @@ export class ConnectorHost {
     const errs = this.#schemas.validate(entry.mod.configSchema, applyDefaults(entry.mod.configSchema, value));
     if (errs.length) fail('invalid_config', `That ${entry.mod.name} setting is not valid: ${errs[0]}`);
     return value;
+  }
+
+  /** Fields a new config would change that a hosted page may not change (see lockedChanges). */
+  hostedLocked(id, value) {
+    const entry = this.#loaded(id);
+    const schema = entry.mod.configSchema;
+    return lockedChanges(schema, this.#storedConfig(entry), applyDefaults(schema, value));
   }
 
   /** Restart after a config change already written to config. */

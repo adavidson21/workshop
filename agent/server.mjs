@@ -231,7 +231,18 @@ export async function createAgent(o) {
 
   function pairPage(res, url, cookieOk) {
     const origin = url.searchParams.get('origin') || '';
-    if (!cookieOk) { sendHtml(res, 401, page('Workshop', '<p>Open Workshop on this computer first, then try pairing again.</p>')); return; }
+    if (!cookieOk) {
+      // The cookie is SameSite=Strict, so a pairing window opened from the hosted site (a cross-site
+      // navigation) arrives without it. Reload once from this page, a same-site navigation that carries it.
+      if (url.searchParams.get('again') !== '1') {
+        const again = new URL(url); again.searchParams.set('again', '1');
+        const target = JSON.stringify(again.pathname + again.search).replace(/</g, '\\u003c');
+        sendHtml(res, 200, page('Workshop', `<p>Checking that Workshop is open in this browser.</p><script>location.replace(${target});</script>`));
+        return;
+      }
+      sendHtml(res, 401, page('Workshop', '<p>Open Workshop on this computer first, in this browser, then try pairing again.</p>'));
+      return;
+    }
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       sendHtml(res, 403, page('Workshop', '<p>That pairing link is not valid.</p>'));
       return;
@@ -281,12 +292,16 @@ document.getElementById('allow').addEventListener('click', function () {
       if (parts.length === 3 && parts[2] === 'config') {
         if (m === 'GET') { ok(connectors.configView(id)); return; }
         only('GET', 'PUT');
-        if (!own) fail('local_only', 'Change connector settings from Workshop on this computer.');
         connectors.configView(id); // 503 if the module did not load
         const body = await readJsonBody(req, MB);
         const errs = schemas.validate('connector-config-put', body);
         if (errs.length) fail('bad_request', `Send {"config": {...}}: ${errs[0]}`);
         connectors.checkConfig(id, body.config);
+        // A hosted page may change only fields the connector marks x-workshop-hosted.
+        if (!own) {
+          const locked = connectors.hostedLocked(id, body.config);
+          if (locked.length) fail('local_only', `Change ${locked.join(', ')} from Workshop on this computer.`);
+        }
         await commitConfig(() => {
           config.connectors[id] = { ...(config.connectors[id] || { enabled: false }), config: structuredClone(body.config) };
         });

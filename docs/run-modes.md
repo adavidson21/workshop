@@ -32,7 +32,7 @@ Rules:
 
 ## Browser backend
 
-Used when no agent is reachable. Chrome only: it needs the File System Access API. It has two stores and uses exactly one at a time.
+Used when no agent is reachable. In a browser it has two stores (the folder store needs Chrome's File System Access API) and uses exactly one at a time. In the Android app it uses the device store instead.
 
 ### Folder store (`ws.storage === 'folder'`)
 
@@ -63,6 +63,16 @@ When the user picks a folder and IndexedDB holds data, `ws.folder.choose()` copi
 2. The IndexedDB data is kept, never deleted, and marked moved: object store `data`, key `_moved`, value `{movedTo: <folder name>, movedAt: <ISO time>}`.
 3. A store marked moved is never copied again, and the SDK uses it only if the folder handle is cleared, in which case Settings says that the browser data is older than the folder.
 
+### Device store (`ws.storage === 'device'`)
+
+Used in the Android app ([mobile/README.md](../mobile/README.md)), where there is no agent and no folder picker. The SDK chooses it before anything else when the page runs in that app (Capacitor's native bridge is there with its Filesystem plugin; `shared/device-fs.js`, `deviceAvailable()`).
+
+- **It is the folder store** on a different folder: the app's private data folder on the phone, under `workshop/` (`workshop/<app>/<collection>.json` and so on). `shared/device-fs.js` gives the folder store a directory handle backed by Capacitor's Filesystem plugin, so the layout and every rule above apply unchanged: `rev` checks, `version` downgrade refused, backups, trash, the `lastModified` check before every write, change events and the outside-change check.
+- **No permission, nothing to choose.** `ws.folder.status()` is `{storage: 'device', name: null, permission: null, moved: false, missing: false}`; `ws.folder.choose()` rejects with `unavailable`. IndexedDB is never used for app data.
+- **Atomic writes.** A file is written to a hidden temporary file beside it (`.<name>.workshop-tmp`), which then replaces it. If renaming over an existing file fails, the old file is removed and the rename tried again. A read that finds no file but a temporary file older than 10 seconds puts the temporary file in place (the app stopped mid-write). Lists never show temporary files.
+- **Never leaves the phone.** The app is left out of Google's cloud backup. Files go elsewhere only when the user shares them (`shared/save-file.js` hands backups and exports to Android's share sheet).
+- `ws.online` is `false` only if the folder cannot be reached at all; data calls then reject with `unavailable`.
+
 ### Connectors
 
 `connectors.list()` returns `[]`; `connectors.call()` rejects with code `unavailable`. Export and import (`data.export()`, `data.import(bundle)`) work on every backend.
@@ -80,7 +90,7 @@ Hosted mode is off by default. To use it, the user turns on `features.hostedMode
 A hosted page cannot read the agent's cookie, so it gets the token by pairing, once per browser:
 
 1. The hosted shell opens a popup: `http://127.0.0.1:<port>/pair?origin=<hosted origin, URL-encoded>`.
-2. The agent answers only if the browser already has the agent cookie (the user opened Workshop locally at least once), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing.
+2. The agent answers only if the browser already has the agent cookie (the user opened Workshop locally at least once), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing. The cookie is `SameSite=Strict`, so the popup's first, cross-site request arrives without it: the page then reloads itself once (`&again=1`), a same-site navigation that carries it.
 3. The page shows the origin and a button: "Allow <origin> to use Workshop on this computer". Nothing is sent until the user clicks it.
 4. On click, the page calls `window.opener.postMessage({type: "workshop-pair", api: 1, url, token}, <origin>)` and closes. `url` is the agent's own origin.
 5. The hosted shell stores `{url, token}` as `workshop.agent` in its `localStorage`.

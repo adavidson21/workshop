@@ -17,13 +17,33 @@ export const oc = {
   error: null,
   started: false, // we started a 1.x `opencode serve`
   commands: new Set(),
+  // Which AI providers opencode can use: { known: true, providers: ["Anthropic", ...] }, or
+  // { known: false } when this opencode does not say (see parseProviders). Read on connect and on refresh.
+  ai: { known: false, providers: [] },
 };
+
+/**
+ * The connected providers from an opencode provider list, or null if the shape is not one we know.
+ * 1.x GET /provider: { all: [{id, name}], connected: [id] }. Older 1.x GET /config/providers:
+ * { providers: [{id, name}] } (only providers with credentials). 2.x: the same shapes under `data`.
+ */
+export function parseProviders(body) {
+  const d = body && typeof body === "object" && !Array.isArray(body) && body.data && typeof body.data === "object" && !Array.isArray(body.data) ? body.data : body;
+  if (!d || typeof d !== "object") return null;
+  const nameOf = (id, list) => {
+    const p = (list || []).find((x) => x && x.id === id);
+    return (p && p.name) || id;
+  };
+  if (Array.isArray(d.connected)) return d.connected.filter((x) => typeof x === "string").map((id) => nameOf(id, d.all));
+  if (Array.isArray(d.providers)) return d.providers.filter((p) => p && p.id).map((p) => p.name || p.id);
+  return null;
+}
 export const sessions = new Map(); // id -> { id, title, status, activity, text, textAt, busySince, error, command }
 export const permissions = new Map(); // id -> normalized request
 export const questions = new Map(); // id -> normalized request
 
 export function resetState() {
-  Object.assign(oc, { api: null, kind: null, url: null, connected: false, version: null, error: null, started: false, commands: new Set() });
+  Object.assign(oc, { api: null, kind: null, url: null, connected: false, version: null, error: null, started: false, commands: new Set(), ai: { known: false, providers: [] } });
   sessions.clear();
   permissions.clear();
   questions.clear();
