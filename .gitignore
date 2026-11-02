@@ -2,7 +2,7 @@ __pycache__/
 *.pyc
 # workshop publish output (static site for hosted or browser mode)
 dist/
-apps/prioritizer/ado-helper/ado-helper.json
-apps/prioritizer/ado-helper/ado-helper.log
+# checkouts of apps from other sites (apps/remote.json), for the checks and e2e
+.remote/
 .DS_Store
 .wrangler/

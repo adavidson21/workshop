@@ -1,5 +1,6 @@
 // Runs one golden case through the Python helper or the Node connector against the fake ADO server.
 import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startFakeAdo } from './fake-ado.mjs';
@@ -11,7 +12,10 @@ import { cleanKnown, cleanKnownPrs, sync } from '../lib/sync.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '..', '..', '..');
-export const HELPER = path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py');
+// The Python helper the connector must match lives in Docket's repo (ado-helper/ado_helper.py). CI checks it out
+// into .remote/prioritizer/; ADO_HELPER points elsewhere. Without it, the parity tests are skipped.
+export const HELPER = process.env.ADO_HELPER || path.join(REPO, '.remote', 'prioritizer', 'ado-helper', 'ado_helper.py');
+export const HELPER_MISSING = fs.existsSync(HELPER) ? false : `Docket's ado_helper.py not found (git clone https://github.com/adavidson21/docket .remote/prioritizer)`;
 export const HARNESS = path.join(HERE, '..', 'lib', 'helper_harness.py');
 export const GOLDENS = path.join(HERE, 'goldens');
 const PLACEHOLDER = '{{ADO}}';

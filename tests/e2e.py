@@ -2,7 +2,11 @@
 """End-to-end check of Workshop in headless Chromium.
 
   pip install playwright && python -m playwright install chromium
+  git clone https://github.com/adavidson21/docket .remote/prioritizer   # Docket (apps/remote.json)
   python tests/e2e.py
+
+Docket's code lives in its own repo and the Worker serves it under /apps/prioritizer/ (worker/index.js). Here the
+static server and the agent's apps folder do the same from the checkout in .remote/prioritizer/ (or DOCKET_DIR).
 
 Five parts:
   1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
@@ -24,8 +28,27 @@ from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HUB = 'http://127.0.0.1:8802'
+DOCKET = os.environ.get('DOCKET_DIR') or os.path.join(ROOT, '.remote', 'prioritizer')
+# What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
+DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
+
+
 class Static(http.server.SimpleHTTPRequestHandler):
+    """This repo as a static site, with /apps/prioritizer/ served from the Docket checkout like the Worker does."""
     def log_message(self, *a): pass
+
+    def translate_path(self, path):
+        clean = path.split('?', 1)[0].split('#', 1)[0]
+        if clean.startswith('/apps/prioritizer/'):
+            rest = clean[len('/apps/prioritizer/'):]
+            return os.path.join(DOCKET, *[p for p in rest.split('/') if p and p not in ('.', '..')])
+        return super().translate_path(path)
+
+
+def copy_app(name, dest):
+    """An app folder for the agent: Docket from its checkout, the rest from apps/."""
+    if name == 'prioritizer': shutil.copytree(DOCKET, dest, ignore=DOCKET_SKIP)
+    else: shutil.copytree(os.path.join(ROOT, 'apps', name), dest)
 
 
 def serve(port, handler):
@@ -146,7 +169,7 @@ def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
     for name in ('home', 'prioritizer', 'agents', 'settings'):
-        shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
+        copy_app(name, os.path.join(apps, name))
     for name in ('notes', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
     board = os.path.join(apps, 'board', 'app.json')
@@ -286,7 +309,7 @@ def agent_checks(b, watch):
 SHEET_ROWS = """(b64) => { const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   const wb = XLSX.read(bytes, {type: 'array'});
   return Object.fromEntries(wb.SheetNames.map(n => [n, XLSX.utils.sheet_to_json(wb.Sheets[n], {defval: ''}).map(r => { delete r.Score; return r; })])); }"""
-FIX = os.path.join(ROOT, 'apps', 'prioritizer', 'test', 'fixtures')
+FIX = os.path.join(DOCKET, 'test', 'fixtures')
 
 
 def b64(path):
@@ -557,7 +580,7 @@ def agents_checks(b, watch):
     tmp = tempfile.mkdtemp()
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
     for name in ('prioritizer', 'agents', 'settings'):
-        shutil.copytree(os.path.join(ROOT, 'apps', name), os.path.join(apps, name))
+        copy_app(name, os.path.join(apps, name))
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
     with open(os.path.join(home, 'config.json'), 'w') as f:
@@ -684,6 +707,8 @@ def agents_checks(b, watch):
 
 
 def main():
+    if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
+        sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch()

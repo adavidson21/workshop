@@ -3,6 +3,8 @@
 // precached by sw.js. The shell and shared/ must be in CORE in sw.js; an app's own files must be its entry,
 // its icon, or listed in its app.json "files" (sw.js caches those from the app registry). ES module imports
 // are followed, so every module an app imports is covered too. Also checks that every listed file exists.
+// Apps from another site (apps/remote.json) are checked against a checkout of their repo in .remote/<id>/
+// (CI makes one); without it they are skipped, since their own repo checks their files.
 // Exit 1 if not. Node 22, no dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +14,15 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rel = f => path.relative(root, f).split(path.sep).join('/');
 const errors = [];
+const skipped = [];
+
+// Remote apps: /apps/<id>/... is the root of .remote/<id>/ when that checkout is here.
+const remoteFile = path.join(root, 'apps', 'remote.json');
+const remote = fs.existsSync(remoteFile) ? JSON.parse(fs.readFileSync(remoteFile, 'utf8')).apps.map(r => r.id) : [];
+function abs(file) {
+  for (const id of remote) if (file.startsWith(`apps/${id}/`)) return path.join(root, '.remote', id, file.slice(`apps/${id}/`.length));
+  return path.join(root, file);
+}
 
 // Evaluate sw.js with stub worker globals to read CORE.
 const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
@@ -27,8 +38,9 @@ const pages = [{ page: 'index.html', owned: null }];
 for (const a of registry.apps) {
   const base = a.base.replace(/^\//, '');
   const m = a.manifest;
+  if (remote.includes(m.id) && !fs.existsSync(path.join(root, '.remote', m.id))) { skipped.push(m.id); continue; }
   const owned = new Set([base + (m.entry || 'index.html'), base + (m.icon || 'icon.svg'), ...(m.files || []).map(f => base + f)]);
-  for (const f of owned) if (!fs.existsSync(path.join(root, f))) errors.push(`${base}app.json lists ${f.slice(base.length)}, which does not exist.`);
+  for (const f of owned) if (!fs.existsSync(abs(f))) errors.push(`${base}app.json lists ${f.slice(base.length)}, which does not exist.`);
   pages.push({ page: base + (m.entry || 'index.html'), base, owned, id: m.id });
 }
 
@@ -42,34 +54,35 @@ function covered(file, app) {
 function walkModule(file, app, seen) {
   if (seen.has(file)) return;
   seen.add(file);
-  const abs = path.join(root, file);
-  if (!fs.existsSync(abs)) { errors.push(`${file} is imported but does not exist.`); return; }
+  const full = abs(file);
+  if (!fs.existsSync(full)) { errors.push(`${file} is imported but does not exist.`); return; }
   covered(file, app);
-  const src = fs.readFileSync(abs, 'utf8');
+  const src = fs.readFileSync(full, 'utf8');
   for (const m of src.matchAll(/^(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|^import\s*['"]([^'"]+)['"]/gm)) {
     const spec = m[1] || m[2];
     if (!spec.startsWith('.')) continue;
-    walkModule(rel(path.resolve(path.dirname(abs), spec)), app, seen);
+    walkModule(rel(path.resolve(path.dirname(path.join(root, file)), spec)), app, seen);
   }
 }
 
 for (const p of pages) {
-  const html = fs.readFileSync(path.join(root, p.page), 'utf8');
+  const html = fs.readFileSync(abs(p.page), 'utf8');
   const app = p.owned ? p : null;
   const seen = new Set();
   for (const m of html.matchAll(/<(script|link)\b([^>]*)>/g)) {
     const attrs = m[2];
     const ref = (attrs.match(/\s(?:src|href)="([^"]+)"/) || [])[1];
     if (!ref || /^(https?:)?\/\//.test(ref) || /\brel="(?:manifest|icon|apple-touch-icon)"/.test(attrs)) {
-      if (ref && /\brel="(?:manifest|icon|apple-touch-icon)"/.test(attrs) && !fs.existsSync(path.join(root, path.dirname(p.page), ref))) errors.push(`${p.page} links ${ref}, which does not exist.`);
+      if (ref && /\brel="(?:manifest|icon|apple-touch-icon)"/.test(attrs) && !fs.existsSync(abs(rel(path.resolve(root, path.dirname(p.page), ref))))) errors.push(`${p.page} links ${ref}, which does not exist.`);
       continue;
     }
     const file = rel(path.resolve(root, path.dirname(p.page), ref));
-    if (!fs.existsSync(path.join(root, file))) { errors.push(`${p.page} loads ${ref}, which does not exist.`); continue; }
+    if (!fs.existsSync(abs(file))) { errors.push(`${p.page} loads ${ref}, which does not exist.`); continue; }
     if (m[1] === 'script' && /\btype="module"/.test(attrs)) walkModule(file, app, seen);
     else covered(file, app);
   }
 }
 
 if (errors.length) { console.error('Offline cache list is out of date:\n- ' + [...new Set(errors)].join('\n- ')); process.exit(1); }
-console.log(`offline ok: ${core.size} core files, ${registry.apps.length} apps, every page asset and module covered`);
+console.log(`offline ok: ${core.size} core files, ${registry.apps.length - skipped.length} apps, every page asset and module covered`
+  + (skipped.length ? ` (skipped ${skipped.join(', ')}: no checkout in .remote/)` : ''));

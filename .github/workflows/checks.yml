@@ -5,16 +5,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Docket lives in its own repo and is served under /apps/prioritizer/ (apps/remote.json, worker/index.js).
+      # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
+      - uses: actions/checkout@v4
+        with: { repository: adavidson21/docket, path: .remote/prioritizer }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: node tests/check-themes.mjs
       - run: node tests/check-offline.mjs
+      - run: node tests/check-remote.mjs
       - run: node tests/check-contracts.mjs
       - run: node shell/registry.mjs --check
       - run: node --test "shared/test/*.test.mjs"
       - run: node --test "apps/*/test/*.test.mjs"
+      - run: node --test "worker/test/*.test.mjs"
       - run: node --test "tests/contract/*.test.mjs"
       - run: node --test "connectors/*/test/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
@@ -29,6 +35,9 @@ jobs:
       # Keep LF line endings on Windows: the contract tests read docs/*.md with \n-based patterns.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
+      # The ADO connector's parity tests run Docket's ado-helper/ado_helper.py.
+      - uses: actions/checkout@v4
+        with: { repository: adavidson21/docket, path: .remote/prioritizer }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Agent tests
