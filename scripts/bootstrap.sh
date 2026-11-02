@@ -5,7 +5,7 @@
 #
 # The site serves this file with {{SITE}} filled in (worker/index.js), so Workshop allows the site it came from.
 # What it does, all inside ~/.local/share/workshop unless something is already installed:
-#   1. Node 22 or later: uses yours, or downloads a private copy.
+#   1. Node 22.15 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
 #   4. git: uses yours; on a Mac, asks macOS to install its command line tools (which include git).
@@ -55,8 +55,9 @@ main() {
   step "Node"
   NODE=""
   if command -v node >/dev/null 2>&1; then
-    if [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then NODE="$(command -v node)"; say "Using your Node $(node -v)."
-    else say "Your Node is $(node -v); Workshop needs 22 or later, so it gets its own copy."; fi
+    # 22.15 or later: from then on Node can trust the certificates the system trusts (see npm below).
+    if node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=15)?0:1)'; then NODE="$(command -v node)"; say "Using your Node $(node -v)."
+    else say "Your Node is $(node -v); Workshop needs 22.15 or later, so it gets its own copy."; fi
   fi
   if [ -z "$NODE" ] && [ -x "$ROOT/node/bin/node" ]; then NODE="$ROOT/node/bin/node"; say "Using Workshop's Node $("$NODE" -v)."; fi
   if [ -z "$NODE" ]; then

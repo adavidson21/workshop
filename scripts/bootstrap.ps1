@@ -4,7 +4,7 @@
 #
 # The site serves this file with {{SITE}} filled in (worker/index.js), so Workshop allows the site it came from.
 # What it does, all inside %LOCALAPPDATA%\Workshop unless something is already installed:
-#   1. Node 22 or later: uses yours, or downloads a private copy.
+#   1. Node 22.15 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder. git: uses yours, or
 #      downloads MinGit (Git for Windows' portable build) into the Workshop folder.
@@ -62,9 +62,11 @@ Step 'Node'
 $node = $null
 $have = Get-Command node -ErrorAction SilentlyContinue
 if ($have) {
-  $major = [int](& $have.Source -p 'process.versions.node.split(".")[0]')
-  if ($major -ge 22) { $node = $have.Source; Say "Using your Node $(& $node -v)." }
-  else { Say "Your Node is $(& $have.Source -v); Workshop needs 22 or later, so it gets its own copy." }
+  # 22.15 or later: from then on Node can trust the certificates Windows trusts (a company HTTPS proxy's own
+  # certificate included), which the ADO connector and npm rely on.
+  $haveVer = [version]((& $have.Source -v).TrimStart('v'))
+  if ($haveVer -ge [version]'22.15.0') { $node = $have.Source; Say "Using your Node $(& $node -v)." }
+  else { Say "Your Node is $(& $have.Source -v); Workshop needs 22.15 or later, so it gets its own copy." }
 }
 $nodeDir = Join-Path $Root 'node'
 if (-not $node -and (Test-Path (Join-Path $nodeDir 'node.exe'))) { $node = Join-Path $nodeDir 'node.exe'; Say "Using Workshop's Node $(& $node -v)." }
