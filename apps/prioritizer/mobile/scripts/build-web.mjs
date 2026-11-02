@@ -26,9 +26,13 @@ export function build({ repo = REPO, www = WWW } = {}) {
   rmSync(www, { recursive: true, force: true });
   mkdirSync(www, { recursive: true });
   for (const from of COPY) cpSync(join(repo, from), join(www, from), { recursive: true });
-  // Docket's page without the web app manifest (an installed site's file; the app has its own).
+  // Docket's page without the web app manifest (an installed site's file; the app has its own), drawn edge to
+  // edge behind the status and gesture bars (the page keeps clear of them with the safe-area insets).
   const page = join(www, 'index.html');
-  writeFileSync(page, readFileSync(page, 'utf8').replace(/^\s*<link rel="manifest"[^>]*>\n/m, ''));
+  let html = readFileSync(page, 'utf8').replace(/^\s*<link rel="manifest"[^>]*>\n/m, '');
+  html = html.replace('<meta name="viewport" content="width=device-width, initial-scale=1">', '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
+  if (!html.includes('viewport-fit=cover')) throw new Error('Docket\'s viewport meta tag changed; update build-web.mjs.');
+  writeFileSync(page, html);
   const missing = checkRefs(www);
   if (missing.length) throw new Error('Docket refers to files the app does not have:\n' + missing.map(m => `  ${m}`).join('\n'));
   return { www, files: walk(www).length };

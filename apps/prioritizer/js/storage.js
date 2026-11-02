@@ -119,7 +119,8 @@ function onSyncClick(btn){
   const note = status.state === 'error' ? `<div class="mnote warn">${status.retry === false ? `Not saving: ${why}` : `Not saved yet: ${why}. Retrying every few seconds.`}</div>`
     : status.state === 'readonly' ? `<div class="mnote warn">Read only. This board was saved by a newer Workshop.</div>`
     : `<div class="mnote">Saved ${esc(where())}.</div>`;
-  popMenu(note + `<button data-s="download">Download an Excel copy</button><button data-s="backup">Download a backup (.json)</button>`
+  const verb = ws && ws.storage === 'device' ? 'Save' : 'Download'; // the app hands files to the share sheet
+  popMenu(note + `<button data-s="download">${verb} an Excel copy</button><button data-s="backup">${verb} a backup (.json)</button>`
     + `<button data-s="import">Import a file</button>` + (status.state === 'error' && store ? `<div class="sep"></div><button data-s="retry">Try saving now</button>` : ''), btn)
     .addEventListener('click', e => {
       const b = e.target.closest('[data-s]'); if (!b) return;

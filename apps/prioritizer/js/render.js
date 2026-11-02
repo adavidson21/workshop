@@ -1,5 +1,5 @@
 import { PR_TIER, adoShort, prTip } from './ado.js';
-import { ICON, LENSES, NAV, NAV_OF, POINTS, VIEWS } from './constants.js';
+import { ICON, LENSES, NAV, NAV_OF, POINTS, TOUCH, VIEWS } from './constants.js';
 import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
 import { closeSide } from './events.js';
@@ -150,7 +150,7 @@ function row(t, o = {}){
 }
 const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="donegrp" id="doneGrp"${doneOpen ? ' open' : ''}><summary>${ICON.tri}${label} <span class="num">${ts.length}</span></summary>
   <div class="rows">${ts.map(t => row(t, {compact: true})).join('')}</div></details>` : '';
-const emptyHTML = `<div class="empty"><b>A clean slate.</b>Press N to add your first task. It shows up in every view.</div>`;
+const emptyHTML = `<div class="empty"><b>A clean slate.</b>${TOUCH ? 'Tap + to add your first task.' : 'Press N to add your first task.'} It shows up in every view.</div>`;
 
 /* capacity: line goes after the last task that fits (Build spec: Capacity line) */
 function capacityCut(open){

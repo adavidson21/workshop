@@ -2,7 +2,8 @@
 for Capacitor's native bridge (window.Capacitor) whose Filesystem keeps files in the page's own storage, the way
 the phone keeps them in the app's private folder. Checks that Docket picks the device store, saves the board as
 files under workshop/prioritizer/, keeps it across a restart, says where it is saved, never registers a service
-worker, shows no breadcrumbs, and hands backups to the share sheet.
+worker, shows no breadcrumbs, hands backups to the share sheet, handles the Back button, keeps the status bar
+icons in step with the theme, and reorders tasks with a press-and-hold drag.
 
     node mobile/scripts/build-web.mjs && python mobile/test/e2e_app.py
 
@@ -62,11 +63,15 @@ BRIDGE = r"""
       s.files[to] = s.files[from]; delete s.files[from];
     }
   };
+  // App (Back button) and SystemBars: what the page asked for, for the checks to read.
+  window.__native = { listeners: {}, calls: [] };
   window.Capacitor = {
-    PluginHeaders: [{ name: 'Filesystem' }, { name: 'Share' }],
+    PluginHeaders: [{ name: 'Filesystem' }, { name: 'Share' }, { name: 'App' }, { name: 'SystemBars' }],
     isNativePlatform: () => true,
     getPlatform: () => 'android',
+    addListener(plugin, event, cb) { (window.__native.listeners[plugin + '.' + event] ||= []).push(cb); return { remove: async () => {} }; },
     async nativePromise(plugin, method, options) {
+      if (plugin === 'App' || plugin === 'SystemBars') { window.__native.calls.push([plugin, method, options]); return {}; }
       const s = load();
       if (plugin === 'Share') { s.shared.push(options); save(s); return {}; }
       if (plugin !== 'Filesystem') throw err('UNIMPLEMENTED', plugin);
@@ -137,6 +142,58 @@ def main():
             backup = next((v for k, v in state.get('files', {}).items() if k.startswith('CACHE:workshop-') and k.endswith('.json')), None)
             check('a backup goes to the share sheet as a file in the cache', len(shared) == 1 and shared[0]['files'][0].startswith('file:///cache/workshop-'))
             check('the backup holds the board', bool(backup) and 'Saved on the phone' in backup['data'] and json.loads(backup['data']).get('collections'))
+
+            # The Android Back button: closes what is open, then steps back to Today, then sends the app to the background.
+            back = lambda: pg.evaluate("window.__native.listeners['App.backButton'].forEach(cb => cb({canGoBack: false}))")
+            calls = lambda: pg.evaluate("window.__native.calls")
+            check('Docket listens for the Back button', pg.evaluate("(window.__native.listeners['App.backButton'] || []).length") == 1)
+            pg.evaluate("(() => { const P = window.__prioritizer; P.state.view = 'rank'; P.render(); })()")
+            pg.locator('.row[data-id]').first.tap(); pg.wait_for_timeout(400)
+            drawer_open = pg.evaluate("document.querySelector('.app').classList.contains('drawer-open')")
+            back(); pg.wait_for_timeout(300)
+            check('Back closes the task details first', drawer_open and not pg.evaluate("document.querySelector('.app').classList.contains('drawer-open')")
+                  and pg.evaluate("window.__prioritizer.state.view") == 'rank')
+            back(); pg.wait_for_timeout(300)
+            check('then Back goes to Today', pg.evaluate("window.__prioritizer.state.view") == 'today' and not any(c[1] == 'minimizeApp' for c in calls()))
+            back(); pg.wait_for_timeout(300)
+            check('and on Today Back sends the app to the background', any(c[1] == 'minimizeApp' for c in calls()))
+
+            # Status bar icons follow the theme.
+            styles = lambda: [c[2]['style'] for c in calls() if c[0] == 'SystemBars' and c[1] == 'setStyle']
+            pg.evaluate("document.documentElement.dataset.theme = 'dark'"); pg.wait_for_timeout(200)
+            dark = styles()[-1:] == ['DARK']
+            pg.evaluate("document.documentElement.dataset.theme = 'light'"); pg.wait_for_timeout(200)
+            check('the status bar icons follow the theme', dark and styles()[-1:] == ['LIGHT'])
+
+            # Press and hold a task, then drag it: the new order is saved.
+            pg.evaluate("""() => { const P = window.__prioritizer, L = P.state.lists[0].id;
+              for (const [id, title] of [['m2', 'Second'], ['m3', 'Third']]) { const t = {id, title, listId: L, rank: P.state.tasks.length + 1, people: []}; P.migrateTask(t); P.state.tasks.push(t); }
+              P.state.view = 'rank'; P.commit(); }""")
+            pg.wait_for_timeout(400)
+            order = lambda: pg.evaluate("[...document.querySelectorAll('.ranklist > .row[data-id]')].map(r => r.dataset.id)")
+            before = order()
+            cdp = ctx.new_cdp_session(pg)
+            first = pg.locator('.ranklist > .row[data-id]').first.bounding_box()
+            last = pg.locator('.ranklist > .row[data-id]').last.bounding_box()
+            x, y0, y1 = first['x'] + first['width'] / 2, first['y'] + first['height'] / 2, last['y'] + last['height'] - 4
+            touch = lambda kind, y: cdp.send('Input.dispatchTouchEvent', {'type': kind, 'touchPoints': [] if kind == 'touchEnd' else [{'x': x, 'y': y}]})
+            touch('touchStart', y0); pg.wait_for_timeout(600)
+            lifted = pg.evaluate("!!document.querySelector('.row.lifted')")
+            for i in range(1, 11):
+                touch('touchMove', y0 + (y1 - y0) * i / 10); pg.wait_for_timeout(30)
+            touch('touchEnd', y1); pg.wait_for_timeout(900)
+            after = order()
+            check('a long press lifts the task', lifted)
+            check('dragging it to the bottom saves the new order', after[-1] == before[0] and after[:-1] == before[1:]
+                  and not pg.evaluate("document.querySelector('.app').classList.contains('drawer-open')"))
+            files = fs().get('files', {}).get('DATA:workshop/prioritizer/tasks.json', {}).get('data', '')
+            ranks = {t['id']: t['rank'] for t in json.loads(files)['items']} if files else {}
+            check('and the order is on the phone', bool(ranks) and ranks[before[0]] > ranks[before[-1]])
+
+            # A quick swipe over a task scrolls instead of lifting it.
+            r = pg.locator('.ranklist > .row[data-id]').nth(1).bounding_box()
+            touch('touchStart', r['y'] + 10); touch('touchMove', r['y'] + 60); pg.wait_for_timeout(600); touch('touchEnd', r['y'] + 60); pg.wait_for_timeout(300)
+            check('a swipe does not lift a task', order() == after and not pg.evaluate("!!document.querySelector('.row.lifted')"))
 
             check('no page errors', not errors)
             if errors:

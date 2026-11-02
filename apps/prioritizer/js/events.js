@@ -169,6 +169,24 @@ const checkDay = () => { if (todayStr() !== lastDay){ lastDay = todayStr(); rend
 setInterval(checkDay, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 
+/* ---------- the Android Back button (native.js) ----------
+   Closes what is on top, like Esc: the add bar, a dialog, a menu, the sidebar, a task's details. With
+   nothing open it steps back to Today. Returns false on Today with nothing open, so the app goes to the
+   background, as Back does on any Android app's first screen. */
+function backStep(){
+  const ae = document.activeElement;
+  if (cmdOpen()){ closeCmd(); return true; }
+  if (modal.classList.contains('open')){ closeModal(); return true; }
+  if (menuEl){ closeMenu(true); return true; }
+  if (openQuad){ setOpenQuad(null); render(); return true; }
+  if (mobileOpen || midOpen){ closeSide(); return true; }
+  if (drawerId){ closeDrawer(); return true; }
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) ae.blur();
+  if (state.view === 'triage'){ exitTriage(); return true; }
+  if (state.view !== 'today'){ setView('today'); return true; }
+  return false;
+}
+
 /* ---------- tooltips ---------- */
 const tipEl = $('#tip');
 let tipFor = null, tipTimer = null;
@@ -181,7 +199,9 @@ function placeTip(el){
   tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
 }
 function hideTip(){ clearTimeout(tipTimer); tipEl.classList.remove('show'); tipFor = null; }
+const HOVER = typeof matchMedia !== 'function' || !matchMedia('(hover: none)').matches; // no tooltips on touch screens
 document.addEventListener('mouseover', e => {
+  if (!HOVER) return;
   const el = e.target.closest && e.target.closest('[data-tip]');
   if (el === tipFor) return;
   hideTip(); if (!el) return;
@@ -191,4 +211,4 @@ document.addEventListener('mouseover', e => {
 });
 ['mousedown','dragstart','scroll','keydown'].forEach(ev => document.addEventListener(ev, hideTip, true));
 
-export { applySide, closeSide, hideTip, placeTip, tipFor };
+export { applySide, backStep, closeSide, hideTip, placeTip, tipFor };

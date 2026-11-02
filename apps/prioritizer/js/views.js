@@ -1,5 +1,5 @@
 import { wontDo } from './actions.js';
-import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ, WINDOW } from './constants.js';
+import { EFFORTS, EQ, ICON, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, byScore, eKey, fmtScore, isStale, isTriaged, nudgeDue, score, vKey } from './model.js';
 import { toast } from './overlays.js';
 import { capacityCut, doneGroup, emptyHTML, main, openQuad, prevView, render, row, setView, showAllPick, tri, weekOff } from './render.js';
@@ -20,7 +20,7 @@ function renderRank(){
       if (i < open.length - 1) html += `<div class="belowcap">Not this week</div>`;
     }
   });
-  main.innerHTML = `<div class="ranklist rows dropzone" data-zone="rank">${html}</div>${doneGroup(done)}`;
+  main.innerHTML = `<div class="ranklist rows dropzone" data-zone="rank">${html}</div>${TOUCH && open.length > 1 ? '<p class="soft">Press and hold a task to drag it into place.</p>' : ''}${doneGroup(done)}`;
 }
 
 function renderMatrix(kind){
@@ -32,7 +32,7 @@ function renderMatrix(kind){
   const un = open.filter(t => !keyFn(t));
   main.innerHTML = `<div class="unsorted dropzone" data-zone="none">${un.length
       ? `<span><b class="num">${un.length}</b> ${un.length === 1 ? 'task needs' : 'tasks need'} ${kind === 'eisen' ? 'a value' : 'a value and effort'}.</span><button class="lnk" data-nav="triage">Triage now</button>`
-      : `<span>Everything is placed. Drop a task here to unsort it.</span>`}</div>
+      : `<span>${TOUCH ? 'Everything is placed. Change a task\'s value or effort in its details to move it.' : 'Everything is placed. Drop a task here to unsort it.'}</span>`}</div>
     <div class="matrix">
       <div class="axis-x"><span>${ax[0]}</span><span>${ax[1]}</span></div>
       <div class="axis-y"><span>${ay[0]}</span><span>${ay[1]}</span></div>
@@ -41,7 +41,7 @@ function renderMatrix(kind){
         return `<section class="quad dropzone" data-zone="${k}">
           <header><h3>${q.title}</h3><small>${q.sub}</small>${items.length ? `<span class="qn">${items.length}</span>` : ''}
             <button class="ibtn" data-qadd="${k}" aria-label="Add to ${q.title}" data-tip="Add to ${q.title}">${ICON.plus}</button></header>
-          <div class="rows">${openQuad === k ? `<form class="qform" data-qform="${k}"><input placeholder="New task in ${q.title}" aria-label="New task in ${q.title}"></form>` : ''}${items.map(t => row(t, {compact: true})).join('')}${!items.length && openQuad !== k ? `<div class="qhint">Drop tasks here</div>` : ''}</div>
+          <div class="rows">${openQuad === k ? `<form class="qform" data-qform="${k}"><input placeholder="New task in ${q.title}" aria-label="New task in ${q.title}"></form>` : ''}${items.map(t => row(t, {compact: true})).join('')}${!items.length && openQuad !== k ? `<div class="qhint">${TOUCH ? 'Nothing here' : 'Drop tasks here'}</div>` : ''}</div>
         </section>`;
       }).join('')}</div>
     </div>`;
@@ -65,7 +65,7 @@ function renderToday(){
       ${focus.length ? `<div class="fhead"><span class="count"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span></div>
         <div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
       <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3})).join('')
-        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b>Press N to add a task, or pick 3 to 5 from Up next.</div>`)}</div>
+        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b>${TOUCH ? 'Tap + to add a task' : 'Press N to add a task'}, or pick 3 to 5 from Up next.</div>`)}</div>
       ${open.length > 5 ? `<p class="soft">That's ${open.length} tasks. Today works best with 3 to 5.</p>` : ''}
       ${doneGroup(done)}
     </div>
@@ -73,7 +73,7 @@ function renderToday(){
       <section class="panel dropzone" data-zone="unfocus">
         <header><h3>Up next</h3><span class="n">by score</span>${pickAll.length > 6 ? `<button class="lnk" data-pickall>${showAllPick ? 'Show less' : `Show all ${pickAll.length}`}</button>` : ''}</header>
         <div class="rows">${pick.map(t => row(t, {compact: true, showList: true})).join('') || `<div class="pempty">Nothing else open here.</div>`}</div>
-        ${pick.length ? `<p class="soft">Click Today on a task, press T, or drag it over.</p>` : ''}
+        ${pick.length ? `<p class="soft">${TOUCH ? 'Tap Today on a task to add it. Press and hold a task to reorder.' : 'Click Today on a task, press T, or drag it over.'}</p>` : ''}
       </section>
       <section class="panel">
         <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="chip warn" style="margin-left:auto">${plural(nudges, 'nudge')} due</span>` : ''}</header>
@@ -125,7 +125,7 @@ function renderTriage(){
       <button class="btn" data-tact="skip"><kbd>S</kbd>Skip</button>
       <button class="btn primary" data-tact="save"><kbd>Enter</kbd>Save and next</button>
     </div>
-  </div><p class="soft" style="text-align:center"><kbd>Esc</kbd> to leave Triage</p></div>`;
+  </div><p class="soft kb-only" style="text-align:center"><kbd>Esc</kbd> to leave Triage</p></div>`;
 }
 function triageSave(){
   const t = findTask(tri.id), d = tri.draft; if (!t || !d) return;
@@ -160,7 +160,7 @@ function renderPeople(){
   const ppl = state.people;
   const tasksFor = n => state.tasks.filter(t => inScope(t) && t.people.includes(n) && (!t.done || isDoneToday(t))).sort((a,b) => a.rank - b.rank);
   if (!ppl.length){
-    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or click Person.</div>`;
+    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or ${TOUCH ? 'tap' : 'click'} Person.</div>`;
     return;
   }
   main.innerHTML = `<div class="people">${ppl.map(p => {

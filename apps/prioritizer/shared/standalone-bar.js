@@ -28,7 +28,8 @@ const CSS = `
 .ws-bar .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .ws-bar .theme-toggle svg{width:18px;height:18px;display:block;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
 .ws-bar .theme-toggle:hover svg{transform:rotate(-20deg)}
-@media (max-width:720px){.ws-bar{min-height:56px;padding:env(safe-area-inset-top) 12px 0 16px}}
+@media (max-width:720px){.ws-bar{min-height:56px;padding:var(--safe-area-inset-top,env(safe-area-inset-top,0px)) 12px 0 16px}}
+@media (hover:none) and (pointer:coarse){.ws-bar .theme-toggle{width:44px;height:44px}}
 @media (prefers-reduced-motion:reduce){.ws-bar .theme-toggle,.ws-bar .theme-toggle svg{transition:none}}`;
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
