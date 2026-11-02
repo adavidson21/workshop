@@ -36,11 +36,19 @@ function card(title, sub) {
 const errText = e => (e && e.message) || 'Something went wrong.';
 
 /* ---------- header ---------- */
+// The agent's address, from this site's pairing (hosted mode), for the "change them on this computer" link.
+function agentAddress() {
+  try { const p = JSON.parse(localStorage.getItem('workshop.agent') || 'null'); return p && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(p.url) ? p.url : null; } catch (e) { return null; }
+}
+
 function header() {
   const note = $('#modeNote');
-  if (ws.mode === 'local') note.textContent = 'Workshop on this computer.';
+  // Local: this is the page the agent serves, Workshop on this computer. Workshop itself is the hosted site.
+  if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change. Workshop itself opens from its site.';
   else if (readOnly) {
-    note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer.';
+    const at = agentAddress();
+    note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer'
+      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : '.');
     document.body.classList.add('ro');
   } else note.textContent = ws.storage === 'folder'
     ? 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in the folder you chose.'
@@ -323,12 +331,24 @@ function dataCard() {
   });
 }
 
+/* ---------- open Workshop (local only) ----------
+   The agent serves only this page. Workshop, its apps and Dispatch and Docket come from the allowed sites,
+   which pair with this computer from their Connect button. */
+function sitesCard(cfg) {
+  const sites = cfg.allowedOrigins || [];
+  if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so no site can use Workshop on this computer. Turn it on below.'); return; }
+  if (!sites.length) { card('Open Workshop', 'No sites are allowed yet. Add Workshop\'s site under Allowed sites below.'); return; }
+  const sec = card('Open Workshop', 'Workshop opens from its site. This browser is signed in here, so on the site click <b>Connect</b> to pair it with this computer.');
+  sec.insertAdjacentHTML('beforeend', `<ul class="sites">${sites.map(o => `<li><a class="lnk" href="${esc(o)}/" target="_blank" rel="noopener">${esc(o.replace(/^https?:\/\//, ''))}</a></li>`).join('')}</ul>`);
+}
+
 /* ---------- start ---------- */
 async function start() {
   header();
   if (ws.backend === 'agent') {
     try {
       const cfg = await ws.config.get();
+      if (ws.mode === 'local') sitesCard(cfg);
       await folderCard(cfg);
       await workshopCard(cfg);
       await connectorsCard(cfg);

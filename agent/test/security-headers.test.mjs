@@ -9,7 +9,7 @@ before(async () => { home = tempHome(); agent = await createAgent({ home, port: 
 after(async () => { await agent?.stop(); rmHome(home); });
 
 test('every served page carries the security headers', async () => {
-  for (const p of ['/', '/index.html', '/shell/shell.js', '/shared/themes.css']) {
+  for (const p of ['/apps/settings/', '/apps/settings/index.html', '/apps/settings/js/settings.js', '/shared/themes.css']) {
     const res = await get(agent, p, { auth: 'none' });
     assert.equal(res.status, 200, p);
     const csp = res.headers['content-security-policy'];
@@ -25,7 +25,7 @@ test('every served page carries the security headers', async () => {
 });
 
 test('the served CSP matches the meta tag the page also carries', async () => {
-  const res = await get(agent, '/index.html', { auth: 'none' });
+  const res = await get(agent, '/apps/settings/index.html', { auth: 'none' });
   const meta = res.text.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
   // The agent adds frame-ancestors; otherwise the two policies are the same.
   assert.equal(res.headers['content-security-policy'], `${meta}; frame-ancestors 'self'`);

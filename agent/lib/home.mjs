@@ -24,11 +24,15 @@ export function homePaths(home) {
   };
 }
 
+// Workshop's own sites. The hub and its apps come from these (the agent serves only Workshop on this
+// computer), so a new install lets them pair: each still needs the user's click in a pairing window.
+export const DEFAULT_SITES = ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'];
+
 export const defaultConfig = () => ({
   configVersion: 1,
   port: DEFAULT_PORT,
-  allowedOrigins: [],
-  features: { startAtLogin: false, hostedMode: false },
+  allowedOrigins: [...DEFAULT_SITES],
+  features: { startAtLogin: false, hostedMode: true },
   connectors: {}
 });
 

@@ -10,10 +10,10 @@ let agent, home;
 before(async () => { home = tempHome(); agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home) }); });
 after(async () => { await agent?.stop(); rmHome(home); });
 
-test('serves the shell, shared files, icons and root files of the repo', async () => {
+test('serves Workshop on this computer: the Settings app, shared files and icons', async () => {
   const cases = [
-    ['/', /^text\/html/], ['/index.html', /^text\/html/], ['/sw.js', /^text\/javascript/], ['/manifest.webmanifest', /^application\/manifest\+json/],
-    ['/shell/shell.js', /^text\/javascript/], ['/shared/themes.css', /^text\/css/], ['/icons/favicon.svg', /^image\/svg\+xml/],
+    ['/apps/settings/', /^text\/html/], ['/apps/settings/index.html', /^text\/html/], ['/apps/settings/js/settings.js', /^text\/javascript/],
+    ['/shared/themes.css', /^text\/css/], ['/shared/workshop-sdk.js', /^text\/javascript/], ['/icons/favicon.svg', /^image\/svg\+xml/],
     ['/shared/fonts/fonts.css', /^text\/css/]
   ];
   for (const [p, type] of cases) {
@@ -22,12 +22,23 @@ test('serves the shell, shared files, icons and root files of the repo', async (
     assert.match(res.headers['content-type'], type, p);
     assert.equal(res.headers['x-content-type-options'], 'nosniff');
   }
-  const index = await get(agent, '/', { auth: 'none' });
-  assert.equal(index.text, fs.readFileSync(path.join(REPO, 'index.html'), 'utf8'));
+  const page = await get(agent, '/apps/settings/', { auth: 'none' });
+  assert.equal(page.text, fs.readFileSync(path.join(REPO, 'apps', 'settings', 'index.html'), 'utf8'));
+});
+
+test('"/" goes to the Settings page; the hub and other apps are the hosted site\'s, never served here', async () => {
+  for (const p of ['/', '/index.html']) {
+    const res = await get(agent, p, { auth: 'none' });
+    assert.equal(res.status, 302, p);
+    assert.equal(res.headers.location, '/apps/settings/', p);
+  }
+  for (const p of ['/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html', '/apps/receipts/index.html']) {
+    assert.equal((await get(agent, p, { auth: 'none' })).status, 404, p);
+  }
 });
 
 test('HEAD answers without a body', async () => {
-  const res = await request(agent, 'HEAD', '/index.html', { auth: 'none' });
+  const res = await request(agent, 'HEAD', '/apps/settings/index.html', { auth: 'none' });
   assert.equal(res.status, 200);
   assert.equal(res.text, '');
   assert.ok(Number(res.headers['content-length']) > 0);
@@ -44,19 +55,19 @@ test('never serves the agent, connectors, tests, docs, dot files or anything els
 });
 
 test('static files get the same Host and Origin checks', async () => {
-  assert.equal((await get(agent, '/index.html', { auth: 'none', host: 'evil.example' })).status, 403);
-  assert.equal((await get(agent, '/index.html', { auth: 'none', origin: 'https://evil.example' })).status, 403);
+  assert.equal((await get(agent, '/apps/settings/index.html', { auth: 'none', host: 'evil.example' })).status, 403);
+  assert.equal((await get(agent, '/apps/settings/index.html', { auth: 'none', origin: 'https://evil.example' })).status, 403);
 });
 
-test('a symbolic link cannot lead out of an app folder', { skip: process.platform === 'win32' && 'symlinks need extra rights on Windows' }, async () => {
+test('a symbolic link cannot lead out of the Settings folder', { skip: process.platform === 'win32' && 'symlinks need extra rights on Windows' }, async () => {
   const apps = fs.mkdtempSync(path.join(home, 'apps-'));
-  fs.mkdirSync(path.join(apps, 'demo'));
-  fs.symlinkSync(path.join(REPO, 'agent', 'server.mjs'), path.join(apps, 'demo', 'escape.mjs'));
-  fs.writeFileSync(path.join(apps, 'demo', 'ok.txt'), 'ok');
+  fs.mkdirSync(path.join(apps, 'settings'));
+  fs.symlinkSync(path.join(REPO, 'agent', 'server.mjs'), path.join(apps, 'settings', 'escape.mjs'));
+  fs.writeFileSync(path.join(apps, 'settings', 'ok.txt'), 'ok');
   const h2 = tempHome();
   const a2 = await createAgent({ home: h2, port: 0, dataDir: dataDirOf(h2), appsDir: apps });
   try {
-    assert.equal((await get(a2, '/apps/demo/ok.txt', { auth: 'none' })).status, 200);
-    assert.equal((await get(a2, '/apps/demo/escape.mjs', { auth: 'none' })).status, 404);
+    assert.equal((await get(a2, '/apps/settings/ok.txt', { auth: 'none' })).status, 200);
+    assert.equal((await get(a2, '/apps/settings/escape.mjs', { auth: 'none' })).status, 404);
   } finally { await a2.stop(); rmHome(h2); }
 });

@@ -25,10 +25,10 @@ Workshop keeps two folders apart:
   "configVersion": 1,
   "port": 4380,
   "dataDir": "/Users/alex/Workshop",
-  "allowedOrigins": [],
+  "allowedOrigins": ["https://workshop.alexisdavidson.org", "https://dispatch.alexisdavidson.org", "https://docket.alexisdavidson.org"],
   "features": {
     "startAtLogin": false,
-    "hostedMode": false
+    "hostedMode": true
   },
   "connectors": {
     "ado": {
@@ -44,9 +44,9 @@ Workshop keeps two folders apart:
 | `configVersion` | `1` | `1` | Format version of this file. |
 | `port` | integer, 1024 to 65535 | `4380` | The agent listens on `127.0.0.1:<port>`. Change takes effect after a restart. |
 | `dataDir` | absolute path | `~/Workshop` (`%USERPROFILE%\Workshop` on Windows) | The data folder. See Data folder below. Change takes effect after a restart. |
-| `allowedOrigins` | array of origins | `[]` | Origins other than the agent's own that may call the agent. Used only when `features.hostedMode` is on. Each is `https://<host>[:<port>]`, or `http://127.0.0.1:<port>` / `http://localhost:<port>` for testing. Lowercase, no path, no trailing slash, no wildcards. |
+| `allowedOrigins` | array of origins | Workshop's three sites (above) | Origins other than the agent's own that may call the agent. Used only when `features.hostedMode` is on. Each is `https://<host>[:<port>]`, or `http://127.0.0.1:<port>` / `http://localhost:<port>` for testing. Lowercase, no path, no trailing slash, no wildcards. |
 | `features.startAtLogin` | boolean | `false` | Start the agent when the user logs in (Startup folder shortcut on Windows, LaunchAgent on macOS). Per user, no admin. |
-| `features.hostedMode` | boolean | `false` | Allow pages from `allowedOrigins` to pair with and call the agent. See [run-modes.md](run-modes.md). |
+| `features.hostedMode` | boolean | `true` | Allow pages from `allowedOrigins` to pair with and call the agent. See [run-modes.md](run-modes.md). |
 | `connectors.<id>.enabled` | boolean | `false` | Load and start this connector. |
 | `connectors.<id>.config` | object | the connector's `configSchema` defaults | The connector's settings. Validated against its `configSchema`. Never holds secrets, only the names of environment variables that hold them. |
 

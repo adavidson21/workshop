@@ -2,10 +2,14 @@
   "configVersion": 1,
   "port": 4380,
   "dataDir": "/Users/alex/Workshop",
-  "allowedOrigins": [],
+  "allowedOrigins": [
+    "https://workshop.alexisdavidson.org",
+    "https://dispatch.alexisdavidson.org",
+    "https://docket.alexisdavidson.org"
+  ],
   "features": {
     "startAtLogin": false,
-    "hostedMode": false
+    "hostedMode": true
   },
   "connectors": {},
   "home": "/Users/alex/.workshop"

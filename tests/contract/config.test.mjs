@@ -9,16 +9,17 @@ let agent;
 before(async () => { agent = await startAgent(); });
 after(async () => { await agent?.stop(); });
 
-test('defaults: everything that could be blocked is off', async () => {
+test('defaults: Workshop\'s sites may pair; start at login and every connector are off', async () => {
   const body = expectJson(await get(agent, '/api/config'), 200, 'config-public');
-  assert.deepEqual(body.allowedOrigins, []);
-  assert.deepEqual(body.features, { startAtLogin: false, hostedMode: false });
+  assert.deepEqual(body.allowedOrigins, ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org']);
+  assert.deepEqual(body.features, { startAtLogin: false, hostedMode: true });
   assert.equal(body.port, agent.port);
   assert.ok(Object.values(body.connectors).every(c => c.enabled === false));
 });
 
 test('features merge and origins replace', async () => {
-  let body = expectJson(await put(agent, '/api/config', { features: { startAtLogin: true } }), 200, 'config-put-response');
+  let body = expectJson(await put(agent, '/api/config', { features: { hostedMode: false } }), 200, 'config-put-response');
+  body = expectJson(await put(agent, '/api/config', { features: { startAtLogin: true } }), 200, 'config-put-response');
   assert.deepEqual(body.config.features, { startAtLogin: true, hostedMode: false });
   assert.equal(body.restartRequired, false);
   body = expectJson(await put(agent, '/api/config', { features: { hostedMode: true }, allowedOrigins: [HOSTED, 'https://other.example.org'] }), 200, 'config-put-response');

@@ -10,9 +10,11 @@ static server and the agent's apps folder do the same from the checkout in .remo
 
 Five parts:
   1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
-  2. Local mode: the real agent (tests/e2e-agent.mjs) with a temporary home, the repo's apps plus a sample
-     app, and the ADO and echo connectors. Settings, required connectors, data events.
-  3. Hosted mode: the static site on localhost:8803, paired with that agent. Settings is read-only.
+  2. The agent and the hosted site: the real agent (tests/e2e-agent.mjs) with a temporary home and the ADO
+     and echo connectors. The hub comes from a static site on another origin paired with it (hosted mode;
+     localhost:8804 also lists two sample apps). Workshop on this computer (the agent's Settings page): the
+     data folder, connectors and their forms. Required connectors and data events through the hub.
+  3. Hosted Settings is read-only, and the agent serves no hub.
   4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
      copy, Excel and backup round trips, two windows in sync, and a failed write.
   5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
@@ -28,6 +30,10 @@ from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HUB = 'http://127.0.0.1:8802'
+# The hosted site paired with the agent in parts 2 to 5 (the agent serves no hub: docs/run-modes.md).
+HOSTED = 'http://localhost:8803'
+# The same site plus two sample apps (tests/fixtures/apps), for the rail and required-connector checks.
+SAMPLES = 'http://localhost:8804'
 DOCKET = os.environ.get('DOCKET_DIR') or os.path.join(ROOT, '.remote', 'prioritizer')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
@@ -43,6 +49,48 @@ class Static(http.server.SimpleHTTPRequestHandler):
             rest = clean[len('/apps/prioritizer/'):]
             return os.path.join(DOCKET, *[p for p in rest.split('/') if p and p not in ('.', '..')])
         return super().translate_path(path)
+
+
+class WithSamples(Static):
+    """The site plus tests/fixtures/apps/notes and board, listed in its registry."""
+    registry = None
+
+    def translate_path(self, path):
+        clean = path.split('?', 1)[0].split('#', 1)[0]
+        if clean == '/apps/registry.json': return WithSamples.registry
+        for app in ('notes', 'board'):
+            if clean.startswith(f'/apps/{app}/'):
+                rest = clean[len(f'/apps/{app}/'):]
+                return os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, *[p for p in rest.split('/') if p and p not in ('.', '..')])
+        return super().translate_path(path)
+
+
+def samples_registry(tmp):
+    """apps/registry.json with the sample apps added (Board after the repo's apps, so Docket stays first)."""
+    with open(os.path.join(ROOT, 'apps', 'registry.json')) as f: reg = json.load(f)
+    for app, order in (('notes', None), ('board', 50)):
+        with open(os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, 'app.json')) as f: m = json.load(f)
+        if order is not None: m['order'] = order
+        reg['apps'].append({'base': f'/apps/{app}/', 'manifest': m})
+    out = os.path.join(tmp, 'registry.json')
+    with open(out, 'w') as f: json.dump(reg, f)
+    return out
+
+
+def pair(ctx, site, url, token):
+    """What Connect leaves behind: this site's pairing with the agent, in the site's localStorage."""
+    p = ctx.new_page()
+    p.goto(site + '/manifest.webmanifest')
+    p.evaluate(f"localStorage.setItem('workshop.agent', JSON.stringify({{url: '{url}', token: '{token}'}}))")
+    p.close()
+
+
+def local_page(ctx, url, token, watch=None):
+    """Workshop on this computer: the agent's Settings page, signed in with the token."""
+    p = ctx.new_page()
+    if watch: watch(p)
+    p.goto(f'{url}/?token={token}'); p.wait_for_selector('#content .card', timeout=15000); p.wait_for_timeout(800)
+    return p
 
 
 def copy_app(name, dest):
@@ -188,76 +236,89 @@ def start_agent(tmp, config=None):
 
 
 def agent_checks(b, watch):
-    """Parts 2 and 3: the real agent (local mode), and a hosted page paired with it."""
+    """Parts 2 and 3: the real agent, the hub on a hosted site paired with it, and Workshop on this computer."""
     tmp = tempfile.mkdtemp()
-    hosted = 'http://localhost:8803'
-    proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [hosted],
+    proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [HOSTED, SAMPLES],
                                                'features': {'startAtLogin': False, 'hostedMode': True}, 'connectors': {}})
     try:
+        # The agent serves Workshop on this computer only: "/" goes to Settings, and there is no hub or other app.
+        lctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        sf = local_page(lctx, url, token, watch)
+        check('the agent\'s address opens Workshop on this computer (Settings), in local mode', sf.url == url + '/apps/settings/'
+              and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
+        check('it links to Workshop\'s allowed sites to pair from', sf.locator('.sites a[href="' + HOSTED + '/"]').count() == 1)
+        gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html']
+          .map(p => fetch(p).then(r => r.status)))""")
+        check('the agent serves no hub and no other app', gone == [404] * 5)
+        check('and registers no service worker', sf.evaluate("navigator.serviceWorker.getRegistration().then(r => !r)"))
+
         ctx = b.new_context(viewport={'width': 1280, 'height': 800})
         streams = []
         ctx.on('request', lambda r: streams.append(r.url) if '/api/events' in r.url else None)
+        pair(ctx, SAMPLES, url, token)
         ap = ctx.new_page(); watch(ap)
-        ap.goto(f'{url}/?token={token}'); ap.wait_for_timeout(1500)
-        check('agent page runs in local mode', ap.evaluate('document.documentElement.dataset.mode') == 'local')
+        ap.goto(SAMPLES + '/'); ap.wait_for_timeout(1500)
+        check('the paired hub runs in hosted mode', ap.evaluate('document.documentElement.dataset.mode') == 'hosted')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-        check('a sample app added as a folder appears in the rail', rail == ['prioritizer', 'agents', 'notes', 'board', 'settings'])
-        check('local mode opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
+        check('sample apps in the site\'s registry appear in the rail', rail[0] == 'prioritizer' and 'notes' in rail and 'board' in rail and rail[-1] == 'settings')
+        check('the hub opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
         ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
-        check('Prioritizer loads from the agent', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
+        check('Docket loads in the hub', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
-        check('Prioritizer uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'local/agent')
-        ap.keyboard.press('Alt+3'); ap.wait_for_timeout(800)
+        check('Docket uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'hosted/agent')
+        ap.evaluate("location.hash = '#/notes'"); ap.wait_for_timeout(800)
         check('the sample app opens in a frame', any(f.url.endswith('/apps/notes/index.html') for f in ap.frames))
-        ap.keyboard.press('Alt+4'); ap.wait_for_timeout(800)
+        ap.evaluate("location.hash = '#/board'"); ap.wait_for_timeout(800)
         check('an app whose required connector is off shows a notice', 'Board needs Echo' in ap.inner_text('#pane-board') and not any('/apps/board/' in f.url for f in ap.frames))
 
-        ap.keyboard.press('Alt+5'); ap.wait_for_timeout(1500)
-        sf = next(f for f in ap.frames if '/apps/settings/' in f.url)
+        # Workshop on this computer: the settings a hosted site may not change.
         data_dir = sf.locator('[data-folder=agent] #dataDir')
         check('Settings shows the agent\'s data folder', data_dir.count() == 1 and os.path.realpath(data_dir.input_value()) == os.path.realpath(os.path.join(tmp, 'Workshop')))
         other = os.path.join(tmp, 'Elsewhere')
-        data_dir.fill('not/absolute'); sf.locator('[data-folder] button.primary').click(); ap.wait_for_timeout(300)
+        data_dir.fill('not/absolute'); sf.locator('[data-folder] button.primary').click(); sf.wait_for_timeout(300)
         check('Settings asks for a full path', 'full path' in sf.inner_text('[data-folder] .msg'))
-        data_dir.fill(other); sf.locator('[data-folder] button.primary').click(); ap.wait_for_timeout(800)
+        data_dir.fill(other); sf.locator('[data-folder] button.primary').click(); sf.wait_for_timeout(800)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         check('changing the data folder saves dataDir and says to restart', saved.get('dataDir') == other and 'Restart Workshop' in sf.inner_text('[data-folder] .msg'))
         echo = sf.locator('.conn[data-connector=echo]')
         check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').text_content().strip() == 'Off')
-        echo.locator('[data-enable]').check(); ap.wait_for_timeout(1200)
+        echo.locator('[data-enable]').check(); sf.wait_for_timeout(1200)
         check('turning a connector on starts it', echo.locator('[data-state]').text_content().strip() == 'Ready')
-        echo.locator('summary').click(); ap.wait_for_timeout(600)
+        echo.locator('summary').click(); sf.wait_for_timeout(600)
         greeting = echo.get_by_label('Greeting (required)', exact=True)
         check('a connector form is generated from its configSchema', greeting.input_value() == 'Hello' and echo.locator('select').count() == 1 and echo.locator('.cfg-env-status').inner_text() == 'set on this computer')
-        greeting.fill('Hi from e2e'); echo.locator('form.cfg button.btn.primary').click(); ap.wait_for_timeout(1000)
+        greeting.fill('Hi from e2e'); echo.locator('form.cfg button.btn.primary').click(); sf.wait_for_timeout(1000)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         check('connector settings save to config.json', saved['connectors']['echo']['config'].get('greeting') == 'Hi from e2e')
-        echo.locator('[data-test] input').fill('ping'); echo.locator('[data-test] button').click(); ap.wait_for_timeout(800)
+        echo.locator('[data-test] input').fill('ping'); echo.locator('[data-test] button').click(); sf.wait_for_timeout(800)
         check('the Test field runs the connector and shows the answer', 'ping' in echo.locator('.test-out').inner_text())
 
         ado = sf.locator('.conn[data-connector=ado]')
-        ado.locator('summary').click(); ap.wait_for_timeout(800)
+        ado.locator('summary').click(); sf.wait_for_timeout(800)
         legends = [t.strip() for t in ado.locator('legend').all_text_contents()]  # labels are uppercased by CSS
         check('the ADO form has connections and repo and path mapping', 'Connections' in legends and 'Repo and path mapping' in legends)
         conn = ado.locator('fieldset', has=sf.locator('legend', has_text='Connections')).first
-        conn.locator('> .cfg-add').click(); ap.wait_for_timeout(200)
+        conn.locator('> .cfg-add').click(); sf.wait_for_timeout(200)
         item = conn.locator('.cfg-item').first
         item.get_by_label('Name (required)', exact=True).fill('work')
         item.get_by_label('Server URL (required)', exact=True).fill('https://ado.example.com')
         item.get_by_label('Collection (required)', exact=True).fill('Main')
         pat = item.locator('.cfg-row', has=sf.get_by_label('PAT environment variable (required)', exact=True))
         check('a PAT is never typed in: only the variable name', pat.locator('input').input_value() == 'ADO_PAT' and pat.locator('input[type=password]').count() == 0 and pat.locator('.cfg-env-status').inner_text() == 'save to check')
-        ado.locator('form.cfg > .acts button.primary').click(); ap.wait_for_timeout(1200)
+        ado.locator('form.cfg > .acts button.primary').click(); sf.wait_for_timeout(1200)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         conns = saved['connectors'].get('ado', {}).get('config', {}).get('connections', [])
         check('the ADO mapping saves to config.json', len(conns) == 1 and conns[0]['serverUrl'] == 'https://ado.example.com' and 'ADO_PAT' not in json.dumps({k: v for k, v in os.environ.items() if k == 'ADO_PAT'}))
         check('after saving, the form says whether the variable is set', ado.locator('.cfg-env-status').first.inner_text() == 'not set on this computer')
 
-        ap.keyboard.press('Alt+4'); ap.wait_for_timeout(1200)
+        streams.clear()  # the reload opens the hub's stream again; from here on, every page shares that one
+        ap.reload(); ap.wait_for_timeout(1500)
+        ap.evaluate("location.hash = '#/board'"); ap.wait_for_timeout(1200)
         check('turning on its connector lets the app load', any('/apps/board/' in f.url for f in ap.frames))
 
-        p1 = ctx.new_page(); watch(p1); p1.goto(url + '/apps/settings/'); p1.wait_for_timeout(600)
-        p2 = ctx.new_page(); watch(p2); p2.goto(url + '/apps/settings/'); p2.wait_for_timeout(600)
+        # Data and files through the agent, from the hosted site: one event stream for the whole site.
+        p1 = ctx.new_page(); watch(p1); p1.goto(SAMPLES + '/apps/settings/'); p1.wait_for_timeout(600)
+        p2 = ctx.new_page(); watch(p2); p2.goto(SAMPLES + '/apps/settings/'); p2.wait_for_timeout(600)
         p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           window.__heard = []; ws.data.subscribe('pages', e => window.__heard.push(e.rev)); await new Promise(r => setTimeout(r, 500)); }""")
         rev = p1.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
@@ -265,7 +326,7 @@ def agent_checks(b, watch):
           return (await ws.data.put('pages', env)).rev; }""")
         p2.wait_for_timeout(800)
         check('agent backend: other pages hear writes through the event stream', rev == 1 and p2.evaluate('window.__heard') == [1])
-        check(f'one event stream for every app and window, not one each ({len(streams)} opened)', len(streams) == 1)
+        check(f'one event stream for every app and window of the site, not one each ({len(streams)} opened)', len(streams) == 1)
         with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
         p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
@@ -281,26 +342,27 @@ def agent_checks(b, watch):
             check('agent backend: a file is a file in the data folder', f.read() == '# Q4\n')
         cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
-          return (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname); }""")
-        check('on the agent, the service worker caches apps from /api/apps and nothing under /api', cached is not None and '/apps/notes/index.html' in cached and not any(p.startswith('/api') for p in cached))
+          return (await (await caches.open(k)).keys()).map(r => r.url); }""")
+        check('the hosted site\'s service worker caches its registry\'s apps and nothing from the agent', cached is not None
+              and SAMPLES + '/apps/notes/index.html' in cached and not any(u.startswith(url) for u in cached))
         ctx.close()
 
-        # Part 3: hosted. The static site on another origin, paired with the agent.
-        serve(8803, functools.partial(Static, directory=ROOT))
+        # Part 3: hosted Settings, paired with the agent, is read-only.
         hctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        pair(hctx, HOSTED, url, token)
         hp = hctx.new_page(); watch(hp)
-        hp.goto(hosted + '/manifest.webmanifest')
-        hp.evaluate(f"localStorage.setItem('workshop.agent', JSON.stringify({{url: '{url}', token: '{token}'}}))")
-        hp.goto(hosted + '/#/settings'); hp.wait_for_timeout(2000)
+        hp.goto(HOSTED + '/#/settings'); hp.wait_for_timeout(2000)
         check('a paired hosted page runs in hosted mode', hp.evaluate('document.documentElement.dataset.mode') == 'hosted')
         hs = next((f for f in hp.frames if '/apps/settings/' in f.url), None)
-        check('hosted Settings is read-only and says where to change it', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
+        check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
+              and hs.locator(f'#modeNote a[href="{url}/"]').count() == 1
               and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn').count() == 2)
         put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
           try { await ws.config.put({features: {startAtLogin: true}}); return 'saved'; } catch (e) { return e.code; } }""") if hs else None
         check('the agent refuses config changes from a hosted page', put == 'local_only')
         check('hosted Settings shows the data folder, read-only', hs is not None and hs.locator('[data-folder=agent] #dataDir[disabled]').count() == 1 and hs.locator('[data-folder] button.primary').count() == 0)
         hctx.close()
+        lctx.close()
     finally:
         proc.terminate(); proc.wait(10)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -351,13 +413,15 @@ def storage_checks(b, watch):
     ctx.close()
 
     tmp = tempfile.mkdtemp()
-    proc, url, token, home = start_agent(tmp)
+    proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [HOSTED],
+                                               'features': {'startAtLogin': False, 'hostedMode': True}, 'connectors': {}})
     data = os.path.join(tmp, 'Workshop', 'prioritizer')
     try:
+        # Docket on the hosted site, paired with the agent.
         actx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
+        pair(actx, HOSTED, url, token)
         p1 = actx.new_page(); watch(p1)
-        p1.goto(f'{url}/?token={token}'); p1.wait_for_timeout(800)
-        p1.goto(url + '/apps/prioritizer/'); p1.wait_for_timeout(1200)
+        p1.goto(HOSTED + '/apps/prioritizer/'); p1.wait_for_timeout(1200)
 
         # Round trip: export from today's app (the fixture), import, export again: identical tasks.
         p1.set_input_files('#importFile', os.path.join(FIX, 'today-export.xlsx')); p1.wait_for_timeout(600)
@@ -378,7 +442,7 @@ def storage_checks(b, watch):
 
         # Two windows stay in sync through the event stream.
         p2 = actx.new_page(); watch(p2)
-        p2.goto(url + '/apps/prioritizer/'); p2.wait_for_timeout(1200)
+        p2.goto(HOSTED + '/apps/prioritizer/'); p2.wait_for_timeout(1200)
         p1.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w1', title: 'From window one', listId: P.state.lists[0].id, value: 3, effort: 'S'});
           P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
         p2.wait_for_timeout(800)
@@ -412,7 +476,7 @@ def storage_checks(b, watch):
         # A data file the agent can't read: Prioritizer says so and writes nothing over it.
         with open(os.path.join(data, 'tasks.json'), 'w') as f: f.write('{not json')
         p3 = actx.new_page(); watch(p3)
-        p3.goto(url + '/apps/prioritizer/'); p3.wait_for_timeout(1200)
+        p3.goto(HOSTED + '/apps/prioritizer/'); p3.wait_for_timeout(1200)
         p3.evaluate("() => { const P = window.__prioritizer; P.state.capacity = 7; P.commit(); }"); p3.wait_for_timeout(800)
         with open(os.path.join(data, 'tasks.json')) as f: damaged = f.read()
         check('a damaged data file: Prioritizer says it can\'t load and never writes over it', damaged == '{not json'
@@ -608,7 +672,7 @@ def agents_checks(b, watch):
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
     with open(os.path.join(home, 'config.json'), 'w') as f:
-        json.dump({'configVersion': 1, 'port': 4380, 'allowedOrigins': [], 'features': {'startAtLogin': False, 'hostedMode': False},
+        json.dump({'configVersion': 1, 'port': 4380, 'allowedOrigins': [HOSTED], 'features': {'startAtLogin': False, 'hostedMode': True},
                    'connectors': {'opencode': {'enabled': True, 'config': {'workspace': info['workspace'], 'opencode': {'url': info['opencode'], 'startServer': False}, 'pollSeconds': 20}}}}, f)
     proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e-agent.mjs'), '--home', home, '--apps', apps, '--connectors', conns],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -616,12 +680,12 @@ def agents_checks(b, watch):
     url = a['url']
     try:
         ctx = b.new_context(viewport={'width': 1280, 'height': 800})
+        pair(ctx, HOSTED, url, a['token'])
         pg = ctx.new_page(); watch(pg)
-        pg.goto(f"{url}/?token={a['token']}"); pg.wait_for_timeout(1000)
-        pg.goto(url + '/#/agents/41610'); pg.wait_for_timeout(1000)
+        pg.goto(HOSTED + '/#/agents/41610'); pg.wait_for_timeout(1000)
         af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
-        check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(url) or f.url == 'about:blank' for f in pg.frames))
+        check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
         ids = af.eval_on_selector_all('.item, .pickup', 'els => els.map(e => e.id)')
         check('every .work folder is on the page', sorted(ids) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
@@ -699,9 +763,9 @@ def agents_checks(b, watch):
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
         pf.press('#drawer', 'Escape')
 
-        # Turning the connector off: both apps notice without a reload.
-        pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1500)
-        sf = next(f for f in pg.frames if '/apps/settings/' in f.url)
+        # Turning the connector off (on Workshop on this computer): both apps notice without a reload.
+        sf = local_page(ctx, url, a['token'], watch)
+        pg.bring_to_front()
         sf.locator('.conn[data-connector=opencode] [data-enable]').uncheck(); pg.wait_for_timeout(1500)
         check('with the connector off, Agents says how to turn it on', 'Turn on the opencode connector' in af.inner_text('#app'))
         check('and Prioritizer drops the stages', pf.locator('.chip.eng').count() == 0)
@@ -710,7 +774,7 @@ def agents_checks(b, watch):
 
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
-        sp.goto(url + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
+        sp.goto(HOSTED + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
         check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('#item-41502').count() == 1)
 
         # The sidebar (Dispatch App Experience Plan, P2): projects through the connector, folders and pins in the browser.
@@ -736,6 +800,9 @@ def main():
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
+    serve(8803, functools.partial(Static, directory=ROOT))
+    WithSamples.registry = samples_registry(tempfile.mkdtemp())
+    serve(8804, functools.partial(WithSamples, directory=ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)

@@ -9,12 +9,12 @@ import { createAgent } from '../server.mjs';
 
 const item = (id, text, updatedAt = 1792330000000) => ({ id, updatedAt, text });
 
-test('first run creates config.json with everything off, and a private token', async () => {
+test('first run creates config.json with Workshop\'s sites allowed to pair, everything else off, and a private token', async () => {
   const home = tempHome();
   const agent = await start(home);
   try {
     const cfg = readJson(path.join(home, 'config.json'));
-    assert.deepEqual(cfg, { configVersion: 1, port: 4380, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: {} });
+    assert.deepEqual(cfg, { configVersion: 1, port: 4380, allowedOrigins: ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'], features: { startAtLogin: false, hostedMode: true }, connectors: {} });
     const token = fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
     assert.equal(token, agent.token);
     assert.match(token, /^[0-9a-f]{64}$/);

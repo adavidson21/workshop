@@ -1,12 +1,17 @@
-// Static files (docs/agent-api.md, Static files). Serves shell/, shared/, icons/, apps/ and the repo
-// root's index.html, manifest.webmanifest and sw.js. Never serves the home folder, connectors/, agent/,
-// tests/ or dot files. Paths that try to leave the served folders get 404.
+// Static files (docs/agent-api.md, Static files). The agent serves one page, Workshop on this computer: the
+// Settings app (apps/settings/) and the shared/ and icons/ files it loads. That page signs the browser in,
+// pairs hosted sites and changes the settings only this computer may change (docs/run-modes.md). The hub
+// and every other app come from the hosted site, never from here. "/" redirects to the Settings page.
+// Never serves the home folder, connectors/, agent/, tests/, the shell, other apps or dot files. Paths that
+// try to leave the served folders get 404.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from './http.mjs';
 
-const TOP_DIRS = new Set(['shell', 'shared', 'icons']);
-const TOP_FILES = new Set(['index.html', 'manifest.webmanifest', 'sw.js']);
+const TOP_DIRS = new Set(['shared', 'icons']);
+// The one app the agent serves.
+export const LOCAL_APP = 'settings';
+export const LOCAL_PAGE = `/apps/${LOCAL_APP}/`;
 
 // Security headers the agent sends with every page it serves (docs/security.md, Content security policy).
 // The policy matches the Content-Security-Policy meta tag the pages also carry, so a page behaves the same
@@ -43,11 +48,9 @@ export function resolveStatic(pathname, { root, appsDir }) {
   if (rel.includes('\0') || rel.includes('\\') || rel.includes(':')) fail('not_found', 'Not found.');
   const parts = rel.split('/').filter(Boolean);
   if (parts.some(s => s === '..' || s.startsWith('.'))) fail('not_found', 'Not found.');
-  if (parts.length === 0) parts.push('index.html');
   let base, file;
-  if (parts[0] === 'apps' && parts.length >= 2) { base = appsDir; file = path.join(appsDir, ...parts.slice(1)); }
+  if (parts[0] === 'apps' && parts[1] === LOCAL_APP) { base = path.join(appsDir, LOCAL_APP); file = path.join(appsDir, ...parts.slice(1)); }
   else if (TOP_DIRS.has(parts[0]) && parts.length >= 2) { base = path.join(root, parts[0]); file = path.join(root, ...parts); }
-  else if (TOP_FILES.has(parts[0]) && parts.length === 1) { base = root; file = path.join(root, parts[0]); }
   else fail('not_found', 'Not found.');
   if (!inside(base, file)) fail('not_found', 'Not found.');
   let st;
