@@ -14,7 +14,7 @@ Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K`
 
 Everything stays on your device. There are no accounts and no server: data is saved in your browser, or in files on this computer when Workshop runs there, and nothing talks to anything but `127.0.0.1` and the systems you set up in Settings.
 
-Workshop runs three ways (see [docs/run-modes.md](docs/run-modes.md)): from the Workshop agent on this computer (`node agent/start.mjs`, then open the address it prints), as static files with no agent (browser storage only, like the github.io site), or as static files on your own domain paired with the agent (**Connect** on the rail, after you turn on hosted mode in Settings).
+Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
 
 ## Agents
 
@@ -32,7 +32,7 @@ eng-agents' own static page (`/dashboard static`) is unchanged.
 
 ## Install it as a desktop app
 
-In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Prioritizer** and **Agents** shortcuts.
+In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Docket**, **Dispatch** and **Receipts** shortcuts.
 
 It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
 
@@ -62,7 +62,8 @@ The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (
    - macOS or Linux: `bash scripts/install.sh`
    - Windows: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`
    This checks Node and creates `~/.workshop`. Start at login stays off; pass `--login` (or `-Login` on Windows) to turn it on, or turn it on later in Settings.
-3. Start it now: `node workshop.mjs start`, then open the address it prints in Chrome or Edge on this computer.
+3. Start it now: `node workshop.mjs start`, then open the address it prints in Chrome or Edge on this computer. That signs the browser in to Workshop on this computer.
+4. Open https://workshop.alexisdavidson.org in the same browser and click **Connect** on the rail.
 
 Other commands:
 
@@ -136,13 +137,15 @@ Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/them
 
 ## Running it locally
 
-With the agent (local mode, connectors and data on disk):
+Serve the site with any static web server, for example `python -m http.server 8000`, then open `http://localhost:8000/` (browser mode). Docket comes from `.remote/prioritizer/` in CI and `tests/e2e.py`; a plain static server shows it only if you serve that checkout under `/apps/prioritizer/`.
+
+To use the agent with it:
 
 ```
 node agent/start.mjs
 ```
 
-Then open the address it prints. Without it (browser mode), any static web server works, for example `python -m http.server 8000`, then `http://localhost:8000/`.
+Open the address it prints once (Workshop on this computer, which signs this browser in). Add `http://localhost:8000` under Allowed sites there, then click **Connect** on the local site.
 
 ## Checks
 

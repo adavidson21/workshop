@@ -23,7 +23,7 @@ import { rawApiSegments, decodeSegment, appId, collectionName, folderName, fileP
 import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData } from './lib/datadir.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
-import { serveStatic } from './lib/static.mjs';
+import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -224,6 +224,12 @@ export async function createAgent(o) {
       return;
     }
     if (url.pathname === '/pair') { pairPage(res, url, cookieOk); return; }
+    // The hub lives on the hosted site; the agent's own page is Workshop on this computer (Settings).
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      res.writeHead(302, { Location: LOCAL_PAGE + url.search, 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
     serveStatic(req, res, url.pathname, { root, appsDir });
   }
 

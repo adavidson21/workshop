@@ -1,10 +1,10 @@
 /* Workshop shell: the app rail, the top bar (crumbs and the light/dark toggle), routing between apps, the toast, the command palette,
    hosted pairing, and the shell side of the SDK message protocol (docs/sdk.md).
 
-   The rail, routes, Alt+<n>, shortcuts and palette are built from the app manifests: GET /api/apps when
-   the agent serves this page (local mode), else apps/registry.json (hosted and browser modes; written by
-   node shell/registry.mjs). Adding an app is adding an apps/<id>/ folder with an app.json. No shell or
-   service worker edit is needed.
+   The rail, routes, Alt+<n>, shortcuts and palette are built from the app manifests in apps/registry.json
+   (written by node shell/registry.mjs). The shell always comes from the hosted site, paired with the agent
+   (hosted mode) or not (browser mode); the agent itself serves only Workshop on this computer (Settings).
+   Adding an app is adding an apps/<id>/ folder with an app.json. No shell or service worker edit is needed.
 
    A manifest app is a same-origin page in a frame, kept loaded while hidden so its state survives
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open,
@@ -35,12 +35,9 @@ async function agentGet(pathname) {
 }
 
 /* ---------- the app list ---------- */
-// Local mode reads the agent's list. Hosted and browser modes read the static registry: a hosted page
-// can only frame pages from its own origin, so the apps it shows are the ones published with it.
+// The static registry: the shell can only frame pages from its own origin, so the apps it shows are the
+// ones published with it (including apps from another site, served under /apps/<id>/ by the Worker).
 async function fetchAppList() {
-  if (env.mode === 'local') {
-    try { return (await agentGet('/api/apps')).apps || []; } catch (e) { /* fall back to the registry */ }
-  }
   try {
     const r = await fetch('apps/registry.json', { cache: 'no-store' });
     if (r.ok) return (await r.json()).apps || [];

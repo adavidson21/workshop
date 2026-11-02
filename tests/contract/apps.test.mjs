@@ -24,13 +24,12 @@ test('skips an app whose id does not match its folder', async () => {
   assert.ok(!body.json.apps.some(a => a.base === '/apps/broken/' || a.manifest.id === 'not-broken'));
 });
 
-test('serves an app\'s files at its base', async () => {
-  const res = await get(agent, '/apps/notes/index.html', { auth: 'none' });
-  assert.equal(res.status, 200);
-  assert.match(res.headers['content-type'], /^text\/html/);
-  const icon = await get(agent, '/apps/board/icon.svg', { auth: 'none' });
-  assert.equal(icon.status, 200);
-  assert.match(icon.headers['content-type'], /^image\/svg\+xml/);
+test('lists apps but serves none of them: apps come from the hosted site (run-modes.md)', async () => {
+  assert.equal((await get(agent, '/apps/notes/index.html', { auth: 'none' })).status, 404);
+  assert.equal((await get(agent, '/apps/board/icon.svg', { auth: 'none' })).status, 404);
+  const root = await get(agent, '/', { auth: 'none' });
+  assert.equal(root.status, 302);
+  assert.equal(root.headers.location, '/apps/settings/');
 });
 
 test('wrong method and unknown routes', async () => {

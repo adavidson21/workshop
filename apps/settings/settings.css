@@ -77,4 +77,5 @@ label.btn{cursor:pointer}
 [data-folder] p{margin:.3rem 0;font-size:.9rem}
 .moved{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:.5rem .8rem;margin:.3rem 0 .7rem;background:var(--sunk);font-size:.86rem}
 .moved ul{margin:.3rem 0;padding-left:1.2rem}
+.sites{margin:.4rem 0 0;padding-left:1.2rem;display:grid;gap:.2rem}
 .moved p{margin:.2rem 0}

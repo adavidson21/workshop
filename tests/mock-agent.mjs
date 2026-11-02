@@ -32,7 +32,9 @@ const STATUS_FOR = { bad_request: 400, invalid_config: 400, confirm_required: 40
   local_only: 403, not_found: 404, method_not_allowed: 405, conflict: 409, too_large: 413, disabled: 503, unavailable: 503, internal: 500 };
 const MB = 1024 * 1024;
 const FILE_MAX = 10 * MB;
-const STATIC_TOP = new Set(['shell', 'shared', 'icons', 'index.html', 'manifest.webmanifest', 'sw.js']);
+// Like the agent: only Workshop on this computer (the Settings app) and the shared/ and icons/ files it loads.
+const STATIC_TOP = new Set(['shared', 'icons']);
+const LOCAL_APP = 'settings';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
@@ -42,7 +44,8 @@ class HttpError extends Error {
 }
 const fail = (code, message, extra) => { throw new HttpError(code, message, extra); };
 
-const DEFAULT_CONFIG = () => ({ configVersion: 1, port: 4380, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: {} });
+const DEFAULT_SITES = ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'];
+const DEFAULT_CONFIG = () => ({ configVersion: 1, port: 4380, allowedOrigins: [...DEFAULT_SITES], features: { startAtLogin: false, hostedMode: true }, connectors: {} });
 
 /** True if child is parent or inside it. */
 function isInside(child, parent) {
@@ -568,6 +571,10 @@ export async function createMockAgent(options = {}) {
       return res.end();
     }
     if (url.pathname === '/pair') return pairPage(res, url, cookieOk);
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      res.writeHead(302, { Location: `/apps/${LOCAL_APP}/` + url.search, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
     return serveStatic(req, res, url.pathname);
   }
 
@@ -603,9 +610,8 @@ document.getElementById('allow').addEventListener('click', function () {
     try { rel = decodeURIComponent(pathname); } catch { fail('not_found', 'Not found.'); }
     if (rel.includes('\0') || rel.split('/').some(s => s === '..' || (s.startsWith('.') && s.length > 0))) fail('not_found', 'Not found.');
     let file;
-    if (rel === '/') rel = '/index.html';
     const parts = rel.split('/').filter(Boolean);
-    if (parts[0] === 'apps' && parts.length >= 2) file = path.join(appsDir, ...parts.slice(1));
+    if (parts[0] === 'apps' && parts[1] === LOCAL_APP) file = path.join(appsDir, ...parts.slice(1));
     else if (staticRoot && STATIC_TOP.has(parts[0])) file = path.join(staticRoot, ...parts);
     else fail('not_found', 'Not found.');
     const base = parts[0] === 'apps' ? appsDir : staticRoot;

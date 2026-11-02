@@ -6,9 +6,11 @@ Version 1. Data stays on the user's computer in every mode. No mode sends data t
 
 | Mode | Where the UI comes from | Data backend | Connectors | Default |
 | --- | --- | --- | --- | --- |
-| `local` | The agent, at `http://127.0.0.1:<port>/` | `agent` (files in the agent's `dataDir`) | Available | Yes |
-| `hosted` | Static files on the user's own domain (for example `https://<name>.alexisdavidson.org`) | `agent` when paired and reachable, else `browser` | Available only with the agent | No, off until `features.hostedMode` is on |
-| `browser` | The same static files, with no agent | `browser`: files in a folder the user picked in Chrome, or IndexedDB until one is picked | Unavailable | Used when no agent is reachable |
+| `hosted` | Workshop's site (https://workshop.alexisdavidson.org, and Dispatch's and Docket's sites), paired with the agent | `agent` (files in the agent's `dataDir`) | Available | Yes, whenever the agent is running and the site is paired |
+| `browser` | The same site, with no agent | `browser`: files in a folder the user picked in Chrome, or IndexedDB until one is picked | Unavailable | Used when no agent is reachable |
+| `local` | Only Workshop on this computer: the Settings page the agent serves at `http://127.0.0.1:<port>/` | `agent` | Available | The page for sign-in, pairing and the settings only this computer may change |
+
+The agent serves no hub and no other app. Workshop, Docket, Dispatch, Receipts and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
 
 `browser` mode exists for machines where a local server is blocked. Prioritizer works there with file export and import (see [data-format.md](data-format.md), Bundles).
 
@@ -18,7 +20,7 @@ No origin, domain or port is hardcoded in code. The agent's port comes from `con
 
 Apps never choose. They call the SDK ([sdk.md](sdk.md)), and the SDK picks once, when the page loads:
 
-1. **Served by the agent?** If the page's origin is `http://127.0.0.1:<port>` or `http://localhost:<port>` and `GET /api/health` on the same origin returns `{"app": "workshop-agent", "api": 1}`, the mode is `local` and the backend is `agent`.
+1. **Served by the agent?** If the page's origin is `http://127.0.0.1:<port>` or `http://localhost:<port>` and `GET /api/health` on the same origin returns `{"app": "workshop-agent", "api": 1}`, the mode is `local` and the backend is `agent`. Only the Settings page is served there.
 2. **Paired with an agent?** Otherwise, read `workshop.agent` from `localStorage` (`{"url": "http://127.0.0.1:4380", "token": "..."}`, written by pairing, below). If it exists, call `GET <url>/api/health` with `targetAddressSpace: "loopback"` and a 1.5 second timeout, then `GET <url>/api/apps` with the token. If both succeed, the mode is `hosted` and the backend is `agent`.
 3. **Otherwise** the mode is `browser` and the backend is `browser`.
 
@@ -83,14 +85,14 @@ The agent and a browser-backend tab on another origin (for example the hosted si
 
 ## Hosted mode
 
-Hosted mode is off by default. To use it, the user turns on `features.hostedMode` and adds the hosted origin to `allowedOrigins`, in `config.json` or the Settings app (only from the agent's own origin).
+Hosted mode is on by default, for Workshop's own sites only: `allowedOrigins` starts as `https://workshop.alexisdavidson.org`, `https://dispatch.alexisdavidson.org` and `https://docket.alexisdavidson.org`. Each still pairs only after the user clicks Allow in the pairing window. Other sites are added, and hosted mode can be turned off, in `config.json` or on Workshop on this computer (the agent's own Settings page).
 
 ### Pairing
 
 A hosted page cannot read the agent's cookie, so it gets the token by pairing, once per browser:
 
 1. The hosted shell opens a popup: `http://127.0.0.1:<port>/pair?origin=<hosted origin, URL-encoded>`.
-2. The agent answers only if the browser already has the agent cookie (the user opened Workshop locally at least once), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing. The cookie is `SameSite=Strict`, so the popup's first, cross-site request arrives without it: the page then reloads itself once (`&again=1`), a same-site navigation that carries it.
+2. The agent answers only if the browser already has the agent cookie (the user opened Workshop on this computer at least once: the installer and `workshop open` do this), `features.hostedMode` is on, and the origin is in `allowedOrigins`. Otherwise it shows a page that says what is missing. The cookie is `SameSite=Strict`, so the popup's first, cross-site request arrives without it: the page then reloads itself once (`&again=1`), a same-site navigation that carries it.
 3. The page shows the origin and a button: "Allow <origin> to use Workshop on this computer". Nothing is sent until the user clicks it.
 4. On click, the page calls `window.opener.postMessage({type: "workshop-pair", api: 1, url, token}, <origin>)` and closes. `url` is the agent's own origin.
 5. The hosted shell stores `{url, token}` as `workshop.agent` in its `localStorage`.
@@ -103,7 +105,7 @@ Chrome and Edge ask the user to allow a public site to reach `127.0.0.1` (Local 
 
 ### Trade-off
 
-The hosted page holds the token in its own `localStorage`. Anyone who can run script on that origin can use the agent. That is why hosted mode is off by default, origins must be listed one by one, and config changes (`PUT /api/config` and `PUT /api/connectors/<id>/config`) are refused from hosted origins. In hosted mode the Settings app shows settings read-only and says to open Workshop on this computer to change them.
+The hosted page holds the token in its own `localStorage`. Anyone who can run script on that origin can use the agent. That is why origins must be listed one by one (by default only Workshop's own sites), pairing needs a click on the agent's own page, and config changes (`PUT /api/config`, and `PUT /api/connectors/<id>/config` except fields marked `x-workshop-hosted`) are refused from hosted origins. In hosted mode the Settings app shows those settings read-only and links to Workshop on this computer to change them.
 
 ## Service worker rules
 

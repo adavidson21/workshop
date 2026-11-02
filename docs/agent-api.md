@@ -353,7 +353,7 @@ A removed `.json` file is reported as whichever it was last known to be. Rules:
 
 ## Static files
 
-The agent serves `shell/`, `apps/`, `shared/`, and the repo root's `index.html`, `manifest.webmanifest`, `sw.js` and `icons/`. It never serves `~/.workshop/`, the data folder, `connectors/`, `agent/`, `tests/` or dot files. Data and files are reachable only through `/api/data` and `/api/files`. Requests that try to leave those folders (`..`, encoded or not) get `404`.
+The agent serves one page, Workshop on this computer: the Settings app (`apps/settings/`) and the `shared/` and `icons/` files it loads. `/` redirects to `/apps/settings/`. It does not serve the hub (`index.html`, `shell/`, `sw.js`, the web app manifest) or any other app: those come from the hosted site ([run-modes.md](run-modes.md)). `GET /api/apps` still lists the app folders the agent knows. It never serves `~/.workshop/`, the data folder, `connectors/`, `agent/`, `tests/` or dot files. Data and files are reachable only through `/api/data` and `/api/files`. Requests that try to leave those folders (`..`, encoded or not) get `404`.
 
 Static responses use the same Host and Origin checks. Security headers for pages (CSP and others) are defined by WS7 in `docs/security.md`.
 

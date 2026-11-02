@@ -6,7 +6,7 @@
 //                                          Setup options (used by the one-line installer, scripts/bootstrap.*):
 //                                          --allow <origin>, --workspace <folder>, --opencode <command>,
 //                                          --powershell <command>. See setupFromFlags below.
-//   workshop open [--print]                Open Workshop in the default browser, signed in. --print only prints.
+//   workshop open [--print]                Open Workshop on this computer (sign-in and settings) in the default browser. --print only prints.
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
@@ -42,7 +42,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  --workspace <folder>   turn on the opencode connector with this workspace
                                  --opencode <command>   the command that runs opencode (if not set yet)
                                  --powershell <command> the PowerShell command (if not set yet)
-  open [--print]                 Open Workshop in your default browser, signed in (Workshop must be running).
+  open [--print]                 Open Workshop on this computer in your default browser: it signs that browser in,
+                                 links to Workshop's site to pair, and has the settings only this computer can change.
                                  --print only prints the sign-in address, to open in another browser.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
@@ -426,7 +427,7 @@ async function runOpen(rest, io) {
   if (!(await agentHealth(port))) { io.out(`Workshop is not running on port ${port}. Log out and back in, or run: workshop start`); return 1; }
   let url;
   try { url = signInUrl(home, port); } catch { io.out(`Could not read the token in ${home}.`); return 1; }
-  io.out(`Open this address in the browser you use Dispatch in. It signs that browser in to Workshop:\n\n  ${url}\n`);
+  io.out(`Open this address in the browser you use Workshop in. It signs that browser in to Workshop on this computer, then Connect on Workshop's site pairs it:\n\n  ${url}\n`);
   if (rest.includes('--print')) return 0;
   const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
   try { spawn(cmd, args, { stdio: 'ignore', detached: true, windowsVerbatimArguments: process.platform === 'win32' }).on('error', () => {}).unref(); } catch { /* printed above */ }
