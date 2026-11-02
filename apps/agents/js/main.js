@@ -15,6 +15,8 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
+import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
+import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -34,6 +36,11 @@ const readJson = k => { try { return JSON.parse(localStorage.getItem(k) || 'null
 const paired = readJson(PAIR_KEY);
 const savedGuide = readJson(GUIDE_KEY);
 S.origin = location.origin;
+// Sidebar folders and pins: this browser only (local.js). Reading localStorage can throw (blocked site data).
+const store = (() => { try { return window.localStorage; } catch (e) { return null; } })();
+const memStore = { getItem: () => null, setItem: () => {} };
+S.local = loadLocal(store || memStore);
+const saveSide = () => saveLocal(store || memStore, S.local);
 S.agentUrl = ws.mode === 'hosted' && paired && paired.url ? paired.url : null;
 S.wasPaired = ws.mode === 'browser' && !!(paired && paired.url);
 S.setup = Object.assign(guideDefaults(), savedGuide || {}, { check: null, pair: null });
@@ -124,6 +131,7 @@ async function fetchState() {
     const d = await read('state');
     S.D = d; S.L = d.liveMode ? d.liveMode.live : null; S.conn = 'on';
     watchPrompts();
+    if (d.projects && pruneLocal(S.local, new Set(d.projects.projects.map(p => p.id)), new Set((d.items || []).map(i => i.folder)))) saveSide();
   } catch (e) {
     if (e.code === 'unavailable' && /Workshop is not running|fetch/i.test(errText(e))) S.conn = 'off';
     else if (e.code === 'disabled' || e.code === 'unavailable') await loadStatus();
@@ -204,6 +212,7 @@ function focusItem(id) {
 function wantFocus(path) {
   const id = String(path || '').split('/')[0];
   if (!id) return;
+  S.ui.scope = { kind: 'all' }; // the item may be outside the project in view
   // The page may not have the item yet: keep trying for a while as data arrives.
   focusWanted = focusItem(id) ? null : { id, until: Date.now() + 15000 };
 }
@@ -254,7 +263,8 @@ document.addEventListener('pointerup', () => {
 /* ---------- input ---------- */
 const ui = () => S.ui;
 function closeOverlays() {
-  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null;
+  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null; ui().move = null;
+  if (ui().project || ui().folder) { ui().project = null; ui().folder = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('proj:') || k.startsWith('folder:')) delete ui().drafts[k]; }
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
 }
 
@@ -263,7 +273,8 @@ let lastMode = 'describe', lastLane = 'feature';
 function focusFirst(sel) { const box = app.querySelector(sel); if (box) box.focus(); }
 function openStart(mode) {
   closeOverlays();
-  ui().start = { mode: mode || lastMode, lane: lastLane, busy: false, error: null };
+  ui().start = { mode: mode || lastMode, lane: lastLane, project: scopeProject(), busy: false, error: null };
+  ui().side = false;
   paint();
   focusFirst('.start-first');
 }
@@ -279,9 +290,10 @@ async function startGo() {
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
     lastMode = st.mode; lastLane = st.lane;
     closeOverlays();
+    const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
     toast(r.action === 'spike' ? 'Investigating in opencode. Its answers show up here.'
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}. The agent picks repos and may ask you to confirm them here.`
-      : `Starting #${r.args.id} as a ${r.args.lane} in opencode. It shows up here when its folder is ready.`);
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. The agent picks repos and may ask you to confirm them here.`
+      : `Starting #${r.args.id} as a ${r.args.lane}${pname} in opencode. It shows up here when its folder is ready.`);
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
@@ -347,6 +359,102 @@ async function saveSettings() {
   } catch (e) {
     if (ui().settings) { ui().settings.saving = false; ui().settings.error = errText(e); }
   }
+  schedule();
+}
+
+/* ---------- sidebar: scope, pins, projects, folders, moving runs (sidebar.js, local.js) ---------- */
+function setScope(kind, id) {
+  ui().scope = kind === 'project' ? { kind, id } : { kind };
+  ui().side = false;
+  paint();
+  window.scrollTo(0, 0);
+}
+function openRunFromSide(folder) {
+  const it = itemForFolder(folder);
+  if (!it) return;
+  // Show the run where it is: keep the current list if it has it, else its project's.
+  const sc = ui().scope || { kind: 'all' };
+  const pid = (S.D && S.D.projects && S.D.projects.runs[folder]) || INBOX;
+  if (sc.kind === 'project' && sc.id !== pid) ui().scope = S.D && S.D.projects ? { kind: 'project', id: pid } : { kind: 'all' };
+  if (sc.kind === 'needs' && !(app.querySelector('#item-' + CSS.escape(itemKey(it))))) ui().scope = { kind: 'all' };
+  ui().side = false;
+  paint();
+  focusItem(itemKey(it));
+}
+function openProject(id) {
+  closeOverlays();
+  const cur = id ? projectById(id) : null;
+  ui().project = { id: cur ? cur.id : null, color: cur ? cur.color : null, folder: undefined, busy: false, error: null, confirmDelete: false };
+  ui().side = false;
+  paint();
+  focusFirst('.proj-first');
+}
+async function saveProject() {
+  const st = ui().project;
+  if (!st || st.busy) return;
+  const cur = st.id ? projectById(st.id) : null;
+  const r = projectArgs(st, ui().drafts, cur);
+  if (r.error) { st.error = r.error; paint(); return; }
+  st.busy = true; st.error = null; paint();
+  try {
+    const changed = Object.keys(r.args).filter(k => k !== 'id').length;
+    const res = cur ? (changed ? await write('project.update', r.args) : { project: cur }) : await write('project.create', r.args);
+    const pid = res.project.id;
+    if (st.folder !== undefined) { placeProject(S.local, pid, st.folder); saveSide(); }
+    closeOverlays();
+    if (!cur) ui().scope = { kind: 'project', id: pid };
+    toast(cur ? 'Saved ' + res.project.name + '.' : 'Added ' + res.project.name + '. Runs you start here get its instructions.');
+  } catch (e) {
+    if (ui().project) { ui().project.busy = false; ui().project.error = errText(e); }
+  }
+  fetchSoon();
+  schedule();
+}
+async function deleteProject(id) {
+  const st = ui().project;
+  if (!st || st.busy) return;
+  st.busy = true; paint();
+  try {
+    const res = await write('project.delete', { id });
+    if ((ui().scope || {}).id === id) ui().scope = { kind: 'all' };
+    closeOverlays();
+    toast(res.movedToInbox ? `Removed. ${res.movedToInbox} run${res.movedToInbox === 1 ? '' : 's'} moved to Inbox.` : 'Removed.');
+  } catch (e) {
+    if (ui().project) { ui().project.busy = false; ui().project.error = errText(e); }
+  }
+  fetchSoon();
+  schedule();
+}
+function openFolder(id) {
+  closeOverlays();
+  ui().folder = { id: id || null, error: null };
+  ui().side = false;
+  paint();
+  focusFirst('.folder-first');
+}
+function saveFolder() {
+  const st = ui().folder;
+  if (!st) return;
+  const name = ui().drafts['folder:name'];
+  const cur = st.id ? S.local.folders.find(f => f.id === st.id) : null;
+  const r = cur ? renameFolder(S.local, cur.id, name === undefined ? cur.name : name) : addFolder(S.local, name);
+  if (r.error) { st.error = r.error; paint(); return; }
+  saveSide();
+  closeOverlays();
+  paint();
+}
+async function moveRun(folder, project) {
+  const st = ui().move;
+  if (!st || st.busy) return;
+  st.busy = true; st.error = null; paint();
+  try {
+    await write('run.assign', { folder, project });
+    closeOverlays();
+    toast('Moved to ' + ((projectById(project) || {}).name || 'Inbox') + '.');
+  } catch (e) {
+    if (ui().move) { ui().move.busy = false; ui().move.error = errText(e); }
+  }
+  fetchSoon();
   schedule();
 }
 
@@ -437,6 +545,37 @@ app.addEventListener('click', ev => {
   if (ui().menu && !t.closest('.menu')) { ui().menu = null; paint(); }
   else if (ui().menu && t.closest('.menu button:not(.copy)')) { ui().menu = null; schedule(); } // the action below still runs
 
+  // Sidebar
+  if (t.closest('[data-side-open]')) { ui().side = true; paint(); const n = app.querySelector('.side .srow'); if (n) n.focus(); return; }
+  if (t.closest('[data-side-close]')) { ui().side = false; paint(); return; }
+  const sco = t.closest('[data-side-scope]');
+  if (sco) { setScope(sco.getAttribute('data-side-scope'), sco.getAttribute('data-side-id')); return; }
+  const srun = t.closest('[data-side-run]');
+  if (srun) { openRunFromSide(srun.getAttribute('data-side-run')); return; }
+  const stg = t.closest('[data-side-toggle]');
+  if (stg) { toggleClosed(S.local, stg.getAttribute('data-side-toggle')); saveSide(); paint(); return; }
+  const pin = t.closest('[data-pin]');
+  if (pin) { togglePin(S.local, pin.getAttribute('data-pin'), pin.getAttribute('data-pin-id')); saveSide(); paint(); return; }
+  if (t.closest('[data-proj-new]')) { openProject(null); return; }
+  const pe = t.closest('[data-proj-edit]');
+  if (pe) { openProject(pe.getAttribute('data-proj-edit')); return; }
+  const pc = t.closest('[data-proj-color]');
+  if (pc && ui().project) { ui().project.color = pc.getAttribute('data-proj-color'); paint(); return; }
+  if (t.closest('[data-proj-save]')) { saveProject(); return; }
+  if (t.closest('[data-proj-delete-ask]') && ui().project) { ui().project.confirmDelete = true; paint(); return; }
+  const pdel = t.closest('[data-proj-delete]');
+  if (pdel) { deleteProject(pdel.getAttribute('data-proj-delete')); return; }
+  if (t.closest('[data-folder-new]')) { openFolder(null); return; }
+  const fe = t.closest('[data-folder-edit]');
+  if (fe) { openFolder(fe.getAttribute('data-folder-edit')); return; }
+  if (t.closest('[data-folder-save]')) { saveFolder(); return; }
+  const fdel = t.closest('[data-folder-delete]');
+  if (fdel) { removeFolder(S.local, fdel.getAttribute('data-folder-delete')); saveSide(); closeOverlays(); paint(); return; }
+  const mv = t.closest('[data-move]');
+  if (mv) { closeOverlays(); ui().move = { folder: mv.getAttribute('data-move'), busy: false, error: null }; paint(); return; }
+  const mvt = t.closest('[data-move-to]');
+  if (mvt && ui().move) { moveRun(ui().move.folder, mvt.getAttribute('data-move-to')); return; }
+
   if (t.closest('[data-settings]')) { ws.open({ app: 'settings' }).catch(() => {}); return; }
   if (t.closest('[data-cfg-open]')) { openSettings(); return; }
   if (t.closest('[data-start-open]')) { openStart(); return; }
@@ -520,6 +659,9 @@ app.addEventListener('input', ev => {
   }
 });
 app.addEventListener('change', ev => {
+  if (ev.target.hasAttribute('data-start-project') && ui().start) { ui().start.project = ev.target.value; return; }
+  if (ev.target.hasAttribute('data-proj-folder') && ui().project) { ui().project.folder = ev.target.value; return; }
+  if (ev.target.tagName === 'SELECT' && ev.target.getAttribute('data-draft')) { ui().drafts[ev.target.getAttribute('data-draft')] = ev.target.value; return; }
   if (ev.target.type === 'checkbox' && ui().settings) {
     if (ev.target.hasAttribute('data-cfg-enabled')) { ui().settings.enabled = ev.target.checked; return; }
     const p = ev.target.getAttribute('data-cfg');
@@ -534,7 +676,8 @@ app.addEventListener('change', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo) { closeOverlays(); paint(); }
+  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().project || ui().folder || ui().move) { closeOverlays(); paint(); }
+  else if (ui().side) { ui().side = false; paint(); }
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
@@ -542,6 +685,8 @@ app.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('start:')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('repo:')) { ev.preventDefault(); repoGo(); return; }
+  if (ev.key === 'Enter' && (dk === 'proj:name' || dk === 'proj:baseBranch')) { ev.preventDefault(); saveProject(); return; }
+  if (ev.key === 'Enter' && dk === 'folder:name') { ev.preventDefault(); saveFolder(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
     ev.preventDefault();
     const go = app.querySelector('[data-remove-go]');
@@ -558,10 +703,12 @@ app.addEventListener('keydown', ev => {
 ws.commands.register({ id: 'refresh', title: 'Refresh work items' });
 ws.commands.register({ id: 'start', title: 'Start work' });
 ws.commands.register({ id: 'repo', title: 'Add a repo' });
+ws.commands.register({ id: 'project', title: 'New project' });
 ws.on('command', ({ id }) => {
   if (id === 'refresh') act(() => read('refresh'));
   if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
   if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
+  if (id === 'project' && S.D && S.D.projects) openProject(null);
 });
 
 /* ---------- start ---------- */

@@ -34,6 +34,8 @@
     "agents.css",
     "js/main.js",
     "js/state.js",
-    "js/view.js"
+    "js/view.js",
+    "js/sidebar.js",
+    "js/local.js"
   ]
 }
