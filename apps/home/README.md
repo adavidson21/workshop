@@ -16,6 +16,8 @@ Home reads Prioritizer's `tasks`, `lists` and `people` collections read-only, an
 
 Its own data is one collection, `profile` (`home.profile` v1): no items, and `meta: {name, role}`.
 
+In browser mode, when Chrome must be asked again for the Workshop folder, Home shows a message pointing to the **Allow** bar instead of an empty page, offers no profile editing and saves nothing. Once access is back (`online` turns true) it loads the profile, board and agents again.
+
 ## Code
 
-`js/view.js` has the numbers and the HTML as pure functions (tested in `test/`, `node --test "apps/home/test/*.test.mjs"`). `js/main.js` connects through the SDK, loads data, and handles clicks. Home does not import Prioritizer's code; the two rules it needs (triaged and stale) are repeated in `view.js`.
+`js/view.js` has the numbers and the HTML as pure functions (tested in `test/`, `node --test "apps/home/test/*.test.mjs"`). `js/data.js` loads and saves through the SDK, including the wait for folder access (tested with a fake SDK). `js/main.js` connects, paints, and handles clicks. Home does not import Prioritizer's code; the two rules it needs (triaged and stale) are repeated in `view.js`.
