@@ -44,7 +44,7 @@ try {
 
 // The launcher URL carries the token once; the agent swaps it for a cookie and drops it from the address.
 // It is printed here only, never written to the log.
-console.log(`\nWorkshop ${VERSION} is running. Open this address in Chrome or Edge on this computer:\n\n  ${agent.url}/?token=${agent.token}\n\nHome: ${agent.home}\nData: ${agent.dataDir}\nLog:  ${agent.logFile}\nPress Ctrl+C to stop.\n`);
+console.log(`\nWorkshop ${VERSION} is running. Open this address once in Chrome or Edge on this computer, to sign that browser in:\n\n  ${agent.url}/?token=${agent.token}\n\nThen open Workshop at https://workshop.alexisdavidson.org in the same browser and click Connect.\n\nHome: ${agent.home}\nData: ${agent.dataDir}\nLog:  ${agent.logFile}\nPress Ctrl+C to stop.\n`);
 
 let quitting = false;
 const quit = async () => {
