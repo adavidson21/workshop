@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { VERSION, configure, current, findPs, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
-import { modelError, refresh, resetModel, watchWork } from "./lib/model.mjs";
+import { modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { loadLinks } from "./lib/links.mjs";
 import { oc, resetState } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs";
@@ -423,6 +423,7 @@ export default {
     ctxRef = null;
     phase = "stopped";
     problem = null;
+    await parserGone(); // a parser still running holds the workspace folder open on Windows
   },
   status() {
     const details = {
