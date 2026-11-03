@@ -170,7 +170,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'oneonones', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -208,6 +208,11 @@ def browser_mode_checks(ctx, pg, frame, watch):
     if nf: notes_flow(pg, nf, 'browser')
 
     pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)
+    of = next((f for f in pg.frames if '/apps/oneonones/' in f.url), None)
+    check('1:1s opens from the rail', of is not None and pg.url.endswith('#/oneonones'))
+    check('1:1s with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
+
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)

@@ -35,7 +35,10 @@ async function loadOffers() {
     try { offerEnvs[app] = await ws.data.get('handoffs', { app }); } catch (e) { offerEnvs[app] = null; }
   }
 }
-const offers = () => Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled));
+const offers = () => {
+  const known = people().map(p => p.id);
+  return Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled, known));
+};
 const entries = () => store.entries.items.map(R.cleanEntry);
 const people = () => store.people.items.map(R.cleanPerson);
 const cfg = () => ({ ...R.DEFAULT_CONFIG, ...(store.config.meta || {}) });
@@ -193,16 +196,18 @@ function feedHtml(list, emptyText, opts) {
 function stat(n, label, cls = '') { return `<div class="stat ${cls}"><b class="mono">${n}</b><span>${esc(label)}</span></div>`; }
 
 /* ---------- offers ---------- */
-function offersHtml() {
-  const list = offers();
+// Me shows every offer (with whose it is when it is about a report); a report's page shows the ones about them.
+function offersHtml(about = '') {
+  const list = offers().filter(o => !about || o.about === about);
   if (!list.length) return '';
   const from = [...new Set(list.map(o => o.from))].join(' and ');
   return `<section class="offers" aria-label="Offered by ${esc(from)}">
     <header><h2>From ${esc(from)} <span class="mono">${list.length}</span></h2><span class="hint">Edit if needed, then accept or dismiss.</span>
       <span class="grow"></span>${list.length > 1 ? '<button class="btn" data-act="offer-all">Accept all</button>' : ''}</header>
     ${list.map(o => `<div class="offer" data-key="${esc(o.key)}">
+      ${!about && o.about !== 'me' ? `<span class="tag">${esc(nameOf(o.about))}</span>` : ''}
       <input class="otext" value="${esc(o.text)}" maxlength="2000" aria-label="Receipt">
-      <select class="okind" aria-label="Kind">${R.kindOptions('me').map(([k, l]) => opt(k, l, o.kind)).join('')}</select>
+      <select class="okind" aria-label="Kind">${R.kindOptions(o.about).map(([k, l]) => opt(k, l, o.kind)).join('')}</select>
       <span class="odate mono">${esc(R.shortDate(o.date))}</span>
       <button class="btn primary" data-act="offer-accept">Accept</button><button class="btn" data-act="offer-dismiss">Dismiss</button>
     </div>`).join('')}
@@ -289,6 +294,7 @@ function personView(id) {
       <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button></div>
     ${S.addingPerson === id ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
     <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
+    ${offersHtml(id)}
     ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
     ${filtersHtml(key)}
     <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : `No receipts for ${p.name.split(' ')[0] || 'this report'} yet. Add one above.`)}</div>`;

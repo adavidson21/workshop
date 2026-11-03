@@ -205,6 +205,30 @@ for (const kind of ["v1", "v2"]) {
       fs.rmSync(path.join(ws.dir, ".work", "pr-812"), { recursive: true, force: true });
     });
 
+    test("oneonone.draft runs /one-on-one <packet path> in a new session; oneonone.result reads draft.md back", async () => {
+      const args = { personId: "p_test1", date: "2026-11-03" };
+      const dir = path.join(ctx().home, "data", "_connectors", "opencode", "oneonones", "p_test1-2026-11-03");
+      fs.rmSync(dir, { recursive: true, force: true });
+      assert.deepEqual(await call("oneonone.result", args, ctx()), { state: "none" });
+      const r = await call("oneonone.draft", { ...args, packet: "# 1:1 packet\n" }, ctx());
+      const route = kind === "v1" ? `POST /session/${r.session}/command` : `POST /api/session/${r.session}/command`;
+      await waitFor(() => fake.count(route) === 1, "the /one-on-one call");
+      const body = fake.bodiesFor(route).at(-1);
+      assert.equal(kind === "v1" ? body.command : body.name, "one-on-one");
+      assert.equal(kind === "v1" ? body.arguments : body.text, path.join(dir, "packet.md"), "the packet path, outside the workspace");
+      assert.ok(!path.join(dir, "packet.md").startsWith(ws.dir), "never in the code workspace");
+      assert.equal(fs.readFileSync(path.join(dir, "packet.md"), "utf8"), "# 1:1 packet\n");
+      const st = await call("state", {}, ctx());
+      assert.ok(st.liveMode.live.others.some((o) => o.session === r.session), "listed in others, so Dispatch shows its prompts");
+      await rejects(call("oneonone.draft", { ...args, packet: "again" }, ctx()), "conflict", /already running/);
+      fs.writeFileSync(path.join(dir, "draft.md"), "## Questions to ask\n\n1. What is in the way?\n");
+      await finish(r.session);
+      const done = await call("oneonone.result", args, ctx());
+      assert.equal(done.state, "done");
+      assert.match(done.text, /What is in the way/);
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
     test("pr.reviewAll queues PRs and runs /pr-review on them one at a time; stop, clear and the inbox", async () => {
       const link = (n) => `https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/${n}`;
       await rejects(call("pr.reviewAll", { prs: [{ url: "https://github.com/owner/repo/pull/3" }] }, ctx()), "bad_request", /pull request links/);
