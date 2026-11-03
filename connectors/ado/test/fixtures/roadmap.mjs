@@ -1,0 +1,57 @@
+// Synthetic ADO data for the roadmap action. Every name, id and date is made up. Shapes follow the public Azure
+// DevOps REST API reference (WIQL, Work Items batch). "{{ADO}}" is the fake server's URL.
+
+export const PAT = 'fake-pat-roadmap-0123456789';
+
+function wi(n, rev, fields) {
+  const project = fields['System.TeamProject'];
+  return {
+    id: n,
+    rev,
+    fields: { 'System.Id': n, 'System.Rev': rev, ...fields },
+    _links: { html: { href: `{{ADO}}/Main/${encodeURIComponent(project)}/_workitems/edit/${n}` } },
+    url: `{{ADO}}/Main/_apis/wit/workItems/${n}`
+  };
+}
+
+const f = (type, state, title, extra = {}) => ({
+  'System.TeamProject': 'Web App',
+  'System.WorkItemType': type,
+  'System.State': state,
+  'System.Title': title,
+  'System.AreaPath': 'Web App\\Team A',
+  'System.IterationPath': 'Web App\\Sprint 12',
+  'System.ChangedDate': '2026-10-14T15:30:00Z',
+  ...extra
+});
+
+export function roadmapScenario() {
+  return {
+    pat: PAT,
+    collections: {
+      Main: {
+        wiql: [
+          // Children of the Features: stories and issues, any area, not removed.
+          { match: ["IN ('User Story', 'Issue')", '[System.Parent] IN (', "NOT IN ('Removed')"], ids: [801, 802, 803, 804, 805, 806] },
+          // Epics and Features in Team A (with closed ones).
+          { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'", 'NOT IN'], ids: [701, 711, 712, 702] },
+          { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'"], ids: [701, 711, 712, 702, 713] }
+        ],
+        workItems: {
+          701: wi(701, 5, f('Epic', 'Active', 'Synthetic version 1', { 'Microsoft.VSTS.Scheduling.StartDate': '2026-10-01T00:00:00Z', 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-15T00:00:00Z' })),
+          702: wi(702, 2, f('Epic', 'New', 'Synthetic version 2', { 'System.IterationPath': 'Web App' })),
+          711: wi(711, 9, f('Feature', 'Active', 'Synthetic feature 711', { 'System.Parent': 701, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-20T00:00:00Z' })),
+          712: wi(712, 3, f('Feature', 'New', 'Synthetic feature 712', { 'System.Parent': 701, 'System.AreaPath': 'Web App\\Team A\\Sub' })),
+          713: wi(713, 4, f('Feature', 'Closed', 'Synthetic closed feature 713', { 'System.Parent': 702 })),
+          801: wi(801, 1, f('User Story', 'Closed', 'Synthetic story 801', { 'System.Parent': 711 })),
+          802: wi(802, 1, f('User Story', 'Active', 'Synthetic story 802', { 'System.Parent': 711 })),
+          803: wi(803, 1, f('Issue', 'Resolved', 'Synthetic issue 803', { 'System.Parent': 711, 'System.AreaPath': 'Other Project\\Team Z' })),
+          804: wi(804, 1, f('User Story', 'New', 'Synthetic story 804', { 'System.Parent': 712 })),
+          805: wi(805, 1, f('User Story', 'Done', 'Synthetic story 805', { 'System.Parent': 713 })),
+          // A story whose parent is not a Feature in the result: not counted anywhere.
+          806: wi(806, 1, f('User Story', 'Closed', 'Synthetic story 806', { 'System.Parent': 999 }))
+        }
+      }
+    }
+  };
+}

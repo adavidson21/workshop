@@ -9,6 +9,7 @@ import { authTracker, patStatus } from './lib/pat.mjs';
 import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
 import { iterationsList, queueList, workitemStates } from './lib/queue.mjs';
+import { roadmapList } from './lib/roadmap.mjs';
 import { commentWorkItem, createWorkItem, updateWorkItem } from './lib/write.mjs';
 import { ConflictError } from './lib/client.mjs';
 
@@ -132,7 +133,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.1.0',
+  version: '1.2.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -227,6 +228,26 @@ export default {
         return guarded(ctx, 'queue.list', async () => {
           const out = await queueList(deps(ctx), args || {});
           ctx.log.info(`queue.list: ${out.items.length} items${out.truncated ? ` of ${out.total}` : ''}`);
+          return out;
+        });
+      }
+    },
+    roadmap: {
+      title: 'Epics and Features in my team\'s areas, with story progress',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['areas'],
+        properties: {
+          connection: { type: 'string', maxLength: 40 },
+          areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
+          includeClosed: { type: 'boolean' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'roadmap', async () => {
+          const out = await roadmapList(deps(ctx), args || {});
+          ctx.log.info(`roadmap: ${out.items.length} items${out.truncated ? ` of ${out.total}` : ''}`);
           return out;
         });
       }
