@@ -1,0 +1,10 @@
+{
+  "id": "h_cer_refinement",
+  "updatedAt": 1793736000000,
+  "to": "prioritizer",
+  "date": "2026-11-03",
+  "createdAt": "2026-11-03T13:40:00.000Z",
+  "text": "Backlog refinement",
+  "payload": {"kind": "every-sprint", "title": "Backlog refinement", "dueDay": 4, "planKind": "meetings", "value": 2, "effort": "S"},
+  "source": {"app": "pm", "id": "cer_refinement"}
+}

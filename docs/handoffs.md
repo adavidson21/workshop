@@ -45,4 +45,5 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 
 | Receiver | Accepts from | `payload` |
 | --- | --- | --- |
-| `receipts` | any app | `kind`: `win`, `feedback`, `growth`, `concern` or `note` (default `win`); `impact`: 0 to 3 (default 0); `about`: `me` only. The receipt's date is the offer's `date`, its text the offer's `text`. |
+| `receipts` | any app | `kind`: `win`, `feedback`, `growth`, `concern` or `note` (default `win`); `impact`: 0 to 3 (default 0); `about`: `me` (default) or the id of a report in Receipts' own people list (`p_...`); an id Receipts does not know is treated as `me`. The receipt's date is the offer's `date`, its text the offer's `text`. |
+| `prioritizer` (Docket) | any app | `kind`: `every-sprint`. `title` (1 to 300 characters; the offer's `text` is the fallback), `dueDay` (1 to 60) or `last: true`, optional `planKind` (a Day view block kind), `value` (1 to 4), `effort` (`XS` to `XL`), `notes`. Accepting adds an every-sprint task in the Day view's settings. An offer whose `source.id` matches one already accepted updates that item instead of adding another. `date` is the day it was offered. |
