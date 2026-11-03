@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "receipts",
   "name": "Receipts",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Keep the receipts for performance reviews: yours, your reports', and upward.",
   "icon": "icon.svg",
   "entry": "index.html",

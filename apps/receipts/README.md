@@ -12,6 +12,7 @@ Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Androi
 - **Reports**: one page per direct report. Wins, feedback you gave, growth areas, and concerns. The list flags anyone you haven't noted anything about in 30 days (configurable).
 - **Upward** (optional, off until you turn it on): support you got from your manager, asks, and feedback to share, for upward reviews and skip-levels.
 - **Review**: pick who and a period (your review cycle, this quarter, last quarter, this year, last 12 months). Shows coverage per section, flags sections with no receipts, and builds a plain-text draft you can copy or download. CSV export too.
+- **From Docket** (inside Workshop): finished tasks you ticked in Docket's Wrap up wait at the top of Me. Edit the line or kind, then **Accept** (it becomes a receipt dated that day, evidence "From Docket") or **Dismiss**. Receipts reads Docket's offers but never changes Docket's data, and remembers what you handled in its own settings (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)).
 - **Settings**: your review cycle dates, your company's review sections (one per line), backups.
 
 Shortcuts: `N` jumps to the box for a new receipt, `Ctrl+Enter` saves it.
@@ -32,7 +33,7 @@ Plain HTML, CSS and JavaScript modules. No build step, no dependencies.
 
 ```
 apps/receipts/          the app (a Workshop app: app.json, index.html, app.css, js/)
-  js/state.js           pure logic: periods, filters, review builder, CSV
+  js/state.js           pure logic: periods, filters, review builder, CSV, offers from other apps
   js/main.js            the page: rendering, input, data through the SDK
 shared/                 copied from the workshop repo: the SDK (storage), themes, fonts, top bar
 worker/index.js         Cloudflare Worker: serves apps/receipts/ at "/" and adds security headers
@@ -40,7 +41,7 @@ sw.js                   service worker: install as an app, open offline
 apps/receipts/test/      node tests for state.js (test/ has the Worker routing test)
 ```
 
-Data uses Workshop's envelope format (three collections: `entries`, `people`, `config`) with change stamps, so two open windows merge instead of overwriting each other.
+Data uses Workshop's envelope format (three collections: `entries`, `people`, `config`; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other.
 
 `shared/` is a copy of the workshop repo's `shared/`. When Workshop's SDK or themes change, copy them over again.
 

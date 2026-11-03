@@ -19,10 +19,10 @@ test('periods: quarter, last quarter, cycle first when set', () => {
 });
 
 test('cleanEntry drops junk and fixes types', () => {
-  const c = R.cleanEntry({ id: 'a', kind: 'nope', impact: '7', sections: ['Goals', 5, ''], date: 'bad', star: 1, extra: 'x' });
+  const c = R.cleanEntry({ id: 'a', kind: 'nope', impact: '7', sections: ['Results', 5, ''], date: 'bad', star: 1, extra: 'x' });
   assert.equal(c.kind, 'note');
   assert.equal(c.impact, 0);
-  assert.deepEqual(c.sections, ['Goals', '5']);
+  assert.deepEqual(c.sections, ['Results', '5']);
   assert.match(c.date, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(c.star, true);
   assert.equal('extra' in c, false);
@@ -30,34 +30,34 @@ test('cleanEntry drops junk and fixes types', () => {
 
 test('filterEntries: about, period, section, star, search; newest first', () => {
   const list = [
-    e({ id: '1', date: '2026-10-02', sections: ['Goals'], text: 'Shipped billing' }),
+    e({ id: '1', date: '2026-10-02', sections: ['Results'], text: 'Shipped billing' }),
     e({ id: '2', date: '2026-10-20', star: true, text: 'Led incident review' }),
     e({ id: '3', date: '2026-06-01', text: 'Old one' }),
     e({ id: '4', about: 'p_a', date: '2026-10-05', text: 'Report win' }),
   ];
   const q = R.findPeriod({}, 'quarter', NOW);
   assert.deepEqual(R.filterEntries(list, { about: 'me', period: q }).map(x => x.id), ['2', '1']);
-  assert.deepEqual(R.filterEntries(list, { about: 'me', section: 'Goals' }).map(x => x.id), ['1']);
+  assert.deepEqual(R.filterEntries(list, { about: 'me', section: 'Results' }).map(x => x.id), ['1']);
   assert.deepEqual(R.filterEntries(list, { about: 'me', star: true }).map(x => x.id), ['2']);
   assert.deepEqual(R.filterEntries(list, { q: 'BILLING' }).map(x => x.id), ['1']);
 });
 
 test('buildReview: one home section per receipt, coverage counts every tag, gaps', () => {
   const list = [
-    e({ id: 'a', sections: ['Teamwork', 'Goals'], impact: 1 }),
-    e({ id: 'b', sections: ['Goals'], star: true }),
+    e({ id: 'a', sections: ['Collaboration', 'Results'], impact: 1 }),
+    e({ id: 'b', sections: ['Results'], star: true }),
     e({ id: 'c', sections: [] }),
   ];
-  const r = R.buildReview(list, { about: 'me', period: R.findPeriod({}, 'all'), sections: ['Goals', 'Teamwork', 'Initiative'] });
+  const r = R.buildReview(list, { about: 'me', period: R.findPeriod({}, 'all'), sections: ['Results', 'Collaboration', 'Ownership'] });
   assert.equal(r.total, 3);
-  // A receipt's first tag is its home: 'a' shows under Teamwork only.
-  assert.deepEqual(r.groups.find(g => g.section === 'Goals').items.map(x => x.id), ['b']);
-  assert.deepEqual(r.groups.find(g => g.section === 'Teamwork').items.map(x => x.id), ['a']);
+  // A receipt's first tag is its home: 'a' shows under Collaboration only.
+  assert.deepEqual(r.groups.find(g => g.section === 'Results').items.map(x => x.id), ['b']);
+  assert.deepEqual(r.groups.find(g => g.section === 'Collaboration').items.map(x => x.id), ['a']);
   assert.deepEqual(r.groups.find(g => g.section === 'Other').items.map(x => x.id), ['c']);
   assert.deepEqual(r.coverage.map(c => c.count), [2, 1, 0]);
-  assert.deepEqual(r.gaps, ['Initiative']);
+  assert.deepEqual(r.gaps, ['Ownership']);
   const text = R.reviewText(r, { title: 'Self review', period: R.findPeriod({}, 'all'), withDates: false });
-  assert.match(text, /^Self review\nAll time\n\nGoals\n- x\n\nTeamwork\n- x\n\nOther\n- x\n\nNo receipts yet for: Initiative\n$/);
+  assert.match(text, /^Self review\nAll time\n\nResults\n- x\n\nCollaboration\n- x\n\nOther\n- x\n\nNo receipts yet for: Ownership\n$/);
 });
 
 test('bullet adds the metric once', () => {
@@ -82,4 +82,45 @@ test('toCsv: BOM, CRLF, quoting', () => {
   assert.ok(csv.startsWith('﻿Date,Quarter,About'));
   assert.ok(csv.includes('"Said ""hi"", then left\nlater"'));
   assert.ok(csv.endsWith('TRUE\r\n'));
+});
+
+test('default sections are Receipts\' own generic list, not a company form', () => {
+  assert.deepEqual(R.DEFAULT_SECTIONS, ['Results', 'Craft', 'Ownership', 'Collaboration', 'Communication', 'Leadership', 'Growth']);
+  assert.deepEqual(R.DEFAULT_CONFIG.sections, R.DEFAULT_SECTIONS);
+});
+
+test('unlistedSections: tags not in the list, most used first', () => {
+  const list = [e({ sections: ['Old A', 'Results'] }), e({ sections: ['Old B'] }), e({ sections: ['Old B', 'Old A'] }), e({ sections: ['Old B'] })];
+  assert.deepEqual(R.unlistedSections(list, R.DEFAULT_SECTIONS), ['Old B', 'Old A']);
+  assert.deepEqual(R.unlistedSections([e({ sections: ['Results'] })], R.DEFAULT_SECTIONS), []);
+});
+
+test('toCsv: formula-looking cells get an apostrophe, plain numbers do not', () => {
+  const csv = R.toCsv([e({ text: '=HYPERLINK("x")', metric: '-40% p95', evidence: '@cmd', people: '-3' })], () => 'Me');
+  const row = csv.split('\r\n')[1];
+  assert.ok(row.includes(`"'=HYPERLINK(""x"")"`), row);
+  assert.ok(row.includes(",'-40% p95,"), row);
+  assert.ok(row.includes(",'@cmd,"), row);
+  assert.ok(row.includes(',-3,'), row);
+});
+
+test('offers from Docket: only ones addressed here, valid, unhandled; accepted ones become receipts about you', () => {
+  const env = { schema: 'prioritizer.handoffs', version: 1, rev: 3, items: [
+    { id: 'h_a_2026-10-30', updatedAt: 1, to: 'receipts', date: '2026-10-30', createdAt: '2026-10-30T21:00:00.000Z', text: ' Shipped the guide ', payload: { kind: 'growth', impact: 2 }, source: { app: 'prioritizer', id: 'a' } },
+    { id: 'h_b_2026-10-31', updatedAt: 1, to: 'receipts', date: '2026-10-31', createdAt: '2026-10-31T21:00:00.000Z', text: 'Ran the release', payload: { kind: 'nope', impact: 9 }, source: { app: 'prioritizer' } },
+    { id: 'h_c', updatedAt: 1, to: 'other-app', date: '2026-10-31', createdAt: '2026-10-31T21:00:00.000Z', text: 'Not for us', source: { app: 'prioritizer' } },
+    { id: 'h_d', updatedAt: 1, to: 'receipts', date: 'bad', createdAt: '2026-10-31T21:00:00.000Z', text: 'Bad date', source: { app: 'prioritizer' } },
+  ] };
+  const got = R.pendingOffers('prioritizer', env);
+  assert.deepEqual(got.map(o => [o.key, o.kind, o.impact, o.from]), [['prioritizer:h_b_2026-10-31', 'win', 0, 'Docket'], ['prioritizer:h_a_2026-10-30', 'growth', 2, 'Docket']]);
+  assert.equal(got[1].text, 'Shipped the guide');
+  assert.deepEqual(R.pendingOffers('prioritizer', env, ['prioritizer:h_b_2026-10-31']).map(o => o.key), ['prioritizer:h_a_2026-10-30']);
+  assert.deepEqual(R.pendingOffers('prioritizer', { ...env, version: 2 }), [], 'unknown version: unreadable');
+  assert.deepEqual(R.pendingOffers('prioritizer', null), []);
+  assert.deepEqual(R.pendingOffers('prioritizer', { ...env, schema: 'prioritizer.tasks' }), []);
+  const r = R.entryFromOffer(got[1], NOW);
+  assert.equal(r.about, 'me'); assert.equal(r.kind, 'growth'); assert.equal(r.impact, 2); assert.equal(r.date, '2026-10-30');
+  assert.equal(r.evidence, 'From Docket'); assert.equal(r.text, 'Shipped the guide');
+  assert.deepEqual(R.markHandled(['x', 'y'], ['y', 'z']), ['x', 'y', 'z']);
+  assert.equal(R.markHandled(Array.from({ length: 600 }, (_, i) => `k${i}`), ['new']).length, R.HANDLED_MAX);
 });

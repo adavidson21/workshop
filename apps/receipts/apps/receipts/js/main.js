@@ -26,7 +26,16 @@ const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0,
 
 async function loadAll() {
   for (const n of NAMES) store[n] = (await ws.data.get(n)) || blank(n);
+  await loadOffers();
 }
+// Offers other apps left for Receipts in their own handoffs collection (read only; docs/handoffs.md in workshop).
+const offerEnvs = {};
+async function loadOffers() {
+  for (const app of Object.keys(R.SENDERS)) {
+    try { offerEnvs[app] = await ws.data.get('handoffs', { app }); } catch (e) { offerEnvs[app] = null; }
+  }
+}
+const offers = () => Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled));
 const entries = () => store.entries.items.map(R.cleanEntry);
 const people = () => store.people.items.map(R.cleanPerson);
 const cfg = () => ({ ...R.DEFAULT_CONFIG, ...(store.config.meta || {}) });
@@ -183,6 +192,37 @@ function feedHtml(list, emptyText, opts) {
 
 function stat(n, label, cls = '') { return `<div class="stat ${cls}"><b class="mono">${n}</b><span>${esc(label)}</span></div>`; }
 
+/* ---------- offers ---------- */
+function offersHtml() {
+  const list = offers();
+  if (!list.length) return '';
+  const from = [...new Set(list.map(o => o.from))].join(' and ');
+  return `<section class="offers" aria-label="Offered by ${esc(from)}">
+    <header><h2>From ${esc(from)} <span class="mono">${list.length}</span></h2><span class="hint">Finished work you marked as worth keeping. Edit, then accept or dismiss.</span>
+      <span class="grow"></span>${list.length > 1 ? '<button class="btn" data-act="offer-all">Accept all</button>' : ''}</header>
+    ${list.map(o => `<div class="offer" data-key="${esc(o.key)}">
+      <input class="otext" value="${esc(o.text)}" maxlength="2000" aria-label="Receipt">
+      <select class="okind" aria-label="Kind">${R.kindOptions('me').map(([k, l]) => opt(k, l, o.kind)).join('')}</select>
+      <span class="odate mono">${esc(R.shortDate(o.date))}</span>
+      <button class="btn primary" data-act="offer-accept">Accept</button><button class="btn" data-act="offer-dismiss">Dismiss</button>
+    </div>`).join('')}
+  </section>`;
+}
+// Accept (true) or dismiss (false) offers. rows: the .offer elements, so edits made in the tray are kept.
+async function handleOffers(rows, accept) {
+  const byKey = new Map(offers().map(o => [o.key, o]));
+  const picked = rows.map(r => ({ r, o: byKey.get(r.dataset.key) })).filter(x => x.o);
+  if (!picked.length) return;
+  const keys = picked.map(x => x.o.key);
+  await safely(async () => {
+    if (accept) {
+      const made = picked.map(({ r, o }) => R.entryFromOffer({ ...o, text: r.querySelector('.otext').value.trim() || o.text, kind: r.querySelector('.okind').value }));
+      await save('entries', env => { env.items.push(...made); });
+    }
+    await saveConfig({ handled: R.markHandled(cfg().handled, keys) });
+  }, accept ? (keys.length > 1 ? `${keys.length} receipts added.` : 'Receipt added.') : 'Dismissed.');
+}
+
 /* ---------- views ---------- */
 function meView() {
   const f = filterFor('me');
@@ -196,6 +236,7 @@ function meView() {
       ${stat(rev.starred, 'Starred')}
       <button class="stat link${rev.gaps.length ? ' warn' : ''}" data-act="go" data-path="review">${`<b class="mono">${rev.gaps.length}</b><span>Sections with no receipts</span>`}</button>
     </div>
+    ${offersHtml()}
     ${composerHtml('me', 'What did you do? Shipped, fixed, unblocked, led, learned...')}
     ${filtersHtml('me')}
     <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Write down one thing you did this week, even if it felt small.')}</div>`;
@@ -273,6 +314,8 @@ function reviewView() {
   if (!rv.period) rv.period = c.cycleStart ? 'cycle' : 'quarter';
   const period = R.findPeriod(c, rv.period);
   const review = R.buildReview(entries(), { about: rv.about, period, sections: c.sections });
+  // Receipts in this review whose tags are all outside the list: they land in Other.
+  const unlistedHere = R.unlistedSections(R.filterEntries(entries(), { about: rv.about, period }).filter(e => !e.sections.some(x => c.sections.includes(x))), c.sections);
   const title = rv.about === 'me' ? 'Self review' : `Review: ${nameOf(rv.about)}`;
   const text = R.reviewText(review, { title, period, withDates: rv.withDates, withEvidence: rv.withEvidence });
   return `<div class="filters review-ctl">
@@ -283,6 +326,7 @@ function reviewView() {
     </div>
     <h3 class="section-label">Coverage<span class="n mono">${review.total} receipts</span></h3>
     <div class="coverage">${review.coverage.map(x => `<span class="cov${x.count ? '' : ' gap'}"><b class="mono">${x.count}</b>${esc(x.section)}</span>`).join('')}</div>
+    ${unlistedHere.length ? `<p class="note">Some receipts are tagged with sections not in your list (${esc(unlistedHere.join(', '))}), so they show under Other. Add those sections in Settings to group them.</p>` : ''}
     ${review.gaps.length ? `<p class="note">No receipts yet for ${esc(review.gaps.join(', '))}. If those matter for this review, now is the time to remember what happened.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
@@ -301,6 +345,7 @@ function reviewView() {
 
 function settingsView(fs) {
   const c = cfg();
+  const unlisted = R.unlistedSections(entries(), c.sections);
   const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
@@ -327,6 +372,8 @@ function settingsView(fs) {
       <p class="fine">Match your company's review form, one per line. Renaming a section here does not retag old receipts.</p>
       <textarea name="sections" rows="9">${esc(c.sections.join('\n'))}</textarea>
       <div class="acts"><button class="btn primary" type="submit">Save sections</button><button class="btn ghost" type="button" data-act="reset-sections">Reset to defaults</button></div>
+      ${unlisted.length ? `<p class="note">Your receipts are also tagged with sections not in this list: ${esc(unlisted.join(', '))}. Receipts tagged only with those show under Other in a review.</p>
+      <div class="acts"><button class="btn" type="button" data-act="add-unlisted">Add them to the list</button></div>` : ''}
     </form>
     <form class="set" data-form="more">
       <h3 class="section-label">Reports and upward</h3>
@@ -467,6 +514,9 @@ app.addEventListener('click', async ev => {
     case 'edit-person': S.addingPerson = S.route.id; paint(); break;
     case 'cancel-person': S.addingPerson = false; paint(); break;
     case 'archive-person': { const p = people().find(x => x.id === S.route.id); if (p) await safely(() => upsertPerson({ ...p, archived: !p.archived }), p.archived ? 'Restored.' : 'Archived. Their receipts are kept.'); break; }
+    case 'offer-accept': await handleOffers([el.closest('.offer')], true); break;
+    case 'offer-dismiss': await handleOffers([el.closest('.offer')], false); break;
+    case 'offer-all': await handleOffers([...document.querySelectorAll('.offer')], true); break;
     case 'upward-on': await safely(() => saveConfig({ upward: true })); break;
     case 'copy-draft':
       try { await navigator.clipboard.writeText(document.getElementById('draft').value); ws.toast('Draft copied.', { kind: 'success' }); }
@@ -488,6 +538,12 @@ app.addEventListener('click', async ev => {
     case 'allow': try { folderStatus = await ws.folder.allow(); await loadAll(); paint(); } catch (e) { ws.toast(e.message, { kind: 'error' }); } break;
     case 'clear-cycle': await safely(() => saveConfig({ cycleStart: '', cycleEnd: '' })); break;
     case 'reset-sections': await safely(() => saveConfig({ sections: R.DEFAULT_SECTIONS }), 'Sections reset.'); break;
+    case 'add-unlisted': {
+      const c = cfg();
+      const list = [...c.sections, ...R.unlistedSections(entries(), c.sections)].slice(0, 30);
+      await safely(() => saveConfig({ sections: list }), 'Sections added.');
+      break;
+    }
   }
 });
 
@@ -585,6 +641,7 @@ ws.on('command', async ({ id }) => {
 });
 // Another window (or a change to the folder outside the browser) wrote: re-read and repaint.
 for (const n of NAMES) ws.data.subscribe(n, async () => { store[n] = (await ws.data.get(n)) || blank(n); paint(); });
+for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); paint(); }, { app });
 ws.on('online', async () => { await loadAll(); paint(); });
 
 /* ---------- start ---------- */
