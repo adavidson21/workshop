@@ -57,4 +57,4 @@ export function forgetPairing() {
 }
 
 /** The words for asking the port, the same everywhere. */
-export const PAIR_HELP = 'Your data stays on this computer. Workshop must be running there. Open Workshop on this computer once in this browser (the installer does, or run workshop open), then continue.';
+export const PAIR_HELP = 'Workshop must be running on this computer, and this browser signed in to it once (the installer does this, or run workshop open). Then click Connect and allow this site.';
