@@ -19,8 +19,7 @@ label.btn{flex-direction:row;font-size:.86rem;color:var(--ink);cursor:pointer}
 /* header and tabs */
 .head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:.35rem 1rem;margin-bottom:1.4rem}
 .head .eyebrow{grid-column:1/-1}
-.head .sub{margin:0;display:flex;align-items:center;gap:.35rem;font:500 11px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap;padding-bottom:.45rem}
-.head .sub svg,.lede svg{width:14px;height:14px;flex:none}
+.lede svg{width:14px;height:14px;flex:none}
 .tabs{display:flex;gap:1.6rem;border-bottom:1px solid var(--line);margin-bottom:1.6rem;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{position:relative;padding:.55rem 0 .7rem;font-size:.92rem;font-weight:500;color:var(--muted);white-space:nowrap}
@@ -143,7 +142,6 @@ dialog.edit::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 @media (max-width:720px){
   .wrap{padding:1.3rem 16px 3rem}
   .head{grid-template-columns:1fr}
-  .head .sub{padding-bottom:0}
   .tabs{gap:1.2rem}
   .stats{grid-template-columns:repeat(2,1fr)}
   .stat{margin-right:0;padding-left:.2rem;border-right:0;border-bottom:1px solid var(--line)}

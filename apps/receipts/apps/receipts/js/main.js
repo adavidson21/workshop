@@ -198,7 +198,7 @@ function offersHtml() {
   if (!list.length) return '';
   const from = [...new Set(list.map(o => o.from))].join(' and ');
   return `<section class="offers" aria-label="Offered by ${esc(from)}">
-    <header><h2>From ${esc(from)} <span class="mono">${list.length}</span></h2><span class="hint">Finished work you marked as worth keeping. Edit, then accept or dismiss.</span>
+    <header><h2>From ${esc(from)} <span class="mono">${list.length}</span></h2><span class="hint">Edit if needed, then accept or dismiss.</span>
       <span class="grow"></span>${list.length > 1 ? '<button class="btn" data-act="offer-all">Accept all</button>' : ''}</header>
     ${list.map(o => `<div class="offer" data-key="${esc(o.key)}">
       <input class="otext" value="${esc(o.text)}" maxlength="2000" aria-label="Receipt">
@@ -234,12 +234,12 @@ function meView() {
       ${stat(rev.total, period.label)}
       ${stat(rev.kinds.win, 'Wins')}
       ${stat(rev.starred, 'Starred')}
-      <button class="stat link${rev.gaps.length ? ' warn' : ''}" data-act="go" data-path="review">${`<b class="mono">${rev.gaps.length}</b><span>Sections with no receipts</span>`}</button>
+      <button class="stat link${rev.gaps.length ? ' warn' : ''}" data-act="go" data-path="review" data-about="me">${`<b class="mono">${rev.gaps.length}</b><span>Sections with no receipts</span>`}</button>
     </div>
     ${offersHtml()}
-    ${composerHtml('me', 'What did you do? Shipped, fixed, unblocked, led, learned...')}
+    ${composerHtml('me', 'What did you do?')}
     ${filtersHtml('me')}
-    <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Write down one thing you did this week, even if it felt small.')}</div>`;
+    <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Add one above.')}</div>`;
 }
 
 function teamView() {
@@ -251,7 +251,7 @@ function teamView() {
   return `<div class="bar">
       <select name="period" data-key="team" aria-label="Period" class="solo">${R.periods(cfg()).map(p => opt(p.key, p.label, f.period)).join('')}</select>
       <span class="grow"></span>
-      <button class="btn" data-act="add-person">Add a report</button>
+      ${rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}
     </div>
     ${S.addingPerson ? personForm({ id: '', name: '', role: '', since: '' }) : ''}
     ${rows.length ? `<ul class="roster">${rows.map(r => `<li><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
@@ -260,7 +260,7 @@ function teamView() {
         <span class="plast${r.stale ? ' stale' : ''}">${r.lastDate ? (r.daysSince === 0 ? 'Today' : `${r.daysSince}d ago`) : 'No receipts'}</span>
       </button></li>`).join('')}</ul>
       <p class="legend mono">W wins &middot; F feedback given &middot; G growth areas &middot; C concerns &middot; Highlighted: nothing in ${cfg().staleDays} days</p>`
-    : (S.addingPerson ? '' : `<div class="engcard"><h2>Your reports</h2><p>Add each direct report to keep receipts for their review: wins, feedback you gave, growth areas, and concerns. Names stay on this device.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
+    : (S.addingPerson ? '' : `<div class="engcard"><h2>No reports yet</h2><p>Add a direct report to log their wins, feedback, growth areas and concerns.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul>${archived.map(p => `<li><button class="lnk" data-act="go" data-path="team/${esc(p.id)}">${esc(p.name)}</button></li>`).join('')}</ul></details>` : ''}`;
 }
 
@@ -275,7 +275,7 @@ function personForm(p) {
 
 function personView(id) {
   const p = people().find(x => x.id === id);
-  if (!p) return `<div class="engcard"><h2>Not found</h2><p>This report isn't in your list anymore.</p><div class="acts"><button class="btn" data-act="go" data-path="team">Back to reports</button></div></div>`;
+  if (!p) return `<div class="engcard"><h2>Not found</h2><p>This report is not in your list.</p><div class="acts"><button class="btn" data-act="go" data-path="team">Back to reports</button></div></div>`;
   const key = 'p';
   const f = filterFor(key);
   const period = R.findPeriod(cfg(), f.period);
@@ -291,19 +291,19 @@ function personView(id) {
     <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
     ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
     ${filtersHtml(key)}
-    <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : 'No receipts yet. Note a win or a piece of feedback right after your next 1:1.')}</div>`;
+    <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : `No receipts for ${p.name.split(' ')[0] || 'this report'} yet. Add one above.`)}</div>`;
 }
 
 function upView() {
   const c = cfg();
-  if (!c.upward) return `<div class="engcard"><h2>Upward tracker</h2><p>Optional. Keep notes on the support you got from your manager, what you asked for, and feedback you want to share, so an upward review or skip-level is easy to write.</p><div class="acts"><button class="btn primary" data-act="upward-on">Turn it on</button></div></div>`;
+  if (!c.upward) return `<div class="engcard"><h2>Upward is off</h2><p>Log support from your manager, your asks, and feedback to share, for upward reviews and skip-levels.</p><div class="acts"><button class="btn primary" data-act="upward-on">Turn on Upward</button></div></div>`;
   const f = filterFor('up');
   const period = R.findPeriod(c, f.period);
   const all = entries();
   const list = R.filterEntries(all, { about: 'up', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
-  return `${composerHtml('up', 'Support you got, something you asked for, or feedback to share...')}
+  return `${composerHtml('up', 'Support you got, an ask, or feedback to share')}
     ${filtersHtml('up')}
-    <div class="list">${feedHtml(list, all.some(e => e.about === 'up') ? 'Nothing matches these filters.' : 'No notes yet.')}</div>`;
+    <div class="list">${feedHtml(list, all.some(e => e.about === 'up') ? 'Nothing matches these filters.' : 'No upward notes yet. Add one above.')}</div>`;
 }
 
 function reviewView() {
@@ -326,8 +326,8 @@ function reviewView() {
     </div>
     <h3 class="section-label">Coverage<span class="n mono">${review.total} receipts</span></h3>
     <div class="coverage">${review.coverage.map(x => `<span class="cov${x.count ? '' : ' gap'}"><b class="mono">${x.count}</b>${esc(x.section)}</span>`).join('')}</div>
-    ${unlistedHere.length ? `<p class="note">Some receipts are tagged with sections not in your list (${esc(unlistedHere.join(', '))}), so they show under Other. Add those sections in Settings to group them.</p>` : ''}
-    ${review.gaps.length ? `<p class="note">No receipts yet for ${esc(review.gaps.join(', '))}. If those matter for this review, now is the time to remember what happened.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
+    ${unlistedHere.length ? `<p class="note">Shown under Other because their sections are not in your list: ${esc(unlistedHere.join(', '))}. <button class="lnk" type="button" data-act="add-unlisted">Add them to your sections</button></p>` : ''}
+    ${review.gaps.length ? `<p class="note">No receipts for ${esc(review.gaps.join(', '))}.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
       <div class="draft">
@@ -338,7 +338,7 @@ function reviewView() {
           <button class="btn" data-act="dl-draft">${I.down} .txt</button>
           <button class="btn" data-act="dl-csv-review">${I.down} .csv</button>
         </div>
-        <p class="fine">Starred and big-impact receipts come first in each section. Edit the wording wherever you paste it.</p>
+        <p class="fine">Starred and big-impact receipts come first in each section.</p>
       </div>
     </div>`;
 }
@@ -349,9 +349,9 @@ function settingsView(fs) {
   const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
-      <p class="lede">${I.lock} Receipts are saved in ${esc(where)}. There are no accounts and no server, and this page makes no requests anywhere else.</p>
-      ${ws.embedded ? `<p class="fine">Inside Workshop, storage and backups are managed in Workshop's Settings.</p>`
-      : ws.storage === 'indexeddb' ? `<p class="fine">Browser storage can be cleared with your browsing data. To keep receipts as files you can back up, save them to a folder on this computer (Chrome or Edge).</p>
+      <p class="lede">${I.lock} Receipts are saved in ${esc(where)}.</p>
+      ${ws.embedded ? `<p class="fine">Storage and backups are in Workshop's Settings.</p>`
+      : ws.storage === 'indexeddb' ? `<p class="fine">Clearing browsing data deletes them. Save to a folder to keep them as files (Chrome or Edge).</p>
         <div class="acts"><button class="btn" data-act="folder">Save to a folder</button></div>`
       : ws.storage === 'folder' && fs && fs.permission !== 'granted' ? `<div class="acts"><button class="btn primary" data-act="allow">Allow access to the folder</button></div>` : ''}
       <div class="acts">
@@ -359,20 +359,20 @@ function settingsView(fs) {
         <label class="btn">Restore from a backup<input type="file" accept=".json,application/json" data-act="import" hidden></label>
         <button class="btn" data-act="dl-csv-all">${I.down} All receipts (.csv)</button>
       </div>
-      <p class="fine">Restoring merges a backup into what is here; it never deletes receipts.</p>
+      <p class="fine">Restoring merges a backup in. It never deletes receipts.</p>
     </section>
     <form class="set" data-form="cycle">
       <h3 class="section-label">Review cycle</h3>
-      <p class="fine">Set the dates your next review covers. It becomes the default period everywhere.</p>
+      <p class="fine">The dates your next review covers. Used as the default period everywhere.</p>
       <div class="row"><label>Starts<input type="date" name="cycleStart" value="${esc(c.cycleStart)}"></label><label>Ends<input type="date" name="cycleEnd" value="${esc(c.cycleEnd)}"></label></div>
       <div class="acts"><button class="btn primary" type="submit">Save cycle</button>${c.cycleStart ? '<button class="btn ghost" type="button" data-act="clear-cycle">Clear</button>' : ''}</div>
     </form>
     <form class="set" data-form="sections">
       <h3 class="section-label">Review sections</h3>
-      <p class="fine">Match your company's review form, one per line. Renaming a section here does not retag old receipts.</p>
+      <p class="fine">One per line, matching your review form. Renaming a section does not retag old receipts.</p>
       <textarea name="sections" rows="9">${esc(c.sections.join('\n'))}</textarea>
       <div class="acts"><button class="btn primary" type="submit">Save sections</button><button class="btn ghost" type="button" data-act="reset-sections">Reset to defaults</button></div>
-      ${unlisted.length ? `<p class="note">Your receipts are also tagged with sections not in this list: ${esc(unlisted.join(', '))}. Receipts tagged only with those show under Other in a review.</p>
+      ${unlisted.length ? `<p class="note">Receipts also use sections not in this list: ${esc(unlisted.join(', '))}. Receipts tagged only with these show under Other.</p>
       <div class="acts"><button class="btn" type="button" data-act="add-unlisted">Add them to the list</button></div>` : ''}
     </form>
     <form class="set" data-form="more">
@@ -406,7 +406,6 @@ function paint() {
   app.innerHTML = `<header class="head">
       <p class="eyebrow">Receipts</p>
       <h1 class="page-title dot">${esc(title)}</h1>
-      <p class="sub">${I.lock} Stays on this device</p>
     </header>
     <nav class="tabs" aria-label="Sections">${TABS().map(([k, l]) => `<button data-act="go" data-path="${k}"${k === view ? ' class="on" aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>
     <main class="v-${view}">${body}</main>`;
@@ -520,7 +519,7 @@ app.addEventListener('click', async ev => {
     case 'upward-on': await safely(() => saveConfig({ upward: true })); break;
     case 'copy-draft':
       try { await navigator.clipboard.writeText(document.getElementById('draft').value); ws.toast('Draft copied.', { kind: 'success' }); }
-      catch (e) { document.getElementById('draft').select(); ws.toast('Select all and copy.', { kind: 'warn' }); }
+      catch (e) { document.getElementById('draft').select(); ws.toast('Could not copy. The draft is selected: press Ctrl+C.', { kind: 'warn' }); }
       break;
     case 'dl-draft': download(`receipts-${R.slug(nameOf(S.review.about))}-${R.today()}.txt`, document.getElementById('draft').value, 'text/plain;charset=utf-8'); break;
     case 'dl-csv-review': {
@@ -596,7 +595,10 @@ app.addEventListener('submit', async ev => {
     const p = R.cleanPerson({ ...(old || {}), id: form.dataset.id || R.newId('p'), name: fd.get('name'), role: fd.get('role'), since: fd.get('since') });
     if (!p.name) return;
     S.addingPerson = false;
-    return safely(() => upsertPerson(p), old ? 'Saved.' : `Added ${p.name}.`);
+    if (old) return safely(() => upsertPerson(p), 'Saved.');
+    await safely(() => upsertPerson(p), `Added ${p.name}.`);
+    if (people().some(x => x.id === p.id)) { go(`team/${p.id}`); focusComposer(); }
+    return;
   }
   switch (form.dataset.form) {
     case 'cycle': {
@@ -623,19 +625,21 @@ app.addEventListener('keydown', ev => {
     saveDraft(ev.target.closest('.composer'));
   }
 });
-// N jumps to the composer from anywhere on the page.
+// N jumps to the composer; on a view without one (Reports, Review, Settings) it opens Me first.
+const focusComposer = () => setTimeout(() => document.querySelector('.composer textarea')?.focus(), 50);
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'n' || ev.ctrlKey || ev.metaKey || ev.altKey || dlg.open) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
-  const ta = document.querySelector('.composer textarea');
-  if (ta) { ev.preventDefault(); ta.focus(); }
+  ev.preventDefault();
+  if (!document.querySelector('.composer')) go('me');
+  focusComposer();
 });
 
 /* ---------- commands and live updates ---------- */
 ws.commands.register({ id: 'new', title: 'Add a receipt' });
 ws.commands.register({ id: 'review', title: 'Build a review' });
 ws.on('command', async ({ id }) => {
-  if (id === 'new') { if (!['me', 'team', 'up'].includes(S.route.view)) go('me'); setTimeout(() => document.querySelector('.composer textarea')?.focus(), 50); }
+  if (id === 'new') { if (!document.querySelector('.composer')) go('me'); focusComposer(); }
   if (id === 'review') go('review');
   if (id === 'undo-delete' && lastDeleted) { const e = lastDeleted; lastDeleted = null; await safely(() => upsertEntry(e), 'Restored.'); }
 });

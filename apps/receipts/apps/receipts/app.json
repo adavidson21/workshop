@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "receipts",
   "name": "Receipts",
-  "version": "1.2.0",
-  "description": "Keep the receipts for performance reviews: yours, your reports', and upward.",
+  "version": "1.3.0",
+  "description": "Log wins and feedback for yourself, your reports and your manager. Build review drafts by section.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 30,
@@ -11,7 +11,7 @@
   "routes": [
     {"path": "me", "title": "My receipts"},
     {"path": "team", "title": "Reports"},
-    {"path": "team/:id", "title": "A report's receipts"},
+    {"path": "team/:id", "title": "Report"},
     {"path": "up", "title": "Upward"},
     {"path": "review", "title": "Build a review"},
     {"path": "settings", "title": "Receipts settings"}
