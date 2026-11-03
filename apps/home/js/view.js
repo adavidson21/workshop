@@ -83,6 +83,82 @@ export function agentCounts(state) {
   return { needYou, working };
 }
 
+/* ---------- Day plan: the block on now ----------
+   Docket's Day view rules, repeated here (Home does not import Docket's code). Each mirrors the function of the
+   same name in Docket's js/dayplan-model.js. dayplan collections are read only at version 1. */
+export const DAYPLAN_VERSION = 1;
+const isTime = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+const toMin = s => isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
+const pad2 = n => String(n).padStart(2, '0');
+const fromMin = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
+function cleanSprint(sp) {
+  const o = Object.assign({}, sp);
+  if (!isDate(o.anchor)) return null;
+  o.lengthWeeks = Number.isInteger(+o.lengthWeeks) && +o.lengthWeeks >= 1 && +o.lengthWeeks <= 8 ? +o.lengthWeeks : 2;
+  o.workdays = Array.isArray(o.workdays) && o.workdays.length ? o.workdays.map(Number) : [1, 2, 3, 4, 5];
+  o.holidays = Array.isArray(o.holidays) ? o.holidays.filter(isDate) : [];
+  return o;
+}
+const isWorkday = (sp, d) => sp.workdays.includes(parseD(d).getDay()) && !sp.holidays.includes(d);
+function sprintInfo(sp, date) {
+  const len = sp.lengthWeeks * 7, idx = Math.floor(daysBetween(sp.anchor, date) / len), start = addDays(sp.anchor, idx * len);
+  let total = 0, day = null;
+  for (let d = start, end = addDays(start, len - 1); d <= end; d = addDays(d, 1)) { if (!isWorkday(sp, d)) continue; total++; if (d === date) day = total; }
+  return { day, total, last: day != null && day === total };
+}
+function templateFor(templates, info) {
+  if (info.day == null) return null;
+  const lasts = info.last ? templates.filter(t => t && t.last) : [];
+  const pool = lasts.length ? lasts : templates.filter(t => t && Array.isArray(t.days) && t.days.includes(info.day));
+  return pool[0] || null;
+}
+function currentSection(sections, nowMin) {
+  const timed = sections.filter(s => s && !s.lost && isTime(s.around)).map(s => ({ s, at: toMin(s.around) })).sort((a, b) => a.at - b.at);
+  let cur = null, next = null, curEnd = null;
+  for (let i = 0; i < timed.length; i++) {
+    const end = timed[i].s.minutes ? timed[i].at + timed[i].s.minutes : (timed[i + 1] ? timed[i + 1].at : timed[i].at + 60);
+    if (nowMin >= timed[i].at && nowMin < end) { cur = timed[i].s; curEnd = end; next = timed[i + 1] ? timed[i + 1].s : null; break; }
+    if (nowMin < timed[i].at) { next = timed[i].s; break; }
+  }
+  return { current: cur, next, end: curEnd };
+}
+
+/* The block on now and the next one, from Docket's day plan. `day` is {settings, templates, days} (envelopes or
+   null). Returns null when there is nothing to show: no sprint set, a day off, or the day's blocks are over. */
+export function dayNow(day, tasks, now) {
+  if (!day) return null;
+  const sp = cleanSprint(day.settings && day.settings.meta && day.settings.meta.sprint);
+  if (!sp) return null;
+  const today = dateStr(now);
+  const rec = (day.days && day.days.items || []).find(r => r && r.id === today);
+  let sections;
+  if (rec) sections = Array.isArray(rec.sections) ? rec.sections : [];
+  else {
+    const info = sprintInfo(sp, today);
+    const t = templateFor(day.templates && day.templates.items || [], info);
+    sections = t && Array.isArray(t.sections) ? t.sections.map(s => Object.assign({}, s, { lost: false })) : [];
+  }
+  const { current, next, end } = currentSection(sections, now.getHours() * 60 + now.getMinutes());
+  if (!current && !next) return null;
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const slots = rec && Array.isArray(rec.slots) ? rec.slots : [];
+  const inBlock = sec => sec ? slots.filter(s => s.sectionId === sec.id && byId.has(s.taskId)).map(s => byId.get(s.taskId))
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).map(t => ({ id: t.id, title: t.title, done: !!t.done })) : [];
+  const brief = sec => sec ? { name: sec.name || 'Untitled', at: sec.around, tasks: inBlock(sec) } : null;
+  return { current: current ? Object.assign(brief(current), { until: fromMin(end) }) : null, next: brief(next) };
+}
+
+function nowCard(n) {
+  if (!n) return '';
+  const rows = list => list.length ? `<ul class="blk">${list.slice(0, 5).map(t => `<li><button class="nrow${t.done ? ' done' : ''}" data-task="${esc(t.id)}"><span class="tt">${esc(t.title)}</span></button></li>`).join('')}</ul>` : '';
+  const c = n.current;
+  const body = c
+    ? `<p class="blkname"><b>${esc(c.name)}</b> <span class="soft mono">until ${esc(c.until)}</span></p>${rows(c.tasks) || '<p class="soft">Nothing planned in this block.</p>'}
+       ${n.next ? `<p class="soft">Next: ${esc(n.next.name)} at ${esc(n.next.at)}</p>` : ''}`
+    : `<p class="blkname"><b>${esc(n.next.name)}</b> <span class="soft mono">at ${esc(n.next.at)}</span></p>${rows(n.next.tasks)}`;
+  return `<section class="card now"><div class="ch"><h2>${c ? 'Now' : 'Next block'}</h2><button class="lnk" data-open="prioritizer" data-path="day/today">Open Day</button></div>${body}</section>`;
+}
+
 export function greeting(now) {
   const h = now.getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -157,7 +233,7 @@ export function render(v) {
       : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + day + tiles + `<div class="cols">${next}<div class="stack">${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
+  return head + day + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
