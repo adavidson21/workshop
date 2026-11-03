@@ -934,7 +934,8 @@ def main():
         # Every request from every page and frame, including the service worker's.
         ctx.on('request', lambda r: requests.append(r.url))
         def watch(page):
-            page.on('pageerror', lambda e: errors.append(str(e)))
+            # Where it happened, so a failure names the page and the code (the message alone is not enough).
+            page.on('pageerror', lambda e, page=page: errors.append(f"{str(e)[:300]} | page {page.url} | stack {(getattr(e, 'stack', '') or '')[:800]}"))
             page.on('console', lambda m: csp.append(m.text) if 'Content Security Policy' in m.text else None)
         pg = ctx.new_page(); watch(pg)
 
@@ -996,7 +997,7 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
         check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 6)  # Today, Day, Triage, Prioritize, People, Reports

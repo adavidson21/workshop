@@ -116,7 +116,7 @@ def main():
         pg.locator('.rv-form .rv-tchip.t-question').click()
         pg.locator('.rv-form [name=body]').fill('Why not round the tax here as well?')
         pg.locator('.rv-form button[type=submit]').click()
-        pg.wait_for_function('document.querySelectorAll(".rv-card").length === 2')
+        pg.wait_for_function('() => document.querySelectorAll(".rv-card").length === 2')
         check('old-side comment saved', '(old)' in pg.locator('.rv-panel').inner_text())
 
         # Refresh keeps the drafts.
@@ -134,7 +134,7 @@ def main():
         pg.locator('.rv-card.open [data-act=c-edit]').click()
         pg.locator('.rv-form [name=body]').fill('Round once, at the end of orderTotal.')
         pg.locator('.rv-form button[type=submit]').click()
-        pg.wait_for_function('!document.querySelector(".rv-form")')
+        pg.wait_for_function('() => !document.querySelector(".rv-form")')
         check('editing keeps the id and updates the text', 'at the end of orderTotal' in pg.locator('.rv-panel').inner_text() and pg.locator('.rv-entry').count() == 2)
 
         # Request changes sends one payload with every comment and its quoted code.
@@ -157,12 +157,12 @@ def main():
         check('previous comments show as resolved with the agent\'s answers', 'fixed' in prev and 'answered' in prev and pg.locator('.rv-resolved').count() == 2)
         check('"Changes since last review" toggle is offered', pg.locator('[data-act=since]').count() == 1)
         pg.locator('[data-act=since]').click()
-        pg.wait_for_function('document.querySelectorAll(".rv-file").length === 1')
+        pg.wait_for_function('() => document.querySelectorAll(".rv-file").length === 1')
         open_file(pg, 'totals.ts')
         left = side(pg, 'original').locator('.view-lines').inner_text().replace('\xa0', ' ')
         check('since last review: only the new commit\'s files, left side is the last reviewed head', 'Math.round(tax * 100)' in left)
         pg.locator('[data-act=since]').click()
-        pg.wait_for_function('document.querySelectorAll(".rv-file").length === 3')
+        pg.wait_for_function('() => document.querySelectorAll(".rv-file").length === 3')
         check('default is base to new head again', True)
 
         # A stale head is refused and the draft is kept.
@@ -196,7 +196,7 @@ def main():
         # A deep link opens that file with the lines selected.
         pg.goto(BASE + '#file=src/orders/rounding.ts&L=2-3')
         pg.wait_for_selector('.monaco-diff-editor')
-        pg.wait_for_function('document.querySelector(".rv-file.on .rv-name")?.textContent === "rounding.ts"')
+        pg.wait_for_function('() => document.querySelector(".rv-file.on .rv-name")?.textContent === "rounding.ts"')
         pg.wait_for_selector('.monaco-diff-editor .editor.modified .rv-sel')
         check('deep link opens the file and selects the lines', True)
 
