@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "notes",
+  "name": "Notes",
+  "version": "1.0.0",
+  "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 45,
+  "modes": ["local", "hosted", "browser"],
+  "routes": [
+    {"path": ":note", "title": "Open a note"}
+  ],
+  "commands": [
+    {"id": "new", "title": "New note"},
+    {"id": "search", "title": "Search notes"}
+  ],
+  "files": ["notes.css", "js/main.js", "js/data.js", "js/model.js", "js/markdown.js", "js/view.js"]
+}
