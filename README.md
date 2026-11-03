@@ -73,6 +73,8 @@ Other commands:
 
 - `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
 - `node workshop.mjs open` opens Workshop in your default browser, signed in.
+- `node workshop.mjs stop` stops Workshop; `node workshop.mjs restart` stops it and starts it again in the background (no window).
+- `node workshop.mjs pat ADO_PAT` saves your Azure DevOps PAT without showing it or leaving it in shell history. On Windows, Workshop picks it up within seconds with no restart. See [connectors/ado/README.md](connectors/ado/README.md), Setting up and renewing a PAT.
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
