@@ -687,8 +687,8 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "1.1.0",
-        "description": "Connectors, the data folder, and backups.",
+        "version": "1.2.0",
+        "description": "Connectors, people, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,
@@ -700,7 +700,8 @@
         "files": [
           "settings.css",
           "js/settings.js",
-          "js/forms.js"
+          "js/forms.js",
+          "js/people.js"
         ]
       }
     }

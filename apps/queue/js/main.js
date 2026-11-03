@@ -90,7 +90,7 @@ function closeItem() { ui.selected = null; ui.d = null; paint(); }
 
 const nameFor = who => {
   const p = v.settings.people.find(x => identity(x) === who);
-  return p ? p.name : who;
+  return p ? p.label || p.name : who;
 };
 
 /** Ask, then write. The person's click started this; nothing is sent until they confirm. */
@@ -177,6 +177,7 @@ app.addEventListener('click', async e => {
   if (el('[data-refresh]')) { q.refresh(); return; }
   if (el('[data-new]')) { newItem(); return; }
   if (el('[data-clear-filters]')) { ui.filters = { ...EMPTY_FILTERS }; ui.filtersTouched = false; paint(); return; }
+  if ((x = el('[data-open-people]'))) { ws.open({ app: 'settings' }); return; }
   if ((x = el('[data-person]'))) { ui.view = 'all'; ui.filters = { ...EMPTY_FILTERS, assignee: x.dataset.person }; ui.filtersTouched = true; paint(); return; }
   if (el('[data-save-view]')) {
     const saved = v.views.find(s => s.id === ui.view);
@@ -262,7 +263,7 @@ app.addEventListener('submit', async e => {
     const d = new FormData(f);
     const next = {
       areas: String(d.get('areas') || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean),
-      people: parsePeople(d.get('people')),
+      ...(d.has('people') ? { people: parsePeople(d.get('people')) } : {}),
       types: String(d.get('types') || '').split(',').map(s => s.trim()).filter(Boolean),
       refreshMinutes: Number(d.get('refreshMinutes')),
       staleDays: Number(d.get('staleDays')),
@@ -312,6 +313,7 @@ ws.on('visible', p => { visibleNow = !!p.visible; if (visibleNow) maybeRefresh()
 document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeRefresh(); });
 
 for (const name of ['settings', 'views', 'snapshot', 'seen']) ws.data.subscribe(name, () => { if (!v.waiting) q.reload(name); });
+ws.data.subscribe('people', () => { if (!v.waiting) q.reload('directory'); }, { app: 'settings' });
 if (ws.backend === 'agent') {
   ws.connectors.onStatus('ado', async () => { await q.checkConnectors(); maybeRefresh(true); });
   ws.connectors.onStatus('opencode', () => q.checkConnectors());

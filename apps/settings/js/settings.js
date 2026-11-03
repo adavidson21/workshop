@@ -8,9 +8,11 @@
 
    Local mode (served by the agent): everything can be changed, including the data folder (dataDir).
    Hosted mode (a paired site): read-only. The agent refuses config changes from other sites.
-   Browser mode (no agent): the data folder Chrome uses (choose or change it) and the data section. */
+   Browser mode (no agent): the data folder Chrome uses (choose or change it) and the data section.
+   Every mode: the people directory (people.js, docs/people.md). */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
+import * as P from './people.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -378,6 +380,168 @@ function summarize(result) {
   return head + (rows ? `<dl>${rows}</dl>` : '');
 }
 
+/* ---------- people directory (docs/people.md) ----------
+   Settings' own collection `people`, read by Receipts, Queue and Docket. Data writes work in every mode
+   (only config is read-only from a hosted site), so this card is always editable. */
+let peopleEnv = null;     // the stored envelope, or blank() before the first save
+let peopleUnreadable = false;
+let peopleSec = null;
+let peopleEditing = null; // id of the person being edited, 'new', or null
+
+async function loadPeople() {
+  const e = await ws.data.get(P.COLLECTION);
+  peopleUnreadable = !P.readable(e);
+  peopleEnv = e || P.blank();
+}
+const peopleList = () => (peopleEnv.items || []).map(p => P.cleanPerson(p));
+
+async function savePeople(mutate) {
+  const before = peopleEnv;
+  const after = structuredClone(before);
+  mutate(after);
+  ws.data.stamp(before, after);
+  try {
+    const r = await ws.data.put(P.COLLECTION, after);
+    peopleEnv = { ...after, rev: r.rev, updatedAt: r.updatedAt };
+  } catch (err) {
+    if (err.code !== 'conflict' || !err.current) throw err;
+    const merged = ws.data.merge(after, err.current);
+    const r = await ws.data.put(P.COLLECTION, merged);
+    peopleEnv = { ...merged, rev: r.rev, updatedAt: r.updatedAt };
+  }
+}
+
+function personForm(p) {
+  const rel = P.RELATIONS.map(r => `<option value="${r}"${p.relation === r ? ' selected' : ''}>${esc(P.RELATION_LABEL[r])}</option>`).join('');
+  return `<form class="cfg person-form" data-person-form="${esc(p.id || 'new')}">
+    <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name)}" required></div>
+    <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${rel}</select></div>
+    <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${P.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
+      <p class="cfg-help">Shows in Queue's Team view and Docket's Reports.</p></div>
+    <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity)}" placeholder="name@example.com or display name"></div>
+    <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role)}"></div>
+    <div class="cfg-row"><label for="pSince">Since</label><input id="pSince" name="since" type="date" class="cfg-input" value="${esc(p.since)}"></div>
+    <div class="acts"><span class="msg" aria-live="polite"></span>
+      ${p.id && p.id !== 'new' ? `<button type="button" class="btn" data-person-archive="${esc(p.id)}">${p.archived ? 'Restore' : 'Archive'}</button>` : ''}
+      <button type="button" class="btn" data-person-cancel>Cancel</button><button class="btn primary">Save</button></div>
+  </form>`;
+}
+
+function personRow(p) {
+  if (peopleEditing === p.id) return `<li class="person editing">${personForm(p)}</li>`;
+  const bits = [esc(P.RELATION_LABEL[p.relation]), P.onTeam(p) ? 'on my team' : '', p.role ? esc(p.role) : '', p.adoIdentity ? `<span class="mono">${esc(p.adoIdentity)}</span>` : ''].filter(Boolean);
+  return `<li class="person${p.archived ? ' archived' : ''}"><div><b>${esc(p.name)}</b>${p.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
+    <button class="btn" data-person-edit="${esc(p.id)}">Edit</button></li>`;
+}
+
+async function importSources() {
+  const get = async (app, c) => { try { return await ws.data.get(c, { app }); } catch (e) { return null; } };
+  const [people, config, queue] = await Promise.all([get('receipts', 'people'), get('receipts', 'config'), get('queue', 'settings')]);
+  return { receipts: { people, config }, queue };
+}
+
+async function paintPeople() {
+  const sec = peopleSec;
+  if (peopleUnreadable) {
+    sec.querySelector('.people-body').innerHTML = `<p class="err">The people list was saved by a newer Workshop (version ${esc(peopleEnv.version)}). Update Workshop to change it.</p>`;
+    return;
+  }
+  const list = P.sorted(peopleList());
+  const active = list.filter(p => !p.archived), archived = list.filter(p => p.archived);
+  const plan = P.importPlan({ ...(await importSources()), existing: list });
+  const canImport = plan.add.length || plan.update.length;
+  sec.querySelector('.people-body').innerHTML = `
+    ${active.length ? `<ul class="people">${active.map(personRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
+    ${peopleEditing === 'new' ? `<div class="person editing">${personForm(P.cleanPerson({ id: 'new', relation: active.some(p => p.relation === 'self') ? 'report' : 'self' }))}</div>` : ''}
+    <div class="acts left">${peopleEditing === 'new' ? '' : '<button class="btn primary" data-person-new>Add a person</button>'}
+      ${canImport ? `<button class="btn" data-people-import>Import from Receipts and Queue</button>` : ''}<span class="msg" aria-live="polite"></span></div>
+    ${canImport ? `<details class="import-preview"><summary>What the import adds (${plan.add.length + plan.update.length})</summary>
+      <ul>${plan.add.map(p => `<li>Add <b>${esc(p.name)}</b> as ${esc(P.RELATION_LABEL[p.relation].toLowerCase())}${p.adoIdentity ? ` (<span class="mono">${esc(p.adoIdentity)}</span>)` : ''}${p.archived ? ', archived' : ''}</li>`).join('')}
+      ${plan.update.map(u => `<li>Set ${esc(u.name)}'s Azure DevOps to <span class="mono">${esc(u.adoIdentity)}</span></li>`).join('')}</ul>
+      ${plan.notes.length ? `<ul class="import-notes">${plan.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+      <p class="cfg-help">Receipts and Queue keep their own lists unchanged.</p></details>` : ''}
+    ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(personRow).join('')}</ul></details>` : ''}`;
+  if (peopleEditing && sec.querySelector('#pName')) sec.querySelector('#pName').focus();
+}
+
+async function peopleCard() {
+  peopleSec = card('People', 'You, your manager, your reports and peers. Receipts, Queue and Docket use this list, so you add someone once.');
+  peopleSec.dataset.people = '';
+  peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
+  try { await loadPeople(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
+  await paintPeople();
+
+  peopleSec.addEventListener('click', async e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    const msg = peopleSec.querySelector('.acts .msg');
+    if (t.matches('[data-person-new]')) { peopleEditing = 'new'; return paintPeople(); }
+    if (t.matches('[data-person-edit]')) { peopleEditing = t.dataset.personEdit; return paintPeople(); }
+    if (t.matches('[data-person-cancel]')) { peopleEditing = null; return paintPeople(); }
+    if (t.matches('[data-person-archive]')) {
+      const p = peopleList().find(x => x.id === t.dataset.personArchive);
+      if (!p) return;
+      const next = { ...p, archived: !p.archived };
+      const why = P.problem(next, peopleList());
+      if (why) { t.closest('form').querySelector('.msg').textContent = why; return; }
+      try {
+        await savePeople(env => { env.items = env.items.map(x => (x.id === p.id ? next : x)); });
+        peopleEditing = null;
+        toast(next.archived ? `${p.name} archived. Records about them are kept.` : `${p.name} restored.`, 'success');
+        await paintPeople();
+      } catch (err) { t.closest('form').querySelector('.msg').textContent = errText(err); }
+      return;
+    }
+    if (t.matches('[data-people-import]')) {
+      const list = peopleList();
+      const plan = P.importPlan({ ...(await importSources()), existing: list });
+      try {
+        await savePeople(env => { env.items = P.applyPlan(env.items.map(x => P.cleanPerson(x)), plan); });
+        toast(`Imported ${plan.add.length} ${plan.add.length === 1 ? 'person' : 'people'}.`, 'success');
+        await paintPeople();
+      } catch (err) { if (msg) msg.textContent = errText(err); }
+    }
+  });
+
+  // "On my team" follows the relation's default until it is clicked.
+  peopleSec.addEventListener('change', e => {
+    const form = e.target.closest('[data-person-form]');
+    if (!form) return;
+    if (e.target.name === 'team') form.dataset.teamTouched = '1';
+    if (e.target.name === 'relation' && !form.dataset.teamTouched) form.querySelector('[name=team]').checked = P.onTeam({ relation: e.target.value });
+  });
+
+  peopleSec.addEventListener('submit', async e => {
+    const form = e.target.closest('[data-person-form]');
+    if (!form) return;
+    e.preventDefault();
+    const fd = new FormData(form);
+    const id = form.dataset.personForm;
+    const old = peopleList().find(x => x.id === id);
+    const person = P.cleanPerson({
+      ...(old || {}), id: old ? old.id : '',
+      name: fd.get('name'), relation: fd.get('relation'), team: fd.get('team') === 'on',
+      adoIdentity: fd.get('adoIdentity'), role: fd.get('role'), since: fd.get('since'),
+    });
+    const why = P.problem(person, peopleList());
+    if (why) { form.querySelector('.msg').textContent = why; return; }
+    try {
+      await savePeople(env => {
+        const at = env.items.findIndex(x => x.id === person.id);
+        if (at >= 0) env.items[at] = person; else env.items.push(person);
+      });
+      peopleEditing = null;
+      toast(`${person.name} saved.`, 'success');
+      await paintPeople();
+    } catch (err) { form.querySelector('.msg').textContent = errText(err); }
+  });
+
+  ws.data.subscribe(P.COLLECTION, async () => {
+    if (peopleEditing) return; // don't redraw under an open form; the next save merges
+    try { await loadPeople(); await paintPeople(); } catch (e) { /* the next load shows it */ }
+  });
+}
+
 /* ---------- data: bundles ---------- */
 function dataCard() {
   const sec = card('Data', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.');
@@ -458,6 +622,7 @@ async function start() {
       + (location.protocol === 'https:' ? 'click <b>Connect</b>.' : 'open Workshop from its site and click <b>Connect</b>.'));
     await folderCard(null);
   }
+  await peopleCard();
   dataCard();
 }
 await start();

@@ -7,9 +7,11 @@
      snapshot  the last queue.list result, replaced on every refresh, so the queue opens fast and shows
                while ADO or Workshop is unreachable. meta also caches state categories and sprints.
      seen      {id, rev} per work item: the ADO revision you last opened, for "changed since you looked".
+   People: when Workshop's people directory exists (Settings' `people`, docs/people.md), its team is the
+   people list and settings.people is kept but not used. v.settings.people is always the list in use.
    Writes to ADO go through the ADO connector's write actions with confirm: true, and only from a click
    (main.js shows what will change first). */
-import { APP, VERSION, cleanSettings, cleanFilters, projectOf } from './model.js';
+import { APP, VERSION, cleanSettings, cleanFilters, directoryTeam, projectOf } from './model.js';
 
 const ADO = 'ado';
 const OC = 'opencode';
@@ -20,6 +22,7 @@ export function createQueue(ws, { onChange = () => {}, now = () => Date.now() } 
     loaded: false,
     waiting: false,               // the browser's folder store needs Allow
     settings: cleanSettings({}),
+    directory: null,              // team people from Settings' people directory, or null without one
     views: [],
     items: [],
     snap: { fetchedAt: null, connection: '', me: null, total: 0, truncated: false, categories: {}, iterations: {}, currentIterations: [] },
@@ -67,8 +70,14 @@ export function createQueue(ws, { onChange = () => {}, now = () => Date.now() } 
     }
   }
 
+  async function readDirectory() {
+    try { env.directory = await ws.data.get('people', { app: 'settings' }); } catch (e) { if (e && e.code === 'unavailable') throw e; env.directory = null; }
+  }
+
   function fromEnvelopes() {
     v.settings = cleanSettings(env.settings.meta);
+    v.directory = directoryTeam(env.directory);
+    if (v.directory) v.settings.people = v.directory;
     v.views = (env.views.items || []).map(x => ({ id: x.id, name: String(x.name || 'View').slice(0, 60), base: x.base || 'all', filters: cleanFilters(x.filters), sort: x.sort || 'changed' }));
     const m = env.snapshot.meta || {};
     v.snap = {
@@ -81,7 +90,7 @@ export function createQueue(ws, { onChange = () => {}, now = () => Date.now() } 
 
   async function loadData() {
     try {
-      await Promise.all([read('settings', cleanSettings({})), read('views'), read('snapshot', {}), read('seen')]);
+      await Promise.all([read('settings', cleanSettings({})), read('views'), read('snapshot', {}), read('seen'), readDirectory()]);
       fromEnvelopes();
       v.loaded = true;
     } catch (e) {
@@ -230,8 +239,9 @@ export function createQueue(ws, { onChange = () => {}, now = () => Date.now() } 
   }
 
   async function saveSettings(next) {
-    const clean = cleanSettings(next);
+    const clean = cleanSettings(v.directory ? { ...next, people: (env.settings.meta || {}).people } : next);
     await save('settings', e => { e.meta = { ...(e.meta || {}), ...clean }; });
+    if (v.directory) clean.people = v.directory;
     const areasChanged = clean.areas.join('\n') !== v.settings.areas.join('\n') || clean.types.join('\n') !== v.settings.types.join('\n') || clean.connection !== v.settings.connection;
     v.settings = clean;
     changed();
@@ -262,7 +272,8 @@ export function createQueue(ws, { onChange = () => {}, now = () => Date.now() } 
   /** Another window wrote one of our collections, or it changed on disk. */
   async function reload(name) {
     try {
-      await read(name, name === 'settings' ? cleanSettings({}) : name === 'snapshot' ? {} : undefined);
+      if (name === 'directory') await readDirectory();
+      else await read(name, name === 'settings' ? cleanSettings({}) : name === 'snapshot' ? {} : undefined);
       fromEnvelopes();
       changed();
     } catch (e) { waitFor(e); }
