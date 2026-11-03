@@ -91,8 +91,8 @@ def main():
 
         # ---------- Day view (WS12): set the sprint, templates, plan tasks, lose a block, shift, undo, reload ----------
         P = 'window.__prioritizer'
-        pg.keyboard.press('6'); pg.wait_for_timeout(300)
-        check('6 opens the Day view, which asks when a sprint starts', pg.evaluate(f'{P}.state.view') == 'day' and pg.locator('#dpSetup').count() == 1)
+        pg.keyboard.press('2'); pg.wait_for_timeout(300)
+        check('2 opens the Day view, which asks when a sprint starts', pg.evaluate(f'{P}.state.view') == 'day' and pg.locator('#dpSetup').count() == 1)
         pg.click('#dpSetup button.primary'); pg.wait_for_timeout(300)
         check('starting a sprint adds example templates', pg.evaluate(f'{P}.dp.templates.length') == 3 and pg.evaluate(f'{P}.dp.sprint.anchor') is not None)
         # Every day a workday, so today has blocks whatever day the test runs.

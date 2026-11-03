@@ -98,7 +98,7 @@ function renderHead(){
   let sub = esc(scopeName()), tools = '';
   if (v === 'today'){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
-    tools = `<button class="btn" data-view="day" data-tip="Time blocks for today. Shortcut: 6">Plan day</button><button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>`;
+    tools = `<button class="btn" data-view="day" data-tip="Time blocks for today. Shortcut: 2">Plan day</button><button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>`;
   }
   if (nav === 'prio'){
     const open = scopeOpen().length;

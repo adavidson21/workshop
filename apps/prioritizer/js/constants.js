@@ -52,8 +52,8 @@ const ICON = {
   top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6),
   day: svg('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M6.5 7.5h7M6.5 10.5h4.5M6.5 13.5h6"/>')
 };
-// [key, label, icon, shortcut]. Day was added after the others, so it keeps their number keys and takes 6.
-const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'6'],['triage','Triage',ICON.triage,'2'],['prio','Prioritize',ICON.prio,'3'],['people','People',ICON.people,'4'],['reports','Reports',ICON.reports,'5']];
-const NAV_KEYS = {1: 'today', 2: 'triage', 3: 'prio', 4: 'people', 5: 'reports', 6: 'day'};
+// [key, label, icon, shortcut]. Number keys follow the sidebar, top to bottom.
+const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['triage','Triage',ICON.triage,'3'],['prio','Prioritize',ICON.prio,'4'],['people','People',ICON.people,'5'],['reports','Reports',ICON.reports,'6']];
+const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'reports'};
 
 export { NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
