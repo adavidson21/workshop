@@ -16,7 +16,7 @@ import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
-import { reviewUrlCheck } from './pr-reviews.js';
+import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
 const OC = 'opencode';
@@ -124,12 +124,35 @@ async function loadInbox(force) {
   try {
     const r = await ws.connectors.call(ADO, 'sync.prs', { knownPrs: [] });
     S.inbox = { state: 'ok', items: (r && r.items) || [], notes: (r && r.notes) || [], error: null, at: Date.now() };
+    saveInbox();
   } catch (e) {
     S.inbox = { state: 'error', items: [], notes: [], error: errText(e), at: Date.now() };
   }
   schedule();
 }
 ws.connectors.onStatus(ADO, status => { if (status.state === 'ready' && S.inbox.state === 'off') loadInbox(true); });
+
+/* The nightly review (opencode connector) cannot ask ADO itself: hand it the inbox each time we get it. */
+function saveInbox() {
+  if (!S.connector || S.connector.state !== 'ready') return;
+  read('pr.inbox.save', { prs: (S.inbox.items || []).slice(0, 200).map(prArg) }).catch(() => {});
+}
+
+/* ---------- Review all: the opencode connector's queue runs /pr-review one PR at a time ---------- */
+function reviewAll() {
+  const list = reviewAllList();
+  if (!list.length || ui().busy['rv:all']) return;
+  act(() => write('pr.reviewAll', { prs: list.slice(0, 25).map(prArg) }), r => {
+    const n = (r && r.added && r.added.length) || 0;
+    const skipped = (r && r.skipped && r.skipped.length) || 0;
+    toast(n ? `Queued ${n} review${n === 1 ? '' : 's'}. They run one at a time, even with Dispatch closed.${skipped ? ` ${skipped} skipped.` : ''}` : 'Nothing new to review.');
+  }, 'rv:all');
+}
+function queueAction(what) {
+  if (ui().busy['rv:q']) return;
+  const run = what === 'resume' ? () => write('pr.reviewAll', { prs: [] }) : () => read(what === 'stop' ? 'pr.queue.stop' : 'pr.queue.clear', {});
+  act(run, () => { if (what === 'stop') toast('Stopped. The review that is running finishes on its own.'); }, 'rv:q');
+}
 
 /* ---------- PR reviews: start one (the opencode connector's pr.review action) ---------- */
 function startReview(url, again) {
@@ -642,6 +665,9 @@ app.addEventListener('click', ev => {
   const rvu = t.closest('[data-rv-url]');
   if (rvu) { startReview(rvu.getAttribute('data-rv-url'), rvu.hasAttribute('data-rv-again')); return; }
   if (t.closest('[data-rv-inbox]')) { loadInbox(true); return; }
+  if (t.closest('[data-rv-all]')) { reviewAll(); return; }
+  const rvq = t.closest('[data-rv-q]');
+  if (rvq) { queueAction(rvq.getAttribute('data-rv-q')); return; }
   const dm = t.closest('[data-dismiss]');
   if (dm) { act(() => read('session.dismiss', { session: dm.getAttribute('data-dismiss') })); return; }
   const ac = t.closest('[data-ai-check]');

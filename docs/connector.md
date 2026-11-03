@@ -47,12 +47,17 @@ export default {
 | `status()` | yes | Returns `{state, message, details?}` synchronously. `state` is `starting`, `ready`, `stopped` or `error`. `message` is plain words or `null`. `details` is an optional small JSON object. The agent adds `since` and reports `disabled` itself when the connector is off. |
 | `test` | no | `{action, arg, label}`: the Settings app shows a Test field labeled `label`. On submit it calls `action` with `{[arg]: <value>}` and shows the result. For ADO, enter a work item ID and see its title and project. `action` must be a read action. |
 
+### Import from a file (Settings)
+
+If a connector has a read action named `config.import` with `setup: true`, Settings shows **Import settings from a file** on its card. The user picks a `.json` file; Settings parses it, drops every key whose name looks like a secret (`pat`, `token`, `password`, `secret`, `key`), and calls the action with `{"file": <parsed JSON>}`. The action returns `{config, notes}`: `config` is the connector's settings with the import merged in, and `notes` is a list of plain-words remarks. Nothing is saved: Settings fills the form with `config` and the user reviews it and clicks Save.
+
 ### Actions
 
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `title` | yes | Plain words, shown in logs and Settings. |
 | `write` | yes | `true` if the action changes anything outside Workshop (push, comment, state change). The agent then requires `confirm: true` from the caller. |
+| `setup` | no | `true` for a read action that helps fix the connector's settings (for example importing an old settings file, or saying which connection a path uses). The agent runs it even while `status()` reports an error, so Settings can use it before the connector is set up. Must be `write: false`. Shown as `setup: true` in the connector info. |
 | `argsSchema` | no | JSON Schema (subset in [README.md](README.md)) for `args`. The agent validates before calling `run`. |
 | `run(args, ctx)` | yes | Async. Returns JSON-serializable data, which becomes `result`. |
 
@@ -65,7 +70,7 @@ The agent creates one `ctx` per start and passes the same object to `start` and 
 | Member | Meaning |
 | --- | --- |
 | `ctx.config` | The connector's config, validated, defaults filled in, frozen. |
-| `ctx.env(name)` | Returns the value of environment variable `name`, or `undefined`. Only names that appear in `ctx.config` under a field marked `x-workshop-env` are readable; any other name throws. This is how a connector gets a PAT. Never log, store, emit or return the value. |
+| `ctx.env(name)` | Returns the value of environment variable `name`, or `undefined`. Only names that appear in `ctx.config` under a field marked `x-workshop-env` are readable; any other name throws. This is how a connector gets a PAT. Never log, store, emit or return the value. On Windows the agent looks the name up in the user's saved variables (`HKCU\Environment`) first, cached for a few seconds, then in its own environment, so a variable saved after Workshop started (for example with `workshop pat`) is seen without a restart. Read it each time it is needed rather than keeping a copy. |
 | `ctx.log.info(msg, data?)`, `.warn`, `.error` | Writes to `~/.workshop/logs/` tagged with the connector id. The agent redacts the token and every `ctx.env` value it has handed out, but connectors must not pass them in the first place. |
 | `ctx.storage.get(key)` | Async. The JSON value stored under `key`, or `undefined`. |
 | `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `~/.workshop/data/_connectors/<id>/<key>.json` (in the Workshop home, never the data folder). Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. |

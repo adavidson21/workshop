@@ -86,6 +86,30 @@ test('hosted origins are refused while hosted mode is off', async () => {
   finally { await off.stop(); }
 });
 
+test('work mode refuses every hosted origin and pairing, even when hosted mode is on and the origin is allowed', async () => {
+  const work = await startAgent({ allowedOrigins: [HOSTED], features: { hostedMode: true, workMode: true } });
+  try {
+    expectError(await get(work, '/api/apps', { origin: HOSTED }), 403, 'forbidden');
+    expectError(await get(work, '/api/health', { auth: 'none', origin: HOSTED }), 403, 'forbidden');
+    const pair = await get(work, `/pair?origin=${encodeURIComponent(HOSTED)}`, { auth: 'cookie' });
+    assert.equal(pair.status, 403);
+    assert.ok(!pair.text.includes('workshop-pair'), 'no token in work mode');
+    // Its own origin still works, and the setting is reported.
+    const cfg = expectJson(await get(work, '/api/config'), 200, 'config-public');
+    assert.equal(cfg.features.workMode, true);
+    // Turning it off from this computer lets the allowed site back in.
+    expectJson(await put(work, '/api/config', { features: { workMode: false } }), 200, 'config-put-response');
+    expectJson(await get(work, '/api/apps', { origin: HOSTED }), 200, 'apps-response');
+  } finally { await work.stop(); }
+});
+
+test('a hosted page cannot turn work mode off', async () => {
+  const work = await startAgent({ allowedOrigins: [HOSTED], features: { hostedMode: true, workMode: false } });
+  try {
+    expectError(await put(work, '/api/config', { features: { workMode: false } }, { origin: HOSTED }), 403, 'local_only');
+  } finally { await work.stop(); }
+});
+
 test('an allowed hosted origin gets CORS for that origin only', async () => {
   const res = await get(hosted, '/api/apps', { origin: HOSTED });
   expectJson(res, 200, 'apps-response');

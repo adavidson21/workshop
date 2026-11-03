@@ -15,6 +15,7 @@ import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startReview, startSpike } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
+import { clearQueue, loadPrQueue, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
@@ -83,6 +84,21 @@ export const configSchema = {
       title: "Tandem config.json",
       description: "Used only to build work item links. Leave empty for ~/.config/eng-agents/config.json (Tandem's default).",
     },
+    prReviews: {
+      type: "object",
+      title: "PR reviews",
+      additionalProperties: false,
+      properties: {
+        nightlyAt: {
+          type: "string",
+          title: "Nightly review time (HH:MM, 24-hour)",
+          description: "Each day at this time, first-pass reviews of the PRs that were waiting on you the last time Dispatch checked. If the computer was asleep, it runs when Workshop next starts that day. Empty: off.",
+          pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          default: "",
+          "x-workshop-hosted": true,
+        },
+      },
+    },
     pollSeconds: {
       type: "integer",
       title: "Re-read git state every (seconds)",
@@ -90,6 +106,14 @@ export const configSchema = {
       maximum: 3600,
       default: 20,
       "x-workshop-hosted": true,
+    },
+    approvedProviders: {
+      type: "array",
+      title: "Approved AI providers",
+      description: "The opencode provider ids your company allows (as in opencode's model names, provider/model). workshop doctor warns if opencode can use any other. Empty skips the check.",
+      items: { type: "string", pattern: "^[A-Za-z0-9._-]{1,100}$" },
+      maxItems: 20,
+      uniqueItems: true,
     },
   },
 };
@@ -116,6 +140,7 @@ function resetAll() {
   resetActions();
   resetProjects();
   resetReview();
+  resetPrQueue();
 }
 
 async function init() {
@@ -159,6 +184,13 @@ const workItemId = str("Work item id (a number, or L and a number for local work
 const reviewRepo = str("Repo folder (from pr.md)", { minLength: 1, maxLength: 255 });
 const sha = str("Commit sha", { pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" });
 const line = { type: "integer", minimum: 1 };
+const prItem = obj(["url"], {
+  url: str("Pull request link", { minLength: 10, maxLength: 500 }),
+  title: str("Title", { maxLength: 500 }),
+  commit: str("Source commit", { maxLength: 40 }),
+  waiting: { type: "boolean", title: "You voted Waiting for author" },
+  id: { type: ["integer", "string"], title: "PR number (taken from the link)" },
+});
 const reviewComment = obj(["id", "path", "side", "startLine", "endLine", "quotedCode", "type", "body"], {
   id: str("Comment id", { minLength: 1, maxLength: 128 }),
   path: str("File path", { minLength: 1 }),
@@ -282,6 +314,49 @@ const actions = {
     async run(args) {
       needReady();
       return startReview({ url: args.url, again: args.again === true });
+    },
+  },
+  "pr.reviewAll": {
+    title: "Review pull requests one at a time (first pass, drafts only)",
+    write: true,
+    argsSchema: obj([], {
+      prs: {
+        type: "array",
+        title: "Pull requests (empty resumes a paused or stopped queue)",
+        maxItems: 25,
+        items: prItem,
+      },
+    }),
+    async run(args) {
+      needReady();
+      return reviewAll({ prs: args.prs || [] });
+    },
+  },
+  "pr.queue.stop": {
+    title: "Stop the PR review queue after the review that is running",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return stopQueue();
+    },
+  },
+  "pr.queue.clear": {
+    title: "Forget the last PR review queue's results",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return clearQueue();
+    },
+  },
+  "pr.inbox.save": {
+    title: "Remember the PRs waiting on you, for the nightly review",
+    write: false,
+    argsSchema: obj(["prs"], { prs: { type: "array", maxItems: 200, items: prItem } }),
+    async run(args) {
+      needReady();
+      return saveInbox(args);
     },
   },
   "repo.add": {
@@ -480,6 +555,7 @@ export default {
     loadAuto();
     loadProjects();
     loadReview();
+    loadPrQueue();
     phase = "starting";
     problem = null;
     init().catch((e) => {

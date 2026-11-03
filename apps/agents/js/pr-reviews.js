@@ -6,7 +6,10 @@
    - Starting: /pr-review sessions not yet tied to a pr-<id> folder (liveMode.live.others), so a failure
      before the folder exists (repo not cloned, ADO not set up) still shows.
    - Waiting on you: the ADO connector's sync.prs (S.inbox, loaded by main.js), with a Review button each.
-   - Review a PR: paste a link (the opencode connector's `pr.review` action). */
+   - Review a PR: paste a link (the opencode connector's `pr.review` action).
+   - Review all: queues the inbox's PRs that need a first pass (`pr.reviewAll`); the connector runs them
+     one at a time and keeps going with Dispatch closed. Its progress is liveMode.live.prQueue (S.L.prQueue),
+     shown above the inbox. The same queue runs the optional nightly review (opencode settings, PR reviews). */
 import { S } from './state.js';
 import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking } from './view.js';
 
@@ -41,6 +44,32 @@ export function toReviewCount() {
   if (inbox.state !== 'ok') return 0;
   return (inbox.items || []).filter(p => !p.waiting && !reviewFolder(p.id)).length;
 }
+/** The connector's PR review queue (Review all, nightly), or null. */
+export const prQueue = () => (S.L && S.L.prQueue) || null;
+const queueItem = id => { const q = prQueue(); return q ? (q.items || []).find(i => i.id === String(id) && (i.state === 'queued' || i.state === 'running')) || null : null; };
+/** A review in .work already covers this PR's latest commit. */
+export function reviewedAtLatest(p) {
+  const it = reviewFolder(p.id);
+  const pr = it && it.prReview;
+  if (!pr || !pr.reviewed || !pr.reviewedCommit) return false;
+  const commit = p.commit || pr.commit;
+  return !!commit && String(commit).toLowerCase().startsWith(String(pr.reviewedCommit).toLowerCase());
+}
+/** The inbox PRs that Review all would queue: not waiting on the author, not reviewed at their latest commit, not already queued or running. */
+export function reviewAllList() {
+  const inbox = S.inbox || {};
+  if (inbox.state !== 'ok') return [];
+  return (inbox.items || []).filter(p => !p.waiting && !reviewedAtLatest(p) && !queueItem(p.id) && !reviewRunning(p.id));
+}
+/** What pr.reviewAll and pr.inbox.save take for a PR: only the fields their schema allows. */
+export function prArg(p) {
+  const out = { url: String(p.url || '') };
+  if (p.title) out.title = String(p.title).slice(0, 500);
+  if (typeof p.commit === 'string' && p.commit) out.commit = p.commit.slice(0, 40);
+  if (p.waiting) out.waiting = true;
+  return out;
+}
+
 /** Reviews where the agent waits for an answer. */
 export function reviewsAsking() { return reviewItems().filter(asking).length + startingReviews().filter(o => promptsFor(o.session).length).length; }
 function promptsFor(sid) {
@@ -167,7 +196,9 @@ function inboxRow(p) {
   const running = reviewRunning(p.id) || S.ui.busy['rv:' + p.id];
   const bits = [p.repo ? `<span class="mono">${h(p.repo)}</span>` : '', p.author ? `by ${h(p.author)}` : '', p.created ? `opened ${h(p.created)}` : '', (p.via || []).length ? `via ${h(p.via.join(', '))}` : ''].filter(Boolean);
   let act;
+  const inQueue = queueItem(p.id);
   if (running) act = '<span class="rv-busy"><span class="spin" aria-hidden="true"></span>Reviewing</span>';
+  else if (inQueue) act = '<span class="rv-busy" title="Review all will get to it">Queued</span>';
   else if (it && it.prReview && it.prReview.reviewed) act = `<a class="btn" href="#item-${h(it.folder)}" data-jump="item-${h(it.folder)}">See review</a>`;
   else act = `<button type="button" class="btn primary" data-rv-url="${h(p.url)}">Review</button>`;
   return `<li class="rv-row">` +
@@ -179,7 +210,9 @@ function inboxRow(p) {
 function inboxHtml() {
   const inbox = S.inbox || { state: 'idle' };
   const refresh = `<button type="button" class="lnk plain" data-rv-inbox="1"${inbox.state === 'loading' ? ' disabled' : ''}>${inbox.state === 'loading' ? 'Checking' : 'Check again'}</button>`;
-  const head = `<h3 id="gh-rvin">Waiting on you${inbox.state === 'ok' ? ` <span class="n">${(inbox.items || []).length}</span>` : ''}<span class="sh-r">${inbox.state === 'off' ? '' : refresh}</span></h3>`;
+  const todo = reviewAllList();
+  const all = todo.length ? `<button type="button" class="btn primary sm" data-rv-all="1"${S.ui.busy['rv:all'] ? ' disabled' : ''} title="First-pass review each one, one at a time. Keeps going with Dispatch closed.">Review all ${todo.length}</button>` : '';
+  const head = `<h3 id="gh-rvin">Waiting on you${inbox.state === 'ok' ? ` <span class="n">${(inbox.items || []).length}</span>` : ''}<span class="sh-r">${all}${inbox.state === 'off' ? '' : refresh}</span></h3>`;
   let body;
   if (inbox.state === 'off') {
     body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source (connection, project, repos) to see the PRs waiting on you here. You can still review any PR by its link.</p>' +
@@ -196,7 +229,58 @@ function inboxHtml() {
     body = `<ul class="rv-rows">${list.map(inboxRow).join('')}</ul>`;
   }
   const notes = (inbox.notes || []).map(n => `<p class="note">${h(n)}</p>`).join('');
-  return `<section class="group rv-inbox" aria-labelledby="gh-rvin">${head}${body}${notes}</section>`;
+  return `<section class="group rv-inbox" aria-labelledby="gh-rvin">${head}${body}${notes}${inbox.state === 'off' ? '' : nightlyHtml()}</section>`;
+}
+
+const Q_STATE = { queued: 'Queued', running: 'Reviewing', done: 'Reviewed', asking: 'Needs you', failed: 'Failed', skipped: 'Skipped' };
+const dayTime = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
+
+/** Review all's progress, above the inbox. Hidden when the queue is empty. */
+export function queueHtml() {
+  const q = prQueue();
+  if (!q || q.status === 'idle' || !(q.items || []).length) {
+    return q && q.message && q.status === 'idle' ? `<p class="note rv-qnote">${h(q.message)}</p>` : '';
+  }
+  const c = q.counts || {};
+  const total = (q.items || []).length;
+  const finished = (c.done || 0) + (c.asking || 0) + (c.failed || 0) + (c.skipped || 0);
+  const label = q.source === 'nightly' ? 'Nightly review' : 'Review all';
+  let title;
+  if (q.status === 'running') {
+    const cur = (q.items || []).find(i => i.state === 'running');
+    title = `${label}: ${Math.min(finished + 1, total)} of ${total}` + (cur ? ` <span class="dim">· !${h(cur.id)}${cur.title ? ' ' + h(cur.title) : ''}</span>` : '');
+  } else if (q.status === 'paused') title = `${label} is paused`;
+  else if (q.status === 'stopped') title = `${label} stopped`;
+  else title = `${label} finished${q.finished ? ` <span class="dim">· ${h(dayTime(q.finished))}</span>` : ''}`;
+  const tally = [['done', 'reviewed'], ['asking', 'need you'], ['failed', 'failed'], ['skipped', 'skipped'], ['queued', 'to go']]
+    .filter(([k]) => c[k]).map(([k, w]) => `<span class="qn" data-q="${k}">${c[k]} ${w}</span>`).join('');
+  const busy = S.ui.busy['rv:q'] ? ' disabled' : '';
+  const acts = [];
+  if (q.status === 'running' || q.status === 'paused') acts.push(`<button type="button" class="btn sm" data-rv-q="stop"${busy}>Stop</button>`);
+  if (q.status === 'paused' || (q.status === 'stopped' && (c.skipped || c.queued))) acts.push(`<button type="button" class="btn primary sm" data-rv-q="resume"${busy}>Resume</button>`);
+  if (q.status === 'done' || q.status === 'stopped') acts.push(`<button type="button" class="btn ghost sm" data-rv-q="clear"${busy}>Dismiss</button>`);
+  const rows = (q.items || []).map(i => {
+    const it = reviewFolder(i.id);
+    const name = `!${h(i.id)}${i.title ? ' ' + h(i.title) : ''}`;
+    const t = it && (i.state === 'done' || i.state === 'asking') ? `<a href="#item-${h(it.folder)}" data-jump="item-${h(it.folder)}">${name}</a>` : `<span>${name}</span>`;
+    return `<li data-q="${h(i.state)}"><span class="qs" data-q="${h(i.state)}">${i.state === 'running' ? '<span class="spin" aria-hidden="true"></span>' : ''}${h(Q_STATE[i.state] || i.state)}</span>${t}${i.message && i.state !== 'skipped' ? `<span class="dim qm">${h(i.message)}</span>` : ''}</li>`;
+  }).join('');
+  return `<section class="rv-queue" data-status="${h(q.status)}" aria-label="${h(label)}">` +
+    `<div class="rv-qh"><strong>${title}</strong><span class="rv-qacts">${acts.join('')}</span></div>` +
+    (q.message ? `<p class="rv-qmsg">${h(q.message)}</p>` : '') +
+    (tally ? `<div class="rv-qtally">${tally}</div>` : '') +
+    `<details class="rv-qlist"${openKey('rv:queue', q.status === 'running' || q.status === 'paused')}><summary>${total === 1 ? '1 pull request' : total + ' pull requests'}</summary><ol>${rows}</ol></details>` +
+    '</section>';
+}
+
+/** The nightly review's line under the inbox. */
+function nightlyHtml() {
+  const q = prQueue();
+  if (!q) return '';
+  const n = q.nightly || {};
+  if (!n.at) return '<p class="hint rv-night">Want these ready in the morning? Set a nightly review time in <button type="button" class="lnk" data-cfg-open="1">opencode settings</button>.</p>';
+  const last = n.last ? ` Last ran ${h(n.last)}.` : '';
+  return `<p class="hint rv-night">Nightly review at <strong>${h(n.at)}</strong> on the PRs listed here.${last} <button type="button" class="lnk" data-cfg-open="1">Change</button></p>`;
 }
 
 function pasteHtml() {
@@ -216,7 +300,7 @@ export function reviewsHtml() {
   const items = reviewItems();
   let html = '<div class="scope-head"><h2>PR reviews</h2><span class="dim">First passes on your team\'s pull requests. Drafts only: nothing is posted to Azure DevOps.</span>' +
     '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
-  html += pasteHtml() + startingHtml() + inboxHtml();
+  html += pasteHtml() + queueHtml() + startingHtml() + inboxHtml();
   html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">Reviews${items.length ? ` <span class="n">${items.length}</span>` : ''}</h3>`;
   html += items.length ? `<div class="items">${items.map(reviewCard).join('')}</div>`
     : '<div class="empty small"><p>No reviews yet. Pick a PR above, or paste its link.</p></div>';

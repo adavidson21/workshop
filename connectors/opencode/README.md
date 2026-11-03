@@ -37,10 +37,22 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `powershell` | `pwsh`, else `powershell` | `--ps` | |
 | `engAgentsConfig` | `~/.config/eng-agents/config.json` (the parser's default) | `--config` | Read by the parser only, for work item links. |
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
+| `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
+| `prReviews.nightlyAt` | empty (off) | (new) | `HH:MM`, 24-hour, local time. Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Hosted pages may change it. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
 A bad setting (no `.work` in the workspace, a URL on another computer, no PowerShell) shows in the connector's status with what to fix. It never stops the agent.
+
+## Approved AI providers
+
+Dispatch sends work to whatever AI provider opencode uses, so at work that should be only the provider your company approved. With `approvedProviders` set, `workshop doctor` (`connectors/opencode/lib/providers.mjs`) reads opencode's config the way opencode merges it (global `~/.config/opencode/opencode.json[c]`, `OPENCODE_CONFIG`, the workspace's `opencode.json[c]` and `.opencode/opencode.json[c]`, `OPENCODE_CONFIG_CONTENT`, and the managed folder) and its saved logins (`~/.local/share/opencode/auth.json`), and fails when:
+
+- `enabled_providers` is not set. Without it opencode loads any provider it finds, including one with an API key in an environment variable. Doctor says what to add.
+- `enabled_providers` lists a provider that is not approved, or `model`, `small_model` or an agent's `model` uses one.
+- A saved login or provider setting for an unapproved provider is not blocked by `enabled_providers` (when it is blocked, doctor only notes it).
+
+Doctor prints provider ids only, never keys, URLs or other values from those files. The check reads files; it cannot see providers a running opencode was started with by other means, so keep `enabled_providers` in the global config.
 
 ## Actions
 
@@ -57,6 +69,10 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `start.local` | yes | `title`, `lane`, optional `description`, `repro`, `project` | (new) | Work with no tracker item: writes `.work/L<n>-<name>/workitem.md` (same shape as eng-agents `New-LocalWorkItem.ps1`; numbers are never reused, see `.work/.local-ids`), then runs `/start L<n> <lane>` in a new session. With `project`, the project's instructions, repo and base branch go under "Extra context from the engineer" and the run joins the project. `{id, folder, session, project}`. |
 | `spike` | yes | `topic` | (new) | Runs `/spike <topic>` in a new session. Until its `spike-*` folder exists, the session is listed in `liveMode.live.others`. `{session}`. |
 | `pr.review` | yes | `url` (an ADO pull request link), optional `again` | (new) | Runs `/pr-review <link>` (eng-agents Core 2.6.0) in a new session: a first-pass review of a teammate's PR that writes draft comments to `.work/pr-<id>/review.md` and never posts. Listed in `liveMode.live.others` until its `pr-<id>` folder exists, so a failure before that (repo not cloned, ADO not set up) still shows. Refused while a review of the same PR is running. `again` reviews a commit that was already reviewed. `{session}`. The parser reads `pr-<id>` folders as `kind: "pr"` with `items[].prReview` (recommendation, risk, counts, comments, questions). |
+| `pr.reviewAll` | yes | `prs`: up to 25 of `{url, title?, commit?, waiting?}` | (new) | Queues the PRs for `/pr-review`, run one at a time, each in a new session (see PR review queue). Skips PRs you voted Waiting for author on, ones already queued, and ones whose review in `.work` is at `commit`. Adds to the end of a running queue. Empty `prs` resumes a paused or stopped queue. `{added: [ids], skipped: [{id, reason}]}`. |
+| `pr.queue.stop` | no | | (new) | Stops the queue after the review that is running; the rest are skipped. |
+| `pr.queue.clear` | no | | (new) | Forgets the last run's results. Refused (`conflict`) while the queue runs. |
+| `pr.inbox.save` | no | `prs`: up to 200, same shape | (new) | Remembers the PRs waiting on you for the nightly review. Dispatch calls it after each ADO `sync.prs`. `{ok, count}`. |
 | `repo.add` | yes | `url`, optional `about` | (new) | `git clone` into the workspace (no terminal prompts; credential helpers still work), then adds a row to the repo map (`AGENTS.md` in the workspace, created if missing). `{folder, repoMap: "created" | "added" | "listed"}`. |
 | `repo.guide` | yes | `repo` (a folder in the workspace) | (new) | Runs `/onboard-repo <repo>` in a new session, listed in `liveMode.live.others`. `{session}`. |
 | `session.dismiss` | no | `session` | (new) | Stops listing a spike or repo guide session in `others`. The opencode session is kept. |
@@ -90,6 +106,7 @@ The live server pushed the whole page model on its own event stream. Connector e
 | `autopilot` | `{folder, status, message}` | Autopilot started, resumed, waits for you, finished or stopped. |
 | `projects` | `{change}` (`create`, `update`, `delete`, `run`) | A project or a run's project changed. Call `state` for the data. |
 | `review` | `{id, folder, repo, status, revision}` | A code review got a verdict, or its revision run started, failed or finished. Call `review.session` for the data. |
+| `prQueue` | `{status, counts}` | The PR review queue changed. Call `state` for `liveMode.live.prQueue`. |
 
 ## Projects
 
@@ -100,6 +117,16 @@ Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/
 Project instructions reach the agent through `workitem.md` for runs started with `start.local`. Runs started from an ADO item (`start`) join the project, but `/start` writes their `workitem.md` itself, so the instructions are not added there yet. `model` and `agent` are stored for later; runs do not use them yet.
 
 Status `details`: `{workspace, opencode: {connected, kind, version, error}, parserError}`.
+
+## PR review queue
+
+*Review all* in Dispatch and the optional nightly review run Tandem's `/pr-review` (eng-agents Core 2.6.0) on several pull requests, one at a time, so they never compete for opencode or your git clones. The queue lives in the connector (`lib/review-queue.mjs`, wired by `lib/pr-queue.mjs`) and is saved in `.work/_dashboard/pr-queue.json`, so it keeps going with Dispatch closed. Like `pr.review`, it only drafts comments: nothing is posted to Azure DevOps.
+
+- A review is done when its session goes idle and `review.md` covers the commit `Get-PullRequest.ps1` fetched. It "needs you" when the reviewer stopped to ask something (for example which repo a PR is in), and failed when its session ended with an error or it could not start. None of these stop the queue.
+- opencode not connected: the queue pauses and *Resume* carries on. Workshop restarted mid-run: the queue pauses rather than start a review that may still be running in opencode; *Resume* counts a review that finished meanwhile and goes on.
+- Nightly: connectors do not call each other, so the opencode connector cannot ask Azure DevOps what is waiting on you. Dispatch saves the ADO connector's `sync.prs` list here each time it checks (`pr.inbox.save`), and at `prReviews.nightlyAt` the queue reviews that list. It runs once a day: if the computer was asleep at that time, it runs when Workshop next starts that day. A newly set time that has already passed today starts tomorrow. A list more than a week old is skipped with a message. PRs opened after Dispatch last checked wait until the next check.
+
+`liveMode.live.prQueue`: `{status, source, message, started, finished, counts: {queued, running, done, asking, failed, skipped}, items: [{id, url, title, state, message, session, startedAt, endedAt}], nightly: {at, last}, inbox: {at, count}}`. `status`: `idle`, `running`, `paused`, `stopped` or `done`. `source`: `manual` or `nightly`.
 
 ## Code review
 

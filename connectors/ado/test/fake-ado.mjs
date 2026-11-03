@@ -13,6 +13,12 @@
 //     pullRequests          {project: [pull request]}
 //     iterations            {project: node | {$status}}
 //     html                  [route substrings answered with a sign-in page]
+//     comments              {id: [comment]}  (work item comments, preview API)
+//     states                {type: [state]}  (work item type states)
+//     readOnly              true: every write answers 403, as a PAT with only Work Items (Read) does
+// Writes (Queue app): PATCH wit/workitems/<id> applies a JSON Patch to `workItems` (a failed `test` on /rev
+// answers 400 TF26071), POST <project>/_apis/wit/workitems/$<type> creates one, POST .../comments adds a comment.
+// Writes change the scenario in memory, so later reads see them.
 // "{{ADO}}" anywhere in the scenario becomes the server's URL.
 // Every request is recorded in `requests` as "METHOD path?sorted query body".
 import http from 'node:http';
@@ -49,6 +55,11 @@ export async function startFakeAdo(input) {
       };
       if (req.headers.authorization !== auth) return send(401, { message: 'TF400813: not authorized.' });
       try {
+        const write = ['PATCH', 'POST'].includes(req.method) && !/\/wit\/(wiql|workitemsbatch)$/i.test(u.pathname);
+        if (req.method === 'PATCH' && !String(req.headers['content-type'] || '').startsWith('application/json-patch+json')) {
+          return send(415, { message: 'Use application/json-patch+json.' });
+        }
+        if (write && writeDenied(u)) return send(403, { message: 'TF400813: The PAT does not have write access.' });
         const out = route(req.method, u, body);
         if (out && out.$html) return send(200, '<html><body>Sign in</body></html>', 'text/html; charset=utf-8');
         if (out && out.$status) return send(out.$status, { message: out.message || `Fake error ${out.$status}` });
@@ -58,6 +69,28 @@ export async function startFakeAdo(input) {
       }
     });
   });
+
+  function writeDenied(u) {
+    const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    return Boolean(scenario.collections?.[parts[0]]?.readOnly);
+  }
+
+  let nextId = 9000;
+  /** Applies JSON Patch "add" and "test" operations to a work item. Returns an error object or null. */
+  function applyPatch(w, ops) {
+    for (const op of ops || []) {
+      if (op.op === 'test' && op.path === '/rev' && Number(op.value) !== Number(w.rev)) {
+        return { $status: 400, message: `TF26071: This work item has been changed by someone else since you opened it. Rev ${w.rev}.` };
+      }
+    }
+    for (const op of ops || []) {
+      if (op.op === 'add' && op.path.startsWith('/fields/')) w.fields[op.path.slice(8)] = op.value;
+    }
+    w.rev = (w.rev || 0) + 1;
+    w.fields['System.Rev'] = w.rev;
+    w.fields['System.ChangedDate'] = '2026-10-15T12:00:00Z';
+    return null;
+  }
 
   function route(method, u, body) {
     const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
@@ -95,6 +128,11 @@ export async function startFakeAdo(input) {
       }
       m = /^wit\/workitems\/(\d+)$/.exec(path);
       if (method === 'GET' && m) return coll.workItems?.[m[1]] || { $status: 404, message: `TF401232: Work item ${m[1]} does not exist.` };
+      if (method === 'PATCH' && m) {
+        const w = coll.workItems?.[m[1]];
+        if (!w) return { $status: 404, message: `TF401232: Work item ${m[1]} does not exist.` };
+        return applyPatch(w, body) || w;
+      }
       m = /^projects\/(.+)\/teams$/.exec(rest.join('/'));
       if (method === 'GET' && m) {
         const t = coll.teams?.[m[1]];
@@ -105,6 +143,32 @@ export async function startFakeAdo(input) {
       return { $status: 404 };
     }
 
+    let wm = /^wit\/workitems\/(\d+)\/comments$/.exec(path);
+    if (wm) {
+      coll.comments ||= {};
+      const list = (coll.comments[wm[1]] ||= []);
+      if (method === 'GET') return { totalCount: list.length, count: list.length, comments: list };
+      if (method === 'POST') {
+        const c = { id: list.length + 1, workItemId: Number(wm[1]), text: body.text, createdBy: { displayName: 'Engineer A', uniqueName: 'engineer.a@example.com' }, createdDate: '2026-10-15T12:00:00Z', modifiedDate: '2026-10-15T12:00:00Z' };
+        list.push(c);
+        return c;
+      }
+    }
+    wm = /^wit\/workitemtypes\/(.+)\/states$/.exec(rest.join('/'));
+    if (method === 'GET' && wm) {
+      const list = coll.states?.[wm[1]];
+      return list ? { count: list.length, value: list } : { $status: 404, message: 'TF51535: Unknown work item type.' };
+    }
+    wm = /^wit\/workitems\/\$(.+)$/.exec(rest.join('/'));
+    if (method === 'POST' && wm) {
+      if (!coll.states?.[wm[1]]) return { $status: 404, message: 'TF51535: Unknown work item type.' };
+      const id = nextId++;
+      const w = { id, rev: 0, fields: { 'System.Id': id, 'System.TeamProject': project, 'System.WorkItemType': wm[1], 'System.State': coll.states[wm[1]][0].name, 'System.CreatedDate': '2026-10-15T12:00:00Z' }, url: `${u.origin}/wit/workItems/${id}` };
+      applyPatch(w, body);
+      coll.workItems ||= {};
+      coll.workItems[id] = w;
+      return w;
+    }
     if (method === 'GET' && path === 'git/pullrequests') {
       const rid = q.get('searchCriteria.reviewerId');
       const status = q.get('searchCriteria.status');

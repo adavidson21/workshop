@@ -49,6 +49,10 @@ function sides(label, h, c, compare) {
   return compare(h.ok, c.ok);
 }
 
+// Fields the connector adds that the helper never returned: commit (the PR's source commit, used by
+// Dispatch's Review all).
+const PR_EXTRAS = ['commit'];
+
 export function compareSync(h, c) {
   return sides('Sync', h, c, (a, b) => {
     const lines = [];
@@ -57,8 +61,8 @@ export function compareSync(h, c) {
     add('Work items', compareLists(a.items, b.items, x => x.id));
     add('Gone work items', compareLists(a.gone, b.gone, x => x.id));
     if (a.prs && b.prs) {
-      add('PRs', compareLists(a.prs.items, b.prs.items, x => x.key));
-      add('Gone PRs', compareLists(a.prs.gone, b.prs.gone, x => x.key));
+      add('PRs', compareLists(a.prs.items, b.prs.items, x => x.key, PR_EXTRAS));
+      add('Gone PRs', compareLists(a.prs.gone, b.prs.gone, x => x.key, PR_EXTRAS));
       const hn = (a.prs.notes || []).length;
       const cn = (b.prs.notes || []).length;
       lines.push(`PR notes: ${hn} from helper, ${cn} from connector`);

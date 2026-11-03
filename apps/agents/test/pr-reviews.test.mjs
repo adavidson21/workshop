@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
 import { render } from '../js/view.js';
 import { sidebarHtml, inScope } from '../js/sidebar.js';
-import { reviewItems, reviewsHtml, reviewCard, reviewUrlCheck, startingReviews, toReviewCount } from '../js/pr-reviews.js';
+import { reviewItems, reviewsHtml, reviewCard, reviewUrlCheck, startingReviews, toReviewCount, reviewAllList, prArg, queueHtml } from '../js/pr-reviews.js';
 import { emptyLocal } from '../js/local.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -160,4 +160,74 @@ test('the paste box checks the link before asking the agent', () => {
   assert.match(reviewUrlCheck('https://github.com/o/r/pull/3').error, /pullrequest/);
   S.ui.prReview = { busy: false, error: 'That is not a link.' };
   assert.match(reviewsHtml(), /<p class="err">That is not a link\.<\/p>/);
+});
+
+const QUEUE = (over = {}) => ({
+  status: 'running', source: 'manual', message: null, started: '2026-10-21T11:59:00Z', finished: null,
+  counts: { queued: 1, running: 1, done: 1, asking: 0, failed: 0, skipped: 0 },
+  items: [
+    { id: '812', url: LINK, title: 'Add discount to cart total', state: 'done', message: null },
+    { id: '900', url: INBOX_OK.items[1].url, title: 'Retry <webhooks>', state: 'running', message: null, session: 'ses_q1' },
+    { id: '905', url: 'https://ado.example.test/tfs/Coll/Shop/_git/hooks/pullrequest/905', title: 'Later', state: 'queued', message: null }
+  ],
+  nightly: { at: null, last: null }, inbox: null, ...over
+});
+
+test('Review all lists inbox PRs not waiting on the author, not reviewed at their latest commit, and not queued', () => {
+  // 812 is reviewed at 4b16cac; with no commit from ADO, the review's own commit decides.
+  assert.deepEqual(reviewAllList().map(p => p.id), [900]);
+  S.inbox.items[0].commit = 'ffffffffffffffffffffffffffffffffffffffff'; // new commits since the review
+  assert.deepEqual(reviewAllList().map(p => p.id), [812, 900]);
+  S.L.prQueue = QUEUE();
+  assert.deepEqual(reviewAllList().map(p => p.id), [812], '900 is already running in the queue');
+  const html = reviewsHtml();
+  assert.match(html, /data-rv-all="1"[^>]*>Review all 1</);
+  assert.match(html, /Queued|Reviewing/);
+  S.inbox.items[0].commit = '4b16cacb238ad944fc6f56fb40447dc4a6aff3fa';
+  assert.doesNotMatch(reviewsHtml(), /data-rv-all/, 'nothing to queue: no button');
+});
+
+test('prArg sends only the fields pr.reviewAll accepts', () => {
+  assert.deepEqual(prArg({ ...INBOX_OK.items[2], commit: null }), { url: INBOX_OK.items[2].url, title: 'Old one', waiting: true });
+  assert.deepEqual(prArg({ url: LINK, title: 'T', commit: 'abc1234', tier: 'pool', via: ['x'] }), { url: LINK, title: 'T', commit: 'abc1234' });
+});
+
+test('the queue panel: progress, current PR, Stop, and escaped titles; finished runs offer Dismiss', () => {
+  S.L.prQueue = QUEUE();
+  let html = queueHtml();
+  assert.match(html, /Review all: 2 of 3/);
+  assert.match(html, /!900 Retry &lt;webhooks&gt;/);
+  assert.match(html, /data-rv-q="stop"/);
+  assert.doesNotMatch(html, /data-rv-q="clear"/);
+  assert.match(html, /href="#item-pr-812"/, 'a reviewed PR jumps to its card');
+  assert.match(reviewsHtml(), /class="rv-queue"/);
+
+  S.L.prQueue = QUEUE({ status: 'done', source: 'nightly', finished: '2026-10-21T07:10:00Z', counts: { done: 2, asking: 1, failed: 0, skipped: 0, queued: 0, running: 0 },
+    items: [{ id: '812', url: LINK, state: 'done' }, { id: '905', url: LINK, state: 'asking', message: 'The reviewer is asking you something.' }] });
+  html = queueHtml();
+  assert.match(html, /Nightly review finished/);
+  assert.match(html, /2 reviewed/);
+  assert.match(html, /1 need you/);
+  assert.match(html, /The reviewer is asking you something/);
+  assert.match(html, /data-rv-q="clear"/);
+  assert.doesNotMatch(html, /data-rv-q="stop"/);
+
+  S.L.prQueue = QUEUE({ status: 'paused', message: 'Workshop restarted the opencode connector. Resume to carry on.' });
+  html = queueHtml();
+  assert.match(html, /is paused/);
+  assert.match(html, /data-rv-q="resume"/);
+
+  S.L.prQueue = QUEUE({ status: 'idle', items: [], counts: {} });
+  assert.equal(queueHtml(), '');
+  S.L.prQueue = null;
+  assert.equal(queueHtml(), '');
+});
+
+test('the nightly line: how to turn it on, or when it runs', () => {
+  S.L.prQueue = QUEUE({ status: 'idle', items: [], counts: {} });
+  assert.match(reviewsHtml(), /Set a nightly review time in <button[^>]*data-cfg-open="1"/);
+  S.L.prQueue.nightly = { at: '02:00', last: '2026-10-21' };
+  const html = reviewsHtml();
+  assert.match(html, /Nightly review at <strong>02:00<\/strong>/);
+  assert.match(html, /Last ran 2026-10-21/);
 });
