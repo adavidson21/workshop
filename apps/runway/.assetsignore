@@ -1,0 +1,12 @@
+# Not part of the website (wrangler.jsonc serves this repo's root as static assets).
+.git
+.github
+.wrangler
+node_modules
+wrangler.jsonc
+.assetsignore
+scripts
+test
+workshop-files.json
+README.md
+schemas

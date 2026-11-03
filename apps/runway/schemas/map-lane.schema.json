@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runway: a lane (an item of runway.maps/<id> v1 with kind lane)",
+  "type": "object",
+  "required": ["id", "kind", "title", "order"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "kind": {"const": "lane"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 80},
+    "order": {"type": "number"}
+  }
+}

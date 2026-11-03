@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runway: one roadmap in the list (an item of runway.index v1)",
+  "type": "object",
+  "required": ["id", "title"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$", "description": "Also the collection name maps/<id>."},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "title": {"type": "string", "minLength": 1, "maxLength": 120}
+  }
+}
