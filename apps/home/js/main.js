@@ -1,5 +1,6 @@
 /* Home: a summary of your day across Workshop, opened by the Workshop logo (app.json home: true).
-   Reads Prioritizer's board and the opencode connector read-only through the SDK, and keeps one small
+   Reads Prioritizer's board, the Queue app's last copy of the team's ADO items, and the opencode connector
+   read-only through the SDK, and keeps one small
    collection of its own: profile (home.profile v1, no items; meta: {name, role}). data.js loads and saves,
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
@@ -33,6 +34,8 @@ const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
 ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
+const queueLater = later(home.loadQueue, 200);
+for (const c of ['settings', 'snapshot', 'seen']) ws.data.subscribe(c, queueLater, { app: 'queue' });
 
 /* ---------- input ---------- */
 app.addEventListener('click', e => {
@@ -40,7 +43,7 @@ app.addEventListener('click', e => {
   const task = t.closest('[data-task]');
   if (task) { ws.open({ app: 'prioritizer', path: 'task/' + task.dataset.task }); return; }
   const open = t.closest('[data-open]');
-  if (open) { ws.open({ app: open.dataset.open }); return; }
+  if (open) { ws.open(open.dataset.path ? { app: open.dataset.open, path: open.dataset.path } : { app: open.dataset.open }); return; }
   if (t.closest('[data-edit-profile]')) { if (!home.waiting) { editing = true; paint(); } return; }
   if (t.closest('[data-cancel]')) { editing = false; paint(); }
 });
@@ -58,7 +61,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && editing) {
 
 // Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
 // "overdue" change at midnight; the counts change when you work in other apps).
-const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); } };
+const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); home.loadQueue(); } };
 ws.on('visible', p => { visible = !!p.visible; refresh(); });
 setInterval(refresh, 60000);
 

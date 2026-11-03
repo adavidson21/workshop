@@ -48,6 +48,32 @@ export function summarize({ tasks = [], lists = [], people = [] }, today) {
   };
 }
 
+/* From the Queue app's collections (queue.settings, queue.snapshot, queue.seen, all version 1; see
+   apps/queue/README.md): items nobody owns, stale items, and items assigned to you that changed in ADO since
+   you last opened them. null until the queue has area paths, so Home shows no card for an unused Queue.
+   Mirrors isMine and isStale in apps/queue/js/model.js. */
+export const QUEUE_VERSION = 1;
+export function queueSummary({ settings, snapshot, seen }, now) {
+  const ok = e => e && e.version === QUEUE_VERSION;
+  const m = ok(settings) && settings.meta || {};
+  if (!Array.isArray(m.areas) || !m.areas.length) return null;
+  const items = ok(snapshot) && Array.isArray(snapshot.items) ? snapshot.items : [];
+  const sm = ok(snapshot) && snapshot.meta || {};
+  const meEmail = String(m.meEmail || (sm.me && sm.me.email) || '').toLowerCase();
+  const meName = m.meEmail ? '' : String((sm.me && sm.me.name) || '');
+  const revs = new Map((ok(seen) && Array.isArray(seen.items) ? seen.items : []).map(x => [String(x.id), Number(x.rev) || 0]));
+  const staleDays = Number.isInteger(m.staleDays) && m.staleDays >= 1 && m.staleDays <= 90 ? m.staleDays : 7;
+  const mine = i => i.assignee && ((meEmail && String(i.assignee.email || '').toLowerCase() === meEmail) || (!meEmail && meName && i.assignee.name === meName));
+  const stale = i => { const t = Date.parse(i.changed || ''); return Number.isFinite(t) && Math.floor((now - t) / 864e5) >= staleDays; };
+  return {
+    fetchedAt: sm.fetchedAt || null,
+    total: items.length,
+    unassigned: items.filter(i => !i.assignee).length,
+    stale: items.filter(stale).length,
+    changedMine: items.filter(i => mine(i) && revs.has(String(i.id)) && revs.get(String(i.id)) < i.rev).length
+  };
+}
+
 /* From the opencode connector's `state` result: prompts waiting for you, and sessions working. */
 export function agentCounts(state) {
   const live = state && state.liveMode && state.liveMode.live;
@@ -92,12 +118,12 @@ export function render(v) {
   if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
-    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
+    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + queueCard(v.queue) + agentsCard(v.agents);
   }
   const b = v.board;
   if (!b.total) {
     return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + queueCard(v.queue) + agentsCard(v.agents);
   }
 
   const tiles = `<section class="tiles" aria-label="Today at a glance">
@@ -122,7 +148,7 @@ export function render(v) {
       : `<p class="soft">Add people in Docket to see who has what.</p>`}
   </section>`;
 
-  return head + tiles + `<div class="cols">${next}<div class="stack">${team}${agentsCard(v.agents)}</div></div>`;
+  return head + tiles + `<div class="cols">${next}<div class="stack">${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
@@ -132,6 +158,18 @@ export function waitingCard(embedded) {
       : 'Open Workshop and click <b>Allow</b> in the bar at the top. Chrome asks again after it restarts.'}</p>
     <p>Your data is safe in the folder. It appears here once Workshop may use the folder.</p>
     ${embedded ? '' : '<p><button class="btn primary" data-open="home">Open Workshop</button></p>'}</section>`;
+}
+
+/* The Queue card: read-only counts from the queue's last refresh. Clicking opens the Queue. */
+export function queueCard(q) {
+  if (!q) return '';
+  const body = q.fetchedAt
+    ? `<div class="pair three">
+      <button class="stat${q.unassigned ? ' warn' : ''}" data-open="queue"><span class="n num">${q.unassigned}</span><span class="lbl">Unassigned</span></button>
+      <button class="stat" data-open="queue"><span class="n num">${q.stale}</span><span class="lbl">Stale</span></button>
+      <button class="stat${q.changedMine ? ' warn' : ''}" data-open="queue"><span class="n num">${q.changedMine}</span><span class="lbl">Yours, changed</span></button></div>`
+    : '<p class="soft">Open the Queue to load your team\'s items.</p>';
+  return `<section class="card"><div class="ch"><h2>Queue</h2><button class="lnk" data-open="queue">Open</button></div>${body}</section>`;
 }
 
 function agentsCard(a) {
