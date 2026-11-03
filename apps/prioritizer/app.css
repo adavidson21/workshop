@@ -97,7 +97,7 @@ body.standalone>.app{flex:1;min-height:0;height:auto}
 .row:focus-visible,.row.sel{background:var(--surface);box-shadow:inset 0 0 0 2px var(--accent)}
 .row.dragging{opacity:.35}
 .row .rank{font-family:var(--serif);font-variant-numeric:lining-nums tabular-nums;font-size:1rem;font-weight:500;color:var(--muted);width:1.6rem;text-align:right;flex:none}
-.row .title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;font-size:.95rem;transition:color .2s}
+.row .title{flex:1;min-width:min(7rem,35%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;font-size:.95rem;transition:color .2s}
 .row.top .title{font-family:var(--serif);font-size:1.18rem;font-weight:600;font-variation-settings:"opsz" 32;letter-spacing:-.01em}
 .row.top{min-height:3rem}
 .row.done .title{text-decoration:line-through;color:var(--muted);font-weight:400}
@@ -674,6 +674,8 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 /* ---------- focus: the now bar, Start on rows, breadcrumbs, wrap up (focus.js) ---------- */
 .nowbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.5rem 1rem;margin:0 var(--gutter) 1rem;padding:.5rem .55rem .5rem .8rem;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:2px var(--r-sm) var(--r-sm) 2px;font-size:.86rem}
 .nowbar[hidden]{display:none}
+.nowbar.idle{border-left-color:var(--line);background:transparent}
+.nowbar.idle .ntitle{font-weight:500}
 .nowbar .nmain{min-width:0}
 .nowbar .nline{display:flex;align-items:center;gap:.5rem;min-width:0}
 .nowbar .nlabel{flex:none;font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}

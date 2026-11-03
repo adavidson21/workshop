@@ -45,7 +45,7 @@ function setStatus(s){
   b.dataset.sync = s.state === 'saved' ? 'on' : s.state === 'saving' ? 'saving' : 'error';
   b.dataset.tip = s.state === 'error' ? (s.retry === false ? 'Not saving. Click for details.' : 'Not saved yet. Retrying. Click for details.')
     : s.state === 'readonly' ? 'Read only: saved by a newer Workshop'
-    : `Saved ${where()}. Download, back up or import.`;
+    : `Saved ${where()}. Backups and imports.`;
   b.setAttribute('aria-label', s.state === 'error' ? 'Files: not saved yet' : 'Files and saving');
   if (tipFor === b) placeTip(b);
   if (s.state === 'error' && was !== 'error' && s.retry !== false) toast('Changes are not saved yet. Retrying.');
@@ -175,7 +175,7 @@ async function importBackup(file){
   await store.idle();
   if (store.isNew){ await store.seed(envs); await importDay(bundle); render(); toast(`Imported ${plural(n, 'task')}`); return; }
   showModal(`<div class="sheet small" role="dialog" aria-modal="true" aria-label="Import a backup"><h3>Import ${plural(n, 'task')}</h3>
-    <p>The backup is merged into your board. Where both have the same task, the one changed last is kept. Nothing is lost.</p>
+    <p>The backup is merged into your board. Where both have the same task, the one changed last is kept.</p>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-merge>Merge</button></footer></div>`,
     s => s.addEventListener('click', async e => {
       if (!e.target.closest('[data-merge]')) return;

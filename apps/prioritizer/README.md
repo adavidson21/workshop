@@ -42,7 +42,7 @@ The **Lists** in the sidebar (All lists, a list, or a section) filter every view
 
 ## Day: time blocks by sprint day
 
-Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot real tasks into them. Open **Day** in the sidebar (shortcut `6`).
+Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot real tasks into them. Open **Day** in the sidebar (shortcut `2`).
 
 **Sprint (once):** the first time, Day asks for the start date of any sprint, past or future, and the length (2 weeks by default). Sprints repeat from that date, so "every other Wednesday" is a start date on a Wednesday. The gear button has the rest: workdays (Monday to Friday by default), holidays, and a rough day start and end.
 
@@ -97,7 +97,7 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 
-`1` to `6` switch views (Day is `6`), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
+`1` to `6` switch views in sidebar order (Today, Day, Triage, Prioritize, People, Reports), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
 
 ## Themes
 

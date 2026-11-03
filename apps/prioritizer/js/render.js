@@ -58,7 +58,7 @@ function renderWaiting(){
     + (embedded ? 'Click <span class="kbdlike">Allow</span> in the bar at the top of Workshop. Chrome asks again after it restarts.'
       : 'Open Workshop and click <span class="kbdlike">Allow</span> in the bar at the top. Chrome asks again after it restarts.'
         + '<div class="acts"><button class="btn primary" data-open-workshop>Open Workshop</button></div>')
-    + '<p class="sub">Your board is safe in the folder. It appears here, ready to edit, once Workshop may use the folder.</p></div>';
+    + '</div>';
   const open = $('#main [data-open-workshop]');
   if (open) open.addEventListener('click', () => { if (ws) ws.open({app: 'prioritizer'}); });
 }
@@ -98,7 +98,7 @@ function renderHead(){
   let sub = esc(scopeName()), tools = '';
   if (v === 'today'){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
-    tools = `<button class="btn" data-shutdown data-tip="Wrap up the day: breadcrumbs and tomorrow's top 3">Wrap up</button>`;
+    tools = `<button class="btn" data-view="day" data-tip="Time blocks for today. Shortcut: 2">Plan day</button><button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>`;
   }
   if (nav === 'prio'){
     const open = scopeOpen().length;
@@ -162,7 +162,7 @@ function row(t, o = {}){
 }
 const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="donegrp" id="doneGrp"${doneOpen ? ' open' : ''}><summary>${ICON.tri}${label} <span class="num">${ts.length}</span></summary>
   <div class="rows">${ts.map(t => row(t, {compact: true})).join('')}</div></details>` : '';
-const emptyHTML = `<div class="empty"><b>A clean slate.</b>${TOUCH ? 'Tap + to add your first task.' : 'Press N to add your first task.'} It shows up in every view.<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div></div>`;
+const emptyHTML = `<div class="empty"><b>No tasks yet.</b>${TOUCH ? 'Tap + to add one.' : 'Press N to add one.'}<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div></div>`;
 
 /* capacity: line goes after the last task that fits (Build spec: Capacity line) */
 function capacityCut(open){

@@ -45,12 +45,16 @@ ready.then(ws => {
     if (d){ setView('day'); setDate(!d[1] || d[1] === 'today' ? todayStr() : d[1]); }
     // #/prioritizer/shutdown: wrap up the day (Workshop Home's Wrap up card links here).
     if (path === 'shutdown') openShutdown();
+    // #/prioritizer/<view>: Workshop Home's tiles and the palette open a view directly.
+    const V = {today: 'today', triage: 'triage', prioritize: null, list: 'rank', eisenhower: 'eisen', 'value-effort': 've', done: 'archive', people: 'people', reports: 'reports'};
+    if (Object.hasOwn(V, path)) setView(V[path] || state.lens);
   }));
   ws.on('command', ({id}) => {
     if (id === 'add-task') openCmd();
     if (id === 'sync-ado') adoSync(true);
     if (id === 'shortcuts') showHelp();
     if (id === 'shutdown-day') loaded.then(openShutdown);
+    if (id === 'start-next') loaded.then(startNext);
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));

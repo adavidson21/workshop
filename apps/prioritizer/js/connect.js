@@ -24,9 +24,9 @@ export function connectAction(name){
 
 function askPair(){
   showModal(`<form class="sheet small" role="dialog" aria-modal="true" aria-label="Use Workshop on this computer"><h3>Use Workshop on this computer</h3>
-    <p>${esc(PAIR_HELP)} Your board in this browser stays here; to bring it along, download a backup first, then import it once connected.</p>
+    <p>${esc(PAIR_HELP)} Your board in this browser stays here. To bring it along, download a backup first and import it once connected.</p>
     <label style="display:grid;gap:.35rem;font-size:.85rem;color:var(--muted)">Port <input type="number" min="1024" max="65535" value="4380" required aria-label="Port"></label>
-    <footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Continue</button></footer></form>`,
+    <footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Connect</button></footer></form>`,
     f => {
       const i = f.querySelector('input'); i.focus(); i.select();
       f.addEventListener('submit', e => {

@@ -54,7 +54,7 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Triage, Prioritize, People, Reports, Day')}
+      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Day, Triage, Prioritize, People, Reports')}
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
@@ -161,7 +161,7 @@ function suggestPreview(){
   const pos = new Map(open.map((t, i) => [t.id, i]));
   const moved = next.filter((t, i) => pos.get(t.id) !== i).length;
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Suggested order"><h3>Suggested order</h3>
-    <p>${moved ? `By score, highest first. ${plural(moved, 'task')} would move.` : 'Your order already matches the scores.'} Untriaged tasks stay at the bottom in their current order.</p>
+    <p>${moved ? `By score, highest first. ${plural(moved, 'task')} would move.` : 'Your order already matches the scores.'} Untriaged tasks stay at the bottom.</p>
     <div class="plist">${next.map((t, i) => {
       const d = pos.get(t.id) - i;
       return `<div><span class="num" style="width:1.6rem;text-align:right;color:var(--muted)">${i + 1}</span><span class="t">${esc(t.title)}</span><span class="num" style="color:var(--muted)">${fmtScore(score(t)) || 'no est.'}</span><span class="mv${d > 0 ? ' up' : ''}">${d > 0 ? `up ${d}` : d < 0 ? `down ${-d}` : 'same'}</span></div>`;

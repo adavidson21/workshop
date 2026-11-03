@@ -74,7 +74,7 @@ function adoReview(){
       ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">Open</a>` : ''}</li>`;
   const sorted = [...P].sort((a, b) => (a.priority || 9) - (b.priority || 9) || (a.due || '9').localeCompare(b.due || '9') || b.id - a.id);
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="New ADO work items"><h3>New ADO work items</h3>
-    <p class="hint">Assigned to you and not on your board yet. Checked items become tasks. Skipped items won't be offered again.</p>
+    <p class="hint">Assigned to you, not on your board yet. Skipped items won't come back.</p>
     <div class="drow" style="margin-top:.5rem;gap:.8rem"><button class="lnk" data-all="1">Check all</button><button class="lnk" data-all="0">Uncheck all</button></div>
     <ul class="pick">${sorted.map(item).join('')}</ul>
     <footer><button class="btn" data-skip>Skip unchecked</button><span class="grow"></span><button class="btn" data-close>Later</button><button class="btn primary" data-add>Add checked</button></footer></div>`,
@@ -284,15 +284,15 @@ async function adoSetup(){
       <td><select data-tier-value="${k}" aria-label="${d.label}: starting value">${valueOpts(t.value)}</select></td>
       <td><label class="chk"><input type="checkbox" data-tier-urgent="${k}"${t.urgent ? ' checked' : ''}> Urgent</label></td></tr>`; }).join('');
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Connect Azure DevOps"><h3>Connect Azure DevOps</h3>
-    <p>Your Issues, Bugs and User Stories, plus pull requests waiting on your review, show up as tasks in an <b>ADO</b> list. New work items wait for you to pick them, unless you choose to add them automatically below. ${viaConnector
-      ? 'Workshop on this computer talks to ADO with your PAT, so the PAT never touches this page. Its connections are in <b>Settings</b>.'
-      : 'A small helper on this computer talks to ADO with your PAT, so the PAT never touches this page or leaves your computer.'}</p>
+    <p>Work items assigned to you and PRs waiting on your review become tasks in an <b>ADO</b> list. ${viaConnector
+      ? 'Sync runs through Workshop\'s ADO connector. Its connection and PAT are in Workshop <b>Settings</b>.'
+      : 'Sync runs through <code>ado_helper.py</code> on this computer. Your PAT stays in an environment variable and never reaches this page.'}</p>
     ${viaConnector ? '' : `<ol class="steps">
-      <li>Download <a class="lnk" href="ado-helper/ado_helper.py" download>ado_helper.py</a> to a folder you keep, like Documents.</li>
-      <li>In that folder, run <code>py ado_helper.py</code>. The first time, it asks for your ADO collection URL and the name of the environment variable holding your PAT.</li>
-      <li>For pull requests, run <code>py ado_helper.py --add-pr-source</code> and enter each collection and project to watch. Your PAT also needs Code (Read).</li>
-      <li>Leave it running, or run <code>py ado_helper.py --startup</code> once so it starts when you log in.</li>
-      <li>Click Connect. If the browser asks to allow access to apps on this device, choose Allow.</li>
+      <li>Download <a class="lnk" href="ado-helper/ado_helper.py" download>ado_helper.py</a> to a folder you keep.</li>
+      <li>In that folder, run <code>py ado_helper.py</code>. The first run asks for your collection URL and the environment variable that holds your PAT.</li>
+      <li>For PRs, run <code>py ado_helper.py --add-pr-source</code> for each collection and project. The PAT also needs Code (Read).</li>
+      <li>Leave it running, or run <code>py ado_helper.py --startup</code> once to start it at Windows login.</li>
+      <li>Click Connect. If the browser asks about apps on this device, choose Allow.</li>
     </ol>
     <div class="fld"><label for="adoPort">Helper port</label><input type="number" id="adoPort" class="mono" min="1024" max="65535" value="${ui.ado.port}"></div>`}
     <div class="opts" role="radiogroup" aria-label="New work items"><span class="lbl">New work items assigned to you</span>
@@ -303,7 +303,7 @@ async function adoSetup(){
     <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${ui.ado.on && ui.ado.error ? esc(ui.ado.error) : ''}</p>
     <footer>${ui.ado.on ? '<button class="btn text-danger" data-ado-off>Disconnect</button>' : ''}<span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-ado-go>${ui.ado.on ? 'Save' : 'Connect'}</button></footer></div>`,
     sh => sh.addEventListener('click', async e => {
-      if (e.target.closest('[data-ado-off]')){ ui.ado.on = false; ui.ado.error = ''; saveUi(); adoSchedule(); setAdo(); closeModal(); toast('ADO disconnected. Synced tasks stay in your board.'); return; }
+      if (e.target.closest('[data-ado-off]')){ ui.ado.on = false; ui.ado.error = ''; saveUi(); adoSchedule(); setAdo(); closeModal(); toast('ADO disconnected. Synced tasks stay on your board.'); return; }
       const go = e.target.closest('[data-ado-go]'); if (!go) return;
       const msg = sh.querySelector('#adoMsg');
       const portEl = sh.querySelector('#adoPort'), port = portEl ? Math.round(+portEl.value) : ui.ado.port;
