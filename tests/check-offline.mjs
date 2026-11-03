@@ -37,8 +37,12 @@ const registry = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'registry.js
 const pages = [{ page: 'index.html', owned: null }];
 for (const a of registry.apps) {
   const base = a.base.replace(/^\//, '');
-  const m = a.manifest;
-  if (remote.includes(m.id) && !fs.existsSync(path.join(root, '.remote', m.id))) { skipped.push(m.id); continue; }
+  let m = a.manifest;
+  if (remote.includes(m.id)) {
+    if (!fs.existsSync(path.join(root, '.remote', m.id))) { skipped.push(m.id); continue; }
+    // The Worker serves the app's live app.json (worker/index.js), so check against the checkout's, not the snapshot.
+    m = JSON.parse(fs.readFileSync(path.join(root, '.remote', m.id, 'app.json'), 'utf8'));
+  }
   const owned = new Set([base + (m.entry || 'index.html'), base + (m.icon || 'icon.svg'), ...(m.files || []).map(f => base + f)]);
   for (const f of owned) if (!fs.existsSync(abs(f))) errors.push(`${base}app.json lists ${f.slice(base.length)}, which does not exist.`);
   pages.push({ page: base + (m.entry || 'index.html'), base, owned, id: m.id });

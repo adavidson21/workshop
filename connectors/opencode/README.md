@@ -167,7 +167,7 @@ Request changes saves the feedback, sets the review to `revising`, and sends one
 
 ## Known quirks kept for parity
 
-- The parser reads a published TSD's `Status:` line as `UNKNOWN` (`docs/work-format.md`, Known quirks). Fixed in eng-agents in WS8.
+- The parser reads a published TSD's `Status:` line's gate value as `UNKNOWN` (`docs/work-format.md`, Known quirks), but since eng-agents Dashboard 1.7.1 the TSD's state is Published. `parser/New-Dashboard.ps1` carries the same fix; `test/parser.test.mjs` checks it.
 - `/do-task` and `/check-docs` always run in a new session.
 
 ## Tests

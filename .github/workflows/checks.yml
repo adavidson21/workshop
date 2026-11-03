@@ -51,6 +51,21 @@ jobs:
         with: { repository: adavidson21/docket, path: .remote/prioritizer }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      # The one-line installer runs in Windows PowerShell 5.1 (irm ... | iex), so parse it with that.
+      - name: Installer scripts parse in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in @('scripts\bootstrap.ps1', 'scripts\install.ps1')) {
+            $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errs)
+            foreach ($e in $errs) { Write-Host "${f}:$($e.Extent.StartLineNumber): $($e.Message)"; $bad++ }
+          }
+          if ($bad) { exit 1 } else { Write-Host 'Installer scripts parse.' }
+      - name: Installer script parses in bash
+        if: runner.os != 'Windows'
+        run: bash -n scripts/bootstrap.sh && bash -n scripts/install.sh
       - name: Agent tests
         run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./agent/test/github-reporter.mjs --test-reporter-destination=stdout "agent/test/*.test.mjs"
       - name: Contract suite against the real agent

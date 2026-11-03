@@ -82,7 +82,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
-| | Renamed to Workshop; `sync-themes.mjs` reads from there. | | **WS8**: eng-agents is frozen until then, so WS6 could not delete `sync-themes.mjs`. The Agents app does not need it. |
+| | Renamed to Workshop; `sync-themes.mjs` reads from there. | | **Done in WS8** (eng-agents Dashboard 1.7.1): `sync-themes.mjs` removed; the static dashboard keeps its own themes. The Agents app does not need it. |
 
 ## Also from 1.1.0, still in use
 
