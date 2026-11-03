@@ -238,6 +238,12 @@ def browser_mode_checks(ctx, pg, frame, watch):
           const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.relation, p.team, p.adoIdentity])]; }""")
         check('Settings People: saved as settings.people v1, readable by other apps', stored == ['settings.people', 1, [['self', True, ''], ['report', True, 'dev.one@example.com'], ['manager', False, '']]])
         rp.close()
+        # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
+        pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
+        rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+        check('Receipts lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
+              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
+        pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(800)
 
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
     b2 = ctx.new_page(); watch(b2); b2.goto(HUB + '/apps/settings/'); b2.wait_for_timeout(500)

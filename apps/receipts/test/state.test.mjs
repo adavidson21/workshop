@@ -144,3 +144,30 @@ test('offers from 1:1s: about a report in your list becomes a receipt about them
   assert.equal(R.offerAbout(null, ['p_r1']), 'me');
   assert.deepEqual(R.pendingOffers('oneonones', { ...env, version: 2 }, [], ['p_r1']), [], 'unknown version: unreadable');
 });
+
+/* ---------- Workshop's people directory (docs/people.md in workshop) ---------- */
+const dirEnv = items => ({ schema: 'settings.people', version: 1, rev: 2, items, deleted: {} });
+
+test('readDirectory: missing, other schema or unknown version means use our own people', () => {
+  assert.equal(R.readDirectory(null), null);
+  assert.equal(R.readDirectory({ ...dirEnv([]), version: 2 }), null);
+  assert.equal(R.readDirectory({ ...dirEnv([]), schema: 'receipts.people' }), null);
+  assert.deepEqual(R.readDirectory(dirEnv([])), { all: [], reports: [], manager: '' });
+});
+
+test('readDirectory: reports keep their ids, the active manager names Upward', () => {
+  const d = R.readDirectory(dirEnv([
+    { id: 'p_me', updatedAt: 1, name: 'Me', relation: 'self' },
+    { id: 'p_r1', updatedAt: 1, name: 'Person One', relation: 'report', role: 'Engineer', since: '2025-03-01', adoIdentity: 'x@example.com' },
+    { id: 'p_r2', updatedAt: 1, name: 'Person Two', relation: 'report', archived: true },
+    { id: 'p_old', updatedAt: 1, name: 'Old Boss', relation: 'manager', archived: true },
+    { id: 'p_boss', updatedAt: 1, name: 'Boss Person', relation: 'manager' },
+    { id: 'p_peer', updatedAt: 1, name: 'Peer', relation: 'peer' },
+  ]));
+  assert.deepEqual(d.reports.map(p => [p.id, p.name, p.role, p.since, p.archived]), [['p_r1', 'Person One', 'Engineer', '2025-03-01', false], ['p_r2', 'Person Two', '', '', true]]);
+  assert.equal(d.manager, 'Boss Person');
+  assert.equal(d.all.length, 6);
+  // The roster works on directory reports exactly as on Receipts' own people.
+  const rows = R.rosterRows(d.reports, [{ ...R.blankEntry('p_r1', R.DEFAULT_CONFIG), id: 'e1', text: 'x', date: R.today() }], { key: 'all' }, R.DEFAULT_CONFIG);
+  assert.deepEqual(rows.map(r => r.person.id), ['p_r1']);
+});
