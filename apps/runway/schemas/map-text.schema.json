@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runway: an outline line that is not an item (an item of runway.maps/<id> v1 with kind text)",
+  "description": "Kept so the outline never drops a line it could not read.",
+  "type": "object",
+  "required": ["id", "kind", "lane", "order", "raw"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "kind": {"const": "text"},
+    "lane": {"anyOf": [{"type": "null"}, {"type": "string"}]},
+    "order": {"type": "number"},
+    "raw": {"type": "string"}
+  }
+}
