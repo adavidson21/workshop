@@ -96,7 +96,8 @@ export function header(state) {
       <div class="seg" role="group" aria-label="View">
         ${['edit', 'split', 'preview'].map(m => `<button data-mode="${m}" aria-pressed="${ui.mode === m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}
       </div>
-      <button class="btn ghost" data-act="copy" title="Copy the Markdown">Copy</button>
+      <button class="btn ghost" data-act="copy-wiki" title="Copy with images, to paste into the wiki or any editor">Copy for wiki</button>
+      <button class="btn ghost" data-act="copy" title="Copy the Markdown only">Copy</button>
       <button class="btn ghost" data-act="download" title="Download as .md">Download</button>
       <button class="btn ghost" data-act="rename" title="Rename or move (F2)">Rename</button>
       <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
