@@ -139,3 +139,35 @@ test('saved focus records match schemas/focus-day.schema.json', () => {
   F.taskClosed(log, D, 'b', at()); F.shutdown(log, D, at());
   for (const r of focusEnvelopeFromBoard('focus/days/2026', log, null).items) assert.deepEqual(ds.validate('focus-day.schema.json', r), []);
 });
+
+test('handoffs: a finished task offered to Receipts once per day, updated in place, withdrawn, and pruned after 60 days', async () => {
+  const log = F.freshLog();
+  const h = F.offerReceipt(log, 't1', D, '  Shipped   the guide ', 'growth', at());
+  assert.equal(h.id, 'h_t1_2026-11-03'); assert.equal(h.to, 'receipts'); assert.equal(h.text, 'Shipped the guide');
+  assert.deepEqual(h.payload, {kind: 'growth', impact: 0, about: 'me'});
+  assert.deepEqual(h.source, {app: 'prioritizer', id: 't1'});
+  const first = h.createdAt;
+  F.offerReceipt(log, 't1', D, 'Shipped the onboarding guide', 'nope', at());
+  assert.equal(log.handoffs.length, 1, 'same task and day: same offer');
+  assert.equal(log.handoffs[0].text, 'Shipped the onboarding guide'); assert.equal(log.handoffs[0].payload.kind, 'win'); assert.equal(log.handoffs[0].createdAt, first);
+  assert.equal(F.offerReceipt(log, 't2', D, '   ', 'win', at()), null, 'blank text offers nothing');
+  assert.ok(F.receiptOffer(log, 't1', D));
+  assert.equal(F.withdrawOffer(log, F.receiptId('t1', D)), true);
+  assert.equal(F.receiptOffer(log, 't1', D), null);
+  F.offerReceipt(log, 'old', '2026-08-01', 'Old', 'win', at()); F.offerReceipt(log, 'new', '2026-10-01', 'New', 'win', at());
+  assert.equal(F.pruneHandoffs(log, D), 1);
+  assert.deepEqual(log.handoffs.map(x => x.source.id), ['new']);
+  assert.equal(F.cleanLog({handoffs: [{id: 'x', to: 'Receipts', date: D, createdAt: at(), text: 'x', source: {app: 'prioritizer'}}]}).handoffs.length, 0, 'bad receiver id');
+  // Saved as prioritizer.handoffs v1, each item valid against Workshop's docs/schemas/handoff-item.schema.json shape.
+  const be = backend(), a = await (async () => { const w = {log: F.freshLog()};
+    w.store = createStore({data: be.client('a'), board: () => w.log, applied: () => F.cleanLog(w.log), timers: globalThis, format: focusFormat(['focus/days/2026', 'handoffs'])});
+    await w.store.load(); w.store.start(); return w; })();
+  F.offerReceipt(a.log, 't9', D, 'Ran the release', 'win', at());
+  a.store.schedule(); await a.store.flushAll();
+  const env = be.files.handoffs;
+  assert.equal(env.schema, 'prioritizer.handoffs'); assert.equal(env.version, 1);
+  const it = env.items[0];
+  for (const k of ['id', 'updatedAt', 'to', 'date', 'createdAt', 'text', 'source']) assert.ok(k in it, k);
+  assert.ok(it.updatedAt > 0);
+  assert.deepEqual(Object.keys(focusEnvelopesFromBundle({collections: [{app: 'prioritizer', collection: 'handoffs', envelope: env}]})), ['handoffs']);
+});

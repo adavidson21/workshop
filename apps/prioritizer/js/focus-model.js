@@ -42,8 +42,9 @@ function cleanRecord(r, date){
 function cleanLog(log){
   const days = {};
   for (const [k, r] of Object.entries(log && log.days || {})){ const c = cleanRecord(r, k); if (c) days[c.id] = c; }
-  if (log){ log.days = days; return log; }
-  return {days};
+  const handoffs = (log && Array.isArray(log.handoffs) ? log.handoffs : []).map(cleanHandoff).filter(Boolean);
+  if (log){ log.days = days; log.handoffs = handoffs; return log; }
+  return {days, handoffs};
 }
 const freshLog = () => cleanLog(null);
 
@@ -129,6 +130,45 @@ function dropEvent(log, date, ev){
   return true;
 }
 
+/* ---------- handoffs (Workshop docs/handoffs.md) ----------
+   Offers to another app, kept in log.handoffs and saved as prioritizer.handoffs v1. Wrap up uses them to offer
+   today's finished tasks to Receipts. The receiver records what it accepted or dismissed in its own data. */
+const HANDOFF_DAYS = 60, HANDOFF_KINDS = ['win', 'growth', 'note'];
+const isName = s => typeof s === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(s);
+function cleanHandoff(h){
+  if (!h || typeof h !== 'object' || typeof h.id !== 'string' || !h.id || h.id.length > 200) return null;
+  if (!isName(h.to) || !isDate(h.date) || !isIso(h.createdAt)) return null;
+  const text = str(h.text, 2000).replace(/\s+/g, ' ').trim();
+  if (!text || !h.source || !isName(h.source.app)) return null;
+  const o = Object.assign({}, h, {text, source: {app: h.source.app}});
+  if (typeof h.source.id === 'string') o.source.id = h.source.id.slice(0, 200);
+  if (h.payload !== undefined && (!h.payload || typeof h.payload !== 'object' || Array.isArray(h.payload))) delete o.payload;
+  return o;
+}
+const receiptId = (taskId, date) => `h_${taskId}_${date}`;
+const receiptOffer = (log, taskId, date) => log.handoffs.find(h => h.id === receiptId(taskId, date)) || null;
+/* Offer a finished task to Receipts, or update the offer. kind: win, growth or note. */
+function offerReceipt(log, taskId, date, text, kind, at){
+  const h = cleanHandoff({id: receiptId(taskId, date), to: 'receipts', date, createdAt: at, text,
+    payload: {kind: HANDOFF_KINDS.includes(kind) ? kind : 'win', impact: 0, about: 'me'}, source: {app: 'prioritizer', id: taskId}});
+  if (!h) return null;
+  const i = log.handoffs.findIndex(x => x.id === h.id);
+  if (i >= 0){ h.createdAt = log.handoffs[i].createdAt; log.handoffs[i] = h; } else log.handoffs.push(h);
+  return h;
+}
+function withdrawOffer(log, id){
+  const i = log.handoffs.findIndex(h => h.id === id);
+  if (i < 0) return false;
+  log.handoffs.splice(i, 1);
+  return true;
+}
+/* Offers older than HANDOFF_DAYS go (docs/handoffs.md, rule 1). Returns how many were removed. */
+function pruneHandoffs(log, today){
+  const t = Date.parse(today + 'T00:00:00Z'), before = log.handoffs.length;
+  log.handoffs = log.handoffs.filter(h => (t - Date.parse(h.date + 'T00:00:00Z')) / 864e5 <= HANDOFF_DAYS);
+  return before - log.handoffs.length;
+}
+
 /* ---------- breadcrumbs ---------- */
 function cleanCrumbs(a){
   if (!Array.isArray(a)) return [];
@@ -145,4 +185,4 @@ function addCrumb(t, text, at){
 }
 const lastCrumb = t => t && t.crumbs && t.crumbs.length ? t.crumbs[t.crumbs.length - 1] : null;
 
-export { CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };
+export { HANDOFF_DAYS, HANDOFF_KINDS, cleanHandoff, offerReceipt, pruneHandoffs, receiptId, receiptOffer, withdrawOffer, CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };

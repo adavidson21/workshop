@@ -12,7 +12,7 @@ import { $, esc, fmtDay, plural, todayStr } from './util.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { dp } from './dayplan.js';
 import { isWorkday, nextWorkday, toMin } from './dayplan-model.js';
-import { ws } from './ws.js';
+import { embedded, ws } from './ws.js';
 
 const PREFS_KEY = 'prioritizer.focus';   // this device only: the wrap-up reminder
 const REMIND_BEFORE_MIN = 30;
@@ -164,7 +164,9 @@ function openShutdown(){
   const sec = (num, title, body) => `<section class="sd-sec"><h4><span class="num">${num}</span>${title}</h4>${body}</section>`;
   showModal(`<form class="sheet shutdown" role="dialog" aria-modal="true" aria-label="Wrap up the day"><h3>Wrap up the day</h3>
     <p class="sub">${plural(done.length, 'task')} done · ${switches(n.switches)} · ${plural(n.interrupts, 'interruption')}</p>
-    ${sec(1, 'Done today', done.length ? `<ul class="sd-done">${done.map(t => `<li>${esc(t.title)}</li>`).join('')}</ul>` : '<p class="soft">Nothing marked done today. That happens.</p>')}
+    ${sec(1, 'Done today', !done.length ? '<p class="soft">Nothing marked done today. That happens.</p>'
+      : receiptsHere() ? `<p class="soft">Tick any worth keeping for your review. They wait in Receipts for you to accept.</p>${done.map(t => receiptRow(t, d)).join('')}`
+      : `<ul class="sd-done">${done.map(t => `<li>${esc(t.title)}</li>`).join('')}</ul>`)}
     ${sec(2, 'Where you left off', unfinished.filter(t => touched.has(t.id) || t.id === act).length
       ? `<p class="soft">One line each, for tomorrow-you. Leave any blank.</p>${unfinished.filter(t => touched.has(t.id) || t.id === act).map(t => `<label class="sd-crumb"><span>${esc(t.title)}${t.id === act ? ' <span class="chip acc">active</span>' : ''}</span>
           <input data-crumb="${t.id}" maxlength="${F.CRUMB_LEN}" autocomplete="off" placeholder="${esc((F.lastCrumb(t) || {}).text || 'Next step')}"></label>`).join('')}`
@@ -193,12 +195,30 @@ function openShutdown(){
           else if (t.focusOn && (t.focusOn === d || t.focusOn === next) && next !== d) t.focusOn = null;
         });
         prefs.remind = f.querySelector('[data-remind]').checked; savePrefs();
+        let sent = 0;
+        f.querySelectorAll('[data-rcpt]').forEach(c => {
+          const id = c.dataset.rcpt, row = c.closest('.sd-rcpt');
+          if (c.checked){ if (F.offerReceipt(log, id, d, row.querySelector('[data-rtext]').value, row.querySelector('[data-rkind]').value, at)) sent++; }
+          else F.withdrawOffer(log, F.receiptId(id, d));
+        });
+        F.pruneHandoffs(log, d);
         F.shutdown(log, d, at);
         closeModal();
         save(); commit();
-        toast(picks.size ? `Day wrapped. ${plural(picks.size, 'task')} lined up for ${fmtDay(next).toLowerCase()}.` : 'Day wrapped.');
+        const r = sent ? ` ${plural(sent, 'receipt')} waiting in Receipts.` : '';
+        toast((picks.size ? `Day wrapped. ${plural(picks.size, 'task')} lined up for ${fmtDay(next).toLowerCase()}.` : 'Day wrapped.') + r);
       });
     });
+}
+
+/* Receipts lives next to Docket only inside Workshop (same data folder). On its own site there is nothing to send to. */
+const receiptsHere = () => embedded;
+const KIND_LABEL = {win: 'Win', growth: 'Learned', note: 'Note'};   // Receipts' own labels for receipts about you
+function receiptRow(t, d){
+  const h = F.receiptOffer(log, t.id, d), kind = h && h.payload ? h.payload.kind : 'win';
+  return `<div class="sd-rcpt"><label class="chk"><input type="checkbox" data-rcpt="${t.id}"${h ? ' checked' : ''} aria-label="Keep as a receipt"></label>
+    <input data-rtext maxlength="2000" value="${esc(h ? h.text : t.title)}" aria-label="Receipt text">
+    <select data-rkind aria-label="Kind">${F.HANDOFF_KINDS.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${KIND_LABEL[k]}</option>`).join('')}</select></div>`;
 }
 
 /* The wrap-up reminder: once a working day, REMIND_BEFORE_MIN before the Day view's dayEnd, if not wrapped yet. */

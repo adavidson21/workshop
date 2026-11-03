@@ -709,6 +709,10 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .shutdown .sd-crumb{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.6rem;font-size:.86rem}
 .shutdown .sd-pick{display:flex;flex-direction:column;gap:.3rem;max-height:14rem;overflow:auto}
 .shutdown label.chk{display:flex;align-items:center;gap:.45rem;font-size:.88rem;color:var(--ink)}
+.shutdown .sd-rcpt{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.shutdown .sd-rcpt input[data-rtext]{flex:1;min-width:0}
+.shutdown .sd-rcpt select{width:auto;border:1px solid var(--line);border-radius:var(--r-sm);padding:.45rem .5rem;background:var(--bg);font:inherit;font-size:.86rem}
+.shutdown .sd-rcpt:has(input[type=checkbox]:not(:checked)) input[data-rtext],.shutdown .sd-rcpt:has(input[type=checkbox]:not(:checked)) select{opacity:.55}
 .shutdown .sd-remind{margin-top:.6rem;font-size:.8rem;color:var(--muted)}
 @media (max-width:759px){ .nowbar{grid-template-columns:minmax(0,1fr)} .nowbar .nact{justify-content:flex-start} }
 @media (hover:none) and (pointer:coarse){ .tstart{opacity:1;height:36px;min-width:44px;line-height:34px} }
