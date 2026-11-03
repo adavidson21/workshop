@@ -134,3 +134,10 @@ test('local apps and other files are served from this site as before', async () 
   assert.equal(await (await get(env, '/shared/theme.js')).text(), 'asset /shared/theme.js');
   assert.deepEqual(calls.binding, []);
 });
+
+test('there is no debug route: /__debug is served as an ordinary asset path, echoing nothing', async () => {
+  const { env, calls } = makeEnv();
+  const res = await get(env, '/__debug?x=1', { host: 'example.test' });
+  assert.equal(await res.text(), 'asset /__debug');
+  assert.deepEqual(calls.assets, ['/__debug']);
+});
