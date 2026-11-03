@@ -381,6 +381,68 @@
       }
     },
     {
+      "base": "/apps/queue/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "queue",
+        "name": "Queue",
+        "version": "1.0.0",
+        "description": "Your team's Azure DevOps work items: triage, assign, comment and create without opening ADO.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 40,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "routes": [
+          {
+            "path": ":id",
+            "title": "Show a work item"
+          },
+          {
+            "path": "settings",
+            "title": "Queue settings"
+          }
+        ],
+        "connectors": [
+          {
+            "id": "ado",
+            "required": false
+          },
+          {
+            "id": "opencode",
+            "required": false
+          }
+        ],
+        "data": [
+          "settings",
+          "views",
+          "snapshot",
+          "seen"
+        ],
+        "commands": [
+          {
+            "id": "refresh",
+            "title": "Refresh the queue"
+          },
+          {
+            "id": "new",
+            "title": "New ADO work item"
+          }
+        ],
+        "files": [
+          "queue.css",
+          "js/main.js",
+          "js/data.js",
+          "js/model.js",
+          "js/view.js",
+          "js/sanitize.js"
+        ]
+      }
+    },
+    {
       "base": "/apps/settings/",
       "manifest": {
         "manifestVersion": 1,
