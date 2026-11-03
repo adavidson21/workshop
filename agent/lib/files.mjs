@@ -1,11 +1,12 @@
-// The files API (docs/agent-api.md, Files): plain .md and .json files in the data folder that are not collections.
+// The files API (docs/agent-api.md, Files): plain .md and .json files, and images, in the data folder that are not
+// collections. Images travel as base64 with encoding: "base64".
 // Conflicts are found by modified time. Delete moves to <dataDir>/.trash/ and never removes anything.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { writeFileAtomic, renameWithRetry } from './fsutil.mjs';
 import { fail } from './http.mjs';
-import { FILE_MAX, floorMs, isCollectionText, lexists, trashStamp } from './datapath.mjs';
+import { FILE_MAX, decodeBase64, floorMs, isCollectionText, isImagePath, lexists, looksLikeImage, trashStamp } from './datapath.mjs';
 
 // If the file system would give a new file the same modified time as before (a coarse clock, or one that went
 // back), the agent moves it forward by the smallest of these steps that the file system keeps.
@@ -53,10 +54,15 @@ export class Files {
     if (!st.isFile()) fail('bad_request', `${fpath} is a folder, not a file.`);
     const view = { app, path: fpath, mtime: floorMs(st), size: st.size };
     if (st.size > FILE_MAX) return { ...view, content: '', tooLarge: true };
+    const image = isImagePath(fpath);
     let content;
-    try { content = await fsp.readFile(file, 'utf8'); } catch (e) {
+    try { content = await fsp.readFile(file, image ? undefined : 'utf8'); } catch (e) {
       this.#log.error(`Could not read ${rel}: ${e.code || e.message}`);
       fail('internal', `Workshop could not read ${fpath}.`);
+    }
+    if (image) {
+      this.#tracker.kind(rel, 'file');
+      return { ...view, encoding: 'base64', content: content.toString('base64') };
     }
     if (isCollectionText(rel, content)) {
       this.#tracker.kind(rel, 'collection');
@@ -86,8 +92,18 @@ export class Files {
     const file = this.#root.inside(rel);
     const errs = this.#schemas.validate('file-put', body);
     if (errs.length) fail('bad_request', `Send {"content": "...", "mtime": <the mtime you read>} or {"content": "...", "create": true}: ${errs[0]}`);
-    const size = Buffer.byteLength(body.content, 'utf8');
+    const image = isImagePath(fpath);
+    let data = body.content;
+    if (image) {
+      if (body.encoding !== 'base64') fail('bad_request', `${fpath} is an image. Send its bytes in base64 with "encoding": "base64".`);
+      data = decodeBase64(body.content);
+      if (!data) fail('bad_request', 'That content is not valid base64.');
+    } else if (body.encoding !== undefined) {
+      fail('bad_request', `${fpath} is a text file. Send its content as text, without "encoding".`);
+    }
+    const size = image ? data.length : Buffer.byteLength(body.content, 'utf8');
     if (size > FILE_MAX) fail('too_large', 'A file can be at most 10 MB.');
+    if (image && !looksLikeImage(fpath, data)) fail('bad_request', `That content is not a ${fpath.slice(fpath.lastIndexOf('.') + 1).toUpperCase()} image.`);
     if (fpath.endsWith('.json')) {
       try { JSON.parse(body.content); } catch { fail('bad_request', `${fpath} must hold valid JSON.`); }
       if (isCollectionText(rel, body.content)) fail('bad_request', 'That content is a collection for this path. Save it with the data API instead.');
@@ -102,7 +118,7 @@ export class Files {
         fail('conflict', 'That file changed since you loaded it. Reload and try again.', { current: Files.#plain(cur) });
       }
       let mtime;
-      try { mtime = await this.#write(rel, file, body.content, cur ? cur.mtime : null); } catch (e) {
+      try { mtime = await this.#write(rel, file, data, cur ? cur.mtime : null); } catch (e) {
         this.#log.error(`Could not write ${rel}: ${e.code || e.message}`);
         fail('internal', `Workshop could not save ${fpath}. The previous version is unchanged.`);
       }
@@ -133,7 +149,7 @@ export class Files {
       const cur = await this.#current(app, fpath, file);
       if (!cur) fail('not_found', `${app} has no file ${fpath}.`);
       if (mtime !== null && cur.mtime !== mtime) fail('conflict', 'That file changed since you loaded it. Reload and try again.', { current: Files.#plain(cur) });
-      const m = /^(.*)\.(md|json)$/.exec(rel);
+      const m = /^(.*)\.([a-z]+)$/.exec(rel);
       const base = `.trash/${m[1]}.${trashStamp()}`;
       let dest = `${base}.${m[2]}`;
       for (let i = 1; lexists(this.#root.abs(dest)); i++) dest = `${base}-${i}.${m[2]}`;

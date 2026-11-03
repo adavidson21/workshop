@@ -83,8 +83,8 @@ test('the body needs exactly one of mtime and create', async () => {
   assert.ok(!fs.existsSync(path.join(agent.dataDir, 'notes', 'body.md')));
 });
 
-test('only .md and .json, and .json must be valid JSON', async () => {
-  for (const p of ['notes.txt', 'notes.MD', 'notes.md.bak', 'run.js', 'page.html']) {
+test('only .md, .json and images, and .json must be valid JSON', async () => {
+  for (const p of ['notes.txt', 'notes.MD', 'notes.md.bak', 'run.js', 'page.html', 'logo.svg', 'photo.PNG', 'photo.bmp']) {
     expectError(await request(agent, 'PUT', `${P}/${p}`, { body: { content: 'x', create: true } }), 400, 'bad_request');
   }
   expectError(await get(agent, `${P}/notes.txt`), 400, 'bad_request');
@@ -212,4 +212,46 @@ test('wrong methods', async () => {
   expectError(await request(agent, 'POST', `${P}/x.md`, { body: {} }), 405, 'method_not_allowed');
   expectError(await request(agent, 'PUT', P, { body: { content: 'x', create: true } }), 405, 'method_not_allowed');
   expectError(await request(agent, 'DELETE', `${P}/summaries`), 405, 'method_not_allowed');
+});
+
+// docs/agent-api.md, Files, Images.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==', 'base64');
+const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(20, 7)]);
+const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.alloc(10, 1)]);
+const WEBP = Buffer.concat([Buffer.from('RIFF', 'latin1'), Buffer.from([20, 0, 0, 0]), Buffer.from('WEBPVP8 ', 'latin1'), Buffer.alloc(8, 2)]);
+const putImage = (a, p, buf, extra = { create: true }) => put(a, `${P}/${p}`, { content: buf.toString('base64'), encoding: 'base64', ...extra });
+
+test('images round trip as base64, stored as their bytes', async () => {
+  const made = expectJson(await putImage(agent, 'attachments/one.png', PNG), 200, 'file-put-response');
+  assert.equal(made.size, PNG.length, 'size is the decoded size');
+  const file = path.join(agent.dataDir, 'notes', 'attachments', 'one.png');
+  assert.ok(fs.readFileSync(file).equals(PNG), 'stored as the image bytes');
+  const read = expectJson(await get(agent, `${P}/attachments/one.png`), 200, 'file');
+  assert.deepEqual(read, { app: 'notes', path: 'attachments/one.png', mtime: made.mtime, size: PNG.length, encoding: 'base64', content: PNG.toString('base64') });
+  for (const [name, buf] of [['two.jpg', JPG], ['two.jpeg', JPG], ['three.gif', GIF], ['four.webp', WEBP]]) {
+    expectJson(await putImage(agent, `attachments/${name}`, buf), 200, 'file-put-response');
+    assert.equal(expectJson(await get(agent, `${P}/attachments/${name}`), 200, 'file').content, buf.toString('base64'));
+  }
+  const listed = expectJson(await get(agent, `${P}/attachments`), 200, 'file-list');
+  assert.deepEqual(listed.files.map(f => f.path), ['attachments/four.webp', 'attachments/one.png', 'attachments/three.gif', 'attachments/two.jpeg', 'attachments/two.jpg']);
+  const next = expectJson(await putImage(agent, 'attachments/one.png', PNG, { mtime: made.mtime }), 200, 'file-put-response');
+  const stale = expectJson(await putImage(agent, 'attachments/one.png', PNG, { mtime: made.mtime }), 409, 'file-conflict');
+  assert.equal(stale.current.encoding, 'base64');
+  assert.equal(stale.current.mtime, next.mtime);
+  const gone = expectJson(await del(agent, `${P}/attachments/one.png`), 200, 'file-delete-response');
+  assert.match(gone.trash, /^\.trash\/notes\/attachments\/one\.[0-9]{8}T[0-9]{9}Z(-[0-9]+)?\.png$/);
+  assert.ok(fs.readFileSync(path.join(agent.dataDir, ...gone.trash.split('/'))).equals(PNG), 'the trash keeps the bytes');
+});
+
+test('image writes need base64 bytes that match the type', async () => {
+  const before = fs.existsSync(path.join(agent.dataDir, 'notes', 'bad'));
+  expectError(await put(agent, `${P}/bad/plain.png`, { content: PNG.toString('base64'), create: true }), 400, 'bad_request');
+  expectError(await put(agent, `${P}/bad/text.md`, { content: 'x', encoding: 'base64', create: true }), 400, 'bad_request');
+  expectError(await put(agent, `${P}/bad/broken.png`, { content: 'not base64!', encoding: 'base64', create: true }), 400, 'bad_request');
+  expectError(await put(agent, `${P}/bad/wrapped.png`, { content: PNG.toString('base64').replace(/(.{20})/, '$1\n'), encoding: 'base64', create: true }), 400, 'bad_request');
+  expectError(await put(agent, `${P}/bad/page.png`, { content: Buffer.from('<html><script>alert(1)</script>').toString('base64'), encoding: 'base64', create: true }), 400, 'bad_request');
+  expectError(await putImage(agent, 'bad/swapped.gif', PNG), 400, 'bad_request');
+  expectError(await put(agent, `${P}/bad/other.png`, { content: PNG.toString('base64'), encoding: 'utf8', create: true }), 400, 'bad_request');
+  expectError(await putImage(agent, 'bad/big.png', Buffer.concat([PNG, Buffer.alloc(10 * MB)])), 413, 'too_large');
+  assert.equal(fs.existsSync(path.join(agent.dataDir, 'notes', 'bad')), before, 'nothing was written');
 });
