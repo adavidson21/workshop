@@ -77,7 +77,7 @@ function renderRail() {
   $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
     + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span>`
-    + `<button class="app-btn" id="pairBtn" hidden aria-label="Use Workshop on this computer" title="Use Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
+    + `<button class="app-btn" id="pairBtn" hidden aria-label="Connect to Workshop on this computer" title="Connect to Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`;
   for (const a of railApps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
@@ -207,7 +207,7 @@ function mountFrame(app, pane) {
   const missing = missingConnector(app);
   if (missing) {
     // A required connector is unavailable: show a notice instead of loading the app (docs/app-manifest.md).
-    const why = missing.state === 'browser' ? 'Connectors need Workshop running on this computer.'
+    const why = missing.state === 'browser' ? (canPair() ? 'Connectors need Workshop on this computer. Click Connect to pair.' : 'Connectors need Workshop on this computer.')
       : missing.state === 'missing' ? `The ${esc(missing.name)} connector is not installed.`
       : `The ${esc(missing.name)} connector is ${missing.state === 'disabled' ? 'turned off' : 'not ready'}.`;
     pane.innerHTML = `<div class="notice"><h2>${esc(app.manifest.name)} needs ${esc(missing.name)}</h2><p>${why}</p>${byId.settings && env.backend === 'agent' ? '<p><a class="btn" href="#/settings">Open Settings</a></p>' : ''}</div>`;
@@ -316,9 +316,9 @@ function allCommands() {
     for (const c of app.manifest.commands || []) { seen.add(c.id); out.push({ app, id: c.id, title: c.title, route: c.route }); }
     for (const [id, c] of app.runtimeCommands || []) if (!seen.has(id)) out.push({ app, id, title: c.title });
   }
-  for (const a of apps) out.push({ title: `Go to ${a.manifest.name}`, run: () => go(a.id) });
-  if (canPair()) out.push({ title: 'Use Workshop on this computer', run: startPairing });
-  if (env.mode === 'hosted') out.push({ title: 'Stop using Workshop on this computer', run: forgetPairing });
+  for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
+  if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
+  if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
   return out;
 }
 function runCommand(c) {
@@ -332,20 +332,24 @@ function openPalette() {
   palette = document.createElement('div');
   palette.className = 'cmdk';
   palette.innerHTML = `<div class="cmdk-backdrop"></div><div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Commands">
-    <input class="cmdk-input" type="text" placeholder="Type a command" aria-label="Command" autocomplete="off" role="combobox" aria-controls="cmdkList" aria-expanded="true">
+    <input class="cmdk-input" type="text" placeholder="Search commands and apps" aria-label="Command" autocomplete="off" role="combobox" aria-controls="cmdkList" aria-expanded="true">
     <ul class="cmdk-list" id="cmdkList" role="listbox"></ul></div>`;
   document.body.appendChild(palette);
   const input = palette.querySelector('.cmdk-input'), list = palette.querySelector('.cmdk-list');
   let active = 0, shown = cmds;
   const draw = () => {
-    list.innerHTML = shown.map((c, i) => `<li role="option" id="cmdk${i}" data-i="${i}" aria-selected="${i === active}" class="${i === active ? 'on' : ''}"><span>${esc(c.title)}</span>${c.app ? `<span class="cmdk-app">${esc(c.app.manifest.name)}</span>` : ''}</li>`).join('') || '<li class="cmdk-empty">No commands match.</li>';
+    list.innerHTML = shown.map((c, i) => `<li role="option" id="cmdk${i}" data-i="${i}" aria-selected="${i === active}" class="${i === active ? 'on' : ''}"><span>${esc(c.title)}</span>${c.app ? `<span class="cmdk-app">${esc(c.app.manifest.name)}</span>` : ''}</li>`).join('') || '<li class="cmdk-empty">No matches.</li>';
     input.setAttribute('aria-activedescendant', shown.length ? 'cmdk' + active : '');
     const on = list.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
   };
   const run = c => { closePalette(); if (c) runCommand(c); };
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
-    shown = q ? cmds.filter(c => (c.title + ' ' + (c.app ? c.app.manifest.name : '')).toLowerCase().includes(q)) : cmds;
+    // Titles that start with the query, or with a word that does, come first ("tri" finds Triage before anything
+    // that only mentions Docket).
+    const rankOf = c => { const t = c.title.toLowerCase(); return t.startsWith(q) ? 0 : t.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
+    shown = q ? cmds.filter(c => (c.title + ' ' + (c.app ? c.app.manifest.name : '')).toLowerCase().includes(q))
+      .map((c, i) => [rankOf(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]) : cmds;
     active = 0; draw();
   });
   input.addEventListener('keydown', e => {
@@ -433,10 +437,10 @@ function askPort() {
     const d = document.createElement('div');
     d.className = 'cmdk';
     d.innerHTML = `<div class="cmdk-backdrop"></div><form class="cmdk-box pair" role="dialog" aria-modal="true" aria-labelledby="pairTitle">
-      <h2 id="pairTitle">Use Workshop on this computer</h2>
+      <h2 id="pairTitle">Connect to Workshop on this computer</h2>
       <p>${esc(PAIR_HELP)}</p>
       <label>Port <input class="mono" type="number" min="1024" max="65535" value="4380" required></label>
-      <div class="acts"><button type="button" class="btn ghost" data-x>Cancel</button><button class="btn primary">Continue</button></div></form>`;
+      <div class="acts"><button type="button" class="btn ghost" data-x>Cancel</button><button class="btn primary">Connect</button></div></form>`;
     document.body.appendChild(d);
     const input = d.querySelector('input');
     const done = v => { d.remove(); resolve(v); };
@@ -462,9 +466,9 @@ async function folderBar() {
   const el = bar || document.createElement('div');
   el.id = 'folderBar'; el.className = 'folder-bar'; el.setAttribute('role', 'alert');
   const name = esc(st.name || 'your Workshop folder');
-  el.innerHTML = st.missing ? `<span>The folder <b>${name}</b> is gone. It may have been moved, renamed or deleted.</span><a class="btn" href="#/settings">Choose it in Settings</a>`
+  el.innerHTML = st.missing ? `<span>The folder <b>${name}</b> is missing (moved, renamed or deleted).</span><a class="btn" href="#/settings">Choose it in Settings</a>`
     : st.permission === 'denied' ? `<span>Workshop is not allowed to use the folder <b>${name}</b>, so nothing is saved.</span><button class="btn primary" data-allow>Try again</button><a class="btn ghost" href="#/settings">Settings</a>`
-    : `<span>Chrome needs your OK before Workshop can save again. Your changes wait until then.</span><button class="btn primary" data-allow>Allow Workshop to use the folder ${name}</button>`;
+    : `<span>Chrome needs your OK before Workshop can save. Your changes are kept until then.</span><button class="btn primary" data-allow>Allow Workshop to use the folder ${name}</button>`;
   if (!bar) $('#panes').prepend(el);
   $('#panes').classList.add('has-bar');
 }
@@ -484,7 +488,7 @@ let installPrompt = null;
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 function setInstall() { const b = $('#installBtn'); if (b) b.hidden = !installPrompt || standalone(); }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; setInstall(); });
-window.addEventListener('appinstalled', () => { installPrompt = null; setInstall(); toast('Workshop is installed. Open it from your dock, taskbar or Start menu.'); });
+window.addEventListener('appinstalled', () => { installPrompt = null; setInstall(); toast('Installed. Open Workshop from your dock, taskbar or Start menu.'); });
 document.addEventListener('click', async e => {
   if (!e.target.closest('#installBtn') || !installPrompt) return;
   const p = installPrompt; installPrompt = null; setInstall();

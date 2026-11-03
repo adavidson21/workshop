@@ -199,14 +199,14 @@ export async function createAgent(o) {
       }
       if (p === '/api/session') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
-        if (!own) fail('forbidden', 'Pair this page from Settings instead.');
-        if (!cookieOk) fail('unauthorized', 'Open Workshop from this computer first.');
+        if (!own) fail('forbidden', 'Pair this site with Connect instead.');
+        if (!cookieOk) fail('unauthorized', 'This browser is not signed in. Run workshop open.');
         sendJson(res, 200, { api: 1, token, agentOrigin: ownOrigins()[0] }, cors);
         return;
       }
       const queryOk = p === '/api/events' && same(url.searchParams.get('token'), token);
       const authed = headerOk || (cookieOk && own && req.method === 'GET') || queryOk;
-      if (!authed) fail('unauthorized', 'Open Workshop from this computer first, or pair this page in Settings.');
+      if (!authed) fail('unauthorized', 'Not connected to Workshop on this computer. Click Connect to pair this site again.');
       if ((req.method === 'PUT' || req.method === 'POST' || req.method === 'DELETE') && !headerOk) fail('unauthorized', 'Writes need the X-Workshop-Token header.');
       await handleApi(req, res, url, { own, cors });
     } catch (e) {
@@ -263,27 +263,27 @@ export async function createAgent(o) {
       if (url.searchParams.get('again') !== '1') {
         const again = new URL(url); again.searchParams.set('again', '1');
         const target = JSON.stringify(again.pathname + again.search).replace(/</g, '\\u003c');
-        sendHtml(res, 200, page('Workshop', `<p>Checking that Workshop is open in this browser.</p><script>location.replace(${target});</script>`));
+        sendHtml(res, 200, page('Workshop', `<p>Checking that this browser is signed in.</p><script>location.replace(${target});</script>`));
         return;
       }
-      sendHtml(res, 401, page('Workshop', '<p>Open Workshop on this computer first, in this browser, then try pairing again.</p>'));
+      sendHtml(res, 401, page('Workshop', '<p>This browser is not signed in to Workshop on this computer. Run <code>workshop open</code>, then click Connect again.</p>'));
       return;
     }
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
-      sendHtml(res, 403, page('Workshop', '<p>That pairing link is not valid.</p>'));
+      sendHtml(res, 403, page('Workshop', '<p>That pairing link is not valid. Click Connect on the site again.</p>'));
       return;
     }
     if (workMode()) { sendHtml(res, 403, page('Workshop', '<p>Work mode is on, so no site can pair with Workshop on this computer.</p>')); return; }
-    if (config.features.hostedMode !== true) { sendHtml(res, 403, page('Workshop', '<p>Hosted mode is off. Turn it on in Settings first.</p>')); return; }
+    if (config.features.hostedMode !== true) { sendHtml(res, 403, page('Workshop', '<p>Hosted mode is off. Turn it on in <a href="/" target="_blank">Workshop on this computer</a>, then click Connect again.</p>')); return; }
     if (!config.allowedOrigins.includes(origin)) {
-      sendHtml(res, 403, page('Workshop', `<p>${escapeHtml(origin)} is not in your allowed sites. Add it in Settings first.</p>`));
+      sendHtml(res, 403, page('Workshop', `<p>${escapeHtml(origin)} is not an allowed site. Add it in <a href="/" target="_blank">Workshop on this computer</a>, then click Connect again.</p>`));
       return;
     }
     const js = v => JSON.stringify(v).replace(/</g, '\\u003c');
     const payload = js({ type: 'workshop-pair', api: 1, url: ownOrigins()[0], token });
     sendHtml(res, 200, page('Pair Workshop', `
 <p>Allow <strong>${escapeHtml(origin)}</strong> to use Workshop on this computer?</p>
-<button id="allow" type="button">Allow ${escapeHtml(origin)} to use Workshop on this computer</button>
+<button id="allow" type="button">Allow</button>
 <script>
 document.getElementById('allow').addEventListener('click', function () {
   if (window.opener) window.opener.postMessage(${payload}, ${js(origin)});

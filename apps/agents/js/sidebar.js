@@ -1,5 +1,5 @@
 /* Dispatch: the left sidebar (Dispatch App Experience Plan, phase 1, P2), as HTML strings from S.
-   New run, Pinned, All runs, Needs review, and Projects (with folders), each project expandable to its
+   Start work, Pinned, All runs, Needs you, and Projects (with folders), each project expandable to its
    recent runs with a status dot. Picking an entry sets S.ui.scope, which filters the main list (view.js).
    Projects and which run is in which come from the opencode connector (`state.projects`, lib/projects.mjs);
    folders and pins come from this browser (local.js, S.local). With an older connector that has no
@@ -143,22 +143,22 @@ export function sidebarHtml() {
   const all = items().length;
   const nav = '<ul class="snav">' +
     `<li><button type="button" class="srow${on('all') ? ' on' : ''}" data-side-scope="all"><span class="sl">All runs</span><span class="n">${all || ''}</span></button></li>` +
-    `<li><button type="button" class="srow needs${on('needs') ? ' on' : ''}" data-side-scope="needs"><span class="sl">Needs review</span>${badge(needs)}</button></li>` +
+    `<li><button type="button" class="srow needs${on('needs') ? ' on' : ''}" data-side-scope="needs"><span class="sl">Needs you</span>${badge(needs)}</button></li>` +
     `<li><button type="button" class="srow prs${on('reviews') ? ' on' : ''}" data-side-scope="reviews" title="First-pass reviews of your team's pull requests"><span class="sl">PR reviews</span>${reviewBadge()}</button></li></ul>`;
   return `<nav class="side${S.ui.side ? ' open' : ''}" aria-label="Runs and projects">` +
-    `<div class="side-top"><button type="button" class="btn primary new-run" data-start-open="1" title="Start a run in ${h((projectById(scopeProject()) || INBOX_ROW).name)}">New run</button>` +
+    `<div class="side-top"><button type="button" class="btn primary new-run" data-start-open="1" title="Start a run in ${h((projectById(scopeProject()) || INBOX_ROW).name)}">Start work</button>` +
     `<button type="button" class="ibtn side-close" data-side-close="1" aria-label="Close the sidebar">${ICON.x}</button></div>` +
     pinnedSection() + nav + projectsSection() + '</nav>' +
     (S.ui.side ? '<div class="side-scrim" data-side-close="1"></div>' : '');
 }
 
-/** The line above the list when a project or Needs review is in view. */
+/** The line above the list when a project or Needs you is in view. */
 export function scopeHeadHtml() {
   const sc = scope();
   if (sc.kind === 'all' || sc.kind === 'reviews') return '';
   if (sc.kind === 'needs') {
     const n = needsReview().length;
-    return `<div class="scope-head"><h2>Needs review</h2><span class="dim">${n ? plural(n, 'run') + ' waiting on you, across all projects' : 'Nothing is waiting on you.'}</span>` +
+    return `<div class="scope-head"><h2>Needs you</h2><span class="dim">${n ? plural(n, 'run') + ' waiting on you, across all projects' : 'Nothing is waiting on you.'}</span>` +
       '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
   }
   const p = projectById(sc.id);
@@ -175,7 +175,7 @@ export function scopeHeadHtml() {
 export function projectChip(it) {
   if (!projectsOn()) return '';
   const p = projectById(projectOf(it)) || INBOX_ROW;
-  return `<button type="button" class="pchip" data-move="${h(it.folder)}" title="In ${h(p.name)}. Click to move it to another project.">${sw(p.color)}${h(p.name)}</button>`;
+  return `<button type="button" class="pchip" data-move="${h(it.folder)}" title="In ${h(p.name)}. Move to another project.">${sw(p.color)}${h(p.name)}</button>`;
 }
 
 // ------------------------------------------------------------------ sheets
@@ -218,7 +218,7 @@ export function projectSheetHtml() {
   const fNow = st.folder !== undefined ? st.folder : (cur && S.local && S.local.placement[cur.id]) || '';
   const color = st.color || (cur && cur.color) || colors()[0];
   const swatches = colors().map(c => `<button type="button" class="swb${c === color ? ' on' : ''}" data-proj-color="${h(c)}" aria-pressed="${c === color}" aria-label="${h(c)}" title="${h(c)}">${sw(c)}</button>`).join('');
-  const body = `<p>A project groups runs and gives the agent its own instructions. Runs you start in it get them in their work item.</p>` +
+  const body = `<p>A project groups runs. Runs started in it get its instructions.</p>` +
     '<form class="cfg" data-proj-form="1" novalidate>' +
     `<label class="cfg-row"><span class="cfg-t">Name</span><input type="text" class="proj-first" data-draft="proj:name" value="${v('name', cur && cur.name)}" maxlength="80" autocomplete="off" placeholder="Orders API"></label>` +
     `<div class="cfg-row"><span class="cfg-t">Color</span><div class="swatches" role="group" aria-label="Color">${swatches}</div></div>` +
@@ -240,7 +240,7 @@ export function folderSheetHtml() {
   const cur = st.id ? ((S.local && S.local.folders) || []).find(f => f.id === st.id) : null;
   if (st.id && !cur) { S.ui.folder = null; return ''; }
   const val = S.ui.drafts['folder:name'] !== undefined ? S.ui.drafts['folder:name'] : cur ? cur.name : '';
-  const body = '<p>Folders group projects in this sidebar. They are kept in this browser only.</p>' +
+  const body = '<p>Folders group projects in the sidebar. Saved in this browser only.</p>' +
     `<form class="cfg" data-folder-form="1" novalidate><label class="cfg-row"><span class="cfg-t">Name</span><input type="text" class="folder-first" data-draft="folder:name" value="${h(val)}" maxlength="60" autocomplete="off" placeholder="Platform"></label></form>` + err(st.error);
   const foot = (cur ? `<button type="button" class="btn remove" data-folder-delete="${h(cur.id)}" title="Its projects move to the top level">Remove folder</button>` : '') +
     '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
@@ -254,6 +254,6 @@ export function moveSheetHtml() {
   if (!it) { S.ui.move = null; return ''; }
   const now = projectOf(it);
   const rows = projectList().map(p => `<li><button type="button" class="srow mv${p.id === now ? ' on' : ''}" data-move-to="${h(p.id)}"${p.id === now || st.busy ? ' disabled' : ''}>${sw(p.color)}<span class="sl">${h(p.name)}</span>${p.id === now ? '<span class="dim">Here now</span>' : ''}</button></li>`).join('');
-  const body = `<p>Moving a run changes where it is listed. Its work item, branches and sessions stay as they are.</p><ul class="mvlist">${rows}</ul>` + err(st.error);
+  const body = `<p>Only the listing changes. The work item, branches and sessions stay as they are.</p><ul class="mvlist">${rows}</ul>` + err(st.error);
   return sheet('move-h', 'Move ' + h(runLabel(it)), body, '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Close</button>');
 }

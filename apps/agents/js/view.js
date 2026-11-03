@@ -583,7 +583,7 @@ function noteCard(it) {
 export function pickupHtml(it) {
   let why;
   if (asking(it)) why = '<strong>The agent is waiting for you.</strong>';
-  else if (it.bucket === 'paused') why = 'Nothing is moving. This is the most recent paused item.';
+  else if (it.bucket === 'paused') why = 'Nothing is moving. This is the latest paused item.';
   else if (it.blocked) why = '<strong>Blocked.</strong> ' + md(it.blocked);
   else if (it.next && it.next.note) why = md(liveNote(it.next.note));
   else why = '';
@@ -623,7 +623,7 @@ function reposPanel() {
       (g.lastSha ? `<div class="lc" title="${h(g.lastMsg)}"><span class="mono">${h(g.lastSha)}</span> ${h(g.lastMsg)}</div>` : '') + '</li>';
   }).join('');
   const cleanTxt = clean.length ? `<p class="clean-list">${plural(clean.length, 'repo')} clean on their default branch: ${clean.map(r => h(r.folder)).join(', ')}.</p>` : '';
-  const guides = `<details class="repo-guides"${openAttr('repo-guides', false)} data-key="repo-guides"><summary>Repo guides</summary><p class="dim">An agent reads a repo and drafts its guide (how to build, test and find things), for you to review. Do it once per repo, and again when it changes a lot.</p><ul>` +
+  const guides = `<details class="repo-guides"${openAttr('repo-guides', false)} data-key="repo-guides"><summary>Repo guides</summary><p class="dim">An agent drafts how to build, test and navigate the repo, for you to review. Redo it after big changes.</p><ul>` +
     repos.map(r => `<li><span class="mono">${h(r.folder)}</span><button type="button" class="btn" data-guide="${h(r.folder)}">Draft guide</button></li>`).join('') + '</ul></details>';
   return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos with work in progress <span class="n">${busy.length}</span></h3>` +
     (busy.length ? `<ul class="repo-list">${li}</ul>` : '<p class="dim" style="margin:0">Every repo is clean on its default branch.</p>') + cleanTxt + `<p class="repo-acts">${add}</p>` + guides + '</section>';
@@ -727,7 +727,7 @@ function headerHtml() {
 }
 function bannersHtml() {
   let out = '';
-  if (S.conn === 'off') out += '<div class="banner">Workshop stopped or restarted. This page reconnects by itself. If it does not, start Workshop again: <code>node workshop.mjs start</code></div>';
+  if (S.conn === 'off') out += '<div class="banner">Workshop is not answering. Start it with <code>workshop start</code> (from a clone: <code>node workshop.mjs start</code>). This page reconnects by itself.</div>';
   else if (L() && L().opencode && !L().opencode.connected && L().opencode.error) out += `<div class="banner">${md(L().opencode.error)}</div>`;
   if (S.D && S.D.liveMode && S.D.liveMode.error) out += `<div class="banner">Could not read <code>.work</code>: ${h(S.D.liveMode.error)}</div>`;
   return out;
@@ -760,17 +760,17 @@ export function guideHtml() {
     `<button type="button" data-gos="win" aria-pressed="${win}"${win ? ' class="on"' : ''}>Windows</button>` +
     `<button type="button" data-gos="mac" aria-pressed="${!win}"${!win ? ' class="on"' : ''}>Mac or Linux</button></div>`;
   const bodies = {
-    install: `<p>One command sets up everything Dispatch needs, for your user only, with no admin rights: Tandem, Workshop's small helper that runs only on this computer, and opencode and Node if you don't have them. It starts Workshop now and whenever you log in, and allows this site.</p>` +
+    install: `<p>One command installs Tandem, Workshop, and opencode and Node if you don't have them. No admin rights needed. It starts Workshop, opens it once in your browser to sign in, and allows this site. It does not turn on start at login; do that in Workshop settings.</p>` +
       osPick +
       `<p class="gneed">${win ? 'Open <b>PowerShell</b> (Start menu, type PowerShell) and paste this:' : 'Open <b>Terminal</b> and paste this:'}</p>` +
       cmds([installCommand(win, origin)]) +
-      `<p class="note">Your work goes in <code>~/work</code>. You can change that later in opencode settings, here in Dispatch. Running the command again updates everything and keeps your settings. <a href="${SOURCE}/bootstrap.${win ? 'ps1' : 'sh'}" target="_blank" rel="noopener">See what it does</a>.</p>` +
+      `<p class="note">${win ? 'If opencode has no AI model yet, it asks you to pick a provider and paste an API key. ' : 'If it ends by asking you to run <code>opencode auth login</code>, do that in a new Terminal window. '}Work goes in <code>~/work</code> (change it in opencode settings). Run the command again to update; your settings are kept. <a href="${SOURCE}/bootstrap.${win ? 'ps1' : 'sh'}" target="_blank" rel="noopener">View the script</a>.</p>` +
       `<div class="gcheck"><button type="button" class="btn primary" data-gcheck>Check for Workshop</button>` +
       `<details class="gport"><summary>Using another port?</summary><label>Port <input type="number" class="mono" data-gport min="1024" max="65535" value="${h(g.port)}"></label></details></div>` +
-      gmsg(g.check || { ok: null, text: 'This step ticks itself off when Workshop answers.' }),
-    connect: `<p>The installer opened Workshop in your browser once, which signs this browser in. Now click Connect and allow this site in the small Workshop window. Your browser may also ask to let this site reach devices on your network: allow it, that is how it reaches <code>127.0.0.1</code>.</p>` +
+      gmsg(g.check || { ok: null, text: 'Marked done when Workshop answers.' }),
+    connect: `<p>Click Connect, then allow this site in the Workshop window. If your browser asks to let this site reach your local network, allow it.</p>` +
       `<div class="gacts"><button type="button" class="btn primary" data-gpair>Connect to Workshop</button></div>` + gmsg(g.pair) +
-      `<p class="note">If the window says to open Workshop first, Workshop signed in to a different browser. Run <code>workshop open</code> in a new ${win ? 'PowerShell' : 'Terminal'} window, open the address it prints in this browser, then connect again.</p>`
+      `<p class="note">Window says to open Workshop first? Workshop is signed in to a different browser. Run <code>workshop open --print</code> in a new ${win ? 'PowerShell' : 'Terminal'} window, open the address it prints in this browser, then connect again.</p>`
   };
   const titles = { install: 'Install Tandem and Workshop', connect: 'Connect this page' };
   const doneCount = GUIDE_STEPS.filter(k => g.done[k]).length;
@@ -781,10 +781,9 @@ export function guideHtml() {
       `<span class="gt">${titles[k]}</span>${done ? '<span class="gstate">Done</span>' : ''}</button>` +
       (isOpen ? `<div class="gbody">${bodies[k]}</div>` : '') + '</li>';
   }).join('');
-  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Log out and back in, or run the install command below again, which starts it. If that does not help, connect again below.</div>' : '';
+  const lost = S.wasPaired ? '<div class="banner">This page was connected to Workshop before, but Workshop is not answering. Start it with <code>workshop start</code> in a terminal. If that does not help, connect again below.</div>' : '';
   return `<section class="guide">${lost}<p class="eyebrow">Set up, ${doneCount} of ${GUIDE_STEPS.length} done</p>` +
     `<h2>Connect Dispatch to your computer</h2>` +
-    `<p class="lede">Dispatch is the front end for Tandem, which runs coding agents in opencode on your computer. Your code and work items stay there: this page talks straight to your computer, never to a server.</p>` +
     `<ol class="gsteps">${steps}</ol></section>`;
 }
 
@@ -803,7 +802,7 @@ export function setupHtml() {
     body = '<p>This copy of Workshop has no <code>connectors/opencode</code> folder.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
-    body = '<p>Dispatch is the front end for Tandem: your work items and the opencode agents Tandem runs on them. Turn on the opencode connector in Settings and set your workspace folder: the folder that holds <code>.work</code> and your repos.</p>';
+    body = '<p>Turn it on in Settings and set your workspace folder (the folder that holds <code>.work</code> and your repos).</p>';
     act = 'settings';
   } else if (c.state === 'starting') {
     title = 'Starting the opencode connector';
@@ -817,17 +816,17 @@ export function setupHtml() {
   // setting, which a hosted page cannot change.
   const here = act && (S.mode === 'local' || c.state !== 'disabled');
   const btn = here ? '<div class="acts"><button type="button" class="btn primary" data-cfg-open="1">Open opencode settings</button></div>'
-    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Turning the connector on can only be done in Workshop on this computer.</p>`
+    : act && S.agentUrl ? `<div class="acts"><a class="btn primary" href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">Open Settings in Workshop</a></div><p class="note">Only Workshop on this computer can turn the connector on.</p>`
     : act ? '<p class="note">Change it in Settings, in Workshop on this computer.</p>' : '';
   return `<div class="setup"><h2>${title}</h2>${body}${btn}</div>`;
 }
 
 // ---------------------------------------------------------------- page
 export const GROUPS = [
-  ['needs', 'Needs you', 'Drafts to review and /approve, review findings, blocked tasks, and agents waiting for an answer.'],
+  ['needs', 'Needs you', ''],
   ['active', 'In progress', ''],
-  ['paused', 'Paused', 'Run /resume to pick one up.'],
-  ['ship', 'Ready to ship', 'PR text is written. Push, open the PRs, and once they merge, click Remove to clean up the .work folder.'],
+  ['paused', 'Paused', ''],
+  ['ship', 'Ready to ship', 'Review and push, create the PR, then Remove the item once it merges.'],
   ['notes', 'Spikes, docs, and TSDs', '']
 ];
 
@@ -882,15 +881,15 @@ function settingsSheetHtml() {
   const head = `<div class="sheet-head"><h3 id="cfg-h">opencode settings</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   let body;
   if (st.error && !st.view) body = `<p class="gmsg bad">${md(st.error)}</p>`;
-  else if (!st.view) body = '<p>Loading the settings from Workshop on your computer.</p>';
+  else if (!st.view) body = '<p>Loading settings.</p>';
   else {
     const locked = hostedOnly() && Object.keys(st.view.schema.properties || {}).length > 0;
     const toggle = S.mode === 'local'
-      ? `<label class="cfg-row cfg-check cfg-on"><input type="checkbox" data-cfg-enabled="1"${st.enabled ? ' checked' : ''}><span><span class="cfg-t">Turn on the opencode connector</span><span class="cfg-d">Dispatch needs it on to show your work.</span></span></label>`
+      ? `<label class="cfg-row cfg-check cfg-on"><input type="checkbox" data-cfg-enabled="1"${st.enabled ? ' checked' : ''}><span><span class="cfg-t">Turn on the opencode connector</span><span class="cfg-d">Dispatch needs it on.</span></span></label>`
       : '';
-    body = `<p>How Dispatch finds your work and talks to opencode on this computer. Saving restarts the connector.</p>` +
+    body = `<p>Saving restarts the connector.</p>` +
       `<form class="cfg" data-cfg-form="1" novalidate>${toggle}${cfgFields(st.view.schema, '', st.view.env)}</form>` +
-      (locked ? `<p class="note">Greyed out settings run commands or read secrets on your computer, so they can only be changed in Workshop there${S.agentUrl ? `: <a href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">open Workshop settings</a>` : ''}.</p>` : '') +
+      (locked ? `<p class="note">Greyed out settings can only be changed in Workshop on this computer${S.agentUrl ? `: <a href="${h(S.agentUrl)}/#/settings" target="_blank" rel="noopener">open Workshop settings</a>` : ''}.</p>` : '') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
   }
   const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
@@ -985,20 +984,20 @@ function startSheetHtml() {
   const tabs = `<div class="gos start-modes" role="group" aria-label="How to start">${tab('describe', 'Describe it')}${adoOn() ? tab('ado', 'ADO work item') : ''}${tab('spike', 'Investigate')}</div>`;
   let form;
   if (mode === 'spike') {
-    form = `<p>An agent reads the code and answers a question, with options and a recommendation. It changes no code. It runs <code>/spike</code>.</p>` +
+    form = `<p>An agent reads the code and answers with options and a recommendation. No code changes. Runs <code>/spike</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">What to investigate</span><textarea class="start-first" rows="3" data-draft="start:topic" placeholder="How does login refresh its token, and what would it take to make sessions last 8 hours?">${dv('topic')}</textarea></label>`;
   } else if (mode === 'ado') {
-    form = `<p>Tandem fetches the work item from Azure DevOps, sets up its folder in <code>.work</code> and your branches, then waits for you. It runs <code>/start</code>.</p>` +
+    form = `<p>Fetches the work item from Azure DevOps, sets up its <code>.work</code> folder and branches, then waits for you. Runs <code>/start</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id start-first" data-draft="start:id" value="${dv('id')}" placeholder="12345" autocomplete="off"></label>` + lanes;
   } else {
-    form = `<p>Describe the change in your own words. Tandem saves it as a work item, picks the repos, makes your branches, then waits for you. No tracker needed.</p>` +
+    form = `<p>Tandem saves this as a work item, picks the repos, makes branches, then waits for you.</p>` +
       lanes +
       `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="${lane === 'bug' ? 'Export fails after one retry' : 'Add CSV export to reports'}" maxlength="200" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">What should change, and why</span><textarea rows="5" data-draft="start:desc" placeholder="The more you say, the fewer questions the agent asks.">${dv('desc')}</textarea></label>` +
       (lane === 'bug' ? `<label class="cfg-row"><span class="cfg-t">Steps to reproduce</span><textarea rows="3" data-draft="start:repro" placeholder="1. Open reports 2. Click Export twice">${dv('repro')}</textarea></label>` : '');
   }
   const body = tabs + `<form class="cfg" data-start-form="1" novalidate>${form}</form>` +
-    (o.connected ? '' : '<p class="gmsg bad">opencode is not connected to Workshop, so nothing can start yet.</p>') +
+    (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
     (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
   const foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
     `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : mode === 'spike' ? 'Investigate' : 'Start'}</button>`;
@@ -1022,11 +1021,11 @@ function repoSheetHtml() {
   if (st.added) {
     const a = st.added;
     body = `<p><b>${h(a.folder)}</b> is in your workspace${a.repoMap === 'listed' ? '' : a.repoMap === 'created' ? ', and Dispatch started a repo map (<code>AGENTS.md</code> in the workspace) that lists it' : ', and it is listed in the repo map (<code>AGENTS.md</code> in the workspace)'}.</p>` +
-      `<p>Next, let an agent read it and draft its guide: how to build it, test it, and how it is laid out. Agents use the guide on every task in this repo. You review the draft before anything relies on it. It runs <code>/onboard-repo</code>.</p>`;
+      `<p>Next, draft its guide: an agent writes how to build, test and navigate it, and every task in this repo uses it. You review the draft first. Runs <code>/onboard-repo</code>.</p>`;
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Later</button>' +
       `<button type="button" class="btn primary" data-guide="${h(a.folder)}">Draft its guide</button>`;
   } else {
-    body = `<p>Dispatch clones it into your workspace, next to your other repos, so agents can work in it. It uses the git sign-in already on this computer.</p>` +
+    body = `<p>Clones it into your workspace with the git sign-in on this computer.</p>` +
       `<form class="cfg" data-repo-form="1" novalidate>` +
       `<label class="cfg-row"><span class="cfg-t">Clone URL</span><input type="text" class="mono repo-url" data-draft="repo:url" value="${h(S.ui.drafts['repo:url'] || '')}" placeholder="https://github.com/owner/repo.git" spellcheck="false" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">What it is, in one line (optional)</span><span class="cfg-d">Helps agents pick the right repo for a task.</span><input type="text" data-draft="repo:about" value="${h(S.ui.drafts['repo:about'] || '')}" placeholder="The web app customers use" maxlength="200" autocomplete="off"></label></form>` +
@@ -1051,7 +1050,7 @@ export const AI_LOGIN = 'opencode auth login';
 function aiHelpHtml() {
   return `<p>Agents need an AI model. Open ${((S.setup && S.setup.os) || 'win') === 'win' ? 'PowerShell' : 'Terminal'}, run this, pick a provider and paste its API key:</p>` +
     `<div class="kit gcmd"><div class="kit-line"><code>${AI_LOGIN}</code>${copyBtn(AI_LOGIN)}</div></div>` +
-    `<p class="note">For Claude, pick <b>Anthropic</b> and use an API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. OpenAI, Google, OpenRouter and others work the same way. The key stays in opencode on this computer.</p>`;
+    `<p class="note">For Claude, pick <b>Anthropic</b> and use an API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. The key stays in opencode on this computer.</p>`;
 }
 export function onboardSteps() {
   const ai = aiState();
@@ -1069,10 +1068,10 @@ function onboardHtml() {
   const open = (steps.find(x => !x.done) || {}).k;
   const ai = aiState();
   const bodies = {
-    ai: aiHelpHtml() + `<div class="gacts"><button type="button" class="btn primary" data-ai-check="1">I connected one, check again</button></div>` +
-      (ai === 'unknown' ? '<p class="note">This version of opencode does not say which providers are connected, so Dispatch cannot check. If you already logged in, skip this.</p>' : ''),
-    repo: `<p>Agents work in git repos inside your workspace folder. Add the code you want them to work on.</p><div class="gacts"><button type="button" class="btn primary" data-repo-open="1">Add a repo</button></div>`,
-    work: `<p>Describe a change in your own words, or ask a question about the code. No tracker needed.</p><div class="gacts"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>`
+    ai: aiHelpHtml() + `<div class="gacts"><button type="button" class="btn primary" data-ai-check="1">Check again</button></div>` +
+      (ai === 'unknown' ? '<p class="note">This opencode version does not report providers, so Dispatch cannot check. Skip this if you already logged in.</p>' : ''),
+    repo: `<p>Agents work in git repos in your workspace folder.</p><div class="gacts"><button type="button" class="btn primary" data-repo-open="1">Add a repo</button></div>`,
+    work: `<p>Describe a change or ask a question about the code.</p><div class="gacts"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>`
   };
   const li = steps.map((x, i) => `<li class="gstep${x.done ? ' done' : ''}${x.k === open ? ' open' : ''}"><div class="ghead"><span class="gnum" aria-hidden="true">${x.done ? CHECK_SVG : i + 1}</span><span class="gt">${h(x.title)}</span>${x.done ? '<span class="gstate">Done</span>' : ''}</div>` +
     (x.k === open ? `<div class="gbody">${bodies[x.k]}</div>` : '') + '</li>').join('');
@@ -1121,7 +1120,7 @@ function mainHtml() {
   const setup = onboardHtml();
   if (!all.length) {
     html += setup + waitingHtml() + looseHtml();
-    if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change, or ask a question about the code, and it shows up here.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
+    if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change or ask a question about the code.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
       '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
     html += `<div style="margin-top:28px">${reposPanel()}</div>`;
     return html;
@@ -1131,8 +1130,8 @@ function mainHtml() {
   html += '<div class="grid"><main>' + scopeHeadHtml() + (sc.kind === 'all' ? setup + waitingHtml() + looseHtml() : '');
   if (pick) html += pickupHtml(pick);
   if (!items.length) {
-    html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you. Runs land here when an agent asks a question, a draft needs approval, or review finds something.</p></div>'
-      : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">New run</button></div></div>`;
+    html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you.</p></div>'
+      : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div></div>`;
   }
   if (items.length > 8) {
     html += '<ul class="counts" aria-label="Jump to a group">' + GROUPS.map(g => {

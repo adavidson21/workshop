@@ -7,7 +7,7 @@
         "id": "home",
         "name": "Home",
         "version": "1.0.0",
-        "description": "Your day at a glance: Today, triage, what's next, your people and your agents.",
+        "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 0,
@@ -40,8 +40,8 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "4.4.0",
-        "description": "Decide what to work on next.",
+        "version": "4.11.0",
+        "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 10,
@@ -54,6 +54,30 @@
           {
             "path": "task/:id",
             "title": "Open a task"
+          },
+          {
+            "path": "today",
+            "title": "Today"
+          },
+          {
+            "path": "day/:date",
+            "title": "Plan a day"
+          },
+          {
+            "path": "triage",
+            "title": "Triage"
+          },
+          {
+            "path": "prioritize",
+            "title": "Prioritize"
+          },
+          {
+            "path": "people",
+            "title": "People"
+          },
+          {
+            "path": "shutdown",
+            "title": "Wrap up the day"
           }
         ],
         "connectors": [
@@ -71,6 +95,30 @@
             "id": "add-task",
             "title": "Add a task",
             "route": ""
+          },
+          {
+            "id": "start-next",
+            "title": "Start next task",
+            "route": ""
+          },
+          {
+            "id": "open-today",
+            "title": "Today's list",
+            "route": "today"
+          },
+          {
+            "id": "plan-day",
+            "title": "Plan today",
+            "route": "day/today"
+          },
+          {
+            "id": "triage",
+            "title": "Triage",
+            "route": "triage"
+          },
+          {
+            "id": "shutdown-day",
+            "title": "Wrap up the day"
           },
           {
             "id": "sync-ado",
@@ -95,15 +143,23 @@
           "js/command-bar.js",
           "js/connect.js",
           "js/constants.js",
+          "js/day-view.js",
+          "js/dayplan-format.js",
+          "js/dayplan-model.js",
+          "js/dayplan.js",
           "js/drag-drop.js",
           "js/drawer.js",
           "js/eng.js",
           "js/events.js",
           "js/excel.js",
+          "js/focus-format.js",
+          "js/focus-model.js",
+          "js/focus.js",
           "js/kv.js",
           "js/main.js",
           "js/model.js",
           "js/native.js",
+          "js/onboarding.js",
           "js/overlays.js",
           "js/people.js",
           "js/quick-add.js",
@@ -143,7 +199,7 @@
         "id": "agents",
         "name": "Dispatch",
         "version": "1.0.0",
-        "description": "The front end for Tandem: your work items, the opencode agents working on them, and first-pass reviews of your team's pull requests.",
+        "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 20,
@@ -170,12 +226,24 @@
         ],
         "commands": [
           {
-            "id": "refresh",
-            "title": "Refresh work items"
+            "id": "start",
+            "title": "Start work"
           },
           {
             "id": "pr-review",
             "title": "Review a pull request"
+          },
+          {
+            "id": "refresh",
+            "title": "Refresh work items"
+          },
+          {
+            "id": "repo",
+            "title": "Add a repo"
+          },
+          {
+            "id": "project",
+            "title": "New project"
           }
         ],
         "files": [
@@ -449,7 +517,7 @@
         "id": "settings",
         "name": "Settings",
         "version": "1.0.0",
-        "description": "Workshop's settings, connectors, and moving your data.",
+        "description": "Connectors, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,

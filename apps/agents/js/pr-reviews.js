@@ -215,7 +215,7 @@ function inboxHtml() {
   const head = `<h3 id="gh-rvin">Waiting on you${inbox.state === 'ok' ? ` <span class="n">${(inbox.items || []).length}</span>` : ''}<span class="sh-r">${all}${inbox.state === 'off' ? '' : refresh}</span></h3>`;
   let body;
   if (inbox.state === 'off') {
-    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source (connection, project, repos) to see the PRs waiting on you here. You can still review any PR by its link.</p>' +
+    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source to list PRs waiting on you. Or paste any PR link above.</p>' +
       (S.mode === 'local' ? '<button type="button" class="btn" data-settings="1">Open Settings</button>' : '') + '</div>';
   } else if (inbox.state === 'error') {
     body = `<p class="err">${h(inbox.error || 'Could not check Azure DevOps.')}</p>`;
@@ -291,14 +291,14 @@ function pasteHtml() {
     '<label class="rv-new-l" for="rv-url">Review a pull request</label>' +
     `<div class="rv-new-row"><input id="rv-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://…/_git/<repo>/pullrequest/<number>" data-draft="rv:url" value="${h(val)}">` +
     `<button type="button" class="btn primary" data-rv-go="1"${busy ? ' disabled' : ''}>${busy ? 'Starting' : 'Review'}</button></div>` +
-    (st.error ? `<p class="err">${h(st.error)}</p>` : '<p class="hint">The repo has to be cloned in your workspace. The agent reads the PR without checking it out and drafts comments. It never posts anything.</p>') +
+    (st.error ? `<p class="err">${h(st.error)}</p>` : '<p class="hint">The repo must be cloned in your workspace.</p>') +
     '</div>';
 }
 
 /** The PR reviews page (scope "reviews"). */
 export function reviewsHtml() {
   const items = reviewItems();
-  let html = '<div class="scope-head"><h2>PR reviews</h2><span class="dim">First passes on your team\'s pull requests. Drafts only: nothing is posted to Azure DevOps.</span>' +
+  let html = '<div class="scope-head"><h2>PR reviews</h2><span class="dim">Drafts only. Nothing is posted to Azure DevOps.</span>' +
     '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
   html += pasteHtml() + queueHtml() + startingHtml() + inboxHtml();
   html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">Reviews${items.length ? ` <span class="n">${items.length}</span>` : ''}</h3>`;

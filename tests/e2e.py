@@ -805,13 +805,13 @@ def agents_checks(b, watch):
         check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('#item-41502').count() == 1)
 
         # The sidebar (Dispatch App Experience Plan, P2): projects through the connector, folders and pins in the browser.
-        check('the sidebar counts Needs review across all projects', sp.inner_text('.side [data-side-scope=needs] .cnt') == '2')
+        check('the sidebar counts Needs you across all projects', sp.inner_text('.side [data-side-scope=needs] .cnt') == '2')
         sp.click('.side [data-proj-new]'); sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]')
         check('New project saves through the connector and shows only its runs', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Orders API' and sp.locator('article.item').count() == 0)
         sp.click('.scope-head [data-side-scope=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")')
         check('a run moves to a project from its card', seen(sp, 'li:has(> .sproj [data-side-id^="p-"]) > .sruns [data-side-run="41207-fix-login-timeout"]'))
         sp.click('.sproj [data-side-scope=project]:has-text("Orders API")'); sp.click('.side .new-run')
-        check('New run starts in the project in view', sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
+        check('Start work starts in the project in view', sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
         sp.keyboard.press('Escape')
         sp.click('[data-pin="run"][data-pin-id="41502-csv-export"]', force=True)
         sp.reload(); seen(sp, '.side')

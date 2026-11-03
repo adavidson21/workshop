@@ -3,7 +3,7 @@
   "id": "agents",
   "name": "Dispatch",
   "version": "1.0.0",
-  "description": "The front end for Tandem: your work items, the opencode agents working on them, and first-pass reviews of your team's pull requests.",
+  "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 20,
@@ -30,12 +30,24 @@
   ],
   "commands": [
     {
-      "id": "refresh",
-      "title": "Refresh work items"
+      "id": "start",
+      "title": "Start work"
     },
     {
       "id": "pr-review",
       "title": "Review a pull request"
+    },
+    {
+      "id": "refresh",
+      "title": "Refresh work items"
+    },
+    {
+      "id": "repo",
+      "title": "Add a repo"
+    },
+    {
+      "id": "project",
+      "title": "New project"
     }
   ],
   "files": [

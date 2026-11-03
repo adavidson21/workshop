@@ -16,8 +16,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ORIGIN = /^(https:\/\/[a-z0-9.-]+(:\d{1,5})?|http:\/\/(127\.0\.0\.1|localhost):\d{1,5})$/;
 const FEATURES = {
-  startAtLogin: ['Start at login', 'Start Workshop when you log in to this computer. Per user, no admin rights needed.'],
-  hostedMode: ['Hosted mode', 'Let the sites listed below use Workshop on this computer, after you allow each one in a pairing window. Your data stays on this computer.'],
+  startAtLogin: ['Start at login', 'Start Workshop when you log in to this computer. No admin rights needed.'],
+  hostedMode: ['Hosted mode', 'Let the allowed sites below pair with Workshop on this computer. Each site asks once, in a pairing window.'],
   workMode: ['Work mode', 'Run Workshop from the pinned copy on this computer (built with workshop pin) instead of its site. No site can pair while it is on, and the code only changes when you update it.']
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Error', disabled: 'Off' };
@@ -48,12 +48,11 @@ function header() {
   if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change.';
   else if (readOnly) {
     const at = agentAddress();
-    note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer'
-      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : '.');
+    note.innerHTML = 'Read only. To change these, open Workshop on this computer'
+      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : ' (run <code>workshop open</code>).');
     document.body.classList.add('ro');
-  } else note.textContent = ws.storage === 'folder'
-    ? 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in the folder you chose.'
-    : 'Workshop is not running on this computer, or this page is not connected to it. Data is saved in this browser.';
+  }
+  // Browser mode: no subtitle. The "Workshop on this computer" card says how to connect, the Data folder card where data is.
 }
 
 /* ---------- data folder (docs/run-modes.md; docs/config.md, Data folder) ----------
@@ -65,7 +64,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 function moveSummary(m) {
   const name = esc(m.folder || 'the folder');
-  if (m.alreadyMoved) return `<p>Now using <b>${name}</b>. This browser's data was copied into a folder before, so nothing was copied this time.</p>`;
+  if (m.alreadyMoved) return `<p>Now using <b>${name}</b>. Nothing was copied: this browser's data went to a folder before.</p>`;
   const c = m.collections, f = m.files;
   const lines = [];
   const copied = c.created.length + c.merged.length;
@@ -77,7 +76,7 @@ function moveSummary(m) {
 }
 
 async function folderCard(cfg) {
-  const sec = card('Data folder', 'Every app keeps its data here as files, organized by app. The folder is yours: Workshop never syncs it, and if you remove Workshop the files stay.');
+  const sec = card('Data folder', 'Where apps save their data, one subfolder per app. Workshop does not sync it.');
   sec.dataset.folder = ws.storage;
   const body = document.createElement('div');
   sec.appendChild(body);
@@ -86,7 +85,7 @@ async function folderCard(cfg) {
     const form = document.createElement('form');
     form.className = 'cfg';
     form.innerHTML = `<div class="cfg-row"><label for="dataDir">Folder</label><input id="dataDir" class="cfg-input mono" type="text" spellcheck="false" value="${esc(cfg.dataDir)}">
-      <p class="cfg-help">A full path on this computer, outside <code>${esc(cfg.home)}</code>. A change takes effect after you restart Workshop. Workshop does not move your files: copy them into the new folder yourself if you want them there.</p></div>
+      <p class="cfg-help">A full path, outside <code>${esc(cfg.home)}</code>. Takes effect after a restart. Files are not moved: copy them over yourself.</p></div>
       <div class="acts"><span class="msg" aria-live="polite"></span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`;
     body.appendChild(form);
     if (readOnly) form.querySelectorAll('input').forEach(el => { el.disabled = true; });
@@ -110,14 +109,14 @@ async function folderCard(cfg) {
   if (last) body.insertAdjacentHTML('beforeend', `<div class="moved" role="status">${moveSummary(last)}</div>`);
   const canPick = typeof window.showDirectoryPicker === 'function';
   const state = st.storage === 'folder'
-    ? (st.missing ? `<p class="err">The folder <b>${esc(st.name)}</b> is gone. It may have been moved, renamed or deleted. Choose it again.</p>`
+    ? (st.missing ? `<p class="err">The folder <b>${esc(st.name)}</b> is missing (moved, renamed or deleted). Choose it again.</p>`
       : st.permission === 'granted' ? `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>.</p>`
-      : `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>, but Chrome needs your OK to use it again.</p>`)
-    : `<p>Saved in this browser.${canPick ? ' Choose a folder to keep app data as files you own. If Workshop also runs on this computer, pick its folder (<code>Workshop</code> in your home folder) so both use the same files.' : ''}</p>`
-      + (st.moved ? '<p class="cfg-help">This browser\'s data was copied into a folder before. What is saved here now may be older than that folder.</p>' : '');
+      : `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>. Click Allow access so Chrome can use it again.</p>`)
+    : `<p>Saved in this browser.${canPick ? ' Choose a folder to save as files instead. To share files with Workshop on this computer, choose <code>Workshop</code> in your home folder.' : ''}</p>`
+      + (st.moved ? '<p class="cfg-help">This browser\'s data was copied to a folder before, so that folder may be newer.</p>' : '');
   body.insertAdjacentHTML('beforeend', state);
   if (!canPick) {
-    body.insertAdjacentHTML('beforeend', '<p class="cfg-help">This browser cannot use a folder. Open Workshop in Chrome to keep data in one.</p>');
+    body.insertAdjacentHTML('beforeend', '<p class="cfg-help">To save to a folder, open Workshop in Chrome or Edge.</p>');
     return;
   }
   const acts = document.createElement('div');
@@ -126,7 +125,7 @@ async function folderCard(cfg) {
   acts.innerHTML = (needsOk ? '<button class="btn primary" data-allow>Allow access</button>' : '')
     + `<button class="btn${st.storage === 'folder' ? '' : ' primary'}" data-choose>${st.storage === 'folder' ? 'Change folder' : 'Choose folder'}</button><span class="msg" aria-live="polite"></span>`;
   body.appendChild(acts);
-  if (st.storage === 'folder') body.insertAdjacentHTML('beforeend', '<p class="cfg-help">Changing the folder does not copy anything between folders; copy files yourself if you want them in the new one.</p>');
+  if (st.storage === 'folder') body.insertAdjacentHTML('beforeend', '<p class="cfg-help">Changing the folder copies nothing from the old one.</p>');
   const msg = acts.querySelector('.msg');
   acts.querySelector('[data-choose]').addEventListener('click', async e => {
     e.target.disabled = true;
@@ -139,14 +138,14 @@ async function folderCard(cfg) {
     try {
       const now = await ws.folder.allow();
       if (now.permission === 'granted' && !now.missing) { toast('Workshop can use the folder again.', 'success'); content.innerHTML = ''; start(); }
-      else msg.textContent = 'Chrome did not allow it. Choose the folder again to fix this.';
+      else msg.textContent = 'Chrome did not allow it. Choose the folder again.';
     } catch (err) { msg.textContent = errText(err); }
   });
 }
 
 /* ---------- Workshop: features, allowed sites, port ---------- */
 async function workshopCard(cfg) {
-  const sec = card('Workshop', `Settings are kept in <code>${esc(cfg.home)}</code> on this computer.`);
+  const sec = card('Workshop', `Saved in <code>${esc(cfg.home)}</code>.`);
   const form = document.createElement('form');
   form.className = 'cfg';
   const feats = Object.keys(cfg.features);
@@ -155,11 +154,11 @@ async function workshopCard(cfg) {
     return `<div class="cfg-row cfg-check"><input type="checkbox" id="feat-${k}" data-feature="${k}"${cfg.features[k] ? ' checked' : ''}><label for="feat-${k}">${esc(label)}</label>${help ? `<p class="cfg-help">${esc(help)}</p>` : ''}</div>`;
   }).join('') + `
     <fieldset><legend>Allowed sites</legend>
-      <p class="cfg-help">Sites, other than this computer, that may use Workshop when hosted mode is on. Each is <code>https://</code> and a host, with no path, for example <code>https://workshop.example.org</code>.</p>
+      <p class="cfg-help">Sites that can pair when hosted mode is on: <code>https://</code> and a host, no path.</p>
       <div class="cfg-list" id="origins"></div>
       <button type="button" class="btn cfg-add" data-add-origin>Add a site</button>
     </fieldset>
-    <div class="cfg-row"><label for="port">Port</label><input id="port" class="cfg-input mono" type="number" min="1024" max="65535" value="${cfg.port}"><p class="cfg-help">Workshop listens on 127.0.0.1 at this port. A change takes effect after Workshop restarts.</p></div>
+    <div class="cfg-row"><label for="port">Port</label><input id="port" class="cfg-input mono" type="number" min="1024" max="65535" value="${cfg.port}"><p class="cfg-help">On 127.0.0.1. Takes effect after a restart.</p></div>
     <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div>`;
   sec.appendChild(form);
   const list = form.querySelector('#origins');
@@ -193,7 +192,7 @@ async function workshopCard(cfg) {
 
 /* ---------- connectors ---------- */
 async function connectorsCard(cfg) {
-  const sec = card('Connectors', 'Connectors are how Workshop talks to other systems. Each is off until you turn it on. Secrets such as PATs stay in environment variables on this computer; here you only name the variable. Save one with: workshop pat ADO_PAT');
+  const sec = card('Connectors', 'Each is off until you turn it on. PATs and other secrets go in environment variables on this computer; here you only name the variable. Save one with: workshop pat ADO_PAT');
   let list;
   try { list = await ws.connectors.list(); } catch (e) { sec.insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
   if (!list.length) { sec.insertAdjacentHTML('beforeend', '<p class="sub">No connectors are installed.</p>'); return; }
@@ -303,7 +302,7 @@ async function buildForm(info, holder, draft) {
   if (draft) cc = { ...cc, config: draft.config };
   holder.innerHTML = '';
   if (draft && draft.notes.length) holder.insertAdjacentHTML('beforeend', `<ul class="import-notes">${draft.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`);
-  if (!Object.keys(cc.schema.properties || {}).length) { holder.innerHTML = '<p class="sub">This connector has nothing to set.</p>'; return; }
+  if (!Object.keys(cc.schema.properties || {}).length) { holder.innerHTML = '<p class="sub">Nothing to set.</p>'; return; }
   const form = document.createElement('form');
   form.className = 'cfg';
   let node = renderForm(cc.schema, cc.config, cc.env, { readOnly });
@@ -319,7 +318,7 @@ async function buildForm(info, holder, draft) {
       // Rebuild with what the agent stored (defaults filled in) and fresh environment variable status.
       const next = renderForm(saved.schema, saved.config, saved.env, { readOnly });
       node.replaceWith(next); node = next;
-      msg.textContent = info.enabled ? 'Saved. The connector restarted with these settings.' : 'Saved.';
+      msg.textContent = info.enabled ? 'Saved. The connector restarted.' : 'Saved.';
       toast(`${info.name} settings saved`, 'success');
     } catch (err) { msg.textContent = errText(err); }
   });
@@ -333,7 +332,7 @@ async function runTest(info, form) {
   const raw = form.querySelector('input').value.trim();
   if (!raw) return;
   const { action, arg } = info.test;
-  out.className = 'test-out'; out.textContent = 'Asking...';
+  out.className = 'test-out'; out.textContent = 'Testing...';
   try {
     let result;
     try { result = await ws.connectors.call(info.id, action, { [arg]: /^\d+$/.test(raw) ? Number(raw) : raw }); }
@@ -355,9 +354,7 @@ function summarize(result) {
 
 /* ---------- data: bundles ---------- */
 function dataCard() {
-  const sec = card('Data', ws.backend === 'agent' || ws.storage === 'folder'
-    ? 'Apps that keep their data in Workshop save it in the data folder above. Download a copy to move it to another computer or keep a backup.'
-    : 'Apps that keep their data in Workshop save it in this browser. Download a copy to move it to Workshop on a computer, or to another browser.');
+  const sec = card('Data', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.');
   sec.insertAdjacentHTML('beforeend', `<div class="acts left"><button class="btn" data-export>Download a copy</button>
     <label class="btn"><input type="file" accept=".json,application/json" data-import hidden>Import a copy</label><span class="msg" aria-live="polite"></span></div>`);
   const msg = sec.querySelector('.msg');
@@ -370,7 +367,7 @@ function dataCard() {
       a.download = `workshop-${bundle.exportedAt.slice(0, 10)}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      msg.textContent = bundle.collections.length ? `Downloaded ${bundle.collections.length} collection${bundle.collections.length === 1 ? '' : 's'}.` : 'Downloaded. No app has saved data in Workshop yet.';
+      msg.textContent = bundle.collections.length ? `Downloaded ${bundle.collections.length} collection${bundle.collections.length === 1 ? '' : 's'}.` : 'Downloaded. No app has saved data yet.';
     } catch (e) { msg.textContent = errText(e); }
   });
   sec.querySelector('[data-import]').addEventListener('change', async e => {
@@ -404,9 +401,9 @@ async function workCard() {
 
 function sitesCard(cfg) {
   const sites = cfg.allowedOrigins || [];
-  if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so no site can use Workshop on this computer. Turn it on below.'); return; }
+  if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so Workshop\'s site cannot pair. Turn it on under Workshop below.'); return; }
   if (!sites.length) { card('Open Workshop', 'No sites are allowed yet. Add Workshop\'s site under Allowed sites below.'); return; }
-  const sec = card('Open Workshop', 'Workshop opens from its site. This browser is signed in here, so on the site click <b>Connect</b> to pair it with this computer.');
+  const sec = card('Open Workshop', 'This browser is signed in. Open the site and click <b>Connect</b> to pair it.');
   sec.insertAdjacentHTML('beforeend', `<ul class="sites">${sites.map(o => `<li><a class="lnk" href="${esc(o)}/" target="_blank" rel="noopener">${esc(o.replace(/^https?:\/\//, ''))}</a></li>`).join('')}</ul>`);
 }
 
@@ -424,8 +421,11 @@ async function start() {
       card('Workshop').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`);
     }
   } else {
+    // Not paired, or the agent is not running. Pairing is Connect in the shell's rail (https only); its dialog
+    // covers signing this browser in (workshop open).
+    card('Workshop on this computer', 'Not connected, so connectors are off. If Workshop is not running, run <code>workshop start</code>. Then '
+      + (location.protocol === 'https:' ? 'click <b>Connect</b>.' : 'open Workshop from its site and click <b>Connect</b>.'));
     await folderCard(null);
-    card('Workshop on this computer', `Workshop is not running here, or this page is not connected to it. To use connectors, start Workshop on your computer and open the address it prints${location.protocol === 'https:' ? ', or use Connect on the left to pair this site with it' : ''}.`);
   }
   dataCard();
 }

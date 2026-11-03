@@ -195,7 +195,7 @@ test('header: Live only when Workshop and opencode are both connected', () => {
   assert.deepEqual(pill(), ['off', 'opencode not connected']);
   S.conn = 'off';
   assert.deepEqual(pill(), ['off', 'Workshop not reachable']);
-  assert.match(render(), /Workshop stopped or restarted/);
+  assert.match(render(), /Workshop is not answering\. Start it with/);
 });
 
 test('in the shell, the shell owns the name and theme; on its own, the page has its name (the top bar has the toggle)', () => {
