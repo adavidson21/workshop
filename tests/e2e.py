@@ -930,7 +930,23 @@ def agents_checks(b, watch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def string_waits():
+    """wait_for_function calls in tests/*.py that pass an expression instead of a function. Playwright compiles an
+    expression inside the page when the condition is not already true; Workshop's CSP refuses that, so the wait
+    fails at once and sometimes leaves an EvalError page error behind (the old flaky "no page errors")."""
+    bad = []
+    for name in sorted(os.listdir(os.path.join(ROOT, 'tests'))):
+        if not name.endswith('.py'): continue
+        with open(os.path.join(ROOT, 'tests', name)) as f:
+            for i, line in enumerate(f, 1):
+                for m in re.finditer(r"wait_for_function\((['\"])(.*?)\1", line):
+                    if not re.match(r"\s*(\(|[A-Za-z_$][\w$]*\s*=>|async\b|function\b)", m.group(2)): bad.append(f'tests/{name}:{i}')
+    return bad
+
+
 def main():
+    bad = string_waits()
+    if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
@@ -944,7 +960,8 @@ def main():
         # Every request from every page and frame, including the service worker's.
         ctx.on('request', lambda r: requests.append(r.url))
         def watch(page):
-            page.on('pageerror', lambda e: errors.append(str(e)))
+            # Where it happened, so a failure names the page and the code (the message alone is not enough).
+            page.on('pageerror', lambda e, page=page: errors.append(f"{str(e)[:300]} | page {page.url} | stack {(getattr(e, 'stack', '') or '')[:800]}"))
             page.on('console', lambda m: csp.append(m.text) if 'Content Security Policy' in m.text else None)
         pg = ctx.new_page(); watch(pg)
 
@@ -1006,7 +1023,7 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
         check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 6)  # Today, Day, Triage, Prioritize, People, Reports
