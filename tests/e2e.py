@@ -352,7 +352,8 @@ def agent_checks(b, watch):
         sf = local_page(lctx, url, token, watch)
         check('the agent\'s address opens Workshop on this computer (Settings), in local mode', sf.url == url + '/apps/settings/'
               and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
-        check('it links to Workshop\'s allowed sites to pair from', sf.locator('.sites a[href="' + HOSTED + '/"]').count() == 1)
+        check('it has one button to Workshop\'s site to pair from, not a list of sites', sf.locator('[data-open-site]').count() == 1 and sf.locator('a[data-open-site][href="' + HOSTED + '/"]').count() == 1)
+        check('rarely changed settings fold away under Advanced', sf.locator('details.adv:not([open]) #port').count() == 1 and sf.locator('details.adv #feat-startAtLogin').count() == 0)
         gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html']
           .map(p => fetch(p).then(r => r.status)))""")
         check('the agent serves no hub and no other app', gone == [404] * 5)
@@ -379,7 +380,8 @@ def agent_checks(b, watch):
 
         # Workshop on this computer: the settings a hosted site may not change.
         data_dir = sf.locator('[data-folder=agent] #dataDir')
-        check('Settings shows the agent\'s data folder', data_dir.count() == 1 and os.path.realpath(data_dir.input_value()) == os.path.realpath(os.path.join(tmp, 'Workshop')))
+        check('Settings shows the agent\'s data folder', data_dir.count() == 1 and os.path.realpath(sf.inner_text('[data-folder] .path-text')) == os.path.realpath(os.path.join(tmp, 'Workshop')))
+        sf.locator('[data-folder] [data-change]').click()
         other = os.path.join(tmp, 'Elsewhere')
         data_dir.fill('not/absolute'); sf.locator('[data-folder] button.primary').click(); sf.wait_for_timeout(300)
         check('Settings asks for a full path', 'full path' in sf.inner_text('[data-folder] .msg'))

@@ -44,19 +44,32 @@ textarea.cfg-input{resize:vertical}
 .acts.left .msg{margin:0 0 0 .4rem}
 label.btn{cursor:pointer}
 
-/* connectors */
-.conn{border-top:1px solid var(--line);padding:1rem 0 .6rem}
-.conn:first-of-type{border-top:0}
-.conn-head{display:flex;align-items:center;gap:.8rem}
+/* connectors: name, one line on what it is for, a switch; status as a dot and a word */
+.conn{border-top:1px solid var(--line);padding:1rem 0 .8rem}
+.conn:first-of-type{border-top:0;padding-top:.3rem}
+.conn-head{display:flex;align-items:flex-start;gap:1rem}
 .conn-head>div{flex:1;min-width:0}
-.conn h3{display:inline;margin:0;font:600 1.15rem/1.25 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em}
-.conn .ver{margin-left:.5rem;color:var(--muted);font:400 .74rem var(--mono)}
-.state{font:500 10.5px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:.2rem .55rem;border-radius:999px;background:var(--sunk);color:var(--muted)}
-.state[data-state=ready]{background:var(--accent-soft);color:var(--ink)}
-.state[data-state=error]{background:var(--danger-soft);color:var(--danger)}
-.state[data-state=starting]{background:var(--warn-soft);color:var(--ink)}
-.state-msg{margin:.2rem 0 0;color:var(--muted);font-size:.82rem}
+.conn h3{margin:0;font:600 1.15rem/1.25 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em}
+.conn-about{margin:.15rem 0 0;color:var(--muted);font-size:.86rem}
+.conn-status{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem;margin:.45rem 0 0;font-size:.82rem}
+.state{display:inline-flex;align-items:center;gap:.4rem;font:500 11px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.state::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:var(--line)}
+.state[data-state=ready]{color:var(--ink)}
+.state[data-state=ready]::before{background:var(--accent)}
+.state[data-state=error]{color:var(--danger)}
+.state[data-state=error]::before{background:var(--danger)}
+.state[data-state=starting]::before{background:var(--warn)}
+.state-msg{color:var(--muted)}
 .state-msg:empty{display:none}
+/* off: the switch already says so */
+.conn-status:has([data-state=disabled]){display:none}
+.import-row{margin:.2rem 0 .4rem}
+/* the on/off switch is a real checkbox, drawn as a switch */
+.toggle{appearance:none;-webkit-appearance:none;flex:none;position:relative;width:2.5rem;height:1.4rem;margin:.1rem 0 0;border-radius:999px;background:var(--line);cursor:pointer;transition:background-color .2s}
+.toggle::after{content:"";position:absolute;top:.2rem;left:.2rem;width:1rem;height:1rem;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgb(0 0 0/.25);transition:transform .2s}
+.toggle:checked{background:var(--accent)}
+.toggle:checked::after{transform:translateX(1.1rem)}
+.toggle:disabled{opacity:.55;cursor:default}
 .conn-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}
 .conn-tools:not(:has(button:not([hidden]),label)){display:none}
 .conn-tools .msg{color:var(--muted);font-size:.82rem}
@@ -64,7 +77,28 @@ label.btn{cursor:pointer}
 .switch{display:flex;align-items:center;gap:.35rem;font-size:.84rem;cursor:pointer}
 .switch input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .conn details{margin-top:.5rem}
-.conn summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent)}
+.cfg-more{margin:.9rem 0 .2rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+.cfg-more>summary{cursor:pointer;font-size:.86rem;font-weight:500;color:var(--accent);width:max-content}
+.conn summary,.adv>summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent);width:max-content}
+.conn details[open]>summary{margin-bottom:.3rem}
+
+/* Workshop card: rarely changed settings fold away under Advanced */
+.adv{margin:.9rem 0 0;padding-top:.8rem;border-top:1px solid var(--line)}
+.adv[open]>summary{margin-bottom:.4rem}
+.adv-note{margin:0 0 .3rem}
+
+/* open Workshop */
+.open-card .acts{margin-top:.4rem}
+.open-card .btn.primary{text-decoration:none;padding:.5rem 1.05rem;font-size:.92rem}
+
+/* data folder path */
+.path{display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .3rem}
+.path[hidden]{display:none}
+.path-box{flex:1;min-width:0;display:flex;align-items:center;gap:.6rem;padding:.55rem .8rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg)}
+.path-ico{flex:none;width:1.15rem;height:1.15rem;color:var(--eyebrow)}
+.path-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
+.path-edit .cfg-input{margin:.2rem 0 .3rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .test{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.6rem;font-size:.88rem}
 .test .cfg-input{width:10rem}
 .test-out{flex-basis:100%;font-size:.86rem}
@@ -81,5 +115,5 @@ label.btn{cursor:pointer}
 [data-folder] p{margin:.3rem 0;font-size:.9rem}
 .moved{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:.5rem .8rem;margin:.3rem 0 .7rem;background:var(--sunk);font-size:.86rem}
 .moved ul{margin:.3rem 0;padding-left:1.2rem}
-.sites{margin:.4rem 0 0;padding-left:1.2rem;display:grid;gap:.2rem}
 .moved p{margin:.2rem 0}
+.sites{margin:.4rem 0 0;padding-left:1.2rem;display:grid;gap:.2rem}
