@@ -123,6 +123,21 @@ function currentSection(sections, nowMin) {
   return { current: cur, next, end: curEnd };
 }
 
+/* Wrap up, from Docket's focus log (js/focus-model.js) and Day view settings: whether the day is wrapped, whether
+   it is time (an hour before the Day view's day end on a working day; 15:00 with no sprint set), and how many
+   receipts were offered today (prioritizer.handoffs). day: today's focus/days record or null; settings and offers:
+   envelopes at version 1, or null. */
+export function wrapState({ day = null, settings = null, offers = null }, today, nowMin) {
+  const sp = cleanSprint(settings && settings.meta && settings.meta.sprint);
+  const end = sp ? toMin(settings.meta.sprint.dayEnd) ?? 17 * 60 : null;
+  const events = day && Array.isArray(day.events) ? day.events : [];
+  return {
+    wrapped: events.some(e => e && e.type === 'shutdown'),
+    due: sp ? isWorkday(sp, today) && nowMin >= end - 60 : nowMin >= 15 * 60,
+    receipts: (offers && Array.isArray(offers.items) ? offers.items : []).filter(h => h && h.to === 'receipts' && h.date === today).length
+  };
+}
+
 /* The block on now and the next one, from Docket's day plan. `day` is {settings, templates, days} (envelopes or
    null). Returns null when there is nothing to show: no sprint set, a day off, or the day's blocks are over. */
 export function dayNow(day, tasks, now) {
@@ -209,13 +224,15 @@ export function render(v) {
     ${tile(b.dueWeek, 'Due this week', `${plural(b.open, 'open task')}`, '', 'prioritize')}
   </section>`;
   // One button per part of the day. The first one that needs doing is the primary.
-  const late = v.now.getHours() >= 15;
-  const step = (label, path, primary) => `<button class="btn${primary ? ' primary' : ''}" data-open="prioritizer" data-path="${path}">${label}</button>`;
+  // Wrap up is the primary step from an hour before the Day view's day end (wrapState); once wrapped it says so.
+  const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
+  const late = w.due && !w.wrapped;
+  const step = (label, path, primary, tip) => `<button class="btn${primary ? ' primary' : ''}" data-open="prioritizer" data-path="${path}"${tip ? ` title="${esc(tip)}"` : ''}>${label}</button>`;
   const first = b.triage ? 'triage' : !b.focus.total ? 'plan' : late ? 'wrap' : 'plan';
   const day = `<nav class="dayflow" aria-label="Your day">
     ${b.triage ? step(`Triage ${b.triage}`, 'triage', first === 'triage') : ''}
     ${step(b.focus.total ? 'Plan today' : 'Pick today\'s tasks', b.focus.total ? 'day/today' : 'today', first === 'plan')}
-    ${step('Wrap up the day', 'shutdown', first === 'wrap')}
+    ${step(w.wrapped ? 'Day wrapped' : 'Wrap up the day', 'shutdown', first === 'wrap', w.receipts ? `${plural(w.receipts, 'receipt')} offered to Receipts today` : '')}
   </nav>`;
 
   const next = `<section class="card">

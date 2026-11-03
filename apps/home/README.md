@@ -5,7 +5,7 @@ Your day at a glance. The Workshop logo at the top of the rail opens it, and so 
 What it shows:
 
 - **Greeting** with your name and role. Use **Add your name** (or **Edit profile**) to set them.
-- **Your day:** buttons for Triage (with the count), Plan today (or Pick today's tasks when Today is empty) and Wrap up the day. The one that needs doing is highlighted.
+- **Your day:** buttons for Triage (with the count), Plan today (or Pick today's tasks when Today is empty) and Wrap up the day. The one that needs doing is highlighted. Wrap up the day is highlighted from an hour before your day ends (Docket's Day view settings; 15:00 if no sprint is set), on working days only. After Docket's Wrap up it reads **Day wrapped**. Its tooltip counts receipts offered to Receipts today. Reads Docket's `focus/days/<yyyy>` and `handoffs` at version 1 only.
 - **Get started:** a checklist for someone new, under the greeting. Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
   1. Connect Workshop on this computer (the installer command for your system, then Connect).
   2. Add your name.
