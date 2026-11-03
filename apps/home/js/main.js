@@ -14,9 +14,14 @@ let editing = false, visible = true;
 const home = createHome(ws, { onChange: () => paint() });
 const v = home.v;
 
+// Sections that fade in. They play once: a section already on screen keeps still through repaints
+// (a repaint comes with every agent event and once a minute).
+const ENTERS = ['.hello', '.tiles', '.cols', '.card.note'];
 function paint() {
   if (home.waiting) editing = false;
+  const had = ENTERS.map(q => !!app.querySelector(q));
   app.innerHTML = editing ? profileForm(v.profile) : render(v);
+  ENTERS.forEach((q, i) => { if (had[i]) app.querySelectorAll(q).forEach(el => el.classList.add('still')); });
   if (editing) { const f = app.querySelector('input[name=name]'); if (f) f.focus(); }
 }
 

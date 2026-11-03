@@ -80,3 +80,5 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
   .hello{flex-wrap:wrap}
   .tile{padding:1rem .75rem 1.1rem}
 }
+/* Already on screen before this repaint (main.js paint): don't replay the fade in. */
+.still,.card.note.still{animation:none}
