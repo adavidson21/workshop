@@ -2,7 +2,7 @@
 
 One Azure DevOps integration for every Workshop app. It replaces `apps/prioritizer/ado-helper/ado_helper.py` (removed in WS8) and gives eng-agents `/start` a way to fetch work items through the agent (WS9).
 
-Read-only: every action has `write: false`. Node standard library only. It calls only the server URLs in its settings.
+Mostly read-only. The three actions that change ADO (`workitem.update`, `workitem.comment`, `workitem.create`, for the Queue app) have `write: true`, so the agent runs them only with `confirm: true` from a person's click; they need a PAT with **Work Items (Read & Write)**. Everything else needs only read scopes. Node standard library only. It calls only the server URLs in its settings.
 
 ## Settings
 
@@ -34,13 +34,23 @@ Call with `POST /api/connectors/ado/<action>` and `{"args": {...}}`, or `connect
 | `sync` | `known` (work item IDs on the board), `knownPrs` (PR keys), `prs` (default `true`) | Same JSON as the helper's `POST /sync`: `{items, gone, syncedAt, prs?, prError?}`. |
 | `sync.prs` | `knownPrs` | The helper's `prs` object: `{items, gone, notes}`. |
 | `dataset` | `areas`, `people`, `days`, and `connection` (name) or `base` (collection URL, as the helper took it) | Same JSON as the helper's `POST /dataset`, plus `connection`. |
-| `workitem.get` | `id`, optional `connection`, `path` (repo or folder), `details` | `{id, title, type, state, project, connection, reason, url}`. With `details: true` also `area`, `iteration`, `tags`, `description`, `acceptanceCriteria`, `reproSteps` (plain text) and `related`. `reason` says why that connection was picked, so callers can confirm before acting. |
+| `workitem.get` | `id`, optional `connection`, `path` (repo or folder), `details`, `html`, `pullRequests`, `comments`, `history` | `{id, title, type, state, project, connection, reason, url}`. With `details: true` also `area`, `iteration`, `tags`, `description`, `acceptanceCriteria`, `reproSteps` (plain text) and `related`; add `html: true` for `html.{description, acceptanceCriteria, reproSteps}` (ADO's raw HTML, untrusted) and `pullRequests: true` for linked `[{id, repositoryId}]`. `comments: true` adds `comments` (oldest first, `{id, html, text, by, date, edited}`); `history: true` adds `history` (newest first, at most 50, `{rev, by, date, changes: [{field, from, to}]}` for state, assignee, priority, iteration, area, tags and title). Without these flags the result is exactly as before. `reason` says why that connection was picked, so callers can confirm before acting. |
+| `queue.list` | `areas` (required, area paths, matched with UNDER), `types` (default: Work item types), `includeClosed`, `changedSince` (`yyyy-mm-dd`), `connection` | `{connection, me, items, total, truncated, fetchedAt}`. `items` are `{id, rev, type, title, state, reason, assignee: {name, email} \| null, priority, iteration, area, project, tags[], created, changed, stateChanged, connection, url}`, newest change first, at most 2000 (`truncated` says if there were more). `me` is `{name, email}` from connectionData, or `null`. Area paths come from the app, not these settings. |
+| `workitem.states` | `type`, `project` (default: the connection's), `connection` | `{connection, project, type, states: [{name, category, color}]}`. |
+| `iterations.list` | `project`, `connection` | `{connection, project, iterations: [{path, name, start, finish, current}]}`; `path` is the form work items use (`Project\Sprint 12`). |
+| `workitem.update` (write) | `id`, `rev` (the revision you read), `changes: {state?, assignedTo?, priority?, iteration?, tagsAdd?, tagsRemove?}`, `connection` | The item as ADO now has it, in the `queue.list` shape. `assignedTo: ""` unassigns. The connector reads the item first and sends one JSON Patch with a `test` on `/rev`; if the item changed since `rev`, it answers `409 conflict` and changes nothing. |
+| `workitem.comment` (write) | `id`, `text` (plain text), `connection` | `{id, comment: {id, text, date}, connection}`. The text is escaped and line breaks become `<br>`. |
+| `workitem.create` (write) | `type`, `title`, `project`, `description` (plain text; a Bug's goes in Repro Steps), `area`, `iteration`, `priority`, `assignedTo`, `connection` | The new item in the `queue.list` shape. |
 | `connection.resolve` | `connection` or `path` | Which connection and project would be used, and whether its PAT variable is set. Calls nothing. |
 | `config.import` | `helper` (parsed ado-helper.json), `engAgents` (parsed eng-agents config.json) | `{config, notes}`: settings merged with the current ones. Saves nothing; the Settings app shows them and saves with `PUT /api/connectors/ado/config`. |
 
 The connection is picked in eng-agents order: `connection` by name, then a `paths` match for `path`, then `defaultConnection`, then the only connection. eng-agents also matched a repo's git remote; the connector does not run git, so map such repos in `paths`.
 
-Errors are plain words with a code: `bad_request` (settings or arguments), `not_found` (no such work item), `unavailable` (ADO rejected the PAT, could not be reached, or answered with a sign-in page).
+Queue actions use `connection` by name, else the connection for my work items (`syncConnection`).
+
+Errors are plain words with a code: `bad_request` (settings or arguments), `not_found` (no such work item), `unavailable` (ADO rejected the PAT, could not be reached, or answered with a sign-in page), `conflict` (a write's `rev` is stale; reload the item and try again). The agent does not pass extra error fields on, so callers re-read the item after a conflict.
+
+**Comments API.** Work item comments are a preview API on ADO Server 2020. The connector calls it as `<apiVersion>-preview.3` (`6.0-preview.3` by default). Check it once on your server with `--write-check` below.
 
 ## Doctor
 
@@ -51,7 +61,10 @@ node connectors/ado/doctor.mjs                 # check each connection, list wha
 node connectors/ado/doctor.mjs --import        # print settings built from ado-helper.json and eng-agents config.json
 node connectors/ado/doctor.mjs --import --write  # save them into ~/.workshop/config.json (does not turn the connector on)
 node connectors/ado/doctor.mjs --compare --areas "Project\Team" --people "a@example.com"
+node connectors/ado/doctor.mjs --write-check 12345   # pick a test work item
 ```
+
+`--write-check <id>` adds the tag `workshop-write-check` to that work item and removes it again. On the way it sends one write with an old revision straight to ADO, to see ADO refuse it, and asks the comments API for one comment. It prints plain-word results only, never titles or names.
 
 `--compare` runs `ado_helper.py` (with its own `ado-helper.json`) and the connector (with settings imported from that same file) against your ADO, then prints match and mismatch counts per section, with the names of fields that differ. It prints no titles, names, URLs or messages, and writes no files (Python runs with bytecode writing off). Use it at work to check parity before WS8 removes the helper. Options: `--helper <ado_helper.py>`, `--python <command>`, `--known <ids>`, `--days <n>`. Run `--help` for all.
 
@@ -65,6 +78,7 @@ node connectors/ado/test/make-goldens.mjs      # after changing fixtures or the 
 - `test/fixtures/team.mjs`: synthetic data shaped like the public Azure DevOps REST API reference. No work data.
 - `test/fake-ado.mjs`: a fake ADO server on 127.0.0.1 that serves the fixtures and records every request.
 - `test/goldens/`: what `ado_helper.py` returns for each case, and the ADO calls it made. `golden.test.mjs` checks the connector returns the same JSON and makes the same calls, and (when Python 3 is installed) that the goldens still match the helper.
+- `test/fixtures/queue.mjs` and `queue.test.mjs`: the Queue actions, writes included. The fake server applies writes in memory, refuses a stale `test` on `/rev` with `TF26071`, and answers 403 to every write on a read-only collection.
 - `connector.test.mjs` runs the connector through the mock agent, including that a PAT never shows up in responses, logs or errors. `doctor.test.mjs` covers the doctor, including that `--compare` writes nothing and prints no data.
 
 ## Differences from the helper
