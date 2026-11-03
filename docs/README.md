@@ -12,6 +12,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | SDK | [sdk.md](sdk.md) | `sdk: 1` | `sdk-message` | `tests/check-contracts.mjs` (examples) |
 | Data folder and data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle`, `data-moved` | `tests/contract/data.test.mjs`, `tests/contract/folder.test.mjs`, `tests/contract/merge.test.mjs` |
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
+| Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
 
 ## Layout
 

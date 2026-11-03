@@ -29,6 +29,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | --- | --- | --- |
 | `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched` |
 | `repos.md` | `/start` | `Lane`, the repo table |
+| `brief.md` | `/start` (skipped with `--cold`) | Nothing is parsed: shown as Markdown for the person (Tandem 2.6.0 and later) |
 | `spec.md` | `/spec` | `Status:` gate |
 | `plan.md` | `/plan` | `Status:` gate |
 | `bug.md` | `/bug` | `Status:` gate |
