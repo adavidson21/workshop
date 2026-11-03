@@ -64,7 +64,7 @@ function renderToday(){
         <button class="btn" data-left="clear">Back to lists</button><button class="btn primary" data-left="carry">Add to today</button></div>` : ''}
       ${focus.length ? `<div class="fhead"><span class="count"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span></div>
         <div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
-      <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3})).join('')
+      <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
         || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b>${TOUCH ? 'Tap + to add a task' : 'Press N to add a task'}, or pick 3 to 5 from Up next.${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
       ${open.length > 5 ? `<p class="soft">That's ${open.length} tasks. Today works best with 3 to 5.</p>` : ''}
       ${doneGroup(done)}

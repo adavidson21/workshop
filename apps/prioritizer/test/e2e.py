@@ -169,6 +169,47 @@ def main():
         check('deleting it does not bring it back this sprint', made == 0 and pg.evaluate(f"() => {P}.state.tasks.filter(t => t.recur).length") == 0)
         pg.keyboard.press('1'); pg.wait_for_timeout(200)
 
+        # Focus: Start on Today, a switch asks for a breadcrumb, the now bar counts switches and interruptions,
+        # finishing stops the task, and it all survives a reload. Then wrap up the day.
+        fa, fb = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA');
+          const open = P.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank).slice(0, 2);
+          open.forEach(t => t.focusOn = d); P.commit(); return open.map(t => t.id); }}""")
+        pg.wait_for_timeout(200)
+        pg.hover(f'main .row[data-id="{fa}"]'); pg.click(f'main .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
+        check('Start on a Today row makes it the task in the now bar', pg.is_visible('#nowbar') and pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').title") in pg.inner_text('#nowbar .ntitle')
+              and pg.locator(f'main .row.active[data-id="{fa}"]').count() == 1)
+        pg.hover(f'main .row[data-id="{fb}"]'); pg.click(f'main .row[data-id="{fb}"] [data-act=start]'); pg.wait_for_timeout(200)
+        check('switching to another task asks where you left off', pg.locator('.modal .crumbsheet').count() == 1)
+        pg.fill('.modal .crumbsheet input', 'next: <b>write</b> the test'); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+        crumbs = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').crumbs")
+        check('the breadcrumb is saved on the task it left', crumbs and crumbs[-1]['text'] == 'next: <b>write</b> the test')
+        check('the now bar counts the switch', '1 switch' in pg.inner_text('#nowbar .ncount'))
+        pg.click('#phead h1'); pg.keyboard.press('i'); pg.wait_for_timeout(200)
+        check('I logs an interruption', '1 interruption' in pg.inner_text('#nowbar .ncount'))
+        pg.click('#nowbar [data-now=done]'); pg.wait_for_timeout(300)
+        check('Done in the now bar completes the task and stops it', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fb}').done")
+              and pg.evaluate(f"() => {P}.focusModel.activeOf({P}.focusLog, new Date().toLocaleDateString('en-CA'))") is None)
+        check('Today shows where you left off, escaped', 'write' in pg.inner_text(f'main .row[data-id="{fa}"] .crumb') and pg.locator('main .crumb b').count() == 0)
+        pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
+        pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
+        cols = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
+          const q = r.result.transaction('data').objectStore('data').getAllKeys(); q.onsuccess = () => res(q.result); }; })""")
+        check('the focus log is saved as focus/days next to the board, and the counts survive a reload',
+              f'prioritizer/focus/days/{y}' in cols and '1 switch' in pg.inner_text('#nowbar .ncount'))
+        pg.hover(f'main .row[data-id="{fa}"]'); pg.click(f'main .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
+        pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-nowbar.png'))
+        pg.click('[data-shutdown]'); pg.wait_for_timeout(300)
+        check('Wrap up opens the shutdown ritual with the active task to leave a breadcrumb on', pg.locator('.modal .shutdown').count() == 1
+              and pg.locator(f'.modal [data-crumb="{fa}"]').count() == 1 and pg.locator(f'.modal [data-pick="{fa}"]:checked').count() == 1)
+        pg.fill(f'.modal [data-crumb="{fa}"]', 'pick up at the date edge case')
+        pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-shutdown.png'))
+        pg.click('.modal .shutdown .btn.primary'); pg.wait_for_timeout(400)
+        res = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA'), t = P.state.tasks.find(t => t.id === '{fa}');
+          return {{focusOn: t.focusOn, crumb: t.crumbs.at(-1).text, today: d, wrapped: P.focusModel.dayCounts(P.focusLog, d).wrapped,
+            next: P.dayModel.nextWorkday(P.dp.sprint, d), active: P.focusModel.activeOf(P.focusLog, d)}}; }}""")
+        check('wrapping up lines the pick up for the next working day, saves the breadcrumb and stops the task',
+              res['focusOn'] == res['next'] and res['crumb'] == 'pick up at the date edge case' and res['wrapped'] and res['active'] is None)
+
         pg.wait_for_function('navigator.serviceWorker.controller !== null || navigator.serviceWorker.getRegistration().then(r => !!r)', timeout=10000)
         scope = pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r && r.scope)")
         check('it registers its own service worker for the whole site', scope == SITE + '/')

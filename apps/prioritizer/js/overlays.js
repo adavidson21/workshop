@@ -58,6 +58,8 @@ function showHelp(){
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
+      ${r('<kbd>S</kbd>', 'Start or pause the selected task')}
+      ${r('<kbd>I</kbd>', 'Log an interruption')}
       ${r('<kbd>X</kbd>', 'Complete or reopen')}
       ${r('<kbd>T</kbd>', 'Toggle Today')}
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}

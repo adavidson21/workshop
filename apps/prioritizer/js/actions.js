@@ -5,6 +5,7 @@ import { toast } from './overlays.js';
 import { parseQuick } from './quick-add.js';
 import { canonPerson, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state } from './state.js';
 import { fmtDay, todayStr, uid } from './util.js';
+import { focusTaskClosed } from './focus.js';
 /* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
 /* ---------- task actions ---------- */
 function addTask(text, attrs = {}){
@@ -30,12 +31,14 @@ function toggleDone(id){
   t.done = !t.done;
   t.doneAt = t.done ? todayStr() : null;
   if (!t.done) t.wontDo = false;
+  if (t.done) focusTaskClosed(id);
   commit();
 }
 function wontDo(id){
   const t = findTask(id); if (!t) return;
   const prev = {done: t.done, doneAt: t.doneAt, wontDo: t.wontDo};
   t.done = true; t.wontDo = true; t.doneAt = todayStr();
+  focusTaskClosed(id);
   commit();
   toast(`Won't do: ${t.title}`, 'Undo', () => { Object.assign(t, prev); commit(); });
 }
@@ -49,6 +52,7 @@ function toggleFocus(id){
 function deleteTask(id){
   const i = state.tasks.findIndex(t => t.id === id); if (i < 0) return;
   const [t] = state.tasks.splice(i, 1);
+  focusTaskClosed(id);
   if (t.ado) state.ado.skip.push(t.ado.id);
   if (t.pr) state.ado.skipPr.push(t.pr.key);
   if (drawerId === id) closeDrawer(true);

@@ -10,6 +10,7 @@ import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from '.
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
+import { isActive, renderNow, rowCrumb } from './focus.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
@@ -34,6 +35,7 @@ function render(){
   if (isWaiting()) return renderWaiting();
   renderSide();
   renderHead();
+  renderNow();
   const v = state.view;
   if (v === 'rank') renderRank();
   else if (v === 'today') renderToday();
@@ -94,7 +96,10 @@ function renderHead(){
   if (v === 'reports') return rpHead();
   if (v === 'day') return dayHead();
   let sub = esc(scopeName()), tools = '';
-  if (v === 'today') sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
+  if (v === 'today'){
+    sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
+    tools = `<button class="btn" data-shutdown data-tip="Wrap up the day: breadcrumbs and tomorrow's top 3">Wrap up</button>`;
+  }
   if (nav === 'prio'){
     const open = scopeOpen().length;
     sub += v === 'archive' ? ` · ${state.tasks.filter(t => t.done && scopeListIds().includes(t.listId)).length} done` : ` · ${open} open`;
@@ -143,12 +148,15 @@ function row(t, o = {}){
   const fon = t.focusOn === todayStr();
   const scoreHtml = t.done || o.noScore ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
     : o.estimate && !t.done ? `<span class="score none">no estimate</span>` : '';
-  return `<article class="row${t.done ? ' done' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
+  const act = !t.done && isActive(t.id), crumb = o.crumb ? rowCrumb(t) : '';
+  return `<article class="row${t.done ? ' done' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
     + (o.rank != null ? `<span class="rank">${o.rank}</span>` : '')
     + `<button class="check" data-act="done" aria-label="${t.done ? 'Reopen' : 'Complete'}" title="${t.done ? 'Reopen' : 'Complete'}"><i>${ICON.check}</i></button>`
-    + `<span class="title">${esc(t.title)}</span>`
+    // On Today, where you left off sits under the title, so the morning starts where yesterday stopped.
+    + (crumb ? `<span class="tcol"><span class="title">${esc(t.title)}</span>${crumb}</span>` : `<span class="title">${esc(t.title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
     + scoreHtml
+    + (o.start && !t.done ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? 'Pause' : 'Start'}</button>` : '')
     + (t.done || o.noToday ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">Today</button>`)
     + `</article>`;
 }

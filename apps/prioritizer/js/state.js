@@ -6,6 +6,7 @@ import { isStale, isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
+import { cleanCrumbs } from './focus-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
@@ -37,6 +38,8 @@ function migrateTask(t){
   if (!t.ado) delete t.ado;
   t.pr = cleanPr(t.pr);
   if (!t.pr) delete t.pr;
+  // Re-entry breadcrumbs (focus.js): an extra field older readers keep as is, so tasks stay at v3.
+  if ('crumbs' in t){ t.crumbs = cleanCrumbs(t.crumbs); if (!t.crumbs.length) delete t.crumbs; }
   delete t.urgent; delete t.important;
 }
 // ADO link on a task: {id, type, state, url, project, due, gone}. Anything malformed is dropped.

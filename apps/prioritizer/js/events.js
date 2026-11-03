@@ -10,6 +10,7 @@ import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope,
 import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
+import { activeTask, logInterrupt, openShutdown, pauseTask, toggleStart } from './focus.js';
 import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
@@ -58,6 +59,17 @@ document.addEventListener('click', e => {
   if (t.closest('[data-tdue-clear]') && tri.draft){ tri.draft.due = null; renderTriage(); return; }
   const ta = t.closest('[data-tact]'); if (ta){ ({save: triageSave, skip: triageSkip, wont: triageWont})[ta.dataset.tact](); return; }
   const chk = t.closest('[data-act="done"]'); if (chk){ toggleDone(chk.closest('[data-id]').dataset.id); return; }
+  const st = t.closest('[data-act="start"]'); if (st){ toggleStart(st.closest('[data-id]').dataset.id); return; }
+  const nw = t.closest('[data-now]');
+  if (nw){
+    const a = nw.dataset.now, cur = activeTask();
+    if (a === 'open' && cur) openDrawer(cur.id);
+    if (a === 'pause') pauseTask();
+    if (a === 'done' && cur) toggleDone(cur.id);
+    if (a === 'interrupt') logInterrupt();
+    return;
+  }
+  if (t.closest('[data-shutdown]')){ openShutdown(); return; }
   const fb = t.closest('[data-act="today"]'); if (fb){ toggleFocus(fb.closest('[data-id]').dataset.id); return; }
   const su = t.closest('[data-act="still"]'); if (su){ downgradeUrgent(su.closest('[data-id]').dataset.id); return; }
   const ec = t.closest('[data-act="eng"]'); if (ec){ engOpen(ec.dataset.ado); return; }
@@ -162,6 +174,8 @@ document.addEventListener('keydown', e => {
   else if (k === ' ' && ae.dataset && ae.dataset.scope){ e.preventDefault(); setScope(ae.dataset.scope); }
   else if (k === 'x' && sel){ toggleDone(sel); requestAnimationFrame(focusSel); }
   else if (k === 't' && sel){ toggleFocus(sel); requestAnimationFrame(focusSel); }
+  else if (k === 's' && (sel || activeTask())){ e.preventDefault(); toggleStart(sel || activeTask().id); }
+  else if (k === 'i'){ e.preventDefault(); logInterrupt(); }
   else if (k === '?'){ showHelp(); }
 });
 let lastDay = todayStr();

@@ -17,6 +17,8 @@ import { drawerInit, openDrawer } from './drawer.js';
 import { dayInit, setDate } from './day-view.js';
 import { maybeOnboard, openTour, tourInit } from './onboarding.js';
 import { dp, recurTick } from './dayplan.js';
+import * as focusModel from './focus-model.js';
+import { focusLog, fstore, openShutdown } from './focus.js';
 import * as dayModel from './dayplan-model.js';
 import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
@@ -41,11 +43,14 @@ ready.then(ws => {
     // #/prioritizer/day/<yyyy-mm-dd> or day/today: the Day view (Workshop Home's Today card links here).
     const d = /^day(?:\/(\d{4}-\d{2}-\d{2}|today))?$/.exec(path || '');
     if (d){ setView('day'); setDate(!d[1] || d[1] === 'today' ? todayStr() : d[1]); }
+    // #/prioritizer/shutdown: wrap up the day (Workshop Home's Wrap up card links here).
+    if (path === 'shutdown') openShutdown();
   }));
   ws.on('command', ({id}) => {
     if (id === 'add-task') openCmd();
     if (id === 'sync-ado') adoSync(true);
     if (id === 'shortcuts') showHelp();
+    if (id === 'shutdown-day') loaded.then(openShutdown);
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));
@@ -59,8 +64,9 @@ window.__prioritizer = {
   get rp(){ return rp; }, parseWorkbook, doImport, render, commit, triageQueue,
   engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
-  saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null]), get store(){ return store; },
-  get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel
+  saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null, fstore ? fstore.idle() : null]), get store(){ return store; },
+  get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel,
+  get focusLog(){ return focusLog; }, get fstore(){ return fstore; }, focusModel, openShutdown
 };
 
 drawerInit(); dayInit(); tourInit();

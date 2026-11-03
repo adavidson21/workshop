@@ -73,6 +73,13 @@ Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot
 
 `[` and `]` step to the previous and next working day; the date box jumps anywhere. Inside Workshop, `#/prioritizer/day/today` (or a date) opens the Day view.
 
+## Focus: start, breadcrumbs, wrap up
+
+- **Start a task** with **Start** on a Today row, **Start** in its details, or `S` on the selected task. One task is active at a time. A bar under the page header shows it on every view, with **Interrupted**, **Pause** and **Done**. The active task never carries over to the next day.
+- **Breadcrumbs:** when you pause, or switch to another task while one is unfinished, Docket asks "Where did you leave off?" in one line. `Enter` saves, `Esc` skips. The last one shows under the task on Today and in the bar when you start it again, and its details list the newest three. **Add a breadcrumb** in its details leaves one any time.
+- **Switch counter:** starting a task while another unfinished one is active counts as a switch. Finishing first and then starting is not one. **Interrupted** (or `I`) logs something that pulled you away without changing the task. Today's counts show in the bar once there is something to count. Nothing watches other apps or your computer: only what you start and log here counts.
+- **Wrap up** (on Today, or **Wrap up the day** in Workshop's command palette) goes through what you finished, asks for a breadcrumb on each unfinished task you started today, and picks tomorrow's top 3. Picks get the next working day's Today (by the Day view's sprint workdays and holidays). Today's leftovers you don't pick go back to their lists, so tomorrow opens on only what you chose. It can remind you 30 minutes before the Day view's day end, on that device. Inside Workshop, `#/prioritizer/shutdown` opens it.
+
 ## Adding tasks
 
 Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; inside Workshop, `Ctrl+K` is Workshop's command palette, where **Add a task** is one of the commands. Optional inline tags:
@@ -90,7 +97,7 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 
-`1` to `6` switch views (Day is `6`), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
+`1` to `6` switch views (Day is `6`), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
 
 ## Themes
 
@@ -217,6 +224,8 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
 | `dayplan-model.js`, `dayplan-format.js` | The Day view's model: sprint math, templates, every change to a day, undo; and how it is stored (pure, tested in `test/dayplan.test.mjs`) |
 | `onboarding.js` | The first-run tour |
+| `focus-model.js`, `focus-format.js` | Focus: the active task, the day's activity log, breadcrumbs and switch counts; and how the log is stored (pure, tested in `test/focus.test.mjs`) |
+| `focus.js` | The focus log's state and saving, the now bar, breadcrumb prompts and the Wrap up ritual |
 | `dayplan.js`, `day-view.js` | The day plan's state and saving (the same write loop as the board); the Day view, its settings and the drawer's Plan for field |
 | `ws.js` | The connection to Workshop through the SDK (`shared/workshop-sdk.js`): shell, data, connectors |
 | `main.js` | Startup: the one module `index.html` loads; it imports the rest |
@@ -249,6 +258,14 @@ The Day view adds these collections, all version 1, in the same format (change s
 | `dayplan/templates` | Items are templates: `{id, name, days, last, sections}` | `schemas/dayplan-template.schema.json` |
 | `dayplan/recurring` | Items are every-sprint tasks: `{id, title, dueDay, last, planKind, value, effort, listId, notes, paused, made}` (`made`: start dates of sprints that already got their task) | `schemas/dayplan-recurring.schema.json` |
 | `dayplan/days/<yyyy>` | Items are days keyed by date: `{id: date, template, sections, slots: [{taskId, sectionId, order}], shift, carry}` | `schemas/dayplan-day.schema.json` |
+
+The focus log adds one more kind of collection, version 1, in the same format:
+
+| Collection | Holds | Schema |
+| --- | --- | --- |
+| `focus/days/<yyyy>` | Items are days keyed by date: `{id: date, events: [...]}`. An event is `{at, type: 'start', taskId, switch}`, `{at, type: 'stop', taskId, why}` (`why`: pause, done or shutdown), `{at, type: 'interrupt'}` or `{at, type: 'shutdown'}`; `at` is an ISO time | `schemas/focus-day.schema.json` |
+
+The active task is worked out from today's events, so two windows agree on it and it never carries over. Merging is per day, later change wins. A window loads this year and last year. Breadcrumbs are saved on the task as `crumbs: [{at, text}]` (newest ten, oldest first), an extra field older readers keep as is, so `prioritizer.tasks` stays at v3. Backups include the focus log, and importing one merges it.
 
 A section (block) is `{id, name, kind, color, around, minutes, capacity}`, plus `lost: true` on a day (`schemas/dayplan-section.schema.json`). Slots live on the day, not on tasks, so `prioritizer.tasks` stays at v3. A task made by an every-sprint item has id `r_<item id>_<sprint start>` (so two windows make the same one) and `recur: {id, sprint}`, an extra field older readers keep as is. A date with no record shows its template; a record is written on its first change, with the template's blocks copied in. Merging is per item: per template, or per day, later change wins, like tasks. A window loads last year, this year and next year, and any other year when you open a date in it. Backups include the day plan, and importing one merges it.
 

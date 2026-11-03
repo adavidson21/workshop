@@ -23,13 +23,14 @@ import { ready } from './ws.js';
 import { connectAction, connectItems } from './connect.js';
 import { saveFile } from '../shared/save-file.js';
 import { dayplanBoot, importDayplan } from './dayplan.js';
+import { focusBoot, importFocus } from './focus.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
-let store = null, dstore = null, ws = null, booted = false, status = {state: 'saved'};
-// The board and the day plan save separately; the folder icon shows the worse of the two.
-const parts = {board: {state: 'saved'}, day: {state: 'saved'}};
+let store = null, dstore = null, fstore = null, ws = null, booted = false, status = {state: 'saved'};
+// The board, the day plan and the focus log save separately; the folder icon shows the worst of them.
+const parts = {board: {state: 'saved'}, day: {state: 'saved'}, focus: {state: 'saved'}};
 const RANK = {error: 3, readonly: 2, saving: 1, saved: 0};
-const statusFrom = part => s => { parts[part] = s; setStatus(RANK[parts.day.state] > RANK[parts.board.state] ? parts.day : parts.board); };
+const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts).reduce((w, p) => RANK[p.state] > RANK[w.state] ? p : w, parts.board)); };
 
 function where(){
   if (!ws) return 'nowhere';
@@ -109,8 +110,11 @@ async function boot(){
   // The day plan (the Day view) saves next to the board. If it can't load, the board still works.
   try { dstore = await dayplanBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('day')}); }
   catch (e){ dstore = null; toast(`Could not load your day plan: ${e.message || e}. The Day view won't save until this is fixed.`, 30000); }
-  ws.on('online', ({online}) => { if (online){ store.refresh(); if (dstore) dstore.refresh(); } });
-  addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); if (dstore && dstore.unsaved) dstore.flushAll(); });
+  // The focus log (breadcrumbs' timeline, the switch counter) saves next to them too, on the same terms.
+  try { fstore = await focusBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('focus')}); }
+  catch (e){ fstore = null; toast(`Could not load your focus log: ${e.message || e}. Start and pause won't save until this is fixed.`, 30000); }
+  ws.on('online', ({online}) => { if (online){ store.refresh(); if (dstore) dstore.refresh(); if (fstore) fstore.refresh(); } });
+  addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); if (dstore && dstore.unsaved) dstore.flushAll(); if (fstore && fstore.unsaved) fstore.flushAll(); });
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
   if (store.isNew && ws.backend === 'agent'){
@@ -149,6 +153,7 @@ async function downloadBackup(){
   try {
     if (store) await store.idle();
     if (dstore) await dstore.idle();
+    if (fstore) await fstore.idle();
     const bundle = await ws.data.export({apps: ['prioritizer']});
     const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
     if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
@@ -184,6 +189,7 @@ async function importBackup(file){
 
 async function importDay(bundle){
   try { await importDayplan(bundle); } catch (e){ toast(e.message || 'Could not import the day plan.'); }
+  try { await importFocus(bundle); } catch (e){ toast(e.message || 'Could not import the focus log.'); }
 }
 
-export { boot, downloadBackup, dstore, importFile, onSyncClick, scheduleSave, store };
+export { boot, downloadBackup, dstore, fstore, importFile, onSyncClick, scheduleSave, store };
