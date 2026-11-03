@@ -16,6 +16,13 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 - **Repos:** *Add a repo* clones by URL into the workspace and lists it in the repo map (`repo.add`), then offers *Draft its guide* (`repo.guide`, `/onboard-repo`). The repos panel has both for every repo.
 - Spikes and repo guides started here show under **Investigations and repo guides**, with the agent's questions and a reply box, until dismissed.
 
+**PR reviews** (sidebar, `js/pr-reviews.js`): first-pass reviews of your team's pull requests by Tandem's pr-reviewer agent (eng-agents `/pr-review`, Core 2.6.0).
+
+- **Review a pull request:** paste an ADO PR link; the opencode connector's `pr.review` action runs `/pr-review <link>`. The repo must be cloned in the workspace. The agent reads the PR through git without checking it out.
+- **Waiting on you:** the ADO connector's `sync.prs` (read-only), checked when Dispatch connects, when the page opens (if older than five minutes) and from *Check again*. Each PR has *Review*, or *See review* once one exists. Without the ADO connector the page says how to turn it on; review by link still works.
+- **Reviews:** one card per `.work/pr-<id>`: recommendation, risk, and the draft comments (file, line, severity, why) each with *Copy comment*. A review of an older commit says so and offers *Review the new commits*. **Nothing is posted**: you paste the comments you agree with into the PR yourself.
+- Reviews are not runs: they are left out of All runs, projects and the run counts. The sidebar count is PRs waiting on you with no review yet (gate colored when the reviewer is asking you something). `#/agents/pr-<id>` opens the page at that review. Palette: **Review a pull request**.
+
 **Sidebar** (Dispatch App Experience Plan, phase 1, P2):
 
 - **New run** opens Start work in the project in view. **All runs** is the full page; **Needs review** lists runs waiting on you across all projects, with a count.
@@ -48,6 +55,7 @@ Before the connector is ready, the page says what is wrong: browser mode, the co
 | `js/main.js` | SDK connection, fetching, painting, clicks, alerts, focus. |
 | `js/state.js` | The state the view reads. |
 | `js/sidebar.js` | The sidebar, the scope line above the list, the project chip on run cards, and the project, folder and move sheets. HTML strings, tested in Node. |
+| `js/pr-reviews.js` | The PR reviews page: paste box, reviews starting, the inbox, review cards. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
 | `js/local.js` | Folders, pins and collapsed groups in this browser: clean, load, save, prune. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
 | `review.html`, `review.css` | The code review page and its styles. |

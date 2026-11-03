@@ -175,6 +175,36 @@ for (const kind of ["v1", "v2"]) {
       await waitFor(async () => (await call("status", {}, ctx())).starting[0]?.agent === "idle", "/start to end");
     });
 
+    test("pr.review runs /pr-review <link> in a new session, listed until its pr-<id> folder exists", async () => {
+      const link = "https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/812";
+      await rejects(call("pr.review", { url: "https://github.com/owner/repo/pull/3" }, ctx()), "bad_request", /pullrequest/);
+      const r = await call("pr.review", { url: link + "?_a=files" }, ctx());
+      const route = kind === "v1" ? `POST /session/${r.session}/command` : `POST /api/session/${r.session}/command`;
+      await waitFor(() => fake.count(route) === 1, "the /pr-review call");
+      const args = (b) => (kind === "v1" ? b.arguments : b.text);
+      const body = fake.bodiesFor(route).at(-1);
+      assert.equal(kind === "v1" ? body.command : body.name, "pr-review");
+      assert.equal(args(body), link, "the link without its query");
+      let st = await call("state", {}, ctx());
+      assert.ok(st.liveMode.live.others.some((o) => o.session === r.session && o.command === `/pr-review ${link}`), "listed in others");
+      await rejects(call("pr.review", { url: link }, ctx()), "conflict", /already being reviewed/);
+      // Get-PullRequest.ps1 writes the folder; the session joins it on the next read of .work.
+      fs.mkdirSync(path.join(ws.dir, ".work", "pr-812"));
+      fs.writeFileSync(path.join(ws.dir, ".work", "pr-812", "context.md"), "# Pull request 812: Add discount\n\n- Repo: orders-api (folder `orders-api`)\n- Source commit: 4b16cacb238ad944fc6f56fb40447dc4a6aff3fa\n");
+      await call("refresh", {}, ctx());
+      await waitFor(async () => (await call("state", {}, ctx())).liveMode.live.items["pr-812"]?.current === r.session, "the session to join pr-812");
+      st = await call("state", {}, ctx());
+      const item = st.items.find((i) => i.folder === "pr-812");
+      assert.equal(item.kind, "pr");
+      assert.equal(item.prReview.state, "Reviewing");
+      await finish(r.session);
+      const again = await call("pr.review", { url: link, again: true }, ctx());
+      await waitFor(() => fake.bodiesFor(kind === "v1" ? `POST /session/${again.session}/command` : `POST /api/session/${again.session}/command`).length === 1, "the second call");
+      assert.equal(fake.bodiesFor(kind === "v1" ? `POST /session/${again.session}/command` : `POST /api/session/${again.session}/command`).at(-1)[kind === "v1" ? "arguments" : "text"], `${link} again`);
+      await finish(again.session);
+      fs.rmSync(path.join(ws.dir, ".work", "pr-812"), { recursive: true, force: true });
+    });
+
     test("projects: create, start a described run in one, see it in state, move it, remove the project", async () => {
       const { project } = await call("project.create", { name: "Orders", instructions: "Run the repo's tests first." }, ctx());
       assert.equal(project.id, "p-orders");

@@ -8,6 +8,7 @@
    - No update checks (the connector makes none). */
 import { S } from './state.js';
 import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
+import { reviewsHtml, isReviewSession } from './pr-reviews.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -19,12 +20,12 @@ export function md(s) {
 }
 // Only http(s) links leave the app, in a new tab.
 function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : null; }
-function link(href, text, cls) {
+export function link(href, text, cls) {
   const u = safeUrl(href);
   if (!u) return cls ? `<span class="${cls}">${h(text)}</span>` : h(text);
   return `<a href="${h(u)}" target="_blank" rel="noopener"${cls ? ` class="${cls}"` : ''}>${h(text)}</a>`;
 }
-function fileBtn(folder, name, cls, label) {
+export function fileBtn(folder, name, cls, label) {
   return `<button type="button" class="lnk${cls ? ' ' + cls : ''}" data-file="${h(folder)}" data-name="${h(name)}">${h(label || name)}</button>`;
 }
 export function copyBtn(text, label) {
@@ -309,7 +310,7 @@ export function agentHtml(it) {
   return out;
 }
 /** One opencode session as a box: state, Stop, its prompts and questions, what it said, and a reply field. */
-function sessionBox(s, perms, qs, hint) {
+export function sessionBox(s, perms, qs, hint) {
   const busy = isBusy(s);
   const ask = perms.length + qs.length > 0;
   let out = `<div class="agent${ask ? ' asking' : busy ? ' busy' : ''}">`;
@@ -464,7 +465,7 @@ function prHtml(it) {
 
 // ------------------------------------------------------------- remove
 function removeLabel(it) { return bucketOf(it) === 'ship' ? 'Remove' : it.kind === 'item' ? 'Abandon' : 'Remove'; }
-function removeBtn(it) {
+export function removeBtn(it) {
   const s = itemSession(it);
   const why = autoIs(it, 'running') ? 'Autopilot is running this item. Stop it first.' : isBusy(s) ? 'The agent is still working. Stop it first.' : '';
   const tip = why || (bucketOf(it) === 'ship' ? "PR merged? Delete this item's .work folder" : "Delete this item's .work folder");
@@ -1055,7 +1056,7 @@ export function looseSessions() {
   return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
 }
 function looseHtml() {
-  const list = looseSessions();
+  const list = looseSessions().filter(o => !isReviewSession(o)); // PR reviews show on their own page (pr-reviews.js)
   if (!list.length) return '';
   return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
     list.map(o => {
@@ -1080,7 +1081,8 @@ export function render() {
 
 // The page to the right of the sidebar: header, then the runs in scope (all, a project, or Needs review).
 function mainHtml() {
-  const all = S.D.items || [];
+  if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="grid"><main>${waitingHtml()}${reviewsHtml()}</main><aside>${reposPanel()}</aside></div>`;
+  const all = (S.D.items || []).filter(it => it.kind !== 'pr'); // PR reviews have their own page
   const items = all.filter(inScope);
   const by = {};
   items.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
