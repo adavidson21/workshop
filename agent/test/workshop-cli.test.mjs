@@ -166,6 +166,13 @@ test('install leaves start at login off unless --login is passed', async () => {
     assert.equal(await main(['install', '--login'], io), 0);
     assert.equal(fs.readdirSync(loginDir).length, 1, 'launcher written with --login');
     assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).features.startAtLogin, true);
+
+    // Running install again without --login (as the one-line installer does) keeps it on and says so.
+    out.length = 0;
+    assert.equal(await main(['install'], io), 0);
+    assert.equal(fs.readdirSync(loginDir).length, 1, 'launcher kept');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).features.startAtLogin, true);
+    assert.match(out.join('\n'), /Start at login is on \(unchanged\)/);
   } finally { rm(home); rm(loginDir); }
 });
 

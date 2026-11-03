@@ -341,7 +341,10 @@ async function runInstall(opts, io) {
     for (const line of said) io.out(line);
   }
   if (opts.login !== true) {
-    io.out('Start at login is off. Turn it on in Settings, or run "workshop install --login".');
+    // Without --login, install never changes start at login: a setting turned on earlier stays on.
+    const on = inspectConfig(homePaths(home).config, schemas).config?.features?.startAtLogin === true;
+    io.out(on ? 'Start at login is on (unchanged). Turn it off in Settings, or run "workshop uninstall".'
+      : 'Start at login is off. Turn it on in Settings, or run "workshop install --login".');
   } else {
     await setStartAtLoginFlag(home, schemas, true);
     const r = await enableStartAtLogin({ repo: REPO, env: io.env, dir: io.env.WORKSHOP_LOGIN_DIR });
