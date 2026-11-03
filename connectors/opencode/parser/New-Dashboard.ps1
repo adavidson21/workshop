@@ -551,7 +551,9 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             if ($check) { $wrong = ([regex]::Matches($check, '(?mi)\|\s*(Wrong|Outdated)\s*\|')).Count }
             $rel = ".work/$($dir.Name)/tsd.md"
             if (-not $t) { $base.state = "In progress"; $base.nextText = "Finish the draft with ``/tsd``." }
-            elseif ($st -eq "PUBLISHED" -or $st -eq "APPROVED") { $base.state = "Published"; $base.nextText = "Commit the published copy in the product docs folder, if you have not." }
+            # /publish writes "Status: PUBLISHED to <path> on <date>", which the gate pattern (letters and spaces
+            # only) reads as UNKNOWN, so look for the word itself too.
+            elseif ($st -eq "PUBLISHED" -or $st -eq "APPROVED" -or $t -match '(?mi)^\s*Status:\s*PUBLISHED\b') { $base.state = "Published"; $base.nextText = "Commit the published copy in the product docs folder, if you have not." }
             elseif (-not $check) { $base.state = "Draft, not fact-checked"; $base.nextText = "Start a new session, then ``/check-docs $rel``." }
             elseif ($wrong -gt 0) { $base.state = "Draft, fact-check found $wrong wrong or outdated"; $base.nextText = "Fix what check.md flags (edit tsd.md or re-run ``/tsd``), then ``/publish $($dir.Name)``." }
             else { $base.state = "Draft, fact-checked"; $base.nextText = "Read it once more, then ``/publish $($dir.Name)``." }
