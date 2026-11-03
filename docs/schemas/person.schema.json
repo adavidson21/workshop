@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A person: one item of settings.people v1",
+  "description": "One real person you work with, in the people directory that Settings owns and every app reads. See people.md.",
+  "type": "object",
+  "required": ["id", "updatedAt", "name", "relation"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^p_[A-Za-z0-9_-]{1,100}$", "description": "Stable forever. Renaming a person never changes it."},
+    "updatedAt": {"$ref": "common.schema.json#/$defs/msTime"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "relation": {"enum": ["self", "report", "manager", "peer"]},
+    "team": {"type": "boolean", "description": "On your team. Readers default it to true for self and report, false otherwise."},
+    "adoIdentity": {"type": "string", "maxLength": 200, "description": "Email or exact Azure DevOps display name."},
+    "role": {"type": "string", "maxLength": 200},
+    "since": {"type": "string", "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"},
+    "archived": {"type": "boolean"}
+  }
+}
