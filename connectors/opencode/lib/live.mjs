@@ -14,6 +14,7 @@ import { attachCommand } from "./actions.mjs";
 import { autoData, autopilot } from "./autopilot.mjs";
 import { adoConfigured, loose, looseData } from "./workspace.mjs";
 import { reviewSummary } from "./review.mjs";
+import { prQueueData } from "./pr-queue.mjs";
 
 export function liveData() {
   const items = {};
@@ -34,6 +35,7 @@ export function liveData() {
     questions: [...questions.values()].map((q) => ({ id: q.id, sessionID: q.sessionID, questions: q.questions, folder: folderForSession(q.sessionID) })),
     autopilot: autoData(),
     others: looseData(), // spikes and repo guides started from Dispatch (lib/workspace.mjs)
+    prQueue: prQueueData(), // Review all and the nightly PR review run (lib/pr-queue.mjs)
     canOpenTerminal: isWin || process.platform === "darwin",
   };
 }

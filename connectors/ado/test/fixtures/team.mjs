@@ -122,6 +122,7 @@ const pr = (n, repo, reviewers, extra = {}) => ({
   createdBy: { id: 'u-b', displayName: 'Engineer B', uniqueName: 'engineer.b@example.com' },
   creationDate: '2026-10-12T14:00:00.5Z',
   isDraft: false,
+  lastMergeSourceCommit: { commitId: String(n).padStart(40, 'c') },
   reviewers,
   ...extra
 });

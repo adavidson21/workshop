@@ -16,7 +16,7 @@ The work root is `.work/` in the workspace (the folder that holds the repos). Ea
 | --- | --- | --- |
 | `<id>-<name>` (regex `itemFolder`) | `item`: an ADO work item in the pipeline | `<id>` is digits. `<name>` is a short slug. |
 | `spike-<name>`, `docs-<name>`, `tsd-<name>`, `scope-<name>`, `pr-<id>` (regex `notesFolder`) | `spike`, `docs`, `tsd`, `scope`, `pr` | Light treatment: title, state and a next step only. `pr` also carries the parsed review (`prReview`). |
-| starts with `_` or `.` (regex `ignoredFolder`) | ignored | `_dashboard/` belongs to the opencode connector (session links, autopilot state). |
+| starts with `_` or `.` (regex `ignoredFolder`) | ignored | `_dashboard/` belongs to the opencode connector (session links, autopilot state, the PR review queue). |
 | anything else | `other` | Listed by name only. |
 
 `.work/dashboard.html` is written by the static dashboard. Nothing reads it for pipeline state.
@@ -208,4 +208,4 @@ These are current behavior. A port must reproduce them until a contract change s
 
 ## Connector-owned files
 
-The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.
+The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.

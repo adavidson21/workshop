@@ -48,7 +48,7 @@ Call with `POST /api/connectors/ado/<action>` and `{"args": {...}}`, or `connect
 | Action | Args | Result |
 | --- | --- | --- |
 | `sync` | `known` (work item IDs on the board), `knownPrs` (PR keys), `prs` (default `true`) | Same JSON as the helper's `POST /sync`: `{items, gone, syncedAt, prs?, prError?}`. |
-| `sync.prs` | `knownPrs` | The helper's `prs` object: `{items, gone, notes}`. |
+| `sync.prs` | `knownPrs` | The helper's `prs` object: `{items, gone, notes}`. Each item also has `commit`, the PR's latest source commit (null if ADO did not send one), which Dispatch's Review all uses to skip PRs already reviewed at that commit. |
 | `dataset` | `areas`, `people`, `days`, and `connection` (name) or `base` (collection URL, as the helper took it) | Same JSON as the helper's `POST /dataset`, plus `connection`. |
 | `workitem.get` | `id`, optional `connection`, `path` (repo or folder), `details` | `{id, title, type, state, project, connection, reason, url}`. With `details: true` also `area`, `iteration`, `tags`, `description`, `acceptanceCriteria`, `reproSteps` (plain text) and `related`. `reason` says why that connection was picked, so callers can confirm before acting. |
 | `connection.resolve` | `connection` or `path` | Which connection and project would be used, and whether its PAT variable is set. Calls nothing. Setup action: runs while the connector reports an error. |
@@ -88,4 +88,5 @@ node connectors/ado/test/make-goldens.mjs      # after changing fixtures or the 
 - Several connections, each with its own PAT variable, instead of one URL and one PAT.
 - `dataset` takes a connection name; `base` still works for any configured connection.
 - Error messages point to Settings instead of `--setup`.
+- `commit` on PR items is the connector's own addition (the helper does not return it), so the goldens compare PRs without it; `connector.test.mjs` checks it.
 - Two PR "gone" entries can come back in a different order (the helper walked a Python set). The goldens compare them sorted.
