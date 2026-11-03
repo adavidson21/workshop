@@ -131,7 +131,8 @@ export function dismissLoose({ session }) {
   return { ok: true };
 }
 
-async function runLoose(name, args, find) {
+/** Runs /<name> <args> in a new session, listed in `others` until dismissed. Resolves {session}. */
+export async function runLoose(name, args, find) {
   needOpencode();
   if (oc.commands.size && !oc.commands.has(name)) throw httpError(400, `opencode has no /${name} command. Run the Tandem install command again, then restart opencode.`);
   const command = `/${name} ${args}`.trim();

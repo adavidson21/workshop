@@ -20,6 +20,7 @@ import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, r
 import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
+import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
 
 export const configSchema = {
   type: "object",
@@ -141,6 +142,7 @@ function resetAll() {
   resetProjects();
   resetReview();
   resetPrQueue();
+  resetOneOnOnes();
 }
 
 async function init() {
@@ -213,6 +215,10 @@ const reviewFeedback = obj(["workItemId", "repo", "revision", "headSha", "verdic
   submittedAt: str("Set by the server", { maxLength: 64 }),
 });
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
+const oneOnOne = {
+  personId: str("1:1s person id", { minLength: 1, maxLength: 60, pattern: "^[a-z0-9][a-z0-9_-]{0,59}$" }),
+  date: str("Day of the 1:1 (YYYY-MM-DD)", { pattern: DAY.source }),
+};
 const projectId = str("Project id (Inbox when left out)", { minLength: 1, maxLength: 80 });
 const projectFields = {
   name: str("Name", { minLength: 1, maxLength: 80 }),
@@ -357,6 +363,24 @@ const actions = {
     async run(args) {
       needReady();
       return saveInbox(args);
+    },
+  },
+  "oneonone.draft": {
+    title: "Draft 1:1 talking points from a packet (/one-on-one, drafts only)",
+    write: true,
+    argsSchema: obj(["personId", "date", "packet"], { ...oneOnOne, packet: str("The prep packet (Markdown)", { minLength: 1, maxLength: MAX_PACKET_BYTES }) }),
+    async run(args) {
+      needReady();
+      return draftOneOnOne(args);
+    },
+  },
+  "oneonone.result": {
+    title: "The 1:1 talking points draft, if it is ready",
+    write: false,
+    argsSchema: obj(["personId", "date"], oneOnOne),
+    async run(args) {
+      needReady();
+      return oneOnOneResult(args);
     },
   },
   "repo.add": {
