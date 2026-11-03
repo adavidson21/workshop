@@ -221,6 +221,13 @@ ws.on('route', p => wantFocus(p.path));
 if (!ws.embedded && location.hash.length > 1) wantFocus(decodeURIComponent(location.hash.slice(1)));
 
 /* ---------- painting ---------- */
+// Elements with an entry animation, and how to tell the same one apart across a repaint.
+const ENTERS = [
+  ['.modal', el => (el.querySelector('[aria-labelledby]') || el).getAttribute('aria-labelledby')],
+  ['.menu', el => el.getAttribute('style')],
+  ['.pickup'],
+  ['.guide'],
+];
 // Replace the page, keeping focus and the caret in whatever the user was typing in.
 function paint() {
   S.now = Date.now();
@@ -232,7 +239,10 @@ function paint() {
   const a = document.activeElement;
   const key = a && a.getAttribute && a.getAttribute('data-draft');
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
+  const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
   app.innerHTML = html;
+  // Entry animations play once: an element that was already on screen keeps still through repaints.
+  ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;
   sh = app.querySelector('.sheet');
   if (sh) sh.scrollTop = sheetTop;
