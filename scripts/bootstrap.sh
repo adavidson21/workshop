@@ -10,12 +10,12 @@
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
 #   4. git: uses yours; on a Mac, asks macOS to install its command line tools (which include git).
 #      PowerShell 7 (pwsh), which Tandem runs on: uses yours, or downloads a private copy.
-#   5. Installs Tandem into opencode (eng-agents install.ps1), then asks to connect an AI model
-#      (opencode auth login) unless opencode already has one. WORKSHOP_SKIP_AI=1 skips the question.
+#   5. Installs Tandem into opencode (eng-agents install.ps1). If opencode has no AI provider yet, the last lines
+#      say to run opencode auth login in a new terminal (its menu needs a real terminal, not this pipe).
 #   6. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~/work, start at login.
 #   7. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
-# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI.
+# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE. (WORKSHOP_SKIP_AI is accepted and no longer needed.)
 set -euo pipefail
 
 main() {
@@ -155,26 +155,19 @@ main() {
   "$PWSH" "${targs[@]}" || fail "Tandem install failed. See the messages above."
 
   # ------------------------------------------------------------ AI model
-  # Agents need an AI provider in opencode. Ask once, unless opencode already has one (saved credentials or a
-  # known API key variable). The script itself arrives on stdin, so the question reads from the terminal.
+  # Agents need an AI provider in opencode. The installer does not ask here: it runs inside curl | bash, where
+  # opencode's full-screen provider menu does not reliably get the keyboard (it can draw and then ignore every
+  # key). Instead it checks for one (saved credentials or a known API key variable) and, if there is none, the
+  # last lines say to run opencode auth login in a new terminal, where the menu works. Dispatch shows the same.
   step "AI model"
-  local has_ai="" auth="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
-  if [ -s "$auth" ] && "$NODE" -e 'process.exit(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))).length ? 0 : 1)' "$auth" 2>/dev/null; then has_ai=1; fi
+  local auth="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
+  HAS_AI=""
+  if [ -s "$auth" ] && "$NODE" -e 'process.exit(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))).length ? 0 : 1)' "$auth" 2>/dev/null; then HAS_AI=1; fi
   for v in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY OPENROUTER_API_KEY GROQ_API_KEY XAI_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY; do
-    if [ -n "$(printenv "$v" 2>/dev/null || true)" ]; then has_ai=1; fi
+    if [ -n "$(printenv "$v" 2>/dev/null || true)" ]; then HAS_AI=1; fi
   done
-  if [ -n "$has_ai" ]; then say "opencode already has an AI provider."
-  elif [ -n "${WORKSHOP_SKIP_AI:-}" ] || ! (exec < /dev/tty) 2>/dev/null; then say "Later: run  opencode auth login  to connect an AI model. Dispatch shows how."
-  else
-    say "Agents need an AI model. You pick a provider and paste its API key; it stays in opencode on this computer."
-    say "For Claude, pick Anthropic and use a key from https://console.anthropic.com"
-    local ans=""
-    printf '  Connect one now? [Y/n] '
-    read -r ans < /dev/tty || ans=n
-    case "$ans" in
-      n|N|no|No|NO) say "Skipped. Dispatch shows how to connect one later." ;;
-      *) "$OPENCODE" auth login < /dev/tty || say "Not connected. Run  opencode auth login  later; Dispatch shows how." ;;
-    esac
+  if [ -n "$HAS_AI" ]; then say "opencode already has an AI provider."
+  else say "No AI provider in opencode yet. You will connect one at the end (one command)."
   fi
 
   # ------------------------------------------------------------ 6. Workshop setup
@@ -204,6 +197,11 @@ main() {
   echo "Workshop opened in your browser once to sign it in. Go back to $SITE and click Connect."
   echo "Using a different browser for Dispatch? Run  workshop open --print  in a new terminal and open that address there."
   echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
+  if [ -z "$HAS_AI" ]; then
+    printf '\n\033[33mLast step: connect an AI model.\033[0m Open a new terminal window and run:\n\n    opencode auth login\n\n'
+    echo "Pick a provider and paste its API key; it stays in opencode on this computer. For Claude, pick Anthropic"
+    echo "and use a key from https://console.anthropic.com"
+  fi
 }
 
 # Everything is in main, so a download cut off halfway runs nothing.
