@@ -512,7 +512,7 @@ function Get-LastModified {
 
 function Get-FileList {
     param([string]$Folder)
-    $order = @("workitem.md", "repos.md", "spec.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md")
+    $order = @("workitem.md", "brief.md", "repos.md", "spec.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md")
     $names = @(Get-ChildItem -LiteralPath $Folder -File -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
     $known = @($order | Where-Object { $names -contains $_ })
     $other = @($names | Where-Object { $order -notcontains $_ } | Sort-Object)

@@ -170,6 +170,7 @@ async function fetchState() {
     const d = await read('state');
     S.D = d; S.L = d.liveMode ? d.liveMode.live : null; S.conn = 'on';
     watchPrompts();
+    loadBriefs();
     if (d.projects && pruneLocal(S.local, new Set(d.projects.projects.map(p => p.id)), new Set((d.items || []).map(i => i.folder)))) saveSide();
   } catch (e) {
     if (e.code === 'unavailable' && /Workshop is not running|fetch/i.test(errText(e))) S.conn = 'off';
@@ -179,6 +180,24 @@ async function fetchState() {
     schedule();
     if (again) { again = false; fetchState(); }
   }
+}
+// brief.md for each item that has one, through file.read (the same action as the file sheet). Read
+// again when the item's folder changes; dropped when the file is gone.
+function loadBriefs() {
+  const items = (S.D && S.D.items) || [];
+  const live = new Set();
+  for (const it of items) {
+    if (!it.files || it.files.indexOf('brief.md') < 0) continue;
+    live.add(it.folder);
+    const b = S.briefs[it.folder];
+    if (b && (b.loading || b.at === it.modifiedMs)) continue;
+    const next = S.briefs[it.folder] = { text: b ? b.text : null, error: null, at: it.modifiedMs, loading: true };
+    read('file.read', { folder: it.folder, file: 'brief.md' })
+      .then(r => { next.text = r.text; })
+      .catch(e => { next.error = errText(e); })
+      .finally(() => { next.loading = false; schedule(); });
+  }
+  for (const f of Object.keys(S.briefs)) if (!live.has(f)) delete S.briefs[f];
 }
 let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }

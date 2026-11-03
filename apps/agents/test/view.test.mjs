@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, onboardSteps, aiState, looseSessions } from '../js/view.js';
+import { render, briefHtml, briefOpen, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, onboardSteps, aiState, looseSessions } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -383,4 +383,31 @@ test('spikes and repo guides started from Dispatch show with their own reply box
   assert.match(html, /Investigations and repo guides.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
   S.L.sessions.ses_loose.folder = 'spike-login';
   assert.equal(looseSessions().length, 0, 'once its folder exists, it is drawn with that item');
+});
+
+test('brief.md from /start: a Brief card at the top of the item, escaped, open until the spec stage', () => {
+  load(clone(FIXTURE));
+  const fresh = item('41455-audit-log-filter');
+  assert.equal(briefHtml(fresh), '', 'no card without brief.md');
+  // A fresh item: repos set up, no spec yet.
+  Object.assign(fresh, { stage: 'spec', gates: { spec: null, plan: null, bug: null, review: null }, files: ['workitem.md', 'brief.md', 'repos.md'] });
+  assert.match(briefHtml(fresh), /Loading the brief\./, 'loading until file.read answers');
+  S.briefs[fresh.folder] = { text: '# Brief: 41455 Audit log filter\n\n<!-- note for the agent -->\n## Goal\n\nFilter by `person-one` <script>alert(1)</script>\n\n## Done means\n\n- [ ] **Filter** works\n', error: null };
+  const card = briefHtml(fresh);
+  assert.match(card, /^<details class="brief" data-key="b:41455-audit-log-filter" open><summary>Brief<\/summary>/, 'open by default before the spec');
+  assert.match(card, /<p class="sub-h">Goal<\/p><div class="pre">Filter by <code>person-one<\/code> &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/div>/, 'escaped, inline code kept');
+  assert.match(card, /<p class="sub-h">Done means<\/p><div class="pre">• \[ \] <strong>Filter<\/strong> works<\/div>/);
+  assert.doesNotMatch(card, /<script>|note for the agent|# Brief/, 'no raw HTML, comments or the title line');
+  assert.match(card, /data-file="41455-audit-log-filter" data-name="brief.md">Open brief.md</, 'opens in the file sheet');
+  assert.match(itemCard(fresh), /<\/h4><div class="meta">.*?<\/div><\/div><details class="brief"/s, 'first thing under the title');
+  // Spec written: still there, but closed.
+  fresh.gates.spec = 'DRAFT';
+  assert.equal(briefOpen(fresh), false);
+  assert.match(briefHtml(fresh), /^<details class="brief" data-key="b:41455-audit-log-filter"><summary>/);
+  S.ui.open['b:' + fresh.folder] = true;
+  assert.match(briefHtml(fresh), /data-key="b:41455-audit-log-filter" open>/, 'a hand toggle wins');
+  // Bug lane: closed once bug.md exists.
+  assert.equal(briefOpen(item('41300-export-retry-fails')), false);
+  S.briefs[fresh.folder] = { text: null, error: 'Not found.' };
+  assert.match(briefHtml(fresh), /<p class="err">Not found\.<\/p>/);
 });
