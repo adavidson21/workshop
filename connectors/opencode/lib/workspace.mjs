@@ -1,6 +1,6 @@
 // opencode connector: the workspace actions Dispatch needs to be used on its own, without Docket or a
-// terminal. Start a described (local) work item, start a spike, add a repo, write a repo's guide, and
-// say whether ADO is set up.
+// terminal. Start a described (local) work item, start a spike, review a teammate's PR, add a repo,
+// write a repo's guide, and say whether ADO is set up.
 //
 // Local work items match eng-agents core/scripts/work/New-LocalWorkItem.ps1: the folder is
 // .work/L<number>-<short-name>/ and workitem.md has the same shape. Keep the two in step.
@@ -11,8 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { httpError, log, opt, workRoot } from "./context.mjs";
 import { model, refresh } from "./model.mjs";
-import { linkFrom } from "./links.mjs";
-import { oc, upsertSession } from "./opencode-state.mjs";
+import { currentSession, folderForToken, linkFrom } from "./links.mjs";
+import { oc, sessions, upsertSession } from "./opencode-state.mjs";
 import { broadcastLive } from "./live.mjs";
 import { needOpencode, runCommand } from "./actions.mjs";
 import { INBOX, assignRun, checkProject, instructionsBlock } from "./projects.mjs";
@@ -166,6 +166,35 @@ export function startSpike({ topic }) {
   return runLoose("spike", t, () => spikeFolders().find((f) => !before.has(f)) || null);
 }
 const spikeFolders = () => ((model && model.items) || []).filter((i) => /^spike-/.test(i.folder)).map((i) => i.folder);
+
+/**
+ * The PR number in an Azure DevOps pull request link (.../_git/<repo>/pullrequest/<number>), and the link
+ * without its query or hash. Null if it is not one.
+ */
+export function prFromUrl(url) {
+  const u = String(url || "").trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  if (u.length > 500 || /[\s"'`<>|&;$\\]/.test(u)) return null;
+  const m = /^https?:\/\/[^/]+\/.+\/_git\/[^/]+\/pullrequest\/(\d{1,10})$/i.exec(u);
+  return m ? { id: m[1], url: u } : null;
+}
+
+/**
+ * /pr-review <link> [again]: a first-pass review of someone else's PR (eng-agents Core 2.6.0). It only
+ * writes .work/pr-<id>/ and never posts. Linked to that folder once it exists; until then it is listed in
+ * `others` so a failure (repo not cloned, ADO not set up) still shows.
+ */
+export function startReview({ url, again }) {
+  const pr = prFromUrl(url);
+  if (!pr) throw httpError(400, "Paste the pull request's link from Azure DevOps. It ends in /pullrequest/<number>.");
+  const folder = `pr-${pr.id}`;
+  const busy = (sid) => sid && sessions.get(sid) && sessions.get(sid).status !== "idle";
+  const existing = folderForToken(folder);
+  if (existing && busy(currentSession(existing))) throw httpError(409, `PR ${pr.id} is already being reviewed.`);
+  for (const [sid, e] of loose) {
+    if (busy(sid) && e.command.startsWith(`/pr-review ${pr.url}`)) throw httpError(409, `PR ${pr.id} is already being reviewed.`);
+  }
+  return runLoose("pr-review", again ? `${pr.url} again` : pr.url, () => folderForToken(folder));
+}
 
 /** /onboard-repo <folder>: draft the repo's guide (AGENTS.md) for the person to review. */
 export function onboardRepo({ repo }) {

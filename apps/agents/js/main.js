@@ -16,6 +16,7 @@ import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
+import { reviewUrlCheck } from './pr-reviews.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
 const OC = 'opencode';
@@ -107,6 +108,44 @@ const toast = (text, bad) => ws.toast(text, { kind: bad ? 'error' : 'info' });
 // Write actions: the click that called this is the approval.
 const write = (action, args) => ws.connectors.call(OC, action, args, { confirm: true });
 const read = (action, args) => ws.connectors.call(OC, action, args);
+
+/* ---------- PRs waiting on you: the ADO connector's sync.prs (read-only) ----------
+   Checked once when Dispatch connects, when the PR reviews page opens (if older than five minutes),
+   and from Check again. Without the ADO connector (or with it off) the page says how to turn it on. */
+const ADO = 'ado';
+const INBOX_FRESH_MS = 5 * 60e3;
+async function loadInbox(force) {
+  if (ws.backend !== 'agent' || S.inbox.state === 'loading') return;
+  if (!force && S.inbox.at && Date.now() - S.inbox.at < INBOX_FRESH_MS) return;
+  let c = null;
+  try { c = (await ws.connectors.list()).find(x => x.id === ADO) || null; } catch (e) { /* the agent is not reachable: try again later */ return; }
+  if (!c || !c.status || c.status.state !== 'ready') { S.inbox = { state: 'off', items: [], notes: [], error: null, at: Date.now() }; schedule(); return; }
+  S.inbox = { ...S.inbox, state: 'loading' }; schedule();
+  try {
+    const r = await ws.connectors.call(ADO, 'sync.prs', { knownPrs: [] });
+    S.inbox = { state: 'ok', items: (r && r.items) || [], notes: (r && r.notes) || [], error: null, at: Date.now() };
+  } catch (e) {
+    S.inbox = { state: 'error', items: [], notes: [], error: errText(e), at: Date.now() };
+  }
+  schedule();
+}
+ws.connectors.onStatus(ADO, status => { if (status.state === 'ready' && S.inbox.state === 'off') loadInbox(true); });
+
+/* ---------- PR reviews: start one (the opencode connector's pr.review action) ---------- */
+function startReview(url, again) {
+  const ck = reviewUrlCheck(url);
+  if (!ck.ok) { ui().prReview = { busy: false, error: ck.error }; paint(); return; }
+  const key = 'rv:' + ck.id;
+  if (ui().busy[key]) return;
+  ui().prReview = { busy: true, error: null };
+  act(() => write('pr.review', again ? { url: ck.url, again: true } : { url: ck.url }), () => {
+    toast(again ? `Reviewing PR ${ck.id} again` : `Reviewing PR ${ck.id}`);
+    if (ui().drafts['rv:url'] && reviewUrlCheck(ui().drafts['rv:url']).id === ck.id) ui().drafts['rv:url'] = '';
+  }, key).finally(() => {
+    if (ui().prReview && ui().prReview.busy) ui().prReview = { busy: false, error: null };
+    schedule();
+  });
+}
 
 /* ---------- the connector's status and state ---------- */
 async function loadStatus() {
@@ -212,7 +251,7 @@ function focusItem(id) {
 function wantFocus(path) {
   const id = String(path || '').split('/')[0];
   if (!id) return;
-  S.ui.scope = { kind: 'all' }; // the item may be outside the project in view
+  S.ui.scope = { kind: /^pr-\d+$/.test(id) ? 'reviews' : 'all' }; // the item may be outside the project in view
   // The page may not have the item yet: keep trying for a while as data arrives.
   focusWanted = focusItem(id) ? null : { id, until: Date.now() + 15000 };
 }
@@ -375,6 +414,7 @@ async function saveSettings() {
 /* ---------- sidebar: scope, pins, projects, folders, moving runs (sidebar.js, local.js) ---------- */
 function setScope(kind, id) {
   ui().scope = kind === 'project' ? { kind, id } : { kind };
+  if (kind === 'reviews') loadInbox(false);
   ui().side = false;
   paint();
   window.scrollTo(0, 0);
@@ -598,6 +638,10 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-repo-go]')) { repoGo(); return; }
   const gb = t.closest('[data-guide]');
   if (gb) { draftGuide(gb.getAttribute('data-guide')); return; }
+  if (t.closest('[data-rv-go]')) { startReview(ui().drafts['rv:url'] || ''); return; }
+  const rvu = t.closest('[data-rv-url]');
+  if (rvu) { startReview(rvu.getAttribute('data-rv-url'), rvu.hasAttribute('data-rv-again')); return; }
+  if (t.closest('[data-rv-inbox]')) { loadInbox(true); return; }
   const dm = t.closest('[data-dismiss]');
   if (dm) { act(() => read('session.dismiss', { session: dm.getAttribute('data-dismiss') })); return; }
   const ac = t.closest('[data-ai-check]');
@@ -688,6 +732,7 @@ app.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('start:')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('repo:')) { ev.preventDefault(); repoGo(); return; }
+  if (ev.key === 'Enter' && dk === 'rv:url') { ev.preventDefault(); startReview(ev.target.value); return; }
   if (ev.key === 'Enter' && (dk === 'proj:name' || dk === 'proj:baseBranch')) { ev.preventDefault(); saveProject(); return; }
   if (ev.key === 'Enter' && dk === 'folder:name') { ev.preventDefault(); saveFolder(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
@@ -707,11 +752,13 @@ ws.commands.register({ id: 'refresh', title: 'Refresh work items' });
 ws.commands.register({ id: 'start', title: 'Start work' });
 ws.commands.register({ id: 'repo', title: 'Add a repo' });
 ws.commands.register({ id: 'project', title: 'New project' });
+ws.commands.register({ id: 'pr-review', title: 'Review a pull request' });
 ws.on('command', ({ id }) => {
   if (id === 'refresh') act(() => read('refresh'));
   if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
   if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
   if (id === 'project' && S.D && S.D.projects) openProject(null);
+  if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setScope('reviews'); focusFirst('#rv-url'); }
 });
 
 /* ---------- start ---------- */
@@ -720,6 +767,7 @@ setInterval(() => { if (!document.hidden) schedule(); }, 30000); // keep "x min 
 schedule();
 await loadStatus();
 await fetchState();
+loadInbox(false); // for the sidebar count; never blocks the page
 
 // Test hook (tests/e2e.py): the state the page draws from.
 window.__agents = { S, refetch: fetchState };

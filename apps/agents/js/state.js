@@ -12,11 +12,14 @@ export const S = {
   now: 0, today: '', yest: '',
   copyStore: [],        // texts for the Copy buttons in the last paint, by index
   local: null,          // sidebar folders, pins and collapsed groups, kept in this browser (local.js)
+  // PRs waiting on you, from the ADO connector's sync.prs (main.js loadInbox). state: idle, loading, ok, error, off.
+  inbox: { state: 'idle', items: [], notes: [], error: null, at: 0 },
   // UI state that must survive repaints: open sections, drafts, question picks, busy buttons, overlays.
   // scope: what the main list shows (sidebar.js); side: the sidebar drawer is open on a narrow screen.
-  ui: { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null, scope: { kind: 'all' }, side: false, project: null, folder: null, move: null }
+  // prReview: the paste box on the PR reviews page ({busy, error}).
+  ui: { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null, scope: { kind: 'all' }, side: false, project: null, folder: null, move: null, prReview: null }
 };
 
 export function resetUi() {
-  S.ui = { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null, scope: { kind: 'all' }, side: false, project: null, folder: null, move: null };
+  S.ui = { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null, scope: { kind: 'all' }, side: false, project: null, folder: null, move: null, prReview: null };
 }

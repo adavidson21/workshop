@@ -15,7 +15,7 @@ The work root is `.work/` in the workspace (the folder that holds the repos). Ea
 | Folder name | Kind | Notes |
 | --- | --- | --- |
 | `<id>-<name>` (regex `itemFolder`) | `item`: an ADO work item in the pipeline | `<id>` is digits. `<name>` is a short slug. |
-| `spike-<name>`, `docs-<name>`, `tsd-<name>` (regex `notesFolder`) | `spike`, `docs`, `tsd` | Light treatment: title, state and a next step only. |
+| `spike-<name>`, `docs-<name>`, `tsd-<name>`, `scope-<name>`, `pr-<id>` (regex `notesFolder`) | `spike`, `docs`, `tsd`, `scope`, `pr` | Light treatment: title, state and a next step only. `pr` also carries the parsed review (`prReview`). |
 | starts with `_` or `.` (regex `ignoredFolder`) | ignored | `_dashboard/` belongs to the opencode connector (session links, autopilot state). |
 | anything else | `other` | Listed by name only. |
 
@@ -107,6 +107,8 @@ HTML comments are removed, then the file is split at `## ` headings (regex `prSp
 - `spike-*`: title from `# Spike findings: <topic>` in `findings.md` (regex `spikeTitle`). State is "Findings written" if `findings.md` exists, else "In progress".
 - `tsd-*`: title from `# Technical spec: <name>` in `tsd.md` (regex `tsdTitle`). `check.md` rows with `| Wrong |` or `| Outdated |` are counted (regex `tsdCheckBad`).
 - `docs-*`: "Fact-checked" if `check.md` exists, else "Written, not checked yet".
+- `scope-*`: title from `Epic: <name>` in `epics.md`. State follows the `Status:` lines of `stories.md` and `milestones.md`, then `backlog.csv` or `published.md`.
+- `pr-*`: a first-pass review of someone else's pull request (`/pr-review`). Title from `# Pull request <id>: <title>` in `context.md`; `Source commit:`, `Link:`, `Author:` and `- Repo: <name> (folder \`<folder>\`)` from the same file. `review.md` gives `Reviewed commit:`, `Recommendation:`, `Risk:`, the `## Summary` section, and one comment per `### C<n>` block under `## Comments` (`- File:`, `- Line:`, `- Severity:` (`blocking`, `should-fix` or `optional`), `- Why:`, and the comment as `>` quote lines). State is "Fetching" with no `context.md`, "Reviewing" with no `review.md`, "<recommendation>, <n> comments" once reviewed, and "Review is for an older commit" when `Reviewed commit:` is not the start of `Source commit:`.
 
 ## Regexes
 
@@ -114,7 +116,7 @@ JavaScript syntax. `{label}` and `{heading}` are replaced with the escaped label
 
 ```regex
 itemFolder     /^(\d+)-(.*)$/
-notesFolder    /^(spike|docs|tsd)-(.+)$/
+notesFolder    /^(spike|docs|tsd|scope|pr)-(.+)$/
 ignoredFolder  /^[_.]/
 title          /^#\s+Work item\s+\d+\s*:\s*(.+?)\s*$/m
 progressTitle  /^#\s+Progress:\s*\d+\s+(.+?)\s*$/m
