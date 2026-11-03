@@ -147,13 +147,13 @@ test('doctor checks opencode\'s providers against the connector\'s approved list
   try {
     fs.mkdirSync(path.join(userHome, '.config', 'opencode'), { recursive: true });
     const write = cfg => fs.writeFileSync(path.join(userHome, '.config', 'opencode', 'opencode.json'), JSON.stringify(cfg));
-    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, port: 4395, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: { opencode: { enabled: true, config: { workspace: path.join(userHome, 'work'), approvedProviders: ['softheon'] } } } }));
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, port: 4395, allowedOrigins: [], features: { startAtLogin: false, hostedMode: false }, connectors: { opencode: { enabled: true, config: { workspace: path.join(userHome, 'work'), approvedProviders: ['acme'] } } } }));
     const run = () => doctorReport({ home, env: {}, platform: 'linux', nodeVersion: 'v22.22.0', probe: noAgent, defaultDir, userHome });
-    write({ model: 'softheon/x' });
+    write({ model: 'acme/x' });
     let d = await run();
     assert.equal(d.code, 1);
-    assert.match(d.lines.join('\n'), /opencode providers: approved softheon\.\n\s+enabled_providers is not set/);
-    write({ enabled_providers: ['softheon'], model: 'softheon/x' });
+    assert.match(d.lines.join('\n'), /opencode providers: approved acme\.\n\s+enabled_providers is not set/);
+    write({ enabled_providers: ['acme'], model: 'acme/x' });
     d = await run();
     assert.equal(d.code, 0, d.lines.join('\n'));
   } finally { rm(home); rm(userHome); rm(path.dirname(defaultDir)); }
