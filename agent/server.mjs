@@ -26,6 +26,7 @@ import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
 import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
+import { liveEnv } from './lib/userenv.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -48,7 +49,8 @@ const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.lengt
  * @param {string} [o.root]            folder with shell/, shared/, icons/, index.html (default: this repo)
  * @param {string} [o.appsDir]         default <root>/apps
  * @param {string} [o.connectorsDir]   default <root>/connectors
- * @param {object} [o.env]             environment variables connectors may read (default process.env)
+ * @param {object} [o.env]             environment variables connectors may read (default process.env, plus
+ *                                     saved user variables read live on Windows: lib/userenv.mjs)
  * @param {number} [o.port]            listen here instead of config.json's port (0 picks a free port)
  * @param {string} [o.dataDir]         use this data folder for this run instead of config.json's dataDir (absolute).
  *                                     config.json is not changed. For tests, so they never touch ~/Workshop.
@@ -120,7 +122,7 @@ export async function createAgent(o) {
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
   const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
   const connectors = new ConnectorHost({
-    dir: connectorsDir, schemas, env, home, storageDir: path.join(paths.data, '_connectors'), log, events, config: () => config
+    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), log, events, config: () => config
   });
 
   let port = 0;

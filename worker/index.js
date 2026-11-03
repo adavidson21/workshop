@@ -126,7 +126,6 @@ export async function liveRegistry(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/__debug") return new Response(request.url + " host=" + request.headers.get("host"));
     const script = await installer(url, request, env);
     if (script) return script;
     if (url.pathname.startsWith('/apps/')) {

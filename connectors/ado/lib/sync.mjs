@@ -171,6 +171,8 @@ class PrSource {
       author: person(get(pr, 'createdBy')),
       created: day(get(pr, 'creationDate')),
       url: `${this.base}/${pyQuote(this.project)}/_git/${pyQuote(repo)}/pullrequest/${pr.pullRequestId}`,
+      // the PR's latest source commit: Dispatch's Review all skips PRs already reviewed at it
+      commit: get(or(pr.lastMergeSourceCommit, {}), 'commitId') || null,
       tier: mine && mine.isRequired ? 'blocking' : mine ? 'asked' : 'pool',
       via: teams.map(r => this.teams.get(r.id)),
       // every other required reviewer already approved: you are the last one holding it up

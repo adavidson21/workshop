@@ -13,7 +13,7 @@ Before anyone on a team tests Workshop with real work data (work items, repos, r
 
 1. **Install in work mode, at the release tags.** Either way below gives the same result.
    - By hand (preferred, nothing is piped from a website): clone `workshop` and `docket` at the release tags side by side, run `scripts/install.ps1` (or `scripts/install.sh`), then `node workshop.mjs install --work-mode` and `node workshop.mjs pin`. Full steps: [README.md](../README.md), Work mode.
-   - One-line installer: set `WORKSHOP_WORK_MODE=1`, `WORKSHOP_TAG`, `TANDEM_TAG` and `DOCKET_TAG` before running it. Without the tags it installs the newest code and says so: stop and set them.
+   - One-line installer: set `WORKSHOP_WORK_MODE=1`, `WORKSHOP_TAG`, `TANDEM_TAG` and `DOCKET_TAG` before running it. In work mode it leaves Dispatch out (opencode, Tandem, the AI model); add `WORKSHOP_DISPATCH=1` only if the team is testing Dispatch with the approved provider. Without the tags it installs the newest code and says so: stop and set them.
 2. **Open Workshop from your computer**, at the address `workshop start` or `workshop open` prints (`http://127.0.0.1:...`), not from the website. Settings should say "Work mode is on" and show the release tags.
 3. **Set the approved AI provider.** In Settings, under the opencode connector, set **Approved AI providers** to the provider from step 1. Add `"enabled_providers": ["<that provider>"]` to your global opencode config (`~/.config/opencode/opencode.json`), so opencode cannot use any other provider, even one with a key in an environment variable.
 4. **Keep the data folder on company storage**, for example a OneDrive folder your company manages (Settings, Data folder). It is your backup; Workshop never uploads it.

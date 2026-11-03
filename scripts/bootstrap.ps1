@@ -22,6 +22,10 @@
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
 #                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
+# Dispatch (opencode, git, Tandem and an AI model) is only for coding agents:
+#   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no git download, no AI question
+#   WORKSHOP_DISPATCH=1   install it. The default is 1, except in work mode, where it is 0 until you ask for it.
+#   OPENCODE_VERSION=1.2.3  install that opencode version from npm instead of the newest one.
 
 & {
 $ErrorActionPreference = 'Stop'
@@ -36,6 +40,9 @@ $Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' =
 $Work = ($env:WORKSHOP_WORK_MODE -eq '1')
 $Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG }
 $TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG' }
+# Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
+$Dispatch = if ($env:WORKSHOP_DISPATCH -eq '0') { $false } elseif ($env:WORKSHOP_DISPATCH -eq '1') { $true } else { -not $Work }
+$OcVersion = if ($env:OPENCODE_VERSION) { $env:OPENCODE_VERSION } else { 'latest' }
 
 function Say($text) { Write-Host "  $text" }
 function Step($text) { Write-Host ""; Write-Host "> $text" -ForegroundColor Cyan }
@@ -48,12 +55,18 @@ function Add-UserPath($dir) {
   if (($env:Path -split ';') -notcontains $dir) { $env:Path = "$dir;$env:Path" }
 }
 
-function Get-Zip($url, $dest) {
+# Download a zip and unpack it to $dest. With $sha256 (hex), the download must match it or nothing is unpacked.
+function Get-Zip($url, $dest, $sha256 = $null) {
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
   New-Item -ItemType Directory -Path $tmp | Out-Null
   try {
     $zip = Join-Path $tmp 'download.zip'
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+    if ($sha256) {
+      $got = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+      if ($got -ne $sha256.ToLowerInvariant()) { throw "The download from $url does not match its published SHA-256, so it was not used." }
+      Say 'SHA-256 checked.'
+    }
     Expand-Archive -Path $zip -DestinationPath (Join-Path $tmp 'x') -Force
     $inner = @(Get-ChildItem (Join-Path $tmp 'x') -Directory)
     $src = if ($inner.Count -eq 1) { $inner[0].FullName } else { Join-Path $tmp 'x' }
@@ -66,8 +79,11 @@ function Get-Zip($url, $dest) {
 foreach ($t in $Tags.Values) {
   if ($t -and ($t -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$' -or $t.Contains('..'))) { Fail "`"$t`" is not a release tag like v1.2.0." }
 }
+if ($env:WORKSHOP_DISPATCH -and $env:WORKSHOP_DISPATCH -notmatch '^[01]$') { Fail "WORKSHOP_DISPATCH is 0 or 1, not `"$($env:WORKSHOP_DISPATCH)`"." }
+if ($OcVersion -notmatch '^[0-9A-Za-z][0-9A-Za-z.+-]{0,49}$') { Fail "`"$OcVersion`" is not an opencode version like 1.2.3." }
 
-Write-Host "Installing Workshop and Tandem for $env:USERNAME (no admin rights needed)."
+Write-Host "Installing Workshop$(if ($Dispatch) { ' and Tandem' }) for $env:USERNAME (no admin rights needed)."
+if (-not $Dispatch) { Write-Host 'Dispatch (opencode, Tandem, AI model) is not installed. Set WORKSHOP_DISPATCH=1 and run this again to add it.' }
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
 
 # ---------------------------------------------------------------- 1. Node
@@ -89,7 +105,16 @@ if (-not $node) {
   $pick = $index | Where-Object { $_.lts -and ([int]($_.version.TrimStart('v').Split('.')[0]) -ge 22) -and ($_.files -contains "win-$arch-zip") } | Select-Object -First 1
   if (-not $pick) { Fail 'Could not find a Node 22 or later download. Install Node LTS from https://nodejs.org and run this again.' }
   Say "Downloading Node $($pick.version)."
-  Get-Zip "https://nodejs.org/dist/$($pick.version)/node-$($pick.version)-win-$arch.zip" $nodeDir
+  $nodeZip = "node-$($pick.version)-win-$arch.zip"
+  # nodejs.org publishes SHASUMS256.txt for every release. If it cannot be read, carry on and say so.
+  $nodeSum = $null
+  try {
+    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/$($pick.version)/SHASUMS256.txt").Content
+    $line = @($sums -split "`n" | Where-Object { $_ -match "^([0-9a-f]{64})\s+$([regex]::Escape($nodeZip))\s*$" }) | Select-Object -First 1
+    if ($line -match '^([0-9a-f]{64})') { $nodeSum = $Matches[1] }
+  } catch { }
+  if (-not $nodeSum) { Say 'Could not read Node''s published SHA-256, so the download is not checked.' }
+  try { Get-Zip "https://nodejs.org/dist/$($pick.version)/$nodeZip" $nodeDir $nodeSum } catch { Fail $_.Exception.Message }
   $node = Join-Path $nodeDir 'node.exe'
   Add-UserPath $nodeDir
 }
@@ -109,7 +134,8 @@ if (Test-Workshop) {
 }
 
 # ---------------------------------------------------------------- 2. Workshop and Tandem
-$names = @('workshop', 'eng-agents')
+$names = @('workshop')
+if ($Dispatch) { $names += 'eng-agents' }
 if ($Work) { $names += 'docket' }
 foreach ($name in $names) {
   Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
@@ -150,15 +176,16 @@ $opencode = $null
 $oc = Get-Command opencode -ErrorAction SilentlyContinue
 $ocDir = Join-Path $Root 'opencode'
 $ocCmd = $null # the opencode command to use from here on, or $null when there is none
-if ($oc -and ($oc.Source -notlike "$ocDir*")) { $ocCmd = $oc.Source; Say "Using your opencode at $ocCmd." }
+if (-not $Dispatch) { Say 'Skipped (WORKSHOP_DISPATCH=0, or work mode).' }
+elseif ($oc -and ($oc.Source -notlike "$ocDir*")) { $ocCmd = $oc.Source; Say "Using your opencode at $ocCmd." }
 else {
-  Say $(if ($oc) { 'Updating opencode.' } else { 'Installing opencode.' })
+  Say $(if ($oc) { "Updating opencode ($OcVersion)." } else { "Installing opencode ($OcVersion)." })
   # A company network that inspects HTTPS uses its own certificate, which Windows trusts and npm does not.
   # Node 22.15 and later can use the Windows certificate store for this one npm run.
   $nodeVer = [version]((& $node -v).TrimStart('v'))
   $oldNodeOptions = $env:NODE_OPTIONS
   if ($nodeVer -ge [version]'22.15.0') { $env:NODE_OPTIONS = (@($oldNodeOptions, '--use-system-ca') | Where-Object { $_ }) -join ' ' }
-  try { & $npm install --global --prefix $ocDir --no-fund --no-audit opencode-ai@latest } catch { $global:LASTEXITCODE = 1 }
+  try { & $npm install --global --prefix $ocDir --no-fund --no-audit "opencode-ai@$OcVersion" } catch { $global:LASTEXITCODE = 1 }
   $env:NODE_OPTIONS = $oldNodeOptions
   $ocFile = Join-Path $ocDir 'opencode.cmd'
   if ($LASTEXITCODE -eq 0 -and (Test-Path $ocFile)) {
@@ -182,14 +209,20 @@ else {
 Step 'git'
 $gitDir = Join-Path $Root 'git'
 $haveGit = Get-Command git -ErrorAction SilentlyContinue
-if ($haveGit -and ($haveGit.Source -notlike "$gitDir*")) { Say "Using your $((git --version) -replace '^git version ', 'git ')." }
+if (-not $Dispatch) { Say 'Skipped: only Dispatch needs git.' }
+elseif ($haveGit -and ($haveGit.Source -notlike "$gitDir*")) { Say "Using your $((git --version) -replace '^git version ', 'git ')." }
 else {
   if (-not (Test-Path (Join-Path $gitDir 'cmd\git.exe'))) {
     try {
       $rel = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/git-for-windows/git/releases/latest'
       $want = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-arm64\.zip$' } else { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-64-bit\.zip$' }
       $asset = @($rel.assets | Where-Object { $_.name -match $want }) | Select-Object -First 1
-      if ($asset) { Say "Downloading git ($($asset.name))."; Get-Zip $asset.browser_download_url $gitDir }
+      if ($asset) {
+        Say "Downloading git ($($asset.name))."
+        # GitHub lists each release file's SHA-256 as digest ("sha256:<hex>"). Older releases may not have it.
+        $gitSum = if ("$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $Matches[1] } else { Say 'GitHub lists no SHA-256 for it, so the download is not checked.'; $null }
+        Get-Zip $asset.browser_download_url $gitDir $gitSum
+      }
       else { Say 'Could not find a git download. Install git from https://git-scm.com/downloads' }
     } catch { Say "Could not download git ($($_.Exception.Message)). Install it from https://git-scm.com/downloads" }
   }
@@ -199,7 +232,8 @@ else {
 # ---------------------------------------------------------------- 4. Tandem into opencode
 Step 'Installing Tandem into opencode'
 $tandemOk = $false
-if (-not $ocCmd) { Say 'Skipped: Tandem runs in opencode, which is not installed.' }
+if (-not $Dispatch) { Say 'Skipped (WORKSHOP_DISPATCH=0, or work mode).' }
+elseif (-not $ocCmd) { Say 'Skipped: Tandem runs in opencode, which is not installed.' }
 else {
   $tandemArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $engDir 'install.ps1'))
   $personal = Join-Path $env:USERPROFILE '.config\eng-agents\personal'
@@ -220,7 +254,8 @@ foreach ($f in @((Join-Path $env:USERPROFILE '.local\share\opencode\auth.json'),
 foreach ($v in @('ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'OPENROUTER_API_KEY', 'GROQ_API_KEY', 'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'MISTRAL_API_KEY')) {
   if ([Environment]::GetEnvironmentVariable($v)) { $hasAi = $true }
 }
-if (-not $ocCmd) { Say 'Skipped: opencode is not installed.' }
+if (-not $Dispatch) { Say 'Skipped (WORKSHOP_DISPATCH=0, or work mode).' }
+elseif (-not $ocCmd) { Say 'Skipped: opencode is not installed.' }
 elseif ($hasAi) { Say 'opencode already has an AI provider.' }
 elseif ($env:WORKSHOP_SKIP_AI -or -not [Environment]::UserInteractive) { Say 'Later: run  opencode auth login  to connect an AI model. Dispatch shows how.' }
 else {
@@ -286,6 +321,7 @@ if ($Work) {
   Write-Host "Workshop opened in your browser once to sign it in. Go back to $Site and click Connect."
   Write-Host "Using a different browser for Dispatch? Run  workshop open --print  in a new PowerShell window and open that address there."
 }
-if ($ocCmd -and $tandemOk) { Write-Host "Your work goes in $wsPath. Change it any time in Dispatch, under opencode settings." }
+if (-not $Dispatch) { Write-Host 'Dispatch is not installed. To add it later: set WORKSHOP_DISPATCH=1 and run this installer again.' }
+elseif ($ocCmd -and $tandemOk) { Write-Host "Your work goes in $wsPath. Change it any time in Dispatch, under opencode settings." }
 else { Write-Host "Dispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it." -ForegroundColor Yellow }
 }

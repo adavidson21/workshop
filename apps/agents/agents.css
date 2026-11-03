@@ -731,7 +731,33 @@ section.group > h3 .sh-r .lnk:hover { color: var(--ink); }
 .rv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
 .rv-foot .btn { min-height: 28px; padding: 2px 12px; font-size: 13px; }
 .rv-foot .btn.ghost { margin-left: auto; }
+/* Review all and the nightly review (js/pr-reviews.js queueHtml, nightlyHtml) */
+.btn.sm { min-height: 28px; padding: 2px 12px; font-size: 13px; }
+section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
+.rv-queue { margin: 0 0 22px; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--go); border-radius: var(--r-sm); background: var(--surface); display: grid; gap: 8px; }
+.rv-queue[data-status="paused"], .rv-queue[data-status="stopped"] { border-left-color: var(--gate); }
+.rv-queue[data-status="done"] { border-left-color: var(--line); }
+.rv-qh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.rv-qh strong { flex: 1 1 260px; min-width: 0; font-weight: 600; }
+.rv-qh .dim { font-weight: 400; }
+.rv-qacts { display: flex; gap: 6px; }
+.rv-qmsg, .rv-qnote { margin: 0; color: var(--muted); font-size: 13px; }
+.rv-qtally { display: flex; flex-wrap: wrap; gap: 6px; }
+.qn, .qs { display: inline-flex; align-items: center; gap: 6px; font: 500 11px/1.6 var(--mono); padding: 0 7px; border-radius: 4px; background: var(--panel); color: var(--muted); white-space: nowrap; }
+.qn[data-q="done"], .qs[data-q="done"] { background: var(--go-soft); color: var(--ink); }
+.qn[data-q="asking"], .qs[data-q="asking"] { background: var(--gate-soft); color: var(--gate); }
+.qn[data-q="failed"], .qs[data-q="failed"] { background: var(--stop-soft); color: var(--stop); }
+.qs[data-q="running"] { background: var(--accent-soft); color: var(--ink); }
+.rv-qlist > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.rv-qlist ol { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.rv-qlist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; }
+.rv-qlist li .qs { flex: none; min-width: 6.5rem; justify-content: center; }
+.rv-qlist li a { text-decoration: none; }
+.rv-qlist li a:hover { color: var(--accent); }
+.rv-qlist .qm { flex-basis: 100%; padding-left: calc(6.5rem + 10px); font-size: 12.5px; }
+.rv-night { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; }
 @media (max-width: 600px) {
+  .rv-qlist .qm { padding-left: 0; }
   .rv-row { flex-wrap: wrap; }
   .rv-act { width: 100%; justify-content: flex-end; }
   .tier { width: auto; padding: 0 6px; }

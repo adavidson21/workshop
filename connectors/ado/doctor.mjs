@@ -5,6 +5,8 @@
 //   (no option)      Check each connection and list what a sync finds. Same as ado_helper.py --test.
 //   --compare        Run ado_helper.py and the connector against your ADO and print match and mismatch
 //                    counts only. Writes nothing.
+//   --write-check <id>  Add a tag to one work item you pick and remove it again, to check the PAT can write,
+//                    the revision check works, and the comments API answers. Prints plain-word results only.
 //   --import         Build connector settings from ado-helper.json and eng-agents config.json and print
 //                    them. Add --write to save them into ~/.workshop/config.json.
 //
@@ -16,11 +18,13 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import ado from './index.mjs';
 import { AdoError, SettingsError, clientFor } from './lib/client.mjs';
+import { daysLeft, patHint, WARN_DAYS } from './lib/pat.mjs';
 import { normalize } from './lib/config.mjs';
 import { compareDataset, compareSync } from './lib/compare.mjs';
 import { dataset } from './lib/dataset.mjs';
 import { importConfig } from './lib/import.mjs';
 import { cleanKnown, sync } from './lib/sync.mjs';
+import { writeCheck } from './lib/write.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -38,6 +42,9 @@ const USAGE = `Usage: node connectors/ado/doctor.mjs [options]
     --areas <a;b>            Area paths for the team dataset, separated by semicolons.
     --people <x;y>           People for the team dataset, separated by semicolons.
     --days <n>               Dataset window in days (default 42).
+  --write-check <id>         Add a tag to work item <id> (pick a test item) and remove it again. Checks the PAT can
+                             write, ADO refuses a stale revision, and the comments API answers. Uses the connection for
+                             my work items. Changes nothing else and prints no titles or names.
   --import                   Print connector settings built from your old configs.
     --helper-config <file>   ado-helper.json (default: next to ado_helper.py in this repo, if present).
     --eng-agents-config <f>  eng-agents config.json (default: ~/.config/eng-agents/config.json, if present).
@@ -52,6 +59,11 @@ export function parseArgs(argv) {
     if (a === '--compare') o.mode = 'compare';
     else if (a === '--import') o.mode = 'import';
     else if (a === '--write') o.write = true;
+    else if (a === '--write-check') {
+      if (i + 1 >= argv.length || !/^\d+$/.test(argv[i + 1])) throw new SettingsError('--write-check needs a work item ID.');
+      o.mode = 'write-check';
+      o.id = Number(argv[++i]);
+    }
     else if (a === '--help' || a === '-h') o.mode = 'help';
     else if (takes.has(a)) {
       if (i + 1 >= argv.length) throw new SettingsError(`${a} needs a value.`);
@@ -95,7 +107,7 @@ async function runTest(o, io) {
   for (const c of cfg.connections) {
     const set = Boolean(String(io.env[c.patEnv] || '').trim());
     io.out(`  ${c.name.padEnd(12)} ${c.base}   PAT from ${c.patEnv} (${set ? 'set' : 'NOT SET'})`);
-    if (!set) { failed = true; continue; }
+    if (!set) { io.out(`  ${''.padEnd(12)} ${patHint(c.patEnv)}`); failed = true; continue; }
     try {
       const res = await clientFor(c, env).call('GET', 'connectionData', { api: '1.0' });
       io.out(`  ${''.padEnd(12)} ${res?.authenticatedUser?.id ? 'Connected.' : 'Answered, but did not say who you are.'}`);
@@ -104,6 +116,10 @@ async function runTest(o, io) {
       io.out(`  ${''.padEnd(12)} ${e.message}`);
       failed = true;
     }
+    const days = daysLeft(c.patExpires);
+    if (days === null) io.out(`  ${''.padEnd(12)} No "PAT expires" date in Settings, so Workshop cannot warn before it expires.`);
+    else if (days < 0) { io.out(`  ${''.padEnd(12)} PAT expired on ${c.patExpires} (by the date in Settings).`); failed = true; }
+    else io.out(`  ${''.padEnd(12)} PAT expires ${c.patExpires} (${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`})${days <= WARN_DAYS ? '. Make a new one soon.' : '.'}`);
   }
   const r = await sync({ cfg, env }, cleanKnown((o.known || '').split(',')), []);
   io.out(`\nConnected. ${r.items.length} open work items assigned to you:`);
@@ -182,6 +198,21 @@ async function runCompare(o, io) {
   return allOk ? 0 : 1;
 }
 
+// ---------------------------------------------------------------- write check (Queue app)
+
+async function runWriteCheck(o, io) {
+  const { config: cfg, problems } = normalize(connectorConfig(o, io.env));
+  for (const p of problems) io.out(`Problem: ${p}`);
+  if (!cfg.connections.length) return 1;
+  io.out(`Checking writes on work item ${o.id}. A tag "workshop-write-check" is added and then removed.`);
+  const r = await writeCheck({ cfg, env: name => io.env[name] }, o.id);
+  io.out(`Connection: ${r.connection}`);
+  for (const s of r.steps) io.out(`  ${s}`);
+  const bad = r.steps.some(s => s.startsWith('Problem') || s.includes('did not answer'));
+  io.out(bad ? 'Result: problems found.' : 'Result: writes work.');
+  return bad ? 1 : 0;
+}
+
 // ---------------------------------------------------------------- import
 
 async function runImport(o, io) {
@@ -223,6 +254,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
     if (o.mode === 'help') { io.out(USAGE); return 0; }
     if (o.mode === 'compare') return await runCompare(o, io);
     if (o.mode === 'import') return await runImport(o, io);
+    if (o.mode === 'write-check') return await runWriteCheck(o, io);
     return await runTest(o, io);
   } catch (e) {
     if (e instanceof AdoError || e instanceof SettingsError) {

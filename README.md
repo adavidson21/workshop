@@ -15,7 +15,7 @@ Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K`
 
 Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
 
-Everything stays on your device. There are no accounts and no server: data is saved in your browser, or in files on this computer when Workshop runs there, and nothing talks to anything but `127.0.0.1` and the systems you set up in Settings.
+Your data stays on your device. There are no accounts and no server holds your data: it is saved in your browser, or in files on this computer when Workshop runs there. The page talks only to its own site, `127.0.0.1` and the systems you set up in Settings. The exception is Dispatch, whose coding agents send work to the AI provider you connect to opencode. What Workshop stores, where it sends data and what to tell your security team: [docs/security.md](docs/security.md) and [docs/for-security-teams.md](docs/for-security-teams.md).
 
 Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
 
@@ -58,6 +58,8 @@ Start at login stays off (run Workshop by hand for a few days first; turn it on 
 - Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
 - macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`
 
+Dispatch's parts (opencode, Tandem, git or PowerShell, the AI model) are skipped with `WORKSHOP_DISPATCH=0`, and are skipped by default in work mode (`WORKSHOP_DISPATCH=1` adds them). `OPENCODE_VERSION=<version>` installs that opencode version instead of the newest. On a work laptop, piping a downloaded script into PowerShell or bash is often flagged by endpoint security; use the by-hand install in Work mode below instead.
+
 The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (`worker/index.js`) serves them at `/install.ps1` and `/install.sh` on either domain, with the site filled in. They install into `%LOCALAPPDATA%\Workshop` or `~/.local/share/workshop` (set `WORKSHOP_INSTALL_DIR` to change it; `WORKSHOP_WORKSPACE` changes the workspace folder) and put a `workshop` command on PATH. `workshop open` opens Workshop signed in; `workshop open --print` prints the address for another browser.
 
 ### By hand
@@ -74,6 +76,8 @@ Other commands:
 
 - `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
 - `node workshop.mjs open` opens Workshop in your default browser, signed in.
+- `node workshop.mjs stop` stops Workshop; `node workshop.mjs restart` stops it and starts it again in the background (no window).
+- `node workshop.mjs pat ADO_PAT` saves your Azure DevOps PAT without showing it or leaving it in shell history. On Windows, Workshop picks it up within seconds with no restart. See [connectors/ado/README.md](connectors/ado/README.md), Setting up and renewing a PAT.
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
@@ -91,12 +95,12 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 
 1. Clone Workshop and Docket at release tags, side by side:
    `git clone --branch <workshop tag> https://github.com/adavidson21/workshop` and `git clone --branch <docket tag> https://github.com/adavidson21/docket`
-2. Install: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1` (or `bash workshop/scripts/install.sh`).
+2. Check `node -v` says 22.15 or later (from https://nodejs.org, or your company's software portal).
 3. `node workshop/workshop.mjs install --work-mode`, then `node workshop/workshop.mjs pin` (it finds the `docket` folder next to Workshop; or pass `--docket <folder>`).
 4. `node workshop/workshop.mjs start` and open the address it prints. Workshop opens there, from the pinned copy.
 5. In Settings, set the opencode connector's **Approved AI providers** to your company's provider, then run `workshop doctor`: it checks the pinned copy and that opencode can use no other provider.
 
-**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='v1.8.1'; $env:DOCKET_TAG='v4.7.0'`, then run the install command. Without tags it installs the newest code and says so.
+**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='v1.8.1'; $env:DOCKET_TAG='v4.7.0'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
 
 **Updating:** `workshop update` lists the tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 

@@ -21,6 +21,8 @@ export function checkConnectorModule(m, folder, schemas) {
     if (!a || typeof a.run !== 'function') return `Action ${name} has no run().`;
     if (typeof a.title !== 'string' || !a.title) return `Action ${name} has no title.`;
     if (typeof a.write !== 'boolean') return `Action ${name} must say write: true or false.`;
+    if (a.setup !== undefined && typeof a.setup !== 'boolean') return `Action ${name} setup must be true or false.`;
+    if (a.setup === true && a.write) return `Action ${name} is a setup action, so it must be a read action.`;
     if (a.argsSchema !== undefined && (typeof a.argsSchema !== 'object' || a.argsSchema === null)) return `Action ${name} argsSchema must be a schema object.`;
   }
   if (m.test !== undefined) {

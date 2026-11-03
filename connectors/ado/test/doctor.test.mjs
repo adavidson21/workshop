@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { main, parseArgs } from '../doctor.mjs';
-import { compareLists } from '../lib/compare.mjs';
+import { compareLists, compareSync } from '../lib/compare.mjs';
 import { PAT } from './fixtures/team.mjs';
 import { HELPER, findPython, HELPER_MISSING, testEnv, withServer } from './harness.mjs';
 
@@ -36,7 +36,7 @@ test('doctor checks each connection and lists what a sync finds', async () => {
     const file = path.join(dir, 'ado.json');
     fs.writeFileSync(file, JSON.stringify({
       connections: [
-        { name: 'main', serverUrl: srv.url, collection: 'Main', patEnv: 'TEST_ADO_PAT' },
+        { name: 'main', serverUrl: srv.url, collection: 'Main', patEnv: 'TEST_ADO_PAT', patExpires: '2099-01-01' },
         { name: 'other', serverUrl: srv.url, collection: 'Main', patEnv: 'UNSET_PAT_FOR_TEST' }
       ],
       defaultConnection: 'main',
@@ -45,7 +45,8 @@ test('doctor checks each connection and lists what a sync finds', async () => {
     const { code, text } = await run(['--config', file], testEnv());
     assert.equal(code, 1, 'the unset PAT makes it fail');
     assert.match(text, /main\s+http:\/\/127\.0\.0\.1:\d+\/Main\s+PAT from TEST_ADO_PAT \(set\)\n\s+Connected\./);
-    assert.match(text, /PAT from UNSET_PAT_FOR_TEST \(NOT SET\)/);
+    assert.match(text, /PAT from UNSET_PAT_FOR_TEST \(NOT SET\)\n\s+(Save it with: workshop pat|Set) UNSET_PAT_FOR_TEST/);
+    assert.match(text, /Connected\.\n\s+PAT expires 2099-01-01 \(in \d+ days\)\./);
     assert.match(text, /3 open work items assigned to you:\n  #101  Bug/);
     assert.match(text, /pull requests waiting on you:\n  PR 501    blocking \(last one\)/);
     assert.ok(!text.includes(PAT));
@@ -109,4 +110,13 @@ test('--import prints settings, and --write saves them without turning the conne
   const again = JSON.parse(fs.readFileSync(path.join(dir, 'home', 'config.json'), 'utf8'));
   assert.equal(again.connectors.ado.config.connections.length, 1);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('compareSync ignores fields only the connector adds to PRs (commit)', () => {
+  const pr = { key: 'k1', id: 1, title: 'T' };
+  const side = prs => ({ ok: { items: [], gone: [], prs: { items: prs, gone: [], notes: [] } } });
+  const r = compareSync(side([pr]), side([{ ...pr, commit: 'abc1234' }]));
+  assert.equal(r.ok, true);
+  assert.match(r.lines.join('\n'), /PRs: 1 match, 0 differ/);
+  assert.equal(compareSync(side([pr]), side([{ ...pr, title: 'U' }])).ok, false, 'other fields still count');
 });

@@ -43,7 +43,8 @@ export function normalize(raw) {
       patEnv: c?.patEnv ? String(c.patEnv) : 'ADO_PAT',
       apiVersion: c?.apiVersion ? String(c.apiVersion) : '6.0',
       useSystemCa: c?.useSystemCa !== false,
-      verifyTls: c?.verifyTls !== false
+      verifyTls: c?.verifyTls !== false,
+      patExpires: /^\d{4}-\d{2}-\d{2}$/.test(String(c?.patExpires || '')) ? String(c.patExpires) : ''
     };
     conn.base = baseOf(conn);
     return conn;

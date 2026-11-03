@@ -205,6 +205,33 @@ for (const kind of ["v1", "v2"]) {
       fs.rmSync(path.join(ws.dir, ".work", "pr-812"), { recursive: true, force: true });
     });
 
+    test("pr.reviewAll queues PRs and runs /pr-review on them one at a time; stop, clear and the inbox", async () => {
+      const link = (n) => `https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/${n}`;
+      await rejects(call("pr.reviewAll", { prs: [{ url: "https://github.com/owner/repo/pull/3" }] }, ctx()), "bad_request", /pull request links/);
+      const r = await call("pr.reviewAll", { prs: [{ url: link(901), title: "First" }, { url: link(902), waiting: true }, { url: link(903) }] }, ctx());
+      assert.deepEqual(r.added, ["901", "903"]);
+      assert.deepEqual(r.skipped.map((s) => s.id), ["902"]);
+      const route = kind === "v1" ? /^POST \/session\/[^/]+\/command$/ : /^POST \/api\/session\/[^/]+\/command$/;
+      const reviewCalls = () => fake.state.bodies.filter((x) => route.test(x.route) && JSON.stringify(x.body).includes("pullrequest/90"));
+      await waitFor(() => reviewCalls().length === 1, "the first /pr-review");
+      let q = (await call("state", {}, ctx())).liveMode.live.prQueue;
+      assert.equal(q.status, "running");
+      assert.deepEqual(q.items.map((i) => [i.id, i.state]), [["901", "running"], ["903", "queued"]]);
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(reviewCalls().length, 1, "one at a time");
+      assert.deepEqual(await call("pr.queue.stop", {}, ctx()), { ok: true });
+      q = (await call("state", {}, ctx())).liveMode.live.prQueue;
+      assert.equal(q.status, "stopped");
+      assert.equal(q.items[1].state, "skipped");
+      await finish(q.items[0].session);
+      await waitFor(async () => (await call("state", {}, ctx())).liveMode.live.prQueue.items[0].state !== "running", "the first review to end");
+      assert.equal(reviewCalls().length, 1, "nothing starts after a stop");
+      assert.deepEqual(await call("pr.queue.clear", {}, ctx()), { ok: true });
+      assert.equal((await call("state", {}, ctx())).liveMode.live.prQueue.status, "idle");
+      assert.deepEqual(await call("pr.inbox.save", { prs: [{ url: link(904), commit: "abcdef1234567" }] }, ctx()), { ok: true, count: 1 });
+      assert.equal((await call("state", {}, ctx())).liveMode.live.prQueue.inbox.count, 1);
+    });
+
     test("projects: create, start a described run in one, see it in state, move it, remove the project", async () => {
       const { project } = await call("project.create", { name: "Orders", instructions: "Run the repo's tests first." }, ctx());
       assert.equal(project.id, "p-orders");
