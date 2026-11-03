@@ -3,7 +3,7 @@
 // Picks the connection the way eng-agents Get-WorkItem.ps1 does, minus the git remote lookup.
 import { AdoError, clientFor } from './client.mjs';
 import { resolveConnection } from './config.mjs';
-import { get, pyQuote } from './util.mjs';
+import { get, pyQuote, who } from './util.mjs';
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
@@ -65,9 +65,12 @@ export async function getWorkItem(d, args) {
   };
   if (args.details) {
     const related = [];
+    const pullRequests = [];
     for (const rel of w.relations || []) {
       const m = /\/workItems\/(\d+)$/i.exec(String(rel.url || ''));
       if (m) related.push({ name: get(rel.attributes || {}, 'name') || rel.rel || '', id: Number(m[1]) });
+      const pr = /^vstfs:\/\/\/Git\/PullRequestId\/([^%/]+)(?:%2F|\/)([^%/]+)(?:%2F|\/)(\d+)$/i.exec(String(rel.url || ''));
+      if (pr) pullRequests.push({ id: Number(pr[3]), repositoryId: pr[2] });
     }
     Object.assign(out, {
       area: get(f, 'System.AreaPath', ''),
@@ -78,6 +81,70 @@ export async function getWorkItem(d, args) {
       reproSteps: htmlToText(get(f, 'Microsoft.VSTS.TCM.ReproSteps')),
       related
     });
+    // Added for the Queue app; callers that do not ask get the shape above unchanged.
+    if (args.html) {
+      out.html = {
+        description: String(get(f, 'System.Description') || ''),
+        acceptanceCriteria: String(get(f, 'Microsoft.VSTS.Common.AcceptanceCriteria') || ''),
+        reproSteps: String(get(f, 'Microsoft.VSTS.TCM.ReproSteps') || '')
+      };
+    }
+    if (args.pullRequests) out.pullRequests = pullRequests;
   }
+  if (args.comments) out.comments = await comments(ado, conn, project, w.id);
+  if (args.history) out.history = await history(ado, w.id);
   return out;
+}
+
+/** The comments API version for a connection: the work item comments API is a preview on ADO Server 2020. */
+export function commentsApi(conn) {
+  return `${conn.apiVersion || '6.0'}-preview.3`;
+}
+
+/** Comments, oldest first. `html` is ADO's rich text (untrusted); `text` is plain. */
+async function comments(ado, conn, project, id) {
+  if (!project) return [];
+  const res = await ado.call('GET', `wit/workItems/${id}/comments`, { project, api: commentsApi(conn), query: { $top: 200 } });
+  return (res.comments || []).map(c => ({
+    id: c.id,
+    html: String(c.text || ''),
+    text: htmlToText(c.text),
+    by: who(c.createdBy),
+    date: c.createdDate || null,
+    edited: Boolean(c.modifiedDate && c.createdDate && c.modifiedDate !== c.createdDate)
+  })).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+const HISTORY_FIELDS = {
+  'System.State': 'state',
+  'System.AssignedTo': 'assignee',
+  'Microsoft.VSTS.Common.Priority': 'priority',
+  'System.IterationPath': 'iteration',
+  'System.AreaPath': 'area',
+  'System.Tags': 'tags',
+  'System.Title': 'title'
+};
+
+const plain = v => (v && typeof v === 'object' ? (who(v)?.name || '') : v ?? null);
+
+/** Changes to the fields people care about, newest first, at most 50. */
+async function history(ado, id) {
+  const all = [];
+  for (let skip = 0; skip < 1000; skip += 200) {
+    const res = await ado.call('GET', `wit/workItems/${id}/updates`, { query: { $top: 200, $skip: skip } });
+    const page = res.value || [];
+    all.push(...page);
+    if (page.length < 200) break;
+  }
+  const out = [];
+  for (const u of all) {
+    const changes = [];
+    for (const [field, name] of Object.entries(HISTORY_FIELDS)) {
+      const c = get(u.fields || {}, field);
+      if (c && (c.oldValue !== undefined || c.newValue !== undefined)) changes.push({ field: name, from: plain(c.oldValue), to: plain(c.newValue) });
+    }
+    if (!changes.length && u.rev !== 1) continue;
+    out.push({ rev: u.rev, by: who(u.revisedBy), date: get(get(u.fields || {}, 'System.ChangedDate') || {}, 'newValue') || u.revisedDate || null, changes });
+  }
+  return out.reverse().slice(0, 50);
 }
