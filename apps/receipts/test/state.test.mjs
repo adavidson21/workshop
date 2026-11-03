@@ -121,6 +121,26 @@ test('offers from Docket: only ones addressed here, valid, unhandled; accepted o
   const r = R.entryFromOffer(got[1], NOW);
   assert.equal(r.about, 'me'); assert.equal(r.kind, 'growth'); assert.equal(r.impact, 2); assert.equal(r.date, '2026-10-30');
   assert.equal(r.evidence, 'From Docket'); assert.equal(r.text, 'Shipped the guide');
+  assert.equal(got[0].about, 'me', 'no payload.about: about you');
   assert.deepEqual(R.markHandled(['x', 'y'], ['y', 'z']), ['x', 'y', 'z']);
   assert.equal(R.markHandled(Array.from({ length: 600 }, (_, i) => `k${i}`), ['new']).length, R.HANDLED_MAX);
+});
+
+test('offers from 1:1s: about a report in your list becomes a receipt about them; anything else is about you', () => {
+  assert.equal(R.SENDERS.oneonones, '1:1s');
+  const env = { schema: 'oneonones.handoffs', version: 1, rev: 2, items: [
+    { id: 'h_p_x1_2026-10-30_a', updatedAt: 1, to: 'receipts', date: '2026-10-30', createdAt: '2026-10-30T21:00:00.000Z', text: 'Led the incident review', payload: { kind: 'win', about: 'p_r1' }, source: { app: 'oneonones', id: 'p_x1' } },
+    { id: 'h_p_x1_2026-10-30_b', updatedAt: 1, to: 'receipts', date: '2026-10-30', createdAt: '2026-10-30T21:00:00.000Z', text: 'Gone report', payload: { kind: 'win', about: 'p_gone' }, source: { app: 'oneonones' } },
+    { id: 'h_p_x1_2026-10-30_c', updatedAt: 1, to: 'receipts', date: '2026-10-30', createdAt: '2026-10-30T21:00:00.000Z', text: 'Odd about', payload: { kind: 'win', about: 'up' }, source: { app: 'oneonones' } },
+  ] };
+  const got = R.pendingOffers('oneonones', env, [], ['p_r1']);
+  assert.deepEqual(got.map(o => [o.text, o.about, o.from]), [['Gone report', 'me', '1:1s'], ['Led the incident review', 'p_r1', '1:1s'], ['Odd about', 'me', '1:1s']]);
+  const r = R.entryFromOffer(got[1], NOW);
+  assert.equal(r.about, 'p_r1');
+  assert.equal(r.kind, 'win');
+  assert.equal(r.evidence, 'From 1:1s');
+  assert.equal(R.entryFromOffer({ ...got[1], about: undefined }, NOW).about, 'me', "'me' stays the default");
+  assert.equal(R.offerAbout({ about: 'p_r1' }), 'me', 'a report not in your list is about you');
+  assert.equal(R.offerAbout(null, ['p_r1']), 'me');
+  assert.deepEqual(R.pendingOffers('oneonones', { ...env, version: 2 }, [], ['p_r1']), [], 'unknown version: unreadable');
 });

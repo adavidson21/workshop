@@ -73,6 +73,8 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `pr.queue.stop` | no | | (new) | Stops the queue after the review that is running; the rest are skipped. |
 | `pr.queue.clear` | no | | (new) | Forgets the last run's results. Refused (`conflict`) while the queue runs. |
 | `pr.inbox.save` | no | `prs`: up to 200, same shape | (new) | Remembers the PRs waiting on you for the nightly review. Dispatch calls it after each ADO `sync.prs`. `{ok, count}`. |
+| `oneonone.draft` | yes | `personId`, `date` (`YYYY-MM-DD`), `packet` (Markdown, up to 50 KB) | (new) | The 1:1s app's optional draft step (see 1:1 drafts). Saves `packet` as `packet.md` in this connector's own folder, removes an earlier `draft.md`, and runs `/one-on-one <path to packet.md>` (eng-agents Core 2.8.0) in a new session, listed in `liveMode.live.others`. Refused (`conflict`) while a draft for the same person and day runs. `{session, folder}`. |
+| `oneonone.result` | no | `personId`, `date` | (new) | `{state}`: `none` (never asked), `running`, `done` with `text` (the `draft.md` the agent wrote), or `failed` with `error`. |
 | `repo.add` | yes | `url`, optional `about` | (new) | `git clone` into the workspace (no terminal prompts; credential helpers still work), then adds a row to the repo map (`AGENTS.md` in the workspace, created if missing). `{folder, repoMap: "created" | "added" | "listed"}`. |
 | `repo.guide` | yes | `repo` (a folder in the workspace) | (new) | Runs `/onboard-repo <repo>` in a new session, listed in `liveMode.live.others`. `{session}`. |
 | `session.dismiss` | no | `session` | (new) | Stops listing a spike or repo guide session in `others`. The opencode session is kept. |
@@ -117,6 +119,10 @@ Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/
 Project instructions reach the agent through `workitem.md` for runs started with `start.local`. Runs started from an ADO item (`start`) join the project, but `/start` writes their `workitem.md` itself, so the instructions are not added there yet. `model` and `agent` are stored for later; runs do not use them yet.
 
 Status `details`: `{workspace, opencode: {connected, kind, version, error}, parserError}`.
+
+## 1:1 drafts
+
+The 1:1s app (`apps/oneonones/`) can ask your opencode agents for draft talking points. `lib/one-on-one.mjs` keeps this away from your code: the packet holds people data, so it is saved in `<Workshop home>/data/_connectors/opencode/oneonones/<personId>-<date>/packet.md` (the same folder as this connector's `ctx.storage`), never in the workspace or `.work`. Tandem's `/one-on-one` (agent **people-prep**) reads it and writes `draft.md` next to it, and may edit nothing else. The app leaves out the person's name, and Receipts concerns unless the person asks for them on that run. The session shows in Dispatch with the others, so a permission prompt can be answered there.
 
 ## PR review queue
 
@@ -210,6 +216,7 @@ node --test "connectors/opencode/test/*.test.mjs"
 - `test/fake-opencode.mjs`: fake opencode 1.x and 2.x servers on `127.0.0.1` with their event streams, built from what the adapters call. `test/harness.mjs` adds a fake `opencode` CLI (for finding the 2.x service) and copies `docs/examples/work/` into a temporary workspace. No work data.
 - `review-git.test.mjs`, `code-review.test.mjs`, `revision-runner.test.mjs`: the code review modules against throwaway git repos and a fake launcher. They need only git.
 - `connector.test.mjs`: every action and event against both versions, through a `ctx` like the agent's. Each test names the [PARITY.md](PARITY.md) item it covers.
+- `one-on-one.test.mjs`: the 1:1 draft step (`lib/one-on-one.mjs`): where the packet goes, a stale draft cleared, running, done and failed, and the action args. Needs neither PowerShell nor opencode.
 - `agent.test.mjs`: the module against the connector contract, and the connector through the real agent (confirm, events, restarts on a config change, the password never in responses, events or logs).
 
 Tests that need PowerShell or git skip with a message when they are missing. GitHub's Windows, macOS and Linux runners have both.

@@ -170,7 +170,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'notes', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'oneonones', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -198,11 +198,21 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Queue in browser mode says it needs Workshop on this computer', qf is not None and 'needs Workshop on this computer' in qf.inner_text('#app'))
 
     pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
+    mf = next((f for f in pg.frames if '/apps/pm/' in f.url), None)
+    check('Roadmap opens from the rail', mf is not None and pg.url.endswith('#/pm'))
+    check('Roadmap in browser mode says it needs Workshop on this computer', mf is not None and 'needs Workshop on this computer' in mf.inner_text('#app'))
+
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
 
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)
+    of = next((f for f in pg.frames if '/apps/oneonones/' in f.url), None)
+    check('1:1s opens from the rail', of is not None and pg.url.endswith('#/oneonones'))
+    check('1:1s with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
+
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -929,7 +939,23 @@ def agents_checks(b, watch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def string_waits():
+    """wait_for_function calls in tests/*.py that pass an expression instead of a function. Playwright compiles an
+    expression inside the page when the condition is not already true; Workshop's CSP refuses that, so the wait
+    fails at once and sometimes leaves an EvalError page error behind (the old flaky "no page errors")."""
+    bad = []
+    for name in sorted(os.listdir(os.path.join(ROOT, 'tests'))):
+        if not name.endswith('.py'): continue
+        with open(os.path.join(ROOT, 'tests', name)) as f:
+            for i, line in enumerate(f, 1):
+                for m in re.finditer(r"wait_for_function\((['\"])(.*?)\1", line):
+                    if not re.match(r"\s*(\(|[A-Za-z_$][\w$]*\s*=>|async\b|function\b)", m.group(2)): bad.append(f'tests/{name}:{i}')
+    return bad
+
+
 def main():
+    bad = string_waits()
+    if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
@@ -943,7 +969,8 @@ def main():
         # Every request from every page and frame, including the service worker's.
         ctx.on('request', lambda r: requests.append(r.url))
         def watch(page):
-            page.on('pageerror', lambda e: errors.append(str(e)))
+            # Where it happened, so a failure names the page and the code (the message alone is not enough).
+            page.on('pageerror', lambda e, page=page: errors.append(f"{str(e)[:300]} | page {page.url} | stack {(getattr(e, 'stack', '') or '')[:800]}"))
             page.on('console', lambda m: csp.append(m.text) if 'Content Security Policy' in m.text else None)
         pg = ctx.new_page(); watch(pg)
 
@@ -1005,7 +1032,7 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
         check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 6)  # Today, Day, Triage, Prioritize, People, Reports

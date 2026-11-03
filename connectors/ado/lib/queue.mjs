@@ -64,10 +64,11 @@ export async function whoAmI(ado) {
   }
 }
 
-function checkAreas(areas) {
+/** Trimmed area paths, at most 50. Refuses none, or one with a character ADO does not allow. `where` names the app settings to fix. */
+export function checkAreas(areas, where = 'the Queue settings') {
   const list = cleanList(areas, 50, 400);
-  if (!list.length) throw new SettingsError('Add at least one area path for your team in the Queue settings.');
-  for (const a of list) if (!PATH_RE.test(a)) throw new SettingsError('An area path has a character ADO does not allow. Check the Queue settings.');
+  if (!list.length) throw new SettingsError(`Add at least one area path for your team in ${where}.`);
+  for (const a of list) if (!PATH_RE.test(a)) throw new SettingsError(`An area path has a character ADO does not allow. Check ${where}.`);
   return list;
 }
 

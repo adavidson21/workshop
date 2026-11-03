@@ -65,7 +65,7 @@ def main():
             pg.on('request', lambda r: foreign.append(r.url) if not r.url.startswith(url) and not r.url.startswith('data:') else None)
             pg.goto(f'{url}/?token={token}')
             pg.wait_for_selector('#rail', timeout=15000)
-            pg.wait_for_function("document.documentElement.dataset.mode === 'local'", timeout=15000)
+            pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
             for name in ['Dispatch', 'Receipts', 'Settings'] + (['Docket'] if with_docket else []):

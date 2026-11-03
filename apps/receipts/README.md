@@ -6,8 +6,9 @@ Keep the receipts for performance reviews. Full guide and source of truth: [adav
 - **Reports**: one page per direct report (wins, feedback given, growth areas, concerns). Anyone with nothing noted in 30 days is flagged.
 - **Upward**: optional, turned on in Receipts' Settings. Support received, asks, and feedback for your manager.
 - **From Docket**: finished tasks ticked in Docket's Wrap up wait at the top of Me to accept or dismiss.
+- **From 1:1s**: wins logged after a 1:1 wait on that report's page (and in Me, with their name). Accepted, they become receipts about that report.
 - **Review**: coverage per review section, gaps called out, and a plain-text draft to copy, plus CSV.
 
 `N` focuses the new-receipt box, `Ctrl+Enter` saves. Palette commands: Add a receipt, Build a review.
 
-Data: collections `entries`, `people` and `config` under the `receipts` app, through the SDK like every other app. Reads (never writes) Docket's `prioritizer.handoffs` offers (workshop `docs/handoffs.md`). No connectors, no network.
+Data: collections `entries`, `people` and `config` under the `receipts` app, through the SDK like every other app. Reads (never writes) the `handoffs` offers of Docket (`prioritizer.handoffs`) and 1:1s (`oneonones.handoffs`) (workshop `docs/handoffs.md`). An offer's `payload.about` may name one of your reports (`p_...`); otherwise it is about you. No connectors, no network.
