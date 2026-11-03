@@ -55,6 +55,8 @@ Events:
 | `ws.data.export({apps?})` | A bundle of every collection (or those of the listed apps). |
 | `ws.data.import(bundle)` | Merges a bundle in. Collections that do not exist are created; existing ones are merged and put. Resolves `{created, merged}` (counts). |
 
+The people directory every app reads is Settings' `people` collection: `ws.data.get('people', {app: 'settings'})` ([people.md](people.md)).
+
 Bad names reject with `bad_request` before any request is made. The SDK sends `X-Workshop-Client` on every write and the token header on every agent request.
 
 ### Files

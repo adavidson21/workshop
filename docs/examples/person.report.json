@@ -1,0 +1,11 @@
+{
+  "id": "p_lq3k9a1b2c",
+  "updatedAt": 1793736000000,
+  "name": "Person One",
+  "relation": "report",
+  "team": true,
+  "adoIdentity": "person.one@example.com",
+  "role": "Senior Engineer",
+  "since": "2025-03-01",
+  "archived": false
+}
