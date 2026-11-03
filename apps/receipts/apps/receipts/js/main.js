@@ -254,11 +254,11 @@ function teamView() {
       ${rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}
     </div>
     ${S.addingPerson ? personForm({ id: '', name: '', role: '', since: '' }) : ''}
-    ${rows.length ? `<ul class="roster">${rows.map(r => `<li><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
+    ${rows.length ? `<ul class="roster">${rows.map(r => `<li class="rrow"><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
         <span class="pname"><b>${esc(r.person.name || 'Unnamed')}</b><span>${esc(r.person.role)}</span></span>
         <span class="pnums mono"><span title="Receipts in period">${r.total}</span><span title="Wins">${r.wins} W</span><span title="Feedback given">${r.feedback} F</span><span title="Growth areas">${r.growth} G</span>${r.concerns ? `<span class="cn" title="Concerns">${r.concerns} C</span>` : ''}</span>
         <span class="plast${r.stale ? ' stale' : ''}">${r.lastDate ? (r.daysSince === 0 ? 'Today' : `${r.daysSince}d ago`) : 'No receipts'}</span>
-      </button></li>`).join('')}</ul>
+      </button><button class="btn log" data-act="log-for" data-about="${esc(r.person.id)}" aria-label="Add a receipt for ${esc(r.person.name || 'this report')}">Add</button></li>`).join('')}</ul>
       <p class="legend mono">W wins &middot; F feedback given &middot; G growth areas &middot; C concerns &middot; Highlighted: nothing in ${cfg().staleDays} days</p>`
     : (S.addingPerson ? '' : `<div class="engcard"><h2>No reports yet</h2><p>Add a direct report to log their wins, feedback, growth areas and concerns.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul>${archived.map(p => `<li><button class="lnk" data-act="go" data-path="team/${esc(p.id)}">${esc(p.name)}</button></li>`).join('')}</ul></details>` : ''}`;
@@ -325,9 +325,10 @@ function reviewView() {
       <label class="tog"><input type="checkbox" name="withEvidence"${rv.withEvidence ? ' checked' : ''}> Evidence</label>
     </div>
     <h3 class="section-label">Coverage<span class="n mono">${review.total} receipts</span></h3>
-    <div class="coverage">${review.coverage.map(x => `<span class="cov${x.count ? '' : ' gap'}"><b class="mono">${x.count}</b>${esc(x.section)}</span>`).join('')}</div>
+    <div class="coverage">${review.coverage.map(x => x.count ? `<span class="cov"><b class="mono">${x.count}</b>${esc(x.section)}</span>`
+      : `<button type="button" class="cov gap" data-act="log-gap" data-sec="${esc(x.section)}" title="Add a receipt for ${esc(x.section)}"><b class="mono">0</b>${esc(x.section)} +</button>`).join('')}</div>
     ${unlistedHere.length ? `<p class="note">Shown under Other because their sections are not in your list: ${esc(unlistedHere.join(', '))}. <button class="lnk" type="button" data-act="add-unlisted">Add them to your sections</button></p>` : ''}
-    ${review.gaps.length ? `<p class="note">No receipts for ${esc(review.gaps.join(', '))}.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
+    ${review.gaps.length ? `<p class="note">No receipts for ${esc(review.gaps.join(', '))}. Click one to add a receipt.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
       <div class="draft">
@@ -505,6 +506,13 @@ app.addEventListener('click', async ev => {
       if (el.dataset.about) S.review.about = el.dataset.about;
       S.addingPerson = false;
       go(el.dataset.path); break;
+    // One click from the roster, or from a gap in Review, to a composer for that person (and section).
+    case 'log-for': case 'log-gap': {
+      const about = act === 'log-for' ? el.dataset.about : S.review.about;
+      if (el.dataset.sec) { const d = draftFor(about); if (!d.sections.includes(el.dataset.sec)) d.sections = [...d.sections, el.dataset.sec]; }
+      S.addingPerson = false;
+      go(about === 'me' ? 'me' : about === 'up' ? 'up' : `team/${about}`); focusComposer(); break;
+    }
     case 'more': { const about = el.closest('form').dataset.about; syncDraft(el.closest('form')); S.more[about] = !S.more[about]; paint(); break; }
     case 'draft-star': { const f = el.closest('form'); syncDraft(f); const d = draftFor(f.dataset.about); d.star = !d.star; paint(); break; }
     case 'star': { const e = entries().find(x => x.id === entryId); if (e) await safely(() => upsertEntry({ ...e, star: !e.star })); break; }

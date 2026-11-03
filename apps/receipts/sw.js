@@ -2,7 +2,7 @@
    It caches this site's own files only. It never touches requests to another origin (such as Workshop on
    127.0.0.1 if you pair it), and your receipts are never in this cache: they live in browser storage or
    your folder. Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const CACHE = 'receipts-' + VERSION;
 const CORE = [
   './', './manifest.webmanifest',

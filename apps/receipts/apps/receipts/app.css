@@ -90,6 +90,11 @@ label.btn{flex-direction:row;font-size:.86rem;color:var(--ink);cursor:pointer}
 .roster li{border-bottom:1px solid var(--line)}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto 6.5rem;align-items:center;gap:1rem;width:100%;text-align:left;padding:.9rem .25rem;transition:background-color .15s}
 .prow:hover{background:var(--hover)}
+.rrow{display:flex;align-items:center;gap:.5rem}
+.rrow .prow{flex:1;min-width:0}
+.rrow .log{flex:none}
+button.cov.gap{cursor:pointer;font:inherit;font-size:.82rem}
+button.cov.gap:hover{border-style:solid;background:var(--warn-soft)}
 .pname{display:flex;flex-direction:column;min-width:0}
 .pname b{font:600 1.1rem/1.25 var(--serif);font-variation-settings:"opsz" 36}
 .pname span{font-size:.82rem;color:var(--muted)}
