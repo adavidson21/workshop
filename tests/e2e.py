@@ -170,7 +170,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'notes', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -198,11 +198,16 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Queue in browser mode says it needs Workshop on this computer', qf is not None and 'needs Workshop on this computer' in qf.inner_text('#app'))
 
     pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
+    mf = next((f for f in pg.frames if '/apps/pm/' in f.url), None)
+    check('Roadmap opens from the rail', mf is not None and pg.url.endswith('#/pm'))
+    check('Roadmap in browser mode says it needs Workshop on this computer', mf is not None and 'needs Workshop on this computer' in mf.inner_text('#app'))
+
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
 
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)

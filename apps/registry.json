@@ -513,6 +513,77 @@
       }
     },
     {
+      "base": "/apps/pm/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "pm",
+        "name": "Roadmap",
+        "version": "1.0.0",
+        "description": "Your products' Epics and Features on a time axis, release health, and the sprint's ceremonies.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 42,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "routes": [
+          {
+            "path": "releases",
+            "title": "Release health"
+          },
+          {
+            "path": "releases/:id",
+            "title": "Release health of an Epic"
+          },
+          {
+            "path": "cadence",
+            "title": "Sprint cadence"
+          },
+          {
+            "path": "settings",
+            "title": "Roadmap settings"
+          }
+        ],
+        "connectors": [
+          {
+            "id": "ado",
+            "required": false
+          }
+        ],
+        "data": [
+          "products",
+          "cadence",
+          "seen",
+          "snapshot",
+          "handoffs"
+        ],
+        "commands": [
+          {
+            "id": "refresh",
+            "title": "Refresh the roadmap"
+          },
+          {
+            "id": "scope",
+            "title": "Scope new work"
+          },
+          {
+            "id": "cadence",
+            "title": "Sprint cadence",
+            "route": "cadence"
+          }
+        ],
+        "files": [
+          "pm.css",
+          "js/main.js",
+          "js/data.js",
+          "js/model.js",
+          "js/view.js"
+        ]
+      }
+    },
+    {
       "base": "/apps/notes/",
       "manifest": {
         "manifestVersion": 1,
