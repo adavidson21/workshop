@@ -84,6 +84,12 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | --- | --- | --- | --- |
 | | Renamed to Workshop; `sync-themes.mjs` reads from there. | | **Done in WS8** (eng-agents Dashboard 1.7.1): `sync-themes.mjs` removed; the static dashboard keeps its own themes. The Agents app does not need it. |
 
+## Dashboard 1.10.1 (with Core 2.7.0)
+
+| ID | Changelog item | Connector | Covered by |
+| --- | --- | --- | --- |
+| | `brief.md` (the context brief `/start` writes) is listed right after `workitem.md` in an item's files. | `parser/New-Dashboard.ps1` carries the same one-line change to the file order. `file.read` already reads any `.md` in an item folder, so it needed no change. | Dispatch shows it as a Brief card at the top of the item: `apps/agents/test/view.test.mjs` |
+
 ## Also from 1.1.0, still in use
 
 | ID | Item | Connector | Covered by |

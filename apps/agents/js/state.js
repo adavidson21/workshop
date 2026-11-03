@@ -14,6 +14,7 @@ export const S = {
   local: null,          // sidebar folders, pins and collapsed groups, kept in this browser (local.js)
   // PRs waiting on you, from the ADO connector's sync.prs (main.js loadInbox). state: idle, loading, ok, error, off.
   inbox: { state: 'idle', items: [], notes: [], error: null, at: 0 },
+  briefs: {},           // brief.md per item folder, read through file.read: {text, error, at, loading}
   // UI state that must survive repaints: open sections, drafts, question picks, busy buttons, overlays.
   // scope: what the main list shows (sidebar.js); side: the sidebar drawer is open on a narrow screen.
   // prReview: the paste box on the PR reviews page ({busy, error}).

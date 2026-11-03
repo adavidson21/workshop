@@ -518,6 +518,37 @@ function fileSheetHtml() {
     `${body}<footer>${foot}</footer></div></div>`;
 }
 
+// ------------------------------------------------------------- the brief (brief.md, from /start)
+// Open by default until the spec or bug analysis is written; after that it is reference, so it starts
+// closed. Opening or closing it by hand is remembered (S.ui.open). Every line is escaped: headings
+// become labels, the rest goes through md() (code, bold, bullets) as plain text.
+export function briefOpen(it) {
+  const g = it.gates || {};
+  return !g.spec && !g.bug && !g.plan && !(it.tasks && it.tasks.total);
+}
+export function briefText(text) {
+  const lines = String(text || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\r/g, '').split('\n');
+  const out = [];
+  let para = [];
+  const flush = () => { const t = para.join('\n').trim(); if (t) out.push(`<div class="pre">${md(t)}</div>`); para = []; };
+  for (const ln of lines) {
+    if (/^#\s/.test(ln)) continue; // the "# Brief: <id> <title>" line repeats the card's title
+    const hd = /^##+\s+(.+?)\s*$/.exec(ln);
+    if (hd) { flush(); out.push(`<p class="sub-h">${h(hd[1])}</p>`); continue; }
+    para.push(ln);
+  }
+  flush();
+  return out.join('');
+}
+export function briefHtml(it) {
+  if (!it.files || it.files.indexOf('brief.md') < 0) return '';
+  const b = S.briefs[it.folder];
+  const body = !b || (b.text == null && !b.error) ? '<p class="dim">Loading the brief.</p>'
+    : b.text == null ? `<p class="err">${h(b.error)}</p>` : briefText(b.text);
+  return `<details class="brief"${openAttr('b:' + it.folder, briefOpen(it))}><summary>Brief</summary>` +
+    `<div class="brief-body">${body}<p class="brief-foot">${fileBtn(it.folder, 'brief.md', 'plain', 'Open brief.md')}</p></div></details>`;
+}
+
 function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
 
 // ------------------------------------------------------------- item card
@@ -533,7 +564,7 @@ export function itemCard(it, noAgent) {
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<article class="item" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
     `<div class="item-head"><h4 class="t">${idLink(it)}${title}</h4><div class="meta">${meta.join('')}</div></div>` +
-    track(it) + nextHtml(it, false) + (it.stage === 'ship' ? prHtml(it) : '') + (noAgent ? '' : autoHtml(it)) + (noAgent ? agentNote(it) : agentHtml(it)) + leftOffHtml(it) +
+    briefHtml(it) + track(it) + nextHtml(it, false) + (it.stage === 'ship' ? prHtml(it) : '') + (noAgent ? '' : autoHtml(it)) + (noAgent ? agentNote(it) : agentHtml(it)) + leftOffHtml(it) +
     `<details${openAttr('d:' + it.folder, false)}><summary>Repos, tasks, files</summary><div class="detail-body">` +
     reposTable(it) + tasksHtml(it) + kitHtml(it) + filesHtml(it) + '</div></details></article>';
 }

@@ -132,6 +132,16 @@ details > summary::before { content: ""; width: 0; height: 0; border-left: 5px s
 details[open] > summary::before { transform: rotate(90deg); }
 .detail-body { margin-top: 8px; display: grid; gap: 12px; }
 
+/* ---------- the brief (brief.md from /start): a quiet panel above the track, open until the spec or
+   bug analysis is written. Flat, hairline border, shared tokens only. */
+.brief { margin: 10px 0 0; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); padding: 6px 12px 8px; }
+.brief > summary { margin-left: -4px; }
+.brief-body { margin-top: 6px; display: grid; gap: 4px; max-width: 72ch; }
+.brief-body .sub-h { margin: 8px 0 0; }
+.brief-body .sub-h:first-child { margin-top: 0; }
+.brief-body .pre { color: var(--ink); }
+.brief-foot { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+
 /* ---------- the track: done stages are checked, the current one is a filled label in the item's
    state color with what is happening under it, later stages are faint with a dashed line */
 .track { display: flex; align-items: flex-start; margin: 14px 0 2px; overflow-x: auto; padding: 4px 2px 2px; }

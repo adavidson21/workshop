@@ -199,6 +199,7 @@ Request changes saves the feedback, sets the review to `revising`, and sends one
 
 - The parser reads a published TSD's `Status:` line's gate value as `UNKNOWN` (`docs/work-format.md`, Known quirks), but since eng-agents Dashboard 1.7.1 the TSD's state is Published. `parser/New-Dashboard.ps1` carries the same fix; `test/parser.test.mjs` checks it.
 - `/do-task` and `/check-docs` always run in a new session.
+- `parser/New-Dashboard.ps1` lists `brief.md` right after `workitem.md`, as eng-agents Dashboard 1.10.1 does (PARITY.md).
 
 ## Tests
 
