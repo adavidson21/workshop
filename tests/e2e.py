@@ -24,6 +24,8 @@ Five parts:
   6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
      hand, since the picker cannot be automated), the move from IndexedDB, files, other tabs and outside
      changes, the access bar, and Settings in every mode.
+Notes (WS15) runs in part 1 (browser storage) and part 6 (the folder): notes, links, backlinks, tags, search,
+pasted images, renames that update links, copy, and what lands on disk.
 Exit 1 if any check fails.
 """
 import functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading, time
@@ -53,13 +55,13 @@ class Static(http.server.SimpleHTTPRequestHandler):
 
 
 class WithSamples(Static):
-    """The site plus tests/fixtures/apps/notes and board, listed in its registry."""
+    """The site plus tests/fixtures/apps/pages and board, listed in its registry."""
     registry = None
 
     def translate_path(self, path):
         clean = path.split('?', 1)[0].split('#', 1)[0]
         if clean == '/apps/registry.json': return WithSamples.registry
-        for app in ('notes', 'board'):
+        for app in ('pages', 'board'):
             if clean.startswith(f'/apps/{app}/'):
                 rest = clean[len(f'/apps/{app}/'):]
                 return os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, *[p for p in rest.split('/') if p and p not in ('.', '..')])
@@ -69,7 +71,7 @@ class WithSamples(Static):
 def samples_registry(tmp):
     """apps/registry.json with the sample apps added (Board after the repo's apps, so Docket stays first)."""
     with open(os.path.join(ROOT, 'apps', 'registry.json')) as f: reg = json.load(f)
-    for app, order in (('notes', None), ('board', 50)):
+    for app, order in (('pages', None), ('board', 50)):
         with open(os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, 'app.json')) as f: m = json.load(f)
         if order is not None: m['order'] = order
         reg['apps'].append({'base': f'/apps/{app}/', 'manifest': m})
@@ -168,7 +170,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'notes', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -196,6 +198,11 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Queue in browser mode says it needs Workshop on this computer', qf is not None and 'needs Workshop on this computer' in qf.inner_text('#app'))
 
     pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
+    nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
+    check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
+    if nf: notes_flow(pg, nf, 'browser')
+
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -227,12 +234,87 @@ def browser_mode_checks(ctx, pg, frame, watch):
     pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
 
+PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg=='
+PASTE_IMAGE = """(b64) => { const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const dt = new DataTransfer(); dt.items.add(new File([bytes], 'Screen Shot.png', {type: 'image/png'}));
+  const ed = document.getElementById('editor'); ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length);
+  ed.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
+
+
+def notes_new(page, nf, title, folder_button=None):
+    nf.click(folder_button or '.side [data-act=new-note]')
+    nf.fill('#dlg input[name=value]', title)
+    nf.click('#dlg button[value=ok]')
+    page.wait_for_timeout(600)
+
+
+def notes_flow(page, nf, where):
+    """Notes (WS15) through its page: make notes, link and tag them, paste an image, search, rename, copy."""
+    seen(nf, '.side')
+    notes_new(page, nf, 'Deploy Runbook')
+    check(f'Notes ({where}): a new note opens with its title as the heading', nf.input_value('#editor').startswith('# Deploy Runbook')
+          and 'Deploy Runbook' in nf.inner_text('.tree .current'))
+    nf.click('#editor'); nf.press('#editor', 'Control+End')
+    nf.type('#editor', 'Steps for a release. #ops\n\n<img src=x onerror="window.__xss=1">\n')
+    page.wait_for_timeout(300)
+    nf.evaluate(PASTE_IMAGE, PNG_B64); page.wait_for_timeout(1200)
+    text = nf.input_value('#editor')
+    check(f'Notes ({where}): a pasted image is saved under attachments/ and linked in the note', bool(re.search(r'!\[Screen Shot\]\(attachments/screen-shot-\d{8}-\d{6}\.png\)', text)))
+    page.wait_for_timeout(600)
+    check(f'Notes ({where}): the preview shows the image from the folder as a blob: URL', nf.evaluate("[...document.querySelectorAll('#preview img')].some(i => i.src.startsWith('blob:') && i.naturalWidth === 1)"))
+    check(f'Notes ({where}): HTML in a note is shown as text, never run', not nf.evaluate('window.__xss') and 'onerror' in nf.inner_text('#preview') and nf.locator('#preview img[src=x]').count() == 0)
+
+    notes_new(page, nf, 'Guide')
+    nf.click('#editor'); nf.press('#editor', 'Control+End')
+    nf.type('#editor', 'Read [[Depl'); page.wait_for_timeout(300)
+    picker = nf.locator('#picker')
+    check(f'Notes ({where}): typing [[ opens the note picker', picker.is_visible() and 'Deploy Runbook' in picker.inner_text())
+    nf.press('#editor', 'Enter'); nf.type('#editor', ' first.\n'); page.wait_for_timeout(1500)
+    check(f'Notes ({where}): the picker inserts a standard Markdown link', '[Deploy Runbook](deploy-runbook.md)' in nf.input_value('#editor'))
+    check(f'Notes ({where}): edits save on their own', 'Saved' in nf.text_content('.status'))
+
+    nf.click('.tree [data-open="deploy-runbook.md"]'); page.wait_for_timeout(600)
+    check(f'Notes ({where}): the backlinks panel lists the note that links here', 'Guide' in nf.inner_text('.backlinks') and 'first' in nf.inner_text('.backlinks'))
+    check(f'Notes ({where}): tags are listed with counts', '#ops' in nf.inner_text('.all-tags'))
+
+    nf.fill('.side [data-search]', 'tag:ops'); page.wait_for_timeout(300)
+    check(f'Notes ({where}): search by tag finds the note', nf.locator('.results .result').count() == 1 and 'Deploy Runbook' in nf.inner_text('.results'))
+    nf.fill('.side [data-search]', 'release'); page.wait_for_timeout(300)
+    check(f'Notes ({where}): search finds text with its line', 'Steps for a release' in nf.inner_text('.results'))
+    nf.press('.side [data-search]', 'Escape'); page.wait_for_timeout(200)
+
+    nf.click('[data-act=rename]')
+    nf.fill('#dlg input[name=value]', 'runbooks/deploy'); nf.click('#dlg button[value=ok]'); page.wait_for_timeout(400)
+    check(f'Notes ({where}): a rename lists the notes whose links it will update', 'guide.md' in nf.inner_text('#dlg .updates'))
+    nf.click('#dlg button[value=ok]'); page.wait_for_timeout(1500)
+    moved = nf.input_value('#editor')
+    check(f'Notes ({where}): the renamed note keeps its image link working from its new folder', bool(re.search(r'\]\(\.\./attachments/screen-shot-', moved))
+          and nf.evaluate("[...document.querySelectorAll('#preview img')].some(i => i.src.startsWith('blob:'))"))
+    nf.click('.tree [data-open="guide.md"]'); page.wait_for_timeout(500)
+    check(f'Notes ({where}): links to the renamed note are updated', '[Deploy Runbook](runbooks/deploy.md)' in nf.input_value('#editor'))
+    nf.click('#preview a.note-link'); page.wait_for_timeout(500)
+    check(f'Notes ({where}): a link in the preview opens the note', nf.input_value('#editor').startswith('# Deploy Runbook'))
+    nf.click('.note-head [data-act=copy]')
+    check(f'Notes ({where}): Copy puts the Markdown on the clipboard', toast_has(page, 'Copied the Markdown'))
+
+    page.reload(); page.wait_for_timeout(1800)
+    nf2 = next((f for f in page.frames if '/apps/notes/' in f.url), None)
+    if where == 'folder' and nf2:
+        check('Notes (folder): while Chrome asks again, Notes says it is waiting for the folder', 'Waiting for your notes' in nf2.inner_text('#empty'))
+        page.locator('#folderBar [data-allow]').click(); page.wait_for_timeout(1500)
+    seen(nf2, '.tree .note')
+    check(f'Notes ({where}): after a reload the last note opens with everything saved', nf2 is not None and nf2.input_value('#editor').startswith('# Deploy Runbook')
+          and 'Steps for a release' in nf2.input_value('#editor') and nf2.locator('.tree [data-open="runbooks/deploy.md"]').count() == 1
+          and nf2.locator('.tree [data-open="deploy-runbook.md"]').count() == 0)
+    return nf2
+
+
 def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
     for name in ('home', 'prioritizer', 'agents', 'settings'):
         copy_app(name, os.path.join(apps, name))
-    for name in ('notes', 'board'):
+    for name in ('pages', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
     board = os.path.join(apps, 'board', 'app.json')
     with open(board) as f: m = json.load(f)
@@ -274,14 +356,14 @@ def agent_checks(b, watch):
         ap.goto(SAMPLES + '/'); ap.wait_for_timeout(1500)
         check('the paired hub runs in hosted mode', ap.evaluate('document.documentElement.dataset.mode') == 'hosted')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-        check('sample apps in the site\'s registry appear in the rail', rail[0] == 'prioritizer' and 'notes' in rail and 'board' in rail and rail[-1] == 'settings')
+        check('sample apps in the site\'s registry appear in the rail', rail[0] == 'prioritizer' and 'pages' in rail and 'board' in rail and rail[-1] == 'settings')
         check('the hub opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
         ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
         check('Docket loads in the hub', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
         check('Docket uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'hosted/agent')
-        ap.evaluate("location.hash = '#/notes'"); ap.wait_for_timeout(800)
-        check('the sample app opens in a frame', any(f.url.endswith('/apps/notes/index.html') for f in ap.frames))
+        ap.evaluate("location.hash = '#/pages'"); ap.wait_for_timeout(800)
+        check('the sample app opens in a frame', any(f.url.endswith('/apps/pages/index.html') for f in ap.frames))
         ap.evaluate("location.hash = '#/board'"); ap.wait_for_timeout(800)
         check('an app whose required connector is off shows a notice', 'Board needs Echo' in ap.inner_text('#pane-board') and not any('/apps/board/' in f.url for f in ap.frames))
 
@@ -358,7 +440,7 @@ def agent_checks(b, watch):
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
           return (await (await caches.open(k)).keys()).map(r => r.url); }""")
         check('the hosted site\'s service worker caches its registry\'s apps and nothing from the agent', cached is not None
-              and SAMPLES + '/apps/notes/index.html' in cached and not any(u.startswith(url) for u in cached))
+              and SAMPLES + '/apps/pages/index.html' in cached and not any(u.startswith(url) for u in cached))
         ctx.close()
 
         # Part 3: hosted Settings, paired with the agent, is read-only.
@@ -652,6 +734,21 @@ def folder_checks(b, watch):
     check('after Allow, Home loads the board without a reload', hf4.locator('.waiting').count() == 0 and 'open task' in hf4.inner_text('.tiles'))
     hf4.click('[data-edit-profile]'); hf4.fill('input[name=name]', 'Riley Park'); hf4.click('.pform .btn.primary'); p4.wait_for_timeout(600)
     check('and Home saves the profile to the folder again', 'Riley Park' in (pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) or ''))
+
+    # Notes on the folder: the notes and images are files in Workshop/notes/.
+    p4.evaluate("location.hash = '#/notes'"); p4.wait_for_timeout(1500)
+    nf4 = next((f for f in p4.frames if '/apps/notes/' in f.url), None)
+    check('Notes (folder): notes another app already wrote in notes/ show in the tree', nf4 is not None and nf4.locator('.tree [data-open="summaries/q4.md"]').count() == 1)
+    if nf4: notes_flow(p4, nf4, 'folder')
+    on_disk = pg.evaluate(OPFS, ['Workshop/notes/runbooks/deploy.md', None]) or ''
+    check('Notes (folder): the note is a Markdown file in the folder', on_disk.startswith('# Deploy Runbook') and 'Steps for a release' in on_disk)
+    check('Notes (folder): links in other notes were rewritten on disk', '](runbooks/deploy.md)' in (pg.evaluate(OPFS, ['Workshop/notes/guide.md', None]) or ''))
+    img = pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('notes')).getDirectoryHandle('attachments');
+      for await (const [name, h] of d.entries()) { const b = new Uint8Array(await (await h.getFile()).arrayBuffer()); return [name, b.length, b[0], b[1]]; } return null; }""")
+    check('Notes (folder): the pasted image is stored as PNG bytes in notes/attachments/', bool(img) and img[0].endswith('.png') and img[1] == 67 and img[2:] == [0x89, 0x50])
+    check('Notes (folder): the old file went to the trash, nothing was deleted', pg.evaluate(OPFS, ['Workshop/notes/deploy-runbook.md', None]) is None
+          and pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); try { const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('.trash')).getDirectoryHandle('notes');
+            for await (const [name] of d.entries()) if (name.startsWith('deploy-runbook.')) return true; } catch (e) {} return false; }"""))
     ctx.close()
 
 

@@ -122,8 +122,8 @@ test('doctor flags an old Node', async () => {
 
 test('buildRegistry lists valid apps in order and skips invalid ones', () => {
   const r = buildRegistry(APPS, schemas);
-  assert.deepEqual(r.apps.map(a => a.manifest.id), ['board', 'notes']);
-  assert.deepEqual(r.apps.map(a => a.base), ['/apps/board/', '/apps/notes/']);
+  assert.deepEqual(r.apps.map(a => a.manifest.id), ['board', 'pages']);
+  assert.deepEqual(r.apps.map(a => a.base), ['/apps/board/', '/apps/pages/']);
 });
 
 test('buildRegistry is empty when there is no apps folder', () => {

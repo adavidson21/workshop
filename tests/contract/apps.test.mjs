@@ -11,7 +11,7 @@ after(async () => { await agent?.stop(); });
 
 test('lists valid apps in order, with their manifests', async () => {
   const body = expectJson(await get(agent, '/api/apps'), 200, 'apps-response');
-  assert.deepEqual(body.apps.map(a => a.manifest.id), ['board', 'notes']);
+  assert.deepEqual(body.apps.map(a => a.manifest.id), ['board', 'pages']);
   for (const a of body.apps) {
     assert.equal(a.base, `/apps/${a.manifest.id}/`);
     const file = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'apps', a.manifest.id, 'app.json'), 'utf8'));
@@ -25,7 +25,7 @@ test('skips an app whose id does not match its folder', async () => {
 });
 
 test('lists apps but serves none of them: apps come from the hosted site (run-modes.md)', async () => {
-  assert.equal((await get(agent, '/apps/notes/index.html', { auth: 'none' })).status, 404);
+  assert.equal((await get(agent, '/apps/pages/index.html', { auth: 'none' })).status, 404);
   assert.equal((await get(agent, '/apps/board/icon.svg', { auth: 'none' })).status, 404);
   const root = await get(agent, '/', { auth: 'none' });
   assert.equal(root.status, 302);
