@@ -5,7 +5,8 @@
   "allowedOrigins": [],
   "features": {
     "startAtLogin": false,
-    "hostedMode": false
+    "hostedMode": false,
+    "workMode": false
   },
   "connectors": {},
   "home": "C:\\Users\\alex\\.workshop"

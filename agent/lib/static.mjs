@@ -3,7 +3,8 @@
 // pairs hosted sites and changes the settings only this computer may change (docs/run-modes.md). The hub
 // and every other app come from the hosted site, never from here. "/" redirects to the Settings page.
 // Never serves the home folder, connectors/, agent/, tests/, the shell, other apps or dot files. Paths that
-// try to leave the served folders get 404.
+// try to leave the served folders get 404. In work mode the agent serves the pinned copy instead
+// (lib/pinned.mjs), and falls back to this page only while there is no usable pinned copy.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from './http.mjs';
@@ -33,6 +34,9 @@ const TYPES = {
   '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/plain; charset=utf-8', '.map': 'application/json; charset=utf-8'
 };
+
+/** The Content-Type for a file name. */
+export const contentType = file => TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream';
 
 const inside = (base, file) => {
   const b = path.resolve(base);
@@ -70,7 +74,7 @@ export function resolveStatic(pathname, { root, appsDir }) {
 export function serveStatic(req, res, pathname, dirs) {
   const { file, size } = resolveStatic(pathname, dirs);
   res.writeHead(200, {
-    'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+    'Content-Type': contentType(file),
     'Content-Length': size,
     'Cache-Control': 'no-cache',
     ...SECURITY_HEADERS
