@@ -24,12 +24,14 @@
           }
         ],
         "data": [
-          "profile"
+          "profile",
+          "setup"
         ],
         "files": [
           "home.css",
           "js/data.js",
           "js/main.js",
+          "js/setup.js",
           "js/view.js"
         ]
       }

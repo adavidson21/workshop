@@ -69,6 +69,46 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .stat .lbl{margin-top:.35rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .stat.warn .n{color:var(--warn)}
 
+/* Get started checklist (js/setup.js) */
+.setup{padding:1.3rem 1.4rem 1.1rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);animation:rise .6s ease-out .05s both}
+.su-top{display:flex;align-items:flex-start;gap:1rem}
+.su-top>div:first-child{flex:1;min-width:0}
+.su-eyebrow{margin:0 0 .35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.setup h2{margin:0;font:600 1.5rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.su-sub{margin:.35rem 0 0;color:var(--muted);font-size:.9rem}
+.su-tools{display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}
+.su-bar{height:3px;margin:1rem 0 .4rem;background:var(--line);border-radius:2px;overflow:hidden}
+.su-bar span{display:block;height:100%;background:var(--accent);transition:width .4s ease}
+.su-steps{list-style:none;margin:0;padding:0}
+.su-step{border-bottom:1px solid var(--line)}
+.su-step:last-child{border-bottom:0}
+.su-head{display:flex;align-items:center;gap:.7rem;width:100%;padding:.7rem .1rem;text-align:left}
+.su-head:hover .su-title{color:var(--accent)}
+.su-ic{width:18px;height:18px;flex:none;display:grid;place-items:center}
+.su-ic svg{width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.su-step.done .su-ic svg circle{fill:var(--accent);stroke:var(--accent)}
+.su-step.done .su-ic svg path{stroke:var(--on-accent);stroke-width:1.8}
+.su-step.todo .su-ic svg{stroke:var(--accent)}
+.su-title{flex:1;min-width:0;font-weight:500;transition:color .2s}
+.su-step.done .su-title,.su-step.skipped .su-title{color:var(--muted)}
+.su-step.done .su-title{text-decoration:line-through;text-decoration-color:var(--line)}
+.su-step.blocked .su-title{color:var(--muted)}
+.su-state{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.su-step.todo .su-state{color:var(--accent)}
+.su-body{padding:0 .1rem .9rem 2.05rem;font-size:.92rem}
+.su-body p{margin:.4rem 0}
+.su-body code{font:400 .84rem var(--mono)}
+.su-fine{color:var(--muted);font-size:.84rem}
+.su-list{margin:.4rem 0;padding-left:1.1rem}
+.su-list li{margin:.35rem 0}
+.su-code{display:flex;align-items:center;gap:.5rem;margin:.5rem 0;padding:.45rem .5rem .45rem .75rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg)}
+.su-code code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.su-acts{margin-top:.6rem}
+.su-acts:empty{display:none}
+.su-acts .lnk+.lnk{margin-left:1rem}
+.su-later{margin:1rem 0 .1rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.hello [data-setup-show]{margin-bottom:.35rem}
+
 /* profile form */
 .pform{width:100%;max-width:28rem;margin:2.5rem auto;padding:1.4rem 1.5rem 1.5rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);display:flex;flex-direction:column;gap:.85rem}
 .pform h2{margin:0;font:600 1.5rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
@@ -83,9 +123,11 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
   .wrap{padding:1.75rem 1rem 3rem;gap:1.75rem}
   .hello{flex-wrap:wrap}
   .tile{padding:1rem .75rem 1.1rem}
+  .su-top{flex-direction:column}
+  .su-body{padding-left:.1rem}
 }
 /* Already on screen before this repaint (main.js paint): don't replay the fade in. */
-.still,.card.note.still{animation:none}
+.still,.card.note.still,.setup.still{animation:none}
 
 /* Now: the Day view's block on now, with its tasks */
 .now .blkname{margin:.2rem 0 .4rem;font-size:.95rem}
