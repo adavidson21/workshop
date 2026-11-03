@@ -1,0 +1,224 @@
+/* Dispatch: PR reviews. First-pass reviews of teammates' pull requests by Tandem's pr-reviewer agent
+   (eng-agents /pr-review, Core 2.6.0). HTML strings from S, tested in Node.
+   - Reviews: .work/pr-<id> folders, read by the parser as kind "pr" (items[].prReview: recommendation, risk,
+     comments, questions). Drafts only: nothing here posts to Azure DevOps. Each comment has a Copy button
+     so the person pastes the ones they agree with into the PR themselves.
+   - Starting: /pr-review sessions not yet tied to a pr-<id> folder (liveMode.live.others), so a failure
+     before the folder exists (repo not cloned, ADO not set up) still shows.
+   - Waiting on you: the ADO connector's sync.prs (S.inbox, loaded by main.js), with a Review button each.
+   - Review a PR: paste a link (the opencode connector's `pr.review` action). */
+import { S } from './state.js';
+import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking } from './view.js';
+
+const SEV = [['blocking', 'Blocking'], ['should-fix', 'Should fix'], ['optional', 'Optional']];
+const SEV_NAME = Object.fromEntries(SEV);
+const TIER = { blocking: 'Required', asked: 'Asked', pool: 'Team' };
+const TIER_TIP = {
+  blocking: 'You were added by name as a required reviewer',
+  asked: 'You were added by name as an optional reviewer',
+  pool: 'One of your teams was added; any teammate can take it',
+};
+
+/** The PR reviews in .work, newest first. */
+export function reviewItems() {
+  return ((S.D && S.D.items) || []).filter(it => it.kind === 'pr').sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
+}
+export const isReviewSession = o => /^\/pr-review(\s|$)/.test(String((o && (o.command || (o.s && o.s.command))) || ''));
+/** /pr-review sessions started here that have no pr-<id> folder yet. */
+export function startingReviews() { return looseSessions().filter(isReviewSession); }
+const reviewFolder = id => ((S.D && S.D.items) || []).find(it => it.folder === 'pr-' + id) || null;
+const linkPrId = u => { const m = /\/pullrequest\/(\d+)/i.exec(String(u || '')); return m ? m[1] : null; };
+/** A review session for this PR that is still working, started here (folder or not). */
+function reviewRunning(id) {
+  const it = reviewFolder(id);
+  if (it && isBusy(itemSession(it))) return true;
+  return startingReviews().some(o => isBusy(o.s) && linkPrId(o.command) === String(id));
+}
+
+/** PRs waiting on you that have no review in .work yet (the sidebar count). */
+export function toReviewCount() {
+  const inbox = S.inbox || {};
+  if (inbox.state !== 'ok') return 0;
+  return (inbox.items || []).filter(p => !p.waiting && !reviewFolder(p.id)).length;
+}
+/** Reviews where the agent waits for an answer. */
+export function reviewsAsking() { return reviewItems().filter(asking).length + startingReviews().filter(o => promptsFor(o.session).length).length; }
+function promptsFor(sid) {
+  const L = S.L;
+  if (!L) return [];
+  return L.permissions.filter(p => p.sessionID === sid).concat(L.questions.filter(q => q.sessionID === sid));
+}
+
+/** A link check for the paste box: the PR number, or what is wrong. */
+export function reviewUrlCheck(raw) {
+  const u = String(raw || '').trim();
+  if (!u) return { ok: false, error: 'Paste the pull request link from Azure DevOps.' };
+  if (!/^https?:\/\//i.test(u)) return { ok: false, error: 'That is not a link. Copy it from the browser address bar on the PR page.' };
+  const id = linkPrId(u);
+  if (!id || !/\/_git\//i.test(u)) return { ok: false, error: 'That is not an Azure DevOps pull request link. It ends in /pullrequest/<number>.' };
+  return { ok: true, id, url: u };
+}
+
+// ------------------------------------------------------------------ pieces
+function recClass(rec) {
+  const r = String(rec || '').toLowerCase();
+  if (r.startsWith('request')) return 'changes';
+  if (r.startsWith('needs')) return 'clarify';
+  if (r.startsWith('approve after')) return 'cleanup';
+  if (r.startsWith('approve')) return 'approve';
+  return '';
+}
+function stale(pr) { return !!(pr.reviewed && pr.commit && pr.reviewedCommit && !String(pr.commit).startsWith(pr.reviewedCommit)); }
+function stateColor(it) {
+  const pr = it.prReview || {};
+  if (asking(it)) return 'var(--gate)';
+  if (isBusy(itemSession(it))) return 'var(--go)';
+  if (!pr.reviewed || stale(pr)) return 'var(--hold)';
+  const c = recClass(pr.recommendation);
+  return c === 'changes' ? 'var(--stop)' : c === 'clarify' ? 'var(--gate)' : 'var(--go)';
+}
+function againBtn(pr, label, cls) {
+  if (!pr.url) return '';
+  const busy = reviewRunning(pr.id) || S.ui.busy['rv:' + pr.id];
+  return `<button type="button" class="btn${cls ? ' ' + cls : ''}" data-rv-url="${h(pr.url)}" data-rv-again="1"${busy ? ' disabled' : ''}>${h(label)}</button>`;
+}
+
+function commentHtml(c) {
+  const where = c.file ? c.file + (c.line ? ':' + c.line : '') : 'General';
+  return `<li class="rv-c" data-sev="${h(c.severity)}">` +
+    `<div class="rv-ch"><span class="sev" data-sev="${h(c.severity)}">${h(SEV_NAME[c.severity] || c.severity)}</span>` +
+    `<code class="rv-where">${h(where)}</code>${c.file ? copyBtn(where, 'Copy path') : ''}</div>` +
+    (c.why ? `<p class="rv-why">${md(c.why)}</p>` : '') +
+    (c.comment ? `<blockquote class="rv-say">${md(c.comment)}</blockquote><div class="rv-copy">${copyBtn(c.comment, 'Copy comment')}</div>` : '') +
+    '</li>';
+}
+
+function verdictHtml(pr) {
+  const parts = [`<span class="rec" data-rec="${recClass(pr.recommendation)}">${h(pr.recommendation)}</span>`];
+  if (pr.risk) parts.push(`<span class="risk" data-risk="${h(String(pr.risk).toLowerCase())}">${h(pr.risk)} risk</span>`);
+  const counts = SEV.map(([k, name]) => (pr.counts && pr.counts[k] ? `<span class="sev" data-sev="${k}">${pr.counts[k]} ${h(name.toLowerCase())}</span>` : '')).join('');
+  parts.push(counts || '<span class="dim">No comments</span>');
+  return `<div class="rv-verdict">${parts.join('')}</div>`;
+}
+
+/** One review card. */
+export function reviewCard(it) {
+  const pr = it.prReview || { id: it.folder.replace(/^pr-/, ''), counts: {}, comments: [], questions: [] };
+  const s = itemSession(it);
+  const perms = itemPerms(it), qs = itemQs(it);
+  const meta = ['<span class="tag">PR review</span>'];
+  if (pr.repo) meta.push(`<span class="mono">${h(pr.repo)}</span>`);
+  if (pr.author) meta.push(`<span>by ${h(pr.author)}</span>`);
+  meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">${pr.reviewed ? 'Reviewed' : 'Touched'} ${ago(it.modifiedMs)}</span>`);
+  meta.push(removeBtn(it));
+  let body = '';
+  if (pr.reviewed) {
+    body += verdictHtml(pr);
+    if (stale(pr)) body += `<div class="rv-stale"><span>New commits since this review (reviewed <code>${h(pr.reviewedCommit)}</code>, now <code>${h(String(pr.commit).slice(0, 7))}</code>).</span>${againBtn(pr, 'Review the new commits', 'warn')}</div>`;
+    if (pr.summary) body += `<p class="rv-sum">${md(pr.summary)}</p>`;
+    const list = (pr.comments || []);
+    if (list.length) {
+      body += `<details class="rv-list"${openKey('rv:' + it.folder, true)}><summary>${plural(list.length, 'draft comment')}</summary><ol class="rv-cs">${list.map(commentHtml).join('')}</ol></details>`;
+    }
+    if (pr.questions && pr.questions.length) {
+      body += `<div class="rv-qs"><p class="sub-h">Questions for the author</p><ul>${pr.questions.map(q => `<li><span>${md(q)}</span>${copyBtn(q, 'Copy')}</li>`).join('')}</ul></div>`;
+    }
+  } else {
+    body += `<p class="rv-state"><strong>${h(it.state || 'Reviewing')}</strong>${pr.size ? ` <span class="dim">· ${h(pr.size)}</span>` : ''}</p>`;
+    if (!isBusy(s) && !perms.length && !qs.length) body += `<div class="next-line"><span class="lbl">Next</span><span>The review did not finish.</span>${againBtn(pr, 'Run the review again', 'primary')}</div>`;
+  }
+  if (isBusy(s) || perms.length || qs.length || (s && s.error)) body += sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.');
+  const files = (it.files || []);
+  const foot = [];
+  if (safe(pr.url)) foot.push(link(pr.url, 'Open the PR in Azure DevOps', 'btn'));
+  if (files.includes('review.md')) foot.push(fileBtn(it.folder, 'review.md', 'plain', 'review.md'));
+  if (files.includes('context.md')) foot.push(fileBtn(it.folder, 'context.md', 'plain', 'context.md'));
+  if (pr.history) foot.push(`<span class="dim">${plural(pr.history, 'earlier review')} in <code>history/</code></span>`);
+  if (pr.reviewed && !stale(pr)) foot.push(againBtn(pr, 'Review again', 'ghost'));
+  const title = safe(pr.url) ? link(pr.url, it.title) : h(it.title);
+  return `<article class="item rv" id="item-${h(it.folder)}" style="--state:${stateColor(it)}">` +
+    `<div class="item-head"><h4 class="t"><span class="num">!${h(pr.id)}</span>${title}</h4><div class="meta">${meta.join('')}</div></div>` +
+    (pr.branch ? `<p class="rv-branch mono">${h(pr.branch)}</p>` : '') +
+    body + (foot.length ? `<div class="rv-foot">${foot.join('')}</div>` : '') + '</article>';
+}
+const safe = u => /^https?:\/\//i.test(String(u || ''));
+function openKey(key, dflt) {
+  const v = Object.prototype.hasOwnProperty.call(S.ui.open, key) ? S.ui.open[key] : dflt;
+  return ` data-key="${h(key)}"` + (v ? ' open' : '');
+}
+
+function startingHtml() {
+  const list = startingReviews();
+  if (!list.length) return '';
+  return '<section class="group" aria-labelledby="gh-rvs"><h3 id="gh-rvs">Starting <span class="n">' + list.length + '</span></h3><div class="items">' +
+    list.map(o => {
+      const s = o.s;
+      const perms = S.L.permissions.filter(p => p.sessionID === o.session), qs = S.L.questions.filter(q => q.sessionID === o.session);
+      const id = linkPrId(o.command);
+      const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
+      return `<article class="item rv" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${id ? `<span class="num">!${h(id)}</span>` : ''}Fetching the pull request</h4>` +
+        `<div class="meta"><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+        sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
+    }).join('') + '</div></section>';
+}
+
+function inboxRow(p) {
+  const it = reviewFolder(p.id);
+  const running = reviewRunning(p.id) || S.ui.busy['rv:' + p.id];
+  const bits = [p.repo ? `<span class="mono">${h(p.repo)}</span>` : '', p.author ? `by ${h(p.author)}` : '', p.created ? `opened ${h(p.created)}` : '', (p.via || []).length ? `via ${h(p.via.join(', '))}` : ''].filter(Boolean);
+  let act;
+  if (running) act = '<span class="rv-busy"><span class="spin" aria-hidden="true"></span>Reviewing</span>';
+  else if (it && it.prReview && it.prReview.reviewed) act = `<a class="btn" href="#item-${h(it.folder)}" data-jump="item-${h(it.folder)}">See review</a>`;
+  else act = `<button type="button" class="btn primary" data-rv-url="${h(p.url)}">Review</button>`;
+  return `<li class="rv-row">` +
+    `<span class="tier" data-tier="${h(p.tier)}" title="${h(TIER_TIP[p.tier] || '')}">${h(TIER[p.tier] || p.tier || '')}</span>` +
+    `<div class="rv-main"><span class="rv-t">${link(p.url, '!' + p.id + ' ' + p.title)}</span><span class="dim">${bits.join(' · ')}</span></div>` +
+    `<div class="rv-act">${p.waiting ? '<span class="flag info" title="You voted Waiting for author">Waiting for author</span>' : ''}${p.lastBlocker ? '<span class="flag warn" title="Every other required reviewer approved">Last one holding it</span>' : ''}${act}</div></li>`;
+}
+
+function inboxHtml() {
+  const inbox = S.inbox || { state: 'idle' };
+  const refresh = `<button type="button" class="lnk plain" data-rv-inbox="1"${inbox.state === 'loading' ? ' disabled' : ''}>${inbox.state === 'loading' ? 'Checking' : 'Check again'}</button>`;
+  const head = `<h3 id="gh-rvin">Waiting on you${inbox.state === 'ok' ? ` <span class="n">${(inbox.items || []).length}</span>` : ''}<span class="sh-r">${inbox.state === 'off' ? '' : refresh}</span></h3>`;
+  let body;
+  if (inbox.state === 'off') {
+    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source (connection, project, repos) to see the PRs waiting on you here. You can still review any PR by its link.</p>' +
+      (S.mode === 'local' ? '<button type="button" class="btn" data-settings="1">Open Settings</button>' : '') + '</div>';
+  } else if (inbox.state === 'error') {
+    body = `<p class="err">${h(inbox.error || 'Could not check Azure DevOps.')}</p>`;
+  } else if (inbox.state !== 'ok') {
+    body = '<p class="dim rv-loading"><span class="spin" aria-hidden="true"></span>Checking Azure DevOps.</p>';
+  } else if (!(inbox.items || []).length) {
+    body = `<p class="dim">Nothing is waiting on you${inbox.at ? ` (checked ${ago(inbox.at)})` : ''}.</p>`;
+  } else {
+    const order = { blocking: 0, asked: 1, pool: 2 };
+    const list = inbox.items.slice().sort((a, b) => (Number(!!a.waiting) - Number(!!b.waiting)) || ((order[a.tier] ?? 3) - (order[b.tier] ?? 3)) || String(a.created || '').localeCompare(String(b.created || '')));
+    body = `<ul class="rv-rows">${list.map(inboxRow).join('')}</ul>`;
+  }
+  const notes = (inbox.notes || []).map(n => `<p class="note">${h(n)}</p>`).join('');
+  return `<section class="group rv-inbox" aria-labelledby="gh-rvin">${head}${body}${notes}</section>`;
+}
+
+function pasteHtml() {
+  const st = S.ui.prReview || {};
+  const val = S.ui.drafts['rv:url'] || '';
+  const busy = !!st.busy;
+  return '<div class="rv-new">' +
+    '<label class="rv-new-l" for="rv-url">Review a pull request</label>' +
+    `<div class="rv-new-row"><input id="rv-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://…/_git/<repo>/pullrequest/<number>" data-draft="rv:url" value="${h(val)}">` +
+    `<button type="button" class="btn primary" data-rv-go="1"${busy ? ' disabled' : ''}>${busy ? 'Starting' : 'Review'}</button></div>` +
+    (st.error ? `<p class="err">${h(st.error)}</p>` : '<p class="hint">The repo has to be cloned in your workspace. The agent reads the PR without checking it out and drafts comments. It never posts anything.</p>') +
+    '</div>';
+}
+
+/** The PR reviews page (scope "reviews"). */
+export function reviewsHtml() {
+  const items = reviewItems();
+  let html = '<div class="scope-head"><h2>PR reviews</h2><span class="dim">First passes on your team\'s pull requests. Drafts only: nothing is posted to Azure DevOps.</span>' +
+    '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
+  html += pasteHtml() + startingHtml() + inboxHtml();
+  html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">Reviews${items.length ? ` <span class="n">${items.length}</span>` : ''}</h3>`;
+  html += items.length ? `<div class="items">${items.map(reviewCard).join('')}</div>`
+    : '<div class="empty small"><p>No reviews yet. Pick a PR above, or paste its link.</p></div>';
+  return html + '</section>';
+}
