@@ -1,0 +1,10 @@
+{
+  "id": "h_t_k2f9_2026-11-03",
+  "updatedAt": 1793736000000,
+  "to": "receipts",
+  "date": "2026-11-03",
+  "createdAt": "2026-11-03T21:40:00.000Z",
+  "text": "Shipped the onboarding guide for the new pipeline",
+  "payload": {"kind": "win", "impact": 2},
+  "source": {"app": "prioritizer", "id": "t_k2f9"}
+}
