@@ -392,7 +392,7 @@
         "manifestVersion": 1,
         "id": "receipts",
         "name": "Receipts",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "description": "Log wins and feedback for yourself, your reports and your manager. Build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",
