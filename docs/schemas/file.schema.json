@@ -27,7 +27,11 @@
     },
     "content": {
       "type": "string",
-      "description": "The whole file as UTF-8 text."
+      "description": "The whole file: UTF-8 text for .md and .json, base64 (RFC 4648, no line breaks) for images."
+    },
+    "encoding": {
+      "const": "base64",
+      "description": "Present, and only present, for images (.png, .jpg, .jpeg, .gif, .webp): content is base64."
     }
   }
 }

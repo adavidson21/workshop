@@ -128,6 +128,7 @@ Bundles carry collections only. Files written through the files API are not in b
 <dataDir>/
   <app>/<collection>.json                  one collection (nested names are subfolders)
   <app>/<path>.md, <app>/<path>.json       plain files written through the files API
+  <app>/<path>.png (.jpg .jpeg .gif .webp)  images written through the files API
   .trash/<app>/<path>.<stamp>.<ext>        files moved to the trash
   .backups/<yyyy-mm-dd>/<app>/...          copies kept before a version or envelope upgrade
 ```
@@ -148,7 +149,7 @@ For example:
 ### What is a collection, what is a file
 
 - A `.json` file is a **collection** when it parses as a JSON object whose `schema` field is `<app>.<collection>` for its own path. Collections are read and written only through the data API (`/api/data`, `ws.data`), which checks `rev`. A collection file that fails the envelope schema is a damaged collection (below), still not a file.
-- Every other `.md` or `.json` file is a **file**, read and written only through the files API (`/api/files`, `ws.files`), which checks the modified time. The files API never reads, writes, lists or trashes a collection, and refuses to write `.json` content that would make one (an envelope for its own path).
+- Every other `.md` or `.json` file, and every image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`), is a **file**, read and written only through the files API (`/api/files`, `ws.files`), which checks the modified time. The files API never reads, writes, lists or trashes a collection, and refuses to write `.json` content that would make one (an envelope for its own path).
 - So a collection and a file can never be the same file, even though both end in `.json`. Receipts' summary `2026-h2.md` (a file) and its sidecar `2026-h2.json` (a collection) sit side by side.
 
 ### What Workshop ignores
