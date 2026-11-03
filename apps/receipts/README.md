@@ -14,6 +14,7 @@ Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Androi
 - **Review**: pick who and a period (your review cycle, this quarter, last quarter, this year, last 12 months). Shows coverage per section, flags sections with no receipts, and builds a plain-text draft you can copy or download. CSV export too.
 - **From Docket** (inside Workshop): finished tasks you ticked in Docket's Wrap up wait at the top of Me. Edit the line or kind, then **Accept** (it becomes a receipt dated that day, evidence "From Docket") or **Dismiss**. Receipts reads Docket's offers but never changes Docket's data, and remembers what you handled in its own settings (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)).
 - **From 1:1s** (inside Workshop): wins you logged after a 1:1 wait on that report's page, and in Me with the report's name on them. Accepting one makes a receipt about that report (evidence "From 1:1s"). An offer about someone not in your Reports list becomes a receipt about you, so it is never lost.
+- **People from Workshop**: when Workshop's people directory exists (People in Workshop's Settings), Reports lists your direct reports from it and Upward uses your manager's name. You edit people there, once, for every Workshop app. Receipts keeps its own list and goes back to it only where there is no directory (for example on this site with browser storage). Old receipts keep pointing at the right person: the directory keeps Receipts' person ids.
 - **Settings**: your review cycle dates, your company's review sections (one per line), backups.
 
 Shortcuts: `N` jumps to the box for a new receipt, `Ctrl+Enter` saves it.
@@ -42,7 +43,7 @@ sw.js                   service worker: install as an app, open offline
 apps/receipts/test/      node tests for state.js (test/ has the Worker routing test)
 ```
 
-Data uses Workshop's envelope format (three collections: `entries`, `people`, `config`; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other.
+Data uses Workshop's envelope format (three collections: `entries`, `people`, `config`, plus Workshop's people directory `settings.people`, read only; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other.
 
 `shared/` is a copy of the workshop repo's `shared/`. When Workshop's SDK or themes change, copy them over again.
 

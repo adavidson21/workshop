@@ -26,7 +26,13 @@ const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0,
 
 async function loadAll() {
   for (const n of NAMES) store[n] = (await ws.data.get(n)) || blank(n);
+  await loadDirectory();
   await loadOffers();
+}
+// Workshop's people directory (read only; docs/people.md in workshop). null: use our own people.
+let dir = null;
+async function loadDirectory() {
+  try { dir = R.readDirectory(await ws.data.get('people', { app: 'settings' })); } catch (e) { dir = null; }
 }
 // Offers other apps left for Receipts in their own handoffs collection (read only; docs/handoffs.md in workshop).
 const offerEnvs = {};
@@ -40,7 +46,8 @@ const offers = () => {
   return Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled, known));
 };
 const entries = () => store.entries.items.map(R.cleanEntry);
-const people = () => store.people.items.map(R.cleanPerson);
+const ownPeople = () => store.people.items.map(R.cleanPerson);
+const people = () => (dir ? dir.reports : ownPeople());
 const cfg = () => ({ ...R.DEFAULT_CONFIG, ...(store.config.meta || {}) });
 
 // The write loop from the data format: stamp, put, and on a conflict merge with what is stored and put again.
@@ -88,7 +95,10 @@ const S = {
 };
 const filterFor = key => (S.filters[key] ||= { period: cfg().cycleStart ? 'cycle' : 'quarter', section: '', kind: '', star: false, q: '' });
 const draftFor = about => (S.draft[about] ||= R.blankEntry(about, cfg()));
-const nameOf = about => about === 'me' ? 'Me' : about === 'up' ? (cfg().upLabel || 'My manager') : (people().find(p => p.id === about)?.name || 'Former report');
+const upName = () => (dir && dir.manager) || cfg().upLabel || 'My manager';
+const nameOf = about => about === 'me' ? 'Me' : about === 'up' ? upName()
+  : ((dir && dir.all.find(p => p.id === about)) || ownPeople().find(p => p.id === about))?.name || 'Former report';
+const peopleLink = label => `<button class="btn" data-act="people-settings">${esc(label)}</button>`;
 
 /* ---------- routing ----------
    On its own page the hash is #/<view>[/<id>]. Inside Workshop the shell owns the hash (#/receipts/<path>)
@@ -256,7 +266,7 @@ function teamView() {
   return `<div class="bar">
       <select name="period" data-key="team" aria-label="Period" class="solo">${R.periods(cfg()).map(p => opt(p.key, p.label, f.period)).join('')}</select>
       <span class="grow"></span>
-      ${rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}
+      ${dir ? peopleLink('Edit people in Workshop') : rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}
     </div>
     ${S.addingPerson ? personForm({ id: '', name: '', role: '', since: '' }) : ''}
     ${rows.length ? `<ul class="roster">${rows.map(r => `<li class="rrow"><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
@@ -265,6 +275,7 @@ function teamView() {
         <span class="plast${r.stale ? ' stale' : ''}">${r.lastDate ? (r.daysSince === 0 ? 'Today' : `${r.daysSince}d ago`) : 'No receipts'}</span>
       </button><button class="btn log" data-act="log-for" data-about="${esc(r.person.id)}" aria-label="Add a receipt for ${esc(r.person.name || 'this report')}">Add</button></li>`).join('')}</ul>
       <p class="legend mono">W wins &middot; F feedback given &middot; G growth areas &middot; C concerns &middot; Highlighted: nothing in ${cfg().staleDays} days</p>`
+    : dir ? `<div class="engcard"><h2>No reports yet</h2><p>Your people come from Workshop's Settings. Add your direct reports there, as Direct report.</p><div class="acts">${peopleLink('Open People in Workshop')}</div></div>`
     : (S.addingPerson ? '' : `<div class="engcard"><h2>No reports yet</h2><p>Add a direct report to log their wins, feedback, growth areas and concerns.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul>${archived.map(p => `<li><button class="lnk" data-act="go" data-path="team/${esc(p.id)}">${esc(p.name)}</button></li>`).join('')}</ul></details>` : ''}`;
 }
@@ -290,9 +301,9 @@ function personView(id) {
   const n = k => inP.filter(e => e.kind === k).length;
   return `<div class="bar"><button class="btn ghost" data-act="go" data-path="team">${I.back} Reports</button><span class="grow"></span>
       <button class="btn" data-act="go" data-path="review" data-about="${esc(id)}">Build review</button>
-      <button class="btn ghost" data-act="edit-person">Edit</button>
-      <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button></div>
-    ${S.addingPerson === id ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
+      ${dir ? '<button class="btn ghost" data-act="people-settings">Edit in Workshop</button>' : `<button class="btn ghost" data-act="edit-person">Edit</button>
+      <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button>`}</div>
+    ${S.addingPerson === id && !dir ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
     <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
     ${offersHtml(id)}
     ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
@@ -315,7 +326,7 @@ function upView() {
 function reviewView() {
   const c = cfg();
   const rv = S.review;
-  const subjects = [['me', 'Me (self review)'], ...people().filter(p => !p.archived || p.id === rv.about).map(p => [p.id, p.name]), ...(c.upward ? [['up', c.upLabel || 'My manager']] : [])];
+  const subjects = [['me', 'Me (self review)'], ...people().filter(p => !p.archived || p.id === rv.about).map(p => [p.id, p.name]), ...(c.upward ? [['up', upName()]] : [])];
   if (!subjects.some(([v]) => v === rv.about)) rv.about = 'me';
   if (!rv.period) rv.period = c.cycleStart ? 'cycle' : 'quarter';
   const period = R.findPeriod(c, rv.period);
@@ -388,7 +399,8 @@ function settingsView(fs) {
         <label>Flag a report after<span class="inl"><input type="number" name="staleDays" min="1" max="365" value="${esc(c.staleDays)}"> days with no receipts</span></label>
       </div>
       <label class="tog"><input type="checkbox" name="upward"${c.upward ? ' checked' : ''}> Show the Upward tracker</label>
-      <label>Upward label<input name="upLabel" value="${esc(c.upLabel || '')}" placeholder="My manager"></label>
+      ${dir && dir.manager ? `<p class="fine">Upward is about ${esc(dir.manager)}, your manager in Workshop's People.</p>` : `<label>Upward label<input name="upLabel" value="${esc(c.upLabel || '')}" placeholder="My manager"></label>`}
+      ${dir ? `<p class="fine">Your reports and manager come from People in Workshop's Settings. ${peopleLink('Open People')}</p>` : ''}
       <div class="acts"><button class="btn primary" type="submit">Save</button></div>
     </form>`;
 }
@@ -398,7 +410,10 @@ const TABS = () => [['me', 'Me'], ['team', 'Reports'], ...(cfg().upward ? [['up'
 const TITLES = { me: 'My receipts', team: 'Reports', up: 'Upward', review: 'Review', settings: 'Settings' };
 let folderStatus = null;
 
+// Nothing is drawn until the first load finishes: the shell's route event and change events can arrive first.
+let loaded = false;
 function paint() {
+  if (!loaded) return;
   const { view, id } = S.route;
   // Keep focus and caret across repaints (search boxes repaint as you type).
   const a = document.activeElement;
@@ -523,6 +538,7 @@ app.addEventListener('click', async ev => {
     case 'draft-star': { const f = el.closest('form'); syncDraft(f); const d = draftFor(f.dataset.about); d.star = !d.star; paint(); break; }
     case 'star': { const e = entries().find(x => x.id === entryId); if (e) await safely(() => upsertEntry({ ...e, star: !e.star })); break; }
     case 'edit': { const e = entries().find(x => x.id === entryId); if (e) openEdit(e); break; }
+    case 'people-settings': if (ws.embedded) ws.open({ app: 'settings' }); else window.open(R.WORKSHOP_PEOPLE_URL, '_blank', 'noopener'); break;
     case 'add-person': S.addingPerson = true; paint(); document.querySelector('.pform input')?.focus(); break;
     case 'edit-person': S.addingPerson = S.route.id; paint(); break;
     case 'cancel-person': S.addingPerson = false; paint(); break;
@@ -629,7 +645,7 @@ app.addEventListener('submit', async ev => {
     }
     case 'more': {
       const days = Math.min(365, Math.max(1, parseInt(fd.get('staleDays'), 10) || 30));
-      return safely(() => saveConfig({ staleDays: days, upward: fd.get('upward') === 'on', upLabel: String(fd.get('upLabel') || '').trim() }), 'Saved.');
+      return safely(() => saveConfig({ staleDays: days, upward: fd.get('upward') === 'on', ...(fd.has('upLabel') ? { upLabel: String(fd.get('upLabel') || '').trim() } : {}) }), 'Saved.');
     }
   }
 });
@@ -659,11 +675,13 @@ ws.on('command', async ({ id }) => {
 });
 // Another window (or a change to the folder outside the browser) wrote: re-read and repaint.
 for (const n of NAMES) ws.data.subscribe(n, async () => { store[n] = (await ws.data.get(n)) || blank(n); paint(); });
+ws.data.subscribe('people', async () => { await loadDirectory(); paint(); }, { app: 'settings' });
 for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); paint(); }, { app });
 ws.on('online', async () => { await loadAll(); paint(); });
 
 /* ---------- start ---------- */
 await loadAll();
+loaded = true;
 if (!ws.embedded && ws.storage === 'folder') { try { folderStatus = await ws.folder.status(); } catch (e) { folderStatus = null; } }
 const moved = !ws.embedded && ws.folder.lastMove ? ws.folder.lastMove() : null;
 if (moved) ws.toast(`Now saving to the folder "${moved.folder}".`, { kind: 'success' });
