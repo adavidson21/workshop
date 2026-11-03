@@ -103,3 +103,24 @@ test('toCsv: formula-looking cells get an apostrophe, plain numbers do not', () 
   assert.ok(row.includes(",'@cmd,"), row);
   assert.ok(row.includes(',-3,'), row);
 });
+
+test('offers from Docket: only ones addressed here, valid, unhandled; accepted ones become receipts about you', () => {
+  const env = { schema: 'prioritizer.handoffs', version: 1, rev: 3, items: [
+    { id: 'h_a_2026-10-30', updatedAt: 1, to: 'receipts', date: '2026-10-30', createdAt: '2026-10-30T21:00:00.000Z', text: ' Shipped the guide ', payload: { kind: 'growth', impact: 2 }, source: { app: 'prioritizer', id: 'a' } },
+    { id: 'h_b_2026-10-31', updatedAt: 1, to: 'receipts', date: '2026-10-31', createdAt: '2026-10-31T21:00:00.000Z', text: 'Ran the release', payload: { kind: 'nope', impact: 9 }, source: { app: 'prioritizer' } },
+    { id: 'h_c', updatedAt: 1, to: 'other-app', date: '2026-10-31', createdAt: '2026-10-31T21:00:00.000Z', text: 'Not for us', source: { app: 'prioritizer' } },
+    { id: 'h_d', updatedAt: 1, to: 'receipts', date: 'bad', createdAt: '2026-10-31T21:00:00.000Z', text: 'Bad date', source: { app: 'prioritizer' } },
+  ] };
+  const got = R.pendingOffers('prioritizer', env);
+  assert.deepEqual(got.map(o => [o.key, o.kind, o.impact, o.from]), [['prioritizer:h_b_2026-10-31', 'win', 0, 'Docket'], ['prioritizer:h_a_2026-10-30', 'growth', 2, 'Docket']]);
+  assert.equal(got[1].text, 'Shipped the guide');
+  assert.deepEqual(R.pendingOffers('prioritizer', env, ['prioritizer:h_b_2026-10-31']).map(o => o.key), ['prioritizer:h_a_2026-10-30']);
+  assert.deepEqual(R.pendingOffers('prioritizer', { ...env, version: 2 }), [], 'unknown version: unreadable');
+  assert.deepEqual(R.pendingOffers('prioritizer', null), []);
+  assert.deepEqual(R.pendingOffers('prioritizer', { ...env, schema: 'prioritizer.tasks' }), []);
+  const r = R.entryFromOffer(got[1], NOW);
+  assert.equal(r.about, 'me'); assert.equal(r.kind, 'growth'); assert.equal(r.impact, 2); assert.equal(r.date, '2026-10-30');
+  assert.equal(r.evidence, 'From Docket'); assert.equal(r.text, 'Shipped the guide');
+  assert.deepEqual(R.markHandled(['x', 'y'], ['y', 'z']), ['x', 'y', 'z']);
+  assert.equal(R.markHandled(Array.from({ length: 600 }, (_, i) => `k${i}`), ['new']).length, R.HANDLED_MAX);
+});

@@ -144,3 +144,22 @@ test('no Now card without a sprint, on a day off, or after the last block', () =
   assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 3, 16, 30)), null, 'after Admin ends');
   assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 2, 10)), null, 'sprint day 1 has no template here');
 });
+
+test('Wrap up step: primary from an hour before day end on a working day; says Day wrapped once done', async () => {
+  const { wrapState } = await import('../js/view.js');
+  const settings = { schema: 'prioritizer.dayplan/settings', version: 1, items: [], meta: { sprint: { anchor: '2026-11-04', lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [], dayEnd: '17:30' } } };
+  const today = '2026-11-04'; // a Wednesday
+  assert.equal(wrapState({ settings }, today, 16 * 60 + 29).due, false);
+  assert.equal(wrapState({ settings }, today, 16 * 60 + 30).due, true);
+  assert.equal(wrapState({ settings }, '2026-11-07', 18 * 60).due, false, 'Saturday');
+  assert.equal(wrapState({}, today, 15 * 60).due, true, 'no sprint: 15:00 as before');
+  const offers = { items: [{ to: 'receipts', date: today }, { to: 'receipts', date: '2026-11-03' }, { to: 'other', date: today }] };
+  const day = { id: today, events: [{ at: 'x', type: 'shutdown' }] };
+  assert.deepEqual(wrapState({ settings, offers, day }, today, 9 * 60), { wrapped: true, due: false, receipts: 1 });
+  const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
+  const due = render({ ...v, wrap: { wrapped: false, due: true, receipts: 2 } });
+  assert.match(due, /class="btn primary" data-open="prioritizer" data-path="shutdown" title="2 receipts offered to Receipts today">Wrap up the day/);
+  const early = render({ ...v, wrap: { wrapped: false, due: false, receipts: 0 } });
+  assert.match(early, /class="btn" data-open="prioritizer" data-path="shutdown">Wrap up the day/);
+  assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="btn" data-open="prioritizer" data-path="shutdown">Day wrapped/);
+});

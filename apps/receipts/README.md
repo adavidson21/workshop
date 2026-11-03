@@ -5,8 +5,9 @@ Keep the receipts for performance reviews. Full guide and source of truth: [adav
 - **Me**: your own receipts for a self review. Star the ones that should lead your review.
 - **Reports**: one page per direct report (wins, feedback given, growth areas, concerns). Anyone with nothing noted in 30 days is flagged.
 - **Upward**: optional, turned on in Receipts' Settings. Support received, asks, and feedback for your manager.
+- **From Docket**: finished tasks ticked in Docket's Wrap up wait at the top of Me to accept or dismiss.
 - **Review**: coverage per review section, gaps called out, and a plain-text draft to copy, plus CSV.
 
 `N` focuses the new-receipt box, `Ctrl+Enter` saves. Palette commands: Add a receipt, Build a review.
 
-Data: collections `entries`, `people` and `config` under the `receipts` app, through the SDK like every other app. No connectors, no network.
+Data: collections `entries`, `people` and `config` under the `receipts` app, through the SDK like every other app. Reads (never writes) Docket's `prioritizer.handoffs` offers (workshop `docs/handoffs.md`). No connectors, no network.

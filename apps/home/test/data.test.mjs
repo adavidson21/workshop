@@ -71,7 +71,7 @@ test('on Allow (online turns true), profile, board, queue and agents load again,
   ws.allow();
   await settle(); await settle();
   assert.equal(home.waiting, false);
-  assert.equal(ws.gets - before, 10, 'profile once; tasks, lists, people and the three day plan collections once; the queue settings, snapshot and seen once');
+  assert.equal(ws.gets - before, 12, 'profile once; tasks, lists, people and the three day plan collections once; the queue settings, snapshot and seen once; and Docket\'s focus log and offers once (Wrap up)');
   assert.equal(home.v.board.open, 1);
   assert.deepEqual(home.v.profile, { name: 'Sam Rivera', role: 'EM' });
   assert.equal(home.v.agents.state, 'browser');

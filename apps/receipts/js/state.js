@@ -271,3 +271,34 @@ export function toCsv(entries, nameOf) {
 }
 
 export const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'receipts';
+
+/* ---------- offers from other apps (Workshop docs/handoffs.md) ----------
+   Another app (Docket's Wrap up, for now) writes offers to its own `handoffs` collection. Receipts reads them,
+   shows the ones addressed here, and the person accepts or dismisses each. What was handled is kept in
+   config.meta.handled (newest HANDLED_MAX ids), so Receipts never writes the other app's data. */
+export const SENDERS = { prioritizer: 'Docket' };
+export const HANDLED_MAX = 500;
+const HANDOFF_VERSION = 1;
+
+/* Offers waiting here, newest day first. env: a sender's handoffs envelope, or null. Unknown versions read as
+   unreadable (nothing offered), never as a reason to write anything. */
+export function pendingOffers(app, env, handled = []) {
+  if (!env || env.schema !== `${app}.handoffs` || env.version !== HANDOFF_VERSION || !Array.isArray(env.items)) return [];
+  const done = new Set(handled);
+  return env.items.filter(h => h && typeof h.id === 'string' && h.to === APP && !done.has(`${app}:${h.id}`)
+      && parseDay(h.date) && typeof h.text === 'string' && h.text.trim())
+    .map(h => ({ key: `${app}:${h.id}`, from: SENDERS[app] || app, date: h.date, text: h.text.trim().slice(0, 2000),
+      kind: h.payload && KINDS.includes(h.payload.kind) ? h.payload.kind : 'win',
+      impact: h.payload && [0, 1, 2, 3].includes(h.payload.impact) ? h.payload.impact : 0 }))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.text.localeCompare(b.text)));
+}
+/* The receipt an accepted offer becomes. Always about you (docs/handoffs.md, Receivers). */
+export function entryFromOffer(o, now = new Date()) {
+  return cleanEntry({ id: newId('r'), about: 'me', kind: o.kind, text: o.text, date: o.date, impact: o.impact,
+    evidence: `From ${o.from}`, createdAt: now.toISOString() });
+}
+/* The handled list with these keys added, newest last, capped. */
+export function markHandled(handled, keys) {
+  const set = [...(Array.isArray(handled) ? handled : []).filter(k => !keys.includes(k)), ...keys];
+  return set.slice(-HANDLED_MAX);
+}
