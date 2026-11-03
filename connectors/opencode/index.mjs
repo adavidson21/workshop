@@ -13,7 +13,7 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startSpike } from "./lib/workspace.mjs";
+import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startReview, startSpike } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
@@ -281,6 +281,15 @@ const actions = {
     async run(args) {
       needReady();
       return startSpike(args);
+    },
+  },
+  "pr.review": {
+    title: "Review a teammate's pull request (first pass, drafts only)",
+    write: true,
+    argsSchema: obj(["url"], { url: str("Pull request link", { minLength: 10, maxLength: 500 }), again: { type: "boolean", title: "Review again even if this commit was reviewed" } }),
+    async run(args) {
+      needReady();
+      return startReview({ url: args.url, again: args.again === true });
     },
   },
   "repo.add": {

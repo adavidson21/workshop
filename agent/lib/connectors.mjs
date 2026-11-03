@@ -145,7 +145,7 @@ export class ConnectorHost {
     const m = entry.mod;
     const o = {
       id: entry.id, name: m ? m.name : entry.id, version: m ? m.version : '0.0.0', enabled: this.#enabled(entry.id), status: this.#status(entry),
-      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true })) : []
+      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true, ...(a.setup === true ? { setup: true } : {}) })) : []
     };
     if (m?.test) o.test = { action: m.test.action, arg: m.test.arg, label: m.test.label };
     return o;
@@ -272,7 +272,8 @@ export class ConnectorHost {
     const errs = this.#schemas.validate('connector-call-request', body);
     if (errs.length) fail('bad_request', `Send {"args": {...}}: ${errs[0]}`);
     if (!this.#enabled(id)) fail('disabled', `The ${entry.mod.name} connector is off. Turn it on in Settings.`);
-    if (this.#status(entry).state !== 'ready' || !entry.ctx) fail('unavailable', `The ${entry.mod.name} connector is not ready yet.`);
+    // A setup action (docs/connector.md) helps fix the settings, so it runs while the connector reports an error.
+    if (!entry.ctx || (this.#status(entry).state !== 'ready' && a.setup !== true)) fail('unavailable', `The ${entry.mod.name} connector is not ready yet.`);
     if (a.write === true && body.confirm !== true) fail('confirm_required', `${a.title} changes something outside Workshop. Ask the user to confirm first.`);
     const args = body.args ?? {};
     if (a.argsSchema) {

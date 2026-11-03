@@ -8,6 +8,8 @@
 //                                          --powershell <command>. See setupFromFlags below.
 //   workshop pin [--docket <folder>|--no-docket]  Build work mode's pinned copy of the site into ~/.workshop/ui.
 //   workshop open [--print]                Open Workshop on this computer (sign-in and settings) in the default browser. --print only prints.
+//   workshop stop | restart                Stop the running agent; restart it in the background.
+//   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
@@ -34,6 +36,8 @@ import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './a
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
 import { pinInto, verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
+import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
+import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
 
 export const REPO = path.dirname(fileURLToPath(import.meta.url));
 const SERVED_DIRS = ['shell', 'shared', 'icons', 'apps'];
@@ -52,6 +56,12 @@ const USAGE = `Usage: workshop <command> [options]
   open [--print]                 Open Workshop on this computer in your default browser: it signs that browser in,
                                  links to Workshop's site to pair, and has the settings only this computer can change.
                                  --print only prints the sign-in address, to open in another browser.
+  stop                           Stop Workshop if it is running.
+  restart                        Stop Workshop, then start it again in the background (no window).
+  pat [NAME] [--remove]          Save a personal access token in the user environment variable NAME (default
+                                 ADO_PAT). Paste it when asked; it is not shown or kept in shell history.
+                                 Workshop picks it up within seconds on Windows, with no restart.
+                                 --remove deletes the variable.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
   doctor                         Check Node, config.json, the port, the data folder, start at login and hosted mode.
@@ -564,7 +574,7 @@ async function runPin(rest, io) {
   const info = inspectConfig(homePaths(home).config, loadSchemas());
   const port = info.config?.port ?? DEFAULT_PORT;
   if (info.config?.features?.workMode === true) {
-    io.out(await agentHealth(port) ? 'Work mode is on: open pages offer a reload to the new copy. If Workshop itself was updated, restart it too.' : 'Work mode is on. Start Workshop with: workshop start');
+    io.out(await agentHealth(port) ? 'Work mode is on: open pages offer a reload to the new copy. If Workshop itself was updated, run "workshop restart" too.' : 'Work mode is on. Start Workshop with: workshop start');
   } else io.out('Work mode is off. Turn it on in Settings (Workshop on this computer), or run "workshop install --work-mode" while Workshop is stopped.');
   return 0;
 }
@@ -610,7 +620,7 @@ async function runUpdate(rest, io) {
     const r = spawnSync(process.execPath, [path.join(REPO, 'workshop.mjs'), 'pin'], { stdio: 'inherit', env: io.env });
     if (r.status !== 0) { io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
   }
-  if (running) io.out('Workshop is running the old version: restart it (stop it, then workshop start) to run this one.');
+  if (running) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
   return 0;
 }
 
@@ -638,6 +648,73 @@ async function runOpen(rest, io) {
   return 0;
 }
 
+// --------------------------------------------------------------- stop, restart and pat
+
+const configuredPort = io => (inspectConfig(homePaths(resolveHome(io.env)).config, loadSchemas()).config?.port) ?? DEFAULT_PORT;
+
+async function runStop(io) {
+  const port = configuredPort(io);
+  const r = await stopAgent({ port, probe: io.probe || agentHealth, ...(io.control || {}) });
+  io.out(r.message);
+  return r.ok ? 0 : 1;
+}
+
+async function runRestart(io) {
+  const port = configuredPort(io);
+  const probe = io.probe || agentHealth;
+  const s = await stopAgent({ port, probe, ...(io.control || {}) });
+  if (!s.ok) { io.out(s.message); return 1; }
+  if (s.wasRunning) io.out('Workshop stopped.');
+  const r = await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
+  io.out(r.message);
+  return r.ok ? 0 : 1;
+}
+
+/**
+ * workshop pat [NAME] [--remove]: saves a token in a user environment variable without echoing it or
+ * putting it on a command line (setx "<token>" leaves it in PowerShell's history file). Windows only; on
+ * macOS and Linux it explains where the variable goes.
+ */
+async function runPat(rest, io) {
+  const remove = rest.includes('--remove');
+  const extra = rest.filter(a => a.startsWith('-') && a !== '--remove');
+  if (extra.length) { io.out(`Unknown option ${extra[0]}. Usage: workshop pat [NAME] [--remove]`); return 1; }
+  const name = rest.find(a => !a.startsWith('-')) || 'ADO_PAT';
+  if (!ENV_NAME.test(name)) { io.out(`"${name}" is not a valid environment variable name. Use letters, digits and _, for example ADO_PAT.`); return 1; }
+  const platform = io.platform || process.platform;
+  if (platform !== 'win32') {
+    io.out(`On macOS and Linux, Workshop reads ${name} from the terminal it starts in, so it is not saved here.`);
+    if (!remove) io.out(`Add this line to your shell profile (~/.zshrc or ~/.bashrc), with your token in place of the dots:\n\n  export ${name}='...'\n\nThen open a new terminal and run: workshop restart`);
+    else io.out(`Remove the "export ${name}=" line from your shell profile, then open a new terminal and run: workshop restart`);
+    return 0;
+  }
+  const store = io.userEnv || { read: n => readWindowsUserEnv(n), write: (n, v) => writeWindowsUserEnv(n, v) };
+  if (remove) {
+    const r = store.write(name, null);
+    io.out(r.ok ? `Removed ${name}. Programs that are already running keep their copy until they restart.` : r.message);
+    return r.ok ? 0 : 1;
+  }
+  let value;
+  try {
+    value = await (io.secret || readSecret)({ prompt: `Paste the token for ${name} and press Enter (it will not show): ` });
+  } catch (e) {
+    io.out(e && e.code === 'cancelled' ? 'Cancelled. Nothing was saved.' : 'Could not read the token. Nothing was saved.');
+    return 1;
+  }
+  const problem = patProblem(value);
+  if (problem) { io.out(`${problem} Nothing was saved.`); return 1; }
+  const w = store.write(name, value);
+  if (!w.ok) { io.out(`${w.message} Nothing was saved.`); return 1; }
+  if (store.read(name) !== value) { io.out(`Windows did not keep ${name}. Try again, or set it in Settings > System > About > Advanced system settings > Environment Variables.`); return 1; }
+  io.out(`Saved ${name} (${value.length} characters) for your Windows account.`);
+  const running = await (io.probe || agentHealth)(configuredPort(io));
+  io.out(running
+    ? 'Workshop picks it up within a few seconds; no restart needed. Check it in Settings, or run: workshop doctor ado'
+    : 'Start Workshop with: workshop start');
+  io.out('Tip: put the token\'s expiry date on its ADO connection in Settings ("PAT expires") to get a warning two weeks before.');
+  return 0;
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
@@ -646,6 +723,9 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'version' || cmd === '--version' || cmd === '-v') { io.out(VERSION); return 0; }
 
   if (cmd === 'start') return runStart(rest);
+  if (cmd === 'stop') return runStop(io);
+  if (cmd === 'restart') return runRestart(io);
+  if (cmd === 'pat') return runPat(rest, io);
 
   if (cmd === 'doctor') {
     if (rest[0] === 'ado') {
@@ -659,7 +739,8 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
           return 1;
         }
       }
-      return adoDoctorMain(adoArgs, io);
+      // Saved user variables, read live, so a PAT saved with "workshop pat" counts in this same terminal.
+      return adoDoctorMain(adoArgs, { ...io, env: liveEnv(io.env, { platform: io.platform || process.platform }) });
     }
     const { lines, code } = await doctorReport({ env: io.env });
     for (const l of lines) io.out(l);

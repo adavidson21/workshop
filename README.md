@@ -12,6 +12,8 @@ Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
+Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
+
 Your data stays on your device. There are no accounts and no server holds your data: it is saved in your browser, or in files on this computer when Workshop runs there. The page talks only to its own site, `127.0.0.1` and the systems you set up in Settings. The exception is Dispatch, whose coding agents send work to the AI provider you connect to opencode. What Workshop stores, where it sends data and what to tell your security team: [docs/security.md](docs/security.md) and [docs/for-security-teams.md](docs/for-security-teams.md).
 
 Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
@@ -73,6 +75,8 @@ Other commands:
 
 - `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
 - `node workshop.mjs open` opens Workshop in your default browser, signed in.
+- `node workshop.mjs stop` stops Workshop; `node workshop.mjs restart` stops it and starts it again in the background (no window).
+- `node workshop.mjs pat ADO_PAT` saves your Azure DevOps PAT without showing it or leaving it in shell history. On Windows, Workshop picks it up within seconds with no restart. See [connectors/ado/README.md](connectors/ado/README.md), Setting up and renewing a PAT.
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
@@ -83,6 +87,8 @@ Start at login and hosted mode are off until you turn them on, and never need ad
 ## Work mode
 
 For a work laptop: Workshop runs from a pinned copy on your computer instead of its site, so the code that can read your work data changes only when you update it, and no site can pair with Workshop. Details: [docs/run-modes.md](docs/run-modes.md), Work mode; [docs/security.md](docs/security.md), Work mode.
+
+**Testing with a team:** work mode is a prerequisite. Before anyone tests with real work data, go through [docs/team-testing.md](docs/team-testing.md).
 
 **Set it up (by hand, recommended at work):**
 

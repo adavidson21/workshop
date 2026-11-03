@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import ado from './index.mjs';
 import { AdoError, SettingsError, clientFor } from './lib/client.mjs';
+import { daysLeft, patHint, WARN_DAYS } from './lib/pat.mjs';
 import { normalize } from './lib/config.mjs';
 import { compareDataset, compareSync } from './lib/compare.mjs';
 import { dataset } from './lib/dataset.mjs';
@@ -95,7 +96,7 @@ async function runTest(o, io) {
   for (const c of cfg.connections) {
     const set = Boolean(String(io.env[c.patEnv] || '').trim());
     io.out(`  ${c.name.padEnd(12)} ${c.base}   PAT from ${c.patEnv} (${set ? 'set' : 'NOT SET'})`);
-    if (!set) { failed = true; continue; }
+    if (!set) { io.out(`  ${''.padEnd(12)} ${patHint(c.patEnv)}`); failed = true; continue; }
     try {
       const res = await clientFor(c, env).call('GET', 'connectionData', { api: '1.0' });
       io.out(`  ${''.padEnd(12)} ${res?.authenticatedUser?.id ? 'Connected.' : 'Answered, but did not say who you are.'}`);
@@ -104,6 +105,10 @@ async function runTest(o, io) {
       io.out(`  ${''.padEnd(12)} ${e.message}`);
       failed = true;
     }
+    const days = daysLeft(c.patExpires);
+    if (days === null) io.out(`  ${''.padEnd(12)} No "PAT expires" date in Settings, so Workshop cannot warn before it expires.`);
+    else if (days < 0) { io.out(`  ${''.padEnd(12)} PAT expired on ${c.patExpires} (by the date in Settings).`); failed = true; }
+    else io.out(`  ${''.padEnd(12)} PAT expires ${c.patExpires} (${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`})${days <= WARN_DAYS ? '. Make a new one soon.' : '.'}`);
   }
   const r = await sync({ cfg, env }, cleanKnown((o.known || '').split(',')), []);
   io.out(`\nConnected. ${r.items.length} open work items assigned to you:`);

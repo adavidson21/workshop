@@ -1,6 +1,6 @@
 # Workshop: a brief for your security team
 
-For an engineer who wants to use Workshop on a work computer and needs to tell IT or security what it is. Hand them this page. Details and the checks behind each claim are in [security.md](security.md).
+For an engineer who wants to use Workshop on a work computer and needs to tell IT or security what it is. Hand them this page. Details and the checks behind each claim are in [security.md](security.md). The step-by-step checklist for a team pilot is [team-testing.md](team-testing.md).
 
 Workshop does not make any tool "approved" by itself. Your company's policy decides that. This page is meant to make the review short.
 
@@ -17,7 +17,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 | Dispatch (coding agents) | Off, unless your company approves a coding agent and an AI provider | It is the only part that sends work content to a third party (the AI provider) |
 | Approved AI providers | Set to your approved provider if Dispatch is on | `workshop doctor` then fails if opencode can use any other provider |
 | Start at login | Off (the default) | Nothing runs until the user starts it |
-| Data folder | Default `~/Workshop`, outside folders your company syncs | Workshop never syncs or uploads it |
+| Data folder | A folder on company-managed storage your policy allows for work notes (for example a managed OneDrive folder) | It is the backup. Workshop itself never syncs or uploads it |
 
 ## What it installs and changes
 
@@ -37,7 +37,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 ## Data
 
 - All data is plain JSON and Markdown files in the data folder. Nothing is encrypted by Workshop beyond what the disk provides; use the company's disk encryption.
-- **Receipts** holds performance notes about the user, their direct reports and their manager. Treat that folder as HR-sensitive: keep it out of shared or synced locations, and follow your company's rules on where manager notes may live. The review form sections a company uses are typed in on the device and never committed to the repo.
+- **Receipts** holds performance notes about the user, their direct reports and their manager. Treat that folder as HR-sensitive: keep it in storage only the user can read, never a shared folder, and follow your company's rules on where manager notes may live. The review form sections a company uses are typed in on the device and never committed to the repo.
 - Nothing from the user's work computer goes into the Workshop repos.
 
 ## What endpoint security may notice

@@ -49,6 +49,14 @@ export default {
         try { ctx.env('PATH'); return { threw: false }; } catch { return { threw: true }; }
       }
     },
+    explain: {
+      title: 'Say why the connector is not ready',
+      write: false,
+      setup: true,
+      async run(args, ctx) {
+        return { failStart: ctx.config.failStart === true };
+      }
+    },
     fail: {
       title: 'Fail on purpose',
       write: false,

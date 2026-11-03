@@ -52,9 +52,12 @@ Set `WORKSHOP_HOME` to keep the `~/.workshop` items somewhere else. The data fol
 
 Secrets (Azure DevOps PATs and the like) live in environment variables, never in `config.json`. A connector's config names the variable (for example `"patEnv": "ADO_PAT"`); the agent reads the value from the environment and never stores, logs or returns it.
 
+- **Saving a PAT.** `workshop pat ADO_PAT` asks for the token without showing it and, on Windows, saves it as a user environment variable (as the Windows settings dialog does), passing it to PowerShell on stdin. It never appears on a command line, in shell history (`setx ADO_PAT "<token>"` leaves it in PowerShell's history file), in `config.json` or in a log. On macOS and Linux it only explains where to put the variable.
+- **No restart for a new PAT on Windows.** When a connector asks for a variable, the agent looks it up in the user's saved variables (`reg query HKCU\Environment /v <name>`, cached for a few seconds) before its own environment. This is the agent's only use of `child_process`; it runs no other program, and `agent/test/source.test.mjs` checks that.
+
 ## Outbound hosts
 
-- The agent itself: none. It never makes an outbound request. Its source is checked for this (`agent/test/source.test.mjs`).
+- The agent itself: none. It never makes an outbound request, and the only program it runs is `reg query` on Windows to read a saved variable (above). Its source is checked for this (`agent/test/source.test.mjs`).
 - A connector you turned on: the servers in that connector's own config, and no others. The ADO connector reaches the Azure DevOps server URLs you set, over HTTPS, with your PAT.
 - The opencode connector (Dispatch), when on: it reaches only the opencode server on this computer, but opencode itself sends prompts and the contents of files its agents read to the AI provider it is set up with, and agents run git against your repos' remotes (clone, fetch, push). Set **Approved AI providers** so `workshop doctor` checks opencode can use no other provider (connectors/opencode/README.md, Approved AI providers). Agents read pull requests and work items written by other people; treat that text as untrusted input to an agent that can run commands in your workspace.
 - The browser: this site's own files only, plus the local agent on `127.0.0.1`. Fonts and libraries are served from the site (`shared/fonts/`, `shared/vendor/`), not a CDN. `tests/e2e.py` fails if any request goes anywhere else.
