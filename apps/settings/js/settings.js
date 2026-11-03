@@ -20,7 +20,14 @@ const FEATURES = {
   hostedMode: ['Hosted mode', 'Let the allowed sites below pair with Workshop on this computer. Each site asks once, in a pairing window.'],
   workMode: ['Work mode', 'Run Workshop from the pinned copy on this computer (built with workshop pin) instead of its site. No site can pair while it is on, and the code only changes when you update it.']
 };
-const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Error', disabled: 'Off' };
+const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12"/></svg>';
+const FOLDER = '<svg class="path-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2h6.6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>';
+// One line on what each connector is for. Unknown connectors show none.
+const ABOUT = {
+  ado: 'Your Azure DevOps work items and pull requests, for Docket, Queue and Home.',
+  opencode: 'Runs coding agents on this computer, for Dispatch.'
+};
+const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
 
 const ws = await connect({ app: 'settings' });
 const readOnly = ws.mode === 'hosted';
@@ -76,27 +83,37 @@ function moveSummary(m) {
 }
 
 async function folderCard(cfg) {
-  const sec = card('Data folder', 'Where apps save their data, one subfolder per app. Workshop does not sync it.');
+  const sec = card('Data folder', 'Every app saves its files here, one subfolder per app. It is yours: Workshop never syncs it.');
   sec.dataset.folder = ws.storage;
   const body = document.createElement('div');
   sec.appendChild(body);
 
   if (ws.backend === 'agent') {
-    const form = document.createElement('form');
-    form.className = 'cfg';
-    form.innerHTML = `<div class="cfg-row"><label for="dataDir">Folder</label><input id="dataDir" class="cfg-input mono" type="text" spellcheck="false" value="${esc(cfg.dataDir)}">
-      <p class="cfg-help">A full path, outside <code>${esc(cfg.home)}</code>. Takes effect after a restart. Files are not moved: copy them over yourself.</p></div>
-      <div class="acts"><span class="msg" aria-live="polite"></span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`;
-    body.appendChild(form);
-    if (readOnly) form.querySelectorAll('input').forEach(el => { el.disabled = true; });
+    // A browser cannot hand a web page the full path of a folder you pick, so the agent's folder is typed in.
+    body.innerHTML = `<div class="path"><span class="path-box">${FOLDER}<span class="mono path-text" title="${esc(cfg.dataDir)}">${esc(cfg.dataDir)}</span></span>
+        ${readOnly ? '' : '<button type="button" class="btn" data-change>Change</button>'}</div>
+      <form class="cfg path-edit" hidden>
+        <label class="sr" for="dataDir">Folder</label><input id="dataDir" class="cfg-input mono" type="text" spellcheck="false" value="${esc(cfg.dataDir)}">
+        <p class="cfg-help">A full path on this computer, outside <code>${esc(cfg.home)}</code>. Used after Workshop restarts. Files are not moved: copy them over yourself.</p>
+        <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn ghost" data-cancel>Cancel</button><button class="btn primary">Save</button></div>
+      </form>`;
+    const form = body.querySelector('form');
+    const input = form.querySelector('#dataDir');
+    if (readOnly) { input.disabled = true; form.querySelector('.acts').remove(); return; }
+    const view = body.querySelector('.path');
+    const edit = on => { form.hidden = !on; view.hidden = on; if (on) { input.focus(); input.select(); } };
+    body.querySelector('[data-change]').addEventListener('click', () => edit(true));
+    form.querySelector('[data-cancel]').addEventListener('click', () => { input.value = cfg.dataDir; form.querySelector('.msg').textContent = ''; edit(false); });
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const msg = form.querySelector('.msg');
-      const dataDir = form.querySelector('#dataDir').value.trim();
+      const dataDir = input.value.trim();
       if (!ABSOLUTE.test(dataDir)) { msg.textContent = 'Use a full path, for example /Users/you/Workshop or C:\\Users\\you\\Workshop.'; return; }
       msg.textContent = 'Saving...';
       try {
         const res = await ws.config.put({ dataDir });
+        cfg.dataDir = dataDir;
+        view.querySelector('.path-text').textContent = dataDir;
         msg.textContent = res.restartRequired ? 'Saved. Restart Workshop to use the new folder.' : 'Saved.';
         toast('Data folder saved', 'success');
       } catch (err) { msg.textContent = errText(err); }
@@ -110,8 +127,8 @@ async function folderCard(cfg) {
   const canPick = typeof window.showDirectoryPicker === 'function';
   const state = st.storage === 'folder'
     ? (st.missing ? `<p class="err">The folder <b>${esc(st.name)}</b> is missing (moved, renamed or deleted). Choose it again.</p>`
-      : st.permission === 'granted' ? `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>.</p>`
-      : `<p>Saved in the folder <b class="mono" data-folder-name>${esc(st.name)}</b>. Click Allow access so Chrome can use it again.</p>`)
+      : st.permission === 'granted' ? `<div class="path"><span class="path-box">${FOLDER}<span class="mono path-text" data-folder-name>${esc(st.name)}</span></span></div>`
+      : `<div class="path"><span class="path-box">${FOLDER}<span class="mono path-text" data-folder-name>${esc(st.name)}</span></span></div><p>Click Allow access so Chrome can use it again.</p>`)
     : `<p>Saved in this browser.${canPick ? ' Choose a folder to save as files instead. To share files with Workshop on this computer, choose <code>Workshop</code> in your home folder.' : ''}</p>`
       + (st.moved ? '<p class="cfg-help">This browser\'s data was copied to a folder before, so that folder may be newer.</p>' : '');
   body.insertAdjacentHTML('beforeend', state);
@@ -145,21 +162,29 @@ async function folderCard(cfg) {
 
 /* ---------- Workshop: features, allowed sites, port ---------- */
 async function workshopCard(cfg) {
-  const sec = card('Workshop', `Saved in <code>${esc(cfg.home)}</code>.`);
+  const sec = card('Workshop', '');
   const form = document.createElement('form');
   form.className = 'cfg';
   const feats = Object.keys(cfg.features);
-  form.innerHTML = feats.map(k => {
+  const feature = k => {
     const [label, help] = FEATURES[k] || [k, ''];
     return `<div class="cfg-row cfg-check"><input type="checkbox" id="feat-${k}" data-feature="${k}"${cfg.features[k] ? ' checked' : ''}><label for="feat-${k}">${esc(label)}</label>${help ? `<p class="cfg-help">${esc(help)}</p>` : ''}</div>`;
-  }).join('') + `
-    <fieldset><legend>Allowed sites</legend>
-      <p class="cfg-help">Sites that can pair when hosted mode is on: <code>https://</code> and a host, no path.</p>
-      <div class="cfg-list" id="origins"></div>
-      <button type="button" class="btn cfg-add" data-add-origin>Add a site</button>
-    </fieldset>
-    <div class="cfg-row"><label for="port">Port</label><input id="port" class="cfg-input mono" type="number" min="1024" max="65535" value="${cfg.port}"><p class="cfg-help">On 127.0.0.1. Takes effect after a restart.</p></div>
-    <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div>`;
+  };
+  // Start at login is the one most people change; the rest only matters for pairing, work mode or a clash on the port.
+  const basic = feats.filter(k => k === 'startAtLogin');
+  const advanced = feats.filter(k => k !== 'startAtLogin');
+  form.innerHTML = basic.map(feature).join('') + `
+    <details class="adv"${readOnly ? ' open' : ''}><summary>Advanced</summary>
+      <p class="cfg-help adv-note">Kept in <code>${esc(cfg.home)}</code>. Most people never change these.</p>
+      ${advanced.map(feature).join('')}
+      <fieldset><legend>Allowed sites</legend>
+        <p class="cfg-help">Sites that can pair when hosted mode is on: <code>https://</code> and a host, no path.</p>
+        <div class="cfg-list" id="origins"></div>
+        <button type="button" class="btn cfg-add" data-add-origin>Add a site</button>
+      </fieldset>
+      <div class="cfg-row"><label for="port">Port</label><input id="port" class="cfg-input mono" type="number" min="1024" max="65535" value="${cfg.port}"><p class="cfg-help">On 127.0.0.1. Used after Workshop restarts.</p></div>
+    </details>
+    <div class="acts"><span class="msg" aria-live="polite"></span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`;
   sec.appendChild(form);
   const list = form.querySelector('#origins');
   const addOrigin = v => {
@@ -192,7 +217,7 @@ async function workshopCard(cfg) {
 
 /* ---------- connectors ---------- */
 async function connectorsCard(cfg) {
-  const sec = card('Connectors', 'Each is off until you turn it on. PATs and other secrets go in environment variables on this computer; here you only name the variable. Save one with: workshop pat ADO_PAT');
+  const sec = card('Connectors', 'Turn on the ones you use. PATs never go in here: save one with <code>workshop pat</code> and name its variable in Set up.');
   let list;
   try { list = await ws.connectors.list(); } catch (e) { sec.insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
   if (!list.length) { sec.insertAdjacentHTML('beforeend', '<p class="sub">No connectors are installed.</p>'); return; }
@@ -203,18 +228,19 @@ function connectorBlock(info, cfg) {
   const box = document.createElement('div');
   box.className = 'conn';
   box.dataset.connector = info.id;
+  const about = ABOUT[info.id];
   box.innerHTML = `<div class="conn-head">
-      <div><h3>${esc(info.name)}</h3><span class="ver">${esc(info.id)} ${esc(info.version)}</span></div>
-      <span class="state" data-state></span>
-      <label class="switch"><input type="checkbox" data-enable${info.enabled ? ' checked' : ''}${readOnly ? ' disabled' : ''}><span>On</span></label>
+      <div><h3 title="${esc(info.id)} ${esc(info.version)}">${esc(info.name)}</h3>${about ? `<p class="conn-about">${esc(about)}</p>` : ''}</div>
+      <input type="checkbox" class="toggle" role="switch" aria-label="${esc(info.name)} on" data-enable${info.enabled ? ' checked' : ''}${readOnly ? ' disabled' : ''}>
     </div>
-    <p class="state-msg" data-state-msg></p>
+    <p class="conn-status"><span class="state" data-state></span><span class="state-msg" data-state-msg></span></p>
     <div class="conn-tools">
       <button type="button" class="btn" data-recheck hidden>Check again</button>
-      ${!readOnly && canImport(info) ? `<label class="btn">Import settings from a file<input type="file" accept=".json,application/json" data-import-file hidden></label>` : ''}
       <span class="msg" aria-live="polite" data-tools-msg></span>
     </div>
-    <details data-details><summary>Settings</summary><div data-form><p class="sub">Loading...</p></div></details>
+    <details data-details><summary>Set up</summary>
+      ${!readOnly && canImport(info) ? `<div class="acts left import-row"><label class="btn">Import settings from a file<input type="file" accept=".json,application/json" data-import-file hidden></label></div>` : ''}
+      <div data-form><p class="sub">Loading...</p></div></details>
     ${info.test ? `<form class="test" data-test><label for="test-${info.id}">${esc(info.test.label)}</label><input id="test-${info.id}" class="cfg-input mono" required><button class="btn">Test</button><div class="test-out" aria-live="polite"></div></form>` : ''}`;
 
   const showStatus = st => {
@@ -399,12 +425,17 @@ async function workCard() {
   sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString())}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
 }
 
+// One button to Workshop's own site. Docket and Dispatch open inside Workshop, so their sites are not listed
+// here; they stay under Allowed sites (Advanced) for anyone who opens them on their own.
 function sitesCard(cfg) {
   const sites = cfg.allowedOrigins || [];
-  if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so Workshop\'s site cannot pair. Turn it on under Workshop below.'); return; }
-  if (!sites.length) { card('Open Workshop', 'No sites are allowed yet. Add Workshop\'s site under Allowed sites below.'); return; }
-  const sec = card('Open Workshop', 'This browser is signed in. Open the site and click <b>Connect</b> to pair it.');
-  sec.insertAdjacentHTML('beforeend', `<ul class="sites">${sites.map(o => `<li><a class="lnk" href="${esc(o)}/" target="_blank" rel="noopener">${esc(o.replace(/^https?:\/\//, ''))}</a></li>`).join('')}</ul>`);
+  if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so Workshop\'s site cannot connect. Turn it on under Advanced below.'); return; }
+  if (!sites.length) { card('Open Workshop', 'No sites are allowed yet. Add Workshop\'s site under Advanced below.'); return; }
+  const site = sites.find(o => /\/\/workshop\./.test(o)) || sites[0];
+  const sec = card('Open Workshop', 'This browser is signed in. Open Workshop and click <b>Connect</b> to pair it with this computer.');
+  sec.classList.add('open-card');
+  sec.insertAdjacentHTML('beforeend', `<div class="acts left"><a class="btn primary" data-open-site href="${esc(site)}/" target="_blank" rel="noopener">Open Workshop ${ARROW}</a>
+    <span class="msg mono">${esc(site.replace(/^https?:\/\//, ''))}</span></div>`);
 }
 
 /* ---------- start ---------- */

@@ -35,6 +35,9 @@ function control(schema, value, env, o) {
   return leafField(schema, value, env, o);
 }
 
+// A field has a working default when it, or every field inside it, has one.
+// Environment variable names (where a PAT lives) always stay in view.
+const hasDefault = x => !x['x-workshop-env'] && ('default' in x) || (x.type === 'object' && Object.keys(x.properties || {}).length > 0 && Object.values(x.properties).every(hasDefault));
 const titleOf = (schema, fallback) => schema.title || fallback || '';
 function help(text) { const p = document.createElement('p'); p.className = 'cfg-help'; p.textContent = text; return p; }
 
@@ -49,12 +52,19 @@ function objectField(schema, value, env, o) {
   const props = schema.properties || {};
   const required = new Set(schema.required || []);
   const readers = {};
-  for (const key of Object.keys(props)) {
+  // At the top level, optional fields that come with a working default fold under "More options", so the
+  // form opens on what has to be filled in (for ADO: connections and mapping). Only when something stays out.
+  const keys = Object.keys(props);
+  const fold = top ? keys.filter(k => !required.has(k) && hasDefault(props[k])) : [];
+  const more = fold.length && fold.length < keys.length ? document.createElement('details') : null;
+  if (more) { more.className = 'cfg-more'; more.innerHTML = '<summary>More options</summary>'; }
+  for (const key of keys) {
     const sub = props[key];
     const node = control(sub, value[key], env, childOpts);
     readers[key] = node.readValue;
-    wrap.appendChild(row(sub, node, key, required.has(key)));
+    ((more && fold.includes(key)) ? more : wrap).appendChild(row(sub, node, key, required.has(key)));
   }
+  if (more) wrap.appendChild(more);
   // Keys come out in schema order. An empty optional text field is left out rather than sent as "", so it
   // does not fail its pattern and the connector's default applies.
   wrap.readValue = () => {
