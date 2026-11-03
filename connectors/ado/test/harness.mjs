@@ -105,7 +105,11 @@ export function comparable(result, url) {
     delete r.ok.syncedAt;
     delete r.ok.generatedAt;
     delete r.ok.connection;
-    if (r.ok.prs) r.ok.prs.gone.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    if (r.ok.prs) {
+      r.ok.prs.gone.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      // Added by the connector, not in the helper: each PR's source commit (Dispatch's Review all).
+      for (const p of [...r.ok.prs.items, ...r.ok.prs.gone]) delete p.commit;
+    }
   }
   return r;
 }

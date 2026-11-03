@@ -124,6 +124,7 @@ test('sync, sync.prs and dataset run through the agent', async () => {
     assert.ok(s.prs.items.length > 0);
     const p = expectJson(await call(agent, 'sync.prs', {}), 200).result;
     assert.deepEqual(p.items.map(i => i.id), s.prs.items.map(i => i.id));
+    for (const i of p.items) assert.equal(i.commit, String(i.id).padStart(40, 'c'), 'each PR carries its source commit');
     const d = expectJson(await call(agent, 'dataset', { connection: 'main', areas: ['Web App\\Team A'] }), 200).result;
     assert.equal(d.connection, 'main');
     assert.equal(d.items.length, 4);
