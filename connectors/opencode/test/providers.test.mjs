@@ -23,7 +23,7 @@ function setup({ global, project, auth } = {}) {
   if (auth !== undefined) fs.writeFileSync(path.join(dataDir, 'auth.json'), JSON.stringify(auth));
   return { home, workspace };
 }
-const run = (s, approved = ['softheon'], env = {}) => checkProviders({ approved, workspace: s.workspace, env, platform: 'linux', home: s.home });
+const run = (s, approved = ['acme'], env = {}) => checkProviders({ approved, workspace: s.workspace, env, platform: 'linux', home: s.home });
 
 test('stripJsonc removes comments and trailing commas but not text inside strings', () => {
   const text = '{\n // a comment\n "url": "http://x//y", /* block */ "a": [1, 2,],\n "s": "say \\"hi\\" // not a comment",\n}';
@@ -36,7 +36,7 @@ test('no approved list: skipped, never a failure', () => {
 });
 
 test('enabled_providers limited to approved ones, with approved models: ok', () => {
-  const s = setup({ global: '{ // jsonc\n "enabled_providers": ["softheon"], "model": "softheon/big", "small_model": "softheon/small", }', auth: { softheon: { type: 'api' } } });
+  const s = setup({ global: '{ // jsonc\n "enabled_providers": ["acme"], "model": "acme/big", "small_model": "acme/small", }', auth: { acme: { type: 'api' } } });
   try {
     const r = run(s);
     assert.equal(r.state, 'ok', r.lines.join('\n'));
@@ -45,16 +45,16 @@ test('enabled_providers limited to approved ones, with approved models: ok', () 
 });
 
 test('without enabled_providers opencode can use anything, so it fails and says what to add', () => {
-  const s = setup({ global: { model: 'softheon/big' } });
+  const s = setup({ global: { model: 'acme/big' } });
   try {
     const r = run(s);
     assert.equal(r.state, 'bad');
-    assert.match(r.lines.join('\n'), /enabled_providers is not set.*"enabled_providers": \["softheon"\]/);
+    assert.match(r.lines.join('\n'), /enabled_providers is not set.*"enabled_providers": \["acme"\]/);
   } finally { rm(s.home); }
 });
 
 test('an unapproved provider in enabled_providers, a model or an agent fails', () => {
-  const s = setup({ global: { enabled_providers: ['softheon', 'anthropic'], model: 'anthropic/claude', agent: { build: { model: 'openai/gpt' } } } });
+  const s = setup({ global: { enabled_providers: ['acme', 'anthropic'], model: 'anthropic/claude', agent: { build: { model: 'openai/gpt' } } } });
   try {
     const r = run(s);
     const text = r.lines.join('\n');
@@ -66,7 +66,7 @@ test('an unapproved provider in enabled_providers, a model or an agent fails', (
 });
 
 test('the workspace config overrides the global one, as opencode merges them', () => {
-  const s = setup({ global: { enabled_providers: ['softheon'] }, project: { enabled_providers: ['openai'] } });
+  const s = setup({ global: { enabled_providers: ['acme'] }, project: { enabled_providers: ['openai'] } });
   try {
     const r = run(s);
     assert.equal(r.state, 'bad');
@@ -75,7 +75,7 @@ test('the workspace config overrides the global one, as opencode merges them', (
 });
 
 test('stray logins are a note when enabled_providers blocks them, a failure when it does not', () => {
-  const blocked = setup({ global: { enabled_providers: ['softheon'] }, auth: { softheon: {}, anthropic: {} } });
+  const blocked = setup({ global: { enabled_providers: ['acme'] }, auth: { acme: {}, anthropic: {} } });
   const open = setup({ global: {}, auth: { anthropic: {} } });
   try {
     const a = run(blocked);
@@ -89,7 +89,7 @@ test('OPENCODE_CONFIG_CONTENT wins over files, and an unreadable config fails', 
   const s = setup({ global: { enabled_providers: ['openai'] } });
   const bad = setup({ global: '{ not json' });
   try {
-    assert.equal(run(s, ['softheon'], { OPENCODE_CONFIG_CONTENT: '{"enabled_providers":["softheon"]}' }).state, 'ok');
+    assert.equal(run(s, ['acme'], { OPENCODE_CONFIG_CONTENT: '{"enabled_providers":["acme"]}' }).state, 'ok');
     const r = run(bad);
     assert.equal(r.state, 'bad');
     assert.match(r.lines.join('\n'), /Could not read/);
@@ -97,7 +97,7 @@ test('OPENCODE_CONFIG_CONTENT wins over files, and an unreadable config fails', 
 });
 
 test('prints provider ids only, never keys or URLs from the files', () => {
-  const s = setup({ global: { enabled_providers: ['softheon'], provider: { softheon: { options: { apiKey: 'sk-secret-123', baseURL: 'https://ai.internal.example' } } } }, auth: { softheon: { key: 'sk-secret-456' } } });
+  const s = setup({ global: { enabled_providers: ['acme'], provider: { acme: { options: { apiKey: 'sk-secret-123', baseURL: 'https://ai.internal.example' } } } }, auth: { acme: { key: 'sk-secret-456' } } });
   try {
     const text = run(s).lines.join('\n');
     assert.ok(!text.includes('sk-secret') && !text.includes('ai.internal.example'), text);
