@@ -1,0 +1,2 @@
+define("vs/tsMode-DB1GiNun",["exports"],function(e){"use strict";// Stub written by scripts/vendor-monaco.mjs: language services are not included.
+var none=function(){return{dispose:function(){}}};var nope=function(){return Promise.reject(new Error("Language services are not included in this copy of Monaco."))};e.setupTypeScript=none;e.setupJavaScript=none;e.setupMode=none;e.setupMode1=none;e.getWorker=nope;e.getTypeScriptWorker=nope;e.getJavaScriptWorker=nope;Object.defineProperty(e,Symbol.toStringTag,{value:"Module"})});

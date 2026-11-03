@@ -1,12 +1,17 @@
 // opencode connector: live opencode state shared by both server APIs (sessions, prompts, replies) and HTTP helpers.
 //
 // Copied from eng-agents core/scripts/dashboard/server/opencode-state.mjs. Changes: resetState() for a
-// restart, `agent.done` events, timers and requests that stop with the connector.
+// restart, `agent.done` events, timers and requests that stop with the connector, and sessionEvents
+// for the code review revision runner (review.mjs).
 
 import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { cancel, ctx, isWin, later, log, opt } from "./context.mjs";
 import { autoOnBusy, autoOnIdle } from "./autopilot.mjs";
 import { broadcastLive, emitDone } from "./live.mjs";
+
+// "busy" (sessionId) and "idle" (sessionId, error) when a session's turn starts or ends.
+export const sessionEvents = new EventEmitter();
 
 export const oc = {
   api: null, // the adapter in use
@@ -66,6 +71,7 @@ export function setBusy(sid) {
   const starting = !prev || prev.status === "idle";
   upsertSession(sid, { status: "busy", ...(starting ? { error: null, busySince: Date.now() } : {}) });
   autoOnBusy(sid);
+  sessionEvents.emit("busy", sid);
 }
 
 const doneFor = new Map(); // session id -> busySince of the turn agent.done was sent for
@@ -79,6 +85,7 @@ export function setIdle(sid, error) {
     emitDone(sid, s.error || null);
   }
   autoOnIdle(sid);
+  sessionEvents.emit("idle", sid, s.error || null);
 }
 
 const turnText = new Map(); // text block key -> text so far

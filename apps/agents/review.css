@@ -1,0 +1,154 @@
+/* Code review screen (review.html). Flat surfaces on hairlines, like the rest of Workshop
+   (shared/themes.css has the colors, shared/ui.css the buttons). Three panes: files, diff, review. */
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); display: flex; flex-direction: column; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.muted { color: var(--muted); }
+
+.rv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rv-loading, .rv-fatal { margin: 12vh auto; max-width: 34rem; padding: 0 20px; color: var(--muted); }
+.rv-fatal { display: grid; gap: 12px; justify-items: start; color: var(--ink); }
+.rv-fatal p { margin: 0; }
+
+/* top bar */
+.rv-top { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--bg); flex-wrap: wrap; }
+.rv-back { flex: none; text-decoration: none; }
+.rv-heading { flex: 1; min-width: 14rem; }
+.rv-title { margin: 2px 0 0; font: 600 20px/1.25 var(--serif); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-meta { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.rv-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line); margin: 0 4px; }
+.rv-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rv-chip { font-size: 12px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); background: var(--surface); }
+.rv-repo select { font: 500 12px var(--mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); }
+.rv-segs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.rv-seg { padding: 6px 10px; font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid transparent; border-radius: var(--r-sm); }
+.rv-segs .rv-seg { border: 0; border-radius: 0; }
+.rv-segs .rv-seg + .rv-seg { border-left: 1px solid var(--line); }
+.rv-seg:hover { color: var(--ink); background: var(--hover); }
+.rv-seg.on { color: var(--ink); background: var(--accent-soft); }
+.rv-tools > .rv-seg { border-color: var(--line); }
+.ibtn[aria-pressed=true] { color: var(--ink); background: var(--accent-soft); }
+
+/* banner */
+.rv-banner { padding: 9px 20px; font-size: 13px; border-bottom: 1px solid var(--line); background: var(--sunk); color: var(--ink); }
+.rv-banner.ok { background: var(--accent-soft); }
+.rv-banner.warn { background: var(--warn-soft); }
+.rv-banner.bad { background: var(--danger-soft); color: var(--danger); }
+
+/* body grid */
+.rv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(260px, 340px); }
+.rv.no-panel .rv-body { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
+.rv-files, .rv-panel { min-height: 0; overflow: auto; background: var(--bg); }
+.rv-files { border-right: 1px solid var(--line); padding: 14px 10px 20px; }
+.rv-files > .section-label { padding: 0 8px 8px; }
+.rv-panel { border-left: 1px solid var(--line); }
+.rv-empty { margin: 4px 8px; font-size: 13px; color: var(--muted); }
+
+/* files tree */
+.rv-tree { list-style: none; margin: 0; padding: 0; }
+.rv-dir { display: flex; align-items: center; gap: 6px; padding: 5px 8px 3px calc(8px + var(--d) * 14px); font: 500 12px var(--mono); color: var(--muted); }
+.rv-dir svg { width: 13px; height: 13px; flex: none; }
+.rv-file { width: 100%; display: flex; align-items: center; gap: 7px; padding: 5px 8px 5px calc(8px + var(--d) * 14px); border-radius: var(--r-sm); text-align: left; font-size: 13px; }
+.rv-file:hover { background: var(--hover); }
+.rv-file.on { background: var(--accent-soft); }
+.rv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-badge { flex: none; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 4px; font: 600 10.5px var(--mono); border: 1px solid currentColor; }
+.rv-badge.s-added { color: #2F7A4E; }
+.rv-badge.s-modified { color: var(--warn); }
+.rv-badge.s-deleted { color: var(--danger); }
+.rv-badge.s-renamed { color: var(--accent); }
+:root[data-theme=dark] .rv-badge.s-added { color: #8FCFA6; }
+.rv-delta { flex: none; font-size: 11px; color: var(--muted); }
+.rv-delta .add { color: #2F7A4E; }
+.rv-delta .del { color: var(--danger); }
+:root[data-theme=dark] .rv-delta .add { color: #8FCFA6; }
+.rv-ccount { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font: 600 11px var(--mono); color: var(--on-accent); background: var(--accent); }
+
+/* diff */
+.rv-diffwrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
+.rv-filebar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.rv-from { color: var(--muted); }
+.rv-diff { flex: 1; min-height: 0; }
+.rv-place { flex: 1; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+
+/* Monaco decorations: the selection, draft comment lines, and the gutter markers */
+.rv-sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.rv-selbar { background: var(--accent); width: 3px !important; margin-left: 2px; }
+.rv-cline { background: color-mix(in srgb, var(--eyebrow) 9%, transparent); }
+.rv-cbar { background: var(--eyebrow); width: 3px !important; margin-left: 2px; }
+.rv-plus, .rv-cglyph { cursor: pointer; display: grid; place-items: center; }
+.rv-plus::before { content: "+"; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; font: 700 13px/1 var(--sans); color: var(--on-accent); background: var(--accent); }
+.rv-cglyph::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--eyebrow); }
+
+/* comment view zones. Monaco stacks its text layer (.view-lines) above .view-zones, which would swallow
+   clicks on the comment box; zones only cover their own space, so raising them leaves the code clickable. */
+.rv-diff .monaco-editor .view-zones { z-index: 1; }
+.rv-zone { padding: 4px 16px 4px 4px; box-sizing: border-box; font: 13.5px/1.5 var(--sans); color: var(--ink); white-space: normal; }
+.rv-zone-in { max-width: 760px; } /* review.js sets its width to the visible code area */
+.rv-card, .rv-form { border: 1px solid var(--line); border-left: 3px solid var(--eyebrow); border-radius: var(--r-sm); background: var(--bg); }
+.rv-chead { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; text-align: left; min-width: 0; }
+.rv-chead:hover { background: var(--hover); }
+.rv-cfirst { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.rv-card.open .rv-chead { border-bottom: 1px solid var(--line); }
+.rv-cbody { padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rv-suggest { margin: 0 10px 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--sunk); font-size: 12.5px; white-space: pre; overflow: auto; }
+.rv-cactions { display: flex; gap: 6px; padding: 0 10px 8px; }
+.rv-form { padding: 10px; display: grid; gap: 8px; border-left-color: var(--accent); }
+.rv-fhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rv-range { font-size: 11.5px; color: var(--muted); }
+.rv-tchips { display: flex; gap: 4px; }
+.rv-tchip { padding: 3px 9px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); }
+.rv-tchip:hover { color: var(--ink); }
+.rv-tchip.on { color: var(--ink); border-color: currentColor; }
+.rv-tchip.on.t-must_fix { color: var(--danger); background: var(--danger-soft); }
+.rv-tchip.on.t-suggestion { color: var(--accent); background: var(--accent-soft); }
+.rv-tchip.on.t-question { color: var(--warn); background: var(--warn-soft); }
+.rv-text { width: 100%; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); font-size: 13.5px; line-height: 1.5; }
+.rv-text:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.rv-text.invalid { border-color: var(--danger); }
+.rv-code { font-size: 12.5px; white-space: pre; }
+.rv-stoggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); justify-self: start; cursor: pointer; }
+.rv-factions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.rv-hint { margin-right: auto; font-size: 11.5px; color: var(--muted); }
+
+/* comment type labels (cards, panel) */
+.rv-type { flex: none; font: 600 10.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
+.rv-type.t-must_fix { color: var(--danger); background: var(--danger-soft); }
+.rv-type.t-suggestion { color: var(--accent); background: var(--accent-soft); }
+.rv-type.t-question { color: var(--warn); background: var(--warn-soft); }
+
+/* review panel */
+.rv-panel-in { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 16px 16px 28px; }
+.rv-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.rv-panel-in li { min-width: 0; }
+.rv-groups, .rv-groups ul, .rv-prev { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rv-group { display: grid; gap: 4px; }
+.rv-gpath { margin: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-entry { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); text-align: left; font-size: 13px; min-width: 0; }
+.rv-entry:hover { background: var(--hover); }
+.rv-entry .rv-range { flex: none; }
+.rv-resolved { display: grid; gap: 4px; opacity: .72; }
+.rv-resolved:hover { opacity: 1; }
+.rv-resolved .rv-entry { background: transparent; }
+.rv-answer { margin: 0 0 4px 8px; font-size: 12.5px; }
+.rv-astatus { font: 600 10.5px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.rv-astatus.a-fixed { color: #2F7A4E; }
+:root[data-theme=dark] .rv-astatus.a-fixed { color: #8FCFA6; }
+.rv-astatus.a-declined { color: var(--danger); }
+.rv-astatus.a-answered { color: var(--accent); }
+.rv-prevsum { margin: 0; font-size: 12.5px; }
+.rv-verdict { display: flex; gap: 8px; flex-wrap: wrap; }
+.rv-verdict .btn { flex: 1; justify-content: center; }
+.rv-confirm { display: grid; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--warn-soft); font-size: 13px; }
+.rv-confirm p { margin: 0; }
+.rv-warnline { margin: 0; font-size: 12.5px; color: var(--warn); }
+
+/* Narrow screens: the page scrolls, with files, then the diff, then the panel. */
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  .rv-body, .rv.no-panel .rv-body { display: block; }
+  .rv-files { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .rv-diffwrap { height: 75vh; }
+  .rv-panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .rv-top { padding: 12px 16px; }
+}

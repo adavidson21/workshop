@@ -114,16 +114,26 @@ test('1.2.0 the remove dialog lists work still in the repos and the commands to 
   assert.equal(removeKey(item('spike-cache-options')), 'spike-cache-options', 'spikes confirm with the folder name');
 });
 
-test('1.2.0 PR cards: copy buttons, Create PR in ADO, and the push command when a branch is not pushed', () => {
+test('1.2.0 PR cards: copy buttons, Create PR in ADO, and Review (not Push) when a branch is not pushed', () => {
   const it = item('41610-rate-limit-headers');
   const card = itemCard(it, false);
   assert.match(card, /<span class="flag warn">Not pushed yet<\/span>/);
-  assert.match(card, /Push first:<\/span><code>git -C gateway push -u origin dev\/bug\/41610-rate-limit-headers<\/code><button type="button" class="btn primary" data-push="41610-rate-limit-headers" data-repo="gateway"/);
+  assert.match(card, /Review before you push:<\/span><a class="btn primary" href="review.html\?id=41610&amp;repo=gateway" data-review/);
+  assert.doesNotMatch(card, /data-push|git -C gateway push/, 'connected, nothing pushes before Approve');
   const titleIdx = S.copyStore.indexOf(it.pr[0].title);
   assert.ok(titleIdx >= 0 && new RegExp(`data-copy="${titleIdx}"[^>]*>Copy title<`).test(card), 'Copy title');
   assert.match(card, />Copy description</);
   it.pr[0].links = { pr: 'https://ado.example.com/coll/proj/_git/gateway/pullrequestcreate?sourceRef=x' };
   assert.match(itemCard(it, false), /<a class="btn" href="https:\/\/ado\.example\.com\/coll\/proj\/_git\/gateway\/pullrequestcreate\?sourceRef=x" target="_blank" rel="noopener"[^>]*>Create PR in ADO<\/a>/);
+  S.D.reviews = { [it.folder]: { gateway: { status: 'revising', revision: 1, started: true, run: { status: 'running' } } } };
+  assert.match(itemCard(it, false), /The agent is revising<\/span><a class="btn" href="review.html\?id=41610&amp;repo=gateway" data-review>Open review/);
+  S.D.reviews[it.folder].gateway = { status: 'revising', revision: 2, started: true, run: { status: 'failed' } };
+  assert.match(itemCard(it, false), /flag bad">The revision needs you/);
+  S.D.reviews[it.folder].gateway = { status: 'awaiting_review', revision: 2, started: true, run: null };
+  assert.match(itemCard(it, false), /Review before you push \(revision 2\):/);
+  S.D.reviews[it.folder].gateway = { status: 'approved', revision: 2, started: true, run: null };
+  assert.match(itemCard(it, false), /Approved \(revision 2\)\. Push from the review\./);
+  delete S.D.reviews;
   S.conn = 'off';
   assert.match(itemCard(it, false), /Push first:.*?>Copy</s, 'without a connection, the command can still be copied');
 });

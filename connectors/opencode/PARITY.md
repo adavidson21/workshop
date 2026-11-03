@@ -34,7 +34,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
-| P-push | Push on PR cards: `git -C <repo> push -u origin <branch>` for the `pr.md` branch; the click is the approval; protections above; git errors shown. | `push` (`write: true`, so the agent needs `confirm: true`) | `connector.test.mjs`; `agent.test.mjs` checks every write action, `push` included, is marked `write: true` |
+| P-push | Push on PR cards: `git -C <repo> push -u origin <branch>` for the `pr.md` branch; the click is the approval; protections above; git errors shown. Since the code review, Dispatch sends `push` only from Approve and Push PR in `review.html` (the PR card shows Review instead). | `push` (`write: true`, so the agent needs `confirm: true`) | `connector.test.mjs`; `agent.test.mjs` checks every write action, `push` included, is marked `write: true` |
 
 ## Dashboard 1.4.0
 

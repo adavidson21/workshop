@@ -419,6 +419,24 @@ function filesHtml(it) {
 }
 
 // ------------------------------------------------------------- PR text (ready to ship)
+// The code review for one repo of an item: where it stands and a link to review.html (state.reviews,
+// from the opencode connector).
+export function reviewHref(it, repo) {
+  return `review.html?id=${encodeURIComponent(it.id || it.folder)}&repo=${encodeURIComponent(repo)}`;
+}
+function reviewRow(it, p) {
+  const rv = ((S.D && S.D.reviews) || {})[it.folder];
+  const r = rv && rv[p.repo];
+  const href = h(reviewHref(it, p.repo));
+  const rev = r && r.revision > 1 ? ` (revision ${r.revision})` : '';
+  if (r && r.status === 'approved') return `<div class="pr-push"><span class="dim">Approved${rev}. Push from the review.</span><a class="btn primary" href="${href}" data-review>Open review</a></div>`;
+  if (r && r.status === 'revising') {
+    const failed = r.run && r.run.status === 'failed';
+    return `<div class="pr-push"><span class="${failed ? 'flag bad' : 'dim'}">${failed ? 'The revision needs you' : `The agent is revising${rev}`}</span><a class="btn" href="${href}" data-review>Open review</a></div>`;
+  }
+  return `<div class="pr-push"><span class="dim">Review before you push${r && r.started ? rev : ''}:</span><a class="btn primary" href="${href}" data-review title="Read the diff, comment on lines, then approve and push, or send the comments to the agent">Review</a></div>`;
+}
+
 function prHtml(it) {
   if (!it.pr || !it.pr.length) return '';
   const cards = it.pr.map(p => {
@@ -430,9 +448,11 @@ function prHtml(it) {
     const head = `<div class="pr-head"><span class="rn">${h(p.repo)}</span>` +
       `<span class="branch">${h(p.branch || 'no branch')} → ${h(p.target || 'main')}</span>${flagsHtml([flag])}` +
       '<span class="row">' + (prLink ? `<a class="btn${pushed ? ' primary' : ''}" href="${h(prLink)}" target="_blank" rel="noopener" title="Opens the new pull request page with the branches filled in">Create PR${where ? ' in ' + where : ''}</a>` : '<span class="dim" style="font-size:13px">No PR link: the repo has no origin remote</span>') + '</span></div>';
-    const pk = 'p:' + it.folder + ':' + p.repo;
-    const pushBtn = S.conn === 'on' ? `<button type="button" class="btn primary" data-push="${h(it.folder)}" data-repo="${h(p.repo)}" title="Runs this command now. Your click is the approval."${S.ui.busy[pk] ? ' disabled' : ''}>${S.ui.busy[pk] ? 'Pushing...' : 'Push'}</button>` : '';
-    const push = !pushed && p.pushCmd && ps && ps.local ? `<div class="pr-push"><span class="dim">Push first:</span><code>${h(p.pushCmd)}</code>${pushBtn || copyBtn(p.pushCmd)}</div>` : '';
+    // Connected, the branch is pushed only from the code review, after Approve (review.html). Without a
+    // connection, the command can still be copied and run by hand.
+    const push = !pushed && p.pushCmd && ps && ps.local
+      ? (S.conn === 'on' ? reviewRow(it, p) : `<div class="pr-push"><span class="dim">Push first:</span><code>${h(p.pushCmd)}</code>${copyBtn(p.pushCmd)}</div>`)
+      : '';
     const title = p.title ? `<div class="pr-field"><div class="fh"><p class="sub-h">Title</p>${copyBtn(p.title, 'Copy title')}</div><div class="pr-title">${h(p.title)}</div></div>`
       : '<p class="dim" style="margin:0">No title in pr.md for this repo.</p>';
     const desc = p.description ? `<div class="pr-field"><div class="fh"><p class="sub-h">Description</p>${copyBtn(p.description, 'Copy description')}</div><pre class="pr-desc">${h(p.description)}</pre></div>` : '';

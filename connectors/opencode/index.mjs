@@ -18,6 +18,7 @@ import { loadProviders } from "./lib/opencode-connect.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
+import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 
 export const configSchema = {
   type: "object",
@@ -114,6 +115,7 @@ function resetAll() {
   resetState();
   resetActions();
   resetProjects();
+  resetReview();
 }
 
 async function init() {
@@ -153,6 +155,31 @@ function readWorkFile({ folder, file }) {
 const str = (title, extra = {}) => ({ type: "string", title, maxLength: 4000, ...extra });
 const obj = (required, properties) => ({ type: "object", additionalProperties: false, ...(required.length ? { required } : {}), properties });
 const folder = str("Item folder", { minLength: 1, maxLength: 200 });
+const workItemId = str("Work item id (a number, or L and a number for local work)", { pattern: "^([0-9]{1,10}|L[0-9]{1,10})$" });
+const reviewRepo = str("Repo folder (from pr.md)", { minLength: 1, maxLength: 255 });
+const sha = str("Commit sha", { pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" });
+const line = { type: "integer", minimum: 1 };
+const reviewComment = obj(["id", "path", "side", "startLine", "endLine", "quotedCode", "type", "body"], {
+  id: str("Comment id", { minLength: 1, maxLength: 128 }),
+  path: str("File path", { minLength: 1 }),
+  side: { type: "string", title: "Side", enum: ["old", "new"] },
+  startLine: line,
+  endLine: line,
+  quotedCode: str("Quoted code", { maxLength: 100000 }),
+  type: { type: "string", title: "Type", enum: ["must_fix", "suggestion", "question"] },
+  body: str("Comment", { maxLength: 100000 }),
+  suggestedCode: str("Proposed replacement", { maxLength: 100000 }),
+});
+const reviewFeedback = obj(["workItemId", "repo", "revision", "headSha", "verdict", "comments"], {
+  workItemId,
+  repo: reviewRepo,
+  revision: line,
+  headSha: sha,
+  verdict: { type: "string", title: "Verdict", enum: ["approve", "request_changes"] },
+  summary: str("Summary", { maxLength: 100000 }),
+  comments: { type: "array", title: "Comments", maxItems: 500, items: reviewComment },
+  submittedAt: str("Set by the server", { maxLength: 64 }),
+});
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
 const projectId = str("Project id (Inbox when left out)", { minLength: 1, maxLength: 80 });
 const projectFields = {
@@ -380,6 +407,38 @@ const actions = {
       return r;
     },
   },
+  "review.session": {
+    title: "Code review: the diff to review for one repo of a work item",
+    write: false,
+    argsSchema: obj(["id", "repo"], { id: workItemId, repo: reviewRepo }),
+    async run(args) {
+      needReady();
+      return needReview().getSession(args.id, args.repo);
+    },
+  },
+  "review.file": {
+    title: "Code review: one file's text at the base, head, or last reviewed commit",
+    write: false,
+    argsSchema: obj(["id", "repo", "path", "side"], {
+      id: workItemId,
+      repo: reviewRepo,
+      path: str("File path", { minLength: 1 }),
+      side: { type: "string", title: "Side", enum: ["old", "new", "prev"] },
+    }),
+    async run(args) {
+      needReady();
+      return needReview().getFile(args.id, args.repo, args.path, args.side);
+    },
+  },
+  "review.submit": {
+    title: "Code review: approve, or request changes from the agent",
+    write: true,
+    argsSchema: obj(["id", "repo", "feedback"], { id: workItemId, repo: reviewRepo, feedback: reviewFeedback }),
+    async run(args) {
+      needReady();
+      return needReview().submit(args.id, args.repo, args.feedback);
+    },
+  },
   terminal: {
     title: "Open the opencode TUI in a terminal",
     write: false,
@@ -411,6 +470,7 @@ export default {
     loadLinks();
     loadAuto();
     loadProjects();
+    loadReview();
     phase = "starting";
     problem = null;
     init().catch((e) => {
