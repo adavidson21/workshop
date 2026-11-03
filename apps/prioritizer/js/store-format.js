@@ -7,7 +7,8 @@
      lists     prioritizer.lists v1     items: {id, name, parentId}
      tasks     prioritizer.tasks v3     items: tasks as the board keeps them; meta: {capacity}
      people    prioritizer.people v1    items: {id: lower-case name, name}
-     settings  prioritizer.settings v1  no items; meta: {ado}, Prioritizer's own ADO behavior
+     settings  prioritizer.settings v1  no items; meta: {ado, onboarded}, Prioritizer's own ADO behavior, and the
+                                        date the first-run tour was shown (absent until then)
 
    Which view, lens and scope a window shows is per window (saved with the other UI state), not data.
    tasks is v3 because v1 and v2 were the localStorage board shapes this replaces. */
@@ -41,7 +42,10 @@ function envelopeFromBoard(col, board, shadow, held = []){
     env.items = board.people.filter(n => { const k = personId(n); if (seen.has(k)) return false; seen.add(k); return true; })
       .map(n => item({id: personId(n), name: n}));
   }
-  if (col === 'settings') env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
+  if (col === 'settings'){
+    env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
+    if (board.onboarded) env.meta.onboarded = board.onboarded;
+  }
   return env;
 }
 
@@ -58,7 +62,10 @@ function applyEnvelope(col, env, board){
     return items.filter(t => !lists.has(t.listId));
   }
   if (col === 'people') board.people = items.map(p => p.name).filter(n => typeof n === 'string');
-  if (col === 'settings') board.ado = clone(env && env.meta && env.meta.ado) || {};
+  if (col === 'settings'){
+    board.ado = clone(env && env.meta && env.meta.ado) || {};
+    board.onboarded = env && env.meta && typeof env.meta.onboarded === 'string' ? env.meta.onboarded : null;
+  }
   return [];
 }
 

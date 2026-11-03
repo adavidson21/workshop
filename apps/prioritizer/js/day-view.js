@@ -134,7 +134,7 @@ function renderSetup(){
 }
 
 /* Example templates so the first day is usable at once. Edit or delete them in settings. */
-function exampleTemplates(sp){
+export function exampleTemplates(sp){
   const len = sp.lengthWeeks * 5, s = (name, kind, color, around, minutes, capacity = null) => ({name, kind, color, around, minutes, capacity});
   return [
     {name: 'Planning day', days: [1], last: false, sections: [s('Plan the sprint', 'meetings', 'sky', '09:30', 120), s('Focus', 'focus', 'sage', '12:30', 120, 5), s('Admin and inbox', 'admin', 'butter', '15:00', 60, 3)]},

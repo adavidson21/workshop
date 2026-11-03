@@ -639,3 +639,34 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .dhelp{font:400 .84rem/1.45 var(--sans);color:var(--muted);text-transform:none;letter-spacing:0;margin:.3rem 0 .6rem}
 .dsec .rows{border-top:1px solid var(--line)}
 .dtable td input[type=time]{width:7.6rem}
+
+/* ---------- first-run tour (onboarding.js) ---------- */
+.sheet.tour{width:min(36rem,100%)}
+.tdots{display:flex;gap:.35rem;margin-bottom:.9rem}
+.tdots i{width:1.6rem;height:3px;border-radius:2px;background:var(--line)}
+.tdots i.past{background:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.tdots i.on{background:var(--accent)}
+.tour .tcard{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--eyebrow);border-radius:2px var(--r-sm) var(--r-sm) 2px;padding:.6rem .8rem;font-size:.88rem;margin:.6rem 0}
+.tour .tcard b{font-weight:600}
+.tour .tadd{display:flex;gap:.5rem;margin:.6rem 0 .5rem}
+.tour .tadd input{flex:1}
+.tour .ttags{display:flex;flex-wrap:wrap;gap:.35rem}
+.tour .ttags .chip{cursor:pointer;border:0;font-family:var(--mono)}
+.tour .ttags .chip span{font-family:var(--sans);color:var(--muted)}
+.tour .ttags .chip:hover{background:var(--accent-soft);color:var(--ink)}
+.tour .tadded{margin:.6rem 0 0;display:flex;flex-direction:column;gap:.2rem;font-size:.88rem;max-height:9rem;overflow:auto}
+.tour .tadded div{display:flex;align-items:center;gap:.45rem}
+.tour .tadded svg{width:12px;height:12px;color:var(--accent);flex:none}
+.tour .tsmall,.tour p.tsmall{font-size:.82rem;color:var(--muted)}
+.tour .tlist{margin:.4rem 0 .6rem;padding-left:1.1rem;font-size:.9rem;display:grid;gap:.4rem}
+.tour .tlist b{font-weight:600}
+.tour .topt{font:500 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);vertical-align:middle;margin-left:.3rem}
+.tour .tsprint{display:flex;flex-wrap:wrap;gap:.7rem 1rem;align-items:flex-end;margin:.7rem 0 .4rem}
+.tour .tsprint label{display:flex;flex-direction:column;gap:.3rem;font-size:.84rem}
+.tour .tsprint label.chk{flex-direction:row;align-items:center;gap:.4rem}
+.tour .tsprint input[type=date]{width:auto}
+.tour .trec{display:grid;gap:.45rem;margin:.6rem 0}
+.tour .trow{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+.tour .trow label.chk{display:flex;align-items:center;gap:.4rem;flex:1 1 12rem}
+.tour .trow select{width:auto}
+.empty .acts{display:flex;gap:.5rem;justify-content:center;margin-top:1rem}

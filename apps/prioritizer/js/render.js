@@ -154,7 +154,7 @@ function row(t, o = {}){
 }
 const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="donegrp" id="doneGrp"${doneOpen ? ' open' : ''}><summary>${ICON.tri}${label} <span class="num">${ts.length}</span></summary>
   <div class="rows">${ts.map(t => row(t, {compact: true})).join('')}</div></details>` : '';
-const emptyHTML = `<div class="empty"><b>A clean slate.</b>${TOUCH ? 'Tap + to add your first task.' : 'Press N to add your first task.'} It shows up in every view.</div>`;
+const emptyHTML = `<div class="empty"><b>A clean slate.</b>${TOUCH ? 'Tap + to add your first task.' : 'Press N to add your first task.'} It shows up in every view.<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div></div>`;
 
 /* capacity: line goes after the last task that fits (Build spec: Capacity line) */
 function capacityCut(open){

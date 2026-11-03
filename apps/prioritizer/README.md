@@ -8,6 +8,10 @@ Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
 
+## First run
+
+A brand new board (no tasks) opens a short tour: where your board is saved, adding your first tasks (with the tags, or **Load sample tasks** into a "Samples" list you can delete in one go), how Docket decides, and two optional steps: your sprint and example Day templates, then every-sprint tasks like Sprint planning, Backlog refinement and Release. Every step can be skipped, and closing it counts as skipping. It shows once per board (the date is saved as `meta.onboarded` in `prioritizer.settings`), never on a board that already has tasks, and any time from the keyboard help (`?`, **Show the tour**) or the empty-board buttons.
+
 ## How it decides
 
 Each task gets three inputs, usually set in Triage in a few seconds:
@@ -212,6 +216,7 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
 | `dayplan-model.js`, `dayplan-format.js` | The Day view's model: sprint math, templates, every change to a day, undo; and how it is stored (pure, tested in `test/dayplan.test.mjs`) |
+| `onboarding.js` | The first-run tour |
 | `dayplan.js`, `day-view.js` | The day plan's state and saving (the same write loop as the board); the Day view, its settings and the drawer's Plan for field |
 | `ws.js` | The connection to Workshop through the SDK (`shared/workshop-sdk.js`): shell, data, connectors |
 | `main.js` | Startup: the one module `index.html` loads; it imports the rest |
@@ -234,7 +239,7 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Storage format
 
-The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
 

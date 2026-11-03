@@ -75,7 +75,7 @@ function showHelp(){
       ${r('<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>', 'Undo / Redo')}
       ${r('<kbd>[</kbd> <kbd>]</kbd>', 'Previous, next working day')}
     </tbody></table>
-    <footer><span class="grow"></span><button class="btn" data-close>Close</button></footer></div>`);
+    <footer><button class="btn ghost" data-tour>Show the tour</button><span class="grow"></span><button class="btn" data-close>Close</button></footer></div>`);
 }
 
 let menuEl = null, menuReturn = null;

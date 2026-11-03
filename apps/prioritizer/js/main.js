@@ -15,6 +15,7 @@ import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
 import { drawerInit, openDrawer } from './drawer.js';
 import { dayInit, setDate } from './day-view.js';
+import { maybeOnboard, openTour, tourInit } from './onboarding.js';
 import { dp, recurTick } from './dayplan.js';
 import * as dayModel from './dayplan-model.js';
 import { boot, dstore } from './storage.js';
@@ -59,14 +60,15 @@ window.__prioritizer = {
   engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
   saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null]), get store(){ return store; },
-  get dp(){ return dp; }, recurTick, get dstore(){ return dstore; }, dayModel
+  get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel
 };
 
-drawerInit(); dayInit();
+drawerInit(); dayInit(); tourInit();
 adoInit(); rpInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.
 await loaded;
 render();
+maybeOnboard();
 setAdo(); adoSchedule(); adoDetect().then(() => adoSync(false));
 engSchedule(); engCheck();
