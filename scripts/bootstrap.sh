@@ -24,6 +24,10 @@
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
 #                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
+# Dispatch (opencode, git, PowerShell 7, Tandem and an AI model) is only for coding agents:
+#   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no PowerShell download, no AI step
+#   WORKSHOP_DISPATCH=1   install it. The default is 1, except in work mode, where it is 0 until you ask for it.
+#   OPENCODE_VERSION=1.2.3  install that opencode version from npm instead of the newest one.
 set -euo pipefail
 
 main() {
@@ -33,6 +37,10 @@ main() {
   WORKSPACE="${WORKSHOP_WORKSPACE:-~/work}"
   OS="$(uname -s)"; ARCH="$(uname -m)"
   WORK="${WORKSHOP_WORK_MODE:-}"
+  # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
+  DISPATCH="${WORKSHOP_DISPATCH:-}"
+  if [ -z "$DISPATCH" ]; then if [ "$WORK" = "1" ]; then DISPATCH=0; else DISPATCH=1; fi; fi
+  OC_VERSION="${OPENCODE_VERSION:-latest}"
 
   say()  { printf '  %s\n' "$*"; }
   step() { printf '\n\033[36m> %s\033[0m\n' "$*"; }
@@ -44,17 +52,36 @@ main() {
     case "$t" in *[!A-Za-z0-9._-]*|-*|*..*) fail "\"$t\" is not a release tag like v1.2.0." ;; esac
   done
 
+  case "$DISPATCH" in 0|1) ;; *) fail "WORKSHOP_DISPATCH is 0 or 1, not \"$DISPATCH\"." ;; esac
+  case "$OC_VERSION" in ""|*[!0-9A-Za-z.+-]*|[.+-]*) fail "\"$OC_VERSION\" is not an opencode version like 1.2.3." ;; esac
+
   if [ "$(id -u)" = "0" ]; then fail "Do not run this with sudo. It installs for your user only."; fi
   case "$OS" in Darwin) os=darwin; psos=osx ;; Linux) os=linux; psos=linux ;; *) fail "This installer is for macOS and Linux. On Windows use install.ps1." ;; esac
   case "$ARCH" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=x64 ;; *) fail "Unsupported processor: $ARCH." ;; esac
 
-  echo "Installing Workshop and Tandem for $(id -un) (no admin rights needed)."
+  if [ "$DISPATCH" = "1" ]; then echo "Installing Workshop and Tandem for $(id -un) (no admin rights needed)."
+  else echo "Installing Workshop for $(id -un) (no admin rights needed)."
+    echo "Dispatch (opencode, Tandem, AI model) is not installed. Set WORKSHOP_DISPATCH=1 and run this again to add it."; fi
   mkdir -p "$ROOT"
 
   # Download a .tar.gz and unpack its single top folder as $2.
+  # The SHA-256 of a file in hex, or nothing when this computer has no tool for it.
+  sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+    fi
+  }
+  # Download a .tar.gz and unpack it to $2. With $3 (SHA-256 in hex), the download must match it or nothing is
+  # unpacked. Without it, or without a hashing tool, it is not checked and says so.
   get_tar() {
     local tmp; tmp="$(mktemp -d)"
     curl -fsSL "$1" -o "$tmp/download.tar.gz"
+    if [ -n "${3:-}" ]; then
+      local got; got="$(sha256_of "$tmp/download.tar.gz")"
+      if [ -z "$got" ]; then say "No sha256sum or shasum here, so the download is not checked."
+      elif [ "$got" != "$(printf '%s' "$3" | tr 'A-F' 'a-f')" ]; then rm -rf "$tmp"; fail "The download from $1 does not match its published SHA-256, so it was not used."
+      else say "SHA-256 checked."; fi
+    fi
     mkdir "$tmp/x"; tar -xzf "$tmp/download.tar.gz" -C "$tmp/x"
     local inner; inner="$(find "$tmp/x" -mindepth 1 -maxdepth 1)"
     if [ "$(printf '%s\n' "$inner" | wc -l | tr -d ' ')" = "1" ] && [ -d "$inner" ]; then :; else inner="$tmp/x"; fi
@@ -76,7 +103,11 @@ main() {
     local ver; ver="$(curl -fsSL https://nodejs.org/dist/index.tab | awk -F'\t' -v k="$key" 'NR>1 && $10!="-" { split(substr($1,2),v,"."); if (v[1]+0>=22 && index(","$3",", ","k",")) { print $1; exit } }')"
     [ -n "$ver" ] || fail "Could not find a Node 22 or later download. Install Node LTS from https://nodejs.org and run this again."
     say "Downloading Node $ver."
-    get_tar "https://nodejs.org/dist/$ver/node-$ver-$os-$arch.tar.gz" "$ROOT/node"
+    local nfile="node-$ver-$os-$arch.tar.gz" nsum=""
+    # nodejs.org publishes SHASUMS256.txt for every release. If it cannot be read, carry on and say so.
+    nsum="$(curl -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt" 2>/dev/null | awk -v f="$nfile" '$2==f && length($1)==64 && $1 !~ /[^0-9a-f]/ {print $1; exit}' || true)"
+    [ -n "$nsum" ] || say "Could not read Node's published SHA-256, so the download is not checked."
+    get_tar "https://nodejs.org/dist/$ver/$nfile" "$ROOT/node" "$nsum"
     NODE="$ROOT/node/bin/node"
   fi
   NPM="$(dirname "$NODE")/npm"
@@ -94,7 +125,7 @@ main() {
   fi
 
   # ------------------------------------------------------------ 2. Workshop and Tandem
-  local names="workshop eng-agents"; [ "$WORK" = "1" ] && names="$names docket"
+  local names="workshop"; [ "$DISPATCH" = "1" ] && names="$names eng-agents"; [ "$WORK" = "1" ] && names="$names docket"
   for name in $names; do
     local tag="" var=""
     case "$name" in
@@ -126,14 +157,15 @@ main() {
   step "opencode"
   OPENCODE=""
   local found=""; found="$(command -v opencode 2>/dev/null || true)"
-  if [ -n "$found" ] && [ "${found#"$ROOT/opencode"}" = "$found" ]; then OPENCODE="$found"; say "Using your opencode at $found."
+  if [ "$DISPATCH" != "1" ]; then say "Skipped (WORKSHOP_DISPATCH=0, or work mode)."
+  elif [ -n "$found" ] && [ "${found#"$ROOT/opencode"}" = "$found" ]; then OPENCODE="$found"; say "Using your opencode at $found."
   else
-    [ -n "$found" ] && say "Updating opencode." || say "Installing opencode."
+    [ -n "$found" ] && say "Updating opencode ($OC_VERSION)." || say "Installing opencode ($OC_VERSION)."
     # A company network that inspects HTTPS uses its own certificate, which the system trusts and npm does not.
     # Node 22.15 and later can use the system certificate store for this one npm run.
     local nopts="${NODE_OPTIONS:-}"
     if "$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=15)?0:1)'; then nopts="${nopts:+$nopts }--use-system-ca"; fi
-    if NODE_OPTIONS="$nopts" "$NPM" install --global --prefix "$ROOT/opencode" --no-fund --no-audit opencode-ai@latest && [ -x "$ROOT/opencode/bin/opencode" ]; then
+    if NODE_OPTIONS="$nopts" "$NPM" install --global --prefix "$ROOT/opencode" --no-fund --no-audit "opencode-ai@$OC_VERSION" && [ -x "$ROOT/opencode/bin/opencode" ]; then
       OPENCODE="$ROOT/opencode/bin/opencode"
     elif [ -x "$ROOT/opencode/bin/opencode" ]; then
       OPENCODE="$ROOT/opencode/bin/opencode"; say "npm could not update opencode, so the copy you have stays."
@@ -147,7 +179,8 @@ main() {
   # Agents use git for branches, diffs and pushes. On a Mac, git comes with Apple's command line tools
   # (/usr/bin/git is only a stub until they are installed): ask macOS to install them. On Linux, say how.
   step "git"
-  if git --version >/dev/null 2>&1; then say "Using your $(git --version | sed 's/^git version /git /')."
+  if [ "$DISPATCH" != "1" ]; then say "Skipped: only Dispatch needs git."
+  elif git --version >/dev/null 2>&1; then say "Using your $(git --version | sed 's/^git version /git /')."
   elif [ "$os" = darwin ]; then
     xcode-select --install >/dev/null 2>&1 || true
     say "macOS is asking to install its command line tools, which include git. Click Install in that window."
@@ -158,15 +191,18 @@ main() {
   # ------------------------------------------------------------ 4. PowerShell 7
   step "PowerShell 7"
   PWSH=""
-  if command -v pwsh >/dev/null 2>&1; then PWSH="$(command -v pwsh)"; say "Using your pwsh at $PWSH."
+  if [ "$DISPATCH" != "1" ]; then say "Skipped: only Tandem (Dispatch) needs it."
+  elif command -v pwsh >/dev/null 2>&1; then PWSH="$(command -v pwsh)"; say "Using your pwsh at $PWSH."
   elif [ -x "$ROOT/pwsh/pwsh" ]; then PWSH="$ROOT/pwsh/pwsh"; say "Using Workshop's pwsh."
   else
-    local asset; asset="$(curl -fsSL https://api.github.com/repos/PowerShell/PowerShell/releases/latest \
-      | "$NODE" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s).assets.find(x=>x.name.endsWith(process.argv[1]));console.log(a?a.browser_download_url:"")})' "-$psos-$arch.tar.gz")"
+    # The download address and, when GitHub lists it, the file's SHA-256 (digest "sha256:<hex>").
+    local found asset psum; found="$(curl -fsSL https://api.github.com/repos/PowerShell/PowerShell/releases/latest \
+      | "$NODE" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s).assets.find(x=>x.name.endsWith(process.argv[1]));const m=a&&/^sha256:([0-9a-fA-F]{64})$/.exec(a.digest||"");console.log(a?a.browser_download_url+" "+(m?m[1]:""):"")})' "-$psos-$arch.tar.gz")"
+    asset="${found%% *}"; psum="${found#* }"; [ "$psum" = "$found" ] && psum=""
     [ -n "$asset" ] || fail "Could not find a PowerShell download. Install PowerShell 7 (pwsh), then run this again."
     say "Downloading PowerShell."
-    rm -rf "$ROOT/pwsh"; mkdir -p "$ROOT/pwsh"
-    curl -fsSL "$asset" | tar -xz -C "$ROOT/pwsh"
+    [ -n "$psum" ] || say "GitHub lists no SHA-256 for it, so the download is not checked."
+    get_tar "$asset" "$ROOT/pwsh" "$psum"
     chmod +x "$ROOT/pwsh/pwsh"
     PWSH="$ROOT/pwsh/pwsh"
   fi
@@ -189,7 +225,8 @@ main() {
   # ------------------------------------------------------------ 5. Tandem into opencode
   step "Installing Tandem into opencode"
   local tandem_ok=""
-  if [ -z "$OPENCODE" ]; then say "Skipped: Tandem runs in opencode, which is not installed."
+  if [ "$DISPATCH" != "1" ]; then say "Skipped (WORKSHOP_DISPATCH=0, or work mode)."
+  elif [ -z "$OPENCODE" ]; then say "Skipped: Tandem runs in opencode, which is not installed."
   else
     local targs=(-NoProfile -File "$ROOT/eng-agents/install.ps1")
     if [ -d "$HOME/.config/eng-agents/personal" ]; then targs+=(-Personal "$HOME/.config/eng-agents/personal"); say "Using your personal layer at ~/.config/eng-agents/personal."; fi
@@ -209,7 +246,8 @@ main() {
   for v in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY OPENROUTER_API_KEY GROQ_API_KEY XAI_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY; do
     if [ -n "$(printenv "$v" 2>/dev/null || true)" ]; then HAS_AI=1; fi
   done
-  if [ -z "$OPENCODE" ]; then HAS_AI=1; say "Skipped: opencode is not installed."
+  if [ "$DISPATCH" != "1" ]; then HAS_AI=1; say "Skipped (WORKSHOP_DISPATCH=0, or work mode)."
+  elif [ -z "$OPENCODE" ]; then HAS_AI=1; say "Skipped: opencode is not installed."
   elif [ -n "$HAS_AI" ]; then say "opencode already has an AI provider."
   else say "No AI provider in opencode yet. You will connect one at the end (one command)."
   fi
@@ -246,7 +284,7 @@ main() {
   health || fail "Workshop did not start. Run: \"$NODE\" \"$ROOT/workshop/workshop.mjs\" start  to see why."
   "$NODE" "$ROOT/workshop/workshop.mjs" open >/dev/null || true
 
-  command -v git >/dev/null 2>&1 || printf '\n\033[33mNote: git is not installed. Tandem needs it to make branches and pull requests: https://git-scm.com/downloads\033[0m\n'
+  [ "$DISPATCH" != "1" ] || command -v git >/dev/null 2>&1 || printf '\n\033[33mNote: git is not installed. Tandem needs it to make branches and pull requests: https://git-scm.com/downloads\033[0m\n'
   if "$NODE" -e 'try{process.exit(JSON.parse(require("fs").readFileSync(require("os").homedir()+"/.workshop/config.json","utf8")).features.startAtLogin===true?0:1)}catch{process.exit(1)}'; then
     printf '\n\033[32mDone. Workshop is running and starts when you log in.\033[0m\n'
   else
@@ -260,7 +298,8 @@ main() {
     echo "Workshop opened in your browser once to sign it in. Go back to $SITE and click Connect."
     echo "Using a different browser for Dispatch? Run  workshop open --print  in a new terminal and open that address there."
   fi
-  if [ -n "$OPENCODE" ] && [ -n "$tandem_ok" ]; then echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
+  if [ "$DISPATCH" != "1" ]; then echo "Dispatch is not installed. To add it later: set WORKSHOP_DISPATCH=1 and run this installer again."
+  elif [ -n "$OPENCODE" ] && [ -n "$tandem_ok" ]; then echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
   else printf '\033[33mDispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it.\033[0m\n'; fi
   if [ -z "$HAS_AI" ]; then
     printf '\n\033[33mLast step: connect an AI model.\033[0m Open a new terminal window and run:\n\n    opencode auth login\n\n'

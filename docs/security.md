@@ -4,13 +4,17 @@ What Workshop stores, where it sends data (almost nowhere), and the checks that 
 
 ## The short version
 
-- Everything you create stays on your computer. There is no Workshop account and no Workshop server.
+- Everything you create stays on your computer. There is no Workshop account, and no server holds your data.
+- Where the code comes from: outside work mode, the hub and its apps load from Workshop's site (https://workshop.alexisdavidson.org, a Cloudflare Worker deployed from this repo's `main`; Docket from https://docket.alexisdavidson.org), and a paired site can use the agent. In work mode they load from a pinned copy on your disk and no site can use the agent. See Hosted mode and Work mode below.
 - The agent binds `127.0.0.1` only and answers no one else on the network.
 - The agent makes no outbound request of its own. Only a connector you turned on talks to the one system it is for (for example your Azure DevOps server), from your computer, using a token you keep in an environment variable.
+- Dispatch is the one part that sends your work somewhere else: its coding agents (opencode) send prompts and the files they read to the AI provider opencode is set up with. It is optional, and the installer leaves it out in work mode unless you ask for it. See Outbound hosts.
 - There is no telemetry, no analytics, no crash reporting, no update ping. Nothing phones home.
 - On a computer where the code must not change by itself (a work laptop), work mode runs Workshop from a pinned copy on your disk, checked file by file, and no site can use the agent. See Work mode below.
 
 ## Data flow
+
+In hosted mode (the default) the page itself comes from Workshop's site and talks to the agent the same way after pairing; in work mode it comes from the agent. Either way, data moves only between the page and the agent:
 
 ```
    your browser  --------- http://127.0.0.1:<port> --------->  Workshop agent
@@ -55,7 +59,10 @@ Secrets (Azure DevOps PATs and the like) live in environment variables, never in
 
 - The agent itself: none. It never makes an outbound request, and the only program it runs is `reg query` on Windows to read a saved variable (above). Its source is checked for this (`agent/test/source.test.mjs`).
 - A connector you turned on: the servers in that connector's own config, and no others. The ADO connector reaches the Azure DevOps server URLs you set, over HTTPS, with your PAT.
+- The opencode connector (Dispatch), when on: it reaches only the opencode server on this computer, but opencode itself sends prompts and the contents of files its agents read to the AI provider it is set up with, and agents run git against your repos' remotes (clone, fetch, push). Set **Approved AI providers** so `workshop doctor` checks opencode can use no other provider (connectors/opencode/README.md, Approved AI providers). Agents read pull requests and work items written by other people; treat that text as untrusted input to an agent that can run commands in your workspace.
 - The browser: this site's own files only, plus the local agent on `127.0.0.1`. Fonts and libraries are served from the site (`shared/fonts/`, `shared/vendor/`), not a CDN. `tests/e2e.py` fails if any request goes anywhere else.
+
+- The installer (only while it runs): GitHub for Workshop, Tandem and Docket (a release tag when you set one, otherwise the newest code on `main`), nodejs.org for a private Node when yours is older than 22.15, and, only for Dispatch, the npm registry for opencode (the newest version unless `OPENCODE_VERSION` is set) and GitHub releases for MinGit on Windows or PowerShell 7 on macOS and Linux (the newest release). Downloads are over HTTPS. Node, MinGit and PowerShell are checked against their published SHA-256 (nodejs.org's `SHASUMS256.txt`, GitHub's release file digest) and not used if they differ; when no hash is published the installer says so and carries on. npm checks opencode's package integrity itself. The Workshop, Tandem and Docket zips have no published hash, so at work prefer release tags and work mode (whose pinned copy records every file's SHA-256), or the by-hand install (README.md, Work mode).
 
 No telemetry. Workshop sends no usage data, no analytics and no error reports anywhere, and checks for updates only when you run `workshop update` yourself.
 
@@ -102,7 +109,7 @@ If `config.json` is not valid JSON or does not match the config schema, the agen
 
 ## Hosted mode
 
-Hosted mode lets a page on your own domain use the local agent. It is off by default. The trade-off: a hosted page keeps the agent's token in that origin's `localStorage`, so any script that runs on that origin can use the agent. That is why hosted mode is off until you turn it on, why origins are allowed one by one, and why settings changes (`PUT /api/config`, including the data folder, and connector config) are refused from a hosted origin: change those from Workshop running on this computer. Pairing is confirmed by you, once per browser, on a page the agent serves that no other site can frame. See [run-modes.md](run-modes.md), Hosted mode.
+Hosted mode lets a page on an allowed site use the local agent. A new install turns it on for Workshop's own three sites (workshop., dispatch. and docket.alexisdavidson.org), and each browser still pairs only after you click Allow; work mode turns it off for every site. The trade-off: a hosted page keeps the agent's token in that origin's `localStorage`, so any script that runs on that origin can use the agent: read and write app data, and call connector actions, including Dispatch's (start coding agents with instructions, run pipeline commands, clone repos into the workspace, change the workspace folder). `confirm: true` on write actions proves a click only in honest code; a hostile script can send it too. So anyone who could change what those sites serve (their repos, or the accounts that deploy them) could act on your computer through a paired agent. That is why work mode exists, why origins are allowed one by one, and why settings changes (`PUT /api/config`, including the data folder, and connector config) are refused from a hosted origin: change those from Workshop running on this computer. Pairing is confirmed by you, once per browser, on a page the agent serves that no other site can frame. See [run-modes.md](run-modes.md), Hosted mode.
 
 ## Work mode
 
