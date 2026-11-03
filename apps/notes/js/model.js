@@ -223,7 +223,7 @@ const LINK_RE = /(!?\[(?:[^\]\\\n]|\\.)*\]\(\s*)(<[^>\n]*>|[^)\s]*)((?:\s+"[^"\n
 const WIKI_RE = /\[\[([^\]|\n#]+)(#[^\]|\n]*)?(\|[^\]\n]+)?\]\]/g;
 
 /** Run fn over the text outside code (fenced blocks and code spans); code is left exactly as it was. */
-function outsideCode(text, fn) {
+export function outsideCode(text, fn) {
   const out = [];
   let fence = null, buf = [];
   const flush = () => {

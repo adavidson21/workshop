@@ -6,6 +6,7 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { saveFile } from '../../../shared/save-file.js';
 import { createNotes } from './data.js';
+import { dataUrl, inlineImages, wikiHtml } from './export.js';
 import { render, headingId } from './markdown.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
@@ -466,6 +467,42 @@ async function copyMarkdown() {
   }
   ws.toast('Copied the Markdown.', { kind: 'success' });
 }
+/* Copy for wiki: the note as Markdown with its images embedded, and as HTML with the images inside it, both on
+   the clipboard at once. A visual editor takes the HTML; a Markdown box takes the text. Nothing leaves the
+   clipboard. The ClipboardItem gets promises so the copy still counts as part of the click while images load. */
+async function copyForWiki() {
+  if (!ui.path) return;
+  const text = editor.value, from = ui.path;
+  const built = inlineImages(text, from, async (p) => {
+    if (!notes.files.has(p)) return null;
+    const f = await ws.files.read(p).catch(() => null);
+    return f ? dataUrl(f.content.type, new Uint8Array(await f.content.arrayBuffer())) : null;
+  }).then(r => ({ ...r, html: wikiHtml(r.markdown) }));
+  const done = (r) => {
+    const n = r.embedded.length;
+    const msg = `Copied for the wiki${n ? ` with ${n} image${n === 1 ? '' : 's'}` : ''}.`;
+    ws.toast(r.missing.length ? `${msg} ${r.missing.length} image${r.missing.length === 1 ? ' was' : 's were'} not found: ${r.missing.join(', ')}.` : msg, { kind: r.missing.length ? 'warn' : 'success' });
+  };
+  try {
+    if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) throw new Error('no async clipboard');
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': built.then(r => new Blob([r.html], { type: 'text/html' })),
+      'text/plain': built.then(r => new Blob([r.markdown], { type: 'text/plain' }))
+    })]);
+    done(await built);
+  } catch {
+    // Older path: a copy event that sets both types.
+    try {
+      const r = await built;
+      const put = (e) => { e.clipboardData.setData('text/html', r.html); e.clipboardData.setData('text/plain', r.markdown); e.preventDefault(); };
+      document.addEventListener('copy', put, { once: true });
+      const ok = document.execCommand('copy');
+      document.removeEventListener('copy', put);
+      if (!ok) throw new Error('copy refused');
+      done(r);
+    } catch (e) { ws.toast('Workshop could not use the clipboard. Click Copy for wiki again.', { kind: 'error' }); }
+  }
+}
 async function download() {
   if (!ui.path) return;
   try { await saveFile(`${stem(ui.path)}.md`, editor.value, 'text/markdown'); } catch (e) { toastErr(e); }
@@ -569,6 +606,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'rename') renameNote();
   else if (act === 'trash') trashNote();
   else if (act === 'copy') copyMarkdown();
+  else if (act === 'copy-wiki') copyForWiki();
   else if (act === 'download') download();
   else if (act === 'retry') { ui.status = { kind: 'dirty' }; saveNow(); }
   else if (['take-theirs', 'keep-copy', 'overwrite', 'restore'].includes(act)) resolveConflict(act);

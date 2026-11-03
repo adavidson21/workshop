@@ -518,7 +518,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -550,7 +550,8 @@
           "js/data.js",
           "js/model.js",
           "js/markdown.js",
-          "js/view.js"
+          "js/view.js",
+          "js/export.js"
         ]
       }
     },

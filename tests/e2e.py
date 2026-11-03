@@ -296,6 +296,15 @@ def notes_flow(page, nf, where):
     check(f'Notes ({where}): a link in the preview opens the note', nf.input_value('#editor').startswith('# Deploy Runbook'))
     nf.click('.note-head [data-act=copy]')
     check(f'Notes ({where}): Copy puts the Markdown on the clipboard', toast_has(page, 'Copied the Markdown'))
+    page.context.grant_permissions(['clipboard-read', 'clipboard-write'], origin=page.url.split('/#')[0].rstrip('/'))
+    nf.click('.note-head [data-act=copy-wiki]')
+    check(f'Notes ({where}): Copy for wiki says how many images it carried', toast_has(page, 'Copied for the wiki with 1 image'))
+    clip = page.evaluate("""async () => { const it = (await navigator.clipboard.read())[0];
+      return {types: [...it.types].sort(), text: await (await it.getType('text/plain')).text(), html: await (await it.getType('text/html')).text()}; }""")
+    check(f'Notes ({where}): Copy for wiki puts Markdown with the image embedded on the clipboard', 'text/plain' in clip['types']
+          and '](data:image/png;base64,iVBORw0KGgo' in clip['text'] and 'attachments/' not in clip['text'] and clip['text'].startswith('# Deploy Runbook'))
+    check(f'Notes ({where}): and HTML with the image inside it, for a visual editor', 'text/html' in clip['types']
+          and '<img src="data:image/png;base64,iVBORw0KGgo' in clip['html'] and 'data-note' not in clip['html'])
 
     page.reload(); page.wait_for_timeout(1800)
     nf2 = next((f for f in page.frames if '/apps/notes/' in f.url), None)

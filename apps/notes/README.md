@@ -9,7 +9,7 @@ Markdown notes in your Workshop folder, like a small Obsidian. Plan: `claude/not
 - **Tags:** `#tag` in the text, or `tags: [a, b]` in frontmatter. Nested tags with `/` (`#team/platform`). Click a tag to search for it.
 - **Search:** `/` or `Ctrl+Shift+F`. Words match titles, paths and text; `tag:ops` and `path:runbooks` filter. Arrow keys and `Enter` open a result at its line.
 - **Images:** paste or drop an image into the editor. It is saved under `notes/attachments/` and linked with `![name](attachments/...)`. PNG, JPEG, GIF and WebP. Remote images (`https://...`) are never loaded.
-- **Export:** Copy (the note's Markdown) and Download (`.md`). Nothing is published or shared anywhere.
+- **Export:** **Copy for wiki** puts the note on the clipboard twice over, with its images inside: as Markdown with each image embedded as a `data:image/...;base64` URL, and as HTML for a visual editor. Paste into the wiki's visual editor or its Markdown box. Links to other notes become plain text in the HTML (they lead nowhere outside Workshop) and stay as written in the Markdown. **Copy** is the Markdown only, image links as they are; **Download** saves the `.md`. Nothing is published or shared anywhere.
 - **Other apps:** `.md` files other apps keep in the folder (for example Receipts summaries) are listed under *Other apps* and open read only.
 
 ## Files
@@ -44,6 +44,7 @@ Edit the files with any editor: Notes picks up changes made outside it.
 - `js/markdown.js`: Markdown to safe HTML, and a note's title, tags, links and headings. No DOM.
 - `js/model.js`: paths and name rules, the index (backlinks, tags, missing links), search, the tree, and link rewriting for renames and moves. No DOM.
 - `js/data.js`: loading, saving, outside changes and images through `ws.files`.
+- `js/export.js`: Copy for wiki (images embedded, and HTML for visual editors).
 - `js/view.js`: HTML for the sidebar, header, side panel and dialogs.
 - `js/main.js`: the page: editor, autosave, conflicts, the `[[` picker, renames, keys.
 
