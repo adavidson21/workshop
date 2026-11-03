@@ -31,9 +31,41 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
 - **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda.
 - **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
+- **Day:** time blocks for today (or any day), built from your sprint. Slot tasks into blocks, and rearrange when the day goes sideways. See below.
 - **Reports:** team-wide ADO reports (priority churn, other teams' work, sprint carryover and scope churn, load, aging) with an Excel export. See below.
 
 The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one.
+
+## Day: time blocks by sprint day
+
+Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot real tasks into them. Open **Day** in the sidebar (shortcut `6`).
+
+**Sprint (once):** the first time, Day asks for the start date of any sprint, past or future, and the length (2 weeks by default). Sprints repeat from that date, so "every other Wednesday" is a start date on a Wednesday. The gear button has the rest: workdays (Monday to Friday by default), holidays, and a rough day start and end.
+
+- **Sprint day N** is the Nth working day of the sprint. Weekends and holidays show as off and take no number, so a sprint with a holiday has 9 days. Dates before the start date work too.
+- **Sprint id** is `<year>-<n>`: the nth sprint that starts in that calendar year, counted from the start date. The header says, for example, "Sprint 2026-22, day 3 of 10".
+
+**Templates:** a template is an ordered list of blocks for some sprint days (`2-8`, or `1, 3, 5`), or for **Last day**, which always matches the final working day of a sprint, even when a holiday shortens it. A Last day template wins over a numbered one on that day, so "days 2 to 10" and "Last day" never collide. Two numbered templates on the same day, or two Last day templates, show an error in settings and can't be saved. A day no template covers starts empty. Each block has a name, a kind (free text like focus or meetings), a color, and optionally a rough start time, a length in minutes, and a capacity in effort points (the same points as tasks: XS 1 to XL 8). Times are labels, never a grid. Starting a sprint can add three example templates (Planning day, Sprint day, Last day) to edit.
+
+**Planning a day:**
+
+- Each date starts as a copy of its template. Changes are for that date only; the template never changes from the Day view. **Reset to template** (in **This day**, or under the blocks) drops the date's changes, after a confirm.
+- **Not planned** lists your open tasks in rank order, filtered by the list or section you picked (the scope above the title), with a **Today list** filter for your short list.
+- Slot a task by dragging it into a block, by selecting it and pressing `P` then the block's number, with its arrow button (on touch), or from its details: **Plan for** a date and block. Drag it back to Not planned, or use **Back to the tray**, to unplan it.
+- In a block, tasks keep their rank order until you move one (`Alt+Up`/`Alt+Down`, or its menu); that order is saved for the day.
+- A block over its capacity shows a warning. It doesn't stop you.
+- Done tasks stay in their block, crossed out. Deleted tasks drop out.
+- The block on now (by its rough time) is highlighted on today, with the next one marked when nothing is on.
+
+**Rearranging, for chaotic days:**
+
+- Reorder blocks by dragging their headers, or `Alt+Up`/`Alt+Down` on a header. Add, edit (rename, recolor, kind, time, capacity) or remove a block for this day only from its menu or **This day**.
+- **Lost this block** marks a block gone for today. Its unfinished tasks go to the next open block today (the default), or to the next working day's first block of the same kind (its first block if none matches). With nowhere to go, they go back to Not planned. **Restore** brings the block back.
+- **Shift the rest of the day** moves the rough times of the remaining blocks by 15, 30 or 60 minutes, back 15, or any amount. From a block's menu it shifts that block and the ones after it.
+- **Undo and redo** (`Ctrl+Z`, `Ctrl+Shift+Z` or `Ctrl+Y`, or the arrows in the header) cover every change to a day, per window, up to 50 steps. Completing a task is not part of it; click the check again to reopen.
+- **Carry over:** opening a working day shows unfinished tasks planned on the previous working day (skipping weekends and holidays). **Same blocks today** puts each in today's block with the same name, then the same kind, then the first open block. **Put in the tray** lists them first under Not planned.
+
+`[` and `]` step to the previous and next working day; the date box jumps anywhere. Inside Workshop, `#/prioritizer/day/today` (or a date) opens the Day view.
 
 ## Adding tasks
 
@@ -52,7 +84,7 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 
-`1` to `6` switch views, `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
+`1` to `6` switch views (Day is `6`), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
 
 ## Themes
 
@@ -177,12 +209,14 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `excel.js`, `kv.js` | Excel export and import; a small browser cache for Reports |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `reports.js`, `eng.js` | ADO sync; team reports; eng-agents stages |
+| `dayplan-model.js`, `dayplan-format.js` | The Day view's model: sprint math, templates, every change to a day, undo; and how it is stored (pure, tested in `test/dayplan.test.mjs`) |
+| `dayplan.js`, `day-view.js` | The day plan's state and saving (the same write loop as the board); the Day view, its settings and the drawer's Plan for field |
 | `ws.js` | The connection to Workshop through the SDK (`shared/workshop-sdk.js`): shell, data, connectors |
 | `main.js` | Startup: the one module `index.html` loads; it imports the rest |
 
 Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`test/app-files.test.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
 
-`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (`test/e2e.py` here, and Workshop's `tests/e2e.py`, which runs against this repo). `node --test "test/*.test.mjs"` tests the storage format, the save engine and the file list in Node; `python test/e2e.py` runs Docket on its own in headless Chrome. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
+`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (`test/e2e.py` here, and Workshop's `tests/e2e.py`, which runs against this repo). `node --test "test/*.test.mjs"` tests the storage format, the day plan, the save engine and the file list in Node; `python test/e2e.py` runs Docket on its own in headless Chrome. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
 
 ### Files from Workshop
 
@@ -199,6 +233,16 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 ### Storage format
 
 The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+
+The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
+
+| Collection | Holds | Schema |
+| --- | --- | --- |
+| `dayplan/settings` | No items. The sprint in `meta.sprint`: `anchor` (a sprint's start date), `lengthWeeks`, `workdays` (0 is Sunday), `holidays`, `dayStart`, `dayEnd` | `schemas/dayplan-settings.schema.json` |
+| `dayplan/templates` | Items are templates: `{id, name, days, last, sections}` | `schemas/dayplan-template.schema.json` |
+| `dayplan/days/<yyyy>` | Items are days keyed by date: `{id: date, template, sections, slots: [{taskId, sectionId, order}], shift, carry}` | `schemas/dayplan-day.schema.json` |
+
+A section (block) is `{id, name, kind, color, around, minutes, capacity}`, plus `lost: true` on a day (`schemas/dayplan-section.schema.json`). Slots live on the day, not on tasks, so `prioritizer.tasks` stays at v3. A date with no record shows its template; a record is written on its first change, with the template's blocks copied in. Merging is per item: per template, or per day, later change wins, like tasks. A window loads last year, this year and next year, and any other year when you open a date in it. Backups include the day plan, and importing one merges it.
 
 ### Upgrading from the previous version
 

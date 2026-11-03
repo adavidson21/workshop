@@ -1,19 +1,23 @@
 /* Prioritizer: Startup. Connects to the Workshop shell through the SDK, installs the test hook, and
    does the first render. Imported last by index.html as the app's one module entry; it pulls in every
    other module. */
-import { $ } from './util.js';
+import { $, todayStr } from './util.js';
 import { urgency, score, tier, isStale, eKey, vKey } from './model.js';
 import { commit, state, setState, sanitize, migrateTask, triageQueue, ui } from './state.js';
 import { parseQuick } from './quick-add.js';
-import { render, capacityCut } from './render.js';
+import { render, capacityCut, setView } from './render.js';
 import { buildWorkbook, exportXlsx, parseWorkbook, doImport } from './excel.js';
 import { buildReportsWorkbook, rp, rpCompute, rpInit, rpRefresh } from './reports.js';
 import { adoApply, adoDetect, adoInit, adoPick, adoReview, adoSync, adoSchedule, setAdo } from './ado.js';
 import { eng, engCheck, engSchedule } from './eng.js';
 import { applySide } from './events.js';
-import { boot, downloadBackup, importFile, store } from './storage.js';
+import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
-import { openDrawer } from './drawer.js';
+import { drawerInit, openDrawer } from './drawer.js';
+import { dayInit, setDate } from './day-view.js';
+import { dp } from './dayplan.js';
+import * as dayModel from './dayplan-model.js';
+import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
@@ -33,6 +37,9 @@ ready.then(ws => {
   ws.on('route', ({path}) => loaded.then(() => {
     const m = /^task\/(.+)$/.exec(path || '');
     if (m && findTask(m[1])) openDrawer(m[1]);
+    // #/prioritizer/day/<yyyy-mm-dd> or day/today: the Day view (Workshop Home's Today card links here).
+    const d = /^day(?:\/(\d{4}-\d{2}-\d{2}|today))?$/.exec(path || '');
+    if (d){ setView('day'); setDate(!d[1] || d[1] === 'today' ? todayStr() : d[1]); }
   }));
   ws.on('command', ({id}) => {
     if (id === 'add-task') openCmd();
@@ -51,9 +58,11 @@ window.__prioritizer = {
   get rp(){ return rp; }, parseWorkbook, doImport, render, commit, triageQueue,
   engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
-  saved: () => store ? store.idle() : Promise.resolve(), get store(){ return store; }
+  saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null]), get store(){ return store; },
+  get dp(){ return dp; }, get dstore(){ return dstore; }, dayModel
 };
 
+drawerInit(); dayInit();
 adoInit(); rpInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.

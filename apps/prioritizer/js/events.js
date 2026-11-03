@@ -1,7 +1,7 @@
 import { addTask, downgradeUrgent, moveTask, toggleDone, toggleFocus } from './actions.js';
 import { onAdoClick } from './ado.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
-import { EMBEDDED } from './constants.js';
+import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
@@ -151,7 +151,7 @@ document.addEventListener('keydown', e => {
   if (state.view === 'triage' && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
-  else if (/^[1-5]$/.test(k)){ const nav = ['today','triage','prio','people','reports'][+k - 1]; setView(nav === 'prio' ? state.lens : nav); }
+  else if (/^[1-6]$/.test(k)){ const nav = NAV_KEYS[k]; setView(nav === 'prio' ? state.lens : nav); }
   else if (k === 'j' || k === 'ArrowDown' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(1); }
   else if (k === 'k' || k === 'ArrowUp' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(-1); }
   else if (k === 'Enter' && !onButton){

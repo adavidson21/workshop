@@ -19,7 +19,7 @@ const VQ = {
   fill:  {title: 'Fill-ins',   sub: 'Low value, low effort'},
   pit:   {title: 'Money pits', sub: 'Low value, high effort'}
 };
-const VIEWS = ['today','triage','rank','eisen','ve','people','archive','reports'];
+const VIEWS = ['today','day','triage','rank','eisen','ve','people','archive','reports'];
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 // A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
@@ -49,8 +49,11 @@ const ICON = {
   reports: svg('<path d="M3 16.5h14"/><rect x="4.5" y="9.5" width="2.6" height="5" rx=".7"/><rect x="8.7" y="5.5" width="2.6" height="9" rx=".7"/><rect x="12.9" y="11" width="2.6" height="3.5" rx=".7"/>'),
   archive: svg('<rect x="2.8" y="4" width="14.4" height="3.6" rx="1"/><path d="M4 7.6v7.4a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V7.6M8 10.8h4"/>'),
   up: svg('<path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9"/>', 1.6),
-  top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6)
+  top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6),
+  day: svg('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M6.5 7.5h7M6.5 10.5h4.5M6.5 13.5h6"/>')
 };
-const NAV = [['today','Today',ICON.today],['triage','Triage',ICON.triage],['prio','Prioritize',ICON.prio],['people','People',ICON.people],['reports','Reports',ICON.reports]];
+// [key, label, icon, shortcut]. Day was added after the others, so it keeps their number keys and takes 6.
+const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'6'],['triage','Triage',ICON.triage,'2'],['prio','Prioritize',ICON.prio,'3'],['people','People',ICON.people,'4'],['reports','Reports',ICON.reports,'5']];
+const NAV_KEYS = {1: 'today', 2: 'triage', 3: 'prio', 4: 'people', 5: 'reports', 6: 'day'};
 
-export { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
+export { NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

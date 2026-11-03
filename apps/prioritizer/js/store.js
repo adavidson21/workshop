@@ -12,6 +12,11 @@
    screen: the edits stay in memory, the status says "not saved", and the save is retried. */
 import { COLLECTIONS, VERSIONS, applyEnvelope, clone, envelopeFromBoard, sameEnvelope } from './store-format.js';
 
+/* What is saved and how it maps to the board. The board's four collections by default; the day plan passes its
+   own (dayplan-format.js). fromBoard(col, board, shadow, held) builds an envelope; toBoard(col, env, board) puts
+   one into the board and returns items it had to hold back. */
+const boardFormat = () => ({collections: COLLECTIONS, version: col => VERSIONS[col], fromBoard: envelopeFromBoard, toBoard: applyEnvelope});
+
 const RETRY_MS = 5000, SAVE_DELAY_MS = 250, MAX_CONFLICT_TRIES = 5;
 
 /**
@@ -21,8 +26,9 @@ const RETRY_MS = 5000, SAVE_DELAY_MS = 250, MAX_CONFLICT_TRIES = 5;
  * @param {(cols: string[]) => void} o.applied  called after envelopes were put into the board (sanitize and render there)
  * @param {(s: {state: string, error?: Error}) => void} [o.status]  'saved', 'saving', 'error' or 'readonly'
  */
-function createStore({data, board, applied, status = () => {}, timers = globalThis}){
+function createStore({data, board, applied, status = () => {}, timers = globalThis, format = boardFormat()}){
   const base = {}, shadow = {}, readOnly = {};
+  const cols = [...format.collections];   // more can be added later (addCollection)
   let held = [];               // tasks whose list hasn't arrived yet
   let chain = Promise.resolve();
   let saveTimer = null, retryTimer = null, failed = null, pending = 0, started = false;
@@ -33,21 +39,21 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
   const report = () => status(Object.values(readOnly).some(Boolean) ? {state: 'readonly'}
     : failed ? {state: 'error', error: failed} : pending ? {state: 'saving'} : {state: 'saved'});
 
-  const local = col => data.stamp(shadow[col] || null, envelopeFromBoard(col, board(), shadow[col], held));
+  const local = col => data.stamp(shadow[col] || null, format.fromBoard(col, board(), shadow[col], held));
   // Items with stamp 0 were never saved or edited: the "Main" list of a new board. They give way to
   // anything stored, so a window opened on a new board doesn't add an empty Main list to a saved one.
   const placeholdersOut = env => Object.assign(env, {items: env.items.filter(i => i.updatedAt > 0)});
   // After the board was rebuilt (and sanitized), record what it matches now. Stamps and tombstones come
   // from `from`, the envelope it was built from.
   function markShadow(col, from){
-    const env = envelopeFromBoard(col, board(), from, held);
+    const env = format.fromBoard(col, board(), from, held);
     env.rev = from ? from.rev : 0;
     shadow[col] = env;
   }
   function apply(col, env){
     const b = board();
-    if (col === 'tasks') held = applyEnvelope(col, env, b);
-    else applyEnvelope(col, env, b);
+    const h = format.toBoard(col, env, b);
+    if (col === 'tasks') held = h;
     if (col === 'lists' && held.length){
       // A list arrived: show the tasks that were waiting for it.
       const lists = new Set(b.lists.map(l => l.id));
@@ -56,18 +62,18 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
     }
   }
   function tooNew(col, env){
-    if (env && env.version > VERSIONS[col]){ readOnly[col] = true; return true; }
+    if (env && env.version > format.version(col)){ readOnly[col] = true; return true; }
     return false;
   }
 
   /* First load: read every collection. Resolves {empty} (true when nothing was ever saved). */
   async function load(){
     const envs = {};
-    for (const col of COLLECTIONS) envs[col] = await data.get(col);
-    const empty = COLLECTIONS.every(c => !envs[c]);
-    for (const col of COLLECTIONS) if (envs[col]){ base[col] = envs[col]; tooNew(col, envs[col]); apply(col, envs[col]); }
-    applied(COLLECTIONS);
-    for (const col of COLLECTIONS) markShadow(col, base[col]);
+    for (const col of cols) envs[col] = await data.get(col);
+    const empty = cols.every(c => !envs[c]);
+    for (const col of cols) if (envs[col]){ base[col] = envs[col]; tooNew(col, envs[col]); apply(col, envs[col]); }
+    applied(cols);
+    for (const col of cols) markShadow(col, base[col]);
     report();
     return {empty};
   }
@@ -76,20 +82,20 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
      anything another window saved in the meantime. */
   function seed(envs){
     return queue(async () => {
-      for (const col of COLLECTIONS){
+      for (const col of cols){
         if (!envs[col] || readOnly[col]) continue;
         await putLoop(col, Object.assign(clone(envs[col]), {rev: base[col] ? base[col].rev : 0}));
         apply(col, base[col]);
       }
-      applied(COLLECTIONS);
-      for (const col of COLLECTIONS) markShadow(col, base[col]);
+      applied(cols);
+      for (const col of cols) markShadow(col, base[col]);
     });
   }
 
   /* Merges envelopes from a backup into the board and saves. */
   function importEnvelopes(envs){
     return queue(async () => {
-      for (const col of COLLECTIONS){
+      for (const col of cols){
         if (!envs[col] || readOnly[col]) continue;
         // The board is "remote" here, so its order comes first and it wins ties with the backup.
         const merged = data.merge(envs[col], placeholdersOut(local(col)));
@@ -97,8 +103,8 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
         await putLoop(col, merged);
         apply(col, base[col]);
       }
-      applied(COLLECTIONS);
-      for (const col of COLLECTIONS) markShadow(col, base[col]);
+      applied(cols);
+      for (const col of cols) markShadow(col, base[col]);
     });
   }
 
@@ -161,11 +167,11 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
     pending++; report();
     return queue(async () => {
       try {
-        for (const col of COLLECTIONS) await flush(col);
+        for (const col of cols) await flush(col);
         failed = null;
         timers.clearTimeout(retryTimer); retryTimer = null;
       } catch (e){
-        if (e && e.code === 'readonly'){ rebuild(COLLECTIONS.filter(c => readOnly[c])); }
+        if (e && e.code === 'readonly'){ rebuild(cols.filter(c => readOnly[c])); }
         else {
           failed = e || new Error('Could not save.');
           timers.clearTimeout(retryTimer);
@@ -196,20 +202,33 @@ function createStore({data, board, applied, status = () => {}, timers = globalTh
   /* Start listening for other windows. Call after load. */
   function start(){
     started = true;
-    for (const col of COLLECTIONS) unsub.push(data.subscribe(col, () => remote(col)));
+    for (const col of cols) unsub.push(data.subscribe(col, () => remote(col)));
   }
   /* The agent came back after being unreachable: events sent meanwhile were missed. */
-  function refresh(){ for (const col of COLLECTIONS) remote(col); if (failed) flushAll(); }
+  function refresh(){ for (const col of cols) remote(col); if (failed) flushAll(); }
+  /* Load and follow one more collection (a year of the day plan the window had not loaded). */
+  function addCollection(col){
+    if (cols.includes(col)) return chain;
+    cols.push(col);
+    return queue(async () => {
+      const env = await data.get(col);
+      if (env){ base[col] = env; tooNew(col, env); apply(col, env); }
+      applied([col]);
+      markShadow(col, base[col]);
+      if (started) unsub.push(data.subscribe(col, () => remote(col)));
+    });
+  }
   function stop(){ unsub.splice(0).forEach(f => f()); timers.clearTimeout(saveTimer); timers.clearTimeout(retryTimer); started = false; }
 
   return {
-    load, seed, importEnvelopes, schedule, flushAll, start, stop, refresh,
+    load, seed, importEnvelopes, schedule, flushAll, start, stop, refresh, addCollection,
+    get collections(){ return [...cols]; },
     /** Resolves after every queued save and update has run. */
     idle(){ return (saveTimer ? flushAll() : chain); },
     get unsaved(){ return !!saveTimer || pending > 0 || !!failed; },
     get readOnly(){ return Object.values(readOnly).some(Boolean); },
     /** True until something is saved: nothing stored yet. */
-    get isNew(){ return COLLECTIONS.every(c => !base[c]); },
+    get isNew(){ return cols.every(c => !base[c]); },
     /** For tests: what storage has, as this window last saw it. */
     base(col){ return clone(base[col]); }
   };

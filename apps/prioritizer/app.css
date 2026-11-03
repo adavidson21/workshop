@@ -552,3 +552,90 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
   .sheet{max-height:calc(100dvh - 2rem - var(--sa-top) - var(--sa-bottom))}
 }
 
+
+/* ---------- Day view (day-view.js): blocks for a sprint day, and the tray of tasks not planned yet ---------- */
+.dsec{--sec:var(--muted);position:relative;border-top:1px solid var(--rule);padding:.15rem 0 .9rem .85rem;margin-bottom:.35rem}
+.dsec::before{content:"";position:absolute;left:0;top:.55rem;bottom:.9rem;width:4px;border-radius:2px;background:var(--sec)}
+.dsec[data-color=slate]{--sec:#6E8794}.dsec[data-color=sage]{--sec:#7E9C7A}.dsec[data-color=sky]{--sec:#6C9EC4}.dsec[data-color=butter]{--sec:#C9A64A}
+.dsec[data-color=peach]{--sec:#D18F6A}.dsec[data-color=blush]{--sec:#C67F8E}.dsec[data-color=lavender]{--sec:#9686BC}.dsec[data-color=stone]{--sec:#9A9187}
+.dsw{display:inline-block;width:9px;height:9px;border-radius:2px;flex:none;background:#6E8794}
+.dsw[data-color=sage]{background:#7E9C7A}.dsw[data-color=sky]{background:#6C9EC4}.dsw[data-color=butter]{background:#C9A64A}.dsw[data-color=peach]{background:#D18F6A}
+.dsw[data-color=blush]{background:#C67F8E}.dsw[data-color=lavender]{background:#9686BC}.dsw[data-color=stone]{background:#9A9187}
+.dsec.now{background:var(--accent-soft);border-radius:0 0 var(--r-sm) var(--r-sm)}
+.dsec.now .dsec-h h3::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:.45rem;vertical-align:middle}
+.dsec.lost{opacity:.6}
+.dsec.lost h3{text-decoration:line-through}
+.dsec.dragging{opacity:.4}
+.dsec.drop-before{box-shadow:0 -3px 0 var(--accent)}
+.dsec.drop-after{box-shadow:0 3px 0 var(--accent)}
+.dsec-h{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-height:2.5rem;padding:.35rem .25rem .3rem 0;outline:none;border-radius:var(--r-sm)}
+.dsec-h[draggable=true]{cursor:grab}
+.dsec-h:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.dsec-h h3{margin:0;font:600 1.15rem/1.2 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
+.dsec-h .grow{flex:1}
+.dsec-h .ibtn{width:28px;height:28px}
+.dtime{font:500 .78rem/1 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dcap{font:500 .74rem/1 var(--mono);color:var(--muted);white-space:nowrap}
+.dcap.over{color:var(--danger)}
+.dwarn{font-size:.8rem;color:var(--danger);background:var(--danger-soft);border-radius:4px;padding:.25rem .55rem;margin:0 0 .35rem}
+.dsec .rows{min-height:2.2rem;border-radius:var(--r-sm);transition:background-color .2s}
+.dsec .rows.drop-over,.dtray.drop-over{background:var(--accent-soft);outline:1px dashed var(--accent)}
+.row .dpbtn{width:26px;height:26px;flex:none;opacity:.55}
+.row:hover .dpbtn,.row:focus-within .dpbtn,.row.sel .dpbtn,.dpbtn:focus-visible{opacity:1}
+.dtray>header .lens.small{margin-left:auto}
+.lens.small button{padding:.18rem .55rem;font-size:.78rem}
+.dsub{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);margin:.7rem 0 .3rem}
+.banner.warn{border-left-color:var(--danger)}
+.dnav{display:flex;align-items:center;gap:.25rem}
+.dnav input[type=date]{border:1px solid var(--line);border-radius:var(--r-sm);padding:.3rem .5rem;background:var(--surface);min-height:2rem;font:inherit;font-size:.86rem}
+.htools .ibtn[disabled]{opacity:.35;cursor:default}
+.dsetup .dsetup-f{display:flex;flex-wrap:wrap;gap:.8rem 1.2rem;justify-content:center;align-items:flex-end;margin:1.3rem 0 .4rem}
+.dsetup label{display:flex;flex-direction:column;gap:.3rem;font-size:.84rem;color:var(--ink);text-align:left}
+.dsetup label.chk,.dsettings label.chk{flex-direction:row;align-items:center;gap:.4rem}
+.dsetup input[type=date],.dsetup select{border:1px solid var(--line);border-radius:var(--r-sm);padding:.4rem .55rem;background:var(--surface);min-height:2.2rem;font:inherit}
+.focus-empty .acts{display:flex;gap:.5rem;justify-content:center;margin-top:1rem}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.7rem .9rem;margin-top:.6rem}
+.dgrid .wide{grid-column:1/-1}
+.dgrid label,.dgrid .lbl{display:flex;flex-direction:column;gap:.3rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.dgrid label.chk{flex-direction:row;text-transform:none;letter-spacing:0;font:400 .86rem var(--sans);color:var(--ink)}
+.dgrid fieldset{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.3rem .9rem}
+.dgrid legend{padding:0;margin-bottom:.35rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.sheet select,.dsettings input,.dsettings select{border:1px solid var(--line);border-radius:var(--r-sm);padding:.4rem .5rem;outline:0;background:var(--bg);font:inherit;font-size:.88rem;min-height:2.1rem;width:100%}
+.dsettings input[type=checkbox],.sheet input[type=checkbox],.sheet input[type=radio]{width:auto;min-height:0;accent-color:var(--accent)}
+.dsettings input.bad{border-color:var(--danger)}
+.dset{border-top:1px solid var(--rule);padding-top:.7rem;margin-top:1rem}
+.dset h4{margin:0;font:600 1.1rem/1.2 var(--serif);font-variation-settings:"opsz" 32}
+.dhol{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;font:400 .86rem var(--sans);text-transform:none;letter-spacing:0;color:var(--ink)}
+.dhol input{width:auto}
+.dhol .chip .lnk svg{width:12px;height:12px;vertical-align:middle}
+.derr{color:var(--danger);font-size:.86rem}
+.derr div{margin:.2rem 0}
+.dtpl{border:1px solid var(--line);border-radius:var(--r-md);padding:.7rem .75rem .5rem;margin:.7rem 0;background:var(--bg)}
+.dtpl-h{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .8rem;margin-bottom:.5rem}
+.dtpl-h .dtname{flex:1 1 12rem;font:600 1rem var(--serif);width:auto}
+.dtpl-h label{display:flex;align-items:center;gap:.4rem;font-size:.84rem;white-space:nowrap}
+.dtpl-h label input:not([type=checkbox]){width:6.5rem}
+.dtable{overflow-x:auto}
+.dtable table{width:100%;border-collapse:collapse;min-width:38rem}
+.dtable th{text-align:left;font:500 10px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:0 .25rem .25rem}
+.dtable td{padding:.15rem .2rem}
+.dtable td input[type=number]{width:4.2rem}
+.dtable td input[type=time]{width:6.5rem}
+.dtable .dact{white-space:nowrap}
+.dtable .dact .ibtn{width:26px;height:26px}
+.dchoice{display:grid;gap:.55rem;margin:.6rem 0 .2rem;font-size:.9rem}
+.dchoice label{display:flex;gap:.5rem;align-items:flex-start;cursor:pointer}
+.dchoice input{margin-top:.25rem}
+.dshift{display:flex;flex-wrap:wrap;gap:.4rem;margin:.6rem 0}
+.dshift button{border:1px solid var(--line);border-radius:var(--r-sm);padding:.4rem .7rem;font-size:.88rem}
+.dshift button:hover,.dshift button:focus-visible{border-color:var(--accent);background:var(--accent-soft)}
+.dcustom{display:flex;align-items:center;gap:.5rem;font-size:.86rem;color:var(--muted)}
+.dcustom input{width:6rem}
+.dplan{flex-wrap:nowrap}
+.dplan select{flex:1;min-width:0}
+.menu kbd{font:500 .7rem var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 .25rem}
+.menu .mut,.mut{color:var(--muted);font-size:.8rem}
+@media (max-width:759px){ .dnav input[type=date]{width:8.5rem} .htools{width:100%} }
+.dhelp{font:400 .84rem/1.45 var(--sans);color:var(--muted);text-transform:none;letter-spacing:0;margin:.3rem 0 .6rem}
+.dsec .rows{border-top:1px solid var(--line)}
+.dtable td input[type=time]{width:7.6rem}

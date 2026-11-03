@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Docket day plan: one day (an item of prioritizer.dayplan/days/<yyyy> v1)",
+  "type": "object",
+  "required": ["id", "sections", "slots", "shift"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "The date."},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "template": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "The template it was copied from."},
+    "sections": {"type": "array", "items": {"$ref": "dayplan-section.schema.json"}},
+    "slots": {"type": "array", "items": {"type": "object", "required": ["taskId", "sectionId", "order"], "properties": {
+      "taskId": {"type": "string"}, "sectionId": {"type": "string"},
+      "order": {"anyOf": [{"type": "null"}, {"type": "number"}], "description": "Manual order in the block; null means rank order."}}}},
+    "shift": {"type": "integer", "description": "Total minutes the day was shifted by."},
+    "carry": {"type": "object", "required": ["done", "tray"], "properties": {"done": {"type": "boolean"}, "tray": {"type": "array", "items": {"type": "string"}}}}
+  }
+}

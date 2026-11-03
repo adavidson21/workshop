@@ -88,6 +88,70 @@ def main():
         check('a backup is a Workshop bundle with all four collections', bundle['schema'] == 'workshop.bundle'
               and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'people', 'settings', 'tasks'])
 
+        # ---------- Day view (WS12): set the sprint, templates, plan tasks, lose a block, shift, undo, reload ----------
+        P = 'window.__prioritizer'
+        pg.keyboard.press('6'); pg.wait_for_timeout(300)
+        check('6 opens the Day view, which asks when a sprint starts', pg.evaluate(f'{P}.state.view') == 'day' and pg.locator('#dpSetup').count() == 1)
+        pg.click('#dpSetup button.primary'); pg.wait_for_timeout(300)
+        check('starting a sprint adds example templates', pg.evaluate(f'{P}.dp.templates.length') == 3 and pg.evaluate(f'{P}.dp.sprint.anchor') is not None)
+        # Every day a workday, so today has blocks whatever day the test runs.
+        pg.click('[data-dp=settings]'); pg.wait_for_timeout(200)
+        for n in range(7):
+            box = pg.locator(f'.dsettings [data-wd="{n}"]')
+            if not box.is_checked(): box.check()
+        # Two templates on the same day number show an error and block saving.
+        pg.click('.dsettings [data-addtpl]'); pg.wait_for_timeout(100)
+        pg.locator('.dsettings [data-tf=days]').last.fill('1'); pg.locator('.dsettings [data-tf=days]').last.dispatch_event('change')
+        check('Settings shows an error when two templates match a day', 'Day 1 is in' in pg.inner_text('.dsettings .derr'))
+        pg.click('.dsettings [data-savesettings]'); pg.wait_for_timeout(100)
+        check('and does not save it', pg.locator('.dsettings').count() == 1)
+        pg.locator('.dsettings [data-deltpl]').last.click(); pg.wait_for_timeout(100)
+        pg.click('.dsettings [data-savesettings]'); pg.wait_for_timeout(300)
+        check('settings save once the overlap is gone', pg.locator('.dsettings').count() == 0 and pg.evaluate(f'{P}.dp.sprint.workdays.length') == 7)
+        secs = pg.evaluate("() => [...document.querySelectorAll('.dsec')].map(s => s.dataset.sec)")
+        check('today shows the Planning day template (day 1)', len(secs) == 3 and 'sprint' in pg.inner_text('#phead').lower() and 'day 1 of' in pg.inner_text('#phead').lower())
+        open_ids = pg.evaluate(f"() => {P}.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank).map(t => t.id)")
+        # 1) keyboard: select a task, P, then 2 for the second block
+        pg.focus(f'.dtray .row[data-id="{open_ids[0]}"]'); pg.keyboard.press('p'); pg.wait_for_timeout(150); pg.keyboard.press('2'); pg.wait_for_timeout(300)
+        # 2) drag a task onto the first block
+        pg.locator(f'.dtray .row[data-id="{open_ids[1]}"]').drag_to(pg.locator(f'.dsec[data-sec="{secs[0]}"] .rows')); pg.wait_for_timeout(300)
+        # 3) the task drawer's Plan for field
+        pg.click(f'.dtray .row[data-id="{open_ids[2]}"] .title'); pg.wait_for_timeout(200)
+        pg.select_option('#drawer [data-f=plansec]', secs[0]); pg.wait_for_timeout(200); pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        slots = "() => { const d = window.__prioritizer.dp.days[new Date().toLocaleDateString('en-CA')]; return d ? Object.fromEntries(d.slots.map(s => [s.taskId, s.sectionId])) : {}; }"
+        got = pg.evaluate(slots)
+        check('tasks slot by keyboard, by drag and from the drawer', got.get(open_ids[0]) == secs[1] and got.get(open_ids[1]) == secs[0] and got.get(open_ids[2]) == secs[0])
+        check('slotted tasks leave the tray', pg.locator(f'.dtray .row[data-id="{open_ids[0]}"]').count() == 0)
+        # Lost this block: the first block's tasks go to the next open block (the default).
+        pg.click(f'.dsec[data-sec="{secs[0]}"] [data-dp=secmenu]'); pg.click('.menu [data-sm=lose]'); pg.wait_for_timeout(150)
+        pg.click('.modal [data-ok]'); pg.wait_for_timeout(300)
+        got = pg.evaluate(slots)
+        check('lost this block moves its tasks to the next open block', got.get(open_ids[1]) == secs[1] and got.get(open_ids[2]) == secs[1] and pg.locator(f'.dsec[data-sec="{secs[0]}"].lost').count() == 1)
+        times = "() => window.__prioritizer.dp.days[new Date().toLocaleDateString('en-CA')].sections.map(s => s.around)"
+        before = pg.evaluate(times)
+        pg.click(f'.dsec[data-sec="{secs[1]}"] [data-dp=secmenu]'); pg.click('.menu [data-sm=shift]'); pg.wait_for_timeout(150)
+        pg.click('.modal [data-m="30"]'); pg.wait_for_timeout(300)
+        after = pg.evaluate(times)
+        check('shift the rest of the day moves later blocks by 30 minutes', after[0] == before[0] and after[1] != before[1])
+        pg.keyboard.press('Control+z'); pg.wait_for_timeout(300)
+        check('Ctrl+Z undoes the shift', pg.evaluate(times) == before)
+        pg.keyboard.press('Control+Shift+z'); pg.wait_for_timeout(200); pg.keyboard.press('Control+z'); pg.wait_for_timeout(200)
+        # Escaping: a block named <script> and a task titled <script> render as text.
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks.find(t => t.id === '{open_ids[1]}').title = '<script>alert(1)</script>'; P.commit(); }}")
+        pg.click(f'.dsec[data-sec="{secs[2]}"] [data-dp=secmenu]'); pg.click('.menu [data-sm=edit]'); pg.wait_for_timeout(150)
+        pg.fill('.modal [name=name]', '<img src=x onerror=alert(1)>'); pg.click('.modal .btn.primary'); pg.wait_for_timeout(300)
+        check('block names and task titles are escaped', pg.locator('main img').count() == 0 and pg.locator('main script').count() == 0
+              and '<img src=x' in pg.inner_text(f'.dsec[data-sec="{secs[2]}"] h3') and '<script>' in pg.inner_text('main'))
+        pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
+        pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
+        got = pg.evaluate(slots)
+        check('after reload the Day view and its plan are still there', pg.evaluate(f'{P}.state.view') == 'day' and got.get(open_ids[0]) == secs[1] and pg.locator('.dsec.lost').count() == 1)
+        cols = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
+          const q = r.result.transaction('data').objectStore('data').getAllKeys(); q.onsuccess = () => res(q.result); }; })""")
+        y = pg.evaluate("new Date().getFullYear()")
+        check('the day plan is saved as dayplan collections next to the board', all(c in cols for c in ['prioritizer/dayplan/settings', 'prioritizer/dayplan/templates', f'prioritizer/dayplan/days/{y}']))
+        pg.keyboard.press('1'); pg.wait_for_timeout(200)
+
         pg.wait_for_function('navigator.serviceWorker.controller !== null || navigator.serviceWorker.getRegistration().then(r => !!r)', timeout=10000)
         scope = pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r && r.scope)")
         check('it registers its own service worker for the whole site', scope == SITE + '/')

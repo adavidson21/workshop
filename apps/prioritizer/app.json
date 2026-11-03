@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -16,6 +16,10 @@
     {
       "path": "task/:id",
       "title": "Open a task"
+    },
+    {
+      "path": "day/:date",
+      "title": "Plan a day"
     }
   ],
   "connectors": [
@@ -57,6 +61,10 @@
     "js/command-bar.js",
     "js/connect.js",
     "js/constants.js",
+    "js/day-view.js",
+    "js/dayplan-format.js",
+    "js/dayplan-model.js",
+    "js/dayplan.js",
     "js/drag-drop.js",
     "js/drawer.js",
     "js/eng.js",

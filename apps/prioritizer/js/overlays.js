@@ -54,7 +54,7 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>5</kbd>', 'Today, Triage, Prioritize, People, Reports')}
+      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Triage, Prioritize, People, Reports, Day')}
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
@@ -68,6 +68,12 @@ function showHelp(){
       ${r('<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>', 'Effort: XS, S, M, L, XL')}
       ${r('<kbd>D</kbd> / <kbd>U</kbd> / <kbd>Space</kbd>', 'Due date / Urgent / Today')}
       ${r('<kbd>Enter</kbd> / <kbd>S</kbd> / <kbd>0</kbd>', "Save and next / Skip / Won't do")}
+    </tbody></table>
+    <table class="keys"><tbody><tr><td colspan="2"><h4>In Day</h4></td></tr>
+      ${r('<kbd>P</kbd>', 'Plan the selected task into a block (then <kbd>1</kbd> to <kbd>9</kbd>)')}
+      ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move a block (on its header) or a task inside its block')}
+      ${r('<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>', 'Undo / Redo')}
+      ${r('<kbd>[</kbd> <kbd>]</kbd>', 'Previous, next working day')}
     </tbody></table>
     <footer><span class="grow"></span><button class="btn" data-close>Close</button></footer></div>`);
 }

@@ -7,6 +7,7 @@ import { app, drawer, main, render, sel, setSel } from './render.js';
 import { canonPerson, commit, findTask, isWaiting, orderedLists, save, scopeOpen, state } from './state.js';
 import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
+import { planFieldChange, planFieldClick, planFieldHtml, resetDrawerDate } from './day-view.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
 /* ---------- selection + keyboard navigation ---------- */
 function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
@@ -35,6 +36,7 @@ const drawerOverlay = () => drawerId && innerWidth < 1100;
 function openDrawer(id, focusTitle = true){
   if (isWaiting() || !findTask(id)) return;
   if (!drawerId) drawerReturn = document.activeElement;
+  if (drawerId !== id) resetDrawerDate();
   drawerId = id; setSel(id);
   app.classList.add('drawer-open');
   renderDrawer();
@@ -83,6 +85,7 @@ function renderDrawer(){
       ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div></div>` : ''}
       <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.people.join(', '))}" placeholder="Names, separated by commas" autocomplete="off">
         <datalist id="dPeopleList">${state.people.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+      ${planFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
         ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
@@ -109,6 +112,9 @@ function renderMainOnly(){
   const d = drawerId; drawerId = null; // skip the drawer while someone is typing in it
   render(); drawerId = d;
 }
+/* The drawer's listeners. main.js calls this once at startup: code that runs at load must not use another
+   module's state (modules import each other in a cycle), so nothing here runs on import. */
+function drawerInit(){
 drawer.addEventListener('input', e => {
   const t = findTask(drawerId); if (!t) return;
   const f = e.target.dataset.f;
@@ -136,7 +142,7 @@ drawer.addEventListener('change', e => {
   else if (f === 'nudge') t.nudgeOn = isDate(v) ? v : null;
   else if (f === 'people') t.people = [...new Set(v.split(',').map(canonPerson).filter(Boolean))];
   else if (f === 'list') t.listId = v;
-  else return;
+  else { if (planFieldChange(t, f, v)) renderDrawer(); return; }
   commit();
 });
 drawer.addEventListener('click', e => {
@@ -157,6 +163,8 @@ drawer.addEventListener('click', e => {
   if (a === 'done') return toggleDone(t.id);
   if (a === 'eng-open') return engOpen(t.ado.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
+  if (planFieldClick(t, a)) return renderDrawer();
 });
+}
 
-export { closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };
+export { drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };

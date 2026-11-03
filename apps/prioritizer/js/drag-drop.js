@@ -4,6 +4,7 @@ import { toast } from './overlays.js';
 import { render } from './render.js';
 import { commit, findTask, listById, state } from './state.js';
 import { todayStr } from './util.js';
+import { dayDrop } from './day-view.js';
 /* Prioritizer: Drag and drop between lists, quadrants and people, plus inline rename. */
 /* ---------- drag and drop (desktop) ---------- */
 let dragId = null, dragFromPerson = null, overEl = null, lastTouch = 0;
@@ -60,6 +61,7 @@ document.addEventListener('drop', e => {
     return;
   }
   const zone = z.dataset.zone, from = dragFromPerson; dragFromPerson = null;
+  if (zone === 'dsec' || zone === 'dtray') return dayDrop(id, z, e.clientY); // the Day view's blocks and tray
   if (zone === 'rank'){
     if (state.view === 'today' && t.focusOn !== todayStr()){ t.focusOn = todayStr(); commit(); return; }
     applyOrder([...z.querySelectorAll(':scope > .row')].map(n => n.dataset.id)); return;

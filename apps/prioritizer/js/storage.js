@@ -22,9 +22,14 @@ import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
 import { connectAction, connectItems } from './connect.js';
 import { saveFile } from '../shared/save-file.js';
+import { dayplanBoot, importDayplan } from './dayplan.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
-let store = null, ws = null, booted = false, status = {state: 'saved'};
+let store = null, dstore = null, ws = null, booted = false, status = {state: 'saved'};
+// The board and the day plan save separately; the folder icon shows the worse of the two.
+const parts = {board: {state: 'saved'}, day: {state: 'saved'}};
+const RANK = {error: 3, readonly: 2, saving: 1, saved: 0};
+const statusFrom = part => s => { parts[part] = s; setStatus(RANK[parts.day.state] > RANK[parts.board.state] ? parts.day : parts.board); };
 
 function where(){
   if (!ws) return 'nowhere';
@@ -70,7 +75,7 @@ async function boot(){
     data: ws.data,
     board: () => state,
     applied: () => { setState(sanitize(state)); if (booted) render(); },
-    status: setStatus
+    status: statusFrom('board')
   });
   let empty;
   try { ({empty} = await store.load()); }
@@ -101,8 +106,11 @@ async function boot(){
     }
   }
   store.start();
-  ws.on('online', ({online}) => { if (online) store.refresh(); });
-  addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); });
+  // The day plan (the Day view) saves next to the board. If it can't load, the board still works.
+  try { dstore = await dayplanBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('day')}); }
+  catch (e){ dstore = null; toast(`Could not load your day plan: ${e.message || e}. The Day view won't save until this is fixed.`, 30000); }
+  ws.on('online', ({online}) => { if (online){ store.refresh(); if (dstore) dstore.refresh(); } });
+  addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); if (dstore && dstore.unsaved) dstore.flushAll(); });
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
   if (store.isNew && ws.backend === 'agent'){
@@ -140,6 +148,7 @@ async function downloadBackup(){
   if (!ws){ toast('Storage is not available.'); return; }
   try {
     if (store) await store.idle();
+    if (dstore) await dstore.idle();
     const bundle = await ws.data.export({apps: ['prioritizer']});
     const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
     if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
@@ -154,12 +163,12 @@ function importFile(file){
 }
 async function importBackup(file){
   if (!store){ toast('Storage is not available.'); return; }
-  let envs;
-  try { envs = envelopesFromBundle(JSON.parse(await file.text())); }
+  let envs, bundle;
+  try { bundle = JSON.parse(await file.text()); envs = envelopesFromBundle(bundle); }
   catch (e){ toast(e instanceof SyntaxError ? 'That file is not a Workshop backup.' : e.message); return; }
   const n = envs.tasks ? envs.tasks.items.length : 0;
   await store.idle();
-  if (store.isNew){ await store.seed(envs); render(); toast(`Imported ${plural(n, 'task')}`); return; }
+  if (store.isNew){ await store.seed(envs); await importDay(bundle); render(); toast(`Imported ${plural(n, 'task')}`); return; }
   showModal(`<div class="sheet small" role="dialog" aria-modal="true" aria-label="Import a backup"><h3>Import ${plural(n, 'task')}</h3>
     <p>The backup is merged into your board. Where both have the same task, the one changed last is kept. Nothing is lost.</p>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-merge>Merge</button></footer></div>`,
@@ -167,9 +176,14 @@ async function importBackup(file){
       if (!e.target.closest('[data-merge]')) return;
       closeModal();
       await store.importEnvelopes(envs);
+      await importDay(bundle);
       render();
       toast(`Imported ${plural(n, 'task')}`);
     }));
 }
 
-export { boot, downloadBackup, importFile, onSyncClick, scheduleSave, store };
+async function importDay(bundle){
+  try { await importDayplan(bundle); } catch (e){ toast(e.message || 'Could not import the day plan.'); }
+}
+
+export { boot, downloadBackup, dstore, importFile, onSyncClick, scheduleSave, store };

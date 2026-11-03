@@ -8,6 +8,7 @@ import { renderReports, rpHead } from './reports.js';
 import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
+import { dayHead, renderDay } from './day-view.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
@@ -40,6 +41,7 @@ function render(){
   else if (v === 'people') renderPeople();
   else if (v === 'archive') renderArchive();
   else if (v === 'reports') renderReports();
+  else if (v === 'day') renderDay();
   else renderMatrix(v);
   markSel();
   syncDrawer();
@@ -67,7 +69,7 @@ function renderSide(){
     today: state.tasks.filter(t => !t.done && ids.includes(t.listId) && t.focusOn === todayStr()).length,
     triage: triageQueue().length
   };
-  $('#snav').innerHTML = NAV.map(([k, label, ic], i) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${label}. Shortcut: ${i + 1}">${ic}<span class="lbl">${label}</span>${
+  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${label}. Shortcut: ${key}">${ic}<span class="lbl">${label}</span>${
     k === 'triage' && counts.triage ? `<span class="badge" aria-label="${counts.triage} to triage">${counts.triage}</span>`
     : k === 'today' && counts.today ? `<span class="n">${counts.today}</span>` : ''}</button>`).join('');
   const open = id => state.tasks.filter(t => !t.done && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
@@ -90,6 +92,7 @@ function renderHead(){
   const v = state.view, nav = NAV_OF(v);
   const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
   if (v === 'reports') return rpHead();
+  if (v === 'day') return dayHead();
   let sub = esc(scopeName()), tools = '';
   if (v === 'today') sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
   if (nav === 'prio'){
