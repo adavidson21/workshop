@@ -920,7 +920,23 @@ def agents_checks(b, watch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def string_waits():
+    """wait_for_function calls in tests/*.py that pass an expression instead of a function. Playwright compiles an
+    expression inside the page when the condition is not already true; Workshop's CSP refuses that, so the wait
+    fails at once and sometimes leaves an EvalError page error behind (the old flaky "no page errors")."""
+    bad = []
+    for name in sorted(os.listdir(os.path.join(ROOT, 'tests'))):
+        if not name.endswith('.py'): continue
+        with open(os.path.join(ROOT, 'tests', name)) as f:
+            for i, line in enumerate(f, 1):
+                for m in re.finditer(r"wait_for_function\((['\"])(.*?)\1", line):
+                    if not re.match(r"\s*(\(|[A-Za-z_$][\w$]*\s*=>|async\b|function\b)", m.group(2)): bad.append(f'tests/{name}:{i}')
+    return bad
+
+
 def main():
+    bad = string_waits()
+    if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
