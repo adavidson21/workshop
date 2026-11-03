@@ -7,7 +7,9 @@ import { fail } from './http.mjs';
 
 export const NAME = /^[a-z][a-z0-9-]{0,39}$/;            // app ids
 export const SEG = /^[a-z0-9][a-z0-9-]{0,39}$/;          // collection name and file path segments
-export const FILE_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json)$/;
+export const FILE_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json|png|jpg|jpeg|gif|webp)$/;
+export const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp)$/;
+export const isImagePath = p => IMAGE_EXT.test(p);
 export const MAX_SEGMENTS = 4;
 export const FILE_MAX = 10 * 1024 * 1024;
 
@@ -55,13 +57,13 @@ export function folderName(segs) {
   return segs.join('/');
 }
 
-/** A file path: 1 to 4 segments, the last ending in .md or .json. */
+/** A file path: 1 to 4 segments, the last ending in .md, .json or an image extension. */
 export function filePath(segs) {
   if (segs.length < 1 || segs.length > MAX_SEGMENTS) fail('bad_request', 'A file path has 1 to 4 parts.');
   for (const g of segs.slice(0, -1)) if (!SEG.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
   const last = segs[segs.length - 1];
   if (!FILE_NAME.test(last)) {
-    if (/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md and .json files are allowed.');
+    if (/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md, .json, .png, .jpg, .jpeg, .gif and .webp files are allowed.');
     fail('bad_request', `"${last}" is not a valid file name.`);
   }
   return segs.join('/');
@@ -170,3 +172,21 @@ export class DataRoot {
 
 /** UTC stamp for trash names: 20261025T140500123Z. */
 export const trashStamp = (d = new Date()) => d.toISOString().replace(/[-:.]/g, '');
+
+/** Do these bytes start the way an image of this path's type does (docs/agent-api.md, Files, Images)? */
+export function looksLikeImage(rel, buf) {
+  const ext = rel.slice(rel.lastIndexOf('.') + 1);
+  const at = (i, bytes) => bytes.every((b, k) => buf[i + k] === b);
+  const ascii = s => [...s].map(c => c.charCodeAt(0));
+  if (ext === 'png') return at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (ext === 'jpg' || ext === 'jpeg') return at(0, [0xff, 0xd8, 0xff]);
+  if (ext === 'gif') return at(0, ascii('GIF87a')) || at(0, ascii('GIF89a'));
+  if (ext === 'webp') return at(0, ascii('RIFF')) && at(8, ascii('WEBP'));
+  return false;
+}
+
+/** Strict base64 (RFC 4648, standard alphabet, padding, no line breaks), or null. */
+export function decodeBase64(s) {
+  if (typeof s !== 'string' || s.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) return null;
+  return Buffer.from(s, 'base64');
+}

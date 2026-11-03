@@ -8,8 +8,18 @@
 //   fs.read('notes/pages.json');             // text, or null
 //   fs.permission = 'prompt';                // Chrome must ask again
 //   fs.remove();                             // the folder is gone
+function joinChunks(chunks) {
+  if (chunks.every(c => typeof c === 'string')) return chunks.join('');
+  const parts = chunks.map(asBytes);
+  const out = new Uint8Array(parts.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const c of parts) { out.set(c, at); at += c.length; }
+  return out;
+}
 const err = (name, msg) => new DOMException(msg || name, name);
-const bytes = (s) => new TextEncoder().encode(s).length;
+// Content is a string (text) or a Uint8Array (an image).
+const bytes = (s) => (typeof s === 'string' ? new TextEncoder().encode(s).length : s.length);
+const asBytes = (c) => (typeof c === 'string' ? new TextEncoder().encode(c) : c);
 
 export class FakeFolder {
   constructor(name = 'Workshop', { start = 1_000_000, step = 1 } = {}) {
@@ -117,7 +127,11 @@ class FakeFileHandle {
     const n = this.#live();
     if (this.fs.onGetFile) this.fs.onGetFile(this.#path());
     const content = n.content;
-    return { name: n.name, size: bytes(content), lastModified: n.lastModified, text: async () => content, type: '' };
+    return {
+      name: n.name, size: bytes(content), lastModified: n.lastModified, type: '', fakeContent: content,
+      text: async () => (typeof content === 'string' ? content : new TextDecoder().decode(content)),
+      arrayBuffer: async () => asBytes(content).slice().buffer
+    };
   }
   async createWritable() {
     this.fs.check(this.dir);
@@ -126,7 +140,11 @@ class FakeFileHandle {
     return {
       async write(data) {
         if (closed) throw err('InvalidStateError');
-        chunks.push(typeof data === 'string' ? data : await data.text());
+        if (typeof data === 'string') chunks.push(data);
+        else if (data && data.fakeContent !== undefined) chunks.push(data.fakeContent); // a file this folder gave out
+        else if (data instanceof Uint8Array) chunks.push(data.slice());
+        else if (data instanceof ArrayBuffer) chunks.push(new Uint8Array(data));
+        else chunks.push(new Uint8Array(await data.arrayBuffer())); // a Blob
       },
       async close() {
         closed = true;
@@ -137,7 +155,7 @@ class FakeFileHandle {
         // Moved into place on close, like Chrome's swap file: replaces whatever is at that name now.
         const prev = fs.dir.children.get(fs.name);
         const lastModified = fs.fs.step === 0 && prev && prev.kind === 'file' ? prev.lastModified : fs.fs.tick();
-        fs.dir.children.set(fs.name, { kind: 'file', name: fs.name, content: chunks.join(''), lastModified, parent: fs.dir });
+        fs.dir.children.set(fs.name, { kind: 'file', name: fs.name, content: joinChunks(chunks), lastModified, parent: fs.dir });
       },
       async abort() { closed = true; }
     };

@@ -253,6 +253,33 @@ test('files: trash moves the file, never removes it', async () => {
   assert.deepEqual(await s.files.list('receipts'), [], 'the trash is not listed');
 });
 
+const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+test('files: images are stored as bytes and read back as Blobs', { skip: DEVICE && 'the device store keeps text only' }, async () => {
+  const fs = new FakeFolder();
+  const s = store(fs);
+  const made = await s.files.write('notes', 'attachments/one.png', new Blob([PNG]), { create: true });
+  assert.equal(made.size, PNG.length);
+  assert.deepEqual(fs.read('notes/attachments/one.png'), PNG, 'the folder holds the image bytes');
+  const read = await s.files.read('notes', 'attachments/one.png');
+  assert.equal(read.content.type, 'image/png');
+  assert.deepEqual(new Uint8Array(await read.content.arrayBuffer()), PNG);
+  assert.equal(await codeOf(s.files.write('notes', 'attachments/one.png', PNG, { mtime: made.mtime - 1 })), 'conflict');
+  assert.equal(await codeOf(s.files.write('notes', 'attachments/bad.png', 'text', { create: true })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('notes', 'attachments/bad.gif', PNG, { create: true })), 'bad_request');
+  assert.equal(fs.exists('notes/attachments/bad.png'), false);
+  const t = await s.files.trash('notes', 'attachments/one.png');
+  assert.equal(t.trash, '.trash/notes/attachments/one.20261025T140500123Z.png');
+  assert.deepEqual(fs.read(t.trash), PNG, 'the trash keeps the bytes');
+});
+
+test('files: the device store refuses images and does not list them', { skip: !DEVICE && 'device store only' }, async () => {
+  const fs = new FakeFolder();
+  const s = store(fs);
+  assert.equal(await codeOf(s.files.write('notes', 'attachments/one.png', PNG, { create: true })), 'unavailable');
+  await s.files.write('notes', 'one.md', 'text', { create: true });
+  assert.deepEqual((await s.files.list('notes')).map(f => f.path), ['one.md']);
+});
+
 test('files: a file system that keeps the old modified time is written again until the mtime differs', async () => {
   const fs = new FakeFolder('Workshop', { step: 0 });
   const waits = [];
@@ -445,4 +472,24 @@ test('moving from IndexedDB: a long file name still fits the name rules', { skip
   const to = summary.files.renamed[0].to.split('/')[1];
   assert.match(to, /^a+-from-browser\.md$/);
   assert.equal(to.length, 40 + 3);
+});
+
+test('moving from IndexedDB: images are copied, the same image is left alone, a different one goes beside it', { skip: chromeOnly }, async () => {
+  const fs = new FakeFolder('Workshop');
+  const target = store(fs);
+  const other = Uint8Array.from([...PNG, 9]);
+  await target.files.write('notes', 'same.png', PNG, { create: true });
+  await target.files.write('notes', 'differs.png', PNG, { create: true });
+  const blob = (b) => new Blob([b], { type: 'image/png' });
+  const source = { mark: null, collections: async () => [], files: async () => [
+    { app: 'notes', path: 'same.png', content: blob(PNG) },
+    { app: 'notes', path: 'differs.png', content: blob(other) },
+    { app: 'notes', path: 'new.png', content: blob(PNG) }
+  ], moved: async () => null, markMoved: async (m) => { source.mark = m; } };
+  const summary = await moveIntoFolder({ source, target, folderName: 'Workshop' });
+  assert.deepEqual(summary.files.created, ['notes/new.png']);
+  assert.deepEqual(summary.files.same, ['notes/same.png']);
+  assert.deepEqual(summary.files.renamed, [{ from: 'notes/differs.png', to: 'notes/differs-from-browser.png' }]);
+  assert.deepEqual(fs.read('notes/differs-from-browser.png'), other);
+  assert.deepEqual(fs.read('notes/differs.png'), PNG);
 });

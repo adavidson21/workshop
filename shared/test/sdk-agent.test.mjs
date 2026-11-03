@@ -166,6 +166,30 @@ test('files on the agent: create, read, conflicts, list and trash (docs/sdk.md, 
   assert.deepEqual(await ws.files.list(), []);
 });
 
+test('images on the agent: Blobs in, Blobs out, base64 on the wire (docs/sdk.md, Files)', async () => {
+  const ws = await sdk.connect({ app: 'notes' });
+  const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==', 'base64'));
+  assert.equal(ws.files.isImage('attachments/a.png'), true);
+  assert.equal(ws.files.isImage('a.md'), false);
+  const made = await ws.files.write('attachments/a.png', new Blob([png], { type: 'image/png' }), { create: true });
+  assert.equal(made.size, png.length);
+  const read = await ws.files.read('attachments/a.png');
+  assert.ok(read.content instanceof Blob);
+  assert.equal(read.content.type, 'image/png');
+  assert.deepEqual(new Uint8Array(await read.content.arrayBuffer()), png);
+  assert.equal(read.encoding, undefined, 'apps never see the wire encoding');
+  await ws.files.write('attachments/b.jpg', Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]), { create: true });
+  assert.equal((await ws.files.read('attachments/b.jpg')).content.type, 'image/jpeg');
+  const stale = await ws.files.write('attachments/a.png', png.buffer, { mtime: 1 }).catch(e => e);
+  assert.equal(stale.code, 'conflict');
+  assert.ok(stale.current.content instanceof Blob, 'a conflict carries the image as a Blob too');
+  for (const [p, c] of [['attachments/c.png', 'text'], ['attachments/d.png', Uint8Array.from([1, 2, 3])], ['e.md', png], ['f.svg', '<svg/>']]) {
+    assert.equal((await ws.files.write(p, c, { create: true }).catch(e => e)).code, 'bad_request', p);
+  }
+  assert.equal(fs.existsSync(path.join(agent.dataDir, 'notes', 'attachments', 'c.png')), false);
+  assert.deepEqual((await ws.files.list('attachments')).map(f => f.path), ['attachments/a.png', 'attachments/b.jpg']);
+});
+
 test('nested collection names reach the agent; bad names are refused before any request', async () => {
   const ws = await sdk.connect({ app: 'notes' });
   const env = ws.data.stamp(null, { schema: 'notes.entries/person-one/2026', version: 1, rev: 0, items: [{ id: 'e1' }] });

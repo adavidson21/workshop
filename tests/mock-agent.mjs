@@ -22,7 +22,16 @@ const REPO = path.resolve(HERE, '..');
 const VERSION = '0.0.0-mock';
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;             // app ids, connector ids
 const SEG = /^[a-z0-9][a-z0-9-]{0,39}$/;           // collection name and file path segments
-const FILE_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json)$/;
+const FILE_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json|png|jpg|jpeg|gif|webp)$/;
+const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp)$/;
+// docs/agent-api.md, Files, Images: the first bytes must match the type.
+const IMAGE_START = {
+  png: b => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  jpg: b => b.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])),
+  gif: b => ['GIF87a', 'GIF89a'].includes(b.subarray(0, 6).toString('latin1')),
+  webp: b => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP'
+};
+IMAGE_START.jpeg = IMAGE_START.jpg;
 const MAX_SEGMENTS = 4;
 const DEBOUNCE_MS = 300;
 const ACTION = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$/;
@@ -294,7 +303,7 @@ export async function createMockAgent(options = {}) {
     for (const g of segs.slice(0, -1)) if (!SEG.test(g)) fail('bad_request', `"${g}" is not a valid folder name.`);
     const last = segs[segs.length - 1];
     if (!FILE_NAME.test(last)) {
-      if (/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md and .json files are allowed.');
+      if (/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last)) fail('bad_request', 'Only .md, .json, .png, .jpg, .jpeg, .gif and .webp files are allowed.');
       fail('bad_request', `"${last}" is not a valid file name.`);
     }
     return segs.join('/');
@@ -342,6 +351,7 @@ export async function createMockAgent(options = {}) {
     if (!st.isFile()) fail('bad_request', 'That path is a folder.');
     const [app, ...rest] = rel.split('/');
     const view = { app, path: rest.join('/'), mtime: floorMs(st), size: st.size };
+    if (IMAGE_EXT.test(rel)) return { ...view, encoding: 'base64', content: st.size > FILE_MAX ? '' : fs.readFileSync(file).toString('base64') };
     if (st.size > FILE_MAX) return { ...view, content: '' };
     const content = fs.readFileSync(file, 'utf8');
     if (isCollectionText(rel, content)) { kinds.set(rel, 'collection'); fail('bad_request', `${view.path} is a collection. Use the data API.`); }
@@ -376,7 +386,7 @@ export async function createMockAgent(options = {}) {
 
   /** Move a file to .trash/<app>/... and return where it went, relative to the data folder. */
   function moveToTrash(rel, file) {
-    const m = rel.match(/^(.*)\.(md|json)$/);
+    const m = rel.match(/^(.*)\.([a-z]+)$/);
     const base = `.trash/${m[1]}.${stamp()}`;
     let dest = `${base}.${m[2]}`;
     for (let i = 1; lexists(path.join(dataDir, ...dest.split('/'))); i++) dest = `${base}-${i}.${m[2]}`;
@@ -695,7 +705,16 @@ document.getElementById('allow').addEventListener('click', function () {
         const body = await readBody(req, 64 * MB);
         const errs = schemas.validate('file-put', body);
         if (errs.length) fail('bad_request', `Send {"content": "...", "mtime": <the mtime you read>} or {"content": "...", "create": true}: ${errs[0]}`);
-        if (Buffer.byteLength(body.content) > FILE_MAX) fail('too_large', 'A file can be at most 10 MB.');
+        const image = IMAGE_EXT.test(fpath);
+        let data = body.content;
+        if (image) {
+          if (body.encoding !== 'base64') fail('bad_request', `${fpath} is an image. Send it in base64 with "encoding": "base64".`);
+          if (body.content.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.content)) fail('bad_request', 'That content is not valid base64.');
+          data = Buffer.from(body.content, 'base64');
+        } else if (body.encoding !== undefined) fail('bad_request', `${fpath} is a text file. Send it without "encoding".`);
+        const size = image ? data.length : Buffer.byteLength(body.content);
+        if (size > FILE_MAX) fail('too_large', 'A file can be at most 10 MB.');
+        if (image && !IMAGE_START[fpath.slice(fpath.lastIndexOf('.') + 1)](data)) fail('bad_request', 'That content is not an image of that type.');
         if (fpath.endsWith('.json')) {
           try { JSON.parse(body.content); } catch { fail('bad_request', `${fpath} must hold valid JSON.`); }
           if (isCollectionText(rel, body.content)) fail('bad_request', `That content is a collection. Save it with the data API instead.`);
@@ -704,10 +723,10 @@ document.getElementById('allow').addEventListener('click', function () {
         if (body.create) { if (cur) fail('conflict', `${fpath} already exists.`, { current: cur }); }
         else if (!cur) fail('conflict', 'That file is gone. It may have been moved to the trash.', { current: null });
         else if (cur.mtime !== body.mtime) fail('conflict', 'That file changed since you loaded it. Reload and try again.', { current: cur });
-        const mtime = writeAtomic(rel, file, body.content);
+        const mtime = writeAtomic(rel, file, data);
         kinds.set(rel, 'file');
         broadcast('file', { app, path: fpath, mtime, client: clientOf(req) });
-        return ok({ app, path: fpath, mtime, size: Buffer.byteLength(body.content) });
+        return ok({ app, path: fpath, mtime, size });
       }
       if (m === 'DELETE') {
         const q = url.searchParams.get('mtime');
