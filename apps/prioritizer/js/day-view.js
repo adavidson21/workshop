@@ -4,15 +4,16 @@
 import { ICON, POINTS, TOUCH } from './constants.js';
 import {
   COLORS, addDays, addSection, carryCandidates, carryOver, carryPending, cleanSprint, cleanTemplate, currentSection, dayView, dismissCarry,
-  formatDays, isDate, isTime, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection, removeSection,
+  daysBetween, formatDays, isDate, sprintDayDate, isTime, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection, removeSection,
   resetDay, restFrom, restoreSection, sectionLoad, sectionOf, sectionTasks, shiftDay, slotOf, slotTask, sprintInfo, templateErrors,
   toMin, unslotTask, updateSection
 } from './dayplan-model.js';
-import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setSprint, setTemplates } from './dayplan.js';
+import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setRecurring, setSprint, setTemplates } from './dayplan.js';
 import { cmdOpen } from './command-bar.js';
 import { closeMenu, closeModal, confirmBox, menuEl, modal, popMenu, showModal, toast } from './overlays.js';
 import { main, render, row, sel, setSel } from './render.js';
-import { findTask, isWaiting, scopeName, scopeOpen, state } from './state.js';
+import { findTask, isWaiting, orderedLists, scopeName, scopeOpen, state } from './state.js';
+import { EFFORTS, VALUE } from './constants.js';
 import { $, esc, fmtLong, plural, todayStr } from './util.js';
 
 let date = null, followToday = true, trayFilter = 'all', lastNow = null, secDrag = null;
@@ -301,10 +302,11 @@ function redo(){ if (!dpRedo()) toast('Nothing to redo'); }
 /* ---------- settings: sprint and templates ---------- */
 const WD = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
 let draft = null;
-function openSettings(){
-  draft = {sprint: JSON.parse(JSON.stringify(dp.sprint)), templates: JSON.parse(JSON.stringify(dp.templates))};
+function openSettings(focus){
+  draft = {sprint: JSON.parse(JSON.stringify(dp.sprint)), templates: JSON.parse(JSON.stringify(dp.templates)), recurring: JSON.parse(JSON.stringify(dp.recurring))};
   showModal(`<div class="sheet wide dsettings" role="dialog" aria-modal="true" aria-label="Sprint and templates"></div>`, sh => {
     drawSettings(sh);
+    if (focus === 'recurring'){ const r = sh.querySelector('.drec'); if (r) r.scrollIntoView({block: 'start'}); }
     sh.addEventListener('input', e => readSettingsField(e.target));
     sh.addEventListener('change', e => { readSettingsField(e.target); if (e.target.dataset.redraw != null) drawSettings(sh); else showErrors(sh); });
     sh.addEventListener('click', e => settingsClick(e, sh));
@@ -326,6 +328,10 @@ function drawSettings(sh){
       <div class="derr" role="alert"></div>
       ${draft.templates.map((t, ti) => templateCard(t, ti)).join('')}
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
+    </section>
+    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint, a new one is added on day 1 at the value you pick, due on its sprint day, so it's visible early and rises as the day gets close.</p>
+      ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
+      <div class="acts"><button class="btn" data-addrec>${ICON.plus} Every-sprint task</button></div>
     </section>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-savesettings>Save</button></footer>`;
   showErrors(sh);
@@ -349,8 +355,33 @@ function templateCard(t, ti){
     <button class="btn ghost" data-addsec>${ICON.plus} Block</button></div>
     <datalist id="dpKinds">${kinds().map(k => `<option value="${esc(k)}">`).join('')}</datalist>`;
 }
+function recurRow(r, ri){
+  const sp = cleanSprint(draft.sprint), max = sp.lengthWeeks * 7;
+  const when = info => info ? ` (${info})` : '';
+  const dayName = n => { if (!sp.anchor) return ''; const d = sprintDayDate(sp, sprintInfo(sp, todayStr()).start, n); return d ? new Date(d + 'T12:00').toLocaleDateString(undefined, {weekday: 'short'}) + ' wk ' + (Math.floor(daysBetween(sprintInfo(sp, todayStr()).start, d) / 7) + 1) : ''; };
+  const opts = [`<option value="last"${r.last ? ' selected' : ''}>Last day</option>`].concat(Array.from({length: max}, (_, i) => i + 1)
+    .filter(n => n <= sp.workdays.length * sp.lengthWeeks).map(n => `<option value="${n}"${!r.last && r.dueDay === n ? ' selected' : ''}>Day ${n}${when(dayName(n))}</option>`));
+  return `<tr data-ri="${ri}">
+    <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task"></td>
+    <td><select data-rf="due" aria-label="Due on">${opts.join('')}</select></td>
+    <td><select data-rf="value" aria-label="Value">${[1, 2, 3, 4].map(v => `<option value="${v}"${r.value === v ? ' selected' : ''}>${VALUE[v]}</option>`).join('')}</select></td>
+    <td><select data-rf="effort" aria-label="Effort">${EFFORTS.map(e => `<option${r.effort === e ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
+    <td><select data-rf="listId" aria-label="List">${orderedLists().map(l => `<option value="${esc(l.id)}"${r.listId === l.id ? ' selected' : ''}>${l.parentId ? '   ' : ''}${esc(l.name)}</option>`).join('')}</select></td>
+    <td class="dact"><label class="chk" data-tip="Paused items don't make new tasks"><input type="checkbox" data-rf="paused"${r.paused ? ' checked' : ''}> Pause</label><button class="ibtn" data-recdel aria-label="Remove">${ICON.x}</button></td></tr>`;
+}
 function readSettingsField(el){
   const sp = draft.sprint;
+  const reEl = el.closest && el.closest('[data-ri]');
+  if (reEl && el.dataset.rf){
+    const r = draft.recurring[+reEl.dataset.ri], f = el.dataset.rf;
+    if (f === 'title') r.title = el.value;
+    if (f === 'due'){ r.last = el.value === 'last'; if (!r.last) r.dueDay = +el.value; }
+    if (f === 'value') r.value = +el.value;
+    if (f === 'effort') r.effort = el.value;
+    if (f === 'listId') r.listId = el.value;
+    if (f === 'paused') r.paused = el.checked;
+    return;
+  }
   if (el.dataset.s){ const v = el.value; sp[el.dataset.s] = el.dataset.s === 'lengthWeeks' ? Math.max(1, Math.min(8, Math.round(+v) || 2)) : v || null; return; }
   if (el.dataset.wd != null){ const n = +el.dataset.wd; sp.workdays = el.checked ? [...new Set([...sp.workdays, n])] : sp.workdays.filter(x => x !== n); return; }
   const tEl = el.closest('[data-ti]'); if (!tEl) return;
@@ -379,6 +410,9 @@ function settingsClick(e, sh){
   const blank = () => ({id: Math.random().toString(36).slice(2, 9), name: 'New block', kind: '', color: 'slate', around: null, minutes: null, capacity: null});
   if (b.hasAttribute('data-addhol')){ const v = sh.querySelector('#dpHol').value; if (isDate(v) && !draft.sprint.holidays.includes(v)){ draft.sprint.holidays.push(v); draft.sprint.holidays.sort(); } drawSettings(sh); return; }
   if (b.dataset.delhol){ draft.sprint.holidays = draft.sprint.holidays.filter(h => h !== b.dataset.delhol); drawSettings(sh); return; }
+  if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', dueDay: 1, last: false, value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
+  const reEl = b.closest('[data-ri]');
+  if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, sections: [blank()]}); drawSettings(sh); return; }
   if (b.hasAttribute('data-example')){ draft.templates = exampleTemplates(cleanSprint(draft.sprint)); drawSettings(sh); return; }
   if (b.hasAttribute('data-deltpl') && t){ draft.templates.splice(+tEl.dataset.ti, 1); drawSettings(sh); return; }
@@ -388,7 +422,7 @@ function settingsClick(e, sh){
   if (b.hasAttribute('data-savesettings')){
     if (showErrors(sh).length){ sh.querySelector('.derr').scrollIntoView({block: 'nearest'}); return; }
     if (!isDate(draft.sprint.anchor)){ toast('Pick the day a sprint starts.'); sh.querySelector('[data-s=anchor]').focus(); return; }
-    setSprint(draft.sprint); setTemplates(draft.templates);
+    setSprint(draft.sprint); setTemplates(draft.templates); setRecurring(draft.recurring.filter(r => r.title.trim()));
     closeModal(); toast('Saved');
   }
 }

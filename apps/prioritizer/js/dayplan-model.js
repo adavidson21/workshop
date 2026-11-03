@@ -84,6 +84,7 @@ function cleanDayplan(dp){
   dp = dp && typeof dp === 'object' ? dp : {};
   dp.sprint = cleanSprint(dp.sprint);
   dp.templates = Array.isArray(dp.templates) ? dp.templates.map(cleanTemplate).filter(Boolean) : [];
+  dp.recurring = Array.isArray(dp.recurring) ? dp.recurring.map(cleanRecurring).filter(Boolean) : [];
   const days = {};
   for (const [k, r] of Object.entries(dp.days && typeof dp.days === 'object' ? dp.days : {})){
     const c = cleanRecord(r, k); if (c) days[c.id] = c;
@@ -352,6 +353,57 @@ function dismissCarry(dp, date){
   rec.carry = Object.assign({tray: []}, rec.carry, {done: true});
 }
 
+/* ---------- every-sprint tasks ----------
+   A recurring item is {id, title, dueDay, last, value, effort, listId, notes, paused}. Each sprint whose due day
+   has not passed gets one fresh task on its first working day (or as soon as Docket opens after that), due on
+   that sprint day. The task's id is fixed per item and sprint (r_<item id>_<sprint start>), so two windows make
+   the same task, and a task you delete stays deleted (made lists the sprints already done). */
+const EFFORT_KEYS = ['XS', 'S', 'M', 'L', 'XL'];
+function cleanRecurring(r){
+  if (!r || typeof r !== 'object') return null;
+  const o = Object.assign({}, clone(r));
+  o.id = str(o.id, 40) || rid();
+  o.title = str(o.title, 300).trim();
+  if (!o.title) return null;
+  o.dueDay = Number.isInteger(+o.dueDay) && +o.dueDay >= 1 && +o.dueDay <= 60 ? +o.dueDay : 1;
+  o.last = o.last === true;
+  o.value = Number.isInteger(+o.value) && +o.value >= 1 && +o.value <= 4 ? +o.value : 2;
+  o.effort = EFFORT_KEYS.includes(o.effort) ? o.effort : 'S';
+  o.listId = typeof o.listId === 'string' ? o.listId : null;
+  o.notes = str(o.notes, 2000);
+  o.paused = o.paused === true;
+  o.made = Array.isArray(o.made) ? [...new Set(o.made.filter(isDate))].sort().slice(-12) : [];
+  return o;
+}
+/* The date of sprint day n in the sprint starting at start (the last working day if the sprint is shorter). */
+function sprintDayDate(sp, start, n, last = false){
+  const end = addDays(start, sprintLen(sp) - 1);
+  let k = 0, lastDay = null;
+  for (let d = start; d <= end; d = addDays(d, 1)){
+    if (!isWorkday(sp, d)) continue;
+    k++; lastDay = d;
+    if (!last && k === n) return d;
+  }
+  return lastDay;
+}
+const recurTaskId = (item, start) => `r_${item.id}_${start}`;
+/* Tasks to create on `today`: [{item, id, start, due}]. Skips paused items, sprints already made, and sprints
+   whose due day has passed. today must be on or after the sprint's first working day. */
+function recurDue(dp, today){
+  const info = sprintInfo(dp.sprint, today);
+  if (!info) return [];
+  const first = sprintDayDate(dp.sprint, info.start, 1);
+  if (!first || today < first) return [];
+  const out = [];
+  for (const item of dp.recurring){
+    if (item.paused || item.made.includes(info.start)) continue;
+    const due = sprintDayDate(dp.sprint, info.start, item.dueDay, item.last);
+    if (!due || today > due) continue;
+    out.push({item, id: recurTaskId(item, info.start), start: info.start, due, sprint: info.id});
+  }
+  return out;
+}
+
 /* ---------- undo and redo (per window) ----------
    Each entry is the records of the dates an action touched, as they were before ({date: record or null}). */
 function createHistory(max = MAX_UNDO){
@@ -377,6 +429,7 @@ function createHistory(max = MAX_UNDO){
 }
 
 export {
+  cleanRecurring, recurDue, recurTaskId, sprintDayDate,
   COLORS, DEFAULT_SPRINT, addDays, addSection, carryCandidates, carryOver, carryPending, cleanDayplan, cleanRecord, cleanSection,
   cleanSprint, cleanTemplate, createHistory, currentSection, dayView, daysBetween, dismissCarry, editDay, formatDays, freshDayplan,
   fromMin, isDate, isTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,

@@ -119,6 +119,7 @@ function row(t, o = {}){
   let meta = '';
   if (t.ado) meta += `<span class="chip ado" data-tip="ADO ${esc(t.ado.type)} #${t.ado.id}, ${esc(t.ado.state)}">${esc(adoShort(t.ado.type))} ${t.ado.id}</span>`;
   if (t.ado && !t.done) meta += engChip(t.ado.id);
+  if (t.recur) meta += `<span class="chip" data-tip="Every sprint${t.recur.sprint ? `: sprint ${esc(t.recur.sprint)}` : ''}">Every sprint</span>`;
   if (t.pr){
     meta += `<span class="chip ado" data-tip="${esc(prTip(t.pr))}">PR ${t.pr.id}</span>`;
     if (!t.done && !t.pr.waiting) meta += `<span class="chip${t.pr.tier === 'blocking' ? ' warn' : t.pr.tier === 'asked' ? ' acc' : ''}" data-tip="${esc(PR_TIER[t.pr.tier].tip)}">${t.pr.lastBlocker ? 'Last approval' : PR_TIER[t.pr.tier].label}</span>`;

@@ -280,7 +280,7 @@ function backend(){
 async function win(be, id){
   const w = {dp: M.freshDayplan()};
   w.store = createStore({data: be.client(id), board: () => w.dp, applied: () => M.cleanDayplan(w.dp), timers: globalThis,
-    format: dayplanFormat(['dayplan/settings', 'dayplan/templates', 'dayplan/days/2026'])});
+    format: dayplanFormat(['dayplan/settings', 'dayplan/templates', 'dayplan/recurring', 'dayplan/days/2026'])});
   await w.store.load(); w.store.start();
   return w;
 }
@@ -351,4 +351,27 @@ test('saved day plan items match the JSON Schemas in schemas/', () => {
   no('dayplan-settings.schema.json', dpEnvelopeFromBoard('dayplan/settings', dp, null).meta.sprint);
   for (const t of dpEnvelopeFromBoard('dayplan/templates', dp, null).items) no('dayplan-template.schema.json', t);
   for (const d of dpEnvelopeFromBoard('dayplan/days/2026', dp, null).items) no('dayplan-day.schema.json', d);
+  dp.recurring = [M.cleanRecurring({title: 'Refinement', dueDay: 4, made: ['2026-11-04']})];
+  for (const r of dpEnvelopeFromBoard('dayplan/recurring', dp, null).items) no('dayplan-recurring.schema.json', r);
+});
+
+/* ---------- every-sprint tasks ---------- */
+test('every-sprint tasks: made on day 1, due on their sprint day, once per sprint, never after the due day', () => {
+  const dp = board({recurring: [{id: 'ref', title: 'Backlog refinement', dueDay: 4}, {id: 'rel', title: 'Release', last: true, value: 3, effort: 'M'}, {id: 'p', title: 'Paused', paused: true}]});
+  assert.equal(dp.recurring[0].value, 2, 'Low value by default'); assert.equal(dp.recurring[0].effort, 'S');
+  assert.deepEqual(M.recurDue(dp, '2026-11-03').map(d => d.id), ['r_rel_2026-10-21'], 'the 3rd is the previous sprint\'s last day: only its release is still ahead');
+  const due = M.recurDue(dp, '2026-11-04');
+  assert.deepEqual(due.map(d => [d.id, d.due]), [['r_ref_2026-11-04', '2026-11-09'], ['r_rel_2026-11-04', '2026-11-17']], 'day 4 is Monday of week 2');
+  due.forEach(d => d.item.made.push(d.start));
+  assert.deepEqual(M.recurDue(dp, '2026-11-05'), [], 'once per sprint');
+  // Opened late, after refinement was due: only the release is still ahead.
+  const late = board({recurring: dp.recurring.map(r => ({...r, made: []}))});
+  assert.deepEqual(M.recurDue(late, '2026-11-10').map(d => d.item.id), ['rel']);
+  // The next sprint makes fresh ones with new ids.
+  assert.deepEqual(M.recurDue(dp, '2026-11-18').map(d => d.id), ['r_ref_2026-11-18', 'r_rel_2026-11-18']);
+  // Weekend day 1: nothing until the first working day. A holiday pushes the due date along.
+  const hol = board({sprint: {...SPRINT, holidays: ['2026-11-05']}, recurring: [{id: 'ref', title: 'R', dueDay: 4}]});
+  assert.equal(M.recurDue(hol, '2026-11-04')[0].due, '2026-11-10');
+  assert.equal(M.sprintDayDate(hol.sprint, '2026-11-04', 40), '2026-11-17', 'past the end: the last working day');
+  assert.equal(M.cleanRecurring({title: '  '}), null);
 });

@@ -15,7 +15,7 @@ import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
 import { drawerInit, openDrawer } from './drawer.js';
 import { dayInit, setDate } from './day-view.js';
-import { dp } from './dayplan.js';
+import { dp, recurTick } from './dayplan.js';
 import * as dayModel from './dayplan-model.js';
 import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
@@ -59,7 +59,7 @@ window.__prioritizer = {
   engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
   saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null]), get store(){ return store; },
-  get dp(){ return dp; }, get dstore(){ return dstore; }, dayModel
+  get dp(){ return dp; }, recurTick, get dstore(){ return dstore; }, dayModel
 };
 
 drawerInit(); dayInit();

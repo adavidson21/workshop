@@ -5,6 +5,7 @@
 
      dayplan/settings      prioritizer.dayplan/settings v1      no items; meta: {sprint}
      dayplan/templates     prioritizer.dayplan/templates v1     items: templates with their sections
+     dayplan/recurring     prioritizer.dayplan/recurring v1     items: every-sprint tasks
      dayplan/days/<yyyy>   prioritizer.dayplan/days/<yyyy> v1   items: day records keyed by date (id)
 
    Slots live on the day record, not on tasks, so prioritizer.tasks stays at v3. A date with no record shows its
@@ -12,7 +13,7 @@
    wins, like tasks. */
 import { clone } from './store-format.js';
 
-const DP_FIXED = ['dayplan/settings', 'dayplan/templates'];
+const DP_FIXED = ['dayplan/settings', 'dayplan/templates', 'dayplan/recurring'];
 const DP_VERSION = 1;
 const dpSchema = col => `prioritizer.${col}`;
 const yearCol = y => `dayplan/days/${y}`;
@@ -31,6 +32,7 @@ function dpEnvelopeFromBoard(col, dp, shadow){
   const metaAt = shadow && shadow.meta ? shadow.meta.updatedAt : 0;
   if (col === 'dayplan/settings') env.meta = Object.assign({}, clone(shadow && shadow.meta) || {}, {updatedAt: metaAt, sprint: clone(dp.sprint)});
   if (col === 'dayplan/templates') env.items = dp.templates.map(item);
+  if (col === 'dayplan/recurring') env.items = (dp.recurring || []).map(item);
   if (isYearCol(col)){
     const y = yearOf(col);
     env.items = Object.values(dp.days).filter(r => r.id.slice(0, 4) === y).sort((a, b) => a.id < b.id ? -1 : 1).map(item);
@@ -42,6 +44,7 @@ function dpApplyEnvelope(col, env, dp){
   const items = (env && env.items || []).map(i => { const c = clone(i); delete c.updatedAt; return c; });
   if (col === 'dayplan/settings'){ if (env && env.meta && env.meta.sprint) dp.sprint = clone(env.meta.sprint); }
   if (col === 'dayplan/templates') dp.templates = items;
+  if (col === 'dayplan/recurring') dp.recurring = items;
   if (isYearCol(col)){
     const y = yearOf(col);
     for (const k of Object.keys(dp.days)) if (k.slice(0, 4) === y) delete dp.days[k];
