@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { main, parseArgs } from '../doctor.mjs';
-import { compareLists } from '../lib/compare.mjs';
+import { compareLists, compareSync } from '../lib/compare.mjs';
 import { PAT } from './fixtures/team.mjs';
 import { HELPER, findPython, HELPER_MISSING, testEnv, withServer } from './harness.mjs';
 
@@ -109,4 +109,13 @@ test('--import prints settings, and --write saves them without turning the conne
   const again = JSON.parse(fs.readFileSync(path.join(dir, 'home', 'config.json'), 'utf8'));
   assert.equal(again.connectors.ado.config.connections.length, 1);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('compareSync ignores fields only the connector adds to PRs (commit)', () => {
+  const pr = { key: 'k1', id: 1, title: 'T' };
+  const side = prs => ({ ok: { items: [], gone: [], prs: { items: prs, gone: [], notes: [] } } });
+  const r = compareSync(side([pr]), side([{ ...pr, commit: 'abc1234' }]));
+  assert.equal(r.ok, true);
+  assert.match(r.lines.join('\n'), /PRs: 1 match, 0 differ/);
+  assert.equal(compareSync(side([pr]), side([{ ...pr, title: 'U' }])).ok, false, 'other fields still count');
 });
