@@ -934,7 +934,7 @@ def main():
         # Every request from every page and frame, including the service worker's.
         ctx.on('request', lambda r: requests.append(r.url))
         def watch(page):
-            page.on('pageerror', lambda e: errors.append(str(e)))
+            page.on('pageerror', lambda e, page=page: errors.append(f"{str(e)[:300]} | page {page.url} | stack {(getattr(e, 'stack', '') or '')[:800]}"))
             page.on('console', lambda m: csp.append(m.text) if 'Content Security Policy' in m.text else None)
         pg = ctx.new_page(); watch(pg)
 
