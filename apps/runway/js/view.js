@@ -3,6 +3,7 @@
 import { SCALES, fmt } from './dates.js';
 import { COLORS, STATUSES, linksIn, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
+import { summary } from './export.js';
 
 const relTime = (ms, now = Date.now()) => {
   if (!ms) return '';
@@ -102,6 +103,7 @@ export const OUTLINE_HELP = `<details class="ohelp"><summary>Outline format</sum
 scale: month          week, sprint, month or quarter
 start: 2027-01-01     where S1, W1 and year-less months count from
 sprint: 2027-01-06, 2 weeks
+goal: S1 | What this sprint delivers   (a month or Q2 on other scales)
 
 ## Lane
 - Item | Jan-Mar 2027
@@ -110,7 +112,33 @@ sprint: 2027-01-06, 2 weeks
 - Item | 2027-03-01..2027-03-20
 - Item | 3 sprints     a length: starts after its "after" items
 - * Milestone | 2027-04-15
-  Indented lines are notes.</code></pre></details>`;
+  Indented lines are its description.</code></pre></details>`;
+
+/* ---------- under the timeline: goals and what each item delivers ---------- */
+
+export function detailsHtml(doc, range, open = true) {
+  const { goals, items } = summary(doc, range);
+  const goalWord = doc.meta.scale === 'sprint' ? 'Sprint goals' : 'Goals';
+  const body = `
+    <div class="dcol"><h4 class="section-label">${goalWord}</h4>
+      ${goals.length ? `<ul class="dlist">${goals.map(g => `<li><button class="dname" data-goal="${esc(g.start)}">${esc(g.name)}</button><p>${esc(g.text)}</p></li>`).join('')}</ul>`
+        : `<p class="hint">No goals in these dates. Click a cell in the goals row above the lanes, or write <code>goal: ${doc.meta.scale === 'sprint' ? 'S1' : doc.meta.scale === 'quarter' ? 'Q1' : 'Jan'} | ...</code> in the outline.</p>`}
+    </div>
+    <div class="dcol"><h4 class="section-label">What's getting done</h4>
+      ${items.length ? `<ul class="dlist">${items.map(it => `<li><button class="dname" data-pick="${esc(it.id)}">${esc(it.title)}</button><span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : ''].filter(Boolean).join(' · '))}</span><p>${esc(it.notes)}</p></li>`).join('')}</ul>`
+        : '<p class="hint">Add a description to an item (its panel, or indented lines under it in the outline) to say what it delivers.</p>'}
+    </div>`;
+  return `<details class="details" data-details${open ? ' open' : ''}><summary>Goals and descriptions <span class="hint">${goals.length} goal${goals.length === 1 ? '' : 's'}, ${items.length} described</span></summary><div class="dgrid">${body}</div></details>`;
+}
+
+export function goalDialog(name, text) {
+  return `<form method="dialog" class="sheet small">
+    <h3>Goal</h3>
+    <p class="hint">${esc(name)}</p>
+    <label class="pf"><span>What this period delivers</span><textarea name="v" rows="3" maxlength="300" autofocus>${esc(text)}</textarea></label>
+    <footer>${text ? '<button class="btn text-danger" value="clear" formnovalidate>Clear</button>' : ''}<span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Save</button></footer>
+  </form>`;
+}
 
 /* ---------- the item panel ---------- */
 
@@ -141,7 +169,7 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
     </div></fieldset>
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
       ${it.afterMissing.length ? `<p class="hint">Not in this roadmap: ${esc(it.afterMissing.join(', '))}</p>` : ''}</fieldset>
-    <label class="pf"><span>Notes</span><textarea data-f="notes" rows="4" maxlength="4000"${ro}>${esc(it.notes)}</textarea></label>
+    <label class="pf"><span>Description</span><textarea data-f="notes" rows="4" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
     ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
     <footer>${readOnly ? '' : `<button type="button" class="btn text-danger" data-delete>Delete</button>`}</footer>
   </form>`;
@@ -168,12 +196,13 @@ export function exportDialog(doc, { dark = false } = {}) {
     <p class="hint">The image shows the dates and lanes on screen now. Folded lanes are left out.</p>
     <div class="prow">
       <label class="pc"><input type="checkbox" name="title" checked> Title</label>
+      <label class="pc"><input type="checkbox" name="details" checked> Goals and descriptions</label>
       <label class="pc"><input type="checkbox" name="today" checked> Today line</label>
       <label class="pf inline"><span>Theme</span><select name="theme"><option value="light"${dark ? '' : ' selected'}>Light (for printing)</option><option value="dark"${dark ? ' selected' : ''}>Dark</option></select></label>
     </div>
     <div class="acts"><button type="button" class="btn primary" data-x="png">${ICON.down}PNG image</button><button type="button" class="btn" data-x="svg">${ICON.down}SVG image</button></div>
     <h4 class="section-label">Markdown</h4>
-    <label class="pc"><input type="checkbox" name="table"> Add a table (lane, item, dates, status, after)</label>
+    <label class="pc"><input type="checkbox" name="table"> Add a table (lane, item, dates, status, after, description)</label>
     <div class="acts"><button type="button" class="btn" data-x="md">${ICON.down}Download .md</button><button type="button" class="btn" data-x="copy">Copy</button><button type="button" class="btn ghost" data-x="folder">Save to Workshop folder</button></div>
     <footer><span class="grow"></span><button class="btn" value="cancel">Done</button></footer>
   </form>`;

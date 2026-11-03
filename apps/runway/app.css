@@ -130,3 +130,21 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
   .seg button{min-height:40px}
   .chip{min-height:36px}
 }
+
+/* goals row and the details under the timeline */
+.tl .goal{cursor:pointer}
+.tl .goal .ph{opacity:0;transition:opacity .15s}
+.tl .goal:hover .ph,.tl .goal:focus .ph{opacity:1}
+.tl .goal:hover rect{fill:var(--hover)}
+.details{flex:none;max-height:42%;overflow:auto;border-top:1px solid var(--line);background:var(--bg)}
+.details>summary{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;cursor:pointer;background:var(--bg);font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.details>summary .hint{font:400 .78rem var(--sans);letter-spacing:0;text-transform:none}
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:1.5rem;padding:.3rem 1rem 1.1rem}
+.dcol h4{margin:0 0 .5rem}
+.dlist{list-style:none;margin:0;padding:0;display:grid;gap:.7rem}
+.dlist li{display:grid;gap:.1rem}
+.dlist p{margin:0;font-size:.86rem;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.dname{justify-self:start;text-align:left;font-weight:600;font-size:.9rem;color:var(--ink);border-radius:4px}
+.dname:hover{color:var(--accent)}
+.dcol code{font-family:var(--mono);font-size:.78rem;background:var(--panel);padding:.05rem .3rem;border-radius:4px}
+@media (max-width:900px){.dgrid{grid-template-columns:1fr}.details{max-height:none}}

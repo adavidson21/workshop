@@ -46,7 +46,7 @@ test('reads dates in many forms', () => {
 
 test('reads lanes, items, milestones, after, status, color and notes', () => {
   const p = parse(SAMPLE, { today: TODAY });
-  assert.deepEqual(p.meta, { scale: 'sprint', origin: '2027-01-04', sprint: { anchor: '2027-01-06', weeks: 2 }, title: 'Platform Q1 2027' });
+  assert.deepEqual(p.meta, { scale: 'sprint', origin: '2027-01-04', sprint: { anchor: '2027-01-06', weeks: 2 }, title: 'Platform Q1 2027', goals: [] });
   assert.deepEqual(p.lanes.map(l => l.title), ['Search', 'Alerts']);
   assert.equal(p.warnings.length, 0);
   const [a, b, m, c, d] = p.entries;
@@ -124,4 +124,26 @@ test('bad header lines warn and stay', () => {
   const p = parse('scale: fortnight\nstart: someday\n## A\n', { today: TODAY });
   assert.equal(p.warnings.length, 2);
   assert.equal(p.meta.scale, undefined);
+});
+
+test('goals: one per period, written in the map scale, round trip', async () => {
+  const { goalFor, setGoal } = await import('../js/model.js');
+  const text = SAMPLE.replace('sprint: 2027-01-06, 2 weeks\n', 'sprint: 2027-01-06, 2 weeks\ngoal: S2 | Ranking behind a flag | for real\ngoal: S1 | Index rebuilt\n');
+  const { doc } = docOf(text);
+  assert.deepEqual(doc.meta.goals, [{ date: '2027-01-06', text: 'Index rebuilt' }, { date: '2027-01-20', text: 'Ranking behind a flag | for real' }]);
+  const out = serialize(doc);
+  assert.match(out, /sprint: 2027-01-06, 2 weeks\ngoal: S1 \| Index rebuilt\ngoal: S2 \| Ranking behind a flag \| for real\n/);
+  assert.equal(serialize(docOf(out, doc).doc), out);
+  assert.equal(goalFor(doc, '2027-01-20'), 'Ranking behind a flag | for real');
+  setGoal(doc, '2027-02-03', 'Cutover');
+  setGoal(doc, '2027-01-06', '');
+  assert.deepEqual(doc.meta.goals.map(g => g.text), ['Ranking behind a flag | for real', 'Cutover']);
+  doc.meta.scale = 'month';
+  assert.match(serialize(doc), /goal: Jan 2027 \| Ranking/);
+});
+
+test('a goal line with no period or no text warns and stays', () => {
+  const p = parse('goal: S9\ngoal: someday | x\n## A\n', { today: TODAY });
+  assert.equal(p.warnings.length, 2);
+  assert.deepEqual(p.meta.goals, []);
 });

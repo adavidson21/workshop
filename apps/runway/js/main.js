@@ -8,15 +8,15 @@ import { mountBar } from '../shared/standalone-bar.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
 import { saveFile } from '../shared/save-file.js';
 import { SNAP, addDays, isDate, periodEnd, periodStart, sizeEnd, sprintOf, toDay, today } from './dates.js';
-import { APP, blankDoc, cleanItem, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, viewRange } from './model.js';
+import { APP, blankDoc, cleanItem, goalFor, setGoal, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, viewRange } from './model.js';
 import { parse, reconcile, serialize } from './outline.js';
 import { dateAt, laneAt, layout, svg } from './timeline.js';
-import { exportSvg, fileName, markdown, toPng } from './export.js';
+import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
 import {
   ICON, OUTLINE_HELP, confirmDialog, exportDialog, importDialog, listHtml, panelHtml, promptDialog, rangeHtml,
-  settingsDialog, toolbarHtml, trayHtml, warningsHtml
+  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog
 } from './view.js';
 
 const app = document.getElementById('app');
@@ -44,7 +44,8 @@ const ui = {
   L: null,
   range: null,
   pendingRoute: null,
-  opened: null
+  opened: null,
+  detailsOpen: (() => { try { return localStorage.getItem('runway.details') !== 'closed'; } catch (e) { return true; } })()
 };
 let unsubMap = null;
 
@@ -95,6 +96,7 @@ function mapShell() {
           <div data-r="rbar"></div>
           <div class="tl" tabindex="0" data-tl aria-label="Timeline. Arrow keys move the selected item, Shift and arrows change its end, N adds an item."></div>
           <div data-r="tray"></div>
+          <div data-r="details"></div>
         </section>
         <aside class="side" data-r="panel"></aside>
       </div>
@@ -108,7 +110,7 @@ function paintMap() {
   const doc = ui.dragDoc || v.doc;
   const sched = schedule(doc);
   const range = viewRange(doc, sched);
-  const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200 });
+  const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true });
   ui.L = L; ui.range = range;
   if (ui.selected && !doc.items.some(i => i.id === ui.selected)) ui.selected = null;
 
@@ -124,6 +126,7 @@ function paintMap() {
   tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true });
   tl.scrollLeft = scroll;
   setHtml(app.querySelector('[data-r="tray"]'), trayHtml(doc, sched));
+  setHtml(app.querySelector('[data-r="details"]'), detailsHtml(doc, range, ui.detailsOpen));
   const ta = app.querySelector('[data-outline]');
   if (document.activeElement !== ta && ta.value !== ui.outline) ta.value = ui.outline;
   setHtml(app.querySelector('[data-r="warns"]'), warningsHtml(ui.warnings));
@@ -243,7 +246,7 @@ async function exportFlow() {
       const doc = v.doc;
       try {
         if (kind === 'png' || kind === 'svg') {
-          const text = exportSvg(doc, { range: ui.range, theme: form.theme.value, title: form.title.checked, todayLine: form.today.checked });
+          const text = exportSvg(doc, { range: ui.range, theme: form.theme.value, title: form.title.checked, todayLine: form.today.checked, details: form.details.checked });
           if (kind === 'svg') await saveFile(fileName(doc.meta.title, 'svg'), text, 'image/svg+xml');
           else await saveFile(fileName(doc.meta.title, 'png'), await toPng(text, 2), 'image/png');
           return;
@@ -292,6 +295,28 @@ function select(id) {
   ui.selected = id;
   requestPaint();
 }
+
+async function editGoal(start) {
+  if (!v.doc || v.readOnly) return;
+  const doc = v.doc;
+  const p = { start, end: periodEnd(doc.meta.scale, start, sprintOf(doc.meta)) };
+  const f = await showDialog(goalDialog(periodName(doc, p), goalFor(doc, start)));
+  if (dlg.returnValue === 'clear') edit(d => setGoal(d, start, ''));
+  else if (f) edit(d => setGoal(d, start, f.v.value));
+}
+
+app.addEventListener('click', e => {
+  if (app.dataset.view !== 'map') return;
+  const g = e.target.closest('[data-goal]');
+  if (g) { e.preventDefault(); editGoal(g.dataset.goal); return; }
+  const pick = e.target.closest('[data-pick]');
+  if (pick) { select(pick.dataset.pick); return; }
+});
+app.addEventListener('toggle', e => {
+  if (!e.target.matches || !e.target.matches('[data-details]')) return;
+  ui.detailsOpen = e.target.open;
+  try { localStorage.setItem('runway.details', e.target.open ? 'open' : 'closed'); } catch (err) { /* private mode */ }
+}, true);
 
 /* ---------- list page events ---------- */
 

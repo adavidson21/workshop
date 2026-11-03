@@ -5,11 +5,12 @@
    passes its current theme; the export passes the theme the user picks), so the picture never depends on
    page CSS. All text is escaped. */
 import { PX, addDays, addMonths, fromDay, isDate, monthStart, parts, periodLabel, periods, sprintOf, toDay, MONTHS } from './dates.js';
-import { COLORS, depWarnings, schedule } from './model.js';
+import { COLORS, depWarnings, goalFor, schedule } from './model.js';
 
 export const GUTTER = 200;
 export const HEAD = 48;
 export const ROW = 32;
+export const GOAL_ROW = 40;
 const BAR = 20;
 const PAD = 8;
 const COLLAPSED = 30;
@@ -37,8 +38,12 @@ const r1 = (n) => Math.round(n * 10) / 10;
  * Place lanes and bars. Options: sched, range {from, to}, hideCollapsed (export: leave folded lanes out),
  * only (only these lane ids), gutter (width of the lane names).
  */
-export function layout(doc, { sched = schedule(doc), range, hideCollapsed = false, only = null, gutter = GUTTER } = {}) {
+export function layout(doc, { sched = schedule(doc), range, hideCollapsed = false, only = null, gutter = GUTTER, goalRow = 'auto' } = {}) {
   const GUTTER = gutter;
+  // The goals row under the header: one cell per period, always on screen (to add one), in exports only when used.
+  const sprint = sprintOf(doc.meta);
+  const goalCells = periods(doc.meta.scale, range.from, range.to, sprint).map(p => ({ ...p, text: goalFor(doc, p.start) }));
+  const head = HEAD + (goalRow === true || (goalRow === 'auto' && goalCells.some(c => c.text)) ? GOAL_ROW : 0);
   const scale = doc.meta.scale;
   const px = PX[scale] || PX.month;
   const from = range.from, to = range.to;
@@ -52,7 +57,7 @@ export function layout(doc, { sched = schedule(doc), range, hideCollapsed = fals
     ...(loose.length ? [{ id: null, title: 'No lane', order: -1 }] : []),
     ...[...doc.lanes].sort((a, b) => a.order - b.order)
   ].filter(l => !only || only.includes(l.id));
-  let y = HEAD;
+  let y = head;
   const bars = [];
   const lanes = [];
   laneList.forEach((lane, li) => {
@@ -82,7 +87,7 @@ export function layout(doc, { sched = schedule(doc), range, hideCollapsed = fals
     if (!collapsed) for (const b of placed) { b.y = y + PAD + b.row * ROW + (ROW - BAR) / 2; b.h = BAR; bars.push(b); }
     y += h;
   });
-  return { doc, scale, px, from, to, width, height: y + 1, x, lanes, bars, sched, gutter };
+  return { doc, scale, px, from, to, width, height: y + 1, x, lanes, bars, sched, gutter, head, goalCells };
 }
 
 /** The date at a pixel x (inverse of L.x), snapped to `snap` days from the range start. */
@@ -143,7 +148,7 @@ export function svg(L, opts = {}) {
   for (const p of low) o.push(`<line x1="${xs(p.start)}" x2="${xs(p.start)}" y1="24" y2="${L.height}" stroke="${T.line}" stroke-opacity=".7"/>`);
   for (const p of up) o.push(`<line x1="${xs(p.start)}" x2="${xs(p.start)}" y1="0" y2="${L.height}" stroke="${T.line}"/>`);
   // header
-  o.push(`<rect x="0" y="0" width="${W}" height="${HEAD}" fill="${T.bg}"/>`);
+  o.push(`<rect x="0" y="0" width="${W}" height="${L.head}" fill="${T.bg}"/>`);
   for (const p of up) {
     const a = xs(p.start), b = xe(p.end);
     if (b - a > 20) o.push(`<text x="${a + 6}" y="16" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${esc(fit(p.label.toUpperCase(), b - a - 10))}</text>`);
@@ -154,13 +159,35 @@ export function svg(L, opts = {}) {
     if (b - a > 14) o.push(`<text x="${a + 5}" y="40" font-size="11" fill="${T.muted}">${esc(fit(p.label, b - a - 8))}</text>`);
   }
   o.push(`<line x1="0" x2="${W}" y1="24" y2="24" stroke="${T.line}"/>`);
-  o.push(`<line x1="0" x2="${W}" y1="${HEAD}" y2="${HEAD}" stroke="${T.ink}"/>`);
+  if (L.head > HEAD) {
+    // goals: one cell per period
+    o.push(`<line x1="0" x2="${W}" y1="${HEAD}" y2="${HEAD}" stroke="${T.line}"/>`);
+    for (const c of L.goalCells) {
+      const a = xs(c.start), b = xe(c.end);
+      if (b <= a) continue;
+      const data = opts.interactive ? ` class="goal" data-goal="${c.start}" role="button"` : '';
+      o.push(`<g${data}><rect x="${a}" y="${HEAD}" width="${r1(b - a)}" height="${GOAL_ROW}" fill="${c.text ? T.panel : T.bg}"/>`);
+      if (c.text) {
+        // Up to two lines; the full goal is in the tooltip and the details under the timeline.
+        const n = Math.max(1, Math.floor((b - a - 12) / 6.2));
+        const words = c.text.split(/\s+/);
+        let first = '';
+        while (words.length && (first + ' ' + words[0]).trim().length <= n) first = (first + ' ' + words.shift()).trim();
+        if (!first) first = fit(words.shift() || '', b - a - 12);
+        const lines = [first, words.length ? fit(words.join(' '), b - a - 12) : ''].filter(Boolean);
+        o.push(`<title>${esc(c.text)}</title>`);
+        lines.forEach((l, i) => o.push(`<text x="${a + 6}" y="${HEAD + (lines.length === 1 ? 24 : 17 + i * 14)}" font-size="11" font-weight="500" fill="${T.ink}">${esc(l)}</text>`));
+      } else if (opts.interactive && b - a > 40) o.push(`<text class="ph" x="${a + 6}" y="${HEAD + 24}" font-size="11" fill="${T.muted}">+ goal</text>`);
+      o.push(`<line x1="${a}" x2="${a}" y1="${HEAD}" y2="${L.head}" stroke="${T.line}"/></g>`);
+    }
+  }
+  o.push(`<line x1="0" x2="${W}" y1="${L.head}" y2="${L.head}" stroke="${T.ink}"/>`);
   // today
   const now = opts.today;
   if (opts.showToday !== false && isDate(now) && now >= L.from && now <= L.to) {
     const tx = r1(L.x(now) + L.px / 2);
-    o.push(`<line x1="${tx}" x2="${tx}" y1="${HEAD}" y2="${L.height}" stroke="${T.danger}" stroke-width="1.5"/>`);
-    o.push(`<text x="${tx + 4}" y="${HEAD + 12}" font-family='${FONTS.mono}' font-size="9.5" fill="${T.danger}">TODAY</text>`);
+    o.push(`<line x1="${tx}" x2="${tx}" y1="${L.head}" y2="${L.height}" stroke="${T.danger}" stroke-width="1.5"/>`);
+    o.push(`<text x="${tx + 4}" y="${L.head + 12}" font-family='${FONTS.mono}' font-size="9.5" fill="${T.danger}">TODAY</text>`);
   }
   // dependency arrows
   const at = new Map(L.bars.map(b => [b.id, b]));
@@ -210,6 +237,7 @@ export function svg(L, opts = {}) {
   o.push(`<rect x="0" y="0" width="${GUTTER - 8}" height="${L.height}" fill="${T.bg}" fill-opacity=".96"/>`);
   o.push(`<line x1="${GUTTER - 8}" x2="${GUTTER - 8}" y1="0" y2="${L.height}" stroke="${T.line}"/>`);
   o.push(`<text x="16" y="40" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${esc(L.scale.toUpperCase())}</text>`);
+  if (L.head > HEAD) o.push(`<text x="16" y="${HEAD + 24}" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${L.scale === 'sprint' ? 'SPRINT GOALS' : 'GOALS'}</text>`);
   for (const l of L.lanes) {
     const data = opts.interactive && l.id ? ` data-lane="${esc(l.id)}" class="lane"` : '';
     o.push(`<g${data}>`);

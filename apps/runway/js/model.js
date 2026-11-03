@@ -25,7 +25,7 @@ export const newMapId = () => newId('m').toLowerCase();
 export const validMapId = (id) => ID.test(String(id || ''));
 
 export function blankDoc(title = 'Untitled roadmap', now = new Date()) {
-  return { meta: { title, scale: 'month', origin: monthStart(today(now)), sprint: null, range: null, hidden: [] }, lanes: [], items: [] };
+  return { meta: { title, scale: 'month', origin: monthStart(today(now)), sprint: null, range: null, hidden: [], goals: [] }, lanes: [], items: [] };
 }
 
 const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
@@ -41,7 +41,8 @@ export function fromEnvelope(env, now = new Date()) {
     origin: isDate(m.origin) ? m.origin : base.meta.origin,
     sprint: m.sprint && isDate(m.sprint.anchor) ? { anchor: m.sprint.anchor, weeks: sprintOf(m).weeks } : null,
     range: m.range && isDate(m.range.from) && isDate(m.range.to) && m.range.from <= m.range.to ? { from: m.range.from, to: m.range.to } : null,
-    hidden: Array.isArray(m.hidden) ? m.hidden.filter(x => typeof x === 'string') : []
+    hidden: Array.isArray(m.hidden) ? m.hidden.filter(x => typeof x === 'string') : [],
+    goals: Array.isArray(m.goals) ? m.goals.filter(g => g && isDate(g.date) && String(g.text || '').trim()).map(g => ({ date: g.date, text: clip(g.text, 300) })) : []
   };
   delete meta.updatedAt;
   const lanes = [], items = [];
@@ -143,6 +144,21 @@ export function viewRange(doc, sched = schedule(doc), now = new Date()) {
   const from = periodAdd(scale, periodStart(scale, min, sprint), -1, sprint);
   const to = addDays(periodAdd(scale, periodStart(scale, max, sprint), 2, sprint), -1);
   return { from, to };
+}
+
+/** The goal for the period of the map's scale that holds `date`, or ''. */
+export function goalFor(doc, start) {
+  const sprint = sprintOf(doc.meta);
+  const g = (doc.meta.goals || []).find(x => periodStart(doc.meta.scale, x.date, sprint) === start);
+  return g ? g.text : '';
+}
+
+/** Set (or with empty text, clear) the goal for the period starting at `start`. */
+export function setGoal(doc, start, text) {
+  const sprint = sprintOf(doc.meta);
+  const rest = (doc.meta.goals || []).filter(x => periodStart(doc.meta.scale, x.date, sprint) !== start);
+  const t = String(text || '').trim().slice(0, 300);
+  doc.meta.goals = t ? [...rest, { date: start, text: t }].sort((a, b) => a.date.localeCompare(b.date)) : rest;
 }
 
 /** Next order number at the end of a lane. */

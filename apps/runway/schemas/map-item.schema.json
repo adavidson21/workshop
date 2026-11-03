@@ -19,7 +19,7 @@
     "milestone": {"type": "boolean", "description": "One date: start and end are the same."},
     "status": {"enum": ["planned", "active", "done", "at risk", "cut"]},
     "color": {"enum": ["", "slate", "teal", "green", "amber", "red", "purple", "gray"], "description": "Empty uses the lane's color."},
-    "notes": {"type": "string", "maxLength": 4000},
+    "notes": {"type": "string", "maxLength": 4000, "description": "The description: what the item delivers. Shown under the timeline and in exports."},
     "dependsOn": {"type": "array", "items": {"type": "string"}},
     "afterMissing": {"type": "array", "items": {"type": "string"}, "description": "Names in the outline's after: that match no item, kept so the text round trips."},
     "ado": {"type": "object", "required": ["id"], "description": "Phase 2: the linked work item.", "properties": {

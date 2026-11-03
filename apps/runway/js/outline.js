@@ -12,6 +12,7 @@
      - Alerting rework | 3 sprints | status: at risk | color: amber
        Notes are the indented lines under an item.
 
+   `goal: S3 | text` is a goal for a period (a sprint, month or quarter, in the map's scale).
    `#` is the title, `##` a lane, `-` an item, `- *` a milestone. After the title, `|` separates the parts
    of an item: when it happens (a date range, a period or a size), `after:` (items it depends on), `status:`
    and `color:`. A line that cannot be read stays as text with a warning; nothing is dropped.
@@ -137,7 +138,7 @@ const escTitle = (s) => String(s).replace(/\|/g, '\\|');
 const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 function header(line) {
-  const m = /^(scale|start|sprint)\s*:\s*(.*)$/i.exec(line.trim());
+  const m = /^(scale|start|sprint|goal)\s*:\s*(.*)$/i.exec(line.trim());
   return m ? { key: m[1].toLowerCase(), value: m[2].trim() } : null;
 }
 
@@ -182,6 +183,7 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
   const lanes = [];
   const entries = [];
   const warnings = [];
+  const goals = [];
   let lane = -1;
   let last = null;      // the item notes attach to
   const asText = (i, raw, message) => { entries.push({ kind: 'text', lane, raw }); if (message) warnings.push({ line: i + 1, message }); last = null; };
@@ -196,7 +198,17 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
     if (/^<!--.*-->$/.test(line)) continue;
     if (/^#\s+/.test(line)) { meta.title = line.replace(/^#\s+/, '').trim().slice(0, 120); last = null; continue; }
     if (/^##\s+/.test(line)) { lanes.push({ title: line.replace(/^##\s+/, '').trim().slice(0, 80) || 'Lane' }); lane = lanes.length - 1; last = null; continue; }
-    if (header(line)) { if (bad.has(i)) asText(i, raw, bad.get(i)); else last = null; continue; }
+    const h = header(line);
+    if (h && h.key === 'goal') {
+      const [when, ...rest] = splitBars(h.value);
+      const text = rest.join(' | ').trim().slice(0, 300);
+      const w = parseWhen(when, ctx);
+      if (!w || !w.start || !text) { asText(i, raw, `Write a goal as "goal: S3 | What this sprint delivers" (a period, then the goal).`); continue; }
+      goals.push({ date: w.start, text });
+      last = null;
+      continue;
+    }
+    if (h) { if (bad.has(i)) asText(i, raw, bad.get(i)); else last = null; continue; }
     const b = /^[-*+]\s+(.*)$/.exec(line);
     if (!b) { asText(i, raw, `Line ${i + 1} isn't an item. Start items with "- ", lanes with "## ".`); continue; }
     let body = b[1];
@@ -228,6 +240,8 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
     entries.push(it);
     last = it;
   }
+  // One goal per period: a later line for the same period wins.
+  meta.goals = [...new Map(goals.map(g => [g.date, g])).values()].sort((a, b) => a.date.localeCompare(b.date));
   return { meta, lanes, entries, warnings };
 }
 
@@ -252,6 +266,11 @@ export function serialize(doc) {
   const out = [`# ${m.title || 'Untitled roadmap'}`, `scale: ${m.scale || 'month'}`];
   if (m.origin) out.push(`start: ${m.origin}`);
   if (m.sprint && isDate(m.sprint.anchor)) out.push(`sprint: ${m.sprint.anchor}, ${m.sprint.weeks} weeks`);
+  const sp = sprintOf(m);
+  for (const g of [...(m.goals || [])].sort((a, b) => a.date.localeCompare(b.date))) {
+    const start = periodStart(m.scale || 'month', g.date, sp);
+    out.push(`goal: ${formatWhen(start, periodEnd(m.scale || 'month', start, sp), m)} | ${g.text}`);
+  }
   const byId = new Map(doc.items.filter(x => x.kind === 'item').map(x => [x.id, x]));
   const inLane = (laneId) => doc.items.filter(x => (x.lane || null) === laneId).sort((a, b) => a.order - b.order);
   const block = (list) => list.map(x => x.kind === 'text' ? x.raw : itemLine(x, doc, byId));

@@ -30,3 +30,21 @@ test('the example roadmap parses cleanly and uses no real names', () => {
   assert.deepEqual(p.warnings, []);
   assert.equal(p.lanes.length, 3);
 });
+
+test('goals and descriptions show under the chart, and can be left out', async () => {
+  const { exportSvg, summary } = await import('../js/export.js');
+  const doc = docOf('# Plan\nscale: month\nstart: 2027-01-01\ngoal: Feb 2027 | Ship <the> index\n\n## A\n- One | Jan-Feb 2027\n  Faster search & fewer zero results.\n- Two | Mar 2027\n');
+  const r = { from: '2027-01-01', to: '2027-03-31' };
+  const s = summary(doc, r);
+  assert.deepEqual(s.goals.map(g => [g.name, g.text]), [['Feb 2027', 'Ship <the> index']]);
+  assert.deepEqual(s.items.map(i => i.title), ['One']);
+  const withD = exportSvg(doc, { range: r });
+  assert.match(withD, /WHAT&#39;S GETTING DONE/);
+  assert.match(withD, /Faster search &amp; fewer zero results\./);
+  assert.match(withD, /Ship &lt;the&gt; index/);
+  const without = exportSvg(doc, { range: r, details: false });
+  assert.ok(!without.includes('GETTING DONE'));
+  const h = (t) => Number(/height="(\d+)"/.exec(t)[1]);
+  assert.ok(h(withD) > h(without) + 80);
+  assert.match(markdown(doc, { table: true }), /\| A \| One \| Jan 1, 2027 \| Feb 28, 2027 \| planned \|  \| Faster search & fewer zero results\. \|/);
+});

@@ -8,10 +8,14 @@ export function exampleOutline(now = new Date()) {
   return `# Example: Platform roadmap
 scale: month
 start: ${m0}
+goal: ${m(0)} | New search index live behind a flag
+goal: ${m(1)} | On-call can resolve the top alerts from a runbook
 
 ## Search
 - Index rebuild | ${m(0, 1)}
+  Rebuild the search index on the new schema so ranking can change without downtime.
 - New ranking | ${m(2, 3)} | after: Index rebuild
+  Rank by freshness and usage. Success: fewer zero-result searches.
 - * Ranking live | ${addDays(addMonths(m0, 4), 14)}
   Announce in the team channel.
 
@@ -22,6 +26,7 @@ start: ${m0}
 
 ## Developer experience
 - CI speedup | ${m(1, 2)} | color: teal
+  Cut the main pipeline from 25 to under 10 minutes.
 - Preview builds | ${m(3, 4)} | after: CI speedup | color: teal
 - Docs refresh
 `;

@@ -121,6 +121,24 @@ def main():
         pg.wait_for_timeout(150)
         check('the panel changes status', next(i for i in doc()['items'] if i['id'] == u['id'])['status'] == 'at risk')
 
+        # A goal from the goals row, and a description from the panel.
+        cell = pg.locator('[data-tl] g.goal[data-goal="2027-02-01"] rect').first
+        cell.click()
+        pg.wait_for_selector('dialog[open] textarea[name="v"]')
+        pg.fill('dialog[open] textarea[name="v"]', 'Ranking <b>behind</b> a flag')
+        pg.click('dialog[open] button[value="ok"]')
+        pg.wait_for_timeout(250)
+        check('clicking a goals cell sets that month\'s goal', doc()['meta']['goals'] == [{'date': '2027-02-01', 'text': 'Ranking <b>behind</b> a flag'}])
+        check('the goal shows in the outline', 'goal: Feb 2027 | Ranking <b>behind</b> a flag' in pg.input_value('[data-outline]'))
+        pg.click(f'[data-tl] g.bar[data-id="{idx["id"]}"] rect >> nth=0')
+        pg.wait_for_timeout(150)
+        pg.fill(f'[data-panel="{idx["id"]}"] [data-f="notes"]', 'Rebuild the index on the new schema.')
+        pg.wait_for_timeout(250)
+        det = pg.inner_text('[data-details]')
+        check('goals and descriptions show under the timeline, escaped', 'Ranking <b>behind</b> a flag' in det and 'Rebuild the index on the new schema.' in det and pg.locator('[data-details] b').count() == 0)
+        pg.keyboard.press('Escape'); pg.keyboard.press('Escape')
+        pg.wait_for_timeout(150)
+
         # Fold a lane, then export.
         pg.evaluate(f'(() => {{ const l = {R}.ui.L.lanes[1]; document.querySelector(`[data-tl] g.lane[data-lane="${{l.id}}"] rect`).dispatchEvent(new PointerEvent("pointerdown", {{bubbles: true, button: 0, pointerId: 9}})); document.querySelector("[data-tl]").dispatchEvent(new PointerEvent("pointerup", {{bubbles: true, pointerId: 9}})); }})()')
         pg.wait_for_timeout(200)
@@ -137,6 +155,7 @@ def main():
         svgp = os.path.join(tmp, dl.value.suggested_filename); dl.value.save_as(svgp)
         svgt = open(svgp).read()
         check('SVG export has the title and items, and leaves the folded lane out', 'E2E plan' in svgt and 'Index rebuild' in svgt and 'Not a date' not in svgt and '&lt;script' not in svgt and '<script' not in svgt)
+        check('SVG export lists goals and descriptions under the chart', 'GETTING DONE' in svgt and 'Rebuild the index on the new schema.' in svgt and 'Ranking &lt;b&gt;behind' in svgt)
         pg.check('dialog[open] [name="table"]')
         with pg.expect_download() as dl: pg.click('[data-x="md"]')
         mdp = os.path.join(tmp, dl.value.suggested_filename); dl.value.save_as(mdp)
