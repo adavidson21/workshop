@@ -10,7 +10,7 @@ Mostly read-only. The three actions that change ADO (`workitem.update`, `workite
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `connections[]` | required | One per server and collection: `name`, `serverUrl` (the part before the collection), `collection`, `project`, `patEnv`, `apiVersion` (`6.0`), `useSystemCa` (`true`), `verifyTls` (`true`). |
+| `connections[]` | required | One per server and collection: `name`, `serverUrl` (the part before the collection), `collection`, `project`, `patEnv`, `patExpires` (optional `YYYY-MM-DD`), `apiVersion` (`6.0`), `useSystemCa` (`true`), `verifyTls` (`true`). |
 | `defaultConnection` | first one | Used when nothing else decides. |
 | `syncConnection` | default | The connection for "my work items" (the helper's `base_url`). |
 | `paths[]` | `[]` | `{path, connection, project}`: which connection a repo or folder uses. `*` matches any characters, `~` is your home folder, the longest match wins. |
@@ -20,6 +20,22 @@ Mostly read-only. The three actions that change ADO (`workitem.update`, `workite
 | `reports` | helper defaults | `workloadTypes`, `bugTypes`, `highPriorities` (strings, for example `"1"`), `escalationPriority`, `effortFields`, `maxItems`. |
 
 **PATs** live only in environment variables. A connection names the variable (`patEnv`); the connector reads it through `ctx.env` and puts it only in the `Authorization` header. It never logs, returns or emits it, and error messages never include it.
+
+### Setting up and renewing a PAT
+
+1. In ADO, make a PAT with **Work Items (Read)** (add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs). Note its expiry date.
+2. Run `workshop pat ADO_PAT` (or the variable name the connection uses) and paste the token. It is not shown and does not land in shell history. On Windows it is saved for your account and Workshop picks it up within seconds, with no restart. On macOS and Linux the command explains how to add it to your shell profile; then run `workshop restart`.
+3. In Settings, ADO connector: add the connection (or **Import settings from a file** with your `ado-helper.json` or eng-agents `config.json`; nothing is saved until you click Save), set **PAT expires** to the date ADO showed, and try the Test field.
+
+To renew, make a new PAT, run step 2 again, update **PAT expires**, and click **Check again** on the ADO card.
+
+The connector's status says when:
+
+- a PAT variable is not set (state `error`; calls wait until it is set, which Settings shows without a restart);
+- ADO answered 401 to a PAT (state stays `ready`, so a new PAT works at once; the message stays until the variable holds a different value or a call succeeds). A 403 is a missing scope on one call, not a bad PAT, and is only in that call's error;
+- a PAT is within 14 days of its **PAT expires** date, or past it.
+
+`status().details` carries `patsMissing`, `patsExpiring` (`{patEnv, connection, expires, days}`) and `patsRejected` (`{patEnv, at}`), never a value.
 
 **Company certificates.** With `useSystemCa` on (default), the connector trusts the certificates your operating system trusts, as Python did. This needs Node 22.15 or later (`tls.getCACertificates`). On an older Node, set `NODE_EXTRA_CA_CERTS` to your company's CA file instead.
 
@@ -41,8 +57,8 @@ Call with `POST /api/connectors/ado/<action>` and `{"args": {...}}`, or `connect
 | `workitem.update` (write) | `id`, `rev` (the revision you read), `changes: {state?, assignedTo?, priority?, iteration?, tagsAdd?, tagsRemove?}`, `connection` | The item as ADO now has it, in the `queue.list` shape. `assignedTo: ""` unassigns. The connector reads the item first and sends one JSON Patch with a `test` on `/rev`; if the item changed since `rev`, it answers `409 conflict` and changes nothing. |
 | `workitem.comment` (write) | `id`, `text` (plain text), `connection` | `{id, comment: {id, text, date}, connection}`. The text is escaped and line breaks become `<br>`. |
 | `workitem.create` (write) | `type`, `title`, `project`, `description` (plain text; a Bug's goes in Repro Steps), `area`, `iteration`, `priority`, `assignedTo`, `connection` | The new item in the `queue.list` shape. |
-| `connection.resolve` | `connection` or `path` | Which connection and project would be used, and whether its PAT variable is set. Calls nothing. |
-| `config.import` | `helper` (parsed ado-helper.json), `engAgents` (parsed eng-agents config.json) | `{config, notes}`: settings merged with the current ones. Saves nothing; the Settings app shows them and saves with `PUT /api/connectors/ado/config`. |
+| `connection.resolve` | `connection` or `path` | Which connection and project would be used, and whether its PAT variable is set. Calls nothing. Setup action: runs while the connector reports an error. |
+| `config.import` | `helper` (parsed ado-helper.json), `engAgents` (parsed eng-agents config.json), or `file` (either one; the kind is guessed) | `{config, notes}`: settings merged with the current ones. Saves nothing; the Settings app shows them and saves with `PUT /api/connectors/ado/config`. Setup action, so it works before any connection exists. Never reads a PAT from the file. |
 
 The connection is picked in eng-agents order: `connection` by name, then a `paths` match for `path`, then `defaultConnection`, then the only connection. eng-agents also matched a repo's git remote; the connector does not run git, so map such repos in `paths`.
 
@@ -57,7 +73,7 @@ Errors are plain words with a code: `bad_request` (settings or arguments), `not_
 `workshop doctor ado` once WS7 adds the `workshop` command. Until then:
 
 ```
-node connectors/ado/doctor.mjs                 # check each connection, list what a sync finds (the helper's --test)
+node connectors/ado/doctor.mjs                 # check each connection and its PAT expiry, list what a sync finds (the helper's --test)
 node connectors/ado/doctor.mjs --import        # print settings built from ado-helper.json and eng-agents config.json
 node connectors/ado/doctor.mjs --import --write  # save them into ~/.workshop/config.json (does not turn the connector on)
 node connectors/ado/doctor.mjs --compare --areas "Project\Team" --people "a@example.com"

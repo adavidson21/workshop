@@ -140,3 +140,17 @@ export function importConfig({ helper, engAgents, current } = {}) {
   if (!out.defaultConnection && connections.length) out.defaultConnection = connections[0].name;
   return { config: out, notes };
 }
+
+/**
+ * One parsed file from Settings' "Import settings from a file": guesses whether it is an ado-helper.json
+ * (snake_case keys such as base_url) or an eng-agents config.json (connections, serverUrl or an ado
+ * section), then imports it like importConfig. Throws a plain-words error for anything else.
+ */
+export function importFile(file, current) {
+  if (!isObj(file)) throw Object.assign(new Error('That file is not a settings file (it is not a JSON object).'), { status: 400, code: 'bad_request' });
+  const helperKeys = ['base_url', 'pat_env', 'pr_sources', 'api_version', 'verify_ssl', 'workload_types'];
+  if (helperKeys.some(k => k in file)) return importConfig({ helper: file, current });
+  if (isObj(file.ado) && (isObj(file.ado.connections) || file.ado.serverUrl)) return importConfig({ engAgents: file.ado, current });
+  if (isObj(file.connections) || file.serverUrl) return importConfig({ engAgents: file, current });
+  throw Object.assign(new Error('Workshop does not recognize that file. Pick an ado-helper.json or an eng-agents config.json.'), { status: 400, code: 'bad_request' });
+}

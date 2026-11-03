@@ -8,6 +8,7 @@ What Workshop stores, where it sends data (almost nowhere), and the checks that 
 - The agent binds `127.0.0.1` only and answers no one else on the network.
 - The agent makes no outbound request of its own. Only a connector you turned on talks to the one system it is for (for example your Azure DevOps server), from your computer, using a token you keep in an environment variable.
 - There is no telemetry, no analytics, no crash reporting, no update ping. Nothing phones home.
+- On a computer where the code must not change by itself (a work laptop), work mode runs Workshop from a pinned copy on your disk, checked file by file, and no site can use the agent. See Work mode below.
 
 ## Data flow
 
@@ -47,9 +48,12 @@ Set `WORKSHOP_HOME` to keep the `~/.workshop` items somewhere else. The data fol
 
 Secrets (Azure DevOps PATs and the like) live in environment variables, never in `config.json`. A connector's config names the variable (for example `"patEnv": "ADO_PAT"`); the agent reads the value from the environment and never stores, logs or returns it.
 
+- **Saving a PAT.** `workshop pat ADO_PAT` asks for the token without showing it and, on Windows, saves it as a user environment variable (as the Windows settings dialog does), passing it to PowerShell on stdin. It never appears on a command line, in shell history (`setx ADO_PAT "<token>"` leaves it in PowerShell's history file), in `config.json` or in a log. On macOS and Linux it only explains where to put the variable.
+- **No restart for a new PAT on Windows.** When a connector asks for a variable, the agent looks it up in the user's saved variables (`reg query HKCU\Environment /v <name>`, cached for a few seconds) before its own environment. This is the agent's only use of `child_process`; it runs no other program, and `agent/test/source.test.mjs` checks that.
+
 ## Outbound hosts
 
-- The agent itself: none. It never makes an outbound request. Its source is checked for this (`agent/test/source.test.mjs`).
+- The agent itself: none. It never makes an outbound request, and the only program it runs is `reg query` on Windows to read a saved variable (above). Its source is checked for this (`agent/test/source.test.mjs`).
 - A connector you turned on: the servers in that connector's own config, and no others. The ADO connector reaches the Azure DevOps server URLs you set, over HTTPS, with your PAT.
 - The browser: this site's own files only, plus the local agent on `127.0.0.1`. Fonts and libraries are served from the site (`shared/fonts/`, `shared/vendor/`), not a CDN. `tests/e2e.py` fails if any request goes anywhere else.
 
@@ -100,6 +104,21 @@ If `config.json` is not valid JSON or does not match the config schema, the agen
 
 Hosted mode lets a page on your own domain use the local agent. It is off by default. The trade-off: a hosted page keeps the agent's token in that origin's `localStorage`, so any script that runs on that origin can use the agent. That is why hosted mode is off until you turn it on, why origins are allowed one by one, and why settings changes (`PUT /api/config`, including the data folder, and connector config) are refused from a hosted origin: change those from Workshop running on this computer. Pairing is confirmed by you, once per browser, on a page the agent serves that no other site can frame. See [run-modes.md](run-modes.md), Hosted mode.
 
+## Work mode
+
+Hosted mode trusts the site: the code that can read your data is whatever the site serves today, and it changes whenever the site deploys. Work mode (`features.workMode`, [run-modes.md](run-modes.md), Work mode) removes that:
+
+- **The UI is a pinned copy on this computer** (`~/.workshop/ui/`, built by `workshop pin` from this install and a Docket checkout). Its `build.json` records the release tags and commits it came from and the SHA-256 of every file.
+- **The agent serves only that copy**, and checks every file's bytes against `build.json` before sending it. A file that is not listed is `404`; a file that changed is refused and logged. `workshop doctor` checks the whole copy.
+- **No site can pair or call the agent**, even one in `allowedOrigins`. Only pages from `127.0.0.1` can use it, and those pages make no request anywhere else (the same Content-Security-Policy as every page, checked by `tests/workmode-e2e.py`).
+- **Updates are deliberate**: `workshop update --tag <tag>` moves to a release tag you chose and rebuilds the copy. A tag that was moved on the remote after you fetched it is not taken (git refuses to replace it, and Workshop does not force it).
+
+What work mode does not cover: the agent and connectors run from this install's files, so they are as trustworthy as the release you installed; and coding agents in Dispatch send work to the AI provider opencode is set up with. Set the opencode connector's approved providers so `workshop doctor` checks that (connectors/opencode/README.md, Approved AI providers).
+
+## Vendored code
+
+Third-party libraries served from the site (`shared/vendor/`, `apps/agents/vendor/`) have their SHA-256 pinned in `SHA256SUMS` in each folder, checked in CI by `node tests/check-vendor.mjs`, so a change to third-party code cannot land without its hash changing in review (shared/vendor/README.md, Hashes).
+
 ## Start at login
 
 Start at login is off until you turn it on, and never needs admin rights. When on, Workshop writes one small launcher in your own account that starts the agent at your next login:
@@ -114,9 +133,9 @@ Each one runs this computer's Node on `agent/start.mjs` quietly. Turning it off 
 
 ## Updating and uninstalling
 
-- **Update:** `workshop update` runs `git pull` in a git checkout, or tells you to download the latest zip. Check the version with `workshop version`. Open windows notice a new version and offer a reload once you ship it (the service worker's `CACHE`).
+- **Update:** `workshop update` lists the release tags and changes nothing. `workshop update --tag <tag>` moves a git checkout to that release (it refuses local changes and unknown tags) and, in work mode, rebuilds the pinned copy; `--docket-tag` does the same for the Docket checkout. `workshop update --pull` is the newest code on the current branch, not a release. An install that is not a git checkout says to download a release, or to run the installer again with `WORKSHOP_TAG`. Check the version with `workshop version`. Open windows notice a new version and offer a reload once you ship it (the service worker's `CACHE`).
 - **Uninstall:** `workshop uninstall` turns off start at login and removes the launcher. It leaves your data folder (`~/Workshop` by default) and `~/.workshop` in place; delete them yourself if you want them gone. There is nothing else to remove: no system service, no registry entries, no admin install.
 
 ## Checking your setup
 
-`workshop doctor` checks your Node version, reads `config.json` and reports any problem with it, says whether the agent is running on its port, whether start at login agrees with the launcher, and whether hosted mode has origins. `workshop doctor ado` checks the ADO connector. Neither changes anything (and `workshop doctor ado --import --write` refuses to run while the agent is running, so it cannot clash with it).
+`workshop doctor` checks your Node version, reads `config.json` and reports any problem with it, says whether the agent is running on its port, whether start at login agrees with the launcher, whether hosted mode has origins, whether work mode's pinned copy matches its `build.json`, and (when the opencode connector has approved providers) whether opencode can use any other AI provider. `workshop doctor ado` checks the ADO connector. Neither changes anything (and `workshop doctor ado --import --write` refuses to run while the agent is running, so it cannot clash with it).

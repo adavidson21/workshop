@@ -193,7 +193,7 @@ export async function createMockAgent(options = {}) {
     const m = entry.mod;
     const o = {
       id: entry.id, name: m ? m.name : entry.id, version: m ? m.version : '0.0.0', enabled: enabled(entry.id), status: statusOf(entry),
-      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true })) : []
+      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true, ...(a.setup === true ? { setup: true } : {}) })) : []
     };
     if (m?.test) o.test = { action: m.test.action, arg: m.test.arg, label: m.test.label };
     return o;
@@ -216,7 +216,7 @@ export async function createMockAgent(options = {}) {
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const publicConfig = () => ({
     configVersion: 1, port: config.port, dataDir: config.dataDir || dataDir, allowedOrigins: [...config.allowedOrigins],
-    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true },
+    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true, workMode: config.features.workMode === true },
     connectors: Object.fromEntries(Object.entries(config.connectors || {}).map(([id, c]) => [id, { enabled: c.enabled === true }])),
     home
   });
@@ -523,7 +523,7 @@ export async function createMockAgent(options = {}) {
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) fail('forbidden', 'This address is not allowed. Use 127.0.0.1.');
       const origin = req.headers.origin;
       const own = !origin || ownOrigins().includes(origin);
-      const hosted = Boolean(origin) && !own && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
+      const hosted = Boolean(origin) && !own && config.features.workMode !== true && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
       if (origin && !own && !hosted) fail('forbidden', 'This site is not allowed to use Workshop.');
       if (hosted) cors = { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
       if (req.method === 'OPTIONS') {
@@ -591,6 +591,7 @@ export async function createMockAgent(options = {}) {
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>That pairing link is not valid.</p>');
     }
+    if (config.features.workMode === true) return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Work mode is on, so no site can pair with Workshop on this computer.</p>');
     if (config.features.hostedMode !== true) return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Hosted mode is off. Turn it on in Settings first.</p>');
     if (!config.allowedOrigins.includes(origin)) return html(res, 403, `<!doctype html><meta charset="utf-8"><title>Workshop</title><p>${escHtml(origin)} is not in your allowed sites. Add it in Settings first.</p>`);
     const payload = JSON.stringify({ type: 'workshop-pair', api: 1, url: ownOrigins()[0], token }).replace(/</g, '\\u003c');
@@ -757,7 +758,7 @@ document.getElementById('allow').addEventListener('click', function () {
         const e1 = schemas.validate('connector-call-request', body);
         if (e1.length) fail('bad_request', `Send {"args": {...}}: ${e1[0]}`);
         if (!enabled(id)) fail('disabled', `The ${entry.mod.name} connector is off. Turn it on in Settings.`);
-        if (statusOf(entry).state !== 'ready') fail('unavailable', `The ${entry.mod.name} connector is not ready yet.`);
+        if (statusOf(entry).state !== 'ready' && a.setup !== true) fail('unavailable', `The ${entry.mod.name} connector is not ready yet.`);
         if (a.write === true && body.confirm !== true) fail('confirm_required', `${a.title} changes something outside Workshop. Ask the user to confirm first.`);
         const args = body.args ?? {};
         if (a.argsSchema) { const e2 = schemas.validate(a.argsSchema, args); if (e2.length) fail('bad_request', `Those arguments are not valid: ${e2[0]}`); }

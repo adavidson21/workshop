@@ -17,7 +17,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const ORIGIN = /^(https:\/\/[a-z0-9.-]+(:\d{1,5})?|http:\/\/(127\.0\.0\.1|localhost):\d{1,5})$/;
 const FEATURES = {
   startAtLogin: ['Start at login', 'Start Workshop when you log in to this computer. Per user, no admin rights needed.'],
-  hostedMode: ['Hosted mode', 'Let the sites listed below use Workshop on this computer, after you allow each one in a pairing window. Your data stays on this computer.']
+  hostedMode: ['Hosted mode', 'Let the sites listed below use Workshop on this computer, after you allow each one in a pairing window. Your data stays on this computer.'],
+  workMode: ['Work mode', 'Run Workshop from the pinned copy on this computer (built with workshop pin) instead of its site. No site can pair while it is on, and the code only changes when you update it.']
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Error', disabled: 'Off' };
 
@@ -44,7 +45,7 @@ function agentAddress() {
 function header() {
   const note = $('#modeNote');
   // Local: this is the page the agent serves, Workshop on this computer. Workshop itself is the hosted site.
-  if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change. Workshop itself opens from its site.';
+  if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change.';
   else if (readOnly) {
     const at = agentAddress();
     note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer'
@@ -192,7 +193,7 @@ async function workshopCard(cfg) {
 
 /* ---------- connectors ---------- */
 async function connectorsCard(cfg) {
-  const sec = card('Connectors', 'Connectors are how Workshop talks to other systems. Each is off until you turn it on. Secrets such as PATs stay in environment variables on this computer; here you only name the variable.');
+  const sec = card('Connectors', 'Connectors are how Workshop talks to other systems. Each is off until you turn it on. Secrets such as PATs stay in environment variables on this computer; here you only name the variable. Save one with: workshop pat ADO_PAT');
   let list;
   try { list = await ws.connectors.list(); } catch (e) { sec.insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
   if (!list.length) { sec.insertAdjacentHTML('beforeend', '<p class="sub">No connectors are installed.</p>'); return; }
@@ -209,6 +210,11 @@ function connectorBlock(info, cfg) {
       <label class="switch"><input type="checkbox" data-enable${info.enabled ? ' checked' : ''}${readOnly ? ' disabled' : ''}><span>On</span></label>
     </div>
     <p class="state-msg" data-state-msg></p>
+    <div class="conn-tools">
+      <button type="button" class="btn" data-recheck hidden>Check again</button>
+      ${!readOnly && canImport(info) ? `<label class="btn">Import settings from a file<input type="file" accept=".json,application/json" data-import-file hidden></label>` : ''}
+      <span class="msg" aria-live="polite" data-tools-msg></span>
+    </div>
     <details data-details><summary>Settings</summary><div data-form><p class="sub">Loading...</p></div></details>
     ${info.test ? `<form class="test" data-test><label for="test-${info.id}">${esc(info.test.label)}</label><input id="test-${info.id}" class="cfg-input mono" required><button class="btn">Test</button><div class="test-out" aria-live="polite"></div></form>` : ''}`;
 
@@ -217,6 +223,8 @@ function connectorBlock(info, cfg) {
     el.textContent = STATE_LABEL[st.state] || st.state;
     el.dataset.state = st.state;
     box.querySelector('[data-state-msg]').textContent = st.message || '';
+    // A PAT saved while Workshop runs (workshop pat) shows up here without a restart; this asks again now.
+    box.querySelector('[data-recheck]').hidden = !info.enabled || (st.state === 'ready' && !st.message);
     const t = box.querySelector('[data-test]');
     if (t) t.hidden = st.state !== 'ready';
   };
@@ -227,6 +235,7 @@ function connectorBlock(info, cfg) {
     const on = e.target.checked;
     try {
       await ws.config.put({ connectors: { [info.id]: { enabled: on } } });
+      info.enabled = on;
       toast(`${info.name} is ${on ? 'on' : 'off'}`, 'success');
       const fresh = (await ws.connectors.list()).find(c => c.id === info.id);
       if (fresh) showStatus(fresh.status);
@@ -238,15 +247,62 @@ function connectorBlock(info, cfg) {
   let built = false;
   details.addEventListener('toggle', () => { if (details.open && !built) { built = true; buildForm(info, box.querySelector('[data-form]')); } });
 
+  const toolsMsg = box.querySelector('[data-tools-msg]');
+  box.querySelector('[data-recheck]').addEventListener('click', async () => {
+    toolsMsg.textContent = 'Checking...';
+    try {
+      const fresh = (await ws.connectors.list()).find(c => c.id === info.id);
+      if (fresh) { info.enabled = fresh.enabled; showStatus(fresh.status); }
+      if (built) await buildForm(info, box.querySelector('[data-form]'));
+      toolsMsg.textContent = fresh && fresh.status.state === 'ready' ? 'Checked.' : 'Checked. Still not ready.';
+    } catch (err) { toolsMsg.textContent = errText(err); }
+  });
+
+  const file = box.querySelector('[data-import-file]');
+  if (file) file.addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    toolsMsg.textContent = 'Reading...';
+    let parsed;
+    try { parsed = JSON.parse(await f.text()); } catch { toolsMsg.textContent = `${f.name} is not a JSON file.`; return; }
+    try {
+      const out = await ws.connectors.call(info.id, 'config.import', { file: withoutSecrets(parsed) });
+      details.open = true; built = true;
+      await buildForm(info, box.querySelector('[data-form]'), { config: out.config, notes: out.notes || [] });
+      toolsMsg.textContent = `Imported ${f.name}. Nothing is saved yet: review the settings below, then Save.`;
+    } catch (err) { toolsMsg.textContent = errText(err); }
+  });
+
   const test = box.querySelector('[data-test]');
   if (test) test.addEventListener('submit', e => { e.preventDefault(); runTest(info, test); });
   return box;
 }
 
-async function buildForm(info, holder) {
+// Import from a file (docs/connector.md): a connector's config.import setup action, called with one file.
+function canImport(info) { return (info.actions || []).some(a => a.name === 'config.import' && a.setup === true && !a.write); }
+
+// Keys that may hold a secret never leave the page, even to this computer's agent.
+const SECRET_KEY = /pat|token|password|secret|key/i;
+function withoutSecrets(v) {
+  if (Array.isArray(v)) return v.map(withoutSecrets);
+  if (!v || typeof v !== 'object') return v;
+  const out = {};
+  for (const [k, x] of Object.entries(v)) {
+    // Names of variables that hold a secret (pat_env, patEnv, tokenEnv) are fine and needed.
+    if (SECRET_KEY.test(k) && !/env$/i.test(k)) continue;
+    out[k] = withoutSecrets(x);
+  }
+  return out;
+}
+
+// `draft` ({config, notes}) fills the form with settings not saved yet, for example from an import.
+async function buildForm(info, holder, draft) {
   let cc;
   try { cc = await ws.connectors.getConfig(info.id); } catch (e) { holder.innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
+  if (draft) cc = { ...cc, config: draft.config };
   holder.innerHTML = '';
+  if (draft && draft.notes.length) holder.insertAdjacentHTML('beforeend', `<ul class="import-notes">${draft.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`);
   if (!Object.keys(cc.schema.properties || {}).length) { holder.innerHTML = '<p class="sub">This connector has nothing to set.</p>'; return; }
   const form = document.createElement('form');
   form.className = 'cfg';
@@ -334,6 +390,18 @@ function dataCard() {
 /* ---------- open Workshop (local only) ----------
    The agent serves only this page. Workshop, its apps and Dispatch and Docket come from the allowed sites,
    which pair with this computer from their Connect button. */
+// Work mode: the pinned copy's build.json (served by the agent), or null when there is none.
+async function pinnedBuild() {
+  try { const r = await fetch('/build.json', { cache: 'no-store' }); return r.ok ? await r.json() : null; } catch (e) { return null; }
+}
+async function workCard() {
+  const b = await pinnedBuild();
+  if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off below.'); return; }
+  const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
+  const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update --tag</code>.');
+  sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString())}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
+}
+
 function sitesCard(cfg) {
   const sites = cfg.allowedOrigins || [];
   if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so no site can use Workshop on this computer. Turn it on below.'); return; }
@@ -348,7 +416,7 @@ async function start() {
   if (ws.backend === 'agent') {
     try {
       const cfg = await ws.config.get();
-      if (ws.mode === 'local') sitesCard(cfg);
+      if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       await folderCard(cfg);
       await workshopCard(cfg);
       await connectorsCard(cfg);

@@ -9,7 +9,8 @@
   ],
   "features": {
     "startAtLogin": false,
-    "hostedMode": true
+    "hostedMode": true,
+    "workMode": false
   },
   "connectors": {},
   "home": "/Users/alex/.workshop"

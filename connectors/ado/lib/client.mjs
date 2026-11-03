@@ -4,6 +4,7 @@ import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
 import { pyQuote } from './util.mjs';
+import { patHint } from './pat.mjs';
 
 /** A problem talking to ADO. `upstream` is the HTTP status ADO answered with, if any. */
 export class AdoError extends Error {
@@ -66,9 +67,10 @@ export function clientFor(conn, env, signal) {
     throw new SettingsError(`Connection "${conn.name}" names an environment variable Workshop cannot read. Check its PAT setting.`);
   }
   if (!pat) {
-    throw new AdoError(`Environment variable ${conn.patEnv} is empty or missing. If you just set it, start Workshop again from a new terminal window.`);
+    throw new AdoError(`Environment variable ${conn.patEnv} is empty or missing. ${patHint(conn.patEnv)}`);
   }
-  return new Ado({ base: conn.base, pat, apiVersion: conn.apiVersion, verifyTls: conn.verifyTls, useSystemCa: conn.useSystemCa, signal });
+  // env.onAuth (set by index.mjs) hears which PATs ADO accepted or rejected, for status().
+  return new Ado({ base: conn.base, pat, patEnv: conn.patEnv, onAuth: env.onAuth, apiVersion: conn.apiVersion, verifyTls: conn.verifyTls, useSystemCa: conn.useSystemCa, signal });
 }
 
 export class Ado {
@@ -107,6 +109,7 @@ export class Ado {
     const url = `${scope}/_apis/${path}?${q.toString()}`;
     const res = await this.request(method, url, body, contentType);
     if (res.status >= 200 && res.status < 300) {
+      try { this.o.onAuth?.ok?.(this.o.patEnv); } catch { /* status only */ }
       const type = (res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
       if (type !== 'application/json') throw new AdoError('ADO answered with a sign-in page instead of data. Check the URL and that the PAT is valid.');
       try {
@@ -120,7 +123,10 @@ export class Ado {
     }
     if (res.status === 401 || res.status === 403) {
       const scopeName = need || (url.includes('/git/') ? 'Code (Read)' : url.includes('/teams') ? 'Project and Team (Read)' : 'Work Items (Read)');
-      throw new AdoError(`ADO rejected the PAT (HTTP ${res.status}) for ${this.base}. It may be expired or missing the ${scopeName} scope.`, res.status);
+      try { this.o.onAuth?.rejected?.(this.o.patEnv, res.status); } catch { /* status only */ }
+      // A 403 is a missing scope (the message matches ado_helper.py); a 401 means the PAT itself is bad.
+      const fix = this.o.patEnv && res.status === 401 ? ` If you made a new one, ${patHint(this.o.patEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.` : '';
+      throw new AdoError(`ADO rejected the PAT (HTTP ${res.status}) for ${this.base}. It may be expired or missing the ${scopeName} scope.${fix}`, res.status);
     }
     if (res.status === 404) {
       throw new AdoError(`ADO URL not found (HTTP 404): ${url.split('?')[0]}. Check the collection URL and project name.`, 404);

@@ -40,8 +40,17 @@ test('the agent itself makes no outbound requests', () => {
   const banned = [/\bfetch\s*\(/, /node:https/, /\bhttp\.(request|get)\s*\(/, /node:net/, /node:tls/, /node:dns/, /node:dgram/, /node:child_process/, /\bWebSocket\b/, /\bEventSource\b/];
   for (const f of runtime) {
     const text = fs.readFileSync(f, 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
-    for (const re of banned) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
+    // One exception: lib/userenv.mjs reads saved user variables with "reg query" (docs/security.md).
+    for (const re of banned) if (!(re.source === 'node:child_process' && rel(f) === 'agent/lib/userenv.mjs')) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
   }
+});
+
+test('the agent runs no program except "reg query HKCU\\Environment"', () => {
+  const text = fs.readFileSync(path.join(AGENT, 'lib', 'userenv.mjs'), 'utf8');
+  const calls = [...text.matchAll(/exec\('([^']+)', \[([^\]]*)\]/g)].map(m => [m[1], m[2]]);
+  assert.deepEqual(calls, [['reg', "'query', 'HKCU\\\\Environment', '/v', name"]]);
+  assert.equal((text.match(/spawnSync\(/g) || []).length, 1);
+  assert.ok(!/\bspawn\(|\bexec(File)?Sync?\s*\(\s*['"`](?!reg)/.test(text.replace(/exec\('reg'/g, '')));
 });
 
 test('the agent binds 127.0.0.1 only', () => {

@@ -57,6 +57,10 @@ label.btn{cursor:pointer}
 .state[data-state=starting]{background:var(--warn-soft);color:var(--ink)}
 .state-msg{margin:.2rem 0 0;color:var(--muted);font-size:.82rem}
 .state-msg:empty{display:none}
+.conn-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}
+.conn-tools:not(:has(button:not([hidden]),label)){display:none}
+.conn-tools .msg{color:var(--muted);font-size:.82rem}
+.import-notes{margin:.2rem 0 .6rem;padding-left:1.1rem;color:var(--muted);font-size:.84rem}
 .switch{display:flex;align-items:center;gap:.35rem;font-size:.84rem;cursor:pointer}
 .switch input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .conn details{margin-top:.5rem}

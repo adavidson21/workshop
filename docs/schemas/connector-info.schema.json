@@ -50,6 +50,10 @@
           },
           "write": {
             "type": "boolean"
+          },
+          "setup": {
+            "type": "boolean",
+            "description": "Runs while the connector reports an error, to help fix its settings. Only present when true."
           }
         }
       }

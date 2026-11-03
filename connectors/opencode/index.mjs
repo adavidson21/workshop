@@ -91,6 +91,14 @@ export const configSchema = {
       default: 20,
       "x-workshop-hosted": true,
     },
+    approvedProviders: {
+      type: "array",
+      title: "Approved AI providers",
+      description: "The opencode provider ids your company allows (as in opencode's model names, provider/model). workshop doctor warns if opencode can use any other. Empty skips the check.",
+      items: { type: "string", pattern: "^[A-Za-z0-9._-]{1,100}$" },
+      maxItems: 20,
+      uniqueItems: true,
+    },
   },
 };
 

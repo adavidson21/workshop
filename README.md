@@ -12,6 +12,8 @@ Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
+Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
+
 Everything stays on your device. There are no accounts and no server: data is saved in your browser, or in files on this computer when Workshop runs there, and nothing talks to anything but `127.0.0.1` and the systems you set up in Settings.
 
 Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
@@ -71,11 +73,35 @@ Other commands:
 
 - `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
 - `node workshop.mjs open` opens Workshop in your default browser, signed in.
-- `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login and hosted mode. `node workshop.mjs doctor ado` checks the ADO connector.
+- `node workshop.mjs stop` stops Workshop; `node workshop.mjs restart` stops it and starts it again in the background (no window).
+- `node workshop.mjs pat ADO_PAT` saves your Azure DevOps PAT without showing it or leaving it in shell history. On Windows, Workshop picks it up within seconds with no restart. See [connectors/ado/README.md](connectors/ado/README.md), Setting up and renewing a PAT.
+- `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
-- `node workshop.mjs update` updates this checkout. `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
+- `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
+- `node workshop.mjs update` lists the release tags; `update --tag <tag>` moves this checkout to one (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
 
 Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
+
+## Work mode
+
+For a work laptop: Workshop runs from a pinned copy on your computer instead of its site, so the code that can read your work data changes only when you update it, and no site can pair with Workshop. Details: [docs/run-modes.md](docs/run-modes.md), Work mode; [docs/security.md](docs/security.md), Work mode.
+
+**Testing with a team:** work mode is a prerequisite. Before anyone tests with real work data, go through [docs/team-testing.md](docs/team-testing.md).
+
+**Set it up (by hand, recommended at work):**
+
+1. Clone Workshop and Docket at release tags, side by side:
+   `git clone --branch <workshop tag> https://github.com/adavidson21/workshop` and `git clone --branch <docket tag> https://github.com/adavidson21/docket`
+2. Install: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1` (or `bash workshop/scripts/install.sh`).
+3. `node workshop/workshop.mjs install --work-mode`, then `node workshop/workshop.mjs pin` (it finds the `docket` folder next to Workshop; or pass `--docket <folder>`).
+4. `node workshop/workshop.mjs start` and open the address it prints. Workshop opens there, from the pinned copy.
+5. In Settings, set the opencode connector's **Approved AI providers** to your company's provider, then run `workshop doctor`: it checks the pinned copy and that opencode can use no other provider.
+
+**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='v1.8.1'; $env:DOCKET_TAG='v4.7.0'`, then run the install command. Without tags it installs the newest code and says so.
+
+**Updating:** `workshop update` lists the tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
+
+Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
 
 ## Layout
 
@@ -159,7 +185,9 @@ node shell/registry.mjs --check          apps/registry.json lists every app fold
 node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
 node --test "apps/*/test/*.test.mjs"     apps' own tests
 node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, apps from another site
+node tests/check-vendor.mjs              vendored libraries match their pinned SHA256SUMS (--write after updating one)
 python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage (needs .remote/prioritizer)
+python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy, Docket inside it, no hosted access
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).

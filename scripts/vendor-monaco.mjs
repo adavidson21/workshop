@@ -10,12 +10,14 @@
 // a read-only review of a diff has no project to check against, so they would only add wrong error
 // squiggles and about 20 MB. Their modes are replaced with stubs that do nothing.
 // Then rewrites "files" in apps/agents/app.json so the service worker precaches the copy, and writes
-// vendor/monaco/README.md with the version and the tarball's SHA-256. Node 22, no dependencies.
+// vendor/monaco/README.md with the version and the tarball's SHA-256, and rewrites apps/agents/vendor/SHA256SUMS
+// (tests/check-vendor.mjs). Node 22, no dependencies.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeSums } from "../tests/lib/vendor-hashes.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const [pkgDir, tarball] = process.argv.slice(2);
@@ -124,4 +126,7 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 manifest.files = [...(manifest.files || []).filter((f) => !f.startsWith("vendor/monaco/")), ...written.sort()];
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
-console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in apps/agents/vendor/monaco.`);
+// Pin the new copy's hashes (tests/check-vendor.mjs checks them in CI).
+writeSums(path.join(appDir, "vendor"));
+
+console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in apps/agents/vendor/monaco. Updated apps/agents/vendor/SHA256SUMS.`);
