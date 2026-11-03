@@ -17,7 +17,7 @@ const v = home.v;
 
 // Sections that fade in. They play once: a section already on screen keeps still through repaints
 // (a repaint comes with every agent event and once a minute).
-const ENTERS = ['.hello', '.tiles', '.cols', '.card.note'];
+const ENTERS = ['.hello', '.dayflow', '.tiles', '.cols', '.card.note'];
 function paint() {
   if (home.waiting) editing = false;
   const had = ENTERS.map(q => !!app.querySelector(q));

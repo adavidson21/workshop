@@ -56,7 +56,7 @@ export function banner(session, ui) {
   if (session.status === 'revising') {
     const run = session.revisionRun;
     if (run && run.status === 'failed') return `<div class="rv-banner warn" role="alert"><strong>The revision needs you.</strong> ${esc(run.message || '')} Reply to the agent from Dispatch.</div>`;
-    return `<div class="rv-banner">The agent is revising revision ${esc(session.revision)}. This page updates when it is ready for review again.</div>`;
+    return `<div class="rv-banner">The agent is revising. This page updates when it is ready for review.</div>`;
   }
   if (ui.sinceLast) return `<div class="rv-banner">Showing only what changed since revision ${esc(session.revision - 1)}. Comments here go on the new code.</div>`;
   if (ui.inlineNote) return `<div class="rv-banner">Inline view: comments go on the new code. Switch to side by side to comment on removed lines.</div>`;

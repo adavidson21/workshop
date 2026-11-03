@@ -71,7 +71,7 @@ async function checkWorkshop(silent) {
     stepDone('install');
   } catch (e) {
     if (silent) return;
-    S.setup.check = { ok: false, text: `Workshop is not answering on port ${port} yet. If the install command is still running, wait for it to say Done. If your browser asked to allow access to your local network, allow it and check again.` };
+    S.setup.check = { ok: false, text: `Workshop is not answering on port ${port}. If the installer is still running, wait for Done. If your browser asked about local network access, allow it, then check again.` };
   } finally { clearTimeout(timer); }
   paint();
 }
@@ -382,9 +382,9 @@ async function startGo() {
     lastMode = st.mode; lastLane = st.lane;
     closeOverlays();
     const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
-    toast(r.action === 'spike' ? 'Investigating in opencode. Its answers show up here.'
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. The agent picks repos and may ask you to confirm them here.`
-      : `Starting #${r.args.id} as a ${r.args.lane}${pname} in opencode. It shows up here when its folder is ready.`);
+    toast(r.action === 'spike' ? 'Investigating. Answers show up here.'
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. The agent may ask you to confirm repos.`
+      : `Starting #${r.args.id} as a ${r.args.lane}${pname}. It shows up when its folder is ready.`);
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
@@ -418,7 +418,7 @@ async function repoGo() {
 }
 function draftGuide(folder) {
   closeOverlays();
-  act(() => write('repo.guide', { repo: folder }), () => toast(`An agent is reading ${folder} to draft its guide. Follow it under Investigations and repo guides.`));
+  act(() => write('repo.guide', { repo: folder }), () => toast(`Drafting the guide for ${folder}. Follow it under Investigations and repo guides.`));
 }
 
 /* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
@@ -495,7 +495,7 @@ async function saveProject() {
     if (st.folder !== undefined) { placeProject(S.local, pid, st.folder); saveSide(); }
     closeOverlays();
     if (!cur) ui().scope = { kind: 'project', id: pid };
-    toast(cur ? 'Saved ' + res.project.name + '.' : 'Added ' + res.project.name + '. Runs you start here get its instructions.');
+    toast(cur ? 'Saved ' + res.project.name + '.' : 'Added ' + res.project.name + '.');
   } catch (e) {
     if (ui().project) { ui().project.busy = false; ui().project.error = errText(e); }
   }

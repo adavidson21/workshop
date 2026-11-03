@@ -1,4 +1,4 @@
-// Dispatch sidebar (Dispatch App Experience Plan, P2): projects, folders, pins, Needs review and run status,
+// Dispatch sidebar (Dispatch App Experience Plan, P2): projects, folders, pins, Needs you and run status,
 // on the synthetic fixture plus a `projects` block shaped like the opencode connector's state.projects
 // (connectors/opencode/lib/projects.mjs). Folders and pins are browser-only state (local.js).
 import { test, beforeEach } from 'node:test';
@@ -41,11 +41,11 @@ const memStorage = () => { const m = new Map(); return { getItem: k => (m.has(k)
 
 beforeEach(() => load());
 
-test('the page has the sidebar beside the list, with New run, Needs review and every project', () => {
+test('the page has the sidebar beside the list, with Start work, Needs you and every project', () => {
   const html = render();
   assert.match(html, /<div class="layout"><nav class="side"/);
   assert.match(html, /class="btn primary new-run" data-start-open="1"/);
-  assert.match(html, /data-side-scope="needs"><span class="sl">Needs review<\/span><span class="cnt">2<\/span>/);
+  assert.match(html, /data-side-scope="needs"><span class="sl">Needs you<\/span><span class="cnt">2<\/span>/);
   for (const p of PROJECTS.projects) assert.match(html, new RegExp(`data-side-id="${p.id}"`), p.id);
   // runs under their project, with a status dot
   const side = sidebarHtml();
@@ -54,7 +54,7 @@ test('the page has the sidebar beside the list, with New run, Needs review and e
   assert.doesNotMatch(side, /<h3 id="sh-pin">/, 'no Pinned section until something is pinned');
 });
 
-test('Needs review lists runs waiting on you across all projects, newest first', () => {
+test('Needs you lists runs waiting on you across all projects, newest first', () => {
   const needs = needsReview().map(i => i.folder);
   assert.deepEqual(needs.sort(), ['41300-export-retry-fails', '41502-csv-export']);
   S.ui.scope = { kind: 'needs' };
@@ -64,7 +64,7 @@ test('Needs review lists runs waiting on you across all projects, newest first',
   assert.match(scopeHeadHtml(), /2 runs waiting on you, across all projects/);
 });
 
-test('a run with no project is in Inbox; a project scope filters the list and seeds New run', () => {
+test('a run with no project is in Inbox; a project scope filters the list and seeds Start work', () => {
   assert.equal(projectOf(item('41455-audit-log-filter')), INBOX);
   assert.equal(projectOf(item('tsd-billing-api')), 'billing');
   assert.deepEqual(runsIn('orders-api').map(i => i.folder).sort(), ['41207-fix-login-timeout', '41300-export-retry-fails']);
@@ -84,7 +84,7 @@ test('a scope for a project that is gone falls back to All runs', () => {
   assert.equal(scopeProject(), INBOX);
 });
 
-test('an empty project says so and offers New run', () => {
+test('an empty project says so and offers Start work', () => {
   S.D.projects.projects.push({ id: 'empty', name: 'Empty', color: 'rose' });
   S.ui.scope = { kind: 'project', id: 'empty' };
   assert.match(render(), /No runs in this project yet\./);

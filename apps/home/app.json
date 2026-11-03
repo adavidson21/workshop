@@ -3,7 +3,7 @@
   "id": "home",
   "name": "Home",
   "version": "1.0.0",
-  "description": "Your day at a glance: Today, triage, what's next, your people and your agents.",
+  "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 0,

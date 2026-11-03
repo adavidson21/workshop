@@ -96,7 +96,7 @@ const fmtDue = (d, today) => {
   return 'Due ' + parseD(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
-const tile = (n, label, sub, tone) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer">
+const tile = (n, label, sub, tone, path) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}">
   <span class="n num">${n}</span><span class="lbl">${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
 /* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
@@ -126,29 +126,38 @@ export function render(v) {
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + queueCard(v.queue) + agentsCard(v.agents);
   }
 
-  const tiles = `<section class="tiles" aria-label="Today at a glance">
-    ${tile(b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'On Today', b.focus.total && b.focus.done === b.focus.total ? 'All done' : '', '')}
-    ${tile(b.triage, 'To triage', '', b.triage ? 'warn' : '')}
-    ${tile(b.overdue, 'Overdue', '', b.overdue ? 'danger' : '')}
-    ${tile(b.dueWeek, 'Due this week', `${plural(b.open, 'open task')}`, '')}
+  const tiles = `<section class="tiles" aria-label="Today">
+    ${tile(b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'On Today', b.focus.total && b.focus.done === b.focus.total ? 'All done' : '', '', 'today')}
+    ${tile(b.triage, 'To triage', '', b.triage ? 'warn' : '', 'triage')}
+    ${tile(b.overdue, 'Overdue', '', b.overdue ? 'danger' : '', 'prioritize')}
+    ${tile(b.dueWeek, 'Due this week', `${plural(b.open, 'open task')}`, '', 'prioritize')}
   </section>`;
+  // One button per part of the day. The first one that needs doing is the primary.
+  const late = v.now.getHours() >= 15;
+  const step = (label, path, primary) => `<button class="btn${primary ? ' primary' : ''}" data-open="prioritizer" data-path="${path}">${label}</button>`;
+  const first = b.triage ? 'triage' : !b.focus.total ? 'plan' : late ? 'wrap' : 'plan';
+  const day = `<nav class="dayflow" aria-label="Your day">
+    ${b.triage ? step(`Triage ${b.triage}`, 'triage', first === 'triage') : ''}
+    ${step(b.focus.total ? 'Plan today' : 'Pick today\'s tasks', b.focus.total ? 'day/today' : 'today', first === 'plan')}
+    ${step('Wrap up the day', 'shutdown', first === 'wrap')}
+  </nav>`;
 
   const next = `<section class="card">
-    <div class="ch"><h2>Up next</h2><button class="lnk" data-open="prioritizer">All tasks</button></div>
+    <div class="ch"><h2>Up next</h2><button class="lnk" data-open="prioritizer" data-path="prioritize">All tasks</button></div>
     ${b.upNext.length ? `<ol class="next">${b.upNext.map((t, i) => `<li><button class="nrow" data-task="${esc(t.id)}">
       <span class="rk num">${i + 1}</span><span class="tt">${esc(t.title)}</span>
       <span class="tm">${[t.due ? `<span class="${t.due < today ? 'late' : ''}">${fmtDue(t.due, today)}</span>` : '', t.list ? esc(t.list) : '', t.people.length ? esc(t.people.join(', ')) : ''].filter(Boolean).join(' · ')}</span>
-    </button></li>`).join('')}</ol>` : `<p class="soft">Nothing open that isn't waiting on someone.</p>`}
+    </button></li>`).join('')}</ol>` : `<p class="soft">Nothing open. Everything left is waiting on someone.</p>`}
   </section>`;
 
   const team = `<section class="card">
-    <div class="ch"><h2>People</h2></div>
+    <div class="ch"><h2>People</h2><button class="lnk" data-open="prioritizer" data-path="people">All people</button></div>
     ${b.team.length ? `<ul class="team">${b.team.slice(0, 8).map(m => `<li><span class="av" aria-hidden="true">${esc(m.name.trim()[0].toUpperCase())}</span><span class="nm">${esc(m.name)}</span>
       <span class="ct">${m.open ? `${m.open} open` : 'Nothing open'}${m.waiting ? ` · ${m.waiting} waiting` : ''}</span></li>`).join('')}</ul>`
-      : `<p class="soft">Add people in Docket to see who has what.</p>`}
+      : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + tiles + `<div class="cols">${next}<div class="stack">${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
+  return head + day + tiles + `<div class="cols">${next}<div class="stack">${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
@@ -156,7 +165,6 @@ export function waitingCard(embedded) {
   return `<section class="card note waiting" role="status"><h2>Allow Workshop to use your folder to see your day</h2>
     <p>${embedded ? 'Click <b>Allow</b> in the bar at the top of Workshop. Chrome asks again after it restarts.'
       : 'Open Workshop and click <b>Allow</b> in the bar at the top. Chrome asks again after it restarts.'}</p>
-    <p>Your data is safe in the folder. It appears here once Workshop may use the folder.</p>
     ${embedded ? '' : '<p><button class="btn primary" data-open="home">Open Workshop</button></p>'}</section>`;
 }
 
@@ -191,7 +199,7 @@ export function profileForm(p) {
     <h2>Your profile</h2>
     <label>Name<input name="name" maxlength="80" autocomplete="name" value="${esc(p.name || '')}"></label>
     <label>Role<input name="role" maxlength="80" placeholder="Engineering Manager" value="${esc(p.role || '')}"></label>
-    <p class="soft">Saved in your Workshop data on this computer. Only used for this page.</p>
+    <p class="soft">Only used on this page.</p>
     <div class="acts"><button type="button" class="btn ghost" data-cancel>Cancel</button><button class="btn primary">Save</button></div>
   </form>`;
 }

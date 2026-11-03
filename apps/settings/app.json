@@ -3,7 +3,7 @@
   "id": "settings",
   "name": "Settings",
   "version": "1.0.0",
-  "description": "Workshop's settings, connectors, and moving your data.",
+  "description": "Connectors, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
