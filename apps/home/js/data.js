@@ -5,14 +5,17 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { TASKS_VERSION, agentCounts, dateStr, queueSummary, summarize } from './view.js';
+import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, dateStr, dayNow, queueSummary, summarize } from './view.js';
 
 const P = { app: 'prioritizer' };
 const Q = { app: 'queue' };
 const OC = 'opencode';
 
+/* Docket's day plan collections Home reads for the Now card. */
+export const dayCollections = year => ['dayplan/settings', 'dayplan/templates', `dayplan/days/${year}`];
+
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, board: null, boardNote: '', agents: { state: 'loading' }, queue: null, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, board: null, dayNow: null, boardNote: '', agents: { state: 'loading' }, queue: null, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -25,7 +28,12 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
 
   async function loadBoard() {
     try {
-      const [tasks, lists, people] = await Promise.all(['tasks', 'lists', 'people'].map(c => ws.data.get(c, P)));
+      const year = now().getFullYear();
+      const [tasks, lists, people, settings, templates, days] = await Promise.all(['tasks', 'lists', 'people', ...dayCollections(year)].map(c => ws.data.get(c, P)));
+      // The day plan is optional: an unknown version or a missing sprint just means no Now card.
+      const ok = (env, col) => env && env.schema === 'prioritizer.' + col && env.version === DAYPLAN_VERSION ? env : null;
+      v.dayNow = dayNow({ settings: ok(settings, 'dayplan/settings'), templates: ok(templates, 'dayplan/templates'), days: ok(days, `dayplan/days/${year}`) },
+        tasks && tasks.version === TASKS_VERSION ? tasks.items : [], now());
       if (tasks && (tasks.schema !== 'prioritizer.tasks' || tasks.version !== TASKS_VERSION)) {
         v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.';
       } else {

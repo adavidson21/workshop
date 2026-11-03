@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { agentCounts, render, summarize, greeting, profileForm } from '../js/view.js';
+import { dayNow } from '../js/view.js';
 
 const TODAY = '2026-10-21';
 const lists = [{ id: 'l_main', name: 'Main', parentId: null }, { id: 'l2', name: 'Side', parentId: null }];
@@ -99,4 +100,47 @@ test('queueSummary: no card until the queue has area paths; counts unassigned, s
   assert.match(html, /Yours, changed/);
   assert.equal(queueCard(null), '');
   assert.match(queueCard({ fetchedAt: null, total: 0, unassigned: 0, stale: 0, changedMine: 0 }), /Open the Queue to load/);
+});
+
+/* ---------- Now card (Docket's day plan) ---------- */
+const env = (col, extra) => Object.assign({ schema: 'prioritizer.' + col, version: 1, rev: 1, items: [] }, extra);
+// Tuesday 2026-11-03; a 2-week sprint starting Monday 2026-11-02, so today is sprint day 2.
+const sprint = { anchor: '2026-11-02', lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [] };
+const blocks = [
+  { id: 's1', name: 'Deep focus', around: '09:00', minutes: 120 },
+  { id: 's2', name: 'Meetings', around: '13:00' },
+  { id: 's3', name: 'Admin', around: '15:00', minutes: 60 }
+];
+const plan = (days = []) => ({
+  settings: env('dayplan/settings', { meta: { sprint } }),
+  templates: env('dayplan/templates', { items: [{ id: 'tp', name: 'Sprint day', days: [2, 3, 4, 5, 6, 7, 8, 9], sections: blocks }] }),
+  days: env('dayplan/days/2026', { items: days })
+});
+const nowTasks = [{ id: 't1', title: 'Write the plan', rank: 1 }, { id: 't2', title: 'Review PR 77', rank: 0, done: true }];
+
+test('Now shows the template block on now, with when it ends and what is next', () => {
+  const n = dayNow(plan(), nowTasks, new Date(2026, 10, 3, 10, 15));
+  assert.equal(n.current.name, 'Deep focus');
+  assert.equal(n.current.until, '11:00');
+  assert.equal(n.next.name, 'Meetings');
+  assert.deepEqual(n.current.tasks, []);
+});
+
+test('Now uses the saved day: its blocks, lost ones skipped, and the tasks slotted in rank order', () => {
+  const rec = { id: '2026-11-03', sections: [Object.assign({}, blocks[0], { lost: true }), blocks[1], blocks[2]], slots: [{ taskId: 't1', sectionId: 's2' }, { taskId: 't2', sectionId: 's2' }, { taskId: 'gone', sectionId: 's2' }] };
+  const n = dayNow(plan([rec]), nowTasks, new Date(2026, 10, 3, 13, 30));
+  assert.equal(n.current.name, 'Meetings');
+  assert.equal(n.current.until, '15:00', 'a block with no length runs until the next one');
+  assert.deepEqual(n.current.tasks.map(t => [t.title, t.done]), [['Review PR 77', true], ['Write the plan', false]]);
+  const early = dayNow(plan([rec]), nowTasks, new Date(2026, 10, 3, 9, 30));
+  assert.equal(early.current, null, 'the lost block is not on now');
+  assert.equal(early.next.name, 'Meetings');
+});
+
+test('no Now card without a sprint, on a day off, or after the last block', () => {
+  assert.equal(dayNow(null, nowTasks, new Date(2026, 10, 3, 10)), null);
+  assert.equal(dayNow(Object.assign(plan(), { settings: null }), nowTasks, new Date(2026, 10, 3, 10)), null);
+  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 7, 10)), null, 'Saturday');
+  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 3, 16, 30)), null, 'after Admin ends');
+  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 2, 10)), null, 'sprint day 1 has no template here');
 });

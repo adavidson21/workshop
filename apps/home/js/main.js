@@ -4,7 +4,7 @@
    collection of its own: profile (home.profile v1, no items; meta: {name, role}). data.js loads and saves,
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
-import { createHome } from './data.js';
+import { createHome, dayCollections } from './data.js';
 import { profileForm, render } from './view.js';
 
 const app = document.getElementById('app');
@@ -29,7 +29,7 @@ function paint() {
 // Changes from other windows. Nothing to read while Home waits for the folder; Allow reloads everything.
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
-for (const c of ['tasks', 'lists', 'people']) ws.data.subscribe(c, boardLater, { app: 'prioritizer' });
+for (const c of ['tasks', 'lists', 'people', ...dayCollections(new Date().getFullYear())]) ws.data.subscribe(c, boardLater, { app: 'prioritizer' });
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
