@@ -111,7 +111,18 @@ def check(name, ok):
     if not ok: failed.append(name)
 
 
+def skip_tour(frame):
+    """Docket opens a first-run tour on an empty board (docket #6). Closing it any way counts as skipping, and
+    the board remembers it, so tests that start from an empty board close it before using the board."""
+    if frame.locator('.sheet.tour').count():
+        skip = frame.locator('.sheet.tour [data-skip]')
+        if skip.count(): skip.first.click()
+        else: frame.locator('.sheet.tour').press('Escape')
+        frame.wait_for_timeout(200)
+
+
 def add_ado_task(frame, tid, title, ado_id, typ):
+    skip_tour(frame)
     frame.evaluate("""([tid, title, id, typ]) => { const P = window.__prioritizer;
       P.state.tasks.push({id: tid, title, listId: P.state.lists[0].id, value: 3, effort: 'S', created: '2026-10-14', ado: {id, type: typ, state: 'Active', url: 'http://ado/' + id, project: 'p'}});
       P.state = P.sanitize(P.state); P.commit(); }""", [tid, title, ado_id, typ])
