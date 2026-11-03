@@ -3,7 +3,7 @@
   "id": "prioritizer",
   "name": "Docket",
   "version": "4.10.0",
-  "description": "Decide what to work on next.",
+  "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 10,
@@ -18,8 +18,24 @@
       "title": "Open a task"
     },
     {
+      "path": "today",
+      "title": "Today"
+    },
+    {
       "path": "day/:date",
       "title": "Plan a day"
+    },
+    {
+      "path": "triage",
+      "title": "Triage"
+    },
+    {
+      "path": "prioritize",
+      "title": "Prioritize"
+    },
+    {
+      "path": "people",
+      "title": "People"
     },
     {
       "path": "shutdown",
@@ -43,16 +59,36 @@
       "route": ""
     },
     {
+      "id": "start-next",
+      "title": "Start next task",
+      "route": ""
+    },
+    {
+      "id": "open-today",
+      "title": "Today's list",
+      "route": "today"
+    },
+    {
+      "id": "plan-day",
+      "title": "Plan today",
+      "route": "day/today"
+    },
+    {
+      "id": "triage",
+      "title": "Triage",
+      "route": "triage"
+    },
+    {
+      "id": "shutdown-day",
+      "title": "Wrap up the day"
+    },
+    {
       "id": "sync-ado",
       "title": "Sync with Azure DevOps"
     },
     {
       "id": "shortcuts",
       "title": "Docket keyboard shortcuts"
-    },
-    {
-      "id": "shutdown-day",
-      "title": "Wrap up the day"
     }
   ],
   "files": [

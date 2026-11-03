@@ -7,7 +7,7 @@
 import * as F from './focus-model.js';
 import { focusEnvelopesFromBundle, focusFormat } from './focus-format.js';
 import { createStore } from './store.js';
-import { commit, findTask, isDoneToday, isWaiting, state } from './state.js';
+import { commit, findTask, isDoneToday, isFocus, isWaiting, state } from './state.js';
 import { $, esc, fmtDay, plural, todayStr } from './util.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { dp } from './dayplan.js';
@@ -63,6 +63,15 @@ function pauseTask(){
   save();
   askCrumb(id);
 }
+/* The task Start next picks: Today's top open task, else the top of your rank that isn't waiting on someone. */
+function nextTask(){
+  const open = state.tasks.filter(t => !t.done && !t.waiting).sort((a, b) => a.rank - b.rank);
+  return open.find(t => isFocus(t)) || open[0] || null;
+}
+function startNext(){
+  const t = nextTask();
+  if (t) startTask(t.id); else toast('Nothing open to start');
+}
 function toggleStart(id){ if (isActive(id)) pauseTask(); else startTask(id); }
 function logInterrupt(){
   if (isWaiting()) return;
@@ -81,7 +90,7 @@ function askCrumb(id, title = 'Where did you leave off?'){
   if (!t || t.done) return;
   showModal(`<form class="sheet small crumbsheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3>
     <p class="sub">${esc(t.title)}</p>
-    <input name="crumb" maxlength="${F.CRUMB_LEN}" autocomplete="off" placeholder="Next step, or what you were in the middle of" aria-label="Where you left off">
+    <input name="crumb" maxlength="${F.CRUMB_LEN}" autocomplete="off" placeholder="Next step" aria-label="Where you left off">
     <footer><span class="hint">Enter saves. Esc skips.</span><span class="grow"></span><button type="button" class="btn" data-close>Skip</button><button class="btn primary">Save</button></footer></form>`,
     f => {
       const i = f.querySelector('input'); i.focus();
@@ -122,18 +131,20 @@ function rowCrumb(t){
 function renderNow(){
   const el = $('#nowbar'); if (!el) return;
   const d = todayStr(), t = activeTask(), n = F.dayCounts(log, d);
-  if (isWaiting() || (!t && !n.switches && !n.interrupts)){ el.hidden = true; el.innerHTML = ''; return; }
+  if (isWaiting() || (!t && !n.switches && !n.interrupts && !nextTask())){ el.hidden = true; el.innerHTML = ''; return; }
   const c = t && F.lastCrumb(t);
   // Counts show once there is something to count; zeros are noise.
   const parts = [n.switches ? switches(n.switches) : '', n.interrupts ? plural(n.interrupts, 'interruption') : ''].filter(Boolean);
   const counts = parts.length ? `<span class="ncount" data-tip="Today, counted only from what you start and log here">${parts.join(' · ')}</span>` : '';
   const interrupted = `<button class="btn" data-now="interrupt" data-tip="Something pulled you away. Shortcut: I">Interrupted</button>`;
   el.hidden = false;
+  el.classList.toggle('idle', !t);
   el.innerHTML = t
     ? `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="nlabel">Working on</span><button class="ntitle" data-now="open">${esc(t.title)}</button></div>
         ${c ? `<div class="ncrumb" data-tip="Your last breadcrumb, ${esc(crumbAge(c.at))}">Last time: ${esc(c.text)}</div>` : ''}</div>
       <div class="nact">${counts}${interrupted}<button class="btn" data-now="pause">Pause</button><button class="btn primary" data-now="done">Done</button></div>`
-    : `<div class="nmain"><div class="nline"><span class="nlabel">Nothing started</span></div></div><div class="nact">${counts}${interrupted}</div>`;
+    : (() => { const nx = nextTask(); return `<div class="nmain"><div class="nline">${nx ? `<span class="nlabel">Next</span><button class="ntitle" data-now="opennext" data-id="${esc(nx.id)}">${esc(nx.title)}</button>` : '<span class="nlabel">Nothing started</span>'}</div></div>
+      <div class="nact">${counts}${interrupted}${nx ? `<button class="btn primary" data-now="startnext" data-tip="Today's top task. Shortcut: S">Start</button>` : ''}</div>`; })();
 }
 
 /* ---------- shutdown ritual ---------- */
@@ -164,18 +175,18 @@ function openShutdown(){
   const sec = (num, title, body) => `<section class="sd-sec"><h4><span class="num">${num}</span>${title}</h4>${body}</section>`;
   showModal(`<form class="sheet shutdown" role="dialog" aria-modal="true" aria-label="Wrap up the day"><h3>Wrap up the day</h3>
     <p class="sub">${plural(done.length, 'task')} done · ${switches(n.switches)} · ${plural(n.interrupts, 'interruption')}</p>
-    ${sec(1, 'Done today', !done.length ? '<p class="soft">Nothing marked done today. That happens.</p>'
-      : receiptsHere() ? `<p class="soft">Tick any worth keeping for your review. They wait in Receipts for you to accept.</p>${done.map(t => receiptRow(t, d)).join('')}`
+    ${sec(1, 'Done today', !done.length ? '<p class="soft">Nothing marked done today.</p>'
+      : receiptsHere() ? `<p class="soft">Tick any worth keeping. They wait in Receipts to accept.</p>${done.map(t => receiptRow(t, d)).join('')}`
       : `<ul class="sd-done">${done.map(t => `<li>${esc(t.title)}</li>`).join('')}</ul>`)}
     ${sec(2, 'Where you left off', unfinished.filter(t => touched.has(t.id) || t.id === act).length
-      ? `<p class="soft">One line each, for tomorrow-you. Leave any blank.</p>${unfinished.filter(t => touched.has(t.id) || t.id === act).map(t => `<label class="sd-crumb"><span>${esc(t.title)}${t.id === act ? ' <span class="chip acc">active</span>' : ''}</span>
+      ? `<p class="soft">One line each. Leave any blank.</p>${unfinished.filter(t => touched.has(t.id) || t.id === act).map(t => `<label class="sd-crumb"><span>${esc(t.title)}${t.id === act ? ' <span class="chip acc">active</span>' : ''}</span>
           <input data-crumb="${t.id}" maxlength="${F.CRUMB_LEN}" autocomplete="off" placeholder="${esc((F.lastCrumb(t) || {}).text || 'Next step')}"></label>`).join('')}`
-      : '<p class="soft">You didn\'t start any unfinished tasks today.</p>')}
+      : '<p class="soft">No unfinished tasks were started today.</p>')}
     ${sec(3, `Tomorrow's top 3 <span class="sd-when">${esc(fmtDay(next))}</span>`, pool.length
       ? `<div class="sd-pick">${pool.map(t => `<label class="chk"><input type="checkbox" data-pick="${t.id}"${picked.has(t.id) ? ' checked' : ''}> <span>${esc(t.title)}</span></label>`).join('')}</div>
-        <p class="soft sd-over" hidden>That's more than 3. Fewer is easier to start.</p>`
-      : '<p class="soft">Nothing open. Enjoy tomorrow.</p>')}
-    <label class="chk sd-remind"><input type="checkbox" data-remind${prefs.remind ? ' checked' : ''}> Remind me ${REMIND_BEFORE_MIN} minutes before my day ends (${esc(dp.sprint.dayEnd)}, set in the Day view) on this device</label>
+        <p class="soft sd-over" hidden>More than 3 picked.</p>`
+      : '<p class="soft">Nothing open.</p>')}
+    <label class="chk sd-remind"><input type="checkbox" data-remind${prefs.remind ? ' checked' : ''}> Remind me on this device ${REMIND_BEFORE_MIN} minutes before my day ends (${esc(dp.sprint.dayEnd)}, set in Day settings)</label>
     <footer><span class="grow"></span><button type="button" class="btn" data-close>Not yet</button><button class="btn primary">Wrap up</button></footer></form>`,
     f => {
       const over = f.querySelector('.sd-over');
@@ -243,4 +254,4 @@ async function importFocus(bundle){
   return cols.length;
 }
 
-export { activeId, activeTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startTask, toggleStart };
+export { activeId, activeTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };

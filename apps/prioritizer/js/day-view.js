@@ -53,6 +53,7 @@ function dayHead(){
       <button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)"${history.canRedo ? '' : ' disabled'}>${I.redo}</button>
       <button class="btn" data-dp="daymenu" aria-haspopup="menu">This day ${ICON.chevD}</button>
       <button class="ibtn" data-dp="settings" aria-label="Day plan settings" data-tip="Sprint and templates">${I.gear}</button>
+      ${d === todayStr() ? `<button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>` : ''}
     </div>`;
 }
 
@@ -65,15 +66,15 @@ function renderDay(){
   const now = isToday ? currentSection(rec, nowMin()) : {current: null, next: null};
   lastNow = now.current ? now.current.id : null;
   let banners = '';
-  if (info.off) banners += `<div class="banner"><span>${info.holiday ? 'A holiday' : 'A day off'}. It doesn't count as a sprint day.</span>${rec.sections.length ? '' : `<button class="btn" data-dp="addsec">Plan it anyway</button>`}</div>`;
-  if (conflict.length) banners += `<div class="banner warn"><span>${conflict.map(t => `"${esc(t.name)}"`).join(' and ')} both match this day, so the first one is used. Fix it in templates.</span><button class="btn" data-dp="settings">Templates</button></div>`;
+  if (info.off) banners += `<div class="banner"><span>${info.holiday ? 'Holiday' : 'Day off'}. Not a sprint day.</span>${rec.sections.length ? '' : `<button class="btn" data-dp="addsec">Plan it anyway</button>`}</div>`;
+  if (conflict.length) banners += `<div class="banner warn"><span>${conflict.map(t => `"${esc(t.name)}"`).join(' and ')} both match this day. The first one is used.</span><button class="btn" data-dp="settings">Templates</button></div>`;
   if (!info.off && carryPending(dp, d, byId)){
     const c = carryCandidates(dp, d, byId);
     banners += `<div class="banner"><span>${plural(c.items.length, 'unfinished task')} from ${esc(fmtLong(c.prev))}.</span>
       <button class="btn ghost" data-dp="carry-skip">Dismiss</button><button class="btn" data-dp="carry-tray">Put in the tray</button><button class="btn primary" data-dp="carry-sections">Same blocks today</button></div>`;
   }
   const secs = rec.sections.map(s => section(rec, s, byId, now)).join('');
-  const empty = !rec.sections.length && !info.off ? `<div class="focus-empty"><b>No blocks yet.</b>${template ? 'This day\'s template has no blocks.' : dp.templates.length ? `No template covers day ${info.day}.` : 'Make a template once, and every sprint day starts from it.'}
+  const empty = !rec.sections.length && !info.off ? `<div class="focus-empty"><b>No blocks yet.</b>${template ? 'This day\'s template has no blocks.' : dp.templates.length ? `No template covers day ${info.day}.` : 'Templates give each sprint day its blocks.'}
       <div class="acts"><button class="btn" data-dp="addsec">Add a block</button><button class="btn primary" data-dp="settings">${dp.templates.length ? 'Edit templates' : 'Set up templates'}</button></div></div>` : '';
   main.innerHTML = `${banners}<div class="focus dayplan">
     <div class="fmain"><div class="dsecs">${secs}</div>${empty}
@@ -124,13 +125,13 @@ function tray(rec, byId, d){
 
 function renderSetup(){
   const t = todayStr();
-  main.innerHTML = `<div class="focus-empty dsetup"><b>When does a sprint start?</b>Pick the first day of any sprint, past or future. Sprint days are counted from it.
+  main.innerHTML = `<div class="focus-empty dsetup"><b>When does a sprint start?</b>Pick the first day of any sprint, past or future.
     <form class="dsetup-f" id="dpSetup">
       <label>A sprint starts on <input type="date" name="anchor" value="${t}" required></label>
       <label>Length <select name="len">${[1, 2, 3, 4].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${plural(n, 'week')}</option>`).join('')}</select></label>
-      <label class="chk"><input type="checkbox" name="example" checked> Start with example templates</label>
-      <button class="btn primary">Start planning</button>
-    </form><p class="dhelp">Workdays, holidays and templates are in settings (the gear) any time.</p></div>`;
+      <label class="chk"><input type="checkbox" name="example" checked> Add example templates</label>
+      <button class="btn primary">Save sprint</button>
+    </form><p class="dhelp">Workdays, holidays and templates are under the gear.</p></div>`;
 }
 
 /* Example templates so the first day is usable at once. Edit or delete them in settings. */
@@ -213,7 +214,7 @@ function editSection(secId){
   const d = curDate(), s = secId ? sectionOf(dayView(dp, d).rec, secId) : {name: '', kind: '', color: 'slate', around: null, minutes: null, capacity: null};
   if (!s) return;
   showModal(`<form class="sheet small dform" role="dialog" aria-modal="true" aria-label="${secId ? 'Edit block' : 'Add a block'}"><h3>${secId ? 'Edit block' : 'Add a block'}</h3>
-    <p class="dhelp">For ${esc(fmtLong(d))} only. Templates are in settings.</p>
+    <p class="dhelp">For ${esc(fmtLong(d))} only. Templates are under the gear.</p>
     ${sectionFields(s)}
     <footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">${secId ? 'Save' : 'Add'}</button></footer></form>`,
     f => {
@@ -324,12 +325,12 @@ function drawSettings(sh){
       <div class="wide"><span class="lbl">Holidays</span><div class="dhol">${sp.holidays.map(h => `<span class="chip">${esc(fmtLong(h))} <button class="lnk" data-delhol="${esc(h)}" aria-label="Remove ${esc(h)}">${ICON.x}</button></span>`).join('') || '<span class="mut">None</span>'}
         <input type="date" id="dpHol" aria-label="Holiday to add"><button class="btn" data-addhol>Add</button></div></div>
     </div></section>
-    <section class="dset"><h4>Templates</h4><p class="dhelp">Each template is a list of blocks for some sprint days, like <code>2-8</code>. <b>Last day</b> always matches the final working day, even when a holiday shortens the sprint.</p>
+    <section class="dset"><h4>Templates</h4><p class="dhelp">Each template is a list of blocks for some sprint days, like <code>2-8</code>. <b>Last day</b> matches the final working day, even when a holiday shortens the sprint.</p>
       <div class="derr" role="alert"></div>
       ${draft.templates.map((t, ti) => templateCard(t, ti)).join('')}
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
-    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint, a new one is added on day 1 at the value you pick, due on its sprint day, so it's visible early and rises as the day gets close. With <b>Plan into</b>, it's also put in that kind of block on its due day.</p>
+    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint adds a new one on day 1, due on its sprint day. With <b>Plan into</b>, it also goes into that kind of block on its due day.</p>
       ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
       <div class="acts"><button class="btn" data-addrec>${ICON.plus} Every-sprint task</button></div>
     </section>
@@ -498,7 +499,7 @@ function onSubmit(e){
   const sp = cleanSprint(Object.assign({}, dp.sprint, {anchor, lengthWeeks: +f.len.value}));
   setSprint(sp);
   if (f.example.checked && !dp.templates.length) setTemplates(exampleTemplates(sp));
-  toast('Sprint saved. Change it any time with the gear.');
+  toast('Sprint saved');
 }
 function onKey(e){
   if (state.view !== 'day' || isWaiting()) return;

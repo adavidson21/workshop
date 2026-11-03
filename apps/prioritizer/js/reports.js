@@ -174,9 +174,9 @@ const rpInsight = t => t ? `<p class="insight rp-insight">${t}</p>` : '';
 const rpCard = (title, text, acts) => `<div class="engcard"><h2>${title}</h2><p>${text}</p><div class="acts">${acts}</div></div>`;
 
 function renderReports(){
-  if (!ui.ado.on){ main.innerHTML = rpCard('Reports need Azure DevOps', 'Reports read your team\'s work items through the same local ADO helper as your ADO list. Connect it first.', '<button class="btn primary" data-rp="connect">Connect ADO</button>'); return; }
-  if (!rpHasProfile()){ main.innerHTML = rpCard('Set up your team profile', 'Tell Reports which area paths and people make up your team. Every report uses this profile, and you can change it any time.', '<button class="btn primary" data-rp="profile">Set up team profile</button>'); return; }
-  if (!rp.data){ main.innerHTML = rpCard(rp.busy ? 'Reading ADO history...' : 'No report data yet', rp.busy ? 'This can take a minute for a big team.' : esc(rp.error || 'Pull your team\'s data from ADO to see the reports.'),
+  if (!ui.ado.on){ main.innerHTML = rpCard('Connect Azure DevOps', 'Reports read your team\'s work items from ADO.', '<button class="btn primary" data-rp="connect">Connect ADO</button>'); return; }
+  if (!rpHasProfile()){ main.innerHTML = rpCard('Set up your team profile', 'Add your team\'s area paths and people. Every report uses them.', '<button class="btn primary" data-rp="profile">Set up team profile</button>'); return; }
+  if (!rp.data){ main.innerHTML = rpCard(rp.busy ? 'Reading ADO history...' : 'No report data yet', rp.busy ? 'This can take a minute for a big team.' : esc(rp.error || 'Pull your team\'s data from ADO.'),
     `<button class="btn primary" data-rp="refresh"${rp.busy ? ' disabled' : ''}>${rp.busy ? 'Refreshing...' : 'Pull data'}</button><button class="btn" data-rp="profile">Team profile</button>`); return; }
   const d = rp.data, c = rpCompute(d), tab = RP_TABS.some(t => t[0] === ui.rp.tab) ? ui.rp.tab : 'churn';
   const tabs = `<div class="lens rp-tabs" role="tablist" aria-label="Report">${RP_TABS.map(([k, n]) => `<button data-rp="tab" data-tab="${k}" role="tab" aria-selected="${k === tab}"${k === tab ? ' class="on"' : ''}>${n}</button>`).join('')}</div>`;
@@ -190,7 +190,7 @@ const RP_RENDER = {
     const h = c.churn, topWho = h.byWho[0];
     return `<div class="wl-kpis">${rpKpi(h.list.length, 'priority changes')}${rpKpi(rpOne(h.rate), 'per week')}${rpKpi(h.raised, 'raised')}
         ${rpKpi(h.escs.length, `escalated to P${c.top}`)}${rpKpi(Math.round(h.avgWait), 'avg days before escalation')}</div>
-      ${rpInsight(h.list.length ? `Priorities changed ${plural(h.list.length, 'time')} in ${rpOne(c.weeks)} weeks, about ${rpOne(h.rate)} per week.${topWho ? ` ${esc(topWho[0])} made ${topWho[1]} of them.` : ''}${h.escs.length && h.avgWait >= 7 ? ` Escalated items sat ${Math.round(h.avgWait)} days on average first, which points to a prioritization gap rather than an execution gap.` : ''}` : '')}
+      ${rpInsight(h.list.length ? `Priorities changed ${plural(h.list.length, 'time')} in ${rpOne(c.weeks)} weeks, about ${rpOne(h.rate)} per week.${topWho ? ` ${esc(topWho[0])} made ${topWho[1]} of them.` : ''}${h.escs.length && h.avgWait >= 7 ? ` Escalated items sat ${Math.round(h.avgWait)} days on average before escalation.` : ''}` : '')}
       ${rpSection('Changes per week', rpCols([[h.perWeek, 's-a', 'Changes']], c.weekLabels, 'Priority changes per week'))}
       ${rpSection('Who changed priorities', rpBars(h.byWho.slice(0, 8).map(([n, v]) => [n, [[v, 's-a']]]), h.byWho.length ? h.byWho[0][1] : 1, 'Priority changes by person'))}
       ${rpSection('All changes', rpTable(['Date', 'Item', 'Title', 'Change', 'By'], h.list.map(e => `<tr><td class="num">${dOnly(e.date)}</td><td>${rpLink(e.it)}</td><td class="t">${esc(e.it.title)}</td>
@@ -198,7 +198,7 @@ const RP_RENDER = {
   },
   other(c){
     const o = c.other;
-    if (!o.can) return rpCard("Needs area paths and people", "This report finds work assigned to your people that lives outside your area paths. Add both to your team profile.", '<button class="btn primary" data-rp="profile">Team profile</button>');
+    if (!o.can) return rpCard("Needs area paths and people", "This report finds work assigned to your people outside your area paths. Add both to your team profile.", '<button class="btn primary" data-rp="profile">Team profile</button>');
     const max = o.byArea.length ? o.byArea[0][1] : 1;
     return `<div class="wl-kpis">${rpKpi(o.list.length, 'items from other teams')}${rpKpi(o.open, 'still open')}${rpKpi(o.escalated, `escalated to P${c.top}`)}${rpKpi(Math.round(o.hours), 'hours remaining')}</div>
       ${rpInsight(o.list.length ? `Your team picked up ${plural(o.list.length, 'item')} owned by other teams in ${rpOne(c.weeks)} weeks${o.escalated ? `, ${o.escalated} of them escalated to P${c.top}` : ''}. Work with no ticket won't show here, so add it to the Out-of-Scope tab in the export.` : '')}
@@ -209,7 +209,7 @@ const RP_RENDER = {
   carry(c){
     const k = c.carry;
     return `<div class="wl-kpis">${rpKpi(k.list.length, 'items moved between sprints')}${rpKpi(k.moves, 'sprint moves')}${rpKpi(k.multi, 'moved 2+ times')}${rpKpi(k.stuck.length, 'open in a finished sprint')}</div>
-      ${rpInsight(k.multi ? `${plural(k.multi, 'item')} bounced between sprints more than once. Repeated carryover usually means the sprint was overcommitted or reprioritized mid-flight.` : '')}
+      ${rpInsight(k.multi ? `${plural(k.multi, 'item')} bounced between sprints more than once.` : '')}
       ${rpSection('Moves per week', rpCols([[k.perWeek, 's-a', 'Moves']], c.weekLabels, 'Sprint moves per week'))}
       ${rpSection('Carried over', rpTable(['Item', 'Title', 'Moves', 'Path', 'Last moved', 'By', 'State'], k.list.map(i => `<tr><td>${rpLink(i)}</td><td class="t">${esc(i.title)}</td>
         <td class="num">${i.moves}</td><td>${esc(i.path)}</td><td class="num">${i.last}</td><td>${esc(i.lastBy)}</td><td>${esc(i.state)}</td></tr>`)))}
@@ -220,7 +220,7 @@ const RP_RENDER = {
     const s = c.scope, team = s.assigns.some(a => /team/.test(a.dir));
     return `<div class="wl-kpis">${rpKpi(s.added, 'added after sprint start')}${rpKpi(s.removed, 'removed after sprint start')}
         ${rpKpi(s.onto, team ? 'pulled onto your team' : 'assigned')}${rpKpi(s.off, team ? 'pulled off your team' : 'unassigned')}</div>
-      ${rpInsight(s.added + s.removed ? `${plural(s.added + s.removed, 'scope change')} happened after sprints had started. Each one is a commitment the team made and then had to renegotiate.` : '')}
+      ${rpInsight(s.added + s.removed ? `${plural(s.added + s.removed, 'scope change')} happened after sprints had started.` : '')}
       ${s.sprints.length ? rpSection('By sprint', rpTable(['Sprint', 'Dates', 'Added', 'Removed', team ? 'Onto team' : 'Assigned', team ? 'Off team' : 'Unassigned'], s.sprints.map(r => `<tr><td>${esc(sprintName(r.path))}</td>
         <td class="num">${fmtMD(new Date(r.start + 'T12:00'))} to ${fmtMD(new Date(r.finish + 'T12:00'))}</td><td class="num">${r.added}</td><td class="num">${r.removed}</td><td class="num">${r.onto}</td><td class="num">${r.off}</td></tr>`)), 'Changes on the sprint\'s first day count as planning and are left out.')
         : rpSection('By sprint', '<p class="soft">No sprint dates found in ADO for this window, so mid-sprint changes can\'t be told apart from planning.</p>')}
@@ -243,7 +243,7 @@ const RP_RENDER = {
     const a = c.aging, net = a.inflowRate - a.closedRate;
     return `<div class="wl-kpis">${rpKpi(a.hp.length, `open at P${c.high.join('/P')}`)}${rpKpi(a.hp.length ? a.hp[0].age : 0, 'days, oldest')}
         ${rpKpi(rpOne(a.closedRate), 'closed per week')}${rpKpi(rpOne(a.inflowRate), 'new high-priority per week')}</div>
-      ${rpInsight(a.inflowRate || a.closedRate ? (net > 0 ? `High-priority work is arriving faster than the team closes work: about ${rpOne(a.inflowRate)} new P${c.high.join('/P')} items a week against ${rpOne(a.closedRate)} closed. That gap only grows.` : `The team closes about ${rpOne(a.closedRate)} items a week against ${rpOne(a.inflowRate)} new high-priority items.`) : '')}
+      ${rpInsight(a.inflowRate || a.closedRate ? (net > 0 ? `High-priority work is arriving faster than the team closes work: about ${rpOne(a.inflowRate)} new P${c.high.join('/P')} items a week against ${rpOne(a.closedRate)} closed.` : `The team closes about ${rpOne(a.closedRate)} items a week against ${rpOne(a.inflowRate)} new high-priority items.`) : '')}
       ${rpSection('Closed vs new high-priority, per week', rpCols([[a.closed, 's-a', 'Closed'], [a.inflow, 's-b', 'New high-priority']], c.weekLabels, 'Throughput versus high-priority inflow'),
         'New high-priority counts items created at high priority plus items raised into it.')}
       ${rpSection('Age of open high-priority work', rpBars(a.buckets.map(([l, v]) => [l, [[v, 's-a']]]), Math.max(1, ...a.buckets.map(b => b[1])), 'Open high-priority items by age'))}
@@ -270,7 +270,7 @@ async function rpRefresh(){
 async function rpProfile(){
   let cols = [];
   showModal(`<div class="sheet wide" role="dialog" aria-modal="true" aria-label="Team profile"><h3>Team profile</h3>
-    <p>Every report uses this profile. Area paths cover the work your team owns; people are your team members. Use both to see work your people do for other teams. Read-only: nothing is changed in ADO.</p>
+    <p>Area paths are the work your team owns. People are your team members. Add both to see work your people do for other teams. Read-only: nothing changes in ADO.</p>
     <div class="wl-form">
       <label class="full" id="rpColWrap" hidden>Collection<select id="rpCol"></select></label>
       <label>Area paths, one per line (includes everything under each)<textarea id="rpAreas" placeholder="Platform\\Team A" spellcheck="false">${esc(ui.rp.areas)}</textarea></label>

@@ -35,7 +35,7 @@ export function mountAppBanner({ embedded = false } = {}) {
   const el = document.createElement('aside');
   el.className = 'app-banner';
   el.setAttribute('aria-label', 'Docket for Android');
-  el.innerHTML = `<p><b>Docket is an Android app too.</b> <span>Your board stays on your phone, never on a server.</span></p>`
+  el.innerHTML = `<p><b>Docket is an Android app too.</b> <span>Your board can't be erased by clearing browser data.</span></p>`
     + `<a class="btn primary" href="${APK_URL}" rel="noopener">Get the app</a>`
     + `<button class="x" type="button" aria-label="Dismiss"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>`;
   el.querySelector('.x').addEventListener('click', () => {

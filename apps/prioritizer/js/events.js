@@ -10,7 +10,7 @@ import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope,
 import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
-import { activeTask, logInterrupt, openShutdown, pauseTask, toggleStart } from './focus.js';
+import { activeTask, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
 import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
@@ -67,6 +67,8 @@ document.addEventListener('click', e => {
     if (a === 'pause') pauseTask();
     if (a === 'done' && cur) toggleDone(cur.id);
     if (a === 'interrupt') logInterrupt();
+    if (a === 'startnext') startNext();
+    if (a === 'opennext') openDrawer(nw.dataset.id);
     return;
   }
   if (t.closest('[data-shutdown]')){ openShutdown(); return; }
@@ -175,6 +177,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'x' && sel){ toggleDone(sel); requestAnimationFrame(focusSel); }
   else if (k === 't' && sel){ toggleFocus(sel); requestAnimationFrame(focusSel); }
   else if (k === 's' && (sel || activeTask())){ e.preventDefault(); toggleStart(sel || activeTask().id); }
+  else if (k === 's' && state.view !== 'triage'){ e.preventDefault(); startNext(); }
   else if (k === 'i'){ e.preventDefault(); logInterrupt(); }
   else if (k === '?'){ showHelp(); }
 });

@@ -35,7 +35,7 @@ function cmdPreview(){
   const where = `Adds to <b>${esc(L ? L.name : '')}</b>${state.view === 'today' ? ' and Today' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
     ? bits.join('') + `<span style="margin-left:auto">${where}</span>`
-    : (cmdAdded ? `<span class="added">Added "${esc(cmdAdded)}". Keep going, or ${TOUCH ? 'tap Done' : 'press Esc'}.</span>` : `<span>${where}. Type a task; tags are optional.</span>`);
+    : (cmdAdded ? `<span class="added">Added "${esc(cmdAdded)}". Keep going, or ${TOUCH ? 'tap Done' : 'press Esc'}.</span>` : `<span>${where}</span>`);
 }
 cmdInput.addEventListener('input', cmdPreview);
 cmdInput.addEventListener('keydown', e => {

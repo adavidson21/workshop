@@ -186,7 +186,7 @@ function importFile(file){
       <p>From ${plural(p.lists.length,'list')}. How should they come in?</p>
       <div class="choice">
         <button class="opt" data-imp="add"><b>Add as new lists</b><span>Keep everything you have.</span></button>
-        <button class="opt" data-imp="replace"><b>Replace my board</b><span>Swap everything for this file. Good for restoring a backup.</span></button>
+        <button class="opt" data-imp="replace"><b>Replace my board</b><span>Swap everything for this file.</span></button>
       </div>
       <footer><span class="grow"></span><button class="btn" data-close>Cancel</button></footer></div>`,
       s => s.addEventListener('click', e => {

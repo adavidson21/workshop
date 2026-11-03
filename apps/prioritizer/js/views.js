@@ -66,7 +66,7 @@ function renderToday(){
         <div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
       <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
         || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b>${TOUCH ? 'Tap + to add a task' : 'Press N to add a task'}, or pick 3 to 5 from Up next.${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
-      ${open.length > 5 ? `<p class="soft">That's ${open.length} tasks. Today works best with 3 to 5.</p>` : ''}
+      ${open.length > 5 ? `<p class="soft">${open.length} tasks on Today. Keep it to 3 to 5.</p>` : ''}
       ${doneGroup(done)}
     </div>
     <aside>
@@ -202,9 +202,9 @@ function recapData(){
 function recapInsight(r){
   const n = r.done.length; if (n < 3) return '';
   const q = Object.fromEntries(r.quads);
-  if (q.do / n >= 0.5) return 'Mostly Do first this week. That usually means firefighting; aim to move more work into Schedule.';
-  if (q.schedule && q.schedule >= q.do) return 'More Schedule than Do first. Planned work is winning.';
-  return 'Aim for a growing share of work from Schedule.';
+  if (q.do / n >= 0.5) return 'Mostly Do first this week: reactive work. Move more into Schedule.';
+  if (q.schedule && q.schedule >= q.do) return 'More Schedule than Do first: mostly planned work.';
+  return '';
 }
 function recapText(r){
   const withP = t => t.people.length ? ` (${t.people.join(', ')})` : '';
@@ -216,13 +216,13 @@ function recapText(r){
   return out.join('\n');
 }
 function copyText(text){
-  const ok = () => toast('Recap copied. Paste it anywhere.');
+  const ok = () => toast('Recap copied');
   if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(ok, () => fallback());
   fallback();
   function fallback(){
     const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); ok(); } catch(e){ toast("Couldn't copy. Select the text and copy it manually."); }
+    try { document.execCommand('copy'); ok(); } catch(e){ toast("Couldn't copy to the clipboard."); }
     ta.remove();
   }
 }
