@@ -82,6 +82,7 @@ document.addEventListener('click', e => {
     commit(); return;
   }
   if (t.closest('[data-pickall]')){ setShowAllPick(!showAllPick); render(); return; }
+  const dp = t.closest('[data-dir-person]'); if (dp){ canonPerson(dp.dataset.dirPerson); commit(); return; }
   if (t.closest('[data-addperson]')){ askText('Add a person', '', n => { canonPerson(n); commit(); }, 'Add'); return; }
   const wk = t.closest('[data-week]'); if (wk){ if (!wk.disabled){ setWeekOff(Math.min(0, weekOff + +wk.dataset.week)); render(); } return; }
   if (t.closest('[data-copy-recap]')){ copyText(recapText(recapData())); return; }

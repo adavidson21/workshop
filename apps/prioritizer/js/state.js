@@ -7,6 +7,7 @@ import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
 import { cleanCrumbs } from './focus-model.js';
+import { linkPeople } from './directory-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
@@ -158,7 +159,7 @@ function save(){
   if (Object.keys(w).some(k => ui[k] !== w[k])){ Object.assign(ui, w); saveUi(); }
   scheduleSave();
 }
-function commit(){ save(); render(); }
+function commit(){ linkPeople(state); save(); render(); }
 
 const listById = id => state.lists.find(l => l.id === id);
 const childrenOf = id => state.lists.filter(l => l.parentId === id);

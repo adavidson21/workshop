@@ -28,6 +28,7 @@ import { ready, embedded } from './ws.js';
 import { mountBar } from '../shared/standalone-bar.js';
 import { mountAppBanner } from './app-banner.js';
 import { startNative } from './native.js';
+import { startDirectory } from './directory.js';
 
 // Inside the shell the rail names the app (no second logo), and the shell owns the light/dark toggle, the service worker, Alt+<n> and Ctrl+K.
 // On its own page, Prioritizer gets the same top bar as the other tools (crumbs and the toggle) and registers the worker itself.
@@ -80,6 +81,7 @@ applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.
 await loaded;
 render();
+startDirectory();
 maybeOnboard();
 setAdo(); adoSchedule(); adoDetect().then(() => adoSync(false));
 engSchedule(); engCheck();

@@ -109,6 +109,8 @@
     "js/dayplan-format.js",
     "js/dayplan-model.js",
     "js/dayplan.js",
+    "js/directory-model.js",
+    "js/directory.js",
     "js/drag-drop.js",
     "js/drawer.js",
     "js/eng.js",

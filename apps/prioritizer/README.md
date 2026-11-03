@@ -33,7 +33,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Today:** your short list for the day (3 to 5 works best), plus Up next by score and everything you're waiting on, with follow-up nudges.
 - **Triage:** one unsorted or stale task at a time. A task is stale at twice its implied window (4, 8, 14 or 28 days).
 - **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
-- **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda.
+- **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda. Anyone can be a card: teammates, other teams, vendors. Inside Workshop, people from Workshop's People (in Settings) who have no card yet show under the cards to add in one click, and are suggested in a task's People field.
 - **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Day:** time blocks for today (or any day), built from your sprint. Slot tasks into blocks, and rearrange when the day goes sideways. See below.
 - **Reports:** team-wide ADO reports (priority churn, other teams' work, sprint carryover and scope churn, load, aging) with an Excel export. See below.
@@ -175,7 +175,7 @@ A Blocking PR where every other required reviewer has already approved shows **L
 
 Team-wide, read-only reports from ADO for capacity conversations. Open **Reports** in the sidebar (shortcut `6`).
 
-**Team profile (once):** area paths your team owns (everything under each counts) and your people (email or exact ADO display name). Use both to see work your people do for other teams. It saves on this device. Change it with the dots button.
+**Team profile (once):** area paths your team owns (everything under each counts) and your people (email or exact ADO display name). Use both to see work your people do for other teams. It saves on this device. Change it with the dots button. Inside Workshop, **Use my team from Workshop** fills the people from everyone marked as on your team in Workshop's People.
 
 **Reports:**
 
@@ -251,7 +251,7 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Storage format
 
-The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name; optional `personId` links the person to Workshop's people directory, `settings.people`, which Docket reads but never writes), and `prioritizer.settings` v1 (no items; Prioritizer's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
 

@@ -6,7 +6,8 @@
 
      lists     prioritizer.lists v1     items: {id, name, parentId}
      tasks     prioritizer.tasks v3     items: tasks as the board keeps them; meta: {capacity}
-     people    prioritizer.people v1    items: {id: lower-case name, name}
+     people    prioritizer.people v1    items: {id: lower-case name, name, personId?} (personId: the matching
+                                        person in Workshop's people directory, see directory-model.js)
      settings  prioritizer.settings v1  no items; meta: {ado, onboarded}, Prioritizer's own ADO behavior, and the
                                         date the first-run tour was shown (absent until then)
 
@@ -39,8 +40,9 @@ function envelopeFromBoard(col, board, shadow, held = []){
   }
   if (col === 'people'){
     const seen = new Set();
+    const links = board.personLinks || {};
     env.items = board.people.filter(n => { const k = personId(n); if (seen.has(k)) return false; seen.add(k); return true; })
-      .map(n => item({id: personId(n), name: n}));
+      .map(n => item({id: personId(n), name: n, ...(typeof links[personId(n)] === 'string' ? {personId: links[personId(n)]} : {})}));
   }
   if (col === 'settings'){
     env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
@@ -61,7 +63,10 @@ function applyEnvelope(col, env, board){
     if (env && env.meta && env.meta.capacity !== undefined) board.capacity = env.meta.capacity;
     return items.filter(t => !lists.has(t.listId));
   }
-  if (col === 'people') board.people = items.map(p => p.name).filter(n => typeof n === 'string');
+  if (col === 'people'){
+    board.people = items.map(p => p.name).filter(n => typeof n === 'string');
+    board.personLinks = Object.fromEntries(items.filter(p => typeof p.name === 'string' && typeof p.personId === 'string').map(p => [personId(p.name), p.personId]));
+  }
   if (col === 'settings'){
     board.ado = clone(env && env.meta && env.meta.ado) || {};
     board.onboarded = env && env.meta && typeof env.meta.onboarded === 'string' ? env.meta.onboarded : null;

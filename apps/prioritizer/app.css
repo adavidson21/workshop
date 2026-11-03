@@ -728,3 +728,10 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .shutdown .sd-remind{margin-top:.6rem;font-size:.8rem;color:var(--muted)}
 @media (max-width:759px){ .nowbar{grid-template-columns:minmax(0,1fr)} .nowbar .nact{justify-content:flex-start} }
 @media (hover:none) and (pointer:coarse){ .tstart{opacity:1;height:36px;min-width:44px;line-height:34px} }
+
+/* People view: people from Workshop's directory with no card yet */
+.from-dir{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:1.2rem 0 0}
+.from-dir .sub{font-size:.72rem;color:var(--muted);margin-right:.2rem}
+.from-dir .chip{cursor:pointer;border:1px solid var(--line);font-family:inherit}
+.from-dir .chip svg{width:12px;height:12px}
+[data-rp-team]{margin-top:.35rem;align-self:flex-start}

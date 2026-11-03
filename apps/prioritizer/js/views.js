@@ -5,6 +5,7 @@ import { toast } from './overlays.js';
 import { capacityCut, doneGroup, emptyHTML, main, openQuad, prevView, render, row, setView, showAllPick, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, initials, isDoneToday, isFocus, listById, orderedLists, scopeListIds, scopeOpen, state, triageQueue } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, parseD, plural, todayStr } from './util.js';
+import { suggestions } from './directory-model.js';
 /* Prioritizer: The views: Prioritize (list, matrices, and Done with the weekly recap), Today, Triage, People. */
 function renderRank(){
   const open = scopeOpen();
@@ -156,11 +157,16 @@ function triageKey(e){
   return true;
 }
 
+// People in Workshop's people directory who have no card here yet: one click adds a card.
+function fromWorkshop(){
+  const more = suggestions(state.people);
+  return more.length ? `<div class="from-dir"><span class="sub">From Workshop's People</span>${more.map(n => `<button class="chip" data-dir-person="${esc(n)}">${ICON.plus}${esc(n)}</button>`).join('')}</div>` : '';
+}
 function renderPeople(){
   const ppl = state.people;
   const tasksFor = n => state.tasks.filter(t => inScope(t) && t.people.includes(n) && (!t.done || isDoneToday(t))).sort((a,b) => a.rank - b.rank);
   if (!ppl.length){
-    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or ${TOUCH ? 'tap' : 'click'} Person.</div>`;
+    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or ${TOUCH ? 'tap' : 'click'} Person.</div>${fromWorkshop()}`;
     return;
   }
   main.innerHTML = `<div class="people">${ppl.map(p => {
@@ -176,7 +182,7 @@ function renderPeople(){
       ${ts.length ? '' : `<div class="pempty">Nothing open here. Drag a task over or add one below.</div>`}
       <form class="pform" data-person="${esc(p)}" autocomplete="off"><input placeholder="Add for ${esc(p)}" aria-label="Add a task for ${esc(p)}"></form>
     </section>`;
-  }).join('')}</div>`;
+  }).join('')}</div>${fromWorkshop()}`;
 }
 
 /* archive + weekly recap */

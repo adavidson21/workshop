@@ -6,6 +6,7 @@ import { closeModal, showModal, toast } from './overlays.js';
 import { main, render, setView } from './render.js';
 import { saveUi, state, ui } from './state.js';
 import { $, esc, fmtMD, plural, todayStr } from './util.js';
+import { teamLines } from './directory-model.js';
 /* Prioritizer: Reports: team-wide ADO reports from one read-only pull, with Excel export. */
 /* ---------- reports: team-wide ADO reports from one read-only pull ----------
    The ADO helper's /dataset returns the team's work items plus their priority, sprint, assignment and state
@@ -274,12 +275,16 @@ async function rpProfile(){
     <div class="wl-form">
       <label class="full" id="rpColWrap" hidden>Collection<select id="rpCol"></select></label>
       <label>Area paths, one per line (includes everything under each)<textarea id="rpAreas" placeholder="Platform\\Team A" spellcheck="false">${esc(ui.rp.areas)}</textarea></label>
-      <label>People, one per line (email or exact ADO display name)<textarea id="rpPeople" placeholder="name@company.com" spellcheck="false">${esc(ui.rp.people)}</textarea></label>
+      <label>People, one per line (email or exact ADO display name)<textarea id="rpPeople" placeholder="name@company.com" spellcheck="false">${esc(ui.rp.people)}</textarea>
+        ${teamLines().length ? `<button type="button" class="btn" data-rp-team>Use my team from Workshop (${teamLines().length})</button>` : ''}</label>
       <label>Default window<select id="rpDaysIn">${RP_DAYS.map(n => `<option value="${n}"${n === ui.rp.days ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select></label>
     </div>
     <p class="hint" id="rpMsg" aria-live="polite" style="margin-top:.6rem"></p>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-rp-save>Save and pull data</button></footer></div>`,
-    sh => sh.querySelector('[data-rp-save]').addEventListener('click', () => {
+    sh => {
+      const team = sh.querySelector('[data-rp-team]');
+      if (team) team.addEventListener('click', () => { sh.querySelector('#rpPeople').value = teamLines().join('\n'); });
+      sh.querySelector('[data-rp-save]').addEventListener('click', () => {
       const areas = sh.querySelector('#rpAreas').value.trim(), people = sh.querySelector('#rpPeople').value.trim();
       if (!rpLines(areas).length && !rpLines(people).length){ sh.querySelector('#rpMsg').textContent = 'Add at least one area path or person.'; return; }
       ui.rp.areas = areas; ui.rp.people = people; ui.rp.days = +sh.querySelector('#rpDaysIn').value || 42;
@@ -287,7 +292,7 @@ async function rpProfile(){
       saveUi(); closeModal();
       if (state.view !== 'reports') setView('reports');
       rpRefresh();
-    }));
+    }); });
   try {
     const h = await adoCall('health');
     cols = h.collections || [];
