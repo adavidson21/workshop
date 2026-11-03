@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: node tests/check-themes.mjs
+      - run: node tests/check-vendor.mjs
       - run: node tests/check-offline.mjs
       - run: node tests/check-remote.mjs
       - run: node tests/check-contracts.mjs
@@ -31,6 +32,7 @@ jobs:
       - run: pip install playwright && python -m playwright install --with-deps chromium
       - run: python tests/e2e.py
       - run: python tests/review-e2e.py
+      - run: python tests/workmode-e2e.py
       # Tests must use temp folders only. A fresh runner has neither folder, so finding one means a test wrote there.
       - name: No test touched the real data folder or Workshop home
         if: ${{ !cancelled() }}

@@ -38,6 +38,10 @@
         },
         "hostedMode": {
           "type": "boolean"
+        },
+        "workMode": {
+          "type": "boolean",
+          "description": "Work mode: the agent serves the pinned copy built by workshop pin, and no hosted site may pair or use the agent (docs/run-modes.md, Work mode)."
         }
       }
     },

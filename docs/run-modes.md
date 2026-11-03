@@ -9,8 +9,9 @@ Version 1. Data stays on the user's computer in every mode. No mode sends data t
 | `hosted` | Workshop's site (https://workshop.alexisdavidson.org, and Dispatch's and Docket's sites), paired with the agent | `agent` (files in the agent's `dataDir`) | Available | Yes, whenever the agent is running and the site is paired |
 | `browser` | The same site, with no agent | `browser`: files in a folder the user picked in Chrome, or IndexedDB until one is picked | Unavailable | Used when no agent is reachable |
 | `local` | Only Workshop on this computer: the Settings page the agent serves at `http://127.0.0.1:<port>/` | `agent` | Available | The page for sign-in, pairing and the settings only this computer may change |
+| `local`, work mode | The pinned copy on this computer (`workshop pin`), served by the agent at `http://127.0.0.1:<port>/` | `agent` | Available | Off. Turned on with `features.workMode` (see Work mode below) |
 
-The agent serves no hub and no other app. Workshop, Docket, Dispatch, Receipts and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
+Unless work mode is on, the agent serves no hub and no other app. Workshop, Docket, Dispatch, Receipts and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
 
 `browser` mode exists for machines where a local server is blocked. Prioritizer works there with file export and import (see [data-format.md](data-format.md), Bundles).
 
@@ -106,6 +107,20 @@ Chrome and Edge ask the user to allow a public site to reach `127.0.0.1` (Local 
 ### Trade-off
 
 The hosted page holds the token in its own `localStorage`. Anyone who can run script on that origin can use the agent. That is why origins must be listed one by one (by default only Workshop's own sites), pairing needs a click on the agent's own page, and config changes (`PUT /api/config`, and `PUT /api/connectors/<id>/config` except fields marked `x-workshop-hosted`) are refused from hosted origins. In hosted mode the Settings app shows those settings read-only and links to Workshop on this computer to change them.
+
+## Work mode
+
+For computers where the code that runs against your data must not change unless you change it (a work laptop). With `features.workMode` on:
+
+- **The UI comes from a pinned copy on this computer**, not the site. `workshop pin` copies Workshop's site files (the same set `workshop publish` builds) and Docket's site files (from a Docket checkout: `--docket <folder>`, else `.remote/prioritizer` or a `docket` folder next to Workshop) into `~/.workshop/ui/`, and writes `build.json`: the Workshop and Docket versions, tags and commits, and the SHA-256 of every file. The agent serves the hub at `/` and every app from that copy, in `local` mode, with the same security headers as any page it serves.
+- **Checked file by file.** The agent checks every file against `build.json` when it first serves the copy and whenever `build.json` changes, and checks each file's bytes again as it serves it. A file `build.json` does not list is `404`; a file whose bytes changed is refused (`500`) and never sent. `workshop doctor` runs the same check.
+- **No site can use the agent.** Every hosted origin is refused (`403 forbidden`) and `/pair` answers `403`, even with `features.hostedMode` on and the origin in `allowedOrigins`. Those settings are kept, unused, so turning work mode off brings them back.
+- **Code changes only when you update.** `workshop update --tag <tag>` moves Workshop (and with `--docket-tag`, Docket) to a release tag and rebuilds the copy; nothing changes when the site deploys. Building again keeps the previous copy in `~/.workshop/ui.previous/`.
+- **Without a usable copy** (never built, or a file changed), `/` says why and the Settings page is still served, so work mode can be turned off there.
+
+Work mode is changed like any setting only this computer may change: in Settings on the agent's own page, or with `workshop install --work-mode` while the agent is stopped. A hosted page cannot turn it on or off (`PUT /api/config` is `local_only`). The installer turns it on with `WORKSHOP_WORK_MODE=1` (README.md, One-line install).
+
+The trade-off it removes: in hosted mode the code that can read your data is whatever the site serves today, so it changes whenever the site deploys, and anyone who could change the site (or the accounts that deploy it) could change that code. In work mode it is a copy you chose, on your disk, checked on every request.
 
 ## Service worker rules
 

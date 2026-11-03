@@ -42,7 +42,7 @@ Every error is a 4xx or 5xx status with this body ([schemas/error.schema.json](s
 ### Host and Origin
 
 - **Host.** The agent answers only when `Host` is `127.0.0.1:<port>` or `localhost:<port>`. Anything else gets `403 forbidden`. This blocks DNS rebinding.
-- **Origin.** A request with an `Origin` header is refused with `403 forbidden` unless the origin is the agent's own (`http://127.0.0.1:<port>` or `http://localhost:<port>`), or `features.hostedMode` is on and the origin is in `allowedOrigins`.
+- **Origin.** A request with an `Origin` header is refused with `403 forbidden` unless the origin is the agent's own (`http://127.0.0.1:<port>` or `http://localhost:<port>`), or `features.hostedMode` is on, `features.workMode` is off and the origin is in `allowedOrigins`.
 - **CORS** is sent only for an allowed hosted origin: `Access-Control-Allow-Origin: <that origin>` (never `*`), `Vary: Origin`. Preflight (`OPTIONS`) answers `204` with `Access-Control-Allow-Methods: GET, PUT, POST, DELETE`, `Access-Control-Allow-Headers: Content-Type, X-Workshop-Token, X-Workshop-Client`, `Access-Control-Allow-Private-Network: true`, `Access-Control-Max-Age: 600`. No credentials are allowed cross-origin; hosted pages use the header token.
 
 ### Token
@@ -125,7 +125,7 @@ HTML, not JSON. See [run-modes.md](run-modes.md), Pairing.
 | Situation | Status |
 | --- | --- |
 | No agent cookie | `401`, page says to open Workshop on this computer first |
-| `features.hostedMode` off, or origin not in `allowedOrigins`, or `origin` missing or malformed | `403`, page says which |
+| `features.workMode` on, `features.hostedMode` off, or origin not in `allowedOrigins`, or `origin` missing or malformed | `403`, page says which |
 | Allowed | `200`, page with the origin, an Allow button and the pairing script |
 
 Every pair response sends `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`.
@@ -354,6 +354,8 @@ A removed `.json` file is reported as whichever it was last known to be. Rules:
 ## Static files
 
 The agent serves one page, Workshop on this computer: the Settings app (`apps/settings/`) and the `shared/` and `icons/` files it loads. `/` redirects to `/apps/settings/`. It does not serve the hub (`index.html`, `shell/`, `sw.js`, the web app manifest) or any other app: those come from the hosted site ([run-modes.md](run-modes.md)). `GET /api/apps` still lists the app folders the agent knows. It never serves `~/.workshop/`, the data folder, `connectors/`, `agent/`, `tests/` or dot files. Data and files are reachable only through `/api/data` and `/api/files`. Requests that try to leave those folders (`..`, encoded or not) get `404`.
+
+**Work mode** (`features.workMode`, [run-modes.md](run-modes.md), Work mode): the agent serves the pinned copy in `<home>/ui/` instead. `/` and `/index.html` are the hub; every path is looked up in the copy's `build.json`, and only listed files are served (`404` otherwise), after checking their SHA-256 (`500` if a file changed after the build). `/build.json` itself is served so Settings can show the build. Without a usable copy, `/` is a `503` page saying why, and the Settings page above is served as usual.
 
 Static responses use the same Host and Origin checks. Security headers for pages (CSP and others) are defined by WS7 in `docs/security.md`.
 

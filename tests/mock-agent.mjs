@@ -216,7 +216,7 @@ export async function createMockAgent(options = {}) {
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const publicConfig = () => ({
     configVersion: 1, port: config.port, dataDir: config.dataDir || dataDir, allowedOrigins: [...config.allowedOrigins],
-    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true },
+    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true, workMode: config.features.workMode === true },
     connectors: Object.fromEntries(Object.entries(config.connectors || {}).map(([id, c]) => [id, { enabled: c.enabled === true }])),
     home
   });
@@ -523,7 +523,7 @@ export async function createMockAgent(options = {}) {
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) fail('forbidden', 'This address is not allowed. Use 127.0.0.1.');
       const origin = req.headers.origin;
       const own = !origin || ownOrigins().includes(origin);
-      const hosted = Boolean(origin) && !own && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
+      const hosted = Boolean(origin) && !own && config.features.workMode !== true && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
       if (origin && !own && !hosted) fail('forbidden', 'This site is not allowed to use Workshop.');
       if (hosted) cors = { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
       if (req.method === 'OPTIONS') {
@@ -591,6 +591,7 @@ export async function createMockAgent(options = {}) {
     if (!origin || schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) {
       return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>That pairing link is not valid.</p>');
     }
+    if (config.features.workMode === true) return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Work mode is on, so no site can pair with Workshop on this computer.</p>');
     if (config.features.hostedMode !== true) return html(res, 403, '<!doctype html><meta charset="utf-8"><title>Workshop</title><p>Hosted mode is off. Turn it on in Settings first.</p>');
     if (!config.allowedOrigins.includes(origin)) return html(res, 403, `<!doctype html><meta charset="utf-8"><title>Workshop</title><p>${escHtml(origin)} is not in your allowed sites. Add it in Settings first.</p>`);
     const payload = JSON.stringify({ type: 'workshop-pair', api: 1, url: ownOrigins()[0], token }).replace(/</g, '\\u003c');
