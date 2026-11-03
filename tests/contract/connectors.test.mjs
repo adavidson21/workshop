@@ -14,7 +14,7 @@ test('connectors are listed even when off', async () => {
   const echo = body.connectors.find(c => c.id === 'echo');
   assert.equal(echo.enabled, false);
   assert.equal(echo.status.state, 'disabled');
-  assert.deepEqual(echo.actions.map(a => [a.name, a.write]), [['echo', false], ['record', true], ['envProbe', false], ['fail', false]]);
+  assert.deepEqual(echo.actions.map(a => [a.name, a.write]), [['echo', false], ['record', true], ['envProbe', false], ['explain', false], ['fail', false]]);
   assert.deepEqual(echo.test, { action: 'echo', arg: 'text', label: 'Text' });
   expectJson(await get(agent, '/api/connectors/echo'), 200, 'connector-info');
   expectError(await get(agent, '/api/connectors/nope'), 404, 'not_found');
@@ -119,12 +119,17 @@ test('config: invalid changes are refused and nothing changes', async () => {
   assert.equal((await get(agent, '/api/connectors/echo/config')).json.config.greeting, 'Hey');
 });
 
-test('a connector that fails to start reports error and refuses calls', async () => {
+test('a connector that fails to start reports error and refuses calls except setup actions', async () => {
   await put(agent, '/api/connectors/echo/config', { config: { greeting: 'Hey', failStart: true } });
   const info = expectJson(await get(agent, '/api/connectors/echo'), 200, 'connector-info');
   assert.equal(info.status.state, 'error');
   assert.equal(info.status.message, 'Start failed on purpose.');
   expectError(await post(agent, '/api/connectors/echo/echo', { args: { text: 'x' } }), 503, 'unavailable');
+  // A setup action still runs, so Settings can help fix what is wrong.
+  assert.equal(info.actions.find(a => a.name === 'explain').setup, true);
+  assert.equal(info.actions.find(a => a.name === 'echo').setup, undefined);
+  const setup = expectJson(await post(agent, '/api/connectors/echo/explain', {}), 200, 'connector-call-response');
+  assert.deepEqual(setup.result, { failStart: true });
   await put(agent, '/api/connectors/echo/config', { config: { greeting: 'Hey' } });
   assert.equal((await get(agent, '/api/connectors/echo')).json.status.state, 'ready');
 });
