@@ -1,5 +1,6 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
-// Docket's ado-helper/ado_helper.py. Read-only. See connectors/ado/README.md.
+// Docket's ado-helper/ado_helper.py. Read actions, plus write actions for the Queue app that the agent
+// only runs with `confirm: true`. See connectors/ado/README.md.
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
 import { dataset } from './lib/dataset.mjs';
@@ -7,6 +8,9 @@ import { importConfig, importFile } from './lib/import.mjs';
 import { authTracker, patStatus } from './lib/pat.mjs';
 import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
+import { iterationsList, queueList, workitemStates } from './lib/queue.mjs';
+import { commentWorkItem, createWorkItem, updateWorkItem } from './lib/write.mjs';
+import { ConflictError } from './lib/client.mjs';
 
 const stringList = (title, description, def) => ({ type: 'array', title, ...(description ? { description } : {}), items: { type: 'string' }, ...(def ? { default: def } : {}) });
 
@@ -112,7 +116,7 @@ async function guarded(ctx, label, fn) {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof AdoError || e instanceof SettingsError) {
+    if (e instanceof AdoError || e instanceof SettingsError || e instanceof ConflictError) {
       ctx.log.warn(`${label} failed: ${e.message}`);
       throw e;
     }
@@ -128,7 +132,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.0.0',
+  version: '1.1.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -194,11 +198,131 @@ export default {
           id: { type: 'integer', minimum: 1 },
           connection: { type: 'string', maxLength: 40 },
           path: { type: 'string', maxLength: 1000 },
-          details: { type: 'boolean' }
+          details: { type: 'boolean' },
+          html: { type: 'boolean', description: 'With details: also the raw ADO HTML of description, acceptance criteria and repro steps (untrusted).' },
+          pullRequests: { type: 'boolean', description: 'With details: linked pull requests.' },
+          comments: { type: 'boolean', description: 'Also the comments, oldest first.' },
+          history: { type: 'boolean', description: 'Also changes to state, assignee, priority, sprint, area, tags and title, newest first.' }
         }
       },
       async run(args, ctx) {
         return guarded(ctx, 'workitem.get', () => getWorkItem(deps(ctx), args));
+      }
+    },
+    'queue.list': {
+      title: 'Open work items in my team\'s areas',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['areas'],
+        properties: {
+          connection: { type: 'string', maxLength: 40 },
+          areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
+          types: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 100 } },
+          includeClosed: { type: 'boolean' },
+          changedSince: { type: 'string', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'queue.list', async () => {
+          const out = await queueList(deps(ctx), args || {});
+          ctx.log.info(`queue.list: ${out.items.length} items${out.truncated ? ` of ${out.total}` : ''}`);
+          return out;
+        });
+      }
+    },
+    'workitem.states': {
+      title: 'States a work item type allows',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['type'],
+        properties: { connection: { type: 'string', maxLength: 40 }, project: { type: 'string', maxLength: 200 }, type: { type: 'string', minLength: 1, maxLength: 100 } }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.states', () => workitemStates(deps(ctx), args));
+      }
+    },
+    'iterations.list': {
+      title: 'Sprints of a project',
+      write: false,
+      argsSchema: { type: 'object', properties: { connection: { type: 'string', maxLength: 40 }, project: { type: 'string', maxLength: 200 } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'iterations.list', () => iterationsList(deps(ctx), args || {}));
+      }
+    },
+    'workitem.update': {
+      title: 'Change a work item (state, assignee, priority, sprint, tags)',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        required: ['id', 'rev', 'changes'],
+        properties: {
+          id: { type: 'integer', minimum: 1 },
+          rev: { type: 'integer', minimum: 1 },
+          connection: { type: 'string', maxLength: 40 },
+          changes: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              state: { type: 'string', minLength: 1, maxLength: 100 },
+              assignedTo: { type: 'string', maxLength: 300, description: 'Email or "Name <email>". Empty string unassigns.' },
+              priority: { type: 'integer', minimum: 1, maximum: 4 },
+              iteration: { type: 'string', minLength: 1, maxLength: 400 },
+              tagsAdd: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
+              tagsRemove: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } }
+            }
+          }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.update', async () => {
+          const out = await updateWorkItem(deps(ctx), args);
+          ctx.log.info(`workitem.update: ${args.id} now rev ${out.rev} (${Object.keys(args.changes || {}).join(', ')})`);
+          return out;
+        });
+      }
+    },
+    'workitem.comment': {
+      title: 'Comment on a work item',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        required: ['id', 'text'],
+        properties: { id: { type: 'integer', minimum: 1 }, connection: { type: 'string', maxLength: 40 }, text: { type: 'string', minLength: 1, maxLength: 20000 } }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.comment', async () => {
+          const out = await commentWorkItem(deps(ctx), args);
+          ctx.log.info(`workitem.comment: on ${args.id}`);
+          return out;
+        });
+      }
+    },
+    'workitem.create': {
+      title: 'Create a work item',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        required: ['type', 'title'],
+        properties: {
+          connection: { type: 'string', maxLength: 40 },
+          project: { type: 'string', maxLength: 200 },
+          type: { type: 'string', minLength: 1, maxLength: 100 },
+          title: { type: 'string', minLength: 1, maxLength: 255 },
+          description: { type: 'string', maxLength: 20000 },
+          area: { type: 'string', maxLength: 400 },
+          iteration: { type: 'string', maxLength: 400 },
+          priority: { type: 'integer', minimum: 1, maximum: 4 },
+          assignedTo: { type: 'string', maxLength: 300 }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.create', async () => {
+          const out = await createWorkItem(deps(ctx), args);
+          ctx.log.info(`workitem.create: ${out.id}`);
+          return out;
+        });
       }
     },
     'connection.resolve': {

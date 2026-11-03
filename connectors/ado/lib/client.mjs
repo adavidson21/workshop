@@ -17,6 +17,17 @@ export class AdoError extends Error {
   }
 }
 
+/** A write ADO refused because the item changed since the caller read it. `current` is the item as it is now. */
+export class ConflictError extends Error {
+  constructor(message, current = null) {
+    super(message);
+    this.name = 'ConflictError';
+    this.status = 409;
+    this.code = 'conflict';
+    this.current = current;
+  }
+}
+
 /** A problem with the request or the settings, not with ADO. */
 export class SettingsError extends Error {
   constructor(message) {
@@ -85,13 +96,18 @@ export class Ado {
     return new Ado({ ...this.o, base });
   }
 
-  async call(method, path, { body, query, project, api } = {}) {
+  /**
+   * @param {object} [o]
+   * @param {string} [o.contentType] request body type, for example application/json-patch+json
+   * @param {string} [o.need] the PAT scope to name if ADO refuses it
+   */
+  async call(method, path, { body, query, project, api, contentType, need } = {}) {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(query || {})) q.append(k, String(v));
     q.append('api-version', api || this.o.apiVersion || '6.0');
     const scope = project ? `${this.base}/${pyQuote(project)}` : this.base;
     const url = `${scope}/_apis/${path}?${q.toString()}`;
-    const res = await this.request(method, url, body);
+    const res = await this.request(method, url, body, contentType);
     if (res.status >= 200 && res.status < 300) {
       try { this.o.onAuth?.ok?.(this.o.patEnv); } catch { /* status only */ }
       const type = (res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
@@ -106,11 +122,11 @@ export class Ado {
       throw new AdoError('ADO answered with a sign-in page instead of data. Check the URL and that the PAT is valid.');
     }
     if (res.status === 401 || res.status === 403) {
-      const need = url.includes('/git/') ? 'Code (Read)' : url.includes('/teams') ? 'Project and Team (Read)' : 'Work Items (Read)';
+      const scopeName = need || (url.includes('/git/') ? 'Code (Read)' : url.includes('/teams') ? 'Project and Team (Read)' : 'Work Items (Read)');
       try { this.o.onAuth?.rejected?.(this.o.patEnv, res.status); } catch { /* status only */ }
       // A 403 is a missing scope (the message matches ado_helper.py); a 401 means the PAT itself is bad.
       const fix = this.o.patEnv && res.status === 401 ? ` If you made a new one, ${patHint(this.o.patEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.` : '';
-      throw new AdoError(`ADO rejected the PAT (HTTP ${res.status}) for ${this.base}. It may be expired or missing the ${need} scope.${fix}`, res.status);
+      throw new AdoError(`ADO rejected the PAT (HTTP ${res.status}) for ${this.base}. It may be expired or missing the ${scopeName} scope.${fix}`, res.status);
     }
     if (res.status === 404) {
       throw new AdoError(`ADO URL not found (HTTP 404): ${url.split('?')[0]}. Check the collection URL and project name.`, 404);
@@ -122,12 +138,12 @@ export class Ado {
     throw new AdoError(`ADO error HTTP ${res.status}. ${detail}`.trim(), res.status);
   }
 
-  request(method, url, body) {
+  request(method, url, body, contentType) {
     const u = new URL(url);
     const lib = u.protocol === 'https:' ? https : u.protocol === 'http:' ? http : null;
     if (!lib) return Promise.reject(new SettingsError('The ADO server URL must start with https:// or http://.'));
     const data = body !== undefined ? Buffer.from(JSON.stringify(body)) : null;
-    const headers = { Authorization: this.auth, Accept: 'application/json', 'Content-Type': 'application/json' };
+    const headers = { Authorization: this.auth, Accept: 'application/json', 'Content-Type': contentType || 'application/json' };
     if (data) headers['Content-Length'] = String(data.length);
     const options = { method, headers, signal: this.o.signal };
     if (lib === https) {
