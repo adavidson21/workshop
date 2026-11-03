@@ -84,7 +84,7 @@ The agent sends these headers with every page it serves. The policy matches the 
 
 | Header | Value | Why |
 | --- | --- | --- |
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'` | Code, fonts and images come from this origin only; the page may talk to the local agent; no other site may frame it. |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'` | Code, fonts and images come from this origin only; the page may talk to the local agent; no other site may frame it. |
 | `X-Content-Type-Options` | `nosniff` | The browser does not second-guess a file's type. |
 | `X-Frame-Options` | `SAMEORIGIN` | Older browsers' version of `frame-ancestors 'self'`. |
 | `Referrer-Policy` | `no-referrer` | No referrer is sent anywhere. |

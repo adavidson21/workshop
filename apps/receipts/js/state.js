@@ -10,16 +10,16 @@
 export const APP = 'receipts';
 export const VERSION = 1;
 
+// Receipts' own generic sections, written for Workshop. They are not any company's review form: type yours in
+// Settings (they stay on your device). test/state.test.mjs checks this list.
 export const DEFAULT_SECTIONS = [
-  'Goals',
-  'Key Accomplishments',
+  'Results',
+  'Craft',
+  'Ownership',
+  'Collaboration',
   'Communication',
-  'Work Quality & Time Management',
-  'Technical Expertise',
-  'Initiative',
-  'Teamwork',
-  'Adaptability',
-  'Personal Growth',
+  'Leadership',
+  'Growth',
 ];
 
 export const DEFAULT_CONFIG = {
@@ -218,6 +218,15 @@ export function buildReview(entries, { about, period, sections }) {
   return { total: list.length, groups, coverage, gaps: coverage.filter(c => !c.count).map(c => c.section), kinds, starred: list.filter(e => e.star).length };
 }
 
+// Sections your receipts are tagged with that are not in your list (most used first), for example after you
+// change your list or the defaults change. Receipts tagged only with these land in "Other" in a review.
+export function unlistedSections(entries, sections) {
+  const known = new Set(sections);
+  const counts = new Map();
+  for (const e of entries) for (const s of e.sections) if (!known.has(s)) counts.set(s, (counts.get(s) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([s]) => s);
+}
+
 export function bullet(e) {
   let t = e.text.replace(/\s+/g, ' ').trim();
   if (e.metric && !t.includes(e.metric)) t += ` (${e.metric})`;
@@ -244,8 +253,11 @@ export function reviewText(review, { title, period, withDates = true, withEviden
 
 /* ---------- export ---------- */
 const CSV_COLS = ['Date', 'Quarter', 'About', 'Kind', 'Receipt', 'Sections', 'Impact', 'Metric', 'Evidence', 'People', 'Starred'];
+// A cell that starts with = + - @, a tab or a carriage return can run as a formula when the CSV is opened in
+// Excel, so it gets a leading apostrophe. Plain numbers (-3, -0.5) are left alone so they stay numbers.
 const csvCell = v => {
-  const s = String(v ?? '');
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 // UTF-8 BOM and CRLF so Excel on Windows opens it cleanly (same rules as the old TaskLedger digest).

@@ -30,5 +30,6 @@ node "$repo\workshop.mjs" install @extra
 
 Write-Host ""
 Write-Host "Start Workshop now with:  node `"$repo\workshop.mjs`" start"
-Write-Host "Then open the address it prints in Chrome or Edge on this computer."
+Write-Host "Then open the address it prints in Chrome or Edge on this computer, to sign in."
+Write-Host "After that, open https://workshop.alexisdavidson.org in the same browser and click Connect."
 Write-Host "See docs/security.md for what Workshop stores and where."

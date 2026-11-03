@@ -5,17 +5,20 @@
 #
 # The site serves this file with {{SITE}} filled in (worker/index.js), so Workshop allows the site it came from.
 # What it does, all inside ~/.local/share/workshop unless something is already installed:
-#   1. Node 22 or later: uses yours, or downloads a private copy.
+#   1. Node 22.15 or later: uses yours, or downloads a private copy.
 #   2. Workshop and Tandem (eng-agents): downloads the latest from GitHub. No git needed for this.
 #   3. opencode: uses yours, or installs it with npm into the Workshop folder.
 #   4. git: uses yours; on a Mac, asks macOS to install its command line tools (which include git).
 #      PowerShell 7 (pwsh), which Tandem runs on: uses yours, or downloads a private copy.
 #   5. Installs Tandem into opencode (eng-agents install.ps1). If opencode has no AI provider yet, the last lines
 #      say to run opencode auth login in a new terminal (its menu needs a real terminal, not this pipe).
-#   6. Sets up Workshop: hosted mode for this site, the opencode connector with workspace ~/work, start at login.
+#      opencode and Tandem are only for Dispatch: if either cannot be installed, the install carries on without
+#      them, and running this again later adds them.
+#   6. Sets up Workshop: hosted mode for this site, and the opencode connector with workspace ~/work when opencode
+#      is installed. Start at login stays as it is (off on a new install); WORKSHOP_LOGIN=1 turns it on.
 #   7. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
-# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE. (WORKSHOP_SKIP_AI is accepted and no longer needed.)
+# Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_LOGIN. (WORKSHOP_SKIP_AI is accepted and no longer needed.)
 set -euo pipefail
 
 main() {
@@ -52,8 +55,9 @@ main() {
   step "Node"
   NODE=""
   if command -v node >/dev/null 2>&1; then
-    if [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then NODE="$(command -v node)"; say "Using your Node $(node -v)."
-    else say "Your Node is $(node -v); Workshop needs 22 or later, so it gets its own copy."; fi
+    # 22.15 or later: from then on Node can trust the certificates the system trusts (see npm below).
+    if node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=15)?0:1)'; then NODE="$(command -v node)"; say "Using your Node $(node -v)."
+    else say "Your Node is $(node -v); Workshop needs 22.15 or later, so it gets its own copy."; fi
   fi
   if [ -z "$NODE" ] && [ -x "$ROOT/node/bin/node" ]; then NODE="$ROOT/node/bin/node"; say "Using Workshop's Node $("$NODE" -v)."; fi
   if [ -z "$NODE" ]; then
@@ -100,9 +104,18 @@ main() {
   if [ -n "$found" ] && [ "${found#"$ROOT/opencode"}" = "$found" ]; then OPENCODE="$found"; say "Using your opencode at $found."
   else
     [ -n "$found" ] && say "Updating opencode." || say "Installing opencode."
-    "$NPM" install --global --prefix "$ROOT/opencode" --no-fund --no-audit opencode-ai@latest \
-      || fail "npm could not install opencode. Install it from https://opencode.ai, then run this again."
-    OPENCODE="$ROOT/opencode/bin/opencode"
+    # A company network that inspects HTTPS uses its own certificate, which the system trusts and npm does not.
+    # Node 22.15 and later can use the system certificate store for this one npm run.
+    local nopts="${NODE_OPTIONS:-}"
+    if "$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=15)?0:1)'; then nopts="${nopts:+$nopts }--use-system-ca"; fi
+    if NODE_OPTIONS="$nopts" "$NPM" install --global --prefix "$ROOT/opencode" --no-fund --no-audit opencode-ai@latest && [ -x "$ROOT/opencode/bin/opencode" ]; then
+      OPENCODE="$ROOT/opencode/bin/opencode"
+    elif [ -x "$ROOT/opencode/bin/opencode" ]; then
+      OPENCODE="$ROOT/opencode/bin/opencode"; say "npm could not update opencode, so the copy you have stays."
+    else
+      printf '  \033[33mnpm could not install opencode. Workshop, Docket, Receipts and Home do not need it; Dispatch does.\033[0m\n'
+      printf '  \033[33mCarrying on without it. Install it from https://opencode.ai, or run this installer again later.\033[0m\n'
+    fi
   fi
 
   # ------------------------------------------------------------ git
@@ -150,9 +163,14 @@ main() {
 
   # ------------------------------------------------------------ 5. Tandem into opencode
   step "Installing Tandem into opencode"
-  local targs=(-NoProfile -File "$ROOT/eng-agents/install.ps1")
-  if [ -d "$HOME/.config/eng-agents/personal" ]; then targs+=(-Personal "$HOME/.config/eng-agents/personal"); say "Using your personal layer at ~/.config/eng-agents/personal."; fi
-  "$PWSH" "${targs[@]}" || fail "Tandem install failed. See the messages above."
+  local tandem_ok=""
+  if [ -z "$OPENCODE" ]; then say "Skipped: Tandem runs in opencode, which is not installed."
+  else
+    local targs=(-NoProfile -File "$ROOT/eng-agents/install.ps1")
+    if [ -d "$HOME/.config/eng-agents/personal" ]; then targs+=(-Personal "$HOME/.config/eng-agents/personal"); say "Using your personal layer at ~/.config/eng-agents/personal."; fi
+    if "$PWSH" "${targs[@]}"; then tandem_ok=1
+    else printf '  \033[33mTandem did not install (see the messages above). Carrying on; Dispatch needs it, the other apps do not.\033[0m\n'; fi
+  fi
 
   # ------------------------------------------------------------ AI model
   # Agents need an AI provider in opencode. The installer does not ask here: it runs inside curl | bash, where
@@ -166,21 +184,27 @@ main() {
   for v in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY OPENROUTER_API_KEY GROQ_API_KEY XAI_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY; do
     if [ -n "$(printenv "$v" 2>/dev/null || true)" ]; then HAS_AI=1; fi
   done
-  if [ -n "$HAS_AI" ]; then say "opencode already has an AI provider."
+  if [ -z "$OPENCODE" ]; then HAS_AI=1; say "Skipped: opencode is not installed."
+  elif [ -n "$HAS_AI" ]; then say "opencode already has an AI provider."
   else say "No AI provider in opencode yet. You will connect one at the end (one command)."
   fi
 
   # ------------------------------------------------------------ 6. Workshop setup
   step "Setting up Workshop"
-  mkdir -p "${WORKSPACE/#\~/$HOME}"
-  # Absolute commands: Workshop started at login gets a short PATH that may not include them.
-  "$NODE" "$ROOT/workshop/workshop.mjs" install --login --allow "$SITE" --workspace "$WORKSPACE" --opencode "$OPENCODE" --powershell "$PWSH" \
-    || fail "Workshop setup failed. See the messages above."
+  local wargs=(install --allow "$SITE")
+  # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
+  [ "${WORKSHOP_LOGIN:-}" = "1" ] && wargs+=(--login)
+  if [ -n "$OPENCODE" ]; then
+    mkdir -p "${WORKSPACE/#\~/$HOME}"
+    # Absolute commands: Workshop started at login gets a short PATH that may not include them.
+    wargs+=(--workspace "$WORKSPACE" --opencode "$OPENCODE" --powershell "$PWSH")
+  fi
+  "$NODE" "$ROOT/workshop/workshop.mjs" "${wargs[@]}" || fail "Workshop setup failed. See the messages above."
 
   # ------------------------------------------------------------ 7. start and sign in
   step "Starting Workshop"
-  if [ "$os" = darwin ]; then
-    local plist="$HOME/Library/LaunchAgents/org.workshop.agent.plist"
+  local plist="$HOME/Library/LaunchAgents/org.workshop.agent.plist"
+  if [ "$os" = darwin ] && [ -f "$plist" ]; then
     launchctl bootout "gui/$(id -u)/org.workshop.agent" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || launchctl load -w "$plist"
   elif command -v setsid >/dev/null 2>&1; then
@@ -193,10 +217,16 @@ main() {
   "$NODE" "$ROOT/workshop/workshop.mjs" open >/dev/null || true
 
   command -v git >/dev/null 2>&1 || printf '\n\033[33mNote: git is not installed. Tandem needs it to make branches and pull requests: https://git-scm.com/downloads\033[0m\n'
-  printf '\n\033[32mDone. Workshop is running and starts when you log in.\033[0m\n'
+  if "$NODE" -e 'try{process.exit(JSON.parse(require("fs").readFileSync(require("os").homedir()+"/.workshop/config.json","utf8")).features.startAtLogin===true?0:1)}catch{process.exit(1)}'; then
+    printf '\n\033[32mDone. Workshop is running and starts when you log in.\033[0m\n'
+  else
+    printf '\n\033[32mDone. Workshop is running.\033[0m\n'
+    echo "It does not start by itself when you log in. Start it with  workshop start  in a new terminal, or turn on Start at login in Workshop on this computer (workshop open)."
+  fi
   echo "Workshop opened in your browser once to sign it in. Go back to $SITE and click Connect."
   echo "Using a different browser for Dispatch? Run  workshop open --print  in a new terminal and open that address there."
-  echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
+  if [ -n "$OPENCODE" ] && [ -n "$tandem_ok" ]; then echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
+  else printf '\033[33mDispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it.\033[0m\n'; fi
   if [ -z "$HAS_AI" ]; then
     printf '\n\033[33mLast step: connect an AI model.\033[0m Open a new terminal window and run:\n\n    opencode auth login\n\n'
     echo "Pick a provider and paste its API key; it stays in opencode on this computer. For Claude, pick Anthropic"

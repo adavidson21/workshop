@@ -273,6 +273,8 @@ function reviewView() {
   if (!rv.period) rv.period = c.cycleStart ? 'cycle' : 'quarter';
   const period = R.findPeriod(c, rv.period);
   const review = R.buildReview(entries(), { about: rv.about, period, sections: c.sections });
+  // Receipts in this review whose tags are all outside the list: they land in Other.
+  const unlistedHere = R.unlistedSections(R.filterEntries(entries(), { about: rv.about, period }).filter(e => !e.sections.some(x => c.sections.includes(x))), c.sections);
   const title = rv.about === 'me' ? 'Self review' : `Review: ${nameOf(rv.about)}`;
   const text = R.reviewText(review, { title, period, withDates: rv.withDates, withEvidence: rv.withEvidence });
   return `<div class="filters review-ctl">
@@ -283,6 +285,7 @@ function reviewView() {
     </div>
     <h3 class="section-label">Coverage<span class="n mono">${review.total} receipts</span></h3>
     <div class="coverage">${review.coverage.map(x => `<span class="cov${x.count ? '' : ' gap'}"><b class="mono">${x.count}</b>${esc(x.section)}</span>`).join('')}</div>
+    ${unlistedHere.length ? `<p class="note">Some receipts are tagged with sections not in your list (${esc(unlistedHere.join(', '))}), so they show under Other. Add those sections in Settings to group them.</p>` : ''}
     ${review.gaps.length ? `<p class="note">No receipts yet for ${esc(review.gaps.join(', '))}. If those matter for this review, now is the time to remember what happened.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
@@ -301,6 +304,7 @@ function reviewView() {
 
 function settingsView(fs) {
   const c = cfg();
+  const unlisted = R.unlistedSections(entries(), c.sections);
   const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
@@ -327,6 +331,8 @@ function settingsView(fs) {
       <p class="fine">Match your company's review form, one per line. Renaming a section here does not retag old receipts.</p>
       <textarea name="sections" rows="9">${esc(c.sections.join('\n'))}</textarea>
       <div class="acts"><button class="btn primary" type="submit">Save sections</button><button class="btn ghost" type="button" data-act="reset-sections">Reset to defaults</button></div>
+      ${unlisted.length ? `<p class="note">Your receipts are also tagged with sections not in this list: ${esc(unlisted.join(', '))}. Receipts tagged only with those show under Other in a review.</p>
+      <div class="acts"><button class="btn" type="button" data-act="add-unlisted">Add them to the list</button></div>` : ''}
     </form>
     <form class="set" data-form="more">
       <h3 class="section-label">Reports and upward</h3>
@@ -488,6 +494,12 @@ app.addEventListener('click', async ev => {
     case 'allow': try { folderStatus = await ws.folder.allow(); await loadAll(); paint(); } catch (e) { ws.toast(e.message, { kind: 'error' }); } break;
     case 'clear-cycle': await safely(() => saveConfig({ cycleStart: '', cycleEnd: '' })); break;
     case 'reset-sections': await safely(() => saveConfig({ sections: R.DEFAULT_SECTIONS }), 'Sections reset.'); break;
+    case 'add-unlisted': {
+      const c = cfg();
+      const list = [...c.sections, ...R.unlistedSections(entries(), c.sections)].slice(0, 30);
+      await safely(() => saveConfig({ sections: list }), 'Sections added.');
+      break;
+    }
   }
 });
 
