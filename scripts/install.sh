@@ -25,5 +25,6 @@ node "$REPO/workshop.mjs" install "$@"
 
 echo
 echo "Start Workshop now with:  node \"$REPO/workshop.mjs\" start"
-echo "Then open the address it prints in Chrome or Edge on this computer."
+echo "Then open the address it prints in Chrome or Edge on this computer, to sign in."
+echo "After that, open https://workshop.alexisdavidson.org in the same browser and click Connect."
 echo "See docs/security.md for what Workshop stores and where."
