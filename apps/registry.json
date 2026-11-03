@@ -143,7 +143,7 @@
         "id": "agents",
         "name": "Dispatch",
         "version": "1.0.0",
-        "description": "The front end for Tandem: your work items and the opencode agents working on them.",
+        "description": "The front end for Tandem: your work items, the opencode agents working on them, and first-pass reviews of your team's pull requests.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 20,
@@ -162,12 +162,20 @@
           {
             "id": "opencode",
             "required": false
+          },
+          {
+            "id": "ado",
+            "required": false
           }
         ],
         "commands": [
           {
             "id": "refresh",
             "title": "Refresh work items"
+          },
+          {
+            "id": "pr-review",
+            "title": "Review a pull request"
           }
         ],
         "files": [
@@ -177,6 +185,7 @@
           "js/view.js",
           "js/sidebar.js",
           "js/local.js",
+          "js/pr-reviews.js",
           "review.html",
           "review.css",
           "js/review.js",

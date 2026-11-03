@@ -111,7 +111,15 @@ def check(name, ok):
     if not ok: failed.append(name)
 
 
+def skip_docket_tour(frame):
+    # Docket opens a first-run tour on a brand new board (docket #6). Skip it like a person would.
+    skip = frame.locator('[data-skip]')
+    if skip.count() and skip.first.is_visible():
+        skip.first.click(); frame.wait_for_timeout(200)
+
+
 def add_ado_task(frame, tid, title, ado_id, typ):
+    skip_docket_tour(frame)
     frame.evaluate("""([tid, title, id, typ]) => { const P = window.__prioritizer;
       P.state.tasks.push({id: tid, title, listId: P.state.lists[0].id, value: 3, effort: 'S', created: '2026-10-14', ado: {id, type: typ, state: 'Active', url: 'http://ado/' + id, project: 'p'}});
       P.state = P.sanitize(P.state); P.commit(); }""", [tid, title, ado_id, typ])
