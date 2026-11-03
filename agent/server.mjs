@@ -24,6 +24,7 @@ import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, mov
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
+import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,10 +56,11 @@ const same = (a, b) => typeof a === 'string' && typeof b === 'string' && a.lengt
  * @param {boolean} [o.manageStartup]  write and remove the OS start-at-login launcher to match the flag (the
  *                                     real launcher, agent/start.mjs, sets this). Off by default so a test
  *                                     calling createAgent never touches the computer's real login folder.
+ * @param {string} [o.uiDir]           work mode's pinned copy (default <home>/ui, built by `workshop pin`)
  * @param {string} [o.loginDir]        folder for the start-at-login launcher (default: the platform's own).
  *                                     Passing it (or WORKSHOP_LOGIN_DIR) turns on startup management into that
  *                                     folder, so a test can exercise it in a temp directory.
- * @returns {Promise<{url: string, port: number, token: string, home: string, dataDir: string, logFile: string, stop: () => Promise<void>}>}
+ * @returns {Promise<{url: string, port: number, token: string, home: string, dataDir: string, logFile: string, workMode: () => boolean, pinned: PinnedSite, stop: () => Promise<void>}>}
  */
 export async function createAgent(o) {
   if (!o || !o.home) throw new Error('createAgent needs a home folder.');
@@ -109,6 +111,10 @@ export async function createAgent(o) {
       fail('internal', 'Workshop could not save its settings. Nothing was changed.');
     }
   });
+  // Work mode (docs/run-modes.md, Work mode): the hub and its apps come from the pinned copy on this computer,
+  // and no hosted site can pair or use the agent, whatever allowedOrigins says.
+  const workMode = () => config.features.workMode === true;
+  const pinned = new PinnedSite(path.resolve(o.uiDir || uiDirOf(home)), log.for('work'));
   const events = new EventHub({ version: VERSION });
   const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
@@ -126,7 +132,7 @@ export async function createAgent(o) {
     // The saved value, or the folder in use when nothing is saved (the default, or this run's override).
     dataDir: config.dataDir ?? (dataDirOverride ? dataDir : defaultDataDir()),
     allowedOrigins: [...config.allowedOrigins],
-    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true },
+    features: { startAtLogin: config.features.startAtLogin === true, hostedMode: config.features.hostedMode === true, workMode: workMode() },
     connectors: Object.fromEntries(Object.entries(config.connectors || {}).map(([id, c]) => [id, { enabled: c.enabled === true }])),
     home
   });
@@ -169,8 +175,8 @@ export async function createAgent(o) {
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) fail('forbidden', 'This address is not allowed. Use 127.0.0.1.');
       const origin = req.headers.origin;
       const own = origin === undefined || ownOrigins().includes(origin);
-      const hosted = !own && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
-      if (!own && !hosted) fail('forbidden', 'This site is not allowed to use Workshop.');
+      const hosted = !own && !workMode() && config.features.hostedMode === true && config.allowedOrigins.includes(origin);
+      if (!own && !hosted) fail('forbidden', workMode() ? 'Work mode is on, so no other site may use Workshop on this computer.' : 'This site is not allowed to use Workshop.');
       if (hosted) cors = { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
 
       if (req.method === 'OPTIONS') {
@@ -224,6 +230,18 @@ export async function createAgent(o) {
       return;
     }
     if (url.pathname === '/pair') { pairPage(res, url, cookieOk); return; }
+    if (workMode()) {
+      // Work mode: everything comes from the pinned copy, checked file by file. Without a usable copy, "/"
+      // says why and the Settings page is served as usual, so work mode can be turned off again.
+      const s = pinned.current();
+      if (s.ok) { pinned.serve(req, res, url.pathname === '/index.html' ? '/' : url.pathname); return; }
+      if (url.pathname === '/' || url.pathname === '/index.html') {
+        sendHtml(res, 503, page('Workshop', `<p>Work mode is on, but Workshop cannot open: ${escapeHtml(s.problem)}</p><p><a href="${LOCAL_PAGE}">Open Settings</a> to turn work mode off.</p>`));
+        return;
+      }
+      serveStatic(req, res, url.pathname, { root, appsDir });
+      return;
+    }
     // The hub lives on the hosted site; the agent's own page is Workshop on this computer (Settings).
     if (url.pathname === '/' || url.pathname === '/index.html') {
       res.writeHead(302, { Location: LOCAL_PAGE + url.search, 'Cache-Control': 'no-store' });
@@ -253,6 +271,7 @@ export async function createAgent(o) {
       sendHtml(res, 403, page('Workshop', '<p>That pairing link is not valid.</p>'));
       return;
     }
+    if (workMode()) { sendHtml(res, 403, page('Workshop', '<p>Work mode is on, so no site can pair with Workshop on this computer.</p>')); return; }
     if (config.features.hostedMode !== true) { sendHtml(res, 403, page('Workshop', '<p>Hosted mode is off. Turn it on in Settings first.</p>')); return; }
     if (!config.allowedOrigins.includes(origin)) {
       sendHtml(res, 403, page('Workshop', `<p>${escapeHtml(origin)} is not in your allowed sites. Add it in Settings first.</p>`));
@@ -463,6 +482,8 @@ document.getElementById('allow').addEventListener('click', function () {
     home,
     dataDir,
     logFile: log.file,
+    workMode,
+    pinned,
     stop() {
       stopping ??= (async () => {
         watch.stop();

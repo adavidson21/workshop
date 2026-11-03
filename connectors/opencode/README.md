@@ -37,10 +37,21 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `powershell` | `pwsh`, else `powershell` | `--ps` | |
 | `engAgentsConfig` | `~/.config/eng-agents/config.json` (the parser's default) | `--config` | Read by the parser only, for work item links. |
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
+| `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
 A bad setting (no `.work` in the workspace, a URL on another computer, no PowerShell) shows in the connector's status with what to fix. It never stops the agent.
+
+## Approved AI providers
+
+Dispatch sends work to whatever AI provider opencode uses, so at work that should be only the provider your company approved. With `approvedProviders` set, `workshop doctor` (`connectors/opencode/lib/providers.mjs`) reads opencode's config the way opencode merges it (global `~/.config/opencode/opencode.json[c]`, `OPENCODE_CONFIG`, the workspace's `opencode.json[c]` and `.opencode/opencode.json[c]`, `OPENCODE_CONFIG_CONTENT`, and the managed folder) and its saved logins (`~/.local/share/opencode/auth.json`), and fails when:
+
+- `enabled_providers` is not set. Without it opencode loads any provider it finds, including one with an API key in an environment variable. Doctor says what to add.
+- `enabled_providers` lists a provider that is not approved, or `model`, `small_model` or an agent's `model` uses one.
+- A saved login or provider setting for an unapproved provider is not blocked by `enabled_providers` (when it is blocked, doctor only notes it).
+
+Doctor prints provider ids only, never keys, URLs or other values from those files. The check reads files; it cannot see providers a running opencode was started with by other means, so keep `enabled_providers` in the global config.
 
 ## Actions
 
