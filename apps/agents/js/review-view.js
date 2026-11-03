@@ -48,7 +48,11 @@ export function topBar(session, item, ui) {
 
 export function banner(session, ui) {
   if (ui.error) return `<div class="rv-banner bad" role="alert">${esc(ui.error)}</div>`;
-  if (session.status === 'approved') return `<div class="rv-banner ok">Approved. This review is read-only.</div>`;
+  if (session.status === 'approved') {
+    return ui.pushed
+      ? `<div class="rv-banner ok">Approved and pushed. Create the pull request from Dispatch.</div>`
+      : `<div class="rv-banner ok">Approved. The branch is not pushed yet.</div>`;
+  }
   if (session.status === 'revising') {
     const run = session.revisionRun;
     if (run && run.status === 'failed') return `<div class="rv-banner warn" role="alert"><strong>The revision needs you.</strong> ${esc(run.message || '')} Reply to the agent from Dispatch.</div>`;
@@ -122,7 +126,7 @@ export function commentBox(c, { editing, expanded, readOnly }) {
 
 /* ---------- review panel ---------- */
 
-// ui: { panelOpen, submitting, approveLabel, confirmApprove }
+// ui: { panelOpen, submitting, approveLabel, confirmApprove, pushed, pushing }
 export function panel(session, draft, ui) {
   if (!ui.panelOpen) return '';
   const open = session.status === 'awaiting_review';
@@ -141,6 +145,9 @@ export function panel(session, draft, ui) {
 </section>` : '';
 
   const can = canRequestChanges(draft);
+  const pushRow = session.status === 'approved' && !ui.pushed
+    ? `<div class="rv-verdict"><button class="btn primary" data-act="push"${ui.pushing ? ' disabled' : ''}>${ui.pushing ? 'Pushing...' : 'Push PR'}</button></div>`
+    : '';
   const actions = open ? (ui.confirmApprove
     ? `<div class="rv-confirm" role="alert"><p>Approving sends no line comments. Discard ${plural(draft.comments.length, 'draft comment')} and approve?</p><div class="rv-verdict"><button class="btn" data-act="approve-cancel">Keep them</button><button class="btn primary" data-act="approve-confirm"${ui.submitting ? ' disabled' : ''}>${esc(ui.approveLabel)}</button></div></div>`
     : `<div class="rv-verdict"><button class="btn primary" data-act="approve"${ui.submitting ? ' disabled' : ''}>${esc(ui.approveLabel)}</button><button class="btn" data-act="request"${!can || ui.submitting ? ' disabled' : ''} title="${can ? 'Send every comment to the agent as one revision' : 'Add a comment or a summary first'}">Request changes</button></div>`)
@@ -156,7 +163,7 @@ export function panel(session, draft, ui) {
     <textarea id="rv-summary" class="rv-text" data-act="summary" rows="4" placeholder="Feedback that is not about one line"${open ? '' : ' disabled'}>${esc(draft.summary)}</textarea>
     ${ui.saveFailed ? '<p class="rv-warnline">This browser is not saving drafts. Submit before you close the page.</p>' : ''}
   </section>
-  ${actions}
+  ${actions}${pushRow}
   ${prevList}
 </div>`;
 }

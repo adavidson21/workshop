@@ -21,7 +21,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { branchHead, changedFiles, fileAt, isSafeBranch, isSafePath, mergeBase, resolveSha } from "./review-git.mjs";
 
-export const READY_STAGE = "pr"; // the stage right before Push PR
+// The stage right before Push: pr.md is written ("pr" is the step that writes it), so the branch and its
+// target are known.
+export const READY_STAGE = "ship";
 const STATUSES = new Set(["awaiting_review", "revising", "approved"]);
 const COMMENT_TYPES = new Set(["must_fix", "suggestion", "question"]);
 const RESPONSE_STATUSES = new Set(["fixed", "declined", "answered"]);
@@ -197,7 +199,7 @@ export function createCodeReview({ workspace, workRoot, findItem, canRevise = ()
     return { branch, baseBranch: baseRef, baseSha, headSha };
   }
 
-  // Not ready: no saved review yet and the item is not at the pr stage.
+  // Not ready: no saved review yet and the item is not at the ship stage.
   function notReady(item, repo, row) {
     if (!row) throw httpError(409, `Work item ${item.id} has no pr.md section for ${repo} yet.`);
     throw httpError(409, `Work item ${item.id} is not ready for review (stage: ${item.stage || "unknown"}).`);

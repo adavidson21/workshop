@@ -88,7 +88,7 @@ beforeEach(() => {
   git("commit", "-q", "-am", "Feature");
   headSha = git("rev-parse", "HEAD");
 
-  item = { id: "12", folder: FOLDER, stage: "pr", pr: [{ repo: REPO, branch: BRANCH, target: "main" }] };
+  item = { id: "12", folder: FOLDER, stage: "ship", pr: [{ repo: REPO, branch: BRANCH, target: "main" }] };
   launched = [];
   startFails = null;
   sessionEvents = new EventEmitter();

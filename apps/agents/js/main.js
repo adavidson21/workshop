@@ -628,13 +628,6 @@ app.addEventListener('click', ev => {
     act(() => write('run', { folder, command }), () => toast('Started ' + command), folder);
     return;
   }
-  const pb = t.closest('[data-push]');
-  if (pb) {
-    const folder = pb.getAttribute('data-push'), repo = pb.getAttribute('data-repo'), key = 'p:' + folder + ':' + repo;
-    if (ui().busy[key]) return;
-    act(() => write('push', { folder, repo }), r => toast((r && r.message) || 'Pushed.'), key);
-    return;
-  }
   const ap = t.closest('[data-auto]');
   if (ap) {
     const folder = ap.getAttribute('data-auto'), action = ap.getAttribute('data-act');

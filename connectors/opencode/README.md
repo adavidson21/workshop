@@ -141,7 +141,7 @@ type FileContent = { kind: 'text' | 'binary' | 'too_large' | 'absent'; text?: st
 
 ### Rules
 
-- `review.session` and `review.file` answer once the item is at the `pr` stage (the step before Push), and from then on whatever stage it shows. Before that: `conflict`, with the stage in the message.
+- `review.session` and `review.file` answer once the item is at the `ship` stage (pr.md is written and Push is next), and from then on whatever stage it shows. Before that: `conflict`, with the stage in the message.
 - `review.file`: `old` is the file at `baseSha`, `new` at `headSha`, `prev` at the last reviewed head (revision 2 and later). Pass `oldPath` with `old` for a renamed file. `absent` is the missing side of an added or deleted file. Binary files and files over 1 MB come back without `text`.
 - `review.submit` is refused with `conflict` if the branch head moved since the review loaded, the revision number is wrong, or the review is not awaiting a verdict. Nothing is saved. Request changes needs a comment or a summary, and is refused with `unavailable` while opencode is not connected.
 - Comments made in the "changes since last review" view go on the `new` side.
@@ -149,6 +149,8 @@ type FileContent = { kind: 'text' | 'binary' | 'too_large' | 'absent'; text?: st
 ### Revision runner
 
 Request changes saves the feedback, sets the review to `revising`, and sends one revision prompt (the spec's template, plus the repo folder) through the same launcher as `reply`: in the item's current session if it is idle, else a new one linked to the item. When that turn ends, the runner checks that the agent wrote a valid `rev-<n>-response.json` and that the branch still contains the reviewed commit. Then the review becomes revision `n+1`, `awaiting_review`. If a check fails, it stays `revising` and `revisionRun` says why; replying to the agent in that session runs the checks again when its turn ends. Unfinished runs are followed again after a restart.
+
+`state.reviews`: `{"<folder>": {"<repo>": {status, revision, started, run}}}` for every repo in an item's `pr.md`. `started: false` means nobody has reviewed it yet; `run` is the latest revision run or `null`. Dispatch shows it on the PR card.
 
 ### Storage
 

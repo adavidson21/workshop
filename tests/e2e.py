@@ -18,7 +18,8 @@ Five parts:
   4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
      copy, Excel and backup round trips, two windows in sync, and a failed write.
   5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
-     (apps/agents/test/fixture.mjs). The page, its buttons, prompts, deep links, theme, and Prioritizer's
+     (apps/agents/test/fixture.mjs). The page, its buttons, prompts, the code review (Review, then Approve and
+     Push PR to a bare origin), deep links, theme, and Prioritizer's
      stages and Start through the connector.
   6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
      hand, since the picker cannot be automated), the move from IndexedDB, files, other tabs and outside
@@ -724,19 +725,32 @@ def agents_checks(b, watch):
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('.waiting').count() == 0)
         check('and the badge clears', pg.locator('.app-btn[data-app=agents] .badge').is_hidden())
 
-        # Ready to ship: copy buttons and Push.
+        # Ready to ship: copy buttons, then Review instead of Push. The code review (review.html) reads the
+        # diff from git through the connector, and Approve and Push PR pushes the pr.md branch.
         ship = af.locator('#item-41610')
-        check('the PR card has Copy title, Copy description and the push command', ship.locator('button.copy', has_text='Copy title').count() == 1
-              and ship.locator('button.copy', has_text='Copy description').count() == 1 and 'git -C gateway push -u origin dev/bug/41610-rate-limit-headers' in ship.inner_text())
-        ship.locator('[data-push]').click()
+        branch = 'dev/bug/41610-rate-limit-headers'
+        check('the PR card has Copy title, Copy description, and Review instead of Push', ship.locator('button.copy', has_text='Copy title').count() == 1
+              and ship.locator('button.copy', has_text='Copy description').count() == 1 and ship.locator('[data-review]', has_text='Review').count() == 1
+              and ship.locator('[data-push]').count() == 0 and 'git -C gateway push' not in ship.inner_text())
+        ship.locator('[data-review]').click()
+        af.wait_for_selector('.monaco-diff-editor', timeout=30000)
+        check('Review opens the code review for gateway from the connector', 'Revision 1' in af.inner_text('.rv-meta')
+              and branch in af.inner_text('.rv-meta') and af.locator('.rv-file').count() >= 1)
+        check('nothing is pushed before Approve', branch not in ask({'requests': True})['branches'])
+        af.locator('[data-act=approve]').click()
         pushed = False
-        for _ in range(40):
-            pushed = 'dev/bug/41610-rate-limit-headers' in ask({'requests': True})['branches']
+        for _ in range(60):
+            pushed = branch in ask({'requests': True})['branches']
             if pushed: break
             pg.wait_for_timeout(250)
-        check('Push pushes the pr.md branch to origin', pushed)
+        review_state = os.path.join(info['workspace'], '.work', '41610-rate-limit-headers', 'code-review', 'gateway', 'state.json')
+        approved = os.path.exists(review_state) and json.load(open(review_state))['status'] == 'approved'
+        check('Approve and Push PR records the verdict and pushes the pr.md branch to origin', pushed and approved)
         # The branch reaches origin before Push answers; wait for its toast so it cannot replace the next one.
         toast_has(pg, 'Pushed ')
+        af.locator('[data-act=back]').click()
+        af.wait_for_selector('#item-41610', timeout=20000)
+        check('Back to Dispatch returns to the item list', af.locator('#item-41610').count() == 1)
 
         # Remove: the dialog, typing the name, and the folder gone.
         af.locator('#item-spike-cache-options [data-remove]').click(); pg.wait_for_timeout(300)

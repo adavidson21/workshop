@@ -73,7 +73,7 @@ beforeEach(() => {
   git("commit", "-q", "-m", "Feature");
   headSha = git("rev-parse", "HEAD");
 
-  item = { id: "12", folder: FOLDER, stage: "pr", pr: [{ repo: REPO, branch: BRANCH, target: "main" }] };
+  item = { id: "12", folder: FOLDER, stage: "ship", pr: [{ repo: REPO, branch: BRANCH, target: "main" }] };
   api = createCodeReview({
     workspace: ws,
     workRoot,
@@ -109,7 +109,7 @@ describe("GET session", () => {
     assert.equal(s.baseBranch, "origin/main");
   });
 
-  test("409 with status not_ready before the pr stage", async () => {
+  test("409 before the ship stage (pr.md written, push next)", async () => {
     item.stage = "review";
     await assert.rejects(api.getSession("12", REPO), (e) => e.status === 409 && e.code === "conflict" && /not ready for review \(stage: review\)/.test(e.message));
   });
@@ -202,7 +202,7 @@ describe("POST submit", () => {
     await assert.rejects(api.submit("12", REPO, feedback({ repo: "other" })), (e) => e.status === 400);
   });
 
-  test("409 before the pr stage", async () => {
+  test("409 before the ship stage", async () => {
     item.stage = "build";
     await assert.rejects(api.submit("12", REPO, feedback()), (e) => e.status === 409 && /not ready for review/.test(e.message));
   });

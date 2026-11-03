@@ -81,6 +81,23 @@ export function resetReview() {
   runner = null;
 }
 
+/** For `state`: each ready-to-ship item's review per repo, so Dispatch can show it on the PR card.
+ *  {"<folder>": {"<repo>": {status, revision, started, run}}}. started: false means nobody has
+ *  reviewed it yet (no state.json); run is the latest revision run, or null. */
+export function reviewSummary() {
+  const out = {};
+  if (!codeReview) return out;
+  for (const it of (model && model.items) || []) {
+    for (const p of it.pr || []) {
+      if (!p.repo || /[\\/:*?"<>|]/.test(p.repo) || p.repo.startsWith(".")) continue;
+      let st;
+      try { st = codeReview.readState(it.folder, p.repo); } catch { continue; }
+      (out[it.folder] ||= {})[p.repo] = { status: st.status, revision: st.revision, started: st.saved, run: runner ? runner.runData(it.folder, p.repo) : null };
+    }
+  }
+  return out;
+}
+
 export function needReview() {
   if (!codeReview) {
     const e = new Error("The opencode connector is not ready yet.");

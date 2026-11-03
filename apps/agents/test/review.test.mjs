@@ -200,7 +200,12 @@ test('view: top bar, files, panel and banners say the right things', () => {
   assert.equal(panel(s, { comments: [], summary: '' }, { ...ui, panelOpen: false }), '');
 
   assert.equal(banner(s, {}), '');
-  assert.match(banner(session({ status: 'approved' }), {}), /read-only/);
+  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. The branch is not pushed yet\./);
+  assert.match(banner(session({ status: 'approved' }), { pushed: true }), /Approved and pushed/);
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, ui), /data-act="push">Push PR</);
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushing: true }), /data-act="push" disabled>Pushing\.\.\.</);
+  assert.doesNotMatch(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushed: true }), /data-act="push"/);
+  assert.doesNotMatch(panel(s, { comments: [], summary: '' }, ui), /data-act="push"/, 'no Push before Approve');
   assert.match(banner(session({ status: 'revising' }), {}), /agent is revising/);
   assert.match(banner(session({ status: 'revising', revisionRun: { status: 'failed', message: 'No response file.' } }), {}), /needs you.*No response file\./s);
   assert.match(banner(s, { error: 'Nope.' }), /role="alert">Nope\./);
@@ -210,6 +215,11 @@ test('mock API: request changes comes back as revision 2 with answers; stale hea
   const api = mockReviewApi({ agentDelayMs: 10 });
   const item = await api.item('L1');
   assert.deepEqual(item.repos, ['shop-api', 'shop-web']);
+  assert.deepEqual(item.pushed, { 'shop-api': false, 'shop-web': false });
+  api.failNextPush();
+  await assert.rejects(api.push(item.folder, 'shop-web'), e => e.code === 'unavailable');
+  assert.match((await api.push(item.folder, 'shop-web')).message, /Pushed dev\/feature\/L1-round-order-totals in shop-web/);
+  assert.equal((await api.item('L1')).pushed['shop-web'], true);
   const s1 = await api.session('L1', 'shop-api');
   assert.equal(s1.files.length, 3);
   assert.deepEqual((await api.file('L1', 'shop-api', 'docs/notes.md', 'old')).kind, 'text');

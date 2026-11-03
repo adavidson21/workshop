@@ -17,9 +17,9 @@ import {
 } from './review-state.js';
 import { esc, topBar, banner, filesPane, fileBar, placeholder, commentBox, panel } from './review-view.js';
 
-// Approve records the verdict. Pushing the branch stays on Dispatch's Push button until the two are
-// wired together (spec Package D), so the button does not promise a push yet.
-const APPROVE_LABEL = 'Approve';
+// Approve records the verdict, then pushes the branch with the connector's existing Push action. Dispatch
+// no longer offers Push on its own, so nothing is pushed before Approve.
+const APPROVE_LABEL = 'Approve and Push PR';
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
@@ -40,7 +40,7 @@ const R = {
   draft: emptyDraft(),
   key: null,
   // Side by side needs room; small screens start inline.
-  ui: { sideBySide: window.innerWidth > 900, sinceLast: false, panelOpen: true, file: null, error: null, submitting: false, confirmApprove: false, saveFailed: false, backHref: '', approveLabel: APPROVE_LABEL },
+  ui: { pushed: false, pushing: false, sideBySide: window.innerWidth > 900, sinceLast: false, panelOpen: true, file: null, error: null, submitting: false, confirmApprove: false, saveFailed: false, backHref: '', approveLabel: APPROVE_LABEL },
   sel: null, // { file, side, anchor, start, end }
   editing: null, // { comment, isNew }
   expanded: new Set(),
@@ -500,13 +500,37 @@ async function submit(verdict) {
     R.draft = emptyDraft();
     persist();
     R.ui.confirmApprove = false;
-    ws.toast(verdict === 'approve' ? 'Approved.' : 'Sent to the agent. It is revising now.', { kind: 'info' });
-    await loadSession();
+    if (verdict === 'approve') {
+      await loadSession();
+      await pushBranch(); // the same click: Approve and Push PR
+    } else {
+      ws.toast('Sent to the agent. It is revising now.', { kind: 'info' });
+      await loadSession();
+    }
   } catch (e) {
     R.ui.error = e.code === 'conflict' ? `${errText(e)} Your draft is kept; the review was reloaded.` : errText(e);
     if (e.code === 'conflict') { try { await loadSession(); } catch (err) { /* keep the error above */ } }
   } finally {
     R.ui.submitting = false;
+    paintChrome();
+  }
+}
+
+// Push the reviewed branch (the connector's Push: git push -u origin <pr.md branch>, never --force).
+// After Approve, or from Push PR when an earlier push failed.
+async function pushBranch() {
+  if (R.ui.pushing) return;
+  R.ui.pushing = true;
+  R.ui.error = null;
+  paintChrome();
+  try {
+    const r = await R.api.push(R.item.folder, R.repo);
+    R.ui.pushed = true;
+    ws.toast((r && r.message) || 'Pushed.', { kind: 'info' });
+  } catch (e) {
+    R.ui.error = `Approved, but the push did not go through: ${errText(e)} Fix it, then click Push PR.`;
+  } finally {
+    R.ui.pushing = false;
     paintChrome();
   }
 }
@@ -562,6 +586,7 @@ document.addEventListener('click', async e => {
   if (act === 'approve-cancel') { R.ui.confirmApprove = false; paintPanel(); return; }
   if (act === 'approve-confirm') return submit('approve');
   if (act === 'request') return submit('request_changes');
+  if (act === 'push') return pushBranch();
 });
 
 document.addEventListener('change', e => {
@@ -627,6 +652,7 @@ if (!MOCK && ws.backend !== 'agent') {
   try {
     R.item = await R.api.item(R.id);
     if (!R.repo) R.repo = R.item.repos[0] || null;
+    R.ui.pushed = !!(R.item.pushed && R.item.pushed[R.repo]);
     if (!R.repo) throw new Error(`Work item ${R.id} has no PR text for any repo yet. Run the step that writes pr.md first.`);
     R.ui.backHref = MOCK ? 'index.html' : `index.html#${encodeURIComponent(R.id)}`;
     document.title = `Review: ${R.item.title}`;

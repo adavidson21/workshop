@@ -13,6 +13,7 @@ import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { attachCommand } from "./actions.mjs";
 import { autoData, autopilot } from "./autopilot.mjs";
 import { adoConfigured, loose, looseData } from "./workspace.mjs";
+import { reviewSummary } from "./review.mjs";
 
 export function liveData() {
   const items = {};
@@ -40,7 +41,7 @@ export function liveData() {
 /** The `state` action: the model from New-Dashboard.ps1 plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), liveMode: { error: modelError, live: liveData() } };
+  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events
