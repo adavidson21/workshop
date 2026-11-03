@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { addToRepoMap, createLocalItem, localWorkItemText, nextLocalNumber, repoNameFromUrl, slugOf } from "../lib/workspace.mjs";
+import { addToRepoMap, createLocalItem, localWorkItemText, nextLocalNumber, prFromUrl, repoNameFromUrl, slugOf } from "../lib/workspace.mjs";
 import { parseProviders } from "../lib/opencode-state.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "oc-ws-"));
@@ -69,4 +69,10 @@ test("connected AI providers are read from both opencode shapes", () => {
   assert.deepEqual(parseProviders({ providers: [{ id: "openai", name: "OpenAI" }, { id: "x" }] }), ["OpenAI", "x"]);
   assert.equal(parseProviders({ something: 1 }), null);
   assert.equal(parseProviders(null), null);
+});
+
+test("PR links: the number and a clean link from ADO pull request URLs; anything else is refused", () => {
+  assert.deepEqual(prFromUrl("https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/812?_a=files#c1"), { id: "812", url: "https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/812" });
+  assert.deepEqual(prFromUrl(" https://dev.azure.com/org/proj/_git/repo/pullrequest/42/ "), { id: "42", url: "https://dev.azure.com/org/proj/_git/repo/pullrequest/42" });
+  for (const bad of ["", "812", "https://github.com/o/r/pull/3", "https://x/_git/r/pullrequest/1;calc", "https://x/a b/_git/r/pullrequest/1", "file:///_git/r/pullrequest/1", "https://x/_git/r/pullrequest/abc"]) assert.equal(prFromUrl(bad), null, bad);
 });
