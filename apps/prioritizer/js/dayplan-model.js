@@ -372,6 +372,7 @@ function cleanRecurring(r){
   o.listId = typeof o.listId === 'string' ? o.listId : null;
   o.notes = str(o.notes, 2000);
   o.paused = o.paused === true;
+  o.planKind = str(o.planKind, 40).trim().toLowerCase();
   o.made = Array.isArray(o.made) ? [...new Set(o.made.filter(isDate))].sort().slice(-12) : [];
   return o;
 }
@@ -404,6 +405,21 @@ function recurDue(dp, today){
   return out;
 }
 
+/* Automatic Day planning: put an every-sprint task into the first open block of the item's kind on its due day
+   (that day's first open block if none has the kind). Done once, when the task is made, so unplanning it
+   sticks. Returns the block, or null when the item has no kind, the day has no open blocks, or the task is
+   already planned that day. */
+function autoPlan(dp, item, taskId, due){
+  if (!item.planKind) return null;
+  const rec = dayView(dp, due).rec;
+  if (slotOf(rec, taskId)) return null;
+  const open = rec.sections.filter(s => !s.lost);
+  const to = open.find(s => s.kind === item.planKind) || open[0];
+  if (!to) return null;
+  slotTask(dp, due, taskId, to.id);
+  return to;
+}
+
 /* ---------- undo and redo (per window) ----------
    Each entry is the records of the dates an action touched, as they were before ({date: record or null}). */
 function createHistory(max = MAX_UNDO){
@@ -429,7 +445,7 @@ function createHistory(max = MAX_UNDO){
 }
 
 export {
-  cleanRecurring, recurDue, recurTaskId, sprintDayDate,
+  autoPlan, cleanRecurring, recurDue, recurTaskId, sprintDayDate,
   COLORS, DEFAULT_SPRINT, addDays, addSection, carryCandidates, carryOver, carryPending, cleanDayplan, cleanRecord, cleanSection,
   cleanSprint, cleanTemplate, createHistory, currentSection, dayView, daysBetween, dismissCarry, editDay, formatDays, freshDayplan,
   fromMin, isDate, isTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,

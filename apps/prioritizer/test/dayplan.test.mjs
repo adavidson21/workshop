@@ -375,3 +375,18 @@ test('every-sprint tasks: made on day 1, due on their sprint day, once per sprin
   assert.equal(M.sprintDayDate(hol.sprint, '2026-11-04', 40), '2026-11-17', 'past the end: the last working day');
   assert.equal(M.cleanRecurring({title: '  '}), null);
 });
+
+test('automatic Day planning: an every-sprint task goes into its kind of block on its due day, once', () => {
+  const dp = board({recurring: [{id: 'ref', title: 'Refinement', dueDay: 4, planKind: 'meetings'}, {id: 'x', title: 'Odd', dueDay: 5, planKind: 'nope'}, {id: 'n', title: 'None', dueDay: 2}]});
+  const [ref, odd, none] = M.recurDue(dp, '2026-11-04');
+  assert.equal(M.autoPlan(dp, ref.item, ref.id, ref.due).id, 'mt');
+  assert.equal(M.slotOf(dp.days['2026-11-09'], ref.id).sectionId, 'mt');
+  assert.equal(M.autoPlan(dp, ref.item, ref.id, ref.due), null, 'already planned that day');
+  assert.equal(M.autoPlan(dp, odd.item, odd.id, odd.due).id, 'am', 'no block of that kind: the first open block');
+  assert.equal(M.autoPlan(dp, none.item, none.id, none.due), null, 'no kind: not planned');
+  assert.equal(dp.days[none.due], undefined);
+  const lost = board({recurring: [{id: 'r', title: 'R', dueDay: 2, planKind: 'focus'}]});
+  M.loseSection(lost, '2026-11-05', 'am', 'next', tasks([]));
+  const [r] = M.recurDue(lost, '2026-11-04');
+  assert.equal(M.autoPlan(lost, r.item, r.id, r.due).id, 'mt', 'a lost block is skipped');
+});

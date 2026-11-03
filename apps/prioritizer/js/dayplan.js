@@ -1,7 +1,7 @@
 /* Docket: the day plan's state and saving. The day plan is its own small board (dayplan-model.js), saved through
    the same write loop as the board (store.js) as the dayplan/* collections (dayplan-format.js). Every change the
    Day view makes goes through dpChange, which records it for undo and saves. */
-import { cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue } from './dayplan-model.js';
+import { autoPlan, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue } from './dayplan-model.js';
 import { COLORS } from './constants.js';
 import { commit, isWaiting, listById, state, topLists } from './state.js';
 import { todayStr } from './util.js';
@@ -39,6 +39,8 @@ function recurTick(){
   for (const {item, id, start, due: dueOn, sprint} of due){
     item.made = [...item.made, start].slice(-12);
     if (state.tasks.some(t => t.id === id)) continue;
+    ensureYear(dueOn);
+    autoPlan(dp, item, id, dueOn);
     state.tasks.push({
       id, title: item.title, notes: item.notes || '', color: COLORS[0], rank: ++maxRank,
       value: item.value, effort: item.effort, due: dueOn, urgentFlag: false,

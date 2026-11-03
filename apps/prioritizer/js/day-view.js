@@ -238,7 +238,7 @@ function sectionFields(s){
     <label>Capacity (pts) <input type="number" name="capacity" min="0" max="99" step="1" value="${s.capacity ?? ''}"></label>
   </div><datalist id="dpKinds">${kinds().map(k => `<option value="${esc(k)}">`).join('')}</datalist>`;
 }
-const kinds = () => [...new Set(['focus', 'meetings', 'admin', 'review', ...dp.templates.flatMap(t => t.sections.map(s => s.kind)).filter(Boolean)])];
+const kinds = (ts = dp.templates) => [...new Set(['focus', 'meetings', 'admin', 'review', ...ts.flatMap(t => t.sections.map(s => s.kind)).filter(Boolean)])];
 function readSection(root){
   const g = n => root.querySelector(`[name=${n}]`).value.trim();
   return {name: g('name'), kind: g('kind'), color: g('color'), around: isTime(g('around')) ? g('around') : null,
@@ -329,8 +329,8 @@ function drawSettings(sh){
       ${draft.templates.map((t, ti) => templateCard(t, ti)).join('')}
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
-    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint, a new one is added on day 1 at the value you pick, due on its sprint day, so it's visible early and rises as the day gets close.</p>
-      ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
+    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint, a new one is added on day 1 at the value you pick, due on its sprint day, so it's visible early and rises as the day gets close. With <b>Plan into</b>, it's also put in that kind of block on its due day.</p>
+      ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
       <div class="acts"><button class="btn" data-addrec>${ICON.plus} Every-sprint task</button></div>
     </section>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-savesettings>Save</button></footer>`;
@@ -364,6 +364,7 @@ function recurRow(r, ri){
   return `<tr data-ri="${ri}">
     <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task"></td>
     <td><select data-rf="due" aria-label="Due on">${opts.join('')}</select></td>
+    <td><select data-rf="planKind" aria-label="Plan into a block on its due day"><option value="">Don't plan</option>${[...new Set([...kinds(draft.templates), r.planKind].filter(Boolean))].map(k => `<option value="${esc(k)}"${r.planKind === k ? ' selected' : ''}>${esc(k)} block</option>`).join('')}</select></td>
     <td><select data-rf="value" aria-label="Value">${[1, 2, 3, 4].map(v => `<option value="${v}"${r.value === v ? ' selected' : ''}>${VALUE[v]}</option>`).join('')}</select></td>
     <td><select data-rf="effort" aria-label="Effort">${EFFORTS.map(e => `<option${r.effort === e ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
     <td><select data-rf="listId" aria-label="List">${orderedLists().map(l => `<option value="${esc(l.id)}"${r.listId === l.id ? ' selected' : ''}>${l.parentId ? '   ' : ''}${esc(l.name)}</option>`).join('')}</select></td>
@@ -380,6 +381,7 @@ function readSettingsField(el){
     if (f === 'effort') r.effort = el.value;
     if (f === 'listId') r.listId = el.value;
     if (f === 'paused') r.paused = el.checked;
+    if (f === 'planKind') r.planKind = el.value;
     return;
   }
   if (el.dataset.s){ const v = el.value; sp[el.dataset.s] = el.dataset.s === 'lengthWeeks' ? Math.max(1, Math.min(8, Math.round(+v) || 2)) : v || null; return; }
@@ -410,7 +412,7 @@ function settingsClick(e, sh){
   const blank = () => ({id: Math.random().toString(36).slice(2, 9), name: 'New block', kind: '', color: 'slate', around: null, minutes: null, capacity: null});
   if (b.hasAttribute('data-addhol')){ const v = sh.querySelector('#dpHol').value; if (isDate(v) && !draft.sprint.holidays.includes(v)){ draft.sprint.holidays.push(v); draft.sprint.holidays.sort(); } drawSettings(sh); return; }
   if (b.dataset.delhol){ draft.sprint.holidays = draft.sprint.holidays.filter(h => h !== b.dataset.delhol); drawSettings(sh); return; }
-  if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', dueDay: 1, last: false, value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
+  if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', dueDay: 1, last: false, planKind: '', value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
   const reEl = b.closest('[data-ri]');
   if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, sections: [blank()]}); drawSettings(sh); return; }
