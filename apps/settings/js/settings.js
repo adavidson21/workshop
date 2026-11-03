@@ -17,7 +17,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const ORIGIN = /^(https:\/\/[a-z0-9.-]+(:\d{1,5})?|http:\/\/(127\.0\.0\.1|localhost):\d{1,5})$/;
 const FEATURES = {
   startAtLogin: ['Start at login', 'Start Workshop when you log in to this computer. Per user, no admin rights needed.'],
-  hostedMode: ['Hosted mode', 'Let the sites listed below use Workshop on this computer, after you allow each one in a pairing window. Your data stays on this computer.']
+  hostedMode: ['Hosted mode', 'Let the sites listed below use Workshop on this computer, after you allow each one in a pairing window. Your data stays on this computer.'],
+  workMode: ['Work mode', 'Run Workshop from the pinned copy on this computer (built with workshop pin) instead of its site. No site can pair while it is on, and the code only changes when you update it.']
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Error', disabled: 'Off' };
 
@@ -44,7 +45,7 @@ function agentAddress() {
 function header() {
   const note = $('#modeNote');
   // Local: this is the page the agent serves, Workshop on this computer. Workshop itself is the hosted site.
-  if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change. Workshop itself opens from its site.';
+  if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change.';
   else if (readOnly) {
     const at = agentAddress();
     note.innerHTML = 'Read only. These are the settings of Workshop on this computer; to change them, open Workshop on this computer'
@@ -334,6 +335,18 @@ function dataCard() {
 /* ---------- open Workshop (local only) ----------
    The agent serves only this page. Workshop, its apps and Dispatch and Docket come from the allowed sites,
    which pair with this computer from their Connect button. */
+// Work mode: the pinned copy's build.json (served by the agent), or null when there is none.
+async function pinnedBuild() {
+  try { const r = await fetch('/build.json', { cache: 'no-store' }); return r.ok ? await r.json() : null; } catch (e) { return null; }
+}
+async function workCard() {
+  const b = await pinnedBuild();
+  if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off below.'); return; }
+  const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
+  const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update --tag</code>.');
+  sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString())}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
+}
+
 function sitesCard(cfg) {
   const sites = cfg.allowedOrigins || [];
   if (cfg.features && cfg.features.hostedMode !== true) { card('Open Workshop', 'Hosted mode is off, so no site can use Workshop on this computer. Turn it on below.'); return; }
@@ -348,7 +361,7 @@ async function start() {
   if (ws.backend === 'agent') {
     try {
       const cfg = await ws.config.get();
-      if (ws.mode === 'local') sitesCard(cfg);
+      if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       await folderCard(cfg);
       await workshopCard(cfg);
       await connectorsCard(cfg);

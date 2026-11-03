@@ -17,6 +17,11 @@
 #   6. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
 # Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_SKIP_AI, WORKSHOP_LOGIN.
+# Releases and work mode (README.md, Work mode):
+#   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
+#   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
+#   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
+#                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
 
 & {
 $ErrorActionPreference = 'Stop'
@@ -27,7 +32,10 @@ $Site = '{{SITE}}'
 if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org' }
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
-$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents' }
+$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket' }
+$Work = ($env:WORKSHOP_WORK_MODE -eq '1')
+$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG }
+$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG' }
 
 function Say($text) { Write-Host "  $text" }
 function Step($text) { Write-Host ""; Write-Host "> $text" -ForegroundColor Cyan }
@@ -52,6 +60,11 @@ function Get-Zip($url, $dest) {
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
     Move-Item $src $dest
   } finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+}
+
+# A release tag: letters, digits, dots, dashes and underscores (v1.2.0).
+foreach ($t in $Tags.Values) {
+  if ($t -and ($t -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$' -or $t.Contains('..'))) { Fail "`"$t`" is not a release tag like v1.2.0." }
 }
 
 Write-Host "Installing Workshop and Tandem for $env:USERNAME (no admin rights needed)."
@@ -96,12 +109,22 @@ if (Test-Workshop) {
 }
 
 # ---------------------------------------------------------------- 2. Workshop and Tandem
-foreach ($name in @('workshop', 'eng-agents')) {
-  Step ($(if ($name -eq 'workshop') { 'Workshop' } else { 'Tandem (eng-agents)' }))
+$names = @('workshop', 'eng-agents')
+if ($Work) { $names += 'docket' }
+foreach ($name in $names) {
+  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
   $dir = Join-Path $Root $name
+  $tag = $Tags[$name]
   if (Test-Path (Join-Path $dir '.git')) {
-    if (Get-Command git -ErrorAction SilentlyContinue) { Say 'Updating your git checkout.'; git -C $dir pull --ff-only }
-    else { Say 'This is a git checkout and git is not on PATH, so it is left as it is.' }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Say 'This is a git checkout and git is not on PATH, so it is left as it is.' }
+    elseif ($tag) {
+      Say "Moving your git checkout to $tag."
+      git -C $dir fetch --tags --quiet origin
+      if ($LASTEXITCODE -ne 0) { Say 'Could not fetch tags; using the ones already here.' }
+      git -C $dir checkout --quiet --detach "refs/tags/$tag"
+      if ($LASTEXITCODE -ne 0) { Fail "There is no tag $tag in $dir, or it has local changes." }
+    }
+    else { Say 'Updating your git checkout.'; git -C $dir pull --ff-only }
     continue
   }
   if (Test-Path $dir) {
@@ -110,8 +133,13 @@ foreach ($name in @('workshop', 'eng-agents')) {
     Move-Item $dir $prev
     Say "Kept the old copy at $prev."
   }
-  Say "Downloading the latest from $($Repos[$name])."
-  Get-Zip "$($Repos[$name])/archive/refs/heads/main.zip" $dir
+  if ($tag) {
+    Say "Downloading release $tag from $($Repos[$name])."
+    Get-Zip "$($Repos[$name])/archive/refs/tags/$tag.zip" $dir
+  } else {
+    Say "Downloading the latest from $($Repos[$name]) (not a release: set $($TagVars[$name]) to pin one)."
+    Get-Zip "$($Repos[$name])/archive/refs/heads/main.zip" $dir
+  }
 }
 $wsDir = Join-Path $Root 'workshop'
 $engDir = Join-Path $Root 'eng-agents'
@@ -209,7 +237,7 @@ else {
 # ---------------------------------------------------------------- 5. Workshop setup
 Step 'Setting up Workshop'
 $wsPath = $Workspace -replace '^~', $env:USERPROFILE
-$wsArgs = @((Join-Path $wsDir 'workshop.mjs'), 'install', '--allow', $Site)
+$wsArgs = if ($Work) { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--work-mode') } else { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--allow', $Site) }
 # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
 if ($env:WORKSHOP_LOGIN -eq '1') { $wsArgs += '--login' }
 if ($ocCmd) {
@@ -219,6 +247,11 @@ if ($ocCmd) {
 }
 & $node @wsArgs
 if ($LASTEXITCODE -ne 0) { Fail 'Workshop setup failed. See the messages above.' }
+if ($Work) {
+  Step 'Building the pinned copy (work mode)'
+  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket')
+  if ($LASTEXITCODE -ne 0) { Fail 'Building the pinned copy failed. See the messages above.' }
+}
 
 # A workshop command on PATH for new PowerShell windows: workshop open, workshop doctor, and so on.
 $binDir = Join-Path $Root 'bin'
@@ -246,8 +279,13 @@ else {
   Write-Host "Done. Workshop is running." -ForegroundColor Green
   Write-Host "It does not start by itself when you log in. Start it with  workshop start  in a new PowerShell window, or turn on Start at login in Workshop on this computer (workshop open)."
 }
-Write-Host "Workshop opened in your browser once to sign it in. Go back to $Site and click Connect."
-Write-Host "Using a different browser for Dispatch? Run  workshop open --print  in a new PowerShell window and open that address there."
+if ($Work) {
+  Write-Host "Workshop opened in your browser from the pinned copy on this computer (work mode). No site can pair with it."
+  Write-Host "Using a different browser? Run  workshop open --print  in a new PowerShell window and open that address there."
+} else {
+  Write-Host "Workshop opened in your browser once to sign it in. Go back to $Site and click Connect."
+  Write-Host "Using a different browser for Dispatch? Run  workshop open --print  in a new PowerShell window and open that address there."
+}
 if ($ocCmd -and $tandemOk) { Write-Host "Your work goes in $wsPath. Change it any time in Dispatch, under opencode settings." }
 else { Write-Host "Dispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it." -ForegroundColor Yellow }
 }

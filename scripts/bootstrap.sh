@@ -19,6 +19,11 @@
 #   7. Starts Workshop and opens it once in your browser, which signs this browser in.
 # Running it again updates everything and keeps your settings.
 # Environment overrides: WORKSHOP_INSTALL_DIR, WORKSHOP_WORKSPACE, WORKSHOP_LOGIN. (WORKSHOP_SKIP_AI is accepted and no longer needed.)
+# Releases and work mode (README.md, Work mode):
+#   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
+#   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
+#   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
+#                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
 set -euo pipefail
 
 main() {
@@ -27,12 +32,17 @@ main() {
   ROOT="${WORKSHOP_INSTALL_DIR:-$HOME/.local/share/workshop}"
   WORKSPACE="${WORKSHOP_WORKSPACE:-~/work}"
   OS="$(uname -s)"; ARCH="$(uname -m)"
+  WORK="${WORKSHOP_WORK_MODE:-}"
 
   say()  { printf '  %s\n' "$*"; }
   step() { printf '\n\033[36m> %s\033[0m\n' "$*"; }
   fail() { printf '\n\033[31mInstall stopped: %s\033[0m\n' "$*" >&2; exit 1; }
   need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is needed and was not found."; }
   need curl; need tar; need uname
+  # A release tag: letters, digits, dots, dashes and underscores (v1.2.0).
+  for t in "${WORKSHOP_TAG:-}" "${TANDEM_TAG:-}" "${DOCKET_TAG:-}"; do
+    case "$t" in *[!A-Za-z0-9._-]*|-*|*..*) fail "\"$t\" is not a release tag like v1.2.0." ;; esac
+  done
 
   if [ "$(id -u)" = "0" ]; then fail "Do not run this with sudo. It installs for your user only."; fi
   case "$OS" in Darwin) os=darwin; psos=osx ;; Linux) os=linux; psos=linux ;; *) fail "This installer is for macOS and Linux. On Windows use install.ps1." ;; esac
@@ -84,17 +94,32 @@ main() {
   fi
 
   # ------------------------------------------------------------ 2. Workshop and Tandem
-  for name in workshop eng-agents; do
-    [ "$name" = workshop ] && step "Workshop" || step "Tandem (eng-agents)"
+  local names="workshop eng-agents"; [ "$WORK" = "1" ] && names="$names docket"
+  for name in $names; do
+    local tag="" var=""
+    case "$name" in
+      workshop) step "Workshop"; tag="${WORKSHOP_TAG:-}"; var=WORKSHOP_TAG ;;
+      eng-agents) step "Tandem (eng-agents)"; tag="${TANDEM_TAG:-}"; var=TANDEM_TAG ;;
+      docket) step "Docket (for the pinned copy)"; tag="${DOCKET_TAG:-}"; var=DOCKET_TAG ;;
+    esac
     local dir="$ROOT/$name" url="https://github.com/adavidson21/$name"
     if [ -d "$dir/.git" ]; then
-      if command -v git >/dev/null 2>&1; then say "Updating your git checkout."; git -C "$dir" pull --ff-only
-      else say "This is a git checkout and git is not on PATH, so it is left as it is."; fi
+      if ! command -v git >/dev/null 2>&1; then say "This is a git checkout and git is not on PATH, so it is left as it is."
+      elif [ -n "$tag" ]; then
+        say "Moving your git checkout to $tag."
+        git -C "$dir" fetch --tags --quiet origin || say "Could not fetch tags; using the ones already here."
+        git -C "$dir" checkout --quiet --detach "refs/tags/$tag" || fail "There is no tag $tag in $dir, or it has local changes."
+      else say "Updating your git checkout."; git -C "$dir" pull --ff-only; fi
       continue
     fi
     if [ -d "$dir" ]; then rm -rf "$dir.previous"; mv "$dir" "$dir.previous"; say "Kept the old copy at $dir.previous."; fi
-    say "Downloading the latest from $url."
-    get_tar "$url/archive/refs/heads/main.tar.gz" "$dir"
+    if [ -n "$tag" ]; then
+      say "Downloading release $tag from $url."
+      get_tar "$url/archive/refs/tags/$tag.tar.gz" "$dir"
+    else
+      say "Downloading the latest from $url (not a release: set $var to pin one)."
+      get_tar "$url/archive/refs/heads/main.tar.gz" "$dir"
+    fi
   done
 
   # ------------------------------------------------------------ 3. opencode
@@ -192,6 +217,7 @@ main() {
   # ------------------------------------------------------------ 6. Workshop setup
   step "Setting up Workshop"
   local wargs=(install --allow "$SITE")
+  [ "$WORK" = "1" ] && wargs=(install --work-mode)
   # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
   [ "${WORKSHOP_LOGIN:-}" = "1" ] && wargs+=(--login)
   if [ -n "$OPENCODE" ]; then
@@ -200,6 +226,10 @@ main() {
     wargs+=(--workspace "$WORKSPACE" --opencode "$OPENCODE" --powershell "$PWSH")
   fi
   "$NODE" "$ROOT/workshop/workshop.mjs" "${wargs[@]}" || fail "Workshop setup failed. See the messages above."
+  if [ "$WORK" = "1" ]; then
+    step "Building the pinned copy (work mode)"
+    "$NODE" "$ROOT/workshop/workshop.mjs" pin --docket "$ROOT/docket" || fail "Building the pinned copy failed. See the messages above."
+  fi
 
   # ------------------------------------------------------------ 7. start and sign in
   step "Starting Workshop"
@@ -223,8 +253,13 @@ main() {
     printf '\n\033[32mDone. Workshop is running.\033[0m\n'
     echo "It does not start by itself when you log in. Start it with  workshop start  in a new terminal, or turn on Start at login in Workshop on this computer (workshop open)."
   fi
-  echo "Workshop opened in your browser once to sign it in. Go back to $SITE and click Connect."
-  echo "Using a different browser for Dispatch? Run  workshop open --print  in a new terminal and open that address there."
+  if [ "$WORK" = "1" ]; then
+    echo "Workshop opened in your browser from the pinned copy on this computer (work mode). No site can pair with it."
+    echo "Using a different browser? Run  workshop open --print  in a new terminal and open that address there."
+  else
+    echo "Workshop opened in your browser once to sign it in. Go back to $SITE and click Connect."
+    echo "Using a different browser for Dispatch? Run  workshop open --print  in a new terminal and open that address there."
+  fi
   if [ -n "$OPENCODE" ] && [ -n "$tandem_ok" ]; then echo "Your work goes in $WORKSPACE. Change it any time in Dispatch, under opencode settings."
   else printf '\033[33mDispatch is not set up yet (opencode or Tandem is missing). Run this installer again when you want it.\033[0m\n'; fi
   if [ -z "$HAS_AI" ]; then
