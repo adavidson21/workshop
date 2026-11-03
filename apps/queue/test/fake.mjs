@@ -13,7 +13,7 @@ export const item = (id, extra = {}) => ({
   changed: '2026-10-14T15:30:00Z', stateChanged: null, connection: 'main', url: `https://ado.example.com/Main/Web%20App/_workitems/edit/${id}`, ...extra
 });
 
-export function fakeWs({ backend = 'agent', items = [item(501, { assignee: ME }), item(502), item(503, { assignee: DEV1, state: 'New' })], stored = {}, ado = 'ready', opencode = false } = {}) {
+export function fakeWs({ backend = 'agent', items = [item(501, { assignee: ME }), item(502), item(503, { assignee: DEV1, state: 'New' })], stored = {}, others = {}, ado = 'ready', opencode = false } = {}) {
   const handlers = {};
   const store = structuredClone(stored);
   const ws = {
@@ -24,7 +24,7 @@ export function fakeWs({ backend = 'agent', items = [item(501, { assignee: ME })
     data: {
       async get(name, o) {
         if (!ws.allowed) throw unavailable();
-        if (o && o.app) return null;
+        if (o && o.app) return others[`${o.app}/${name}`] ? structuredClone(others[`${o.app}/${name}`]) : null;
         return store[name] ? structuredClone(store[name]) : null;
       },
       async put(name, env) {
@@ -40,6 +40,7 @@ export function fakeWs({ backend = 'agent', items = [item(501, { assignee: ME })
       subscribe() { return () => {}; }
     },
     store,
+    others,
     connectors: {
       async list() {
         return [

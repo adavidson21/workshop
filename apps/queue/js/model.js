@@ -52,6 +52,25 @@ export function cleanSettings(meta) {
   };
 }
 
+/** Team people from Workshop's people directory (Settings' `people`, docs/people.md) in Queue's {name, email}
+    shape, or null when there is no directory to use (missing, or a version this Queue can't read). Active
+    people with `team` (default: you and reports). An `adoIdentity` with @ is the email; otherwise it is the
+    exact ADO display name, which is how Queue matches people without an email. */
+export function directoryTeam(env) {
+  if (!env || env.schema !== 'settings.people' || env.version !== 1) return null;
+  const out = [];
+  for (const p of Array.isArray(env.items) ? env.items : []) {
+    if (!p || p.archived || typeof p.name !== 'string' || !p.name.trim()) continue;
+    const team = typeof p.team === 'boolean' ? p.team : p.relation === 'self' || p.relation === 'report';
+    if (!team) continue;
+    const ado = str(p.adoIdentity, 200);
+    const name = str(p.name, 120);
+    const person = /@/.test(ado) ? { name, email: lower(ado) } : { name: ado || name, email: '' };
+    if (!out.some(x => (person.email && x.email === person.email) || (!person.email && x.name === person.name))) out.push({ ...person, label: name, id: p.id });
+  }
+  return out.slice(0, 100);
+}
+
 /** Who "me" is: the settings override, else what ADO said. */
 export function meOf(settings, snapMe) {
   if (settings.meEmail) return { name: '', email: settings.meEmail };
@@ -153,7 +172,7 @@ export function teamRows(items, { people, categories, staleDays, now }) {
     const mine = items.filter(i => onTeam(i, [p]));
     const changed = mine.map(i => i.changed).filter(Boolean).sort().pop() || null;
     return {
-      name: p.name, email: p.email, key: p.email || p.name,
+      name: p.name, label: p.label || p.name, email: p.email, key: p.email || p.name,
       open: mine.length,
       inProgress: mine.filter(i => categoryOf(i, categories) === 'InProgress').length,
       stale: mine.filter(i => isStale(i, staleDays, now)).length,

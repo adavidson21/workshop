@@ -80,10 +80,12 @@ function filterBar(v, ui, m) {
 }
 
 function teamTable(v, now) {
-  if (!v.settings.people.length) return `<p class="soft team-note">Add your people in <button class="lnk" data-route="settings">Queue settings</button> to see who has what.</p>`;
+  if (!v.settings.people.length) return v.directory
+    ? `<p class="soft team-note">No one is marked as on your team. Mark them in <button class="lnk" data-open-people>People in Settings</button> to see who has what.</p>`
+    : `<p class="soft team-note">Add your people in <button class="lnk" data-route="settings">Queue settings</button> to see who has what.</p>`;
   const rows = teamRows(v.items, { people: v.settings.people, categories: v.snap.categories, staleDays: v.settings.staleDays, now });
   return `<table class="team"><thead><tr><th>Person</th><th class="n">Open</th><th class="n">In progress</th><th class="n">Stale</th><th>Last change</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td><button class="lnk" data-person="${esc(r.email || r.name)}">${esc(r.name)}</button></td><td class="n num">${r.open}</td><td class="n num">${r.inProgress}</td>
+    ${rows.map(r => `<tr><td><button class="lnk" data-person="${esc(r.key)}">${esc(r.label)}</button></td><td class="n num">${r.open}</td><td class="n num">${r.inProgress}</td>
       <td class="n num${r.stale ? ' warn' : ''}">${r.stale}</td><td class="soft">${esc(r.changed ? ago(r.changed, now) : '')}</td></tr>`).join('')}
   </tbody></table>`;
 }
@@ -138,7 +140,7 @@ function editor(v, item, pending) {
   const busy = pending ? ' disabled' : '';
   return `<div class="edit" aria-label="Change this item">
     <label>State<select data-change="state"${busy}>${states.map(s => opt(s, s, s === item.state)).join('')}</select></label>
-    <label>Assigned to<select data-change="assignedTo"${busy}>${opt('', 'Unassigned', !cur)}${people.map(p => `<option value="${esc(identity(p))}"${assigneeKey(p) === cur ? ' selected' : ''}>${esc(p.name || p.email)}</option>`).join('')}</select></label>
+    <label>Assigned to<select data-change="assignedTo"${busy}>${opt('', 'Unassigned', !cur)}${people.map(p => `<option value="${esc(identity(p))}"${assigneeKey(p) === cur ? ' selected' : ''}>${esc(p.label || p.name || p.email)}</option>`).join('')}</select></label>
     <label>Priority<select data-change="priority"${busy}>${item.priority == null ? opt('', 'None', true) : ''}${[1, 2, 3, 4].map(n => opt(n, String(n), n === item.priority)).join('')}</select></label>
     <label>Sprint<select data-change="iteration"${busy}>${iters.some(x => x.path === item.iteration) ? '' : opt(item.iteration, leaf(item.iteration) || 'None', true)}${iters.map(x => opt(x.path, x.name + (x.current ? ' (current)' : ''), x.path === item.iteration)).join('')}</select></label>
     <div class="tags">${item.tags.map(t => `<span class="tag">${esc(t)}<button data-tag-remove="${esc(t)}" aria-label="Remove tag ${esc(t)}"${busy}>×</button></span>`).join('')}
@@ -223,7 +225,7 @@ export function newItemHtml(v) {
       <label>Area<select name="area">${v.settings.areas.map(a => opt(a, a, a === area)).join('')}</select></label>
       <label>Sprint<select name="iteration">${opt('', 'None', false)}${iters.map(x => opt(x.path, x.name + (x.current ? ' (current)' : ''), x.current)).join('')}</select></label>
       <label>Priority<select name="priority">${opt('', 'None', false)}${[1, 2, 3, 4].map(n => opt(n, String(n), n === 2)).join('')}</select></label>
-      <label>Assigned to<select name="assignedTo">${opt('', 'Unassigned', true)}${people.map(p => opt(identity(p), p.name || p.email, false)).join('')}</select></label>
+      <label>Assigned to<select name="assignedTo">${opt('', 'Unassigned', true)}${people.map(p => opt(identity(p), p.label || p.name || p.email, false)).join('')}</select></label>
     </div>
     <p class="soft">A bug's description goes in Repro Steps.</p>
     <div class="acts"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Continue</button></div>
@@ -236,8 +238,10 @@ export function settingsHtml(v) {
     <header class="qhead"><div><p class="eyebrow">Queue</p><h1 class="page-title">Settings</h1></div><div class="acts"><button type="button" class="btn" data-route="">Back</button></div></header>
     <label>Area paths, one per line<textarea name="areas" rows="4" placeholder="Project\\Team">${esc(s.areas.join('\n'))}</textarea>
       <span class="soft">Open items under these paths are your team's queue.</span></label>
-    <label>People, one per line<textarea name="people" rows="6" placeholder="Name <name@example.com>">${esc(s.people.map(p => (p.email ? `${p.name} <${p.email}>` : p.name)).join('\n'))}</textarea>
-      <span class="soft">Who you assign work to, and the rows of the Team view. Use the email ADO shows for them.</span></label>
+    ${v.directory
+    ? `<div class="from-people"><p><b>People</b></p><p class="soft">Your team comes from <button type="button" class="lnk" data-open-people>People in Workshop Settings</button>: everyone marked as on your team, matched by their Azure DevOps email or name.${v.settings.people.length ? ` Now: ${esc(v.settings.people.map(p => p.label || p.name).join(', '))}.` : ''}</p></div>`
+    : `<label>People, one per line<textarea name="people" rows="6" placeholder="Name <name@example.com>">${esc(s.people.map(p => (p.email ? `${p.name} <${p.email}>` : p.name)).join('\n'))}</textarea>
+      <span class="soft">Who you assign work to, and the rows of the Team view. Use the email ADO shows for them. Or keep one list for all apps in People in Workshop Settings.</span></label>`}
     <label>Work item types, comma separated<input name="types" value="${esc(s.types.join(', '))}" placeholder="Issue, Bug, User Story"></label>
     <div class="two">
       <label>Refresh every (minutes)<input name="refreshMinutes" type="number" min="5" max="240" value="${s.refreshMinutes}"></label>

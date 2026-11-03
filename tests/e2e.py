@@ -220,6 +220,25 @@ def browser_mode_checks(ctx, pg, frame, watch):
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
 
+    # People directory (docs/people.md): add yourself, then a report whose name is markup.
+    if sf:
+        sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
+        sf.click('[data-person-new]'); sf.fill('#pName', '<b>Dev</b> One')
+        sf.select_option('#pRel', 'report'); sf.fill('#pAdo', 'dev.one@example.com')
+        sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
+        names = sf.locator('.people .person b').all_inner_texts()
+        check('Settings People: add yourself and a report, you first', names == ['Engineer A', '<b>Dev</b> One'])
+        sf.click('[data-person-new]'); sf.fill('#pName', 'Someone Else'); sf.select_option('#pRel', 'self'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(300)
+        check('Settings People: a second "you" is refused', 'already you' in sf.inner_text('[data-person-form] .msg'))
+        sf.select_option('#pRel', 'manager'); sf.fill('#pName', 'Boss Person')
+        check('Settings People: "On my team" follows the relation', not sf.is_checked('#pTeam'))
+        sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
+        rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/settings/'); rp.wait_for_timeout(500)
+        stored = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'queue'});
+          const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.relation, p.team, p.adoIdentity])]; }""")
+        check('Settings People: saved as settings.people v1, readable by other apps', stored == ['settings.people', 1, [['self', True, ''], ['report', True, 'dev.one@example.com'], ['manager', False, '']]])
+        rp.close()
+
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
     b2 = ctx.new_page(); watch(b2); b2.goto(HUB + '/apps/settings/'); b2.wait_for_timeout(500)
     b2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
