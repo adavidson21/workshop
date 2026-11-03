@@ -55,12 +55,18 @@ function Add-UserPath($dir) {
   if (($env:Path -split ';') -notcontains $dir) { $env:Path = "$dir;$env:Path" }
 }
 
-function Get-Zip($url, $dest) {
+# Download a zip and unpack it to $dest. With $sha256 (hex), the download must match it or nothing is unpacked.
+function Get-Zip($url, $dest, $sha256 = $null) {
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
   New-Item -ItemType Directory -Path $tmp | Out-Null
   try {
     $zip = Join-Path $tmp 'download.zip'
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+    if ($sha256) {
+      $got = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+      if ($got -ne $sha256.ToLowerInvariant()) { throw "The download from $url does not match its published SHA-256, so it was not used." }
+      Say 'SHA-256 checked.'
+    }
     Expand-Archive -Path $zip -DestinationPath (Join-Path $tmp 'x') -Force
     $inner = @(Get-ChildItem (Join-Path $tmp 'x') -Directory)
     $src = if ($inner.Count -eq 1) { $inner[0].FullName } else { Join-Path $tmp 'x' }
@@ -99,7 +105,16 @@ if (-not $node) {
   $pick = $index | Where-Object { $_.lts -and ([int]($_.version.TrimStart('v').Split('.')[0]) -ge 22) -and ($_.files -contains "win-$arch-zip") } | Select-Object -First 1
   if (-not $pick) { Fail 'Could not find a Node 22 or later download. Install Node LTS from https://nodejs.org and run this again.' }
   Say "Downloading Node $($pick.version)."
-  Get-Zip "https://nodejs.org/dist/$($pick.version)/node-$($pick.version)-win-$arch.zip" $nodeDir
+  $nodeZip = "node-$($pick.version)-win-$arch.zip"
+  # nodejs.org publishes SHASUMS256.txt for every release. If it cannot be read, carry on and say so.
+  $nodeSum = $null
+  try {
+    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/$($pick.version)/SHASUMS256.txt").Content
+    $line = @($sums -split "`n" | Where-Object { $_ -match "^([0-9a-f]{64})\s+$([regex]::Escape($nodeZip))\s*$" }) | Select-Object -First 1
+    if ($line -match '^([0-9a-f]{64})') { $nodeSum = $Matches[1] }
+  } catch { }
+  if (-not $nodeSum) { Say 'Could not read Node''s published SHA-256, so the download is not checked.' }
+  try { Get-Zip "https://nodejs.org/dist/$($pick.version)/$nodeZip" $nodeDir $nodeSum } catch { Fail $_.Exception.Message }
   $node = Join-Path $nodeDir 'node.exe'
   Add-UserPath $nodeDir
 }
@@ -202,7 +217,12 @@ else {
       $rel = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/git-for-windows/git/releases/latest'
       $want = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-arm64\.zip$' } else { '^MinGit-[0-9.]+(\.windows\.[0-9]+)?-64-bit\.zip$' }
       $asset = @($rel.assets | Where-Object { $_.name -match $want }) | Select-Object -First 1
-      if ($asset) { Say "Downloading git ($($asset.name))."; Get-Zip $asset.browser_download_url $gitDir }
+      if ($asset) {
+        Say "Downloading git ($($asset.name))."
+        # GitHub lists each release file's SHA-256 as digest ("sha256:<hex>"). Older releases may not have it.
+        $gitSum = if ("$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $Matches[1] } else { Say 'GitHub lists no SHA-256 for it, so the download is not checked.'; $null }
+        Get-Zip $asset.browser_download_url $gitDir $gitSum
+      }
       else { Say 'Could not find a git download. Install git from https://git-scm.com/downloads' }
     } catch { Say "Could not download git ($($_.Exception.Message)). Install it from https://git-scm.com/downloads" }
   }

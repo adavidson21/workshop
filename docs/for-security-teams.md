@@ -49,7 +49,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 ## Known limits
 
 - Outside work mode, the UI is whatever Workshop's site serves today, and a paired site can use the agent, including Dispatch actions. Work mode removes that.
-- The installer downloads over HTTPS but does not verify published checksums. Release tags plus work mode (whose pinned copy records every file's SHA-256) are the integrity control.
+- The installer checks Node, MinGit and PowerShell against their published SHA-256, but the Workshop, Tandem and Docket zips have no published hash. Release tags plus work mode (whose pinned copy records every file's SHA-256) are the integrity control for those.
 - Dispatch agents read text written by other people (pull requests, work items). Like any coding agent, they can be steered by that text; keep Dispatch off where that risk is not accepted.
 
 ## Reporting a vulnerability

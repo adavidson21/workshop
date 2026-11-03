@@ -65,9 +65,23 @@ main() {
   mkdir -p "$ROOT"
 
   # Download a .tar.gz and unpack its single top folder as $2.
+  # The SHA-256 of a file in hex, or nothing when this computer has no tool for it.
+  sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+    fi
+  }
+  # Download a .tar.gz and unpack it to $2. With $3 (SHA-256 in hex), the download must match it or nothing is
+  # unpacked. Without it, or without a hashing tool, it is not checked and says so.
   get_tar() {
     local tmp; tmp="$(mktemp -d)"
     curl -fsSL "$1" -o "$tmp/download.tar.gz"
+    if [ -n "${3:-}" ]; then
+      local got; got="$(sha256_of "$tmp/download.tar.gz")"
+      if [ -z "$got" ]; then say "No sha256sum or shasum here, so the download is not checked."
+      elif [ "$got" != "$(printf '%s' "$3" | tr 'A-F' 'a-f')" ]; then rm -rf "$tmp"; fail "The download from $1 does not match its published SHA-256, so it was not used."
+      else say "SHA-256 checked."; fi
+    fi
     mkdir "$tmp/x"; tar -xzf "$tmp/download.tar.gz" -C "$tmp/x"
     local inner; inner="$(find "$tmp/x" -mindepth 1 -maxdepth 1)"
     if [ "$(printf '%s\n' "$inner" | wc -l | tr -d ' ')" = "1" ] && [ -d "$inner" ]; then :; else inner="$tmp/x"; fi
@@ -89,7 +103,11 @@ main() {
     local ver; ver="$(curl -fsSL https://nodejs.org/dist/index.tab | awk -F'\t' -v k="$key" 'NR>1 && $10!="-" { split(substr($1,2),v,"."); if (v[1]+0>=22 && index(","$3",", ","k",")) { print $1; exit } }')"
     [ -n "$ver" ] || fail "Could not find a Node 22 or later download. Install Node LTS from https://nodejs.org and run this again."
     say "Downloading Node $ver."
-    get_tar "https://nodejs.org/dist/$ver/node-$ver-$os-$arch.tar.gz" "$ROOT/node"
+    local nfile="node-$ver-$os-$arch.tar.gz" nsum=""
+    # nodejs.org publishes SHASUMS256.txt for every release. If it cannot be read, carry on and say so.
+    nsum="$(curl -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt" 2>/dev/null | awk -v f="$nfile" '$2==f && length($1)==64 && $1 !~ /[^0-9a-f]/ {print $1; exit}' || true)"
+    [ -n "$nsum" ] || say "Could not read Node's published SHA-256, so the download is not checked."
+    get_tar "https://nodejs.org/dist/$ver/$nfile" "$ROOT/node" "$nsum"
     NODE="$ROOT/node/bin/node"
   fi
   NPM="$(dirname "$NODE")/npm"
@@ -177,12 +195,14 @@ main() {
   elif command -v pwsh >/dev/null 2>&1; then PWSH="$(command -v pwsh)"; say "Using your pwsh at $PWSH."
   elif [ -x "$ROOT/pwsh/pwsh" ]; then PWSH="$ROOT/pwsh/pwsh"; say "Using Workshop's pwsh."
   else
-    local asset; asset="$(curl -fsSL https://api.github.com/repos/PowerShell/PowerShell/releases/latest \
-      | "$NODE" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s).assets.find(x=>x.name.endsWith(process.argv[1]));console.log(a?a.browser_download_url:"")})' "-$psos-$arch.tar.gz")"
+    # The download address and, when GitHub lists it, the file's SHA-256 (digest "sha256:<hex>").
+    local found asset psum; found="$(curl -fsSL https://api.github.com/repos/PowerShell/PowerShell/releases/latest \
+      | "$NODE" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s).assets.find(x=>x.name.endsWith(process.argv[1]));const m=a&&/^sha256:([0-9a-fA-F]{64})$/.exec(a.digest||"");console.log(a?a.browser_download_url+" "+(m?m[1]:""):"")})' "-$psos-$arch.tar.gz")"
+    asset="${found%% *}"; psum="${found#* }"; [ "$psum" = "$found" ] && psum=""
     [ -n "$asset" ] || fail "Could not find a PowerShell download. Install PowerShell 7 (pwsh), then run this again."
     say "Downloading PowerShell."
-    rm -rf "$ROOT/pwsh"; mkdir -p "$ROOT/pwsh"
-    curl -fsSL "$asset" | tar -xz -C "$ROOT/pwsh"
+    [ -n "$psum" ] || say "GitHub lists no SHA-256 for it, so the download is not checked."
+    get_tar "$asset" "$ROOT/pwsh" "$psum"
     chmod +x "$ROOT/pwsh/pwsh"
     PWSH="$ROOT/pwsh/pwsh"
   fi
