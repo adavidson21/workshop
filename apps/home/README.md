@@ -6,6 +6,14 @@ What it shows:
 
 - **Greeting** with your name and role. Use **Add your name** (or **Edit profile**) to set them.
 - **Your day:** buttons for Triage (with the count), Plan today (or Pick today's tasks when Today is empty) and Wrap up the day. The one that needs doing is highlighted.
+- **Get started:** a checklist for someone new, under the greeting. Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
+  1. Connect Workshop on this computer (the installer command for your system, then Connect).
+  2. Add your name.
+  3. Connect Azure DevOps: the PAT scopes, `workshop pat`, then Settings on this computer (or Import settings from a file). It names the PAT variable when only the token is missing.
+  4. Add your first task in Docket (Docket's own tour takes over there).
+  5. Pick your team's area paths in Queue.
+  6. Log your first receipt.
+  Later: Dispatch, and start at login. Any step can be skipped; skipping ADO skips Queue too. **Hide** puts it away, and **Get started** next to the greeting brings it back. **Check again** re-reads everything at once; otherwise it follows the apps and connectors as they change.
 - **Today at a glance:** tasks on Today (done out of total), tasks to triage, overdue tasks, and tasks due in the next 7 days. Each opens the matching Docket view.
 - **Up next:** your top 3 open tasks in rank order, leaving out ones you're waiting on. Click one to open it in Prioritizer.
 - **Now:** the Day view's block on now (until when), the tasks planned in it, and the next block. Before the first block it shows the next one. Hidden with no sprint set, on a day off, and after the last block. Reads Docket's `dayplan/settings`, `dayplan/templates` and this year's `dayplan/days`, only at version 1.
@@ -19,10 +27,13 @@ Home reads Prioritizer's `tasks`, `lists` and `people` collections read-only, an
 
 It also reads the Queue app's `settings`, `snapshot` and `seen` collections (version 1, see [apps/queue/README.md](../queue/README.md)) read-only and updates when they change. It never calls ADO itself.
 
-Its own data is one collection, `profile` (`home.profile` v1): no items, and `meta: {name, role}`.
+Its own data is two collections, each with no items:
+
+- `profile` (`home.profile` v1): `meta: {name, role}`.
+- `setup` (`home.setup` v1): `meta: {hidden, skipped: [step ids], updatedAt}`. The checklist reads everything else live and read-only: Queue's `settings` (its area paths), Receipts' `entries`, and with Workshop on this computer the ADO and opencode connectors' status, the ADO connector's settings (never a PAT) and `features` from the config.
 
 In browser mode, when Chrome must be asked again for the Workshop folder, Home shows a message pointing to the **Allow** bar instead of an empty page, offers no profile editing and saves nothing. Once access is back (`online` turns true) it loads the profile, board, queue and agents again.
 
 ## Code
 
-`js/view.js` has the numbers and the HTML as pure functions (tested in `test/`, `node --test "apps/home/test/*.test.mjs"`). `js/data.js` loads and saves through the SDK, including the wait for folder access (tested with a fake SDK). `js/main.js` connects, paints, and handles clicks. Home does not import Prioritizer's code; the two rules it needs (triaged and stale) are repeated in `view.js`, and so are the Queue's "mine" and "stale" rules.
+`js/view.js` has the numbers and the HTML as pure functions (tested in `test/`, `node --test "apps/home/test/*.test.mjs"`). `js/data.js` loads and saves through the SDK, including the wait for folder access (tested with a fake SDK). `js/setup.js` is the Get started checklist: facts read through the SDK, which steps are done (pure), its HTML (pure), and saving hide and skip (all tested in `test/setup.test.mjs`). `js/main.js` connects, paints, and handles clicks. Home does not import Prioritizer's code; the two rules it needs (triaged and stale) are repeated in `view.js`, and so are the Queue's "mine" and "stale" rules.
