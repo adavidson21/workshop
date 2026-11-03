@@ -46,3 +46,20 @@ test('app.json passes the manifest schema Workshop validates against (Workshop s
   const schemas = SchemaSet.fromDir(join(ROOT, 'test', 'workshop', 'schemas'));
   assert.deepEqual(schemas.validate('app', manifest), []);
 });
+
+// ADO is optional: Runway must work with no connector at all, for ad hoc roadmaps and on machines without Workshop.
+// Phase 2 and 3 code goes in js/ado/, is loaded with a dynamic import only when the connector is on,
+// and no other module imports it or calls a connector.
+test('ADO is optional: no required connector and no connector calls outside js/ado/', () => {
+  const required = (manifest.connectors || []).filter(c => c.required);
+  assert.deepEqual(required, [], 'app.json must not mark a connector as required');
+  const offenders = [];
+  for (const file of walk(join(ROOT, 'js'))) {
+    const rel = relative(ROOT, file).split('\\').join('/');
+    if (!rel.endsWith('.js') || rel.startsWith('js/ado/')) continue;
+    const text = readFileSync(file, 'utf8');
+    if (/\bconnectors\s*\.\s*(call|get|list|status|subscribe)\b/.test(text)) offenders.push(`${rel}: connector call`);
+    if (/^\s*import\s[^;]*['"][^'"]*\/ado\//m.test(text)) offenders.push(`${rel}: static import of js/ado/`);
+  }
+  assert.deepEqual(offenders, []);
+});

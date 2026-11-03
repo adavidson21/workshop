@@ -15,6 +15,17 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 - **Dates and sprints** (calendar button): where S1 and W1 count from, and when sprints start.
 - **Export:** PNG or SVG of the dates and lanes on screen (folded lanes left out), with or without the title, today line, and the goals and descriptions listed under the chart, light or dark. Markdown as a download, on the clipboard, or saved to your Workshop folder (`runway/exports/<id>.md`), optionally with a table (descriptions included).
 
+## ADO is optional
+
+Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or imported from Markdown, with no Azure DevOps link. It works on its own site, inside Workshop, and in browser-only mode (saved in the browser when Workshop is not running).
+
+Rules for the ADO phases, checked by `test/app-files.test.mjs`:
+
+- `app.json` never marks a connector as required.
+- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when the ADO connector is on. No other module imports it or calls a connector.
+- With the connector off or missing, ADO controls are hidden, never shown disabled with an error. Linked items keep their `ado` field and stay editable.
+- A roadmap can mix linked and unlinked items.
+
 ## Outline format
 
 ```
@@ -102,7 +113,7 @@ Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reloa
 
 ## Later
 
-- Phase 2: pull Epics and Features from Azure DevOps through Workshop's ADO connector, and refresh them.
+- Phase 2 (optional, see ADO is optional): pull Epics and Features from Azure DevOps through Workshop's ADO connector, and refresh them.
 - Phase 3: Publish date and status changes back to ADO, only from a button, with a before and after list to tick.
 - Now / Next / Later board, slides export, a Home card.
 
