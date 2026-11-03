@@ -61,6 +61,7 @@ def main():
         check('Runway opens on its own at the site root', pg.title() == 'Runway')
         check('it has the standalone top bar', pg.locator('.ws-bar .here').text_content() == 'Runway')
         check('with no Workshop, it saves in this browser', pg.evaluate(f'{R}.ws.mode + "/" + {R}.ws.backend') == 'browser/browser')
+        pg.wait_for_selector('.engcard [data-new]', timeout=5000)
         check('an empty list offers a new roadmap and the example', pg.locator('.engcard [data-new]').count() == 1 and pg.locator('.engcard [data-example]').count() == 1)
 
         # New roadmap, then type the outline.
