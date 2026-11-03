@@ -13,6 +13,7 @@ Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Androi
 - **Upward** (optional, off until you turn it on): support you got from your manager, asks, and feedback to share, for upward reviews and skip-levels.
 - **Review**: pick who and a period (your review cycle, this quarter, last quarter, this year, last 12 months). Shows coverage per section, flags sections with no receipts, and builds a plain-text draft you can copy or download. CSV export too.
 - **From Docket** (inside Workshop): finished tasks you ticked in Docket's Wrap up wait at the top of Me. Edit the line or kind, then **Accept** (it becomes a receipt dated that day, evidence "From Docket") or **Dismiss**. Receipts reads Docket's offers but never changes Docket's data, and remembers what you handled in its own settings (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)).
+- **From 1:1s** (inside Workshop): wins you logged after a 1:1 wait on that report's page, and in Me with the report's name on them. Accepting one makes a receipt about that report (evidence "From 1:1s"). An offer about someone not in your Reports list becomes a receipt about you, so it is never lost.
 - **Settings**: your review cycle dates, your company's review sections (one per line), backups.
 
 Shortcuts: `N` jumps to the box for a new receipt, `Ctrl+Enter` saves it.
