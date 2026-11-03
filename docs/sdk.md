@@ -59,7 +59,9 @@ Bad names reject with `bad_request` before any request is made. The SDK sends `X
 
 ### Files
 
-For app files that are not envelopes, such as Markdown summaries. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` only, up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/person-one/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
+For app files that are not envelopes, such as Markdown summaries or images. Same folder, rules and limits as [agent-api.md](agent-api.md), Files: `.md` and `.json` (text) and `.png`, `.jpg`, `.jpeg`, `.gif` and `.webp` (images), up to 4 segments, 10 MB, never a collection. `path` is relative to the app folder, for example `'summaries/person-one/2026-h2.md'`. A file is `{app, path, mtime, size, content}`; `mtime` is the version token, like `rev` for collections.
+
+For a text file `content` is a string. For an image it is a `Blob` whose `type` is the image's media type (`image/png`, `image/jpeg`, `image/gif` or `image/webp`), on every backend; `write` takes a `Blob`, `ArrayBuffer` or `Uint8Array` for an image, and rejects a string with `bad_request` (and anything but a string for a text file). The SDK checks the first bytes as the agent does. To show an image, make a `blob:` URL with `URL.createObjectURL(file.content)` and revoke it when done; never point `<img>` at the agent. `err.current` on a conflict follows the same rule. `ws.files.isImage(path)` is `true` for an image path.
 
 | Method | Meaning |
 | --- | --- |
@@ -67,6 +69,7 @@ For app files that are not envelopes, such as Markdown summaries. Same folder, r
 | `ws.files.read(path, {app?})` | The file, or `null` if it does not exist. `app` defaults to this app; another app's files are read-only. |
 | `ws.files.write(path, content, {mtime} \| {create: true})` | Writes this app's file. Pass the `mtime` you read to replace it, or `create: true` to create one that must not exist. Resolves `{app, path, mtime, size}`. If the file changed, is gone, or (with `create`) already exists, rejects with code `conflict` and `err.current` set to the file as it is now, or `null` if it does not exist: read the change, decide, and write again with `current.mtime` (or `create: true` if `current` is `null`). |
 | `ws.files.trash(path, {mtime?})` | Moves this app's file to the trash; never removes it. With `mtime`, rejects with `conflict` (and `err.current`) if the file changed. Resolves `{app, path, trash}`. |
+| `ws.files.isImage(path)` | `true` if the path ends in an image extension. Needs no backend. |
 | `ws.files.subscribe(pathOrFolder, handler, {app?})` | Calls `handler({app, path, mtime, client})` after a write or trash by anyone else, or a change made outside Workshop (`client: null`), to that file or any file under that folder. `mtime` is `null` when the file is gone. Writes made through this `ws` are filtered out. Returns an unsubscribe function. |
 
 Write loop for a file:

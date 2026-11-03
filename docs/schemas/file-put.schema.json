@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PUT /api/files/<app>/<path> body",
-  "description": "Exactly one of mtime (the modified time you read: the file must still have it) or create: true (the file must not exist yet).",
+  "description": "Exactly one of mtime (the modified time you read: the file must still have it) or create: true (the file must not exist yet). For an image, also \"encoding\": \"base64\" with content in base64; for .md and .json, no encoding.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,6 +16,10 @@
     },
     "create": {
       "const": true
+    },
+    "encoding": {
+      "const": "base64",
+      "description": "Required for images (.png, .jpg, .jpeg, .gif, .webp), not allowed for .md and .json."
     }
   },
   "oneOf": [

@@ -95,7 +95,7 @@ Names in paths: `<app>` and connector `<id>` match `^[a-z][a-z0-9-]{0,39}$`. Act
 Collection names and file paths ([data-format.md](data-format.md), Names) are made of segments matching `^[a-z0-9][a-z0-9-]{0,39}$` (they may start with a digit; app ids may not), sent as path segments with a plain `/` between them:
 
 - `<collection>` is 1 to 4 segments: `/api/data/receipts/entries/person-one/2026` or `/api/data/receipts/metrics/person-one/2026-10`.
-- `<path>` is 1 to 4 segments, the last ending in `.md` or `.json`: `/api/files/receipts/summaries/person-one/2026-h2.md`.
+- `<path>` is 1 to 4 segments, the last ending in `.md`, `.json`, `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp`: `/api/files/receipts/summaries/person-one/2026-h2.md`.
 - `<folder>` is 1 to 3 segments with no extension: `/api/files/receipts/summaries/person-one`.
 
 The agent checks the path as the client sent it, before any normalization, one segment at a time, each segment percent-decoded on its own. A segment that is empty (`//`, a trailing `/`), `.` or `..` (raw or encoded as `%2e`), contains `/` or `\` once decoded (`%2F`, `%5C`), or otherwise breaks the name rules gets `400 bad_request`. So does a path with more than 4 segments after the app, a drive letter or any absolute form. A path that, after following symbolic links and junctions, leads outside the data folder also gets `400 bad_request`, whether or not the file exists.
@@ -178,11 +178,12 @@ Apps write only their own collections. Any app may read another app's collection
 
 ## Files
 
-For app files that are not envelopes, such as Markdown summaries or a JSON file another tool reads. Files live in the data folder next to the app's collections: `<dataDir>/<app>/<path>`. Rules shared with collections are in [data-format.md](data-format.md), Data folder.
+For app files that are not envelopes, such as Markdown summaries, a JSON file another tool reads, or an image a note shows. Files live in the data folder next to the app's collections: `<dataDir>/<app>/<path>`. Rules shared with collections are in [data-format.md](data-format.md), Data folder.
 
-- **Extensions:** `.md` and `.json` only. Anything else gets `400 bad_request`.
+- **Extensions:** text files `.md` and `.json`; images `.png`, `.jpg`, `.jpeg`, `.gif` and `.webp`. Anything else gets `400 bad_request`. SVG is not allowed: it can carry script.
 - **Text:** content is UTF-8 text. A `.json` file's content must parse as JSON (`400 bad_request` otherwise). A `.md` file's content is not checked.
-- **Size:** at most 10 MB (10,485,760 bytes of UTF-8) per file. A larger `content` gets `413 too_large`; reading a file that grew past that outside Workshop also gets `413 too_large` (it is still listed).
+- **Images:** content is the file's bytes in base64 (RFC 4648, standard alphabet with padding, no line breaks), and the body and every file response carry `"encoding": "base64"`. Text files never carry `encoding`; a write that sends it for a text file, or leaves it out for an image, gets `400 bad_request`, as does content that is not valid base64. The bytes must start the way their type does (PNG `89 50 4E 47 0D 0A 1A 0A`, JPEG `FF D8 FF`, GIF `GIF87a` or `GIF89a`, WebP `RIFF` then `WEBP` at byte 8), or `400 bad_request`, so a page saved as `.png` is refused. Images are only ever returned inside JSON, never served as files, so no page on the agent's origin can show or run one directly.
+- **Size:** at most 10 MB (10,485,760 bytes of UTF-8 text, or of decoded image bytes) per file. A larger `content` gets `413 too_large`; reading a file that grew past that outside Workshop also gets `413 too_large` (it is still listed).
 - **Modified time:** `mtime` is the file's modified time in whole milliseconds since 1970 (UTC), as the file system reports it, rounded down. Every response that describes a file carries it. After every write the agent makes sure the new `mtime` differs from the one before (if the clock or the file system would give the same value, it sets the time 1 ms later), so an `mtime` you read always names one version of the file.
 - **Not collections:** the files API never reads, writes, lists or trashes a collection file, and refuses `.json` content that is an envelope for its own path. Both get `400 bad_request`. Use the data API for those.
 - **Who:** the same as `/api/data`. Any page with the token, including a paired hosted origin, may list and read any app's files and write and trash files. As with data, apps write only their own app's files; the SDK enforces that.
@@ -197,7 +198,7 @@ Lists the app's files, or the files under one folder, at every depth, sorted by 
 
 ### `GET /api/files/<app>/<path>`
 
-Schema [file](schemas/file.schema.json), example [file.summary.json](examples/file.summary.json). A missing file gets `404 not_found`.
+Schema [file](schemas/file.schema.json), examples [file.summary.json](examples/file.summary.json) and [file.image.json](examples/file.image.json). A missing file gets `404 not_found`. `size` is the file's size in bytes.
 
 ```json
 {"app": "receipts", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61, "content": "# Person One, 2026 H2\n"}
@@ -205,7 +206,7 @@ Schema [file](schemas/file.schema.json), example [file.summary.json](examples/fi
 
 ### `PUT /api/files/<app>/<path>`
 
-Body ([file-put](schemas/file-put.schema.json)): `content` and exactly one of:
+Body ([file-put](schemas/file-put.schema.json), examples [file-put.create.json](examples/file-put.create.json) and [file-put.image.json](examples/file-put.image.json)): `content`, `encoding: "base64"` for an image, and exactly one of:
 
 - `"mtime": <the mtime you read>` to replace a file. If the file's `mtime` is different, or the file is gone, the agent answers `409 conflict` with `current`: the file as it is now ([file](schemas/file.schema.json)), or `null` if it does not exist.
 - `"create": true` to create a file that must not exist yet. If it exists, `409 conflict` with `current` set to it.

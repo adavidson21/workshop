@@ -55,7 +55,7 @@ The browser reads and writes a folder the user picked, with the same layout and 
 
 Used until a folder is picked, and for browsers that already have data from before the data folder.
 
-- Database `workshop`, object store `data`, key `<app>/<collection>` (nested names keep their `/`), value: the envelope from [data-format.md](data-format.md). Object store `files`, key `<app>/<path>`, value `{content, mtime}`. `rev`, `updatedAt` and `mtime` are set by the backend exactly as the agent sets them (`mtime` is the write time in milliseconds, always greater than the file's previous `mtime`). A stale `rev` or `mtime` fails with code `conflict`. Deleting a file moves it to object store `trash` with the same key plus `.<stamp>`; nothing is removed.
+- Database `workshop`, object store `data`, key `<app>/<collection>` (nested names keep their `/`), value: the envelope from [data-format.md](data-format.md). Object store `files`, key `<app>/<path>`, value `{content, mtime}` (`content` is a string for text and a `Blob` for an image). `rev`, `updatedAt` and `mtime` are set by the backend exactly as the agent sets them (`mtime` is the write time in milliseconds, always greater than the file's previous `mtime`). A stale `rev` or `mtime` fails with code `conflict`. Deleting a file moves it to object store `trash` with the same key plus `.<stamp>`; nothing is removed.
 - Change events: the same `BroadcastChannel` as above.
 
 ### Moving the IndexedDB store into the folder
@@ -74,6 +74,7 @@ Used in the Android app (built in Docket's repo; see its [mobile/README.md](http
 - **No permission, nothing to choose.** `ws.folder.status()` is `{storage: 'device', name: null, permission: null, moved: false, missing: false}`; `ws.folder.choose()` rejects with `unavailable`. IndexedDB is never used for app data.
 - **Atomic writes.** A file is written to a hidden temporary file beside it (`.<name>.workshop-tmp`), which then replaces it. If renaming over an existing file fails, the old file is removed and the rename tried again. A read that finds no file but a temporary file older than 10 seconds puts the temporary file in place (the app stopped mid-write). Lists never show temporary files.
 - **Never leaves the phone.** The app is left out of Google's cloud backup. Files go elsewhere only when the user shares them (`shared/save-file.js` hands backups and exports to Android's share sheet).
+- **Text files only.** The device store keeps UTF-8 text, so image files (agent-api.md, Files) are not stored there: writing one rejects with `unavailable`, and listing skips them.
 - `ws.online` is `false` only if the folder cannot be reached at all; data calls then reject with `unavailable`.
 
 ### Connectors
