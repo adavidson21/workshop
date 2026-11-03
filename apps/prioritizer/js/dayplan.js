@@ -78,6 +78,8 @@ function setRecurring(rs){
   dp.recurring = rs.map(r => cleanRecurring(Object.assign({}, r, {made: r.made || old.get(r.id) || []}))).filter(Boolean);
   save(); recurTick();
 }
+/* Keys of other apps' offers already accepted or dismissed (offers.js). Saved in dayplan/settings meta.handled. */
+function setHandled(keys){ dp.handled = keys; save(); }
 function save(){ if (dstore) dstore.schedule(); onChange(); }
 
 /* A backup's day plan, merged in (storage.js calls this after importing the board). */
@@ -90,4 +92,4 @@ async function importDayplan(bundle){
   return cols.length;
 }
 
-export { recurTick, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };
+export { recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };

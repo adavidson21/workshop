@@ -10,6 +10,8 @@ import {
 } from './dayplan-model.js';
 import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setRecurring, setSprint, setTemplates } from './dayplan.js';
 import { cmdOpen } from './command-bar.js';
+import { acceptOffer, dismissOffer, offers } from './offers.js';
+import { SENDERS, applyOffer, matchFor } from './offers-model.js';
 import { closeMenu, closeModal, confirmBox, menuEl, modal, popMenu, showModal, toast } from './overlays.js';
 import { main, render, row, sel, setSel } from './render.js';
 import { findTask, isWaiting, orderedLists, scopeName, scopeOpen, state } from './state.js';
@@ -52,7 +54,7 @@ function dayHead(){
       <button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)"${history.canUndo ? '' : ' disabled'}>${I.undo}</button>
       <button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)"${history.canRedo ? '' : ' disabled'}>${I.redo}</button>
       <button class="btn" data-dp="daymenu" aria-haspopup="menu">This day ${ICON.chevD}</button>
-      <button class="ibtn" data-dp="settings" aria-label="Day plan settings" data-tip="Sprint and templates">${I.gear}</button>
+      ${(() => { const n = offers().length; return `<button class="ibtn${n ? ' has-dot' : ''}" data-dp="settings" aria-label="Day plan settings${n ? `, ${plural(n, 'offer')} waiting` : ''}" data-tip="${n ? `Sprint and templates. ${plural(n, 'offer')} waiting` : 'Sprint and templates'}">${I.gear}</button>`; })()}
       ${d === todayStr() ? `<button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>` : ''}
     </div>`;
 }
@@ -331,6 +333,7 @@ function drawSettings(sh){
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
     <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint adds a new one on day 1, due on its sprint day. With <b>Plan into</b>, it also goes into that kind of block on its due day.</p>
+      ${offersHtml()}
       ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
       <div class="acts"><button class="btn" data-addrec>${ICON.plus} Every-sprint task</button></div>
     </section>
@@ -356,6 +359,20 @@ function templateCard(t, ti){
     <button class="btn ghost" data-addsec>${ICON.plus} Block</button></div>
     <datalist id="dpKinds">${kinds().map(k => `<option value="${esc(k)}">`).join('')}</datalist>`;
 }
+/* Every-sprint tasks other apps offer (offers.js), grouped by sender, each with Accept and Dismiss. */
+function offersHtml(){
+  const list = offers();
+  if (!list.length) return '';
+  const groups = [...new Set(list.map(o => o.from))];
+  const due = o => o.last ? 'Last day' : `Day ${o.dueDay}`;
+  return groups.map(from => `<div class="doffers" role="group" aria-label="Offered by ${esc(from)}"><h5>Offered by ${esc(from)}</h5>
+    ${list.filter(o => o.from === from).map(o => {
+      const old = matchFor(dp.recurring, o);
+      const meta = [due(o), o.planKind ? `${o.planKind} block` : '', VALUE[o.value], o.effort].filter(Boolean).join(' · ');
+      return `<div class="doffer"><div class="dotext"><b>${esc(o.title)}</b><span class="mut">${esc(meta)}${old ? ` · updates "${esc(old.title)}"` : ''}</span>${o.notes ? `<span class="mut">${esc(o.notes)}</span>` : ''}</div>
+        <div class="doacts"><button class="btn primary" data-offer-accept="${esc(o.key)}">${old ? 'Update' : 'Accept'}</button><button class="btn" data-offer-dismiss="${esc(o.key)}">Dismiss</button></div></div>`;
+    }).join('')}</div>`).join('');
+}
 function recurRow(r, ri){
   const sp = cleanSprint(draft.sprint), max = sp.lengthWeeks * 7;
   const when = info => info ? ` (${info})` : '';
@@ -363,7 +380,7 @@ function recurRow(r, ri){
   const opts = [`<option value="last"${r.last ? ' selected' : ''}>Last day</option>`].concat(Array.from({length: max}, (_, i) => i + 1)
     .filter(n => n <= sp.workdays.length * sp.lengthWeeks).map(n => `<option value="${n}"${!r.last && r.dueDay === n ? ' selected' : ''}>Day ${n}${when(dayName(n))}</option>`));
   return `<tr data-ri="${ri}">
-    <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task"></td>
+    <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task">${r.from ? `<span class="mut dfrom">From ${esc(SENDERS[r.from.app] || r.from.app)}</span>` : ''}</td>
     <td><select data-rf="due" aria-label="Due on">${opts.join('')}</select></td>
     <td><select data-rf="planKind" aria-label="Plan into a block on its due day"><option value="">Don't plan</option>${[...new Set([...kinds(draft.templates), r.planKind].filter(Boolean))].map(k => `<option value="${esc(k)}"${r.planKind === k ? ' selected' : ''}>${esc(k)} block</option>`).join('')}</select></td>
     <td><select data-rf="value" aria-label="Value">${[1, 2, 3, 4].map(v => `<option value="${v}"${r.value === v ? ' selected' : ''}>${VALUE[v]}</option>`).join('')}</select></td>
@@ -413,6 +430,16 @@ function settingsClick(e, sh){
   const blank = () => ({id: Math.random().toString(36).slice(2, 9), name: 'New block', kind: '', color: 'slate', around: null, minutes: null, capacity: null});
   if (b.hasAttribute('data-addhol')){ const v = sh.querySelector('#dpHol').value; if (isDate(v) && !draft.sprint.holidays.includes(v)){ draft.sprint.holidays.push(v); draft.sprint.holidays.sort(); } drawSettings(sh); return; }
   if (b.dataset.delhol){ draft.sprint.holidays = draft.sprint.holidays.filter(h => h !== b.dataset.delhol); drawSettings(sh); return; }
+  if (b.dataset.offerAccept){
+    const r = acceptOffer(b.dataset.offerAccept);
+    if (r){
+      // The accepted item is saved now; show it in the open settings too, with the same id.
+      draft.recurring = applyOffer(draft.recurring, r.offer, {id: r.item.id, listId: r.item.listId}).recurring;
+      toast(r.updated ? `Updated "${r.item.title}"` : `Added "${r.item.title}" to Every sprint`);
+    }
+    drawSettings(sh); return;
+  }
+  if (b.dataset.offerDismiss){ dismissOffer(b.dataset.offerDismiss); drawSettings(sh); return; }
   if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', dueDay: 1, last: false, planKind: '', value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
   const reEl = b.closest('[data-ri]');
   if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }

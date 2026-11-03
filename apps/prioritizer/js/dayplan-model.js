@@ -1,13 +1,17 @@
 /* Docket: the day plan model. Sprint day math, templates, and every change the Day view makes to a day.
    Pure functions with no DOM, so Node tests can import them (test/dayplan.test.mjs).
 
-   The day plan board (dp) has three parts, each saved as its own collection (dayplan-format.js):
+   The day plan board (dp) has these parts, saved as collections (dayplan-format.js):
      sprint     {anchor, lengthWeeks, workdays, holidays, dayStart, dayEnd}
+     handled    keys of offers from other apps already accepted or dismissed (offers-model.js), saved with sprint
+     recurring  every-sprint items (below)
      templates  [{id, name, days: [2, 3, ...], last, sections: [section]}]
      days       {<yyyy-mm-dd>: record}, only for dates that were edited
    A section is {id, name, kind, color, around, minutes, capacity}; on a day it can also have lost: true.
    A day record is {id: date, template, sections, slots: [{taskId, sectionId, order}], shift, carry}.
    A date with no record shows its template; the record is written on the first edit. */
+
+import { cleanHandled } from './offers-model.js';
 
 const pad = n => String(n).padStart(2, '0');
 const dstr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -85,6 +89,7 @@ function cleanDayplan(dp){
   dp.sprint = cleanSprint(dp.sprint);
   dp.templates = Array.isArray(dp.templates) ? dp.templates.map(cleanTemplate).filter(Boolean) : [];
   dp.recurring = Array.isArray(dp.recurring) ? dp.recurring.map(cleanRecurring).filter(Boolean) : [];
+  dp.handled = cleanHandled(dp.handled);
   const days = {};
   for (const [k, r] of Object.entries(dp.days && typeof dp.days === 'object' ? dp.days : {})){
     const c = cleanRecord(r, k); if (c) days[c.id] = c;
@@ -354,7 +359,8 @@ function dismissCarry(dp, date){
 }
 
 /* ---------- every-sprint tasks ----------
-   A recurring item is {id, title, dueDay, last, value, effort, listId, notes, paused}. Each sprint whose due day
+   A recurring item is {id, title, dueDay, last, value, effort, listId, notes, paused}, plus from: {app, id} when it
+   came from another app's offer (offers-model.js). Each sprint whose due day
    has not passed gets one fresh task on its first working day (or as soon as Docket opens after that), due on
    that sprint day. The task's id is fixed per item and sprint (r_<item id>_<sprint start>), so two windows make
    the same task, and a task you delete stays deleted (made lists the sprints already done). */
@@ -374,6 +380,10 @@ function cleanRecurring(r){
   o.paused = o.paused === true;
   o.planKind = str(o.planKind, 40).trim().toLowerCase();
   o.made = Array.isArray(o.made) ? [...new Set(o.made.filter(isDate))].sort().slice(-12) : [];
+  // from: the app (and its record) this item was accepted from (offers-model.js), so its later offers update it.
+  if (o.from && typeof o.from === 'object' && typeof o.from.app === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(o.from.app)){
+    o.from = typeof o.from.id === 'string' ? {app: o.from.app, id: o.from.id.slice(0, 200)} : {app: o.from.app};
+  } else delete o.from;
   return o;
 }
 /* The date of sprint day n in the sprint starting at start (the last working day if the sprint is shorter). */

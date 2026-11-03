@@ -81,6 +81,23 @@
       "type": "string",
       "maxLength": 40,
       "description": "Automatic Day planning: the block kind its task goes into on its due day; empty means don't plan."
+    },
+    "from": {
+      "type": "object",
+      "required": [
+        "app"
+      ],
+      "properties": {
+        "app": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "description": "The app (and its record) this item was accepted from, so that app's later offers update it instead of adding another."
     }
   }
 }

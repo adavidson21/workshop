@@ -615,6 +615,16 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .dtpl-h .dtname{flex:1 1 12rem;font:600 1rem var(--serif);width:auto}
 .dtpl-h label{display:flex;align-items:center;gap:.4rem;font-size:.84rem;white-space:nowrap}
 .dtpl-h label input:not([type=checkbox]){width:6.5rem}
+.doffers{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-md);padding:.55rem .75rem;margin:.6rem 0;background:var(--bg)}
+.doffers h5{margin:0 0 .3rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.doffer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.4rem .8rem;padding:.4rem 0;border-top:1px solid var(--line)}
+.doffer:first-of-type{border-top:0}
+.dotext{display:flex;flex-direction:column;min-width:0;flex:1 1 14rem}
+.dotext b{font-weight:600;font-size:.92rem;overflow-wrap:anywhere}
+.doacts{display:flex;gap:.4rem}
+.dfrom{display:block;padding:.1rem .1rem 0;font-size:.72rem}
+.ibtn.has-dot{position:relative}
+.ibtn.has-dot::after{content:"";position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .dtable{overflow-x:auto}
 .dtable table{width:100%;border-collapse:collapse;min-width:38rem}
 .dtable th{text-align:left;font:500 10px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:0 .25rem .25rem}

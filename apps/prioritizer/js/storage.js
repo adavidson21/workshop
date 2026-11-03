@@ -24,6 +24,7 @@ import { connectAction, connectItems } from './connect.js';
 import { saveFile } from '../shared/save-file.js';
 import { dayplanBoot, importDayplan } from './dayplan.js';
 import { focusBoot, importFocus } from './focus.js';
+import { offersBoot } from './offers.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, dstore = null, fstore = null, ws = null, booted = false, status = {state: 'saved'};
@@ -110,6 +111,8 @@ async function boot(){
   // The day plan (the Day view) saves next to the board. If it can't load, the board still works.
   try { dstore = await dayplanBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('day')}); }
   catch (e){ dstore = null; toast(`Could not load your day plan: ${e.message || e}. The Day view won't save until this is fixed.`, 30000); }
+  // Every-sprint offers from other apps (inside Workshop only). If they can't load, nothing is offered.
+  if (dstore) try { await offersBoot(ws, {render: () => { if (booted) render(); }}); } catch (e){ /* no offers */ }
   // The focus log (breadcrumbs' timeline, the switch counter) saves next to them too, on the same terms.
   try { fstore = await focusBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('focus')}); }
   catch (e){ fstore = null; toast(`Could not load your focus log: ${e.message || e}. Start and pause won't save until this is fixed.`, 30000); }

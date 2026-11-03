@@ -3,7 +3,7 @@
    Three kinds of collection in the Workshop data format (docs/data-format.md), next to the board's, under
    Docket's app id prioritizer:
 
-     dayplan/settings      prioritizer.dayplan/settings v1      no items; meta: {sprint}
+     dayplan/settings      prioritizer.dayplan/settings v1      no items; meta: {sprint, handled}
      dayplan/templates     prioritizer.dayplan/templates v1     items: templates with their sections
      dayplan/recurring     prioritizer.dayplan/recurring v1     items: every-sprint tasks
      dayplan/days/<yyyy>   prioritizer.dayplan/days/<yyyy> v1   items: day records keyed by date (id)
@@ -30,7 +30,11 @@ function dpEnvelopeFromBoard(col, dp, shadow){
   const item = o => { const c = clone(o); c.updatedAt = at.get(c.id) ?? 0; return c; };
   const env = {schema: dpSchema(col), version: DP_VERSION, rev: shadow ? shadow.rev : 0, items: [], deleted: clone(shadow && shadow.deleted) || {}};
   const metaAt = shadow && shadow.meta ? shadow.meta.updatedAt : 0;
-  if (col === 'dayplan/settings') env.meta = Object.assign({}, clone(shadow && shadow.meta) || {}, {updatedAt: metaAt, sprint: clone(dp.sprint)});
+  if (col === 'dayplan/settings'){
+    env.meta = Object.assign({}, clone(shadow && shadow.meta) || {}, {updatedAt: metaAt, sprint: clone(dp.sprint)});
+    // handled is written once there is something in it, so a board with no offers saves exactly as before.
+    if ((dp.handled && dp.handled.length) || 'handled' in env.meta) env.meta.handled = clone(dp.handled || []);
+  }
   if (col === 'dayplan/templates') env.items = dp.templates.map(item);
   if (col === 'dayplan/recurring') env.items = (dp.recurring || []).map(item);
   if (isYearCol(col)){
@@ -42,7 +46,10 @@ function dpEnvelopeFromBoard(col, dp, shadow){
 /* Puts one collection's envelope into the day plan (which the caller then cleans). */
 function dpApplyEnvelope(col, env, dp){
   const items = (env && env.items || []).map(i => { const c = clone(i); delete c.updatedAt; return c; });
-  if (col === 'dayplan/settings'){ if (env && env.meta && env.meta.sprint) dp.sprint = clone(env.meta.sprint); }
+  if (col === 'dayplan/settings'){
+    if (env && env.meta && env.meta.sprint) dp.sprint = clone(env.meta.sprint);
+    dp.handled = env && env.meta && Array.isArray(env.meta.handled) ? clone(env.meta.handled) : [];
+  }
   if (col === 'dayplan/templates') dp.templates = items;
   if (col === 'dayplan/recurring') dp.recurring = items;
   if (isYearCol(col)){

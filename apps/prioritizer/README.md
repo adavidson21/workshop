@@ -71,6 +71,8 @@ Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot
 
 **Every sprint:** for things you do once a sprint (refinement, a release, a focus group), add them under **Every sprint** in the gear's settings: a title, the sprint day it's due on (shown with its weekday, like "Day 4 (Mon wk 2)", or Last day), a value (Low by default), effort and list. Each sprint, a new task is added on its first working day (or as soon as Docket opens after that), due on that day, at the bottom of your rank, so it's visible without taking over and rises as the due date gets close. Finishing one doesn't touch the next sprint's. A sprint whose due day has already passed is skipped. Deleting this sprint's task keeps it gone until the next sprint, and **Pause** stops new ones. With **Plan into** set to a block kind (like meetings), the task is also put in the first open block of that kind on its due day (that day's first open block if none matches). That happens once, when the task is made, so moving or unplanning it sticks. These tasks show an **Every sprint** chip.
 
+**Offered by other apps:** inside Workshop, another app can offer every-sprint tasks to Docket (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)). For now that is **Roadmap**, which offers your sprint ceremonies. Offers show at the top of **Every sprint** in the gear's settings as "Offered by Roadmap", with the day, block kind, value and effort, and a dot on the gear while any wait. **Accept** adds the every-sprint task (marked **From Roadmap**); **Dismiss** hides the offer. Nothing is added until you click. When the sender changes an offer you already accepted, it shows again with **Update**, which changes that same task (title, day, block kind, value, effort, notes) and keeps its list, pause and the sprints it already made. An offer sent again unchanged does not show again. Docket never writes the other app's data. On its own site Docket shares no data with other apps, so it shows no offers.
+
 `[` and `]` step to the previous and next working day; the date box jumps anywhere. Inside Workshop, `#/prioritizer/day/today` (or a date) opens the Day view.
 
 ## Focus: start, breadcrumbs, wrap up
@@ -227,6 +229,7 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `focus-model.js`, `focus-format.js` | Focus: the active task, the day's activity log, breadcrumbs and switch counts; and how the log is stored (pure, tested in `test/focus.test.mjs`) |
 | `focus.js` | The focus log's state and saving, the now bar, breadcrumb prompts and the Wrap up ritual |
 | `dayplan.js`, `day-view.js` | The day plan's state and saving (the same write loop as the board); the Day view, its settings and the drawer's Plan for field |
+| `offers-model.js`, `offers.js` | Every-sprint offers from other apps: which to show, accepting and dismissing (pure, tested in `test/offers.test.mjs`); reading the senders' collections inside Workshop |
 | `ws.js` | The connection to Workshop through the SDK (`shared/workshop-sdk.js`): shell, data, connectors |
 | `main.js` | Startup: the one module `index.html` loads; it imports the rest |
 
@@ -254,9 +257,9 @@ The Day view adds these collections, all version 1, in the same format (change s
 
 | Collection | Holds | Schema |
 | --- | --- | --- |
-| `dayplan/settings` | No items. The sprint in `meta.sprint`: `anchor` (a sprint's start date), `lengthWeeks`, `workdays` (0 is Sunday), `holidays`, `dayStart`, `dayEnd` | `schemas/dayplan-settings.schema.json` |
+| `dayplan/settings` | No items. The sprint in `meta.sprint`: `anchor` (a sprint's start date), `lengthWeeks`, `workdays` (0 is Sunday), `holidays`, `dayStart`, `dayEnd`. `meta.handled`: offers from other apps already accepted or dismissed, as `<app>:<offer id>:<fingerprint of its text and payload>`, newest 200 (written once there is one) | `schemas/dayplan-settings.schema.json` |
 | `dayplan/templates` | Items are templates: `{id, name, days, last, sections}` | `schemas/dayplan-template.schema.json` |
-| `dayplan/recurring` | Items are every-sprint tasks: `{id, title, dueDay, last, planKind, value, effort, listId, notes, paused, made}` (`made`: start dates of sprints that already got their task) | `schemas/dayplan-recurring.schema.json` |
+| `dayplan/recurring` | Items are every-sprint tasks: `{id, title, dueDay, last, planKind, value, effort, listId, notes, paused, made}` (`made`: start dates of sprints that already got their task), plus `from: {app, id}` on a task accepted from another app's offer (an optional field older readers keep as is) | `schemas/dayplan-recurring.schema.json` |
 | `dayplan/days/<yyyy>` | Items are days keyed by date: `{id: date, template, sections, slots: [{taskId, sectionId, order}], shift, carry}` | `schemas/dayplan-day.schema.json` |
 
 The focus log adds one more kind of collection, version 1, in the same format:
@@ -265,6 +268,8 @@ The focus log adds one more kind of collection, version 1, in the same format:
 | --- | --- | --- |
 | `handoffs` | Items are offers to other apps (`prioritizer.handoffs` v1, Workshop's [docs/handoffs.md](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)). Wrap up offers finished tasks to Receipts with id `h_<task id>_<date>`; offers older than 60 days are removed | Workshop's `handoff-item` schema |
 | `focus/days/<yyyy>` | Items are days keyed by date: `{id: date, events: [...]}`. An event is `{at, type: 'start', taskId, switch}`, `{at, type: 'stop', taskId, why}` (`why`: pause, done or shutdown), `{at, type: 'interrupt'}` or `{at, type: 'shutdown'}`; `at` is an ISO time | `schemas/focus-day.schema.json` |
+
+Docket also reads, never writes, the `handoffs` collection of each app it knows as a sender (`pm.handoffs`, from Roadmap), at version 1 only: items addressed `to: 'prioritizer'` with `payload.kind: 'every-sprint'` (`title`, `dueDay` or `last: true`, `planKind`, `value`, `effort`, `notes`). Any other version reads as nothing offered.
 
 The active task is worked out from today's events, so two windows agree on it and it never carries over. Merging is per day, later change wins. A window loads this year and last year. Breadcrumbs are saved on the task as `crumbs: [{at, text}]` (newest ten, oldest first), an extra field older readers keep as is, so `prioritizer.tasks` stays at v3. Backups include the focus log, and importing one merges it.
 
