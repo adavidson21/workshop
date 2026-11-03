@@ -886,10 +886,10 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("document.querySelectorAll('#snav .sitem').length === 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
-        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 5)
+        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 6)  # Today, Day, Triage, Prioritize, People, Reports
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)
