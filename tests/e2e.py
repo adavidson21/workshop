@@ -118,6 +118,11 @@ def check(name, ok):
     if not ok: failed.append(name)
 
 
+def stab(frame, tab):
+    """Settings is split into tabs (General, one per connector as c-<id>, People, Data): open one."""
+    frame.click(f'[role=tab][data-tab="{tab}"]'); frame.wait_for_timeout(150)
+
+
 def skip_docket_tour(frame):
     # Docket opens a first-run tour on a brand new board (docket #6). Skip it like a person would.
     skip = frame.locator('[data-skip]')
@@ -234,12 +239,14 @@ def browser_mode_checks(ctx, pg, frame, watch):
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
+    if sf: stab(sf, 'data')
     check('Settings in browser mode shows the data folder: this browser, with Choose folder', sf is not None and sf.locator('[data-folder=indexeddb]').count() == 1
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
 
     # People directory (docs/people.md): add yourself, then a report whose name is markup.
     if sf:
+        stab(sf, 'people')
         sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         sf.click('[data-person-new]'); sf.fill('#pName', '<b>Dev</b> One')
         sf.select_option('#pRel', 'report'); sf.fill('#pAdo', 'dev.one@example.com')
@@ -445,6 +452,7 @@ def agent_checks(b, watch):
         check('an app whose required connector is off shows a notice', 'Board needs Echo' in ap.inner_text('#pane-board') and not any('/apps/board/' in f.url for f in ap.frames))
 
         # Workshop on this computer: the settings a hosted site may not change.
+        stab(sf, 'data')
         data_dir = sf.locator('[data-folder=agent] #dataDir')
         check('Settings shows the agent\'s data folder', data_dir.count() == 1 and os.path.realpath(sf.inner_text('[data-folder] .path-text')) == os.path.realpath(os.path.join(tmp, 'Workshop')))
         sf.locator('[data-folder] [data-change]').click()
@@ -454,6 +462,7 @@ def agent_checks(b, watch):
         data_dir.fill(other); sf.locator('[data-folder] button.primary').click(); sf.wait_for_timeout(800)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         check('changing the data folder saves dataDir and says to restart', saved.get('dataDir') == other and 'Restart Workshop' in sf.inner_text('[data-folder] .msg'))
+        stab(sf, 'c-echo')
         echo = sf.locator('.conn[data-connector=echo]')
         check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').text_content().strip() == 'Off')
         echo.locator('[data-enable]').check(); sf.wait_for_timeout(1200)
@@ -467,6 +476,7 @@ def agent_checks(b, watch):
         echo.locator('[data-test] input').fill('ping'); echo.locator('[data-test] button').click(); sf.wait_for_timeout(800)
         check('the Test field runs the connector and shows the answer', 'ping' in echo.locator('.test-out').inner_text())
 
+        stab(sf, 'c-ado')
         ado = sf.locator('.conn[data-connector=ado]')
         ado.locator('summary').click(); sf.wait_for_timeout(800)
         legends = [t.strip() for t in ado.locator('legend').all_text_contents()]  # labels are uppercased by CSS
@@ -716,6 +726,7 @@ def folder_checks(b, watch):
     # Settings: Choose folder. The picker is replaced by the stand-in folder; everything after it is real.
     pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(1200)
     sf = next(f for f in pg.frames if '/apps/settings/' in f.url)
+    stab(sf, 'data')
     sf.evaluate(PICK)
     with pg.expect_navigation(timeout=15000): sf.click('[data-folder] [data-choose]')
     pg.wait_for_timeout(1500)
@@ -968,6 +979,7 @@ def agents_checks(b, watch):
         # Turning the connector off (on Workshop on this computer): both apps notice without a reload.
         sf = local_page(ctx, url, a['token'], watch)
         pg.bring_to_front()
+        stab(sf, 'c-opencode')
         sf.locator('.conn[data-connector=opencode] [data-enable]').uncheck(); pg.wait_for_timeout(1500)
         check('with the connector off, Agents says how to turn it on', 'Turn on the opencode connector' in af.inner_text('#app'))
         check('and Prioritizer drops the stages', pf.locator('.chip.eng').count() == 0)
