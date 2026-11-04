@@ -1,5 +1,5 @@
 // Work mode's pinned copy (docs/run-modes.md, Work mode). `workshop pin` builds a frozen copy of the site
-// (Workshop, its apps and optionally Docket) into <home>/ui/ with build.json, which lists every file and its
+// (Workshop, its apps and optionally Docket and Runway) into <home>/ui/ with build.json, which lists every file and its
 // SHA-256. With features.workMode on, the agent serves the hub and every app from that copy only: a file
 // that is not listed is 404, and a file whose bytes no longer match build.json is refused (500), so nothing
 // changed after the build ever reaches the browser. Code changes only when the user runs `workshop pin`
@@ -18,7 +18,12 @@ export const BUILD_FORMAT = 1;
 // Workshop's files that make up the site (the same set `workshop publish` copies).
 export const SITE_DIRS = ['shell', 'shared', 'icons', 'apps'];
 export const SITE_FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
-// The app id Docket uses inside Workshop (apps/remote.json).
+// Apps that live in their own repos (apps/remote.json): the id each uses inside Workshop, the name people see,
+// and the key that build.json, the `workshop pin` options (--docket, --runway) and the checkout folder use.
+export const REMOTE_APPS = [
+  { key: 'docket', id: 'prioritizer', name: 'Docket' },
+  { key: 'runway', id: 'runway', name: 'Runway' }
+];
 export const DOCKET_ID = 'prioritizer';
 // Folders inside an app that are never part of the site.
 const SKIP_DIRS = new Set(['test', 'node_modules']);
@@ -62,12 +67,14 @@ function copyInto(srcRoot, rel, outRoot, outRel, files) {
 }
 
 /**
- * Build the pinned copy into outDir (replaced). `repo` is Workshop's folder; `docketDir` (optional) is a
- * Docket checkout whose site files go to apps/prioritizer/. `registry` builds apps/registry.json from the
- * finished apps folder (workshop.mjs passes buildRegistry). `info` is recorded as is: {workshop: {version,
- * ref, commit}, docket: {ref, commit}}. Returns the build.json object.
+ * Build the pinned copy into outDir (replaced). `repo` is Workshop's folder; `remotes` maps a REMOTE_APPS key to
+ * a checkout of that app, whose site files go to apps/<id>/ (`docketDir` is the older name for remotes.docket).
+ * `registry` builds apps/registry.json from the finished apps folder (workshop.mjs passes buildRegistry). `info`
+ * is recorded as is: {workshop: {version, ref, commit}, docket: {...}, runway: {...}}. Returns the build.json
+ * object, with null for each remote app left out.
  */
-export function buildPinned({ repo, docketDir = null, outDir, registry, info = {}, now = new Date() }) {
+export function buildPinned({ repo, docketDir = null, remotes = {}, outDir, registry, info = {}, now = new Date() }) {
+  const dirs = { docket: docketDir, ...remotes };
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
   const files = {};
@@ -79,20 +86,23 @@ export function buildPinned({ repo, docketDir = null, outDir, registry, info = {
     for (const rel of walk(repo, dir)) {
       // The registry is rebuilt below, and remote.json describes apps the Worker serves from other sites.
       if (rel === 'apps/registry.json' || rel === 'apps/remote.json') continue;
-      // Docket's folder comes from the Docket checkout, never from a stray copy in this repo.
-      if (rel.startsWith(`apps/${DOCKET_ID}/`)) continue;
+      // A remote app's folder comes from its own checkout, never from a stray copy in this repo.
+      if (REMOTE_APPS.some(a => rel.startsWith(`apps/${a.id}/`))) continue;
       copyInto(repo, rel, outDir, rel, files);
     }
   }
-  let docket = null;
-  if (docketDir) {
-    if (!fs.existsSync(path.join(docketDir, 'app.json'))) throw new Error(`${docketDir} is not a Docket checkout (no app.json).`);
-    const ignore = readIgnore(docketDir);
-    for (const rel of walk(docketDir)) {
+  const included = {};
+  for (const a of REMOTE_APPS) {
+    const dir = dirs[a.key];
+    included[a.key] = null;
+    if (!dir) continue;
+    if (!fs.existsSync(path.join(dir, 'app.json'))) throw new Error(`${dir} is not a ${a.name} checkout (no app.json).`);
+    const ignore = readIgnore(dir);
+    for (const rel of walk(dir)) {
       if (ignore.has(rel.split('/')[0])) continue;
-      copyInto(docketDir, rel, outDir, `apps/${DOCKET_ID}/${rel}`, files);
+      copyInto(dir, rel, outDir, `apps/${a.id}/${rel}`, files);
     }
-    docket = { ...(info.docket || {}) };
+    included[a.key] = { ...(info[a.key] || {}) };
   }
   if (registry) {
     const buf = Buffer.from(`${JSON.stringify(registry(path.join(outDir, 'apps')), null, 2)}\n`);
@@ -101,7 +111,7 @@ export function buildPinned({ repo, docketDir = null, outDir, registry, info = {
     files['apps/registry.json'] = sha256(buf);
   }
   const sorted = Object.fromEntries(Object.keys(files).sort().map(k => [k, files[k]]));
-  const build = { format: BUILD_FORMAT, builtAt: now.toISOString(), workshop: { ...(info.workshop || {}) }, docket, files: sorted };
+  const build = { format: BUILD_FORMAT, builtAt: now.toISOString(), workshop: { ...(info.workshop || {}) }, ...included, files: sorted };
   fs.writeFileSync(path.join(outDir, BUILD_FILE), `${JSON.stringify(build, null, 2)}\n`);
   return build;
 }
@@ -151,9 +161,9 @@ export function verifyPinned(uiDir) {
 export function describeBuild(build) {
   if (!build) return 'no pinned copy';
   const w = build.workshop || {};
-  const d = build.docket;
   const one = (name, x) => `${name} ${x.ref || x.version || 'unknown version'}${x.commit ? ` (${String(x.commit).slice(0, 12)})` : ''}`;
-  return `${one('Workshop', w)}${d ? `, ${one('Docket', d)}` : ', no Docket'}, built ${build.builtAt}`;
+  const rest = REMOTE_APPS.map(a => (build[a.key] ? `, ${one(a.name, build[a.key])}` : `, no ${a.name}`)).join('');
+  return `${one('Workshop', w)}${rest}, built ${build.builtAt}`;
 }
 
 /**

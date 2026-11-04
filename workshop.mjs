@@ -6,7 +6,8 @@
 //                                          Setup options (used by the one-line installer, scripts/bootstrap.*):
 //                                          --allow <origin>, --work-mode, --workspace <folder>, --opencode <command>,
 //                                          --powershell <command>. See setupFromFlags below.
-//   workshop pin [--docket <folder>|--no-docket]  Build work mode's pinned copy of the site into ~/.workshop/ui.
+//   workshop pin [--docket <folder>|--no-docket] [--runway <folder>|--no-runway]
+//                                          Build work mode's pinned copy of the site into ~/.workshop/ui.
 //   workshop open [--print]                Open Workshop on this computer (sign-in and settings) in the default browser. --print only prints.
 //   workshop stop | restart                Stop the running agent; restart it in the background.
 //   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
@@ -14,7 +15,7 @@
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
-//   workshop update [--tag <tag>] [--docket-tag <tag>] [--pull]
+//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--pull]
 //                                          Move this checkout to a release tag (no options: list the tags, change
 //                                          nothing). --pull is the old git pull. Other installs: how to update.
 //   workshop version                       Print the agent version.
@@ -35,7 +36,7 @@ import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
-import { pinInto, verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
+import { pinInto, verifyPinned, describeBuild, uiDirOf, REMOTE_APPS } from './agent/lib/pinned.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
 
@@ -74,11 +75,14 @@ const USAGE = `Usage: workshop <command> [options]
   doctor                         Check Node, config.json, the port, the data folder, start at login and hosted mode.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
   publish [--out <dir>]          Build the static site for hosted or browser mode (default out: dist/).
-  pin [--docket <folder>]        Build work mode's pinned copy of Workshop (and Docket) from this install into
-      [--no-docket]              ~/.workshop/ui. The agent serves only that copy, checked file by file.
+  pin [--docket <folder>]        Build work mode's pinned copy of Workshop (with Docket and Runway) from this
+      [--no-docket]              install into ~/.workshop/ui. The agent serves only that copy, checked file by
+      [--runway <folder>]        file. Docket and Runway come from a docket and runway folder next to Workshop
+      [--no-runway]              (or .remote/<id>) unless a folder is given.
   update                         List the release tags and say which one this is. Changes nothing.
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
-         [--docket-tag <tag>]    on. --docket-tag also moves the Docket checkout the pinned copy is built from.
+         [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
+         [--runway-tag <tag>]    the pinned copy is built from.
   update --pull                  Update to the newest code on the current branch (git pull), not a release.
   version                        Print the agent version.
   help                           Show this.
@@ -521,19 +525,20 @@ export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes
 
 /** Read update's options. Returns {opts} or {error}. */
 export function parseUpdateArgs(rest) {
-  const opts = { tag: null, docketTag: null, pull: false };
+  const opts = { tag: null, docketTag: null, runwayTag: null, pull: false };
+  const keys = { '--tag': 'tag', '--docket-tag': 'docketTag', '--runway-tag': 'runwayTag' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pull') { opts.pull = true; continue; }
-    if (a === '--tag' || a === '--docket-tag') {
+    if (keys[a]) {
       const v = rest[++i];
       if (!validTag(v)) return { error: `${a} needs a release tag like v1.2.0.` };
-      if (a === '--tag') opts.tag = v; else opts.docketTag = v;
+      opts[keys[a]] = v;
       continue;
     }
     return { error: `Unknown option ${a}. Run "workshop help".` };
   }
-  if (opts.pull && (opts.tag || opts.docketTag)) return { error: '--pull and --tag do not go together.' };
+  if (opts.pull && (opts.tag || opts.docketTag || opts.runwayTag)) return { error: '--pull and --tag do not go together.' };
   return { opts };
 }
 
@@ -583,45 +588,53 @@ export function listTags(dir, max = 5) {
   return r.code === 0 ? r.out.split('\n').filter(isReleaseTag).slice(0, max) : [];
 }
 
-/** The Docket checkout the pinned copy is built from: <repo>/.remote/prioritizer, else a docket folder next to the repo. */
-export function findDocket(repo = REPO) {
-  for (const dir of [path.join(repo, '.remote', 'prioritizer'), path.join(path.dirname(repo), 'docket')]) {
+/** A remote app's checkout the pinned copy is built from: <repo>/.remote/<id>, else a <key> folder next to the repo
+ *  (docket, runway). `key` is a REMOTE_APPS key. */
+export function findRemote(key, repo = REPO) {
+  const a = REMOTE_APPS.find(x => x.key === key);
+  if (!a) return null;
+  for (const dir of [path.join(repo, '.remote', a.id), path.join(path.dirname(repo), a.key)]) {
     if (fs.existsSync(path.join(dir, 'app.json'))) return dir;
   }
   return null;
 }
+export const findDocket = (repo = REPO) => findRemote('docket', repo);
 
-/** Read pin's options. Returns {opts} or {error}. */
+/** Read pin's options: --<key> <folder> and --no-<key> for each remote app. Returns {opts} or {error}. */
 export function parsePinArgs(rest) {
-  const opts = { docket: undefined, noDocket: false };
+  const opts = {};
+  for (const a of REMOTE_APPS) { opts[a.key] = undefined; opts[`no${a.name}`] = false; }
   for (let i = 0; i < rest.length; i++) {
-    const a = rest[i];
-    if (a === '--no-docket') { opts.noDocket = true; continue; }
-    if (a === '--docket') {
-      const v = rest[++i];
-      if (!v || v.startsWith('--')) return { error: '--docket needs a folder.' };
-      opts.docket = path.resolve(v);
-      continue;
-    }
-    return { error: `Unknown option ${a}. Run "workshop help".` };
+    const arg = rest[i];
+    const a = REMOTE_APPS.find(x => arg === `--${x.key}` || arg === `--no-${x.key}`);
+    if (!a) return { error: `Unknown option ${arg}. Run "workshop help".` };
+    if (arg === `--no-${a.key}`) { opts[`no${a.name}`] = true; continue; }
+    const v = rest[++i];
+    if (!v || v.startsWith('--')) return { error: `--${a.key} needs a folder.` };
+    opts[a.key] = path.resolve(v);
   }
-  if (opts.noDocket && opts.docket) return { error: '--docket and --no-docket do not go together.' };
+  for (const a of REMOTE_APPS) {
+    if (opts[`no${a.name}`] && opts[a.key]) return { error: `--${a.key} and --no-${a.key} do not go together.` };
+  }
   return { opts };
 }
 
-/** Build the pinned copy for a home. Returns {build, docketDir} or throws with plain words. */
+/** Build the pinned copy for a home. Returns {build, docketDir, dirs: {docket, runway}} or throws with plain words. */
 export function pin({ home, repo = REPO, opts = {}, schemas = loadSchemas(), uiDir = uiDirOf(home) }) {
-  const docketDir = opts.noDocket ? null : (opts.docket ?? findDocket(repo));
-  if (opts.docket && !fs.existsSync(path.join(opts.docket, 'app.json'))) throw new Error(`${opts.docket} is not a Docket checkout (no app.json).`);
-  const workshop = { version: VERSION, ...(gitInfo(repo) || {}) };
-  const docket = docketDir ? (() => {
+  const dirs = {}, info = { workshop: { version: VERSION, ...(gitInfo(repo) || {}) } };
+  for (const a of REMOTE_APPS) {
+    const given = opts[a.key];
+    if (given && !fs.existsSync(path.join(given, 'app.json'))) throw new Error(`${given} is not a ${a.name} checkout (no app.json).`);
+    const dir = opts[`no${a.name}`] ? null : (given ?? findRemote(a.key, repo));
+    dirs[a.key] = dir;
+    if (!dir) continue;
     let version;
-    try { version = JSON.parse(fs.readFileSync(path.join(docketDir, 'app.json'), 'utf8')).version; } catch { /* checked by buildPinned */ }
-    return { version, ...(gitInfo(docketDir) || {}) };
-  })() : null;
+    try { version = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8')).version; } catch { /* checked by buildPinned */ }
+    info[a.key] = { version, ...(gitInfo(dir) || {}) };
+  }
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-  const build = pinInto(uiDir, { repo, docketDir, registry: dir => buildRegistry(dir, schemas), info: { workshop, docket } });
-  return { build, docketDir };
+  const build = pinInto(uiDir, { repo, remotes: dirs, registry: dir => buildRegistry(dir, schemas), info });
+  return { build, docketDir: dirs.docket, dirs };
 }
 
 async function runPin(rest, io) {
@@ -631,8 +644,10 @@ async function runPin(rest, io) {
   let r;
   try { r = pin({ home, opts: parsed.opts }); } catch (e) { io.out(`Could not build the pinned copy: ${e.message}`); return 1; }
   io.out(`Built the pinned copy in ${uiDirOf(home)}: ${describeBuild(r.build)}; ${Object.keys(r.build.files).length} files.`);
-  if (!r.docketDir) io.out('Docket is not included: no Docket checkout was found. Pass --docket <folder> (a clone of Docket at a release tag) to include it.');
-  for (const [name, x] of [['Workshop', r.build.workshop], ['Docket', r.build.docket]]) {
+  for (const a of REMOTE_APPS) {
+    if (!r.dirs[a.key] && !parsed.opts[`no${a.name}`]) io.out(`${a.name} is not included: no ${a.name} checkout was found. Pass --${a.key} <folder> (a clone of ${a.name}, at a release tag when it has one) to include it.`);
+  }
+  for (const [name, x] of [['Workshop', r.build.workshop], ...REMOTE_APPS.map(a => [a.name, r.build[a.key]])]) {
     if (x && !(x.ref && !/not a release tag/.test(x.ref))) io.out(`Note: ${name} is not at a release tag. For work, use "workshop update --tag <tag>" first.`);
   }
   const info = inspectConfig(homePaths(home).config, loadSchemas());
@@ -658,7 +673,7 @@ async function runUpdate(rest, io) {
       child.on('exit', code => { io.out(`Current version: ${VERSION}. This is the newest code, not a release: for work, use "workshop update --tag <tag>".`); resolve(code ?? 0); });
     });
   }
-  if (!opts.tag && !opts.docketTag) {
+  if (!opts.tag && !opts.docketTag && !opts.runwayTag) {
     const f = git(REPO, ['fetch', '--tags', '--quiet', 'origin']);
     if (f.code !== 0) io.out(`Could not fetch tags${f.err ? `: ${f.err.split('\n')[0]}` : ''}. Showing the tags already here.`);
     const now = gitInfo(REPO);
@@ -673,10 +688,12 @@ async function runUpdate(rest, io) {
   const info = inspectConfig(homePaths(home).config, loadSchemas());
   const running = await agentHealth(info.config?.port ?? DEFAULT_PORT);
   if (opts.tag && !checkoutTag(REPO, opts.tag, io.out)) return 1;
-  if (opts.docketTag) {
-    const d = findDocket(REPO);
-    if (!d || !isCheckout(d)) { io.out('--docket-tag needs a git clone of Docket (in .remote/prioritizer, or a docket folder next to Workshop).'); return 1; }
-    if (!checkoutTag(d, opts.docketTag, io.out)) return 1;
+  for (const a of REMOTE_APPS) {
+    const t = opts[`${a.key}Tag`];
+    if (!t) continue;
+    const d = findRemote(a.key, REPO);
+    if (!d || !isCheckout(d)) { io.out(`--${a.key}-tag needs a git clone of ${a.name} (in .remote/${a.id}, or a ${a.key} folder next to Workshop).`); return 1; }
+    if (!checkoutTag(d, t, io.out)) return 1;
   }
   if (info.config?.features?.workMode === true) {
     // The new code builds the copy, so run it in a fresh process.

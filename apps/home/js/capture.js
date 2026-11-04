@@ -1,4 +1,4 @@
-/* Home: quick capture (docs/hub.md). A rules-only capture box at the top of Home, so a task, receipt or note can be
+/* Home: quick capture (docs/hub.md). A rules-only capture box right under the greeting, the most prominent thing on Home, so a task, receipt or note can be
    captured with no AI, in every mode. Accepted captures go to Home's own `handoffs` collection with
    accepted: true (docs/handoffs.md); Docket, Rapport and Notes add them when they next load. A question, or
    Ctrl+Enter, opens the hub in Dispatch with the text filled in.
