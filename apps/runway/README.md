@@ -21,7 +21,9 @@ Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or importe
 
 When Runway uses Workshop on this computer and the ADO connector is on, it can also read Epics and Features from ADO (read only, nothing is written to ADO):
 
-- **From Azure DevOps** (roadmap list): pick area paths (filled in from Queue's), Epics and/or Features, lanes by area path or by Epic, and a kind:
+- **From Azure DevOps** (roadmap list): pick area paths (filled in from Queue's), Epics, Features and/or User Stories, lanes by area path or by Epic, and a kind:
+  - **User Stories** are named "Feature > Story" and sit in their Feature's lane; a Feature whose stories are shown is not drawn again. Needs Workshop's ADO connector with the `roadmap` `stories` option.
+  - **Lanes by Epic** treats each Epic as a version: lanes sort with numbers in order (v2.9 before v2.10), and an Epic with a target date shows as a milestone on that date in its lane.
   - **Import, then edit:** work items become ordinary, editable items with an ADO link. **Refresh** adds new work items, updates the ones you have not changed, and marks the ones you changed whose ADO values also changed ("differs from ADO"); the item's panel shows both and offers **Use ADO's** or **Keep mine**. Work items no longer found are marked, never deleted. Add your own items alongside.
   - **Live view:** rebuilt from ADO on every refresh. Items can't be edited; title, scale, dates shown and goals can. **Make editable** turns it into an ordinary roadmap.
 - **Add items from Azure DevOps** (any roadmap): link an ad hoc roadmap to ADO, so imported and ad hoc items mix.

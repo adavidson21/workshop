@@ -278,7 +278,7 @@ export function adoBarHtml(doc, { ready = false, message = '', refreshing = fals
 
 /** Choose what to read from ADO. `mode` false hides the live or linked choice (adding to an existing roadmap). */
 export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, chooseMode = true, heading = 'From Azure DevOps' } = {}) {
-  const t = (x) => `<label class="pc"><input type="checkbox" name="type" value="${x}"${types.includes(x) ? ' checked' : ''}> ${x}s</label>`;
+  const t = (x, label) => `<label class="pc"><input type="checkbox" name="type" value="${x}"${types.includes(x) ? ' checked' : ''}> ${label}</label>`;
   return `<form method="dialog" class="sheet wide">
     <h3>${esc(heading)}</h3>
     ${chooseMode ? `<label class="pf"><span>Name</span><input name="title" value="${esc(title)}" maxlength="120" required autofocus></label>
@@ -287,7 +287,7 @@ export function adoDialog({ title = '', areas = [], connection = '', types = ['E
       <label class="pc"><input type="radio" name="mode" value="live"${mode === 'live' ? ' checked' : ''}> Live view of ADO. Rebuilt on every refresh; items can't be edited here.</label>
     </fieldset>` : ''}
     <label class="pf"><span>Area paths</span><textarea name="areas" rows="4" class="mono" required placeholder="Project\\Team">${esc(areas.join('\n'))}</textarea><small class="hint">One per line. Work items under each are included.</small></label>
-    <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic')}${t('Feature')}</fieldset>
+    <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic', 'Epics')}${t('Feature', 'Features')}${t('User Story', 'User Stories, named Feature &gt; Story')}</fieldset>
       <label class="pf inline"><span>Lanes by</span><select name="lanes"><option value="area"${lanes !== 'epic' ? ' selected' : ''}>Area path</option><option value="epic"${lanes === 'epic' ? ' selected' : ''}>Epic</option></select></label></div>
     <label class="pc"><input type="checkbox" name="closed"${includeClosed ? ' checked' : ''}> Include closed work items</label>
     <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Read only. Nothing is written to ADO.</small></label>

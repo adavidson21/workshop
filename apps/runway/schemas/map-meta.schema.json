@@ -21,7 +21,7 @@
     "ado": {"type": "object", "required": ["mode", "areas"], "description": "Set when the roadmap follows Azure DevOps (optional).", "properties": {
       "mode": {"enum": ["live", "linked"], "description": "live: rebuilt from ADO on every refresh, items read only. linked: imported items you edit; refresh never overwrites your edits."},
       "areas": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "string"}},
-      "types": {"type": "array", "items": {"enum": ["Epic", "Feature"]}},
+      "types": {"type": "array", "items": {"enum": ["Epic", "Feature", "User Story"]}},
       "lanes": {"enum": ["area", "epic"]},
       "connection": {"type": "string", "maxLength": 40},
       "includeClosed": {"type": "boolean"},

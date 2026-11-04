@@ -73,8 +73,11 @@ test('lanes by area: longest match wins, Other for the rest', () => {
 test('lanes by Epic: an Epic with Features is a lane, Features without one go to No Epic', () => {
   const d = pulled(result(ITEMS()), ITER, { ...SRC, lanes: 'epic' });
   assert.deepEqual(d.lanes.map(l => l.title), ['Wiki Edge', 'No Epic']);
-  assert.deepEqual(d.items.map(i => i.title).sort(), ['Alerting rework', 'Content migration', 'Elsewhere', 'Search cutover']);
-  assert.ok(!d.items.some(i => i.ado.type === 'Epic'), 'the Epic is the lane, not a bar');
+  assert.deepEqual(d.items.map(i => i.title).sort(), ['Alerting rework', 'Content migration', 'Elsewhere', 'Search cutover', 'Wiki Edge']);
+  const epic = d.items.find(i => i.ado.type === 'Epic');
+  assert.deepEqual([epic.milestone, epic.start, epic.end, epic.laneKey], [true, '2027-03-31', '2027-03-31', 'epic:1'], 'the Epic is the lane, and its target date a milestone');
+  const noDate = pulled(result(ITEMS().map(x => (x.id === 1 ? { ...x, targetDate: null } : x))), ITER, { ...SRC, lanes: 'epic' });
+  assert.ok(!noDate.items.some(i => i.ado.type === 'Epic'), 'an Epic with no target date is only the lane');
   const lone = pulled(result([w(7, 'Epic', 'Solo', { targetDate: '2027-05-01' })]), {}, { ...SRC, lanes: 'epic' });
   assert.deepEqual(lone.lanes.map(l => l.title), ['Solo']);
   assert.equal(lone.items[0].title, 'Solo');
@@ -209,4 +212,49 @@ test('ADO roadmaps pass Runway\'s JSON Schemas', async () => {
   for (const it of parts.items.filter(i => i.kind === 'item')) assert.deepEqual(schemas.validate('map-item', it), [], it.title);
   assert.deepEqual(schemas.validate('map-meta', parts.meta), []);
   assert.ok(doc.items.some(i => i.ado.remote), 'the differs case is covered');
+});
+
+const STORIES = () => [
+  ...ITEMS(),
+  w(21, 'User Story', 'Index rebuild', { parentId: 3, iteration: 'Platform\\Sprint 1', area: 'Elsewhere\\Team' }),
+  w(22, 'Issue', 'Old links', { parentId: 3, state: 'New' }),
+  w(23, 'User Story', 'Orphan', { parentId: 99 })
+];
+
+test('User Stories: named Feature > Story, in their Feature\'s lane, and the Feature is not drawn again', () => {
+  const src = cleanSource({ areas: 'Platform\\Wiki\nPlatform\\Lighthouse', types: ['Epic', 'Feature', 'User Story'] });
+  const d = pulled(result(STORIES()), ITER, { ...src, lanes: 'epic' });
+  const titles = d.items.map(i => i.title);
+  assert.ok(titles.includes('Search cutover > Index rebuild') && titles.includes('Search cutover > Old links'));
+  assert.ok(!titles.includes('Search cutover'), 'a Feature whose stories are shown is not its own bar');
+  assert.ok(titles.includes('Content migration'), 'a Feature with no stories here stays a bar');
+  assert.ok(!titles.some(t => t.includes('Orphan')), 'a story whose Feature is not in the roadmap is left out');
+  const story = d.items.find(i => i.title === 'Search cutover > Index rebuild');
+  assert.equal(story.laneKey, 'epic:1');
+  assert.deepEqual([story.start, story.end], ['2027-01-06', '2027-01-19'], 'placed by its sprint');
+  const byArea = pulled(result(STORIES()), ITER, src);
+  assert.equal(byArea.items.find(i => i.title === 'Search cutover > Index rebuild').laneKey, 'area:platform\\wiki', 'by area, a story follows its Feature, not its own area');
+  const without = pulled(result(STORIES()), ITER, SRC);
+  assert.ok(!without.items.some(i => i.title.includes(' > ')), 'stories only when asked');
+});
+
+test('roadmapArgs asks for stories only when User Stories are chosen', async () => {
+  const { roadmapArgs } = await import('../js/ado/model.js');
+  assert.equal(roadmapArgs(SRC).stories, undefined);
+  assert.equal(roadmapArgs(cleanSource({ areas: 'A', types: ['User Story'] })).stories, true);
+});
+
+test('Epic lanes sort with version numbers in order', () => {
+  const items = ['v2.10', 'v2.9', 'v10.0', 'v2.9.1'].map((t, i) => w(i + 1, 'Epic', t, { targetDate: '2027-01-01' }))
+    .concat([1, 2, 3, 4].map(n => w(100 + n, 'Feature', `F${n}`, { parentId: n })));
+  const d = pulled(result(items), {}, { ...SRC, lanes: 'epic' });
+  assert.deepEqual(d.lanes.map(l => l.title), ['v2.9', 'v2.9.1', 'v2.10', 'v10.0']);
+});
+
+test('a linked refresh and a live one keep the Epic milestone', () => {
+  const src = { ...SRC, lanes: 'epic' };
+  const live = applyLive(blankDoc('x'), pulled(result(ITEMS()), ITER, src), src, result(ITEMS()));
+  assert.equal(live.items.find(i => i.ado.type === 'Epic').milestone, true);
+  const linked = mergeLinked(blankDoc('y'), pulled(result(ITEMS()), ITER, src), src, result(ITEMS())).doc;
+  assert.equal(linked.items.find(i => i.ado.type === 'Epic').milestone, true);
 });

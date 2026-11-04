@@ -15,7 +15,11 @@
      remote  ADO's values when they differ from yours (linked only)
      missing true when the last refresh no longer found the work item */
 
-export const TYPES = ['Epic', 'Feature'];
+export const TYPES = ['Epic', 'Feature', 'User Story'];
+// Work item types that come in under the 'User Story' choice: the children the connector returns with stories: true.
+export const DEFAULT_TYPES = ['Epic', 'Feature'];
+export const STORY_TYPES = ['User Story', 'Issue'];
+const SEP = ' > ';
 export const LANE_MODES = ['area', 'epic'];
 export const MODES = ['live', 'linked'];
 const FIELDS = ['title', 'start', 'end', 'status'];
@@ -36,12 +40,12 @@ export function cleanSource(src) {
   const areas = [...new Set((Array.isArray(src.areas) ? src.areas : String(src.areas || '').split(/\r?\n/))
     .map(a => String(a).trim().replace(/\//g, '\\')).filter(Boolean).map(a => clip(a, 400)))].slice(0, 50);
   if (!areas.length) return null;
-  const types = (Array.isArray(src.types) ? src.types : TYPES).filter(t => TYPES.includes(t));
+  const types = (Array.isArray(src.types) ? src.types : DEFAULT_TYPES).filter(t => TYPES.includes(t));
   return {
     ...src,
     mode: MODES.includes(src.mode) ? src.mode : 'linked',
     areas,
-    types: types.length ? types : [...TYPES],
+    types: types.length ? types : [...DEFAULT_TYPES],
     lanes: LANE_MODES.includes(src.lanes) ? src.lanes : 'area',
     connection: clip(String(src.connection || '').trim(), 40),
     includeClosed: !!src.includeClosed
@@ -49,7 +53,7 @@ export function cleanSource(src) {
 }
 
 /** The connector's arguments for a source. */
-export const roadmapArgs = src => ({ areas: src.areas, ...(src.includeClosed ? { includeClosed: true } : {}), ...(src.connection ? { connection: src.connection } : {}) });
+export const roadmapArgs = src => ({ areas: src.areas, ...(src.includeClosed ? { includeClosed: true } : {}), ...(src.types.includes('User Story') ? { stories: true } : {}), ...(src.connection ? { connection: src.connection } : {}) });
 
 /** Projects whose sprint dates are worth asking for (iterations.list). */
 export function projectsOf(items, areas) {
@@ -102,42 +106,58 @@ export function describe(w) {
  * Turn a `roadmap` result into lanes and items, keyed so a refresh finds them again.
  * lanes: [{key, title}] in order; items: [{key: <ado id>, laneKey, title, start, end, status, notes, ado}].
  * By area: one lane per area path of the source (the longest match wins), plus "Other".
- * By Epic: one lane per Epic, holding its Features (and the Epic itself when it has none); Features without an
- * Epic in the roadmap go to "No Epic".
+ * By Epic: one lane per Epic (Epics are often versions, so lanes sort with numbers in order: v2.9 before v2.10),
+ * holding its Features; an Epic with Features shows as a milestone on its target date, and as a bar when it has
+ * none. Features without an Epic in the roadmap go to "No Epic".
+ * User Stories (with types including 'User Story'): each story is a bar named "Feature > Story", in its Feature's
+ * lane. A Feature whose stories are shown is not drawn as its own bar.
  */
 export function pulled(result, iterations, src) {
   const iters = iterationIndex(iterations);
   const all = (result && Array.isArray(result.items) ? result.items : []).filter(w => w && Number.isInteger(Number(w.id)));
-  const keep = all.filter(w => src.types.includes(w.type));
+  const wantStories = src.types.includes('User Story');
+  const isStory = w => STORY_TYPES.includes(w.type);
+  const features = new Map(all.filter(w => w.type === 'Feature').map(w => [Number(w.id), w]));
+  const keep = all.filter(w => (isStory(w) ? wantStories && features.has(Number(w.parentId)) : src.types.includes(w.type)));
   const connection = String((result && result.connection) || src.connection || '');
   const lanes = [], laneSeen = new Set();
   const addLane = (key, title) => { if (!laneSeen.has(key)) { laneSeen.add(key); lanes.push({ key, title: clip(title || 'Lane', 80) }); } return key; };
+  // A story sits where its Feature would.
+  const anchor = w => (isStory(w) ? features.get(Number(w.parentId)) : w);
   let laneOf;
   if (src.lanes === 'epic') {
     const epics = new Map(all.filter(w => w.type === 'Epic').map(w => [Number(w.id), w]));
-    const hasKids = new Set(keep.filter(w => w.type !== 'Epic' && epics.has(Number(w.parentId))).map(w => Number(w.parentId)));
-    for (const e of [...epics.values()].sort((a, b) => String(a.title).localeCompare(String(b.title)))) {
+    const epicOf = w => { const a = anchor(w); return a.type === 'Epic' ? Number(a.id) : epics.has(Number(a.parentId)) ? Number(a.parentId) : null; };
+    const hasKids = new Set(keep.filter(w => w.type !== 'Epic').map(epicOf).filter(id => id != null));
+    for (const e of [...epics.values()].sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }))) {
       if (hasKids.has(Number(e.id)) || keep.includes(e)) addLane(`epic:${e.id}`, e.title);
     }
-    laneOf = w => {
-      if (w.type === 'Epic') return `epic:${w.id}`;
-      return epics.has(Number(w.parentId)) ? `epic:${w.parentId}` : addLane('epic:none', 'No Epic');
-    };
+    laneOf = w => { const id = epicOf(w); return id != null ? `epic:${id}` : addLane('epic:none', 'No Epic'); };
   } else {
     for (const a of src.areas) addLane(`area:${lower(a)}`, leaf(a));
     laneOf = w => {
+      const at = anchor(w);
       let best = null, len = -1;
-      for (const a of src.areas) if (under(w.area, a) && a.length > len) { best = a; len = a.length; }
+      for (const a of src.areas) if (under(at.area, a) && a.length > len) { best = a; len = a.length; }
       return best ? `area:${lower(best)}` : addLane('area:other', 'Other');
     };
   }
+  const shownStoryParents = new Set(keep.filter(isStory).map(w => Number(w.parentId)));
   const items = [];
   for (const w of keep) {
-    if (src.lanes === 'epic' && w.type === 'Epic' && keep.some(f => f.type !== 'Epic' && Number(f.parentId) === Number(w.id))) continue;
-    const p = placeItem(w, iters);
-    const fields = { title: clip(w.title || `${w.type} #${w.id}`, 200), start: p.start, end: p.end, status: statusOf(w.state) };
+    if (w.type === 'Feature' && shownStoryParents.has(Number(w.id))) continue;
+    let p = placeItem(w, iters), milestone = false;
+    if (src.lanes === 'epic' && w.type === 'Epic' && keep.some(f => f.type !== 'Epic' && laneOf(f) === `epic:${w.id}`)) {
+      // The Epic is the lane; draw its release date, if it has one, as a milestone.
+      const t = isDate(w.targetDate) ? w.targetDate : null;
+      if (!t) continue;
+      p = { start: t, end: t }; milestone = true;
+    }
+    const f = isStory(w) ? features.get(Number(w.parentId)) : null;
+    const name = f ? `${String(f.title || `Feature #${f.id}`).trim()}${SEP}${String(w.title || `${w.type} #${w.id}`).trim()}` : (w.title || `${w.type} #${w.id}`);
+    const fields = { title: clip(name, 200), start: p.start, end: p.end, status: statusOf(w.state) };
     items.push({
-      key: String(w.id), laneKey: laneOf(w), ...fields, notes: describe(w),
+      key: String(w.id), laneKey: laneOf(w), ...fields, milestone, notes: describe(w),
       ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), base: { ...fields } }
     });
   }
@@ -159,7 +179,7 @@ export function applyLive(doc, data, src, result) {
   const items = data.items.map(it => {
     const lane = laneId.get(it.laneKey) || null;
     const order = counter.get(lane) || 0; counter.set(lane, order + 1);
-    return { id: `i-ado-${it.key}`, kind: 'item', lane, order, title: it.title, start: it.start, end: it.end, size: null, milestone: false, status: it.status, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: it.ado };
+    return { id: `i-ado-${it.key}`, kind: 'item', lane, order, title: it.title, start: it.start, end: it.end, size: null, milestone: !!it.milestone, status: it.status, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: it.ado };
   });
   const ids = new Set(lanes.map(l => l.id));
   return { meta: { ...doc.meta, hidden: doc.meta.hidden.filter(h => ids.has(h)), ado: { ...src, mode: 'live', ...fetchInfo(result) } }, lanes, items };
@@ -200,7 +220,7 @@ export function mergeLinked(doc, data, src, result) {
       const order = Math.max(-1, ...out.items.filter(i => (i.lane || null) === lane).map(i => Number(i.order) || 0)) + 1;
       let id = `i-ado-${it.key}`;
       while (out.items.some(i => i.id === id)) id += '-x';
-      out.items.push({ id, kind: 'item', lane, order, ...remote, size: null, milestone: false, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } });
+      out.items.push({ id, kind: 'item', lane, order, ...remote, size: null, milestone: !!it.milestone, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } });
       counts.added++;
       continue;
     }

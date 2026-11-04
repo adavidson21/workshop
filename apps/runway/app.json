@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "runway",
   "name": "Runway",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps.",
   "icon": "icon.svg",
   "entry": "index.html",
