@@ -706,4 +706,4 @@ async function openLast() {
 }
 await openLast();
 fetch('../registry.json').then(r => (r.ok ? r.json() : null)).catch(() => null)
-  .then(reg => notes.loadOthers(reg && Array.isArray(reg.apps) ? reg.apps.map(a => a.manifest && a.manifest.id).filter(Boolean) : ['receipts', 'home', 'queue', 'agents']));
+  .then(reg => notes.loadOthers(reg && Array.isArray(reg.apps) ? reg.apps.map(a => a.manifest && a.manifest.id).filter(Boolean) : ['receipts', 'home', 'agents']));

@@ -1,5 +1,5 @@
 /* Home: a summary of your day across Workshop, opened by the Workshop logo (app.json home: true).
-   Reads Prioritizer's board, the Queue app's last copy of the team's ADO items, and the opencode connector
+   Reads Prioritizer's board and the opencode connector
    read-only through the SDK, and keeps one small
    collection of its own: profile (home.profile v1, no items; meta: {name, role}). data.js loads and saves,
    view.js builds the HTML, this file owns the page. */
@@ -70,12 +70,9 @@ const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
 ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
-const queueLater = later(home.loadQueue, 200);
-for (const c of ['settings', 'snapshot', 'seen']) ws.data.subscribe(c, queueLater, { app: 'queue' });
 // The checklist follows the apps and connectors it checks, so steps tick themselves off.
 const setupLater = later(setup.load, 300);
 ws.data.subscribe('setup', setupLater);
-ws.data.subscribe('settings', setupLater, { app: 'queue' });
 ws.data.subscribe('entries', setupLater, { app: 'receipts' });
 if (ws.backend === 'agent') for (const id of ['ado', 'opencode']) ws.connectors.onStatus(id, setupLater);
 ws.on('online', p => { if (p && p.online) setup.load(); });
@@ -133,7 +130,7 @@ document.addEventListener('keydown', e => {
 
 // Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
 // "overdue" change at midnight; the counts change when you work in other apps).
-const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); home.loadQueue(); setup.load(); } };
+const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); setup.load(); } };
 ws.on('visible', p => { visible = !!p.visible; refresh(); });
 setInterval(refresh, 60000);
 

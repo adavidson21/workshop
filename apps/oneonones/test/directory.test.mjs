@@ -1,4 +1,4 @@
-// 1:1s and Workshop's people directory (docs/people.md): the Receipts and Queue pickers list its people when it
+// 1:1s and Workshop's people directory (docs/people.md): the Receipts picker lists its people when it
 // exists, reports without a 1:1s person are offered with their links filled in, and without a directory nothing
 // changes. Synthetic data only.
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import test from 'node:test';
 import * as M from '../js/model.js';
 import { homeHtml, personForm, settingsHtml } from '../js/view.js';
 import { createOneOnOnes } from '../js/data.js';
-import { fakeWs, queueSettings, receiptsPeopleEnv } from './fake.mjs';
+import { fakeWs, receiptsPeopleEnv } from './fake.mjs';
 
 const dir = items => ({ schema: 'settings.people', version: 1, rev: 1, items, deleted: {} });
 const person = (id, name, relation, extra = {}) => ({ id, updatedAt: 1, name, relation, ...extra });
@@ -33,17 +33,7 @@ test('Receipts picker: directory reports (same ids as Receipts) when it exists, 
   assert.deepEqual(M.receiptsPeople(receiptsPeopleEnv([{ id: 'p_old', updatedAt: 1, name: 'Old Report' }]), dir([])), [], 'an empty directory is the list');
 });
 
-test('Queue picker: the directory team, keyed the way Queue matches (email, else exact ADO name)', () => {
-  assert.deepEqual(M.queuePeople(null, DIR), [
-    { key: 'dev.one@example.com', name: 'Dev One' },
-    { key: 'Dev Two (Contractor)', name: 'Dev Two' },
-    { key: 'a@example.com', name: 'Engineer A' },
-    { key: 'Peer Four', name: 'Peer Four' },
-  ]);
-  assert.ok(M.queuePeople(queueSettings(), null).length > 0, 'falls back to Queue settings');
-});
-
-test('a Queue link by name keeps its case (Queue matches names exactly); emails are lowercased', () => {
+test('an old Queue link is kept as stored: a name keeps its case, an email is lowercased', () => {
   assert.equal(M.cleanPerson({ id: 'p_1', links: { queue: 'Dev Two (Contractor)' } }).links.queue, 'Dev Two (Contractor)');
   assert.equal(M.cleanPerson({ id: 'p_1', links: { queue: 'Dev.One@Example.com' } }).links.queue, 'dev.one@example.com');
 });
@@ -54,19 +44,19 @@ test('suggestions: active directory reports with no 1:1s person (by Receipts lin
   assert.deepEqual(M.directorySuggestions([], null), []);
 });
 
-test('personFromDirectory: Receipts by id, Queue if on the team, Docket by name', () => {
+test('personFromDirectory: Receipts by id, Docket by name, no Queue link', () => {
   const d = M.directoryPeople(DIR);
-  assert.deepEqual(M.personFromDirectory(d.find(p => p.id === 'p_r1'), ['dev one', 'Other']).links, { receipts: 'p_r1', queue: 'dev.one@example.com', docket: 'dev one' });
+  assert.deepEqual(M.personFromDirectory(d.find(p => p.id === 'p_r1'), ['dev one', 'Other']).links, { receipts: 'p_r1', docket: 'dev one' });
   assert.deepEqual(M.personFromDirectory(d.find(p => p.id === 'p_r3'), []).links, { receipts: 'p_r3' });
   const p = M.cleanPerson({ id: 'p_new', ...M.personFromDirectory(d.find(x => x.id === 'p_r2'), []) });
-  assert.equal(p.links.queue, 'Dev Two (Contractor)', 'survives cleanPerson');
+  assert.equal(p.links.queue, undefined);
   assert.equal(p.cadenceDays, M.DEFAULT_CADENCE);
 });
 
 test('views: suggestions as escaped chips on settings and the empty home; directory hints in the pickers', () => {
   const evil = M.directoryPeople(dir([person('p_bad', '<img src=x onerror=alert(1)>', 'report')]));
   const v = { people: [], settings: { aiDraft: true } };
-  const pick = { docket: [], receipts: [], queue: [], fromDirectory: evil, directory: true, states: { docket: 'missing', receipts: 'ok', queue: 'ok' } };
+  const pick = { docket: [], receipts: [], fromDirectory: evil, directory: true, states: { docket: 'missing', receipts: 'ok' } };
   const s = settingsHtml(v, pick, null), h = homeHtml([], { selected: -1 }, evil);
   for (const html of [s, h]) {
     assert.match(html, /data-add-dir="p_bad"/);
@@ -74,7 +64,6 @@ test('views: suggestions as escaped chips on settings and the empty home; direct
   }
   const form = personForm({}, pick);
   assert.match(form, /No direct reports in People yet/);
-  assert.match(form, /No one is on your team in People yet/);
 });
 
 test('data: the directory is read like the other sources; adding a suggestion links it', async () => {

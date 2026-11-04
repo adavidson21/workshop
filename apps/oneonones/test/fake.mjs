@@ -10,12 +10,9 @@ export const docketTasks = (items, version = 3) => envOf('prioritizer.tasks', ve
 export const docketPeople = names => envOf('prioritizer.people', 1, names.map(n => ({ id: n.toLowerCase(), updatedAt: 1, name: n })));
 export const receiptsEntries = (items, version = 1) => envOf('receipts.entries', version, items);
 export const receiptsPeopleEnv = items => envOf('receipts.people', 1, items);
-export const queueSettings = (meta = {}) => envOf('queue.settings', 1, [], { people: [{ name: 'Dev One', email: 'dev.one@example.com' }], staleDays: 7, ...meta });
-export const queueSnapshot = (items, meta = {}) => envOf('queue.snapshot', 1, items.map(i => ({ ...i, updatedAt: 1 })), { fetchedAt: '2026-11-03T12:00:00Z', categories: { Bug: { New: 'Proposed', Active: 'InProgress' } }, ...meta });
 
 export const task = (id, extra = {}) => ({ id, updatedAt: 1, title: `Synthetic task ${id}`, listId: 'l_main', people: [], done: false, waiting: false, nudgeOn: null, due: null, ...extra });
 export const entry = (id, extra = {}) => ({ id, updatedAt: 1, about: 'p_r1', kind: 'win', date: '2026-10-30', text: `Synthetic entry ${id}`, ...extra });
-export const item = (id, extra = {}) => ({ id: String(id), rev: 3, type: 'Bug', title: `Synthetic item ${id}`, state: 'Active', assignee: { name: 'Dev One', email: 'dev.one@example.com' }, changed: '2026-11-01T10:00:00Z', ...extra });
 
 export const PERSON = { id: 'p_abc1', name: 'Dev One', links: { docket: 'DevA', receipts: 'p_r1', queue: 'dev.one@example.com' }, cadenceDays: 7, archived: false };
 

@@ -1,6 +1,6 @@
 /* 1:1s: the rules, with no DOM or SDK, so Node tests can import them.
 
-   The app keeps its own `people` link table and reads (never writes) what Docket, Receipts and Queue keep
+   The app keeps its own `people` link table and reads (never writes) what Docket and Receipts keep
    about the same people. Each read checks the envelope's schema and version: an unknown version is
    unreadable, not empty (docs/data-format.md, Migrations, rule 6).
 
@@ -9,12 +9,10 @@
      prioritizer.people v1   items: {id: lower-case name, name}
      receipts.entries v1     items: {id, about: 'me' | 'up' | person id, kind, date, text, ...}
      receipts.people v1      items: {id, name, role, since, archived}
-     queue.settings v1       meta: {people: [{name, email}], staleDays, ...}
-     queue.snapshot v1       items: queue.list items {id, title, state, type, assignee: {name, email}, changed, ...};
-                             meta: {fetchedAt, categories: {type: {state: category}}}
      settings.people v1      Workshop's people directory (docs/people.md): {id, name, relation, team?, adoIdentity?,
-                             archived?}. When it exists it is the list for the Receipts and Queue pickers, the way
-                             Receipts and Queue themselves use it; while it is missing they read their own lists. */
+                             archived?}. When it exists it is the list for the Receipts picker, the way Receipts
+                             itself uses it; while it is missing the picker reads Receipts' own list.
+   Queue was removed (Nov 4): a stored `links.queue` is kept as is but no longer read. */
 
 export const APP = 'oneonones';
 export const VERSION = 1;
@@ -28,8 +26,6 @@ export const SOURCES = {
   docketPeople: { app: 'prioritizer', collection: 'people', schema: 'prioritizer.people', version: 1 },
   receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1 },
   receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1 },
-  queueSettings: { app: 'queue', collection: 'settings', schema: 'queue.settings', version: 1 },
-  queueSnapshot: { app: 'queue', collection: 'snapshot', schema: 'queue.snapshot', version: 1 },
   directory: { app: 'settings', collection: 'people', schema: 'settings.people', version: 1 }
 };
 
@@ -97,9 +93,6 @@ export function directoryPeople(dirEnv) {
   }));
 }
 
-/** The Queue key for a directory person, as Queue itself matches them: the email, else the exact ADO name. */
-export const directoryQueueKey = p => (p.adoIdentity.includes('@') ? lower(p.adoIdentity) : p.adoIdentity || p.name);
-
 /** Receipts reports for the link picker: [{id, name, archived}]. From the directory's reports when it exists
     (Receipts lists the same people, with the same ids), else from receipts.people. */
 export function receiptsPeople(peopleEnv, dirEnv = null) {
@@ -110,30 +103,6 @@ export function receiptsPeople(peopleEnv, dirEnv = null) {
   return r.env.items.filter(p => p && typeof p.id === 'string' && p.id)
     .map(p => ({ id: p.id, name: str(p.name, 200) || 'Unnamed', archived: !!p.archived }))
     .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** Queue people for the link picker: [{key, name}]. key is the email, else the name. From the directory's
-    active team when it exists (Queue's Team view uses the same people), else from queue.settings meta.people. */
-export function queuePeople(settingsEnv, dirEnv = null) {
-  const dir = directoryPeople(dirEnv);
-  if (dir) {
-    const out = [];
-    for (const p of dir.filter(x => x.team && !x.archived)) {
-      const key = directoryQueueKey(p);
-      if (!out.some(x => x.key === key)) out.push({ key, name: p.name });
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }
-  const r = readable(settingsEnv, SOURCES.queueSettings);
-  if (r.state !== 'ok') return [];
-  const list = r.env.meta && Array.isArray(r.env.meta.people) ? r.env.meta.people : [];
-  const out = [];
-  for (const p of list) {
-    const name = str(p && p.name, 120), email = lower(str(p && p.email, 200));
-    const key = email || name;
-    if (key && !out.some(x => x.key === key)) out.push({ key, name: name || email });
-  }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /* ---------- people (this app's link table) ---------- */
@@ -147,7 +116,7 @@ export function cleanPerson(p) {
   const x = p && typeof p === 'object' ? p : {};
   const l = x.links && typeof x.links === 'object' ? x.links : {};
   const links = {};
-    // Queue matches by email (any case) or by the exact name, so only an email is lowercased.
+  // links.queue is from before Queue was removed: kept as it was stored (an email lowercased), never read.
   const docket = str(l.docket, 200), receipts = str(l.receipts, 100), q = str(l.queue, 200), queue = q.includes('@') ? lower(q) : q;
   if (docket) links.docket = docket;
   if (receipts) links.receipts = receipts;
@@ -171,12 +140,11 @@ export function directorySuggestions(people, dirEnv) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** A new 1:1s person for a directory person, linked to Receipts (same id), Queue (if on your team) and Docket
-    (a Docket person with the same name, ignoring case). */
+/** A new 1:1s person for a directory person, linked to Receipts (same id) and Docket (a Docket person with
+    the same name, ignoring case). */
 export function personFromDirectory(d, docket = []) {
   const links = {};
   if (d.relation === 'report') links.receipts = d.id;
-  if (d.team && !d.archived) links.queue = directoryQueueKey(d);
   const dn = docket.find(n => lower(n) === lower(d.name));
   if (dn) links.docket = dn;
   return { name: d.name, links, cadenceDays: DEFAULT_CADENCE, archived: false };
@@ -299,41 +267,6 @@ export function receiptsSection(entriesEnv, receiptsId, since, today) {
   return { state: 'ok', groups, total: list.length };
 }
 
-/* Queue's rules, mirrored from apps/queue/js/model.js (not imported): stale is no change in ADO for
-   staleDays or more; in progress is the state's category; a person matches by email, else by name. */
-const DAY = 864e5;
-const queueStaleDays = meta => (Number.isInteger(meta && meta.staleDays) && meta.staleDays >= 1 && meta.staleDays <= 90 ? meta.staleDays : 7);
-function queueMatch(item, key) {
-  const a = item && item.assignee;
-  if (!a || !key) return false;
-  // Queue's onTeam: by email when the person has one, else by the exact name.
-  return key.includes('@') ? lower(a.email) === key : a.name === key;
-}
-
-/** Queue: the person's items in the last snapshot: open, in progress, stale, changed since the last 1:1. */
-export function queueSection(snapshotEnv, settingsEnv, key, since, now) {
-  if (!key) return { state: 'unlinked' };
-  const r = readable(snapshotEnv, SOURCES.queueSnapshot);
-  if (r.state !== 'ok') return { state: r.state };
-  const s = readable(settingsEnv, SOURCES.queueSettings);
-  const staleDays = queueStaleDays(s.state === 'ok' ? s.env.meta : null);
-  const meta = r.env.meta || {};
-  const categories = meta.categories && typeof meta.categories === 'object' ? meta.categories : {};
-  const sinceMs = parseDay(since) ? parseDay(since).getTime() : 0;
-  const row = i => ({ id: String(i.id), title: oneLine(i.title).slice(0, 300), state: str(i.state, 100), type: str(i.type, 100), changed: str(i.changed, 40) });
-  const mine = r.env.items.filter(i => queueMatch(i, key));
-  const changedMs = i => Date.parse(i.changed || '');
-  return {
-    state: 'ok',
-    fetchedAt: typeof meta.fetchedAt === 'string' ? meta.fetchedAt : '',
-    staleDays,
-    open: mine.map(row),
-    inProgress: mine.filter(i => ((categories[i.type] || {})[i.state] || '') === 'InProgress').map(row),
-    stale: mine.filter(i => Number.isFinite(changedMs(i)) && Math.floor((now - changedMs(i)) / DAY) >= staleDays).map(row),
-    changed: mine.filter(i => Number.isFinite(changedMs(i)) && changedMs(i) >= sinceMs).map(row)
-  };
-}
-
 /** Last 1:1: the open follow-ups (unchecked task lines) of the previous note. */
 export function lastSection(last, text) {
   if (!last) return { state: 'none' };
@@ -343,7 +276,7 @@ export function lastSection(last, text) {
 
 /**
  * Everything for one person's prep, with no AI.
- * src: {docketTasks, receiptsEntries, queueSnapshot, queueSettings} envelopes (or null).
+ * src: {docketTasks, receiptsEntries} envelopes (or null).
  * lastText: the previous note's Markdown (or null when it could not be read).
  */
 export function buildPacket({ person, today, now, notes, lastText, src }) {
@@ -356,7 +289,6 @@ export function buildPacket({ person, today, now, notes, lastText, src }) {
     sinceFrom: s.from,
     docket: docketSection(src.docketTasks, l.docket, today),
     receipts: receiptsSection(src.receiptsEntries, l.receipts, s.since, today),
-    queue: queueSection(src.queueSnapshot, src.queueSettings, l.queue, s.since, now),
     last: lastSection(s.last, lastText)
   };
 }
@@ -371,7 +303,6 @@ export function packetSummary(p) {
     const g = p.receipts.groups;
     out.push(`Receipts: ${plural(g.win.length, 'win')}, ${g.feedback.length} feedback, ${g.growth.length} growth, ${plural(g.note.length, 'note')}`);
   }
-  if (p.queue.state === 'ok') out.push(`Queue: ${p.queue.open.length} open, ${p.queue.inProgress.length} in progress, ${p.queue.stale.length} stale, ${p.queue.changed.length} changed`);
   if (p.last.state === 'ok') out.push(`Last 1:1 (${p.last.day}): ${plural(p.last.open.length, 'open follow-up')}`);
   return out;
 }
@@ -429,14 +360,6 @@ export function packetMarkdown(p, { includeConcerns = false } = {}) {
       if (k === 'concern' && !includeConcerns) continue;
       list(KIND_LABELS[k], p.receipts.groups[k], e => `${e.date}: ${e.text}`);
     }
-  } else lines.push('- Not available.', '');
-  lines.push('## Work items (Queue)', '');
-  if (p.queue.state === 'ok') {
-    const w = i => `#${i.id} ${i.title} (${i.state})`;
-    list('In progress', p.queue.inProgress, w);
-    list(`Stale (no change in ${p.queue.staleDays} days)`, p.queue.stale, w);
-    list('Changed in the period', p.queue.changed, w);
-    list('All open', p.queue.open, w);
   } else lines.push('- Not available.', '');
   lines.push('## Last 1:1', '');
   if (p.last.state === 'ok') list(`Open follow-ups from ${p.last.day}`, p.last.open, t => t);

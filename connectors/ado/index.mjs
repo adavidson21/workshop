@@ -1,5 +1,5 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
-// Docket's ado-helper/ado_helper.py. Read actions, plus write actions for the Queue app that the agent
+// Docket's ado-helper/ado_helper.py. Read actions, plus write actions (built for the Queue app, removed Nov 4; kept for Runway's Publish) that the agent
 // only runs with `confirm: true`. See connectors/ado/README.md.
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';

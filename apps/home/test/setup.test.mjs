@@ -4,29 +4,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STEPS, adoFact, card, createSetup, factsFor, stepsFor } from '../js/setup.js';
 
-const fresh = { connected: false, ado: { state: 'browser' }, queueAreas: 0, receipts: 0, dispatch: null, startAtLogin: null, name: '', tasks: 0 };
-const all = { connected: true, ado: { state: 'ready', message: '' }, queueAreas: 2, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', tasks: 4 };
+const fresh = { connected: false, ado: { state: 'browser' }, receipts: 0, dispatch: null, startAtLogin: null, name: '', tasks: 0 };
+const all = { connected: true, ado: { state: 'ready', message: '' }, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', tasks: 4 };
 const ctx = { platform: 'win', origin: 'https://workshop.alexisdavidson.org', settings: { href: 'http://127.0.0.1:4380/apps/settings/' } };
 const states = v => Object.fromEntries(v.steps.map(s => [s.id, s.state]));
 
 test('a brand-new browser: Connect is first, steps that need Workshop wait for it', () => {
   const v = stepsFor(fresh);
-  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', ado: 'blocked', task: 'todo', queue: 'blocked', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
+  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', ado: 'blocked', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
   assert.equal(v.current, 'connect');
-  assert.deepEqual([v.finished, v.total, v.complete], [0, 6, false]);
+  assert.deepEqual([v.finished, v.total, v.complete], [0, 5, false]);
 });
 
 test('everything done: complete, nothing current', () => {
   const v = stepsFor(all);
   assert.ok(v.steps.every(s => s.state === 'done'));
-  assert.deepEqual([v.done, v.finished, v.complete, v.current], [6, 6, true, null]);
+  assert.deepEqual([v.done, v.finished, v.complete, v.current], [5, 5, true, null]);
 });
 
-test('skipping ADO skips Queue too; core done moves on to the later steps', () => {
-  const v = stepsFor({ ...all, ado: { state: 'off' }, queueAreas: 0, dispatch: 'off', startAtLogin: false }, ['ado']);
+test('skipping ADO: core done moves on to the later steps', () => {
+  const v = stepsFor({ ...all, ado: { state: 'off' }, dispatch: 'off', startAtLogin: false }, ['ado']);
   assert.equal(states(v).ado, 'skipped');
-  assert.equal(states(v).queue, 'skipped');
-  assert.equal(v.steps.find(s => s.id === 'queue').explicitSkip, false);
   assert.equal(v.complete, true);
   assert.equal(v.done, 4);
   assert.equal(v.current, 'dispatch');
@@ -34,14 +32,14 @@ test('skipping ADO skips Queue too; core done moves on to the later steps', () =
 });
 
 test('a blocked step becomes current only when nothing else core is left', () => {
-  const v = stepsFor({ ...all, ado: { state: 'noPat', patEnv: 'ADO_PAT' }, queueAreas: 0 });
+  const v = stepsFor({ ...all, ado: { state: 'noPat', patEnv: 'ADO_PAT' } });
   assert.equal(v.current, 'ado');
-  const w = stepsFor({ ...all, connected: false, ado: { state: 'browser' }, queueAreas: 0 }, ['connect']);
+  const w = stepsFor({ ...all, connected: false, ado: { state: 'browser' } }, ['connect']);
   assert.equal(states(w).ado, 'skipped', 'no Workshop, no ADO');
 });
 
 test('unknown facts (null) never tick a step', () => {
-  const v = stepsFor({ connected: true, ado: null, queueAreas: 0, receipts: 0, tasks: null, name: '' });
+  const v = stepsFor({ connected: true, ado: null, receipts: 0, tasks: null, name: '' });
   assert.equal(states(v).ado, 'todo');
   assert.equal(states(v).task, 'todo');
 });
@@ -61,7 +59,7 @@ test('adoFact turns connector info into one plain state', () => {
 
 test('the card: the current step is open with what to do next, and every command can be copied', () => {
   const { html, copies } = card(stepsFor(fresh), null, { ...ctx, facts: fresh });
-  assert.match(html, /Get started · 0 of 6/);
+  assert.match(html, /Get started · 0 of 5/);
   assert.match(html, /data-step="connect"[^>]*>\s*<button[^>]*aria-expanded="true"/);
   assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex']);
   assert.match(html, /data-copy="0"/);
@@ -88,9 +86,8 @@ test('the ADO step names the PAT variable to save and links to Settings on this 
 });
 
 test('open steps link to the right app and route; a closed card shows no bodies', () => {
-  const f = { ...all, tasks: 0, queueAreas: 0, receipts: 0 };
+  const f = { ...all, tasks: 0, receipts: 0 };
   assert.match(card(stepsFor(f), 'task', { ...ctx, facts: f }).html, /data-open="prioritizer"/);
-  assert.match(card(stepsFor(f), 'queue', { ...ctx, facts: f }).html, /data-open="queue" data-path="settings"/);
   assert.match(card(stepsFor(f), 'receipt', { ...ctx, facts: f }).html, /data-open="receipts" data-path="me"/);
   assert.ok(!card(stepsFor(f), '', { ...ctx, facts: f }).html.includes('su-body'));
   const skipped = card(stepsFor(f, ['receipt']), 'receipt', { ...ctx, facts: f }).html;
@@ -110,7 +107,6 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
     backend, mode: 'hosted', puts: [], subs: [],
     data: {
       async get(c, o) {
-        if (o && o.app === 'queue') return { meta: { areas: ['Web\\Team A'] } };
         if (o && o.app === 'receipts') return { items: [] };
         if (c === 'setup') return saved;
         return null;
@@ -128,11 +124,11 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
 
 test('factsFor reads every app and connector, and keeps going when one fails', async () => {
   const f = await factsFor(fakeWs());
-  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, queueAreas: 1, receipts: 0, dispatch: 'off', startAtLogin: false, workMode: true });
+  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, dispatch: 'off', startAtLogin: false, workMode: true });
   const ws = fakeWs({ backend: 'browser' });
   ws.data.get = async () => { throw new Error('no'); };
   const b = await factsFor(ws);
-  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, queueAreas: 0, receipts: 0, dispatch: null, startAtLogin: null, workMode: false });
+  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, dispatch: null, startAtLogin: null, workMode: false });
 });
 
 test('createSetup saves hide and skip in home.setup, merges on a conflict, and puts it back if saving fails', async () => {

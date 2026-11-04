@@ -1,6 +1,6 @@
 /* 1:1s: prep 1:1s with your direct reports.
 
-   For one person and the time since your last 1:1, gathers what Docket, Receipts and Queue already know
+   For one person and the time since your last 1:1, gathers what Docket and Receipts already know
    (read only, no AI), keeps the 1:1 note as a plain Markdown file in your Workshop folder, and after the
    meeting turns follow-ups into Docket quick-add lines and wins into Receipts offers. An optional step asks
    your opencode agents for draft talking points through the opencode connector.
@@ -10,7 +10,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { createOneOnOnes } from './data.js';
-import { APP, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, queuePeople, quickAddLines, readable, receiptsPeople, winOffers } from './model.js';
+import { APP, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, readable, receiptsPeople, winOffers } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard } from './view.js';
 
 const app = document.getElementById('app');
@@ -50,23 +50,21 @@ function packetFor(person) {
   return buildPacket({
     person, today: t, now: Date.now(), notes,
     lastText: last ? ui.lastText[last.path] ?? null : null,
-    src: { docketTasks: v.src.docketTasks, receiptsEntries: v.src.receiptsEntries, queueSnapshot: v.src.queueSnapshot, queueSettings: v.src.queueSettings }
+    src: { docketTasks: v.src.docketTasks, receiptsEntries: v.src.receiptsEntries }
   });
 }
 
-// With Workshop's people directory, the Receipts and Queue pickers list its people (as Receipts and Queue do).
+// With Workshop's people directory, the Receipts picker lists its reports (as Receipts does).
 function pickers() {
   const dir = !!directoryPeople(v.src.directory);
   return {
     docket: docketNames(v.src.docketPeople),
     receipts: receiptsPeople(v.src.receiptsPeople, v.src.directory),
-    queue: queuePeople(v.src.queueSettings, v.src.directory),
     fromDirectory: directorySuggestions(v.people, v.src.directory),
     directory: dir,
     states: {
       docket: readable(v.src.docketPeople, SOURCES.docketPeople).state,
-      receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state,
-      queue: dir ? 'ok' : readable(v.src.queueSettings, SOURCES.queueSettings).state
+      receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state
     }
   };
 }
@@ -336,7 +334,7 @@ app.addEventListener('submit', async e => {
         ...(prev || {}), id,
         name: String(data.get('name') || '').trim(),
         cadenceDays: Number(data.get('cadenceDays')),
-        links: { docket: String(data.get('docket') || ''), receipts: String(data.get('receipts') || ''), queue: String(data.get('queue') || '') },
+        links: { docket: String(data.get('docket') || ''), receipts: String(data.get('receipts') || ''), queue: (prev && prev.links.queue) || '' },
         archived: data.get('archived') === 'on'
       });
       ui.edit = null; paint();

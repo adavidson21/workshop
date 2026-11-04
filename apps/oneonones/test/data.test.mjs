@@ -12,7 +12,7 @@ test('loads its own collections and reads other apps without writing them', asyn
   await d.loadAll();
   assert.equal(d.v.loaded, true);
   assert.equal(d.v.src.docketPeople.schema, 'prioritizer.people');
-  assert.equal(d.v.src.queueSnapshot, null);
+  assert.ok(!('queueSnapshot' in d.v.src), 'Queue is no longer read');
   assert.equal(d.v.oc, true);
   assert.deepEqual(ws.puts, [], 'loading writes nothing');
 });

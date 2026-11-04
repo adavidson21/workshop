@@ -26,7 +26,7 @@ const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 const FOLDER = '<svg class="path-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2h6.6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>';
 // One line on what each connector is for. Unknown connectors show none.
 const ABOUT = {
-  ado: 'Your Azure DevOps work items and pull requests, for Docket, Queue and Home.',
+  ado: 'Your Azure DevOps work items and pull requests, for Docket and Runway.',
   opencode: 'Runs coding agents on this computer, for Dispatch.'
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
@@ -381,7 +381,7 @@ function summarize(result) {
 }
 
 /* ---------- people directory (docs/people.md) ----------
-   Settings' own collection `people`, read by Receipts, Queue and Docket. Data writes work in every mode
+   Settings' own collection `people`, read by Receipts, Docket and 1:1s. Data writes work in every mode
    (only config is read-only from a hosted site), so this card is always editable. */
 let peopleEnv = null;     // the stored envelope, or blank() before the first save
 let peopleUnreadable = false;
@@ -417,7 +417,7 @@ function personForm(p) {
     <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name)}" required></div>
     <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${rel}</select></div>
     <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${P.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
-      <p class="cfg-help">Shows in Queue's Team view and Docket's Reports.</p></div>
+      <p class="cfg-help">Shows in Docket's Reports.</p></div>
     <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity)}" placeholder="name@example.com or display name"></div>
     <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role)}"></div>
     <div class="cfg-row"><label for="pSince">Since</label><input id="pSince" name="since" type="date" class="cfg-input" value="${esc(p.since)}"></div>
@@ -436,8 +436,8 @@ function personRow(p) {
 
 async function importSources() {
   const get = async (app, c) => { try { return await ws.data.get(c, { app }); } catch (e) { return null; } };
-  const [people, config, queue] = await Promise.all([get('receipts', 'people'), get('receipts', 'config'), get('queue', 'settings')]);
-  return { receipts: { people, config }, queue };
+  const [people, config] = await Promise.all([get('receipts', 'people'), get('receipts', 'config')]);
+  return { receipts: { people, config } };
 }
 
 async function paintPeople() {
@@ -454,18 +454,18 @@ async function paintPeople() {
     ${active.length ? `<ul class="people">${active.map(personRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
     ${peopleEditing === 'new' ? `<div class="person editing">${personForm(P.cleanPerson({ id: 'new', relation: active.some(p => p.relation === 'self') ? 'report' : 'self' }))}</div>` : ''}
     <div class="acts left">${peopleEditing === 'new' ? '' : '<button class="btn primary" data-person-new>Add a person</button>'}
-      ${canImport ? `<button class="btn" data-people-import>Import from Receipts and Queue</button>` : ''}<span class="msg" aria-live="polite"></span></div>
+      ${canImport ? `<button class="btn" data-people-import>Import from Receipts</button>` : ''}<span class="msg" aria-live="polite"></span></div>
     ${canImport ? `<details class="import-preview"><summary>What the import adds (${plan.add.length + plan.update.length})</summary>
       <ul>${plan.add.map(p => `<li>Add <b>${esc(p.name)}</b> as ${esc(P.RELATION_LABEL[p.relation].toLowerCase())}${p.adoIdentity ? ` (<span class="mono">${esc(p.adoIdentity)}</span>)` : ''}${p.archived ? ', archived' : ''}</li>`).join('')}
       ${plan.update.map(u => `<li>Set ${esc(u.name)}'s Azure DevOps to <span class="mono">${esc(u.adoIdentity)}</span></li>`).join('')}</ul>
       ${plan.notes.length ? `<ul class="import-notes">${plan.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      <p class="cfg-help">Receipts and Queue keep their own lists unchanged.</p></details>` : ''}
+      <p class="cfg-help">Receipts keeps its own list unchanged.</p></details>` : ''}
     ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(personRow).join('')}</ul></details>` : ''}`;
   if (peopleEditing && sec.querySelector('#pName')) sec.querySelector('#pName').focus();
 }
 
 async function peopleCard() {
-  peopleSec = card('People', 'You, your manager, your reports and peers. Receipts, Queue and Docket use this list, so you add someone once.');
+  peopleSec = card('People', 'You, your manager, your reports and peers. Receipts, Docket and 1:1s use this list, so you add someone once.');
   peopleSec.dataset.people = '';
   peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
   try { await loadPeople(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }

@@ -74,7 +74,8 @@ test('receipts and notes', () => {
 test('questions and places', () => {
   assert.deepEqual(parseCapture('what version of .NET is the portal on?', ctx), { kind: 'ask', text: 'what version of .NET is the portal on?' });
   assert.equal(parseCapture('? where did I leave off', ctx).kind, 'ask');
-  assert.deepEqual(parseCapture('> queue', ctx), { kind: 'go', app: 'queue', text: '> queue' });
+  assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'receipts', text: '> receipts' });
+  assert.equal(parseCapture('> queue', ctx).kind, 'ask', 'Queue was removed');
   assert.equal(parseCapture('> docket', ctx).app, 'prioritizer');
   assert.equal(parseCapture('> somewhere odd', ctx).kind, 'ask');
   assert.equal(parseCapture('t is this a task?', ctx).kind, 'task', 'a prefix wins over the question mark');

@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -457,68 +457,6 @@
       }
     },
     {
-      "base": "/apps/queue/",
-      "manifest": {
-        "manifestVersion": 1,
-        "id": "queue",
-        "name": "Queue",
-        "version": "1.0.0",
-        "description": "Your team's Azure DevOps work items: triage, assign, comment and create without opening ADO.",
-        "icon": "icon.svg",
-        "entry": "index.html",
-        "order": 40,
-        "modes": [
-          "local",
-          "hosted",
-          "browser"
-        ],
-        "routes": [
-          {
-            "path": ":id",
-            "title": "Show a work item"
-          },
-          {
-            "path": "settings",
-            "title": "Queue settings"
-          }
-        ],
-        "connectors": [
-          {
-            "id": "ado",
-            "required": false
-          },
-          {
-            "id": "opencode",
-            "required": false
-          }
-        ],
-        "data": [
-          "settings",
-          "views",
-          "snapshot",
-          "seen"
-        ],
-        "commands": [
-          {
-            "id": "refresh",
-            "title": "Refresh the queue"
-          },
-          {
-            "id": "new",
-            "title": "New ADO work item"
-          }
-        ],
-        "files": [
-          "queue.css",
-          "js/main.js",
-          "js/data.js",
-          "js/model.js",
-          "js/view.js",
-          "js/sanitize.js"
-        ]
-      }
-    },
-    {
       "base": "/apps/notes/",
       "manifest": {
         "manifestVersion": 1,
@@ -571,8 +509,8 @@
         "manifestVersion": 1,
         "id": "oneonones",
         "name": "1:1s",
-        "version": "1.1.0",
-        "description": "Prep 1:1s with your direct reports from what Docket, Receipts and Queue already know. Notes stay in your Workshop folder.",
+        "version": "1.2.0",
+        "description": "Prep 1:1s with your direct reports from what Docket and Receipts already know. Notes stay in your Workshop folder.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 47,
@@ -705,7 +643,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "Connectors, people, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",

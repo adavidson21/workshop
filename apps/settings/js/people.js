@@ -63,10 +63,12 @@ export function readable(env) {
 
 const key = s => String(s || '').trim().toLowerCase();
 
-/** What an import from Receipts and Queue would do, without doing it.
-    receipts: {people, config} envelopes (or null); queue: the settings envelope (or null).
-    Returns {add: [person], update: [{id, name, adoIdentity}], notes: [text]}. Never changes the sources. */
-export function importPlan({ receipts = {}, queue = null, existing = [], now = Date.now() } = {}) {
+/** What an import from Receipts would do, without doing it.
+    receipts: {people, config} envelopes (or null).
+    Returns {add: [person], update: [{id, name, adoIdentity}], notes: [text]}. `update` is always empty
+    since Queue (the only source of ADO identities) was removed; applyPlan still accepts it. Never changes
+    the sources. */
+export function importPlan({ receipts = {}, existing = [], now = Date.now() } = {}) {
   const add = [], update = [], notes = [];
   const known = [...existing];
   const findByName = n => known.find(p => key(p.name) === key(n));
@@ -89,23 +91,6 @@ export function importPlan({ receipts = {}, queue = null, existing = [], now = D
     else { const p = cleanPerson({ name: upLabel, relation: 'manager' }, now); add.push(p); known.push(p); }
   }
 
-  const qMeta = queue && queue.schema === 'queue.settings' && queue.meta;
-  for (const q of qMeta && Array.isArray(qMeta.people) ? qMeta.people : []) {
-    const name = String((q && q.name) || '').trim();
-    const ado = String((q && q.email) || '').trim().toLowerCase() || name;
-    if (!name && !ado) continue;
-    const match = findByName(name) || known.find(p => p.adoIdentity && key(p.adoIdentity) === key(ado));
-    if (match) {
-      if (!match.adoIdentity && ado) {
-        const added = add.find(p => p.id === match.id);
-        if (added) added.adoIdentity = ado;
-        else if (!update.some(u => u.id === match.id)) update.push({ id: match.id, name: match.name, adoIdentity: ado });
-      }
-      continue;
-    }
-    const p = cleanPerson({ name: name || ado, relation: 'peer', team: true, adoIdentity: ado }, now);
-    add.push(p); known.push(p);
-  }
   return { add, update, notes };
 }
 
