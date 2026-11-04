@@ -220,8 +220,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1500)
     wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
-    check('Runway opens from the rail', wf is not None and pg.url.endswith('#/runway'))
-    if wf:
+    check('Runway is on the rail and opens', wf is not None and pg.url.endswith('#/runway'))
+    if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
+        print(f'SKIP  Runway in browser mode (no checkout in {RUNWAY}; git clone https://github.com/adavidson21/runway .remote/runway)')
+    elif wf:
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
@@ -996,8 +998,6 @@ def string_waits():
 def main():
     bad = string_waits()
     if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
-    if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
-        sys.exit(f'Runway is not checked out at {RUNWAY}. Run: git clone https://github.com/adavidson21/runway .remote/runway')
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))
