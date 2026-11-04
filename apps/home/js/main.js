@@ -7,10 +7,14 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { createHome, dayCollections } from './data.js';
 import { ICON, hbtn, profileForm, render } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
+import { startCapture } from './capture.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: 'home' });
 document.documentElement.classList.toggle('embed', ws.embedded);
+
+/* ---------- quick capture (capture.js), drawn once and never repainted, so typing is never lost ---------- */
+const capture = startCapture(ws, document.getElementById('capture'));
 
 let editing = false, visible = true;
 const home = createHome(ws, { onChange: () => paint() });
@@ -121,7 +125,11 @@ async function copyText(text, b) {
     ta.remove();
   }
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && editing) { editing = false; paint(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && editing) { editing = false; paint(); return; }
+  // "/" anywhere on Home (not while typing) jumps to quick capture.
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) { e.preventDefault(); capture.focus(); }
+});
 
 // Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
 // "overdue" change at midnight; the counts change when you work in other apps).
