@@ -14,8 +14,10 @@ if (-not $node) {
   exit 1
 }
 
-$major = [int](node -p 'process.versions.node.split(".")[0]')
-if ($major -lt 22) {
+# From "node -v" (v26.13.0), not node -p with a quoted script: Windows PowerShell 5.1 drops the inner
+# double quotes on the way to node, so that check read every version as 0.
+$ver = [version]((node -v).Trim().TrimStart('v'))
+if ($ver.Major -lt 22) {
   Write-Host "Workshop needs Node 22 or later. You have $(node -v)."
   Write-Host "Update Node from https://nodejs.org, then run this again."
   exit 1
