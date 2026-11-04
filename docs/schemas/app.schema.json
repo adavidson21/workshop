@@ -44,6 +44,10 @@
       "type": "boolean",
       "description": "The home page: opened by the Workshop logo and the plain address, and not shown as a rail button. The first app with home: true wins."
     },
+    "background": {
+      "type": "boolean",
+      "description": "Load this app when Workshop opens, hidden, instead of on first visit, so it can keep a status in the top bar (ws.status) from the start."
+    },
     "modes": {
       "type": "array",
       "items": {

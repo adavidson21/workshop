@@ -95,3 +95,34 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
   .crumbs a:not(.ws),.crumbs a:not(.ws)+span{display:none}
   .toast{bottom:4.75rem}
 }
+
+/* status: an app's one line in the top bar (Docket's running task), on every app */
+.wstatus{flex:0 1 auto;min-width:0;margin-left:auto;display:flex;align-items:center;gap:.5rem;padding:.3rem .35rem .3rem .75rem;border-radius:999px;
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line))}
+.wstatus[hidden]{display:none}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;animation:wspulse 1.4s ease-in-out infinite}
+@keyframes wspulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.ws-dot{animation:none}}
+.ws-text{display:flex;align-items:baseline;gap:.5rem;min-width:0;max-width:34rem;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.ws-text:hover .ws-main{text-decoration:underline}
+.ws-app{flex:none;font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.ws-main{min-width:0;font-weight:600;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-detail{min-width:0;color:var(--muted);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 2 auto}
+.ws-time{flex:none;font:500 .76rem/1 var(--mono);color:var(--muted);padding:.22rem .45rem;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.ws-acts{display:flex;align-items:center;gap:.3rem;flex:none}
+.ws-act{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;height:30px;min-width:30px;padding:0 .7rem;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .82rem var(--sans);cursor:pointer}
+.ws-act.icon{padding:0;width:30px;color:var(--muted)}
+.ws-act.icon:hover{color:var(--ink)}
+.ws-act.primary{padding:0;width:30px;background:var(--accent);border-color:transparent;color:var(--on-accent)}
+.ws-act svg{width:15px;height:15px}
+.ws-act:hover{border-color:var(--muted)}
+.ws-act:focus-visible,.ws-text:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.topbar .theme-toggle{margin-left:.25rem}
+.ws-prompt{position:fixed;z-index:60;top:64px;right:20px;width:min(26rem,calc(100vw - 32px));display:flex;flex-direction:column;gap:.55rem;padding:.9rem;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.ws-ptitle{font-weight:600}
+.ws-prompt input{font:inherit;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.ws-prompt .acts{display:flex;align-items:center;gap:.4rem}
+.ws-prompt .hint{flex:1;color:var(--muted);font-size:.78rem}
+@media (max-width:900px){ .ws-detail{display:none} .ws-app{display:none} }
+@media (max-width:640px){ .ws-time{display:none} .ws-text{max-width:9rem} }

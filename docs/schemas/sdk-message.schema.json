@@ -336,6 +336,149 @@
         "workshop",
         "kind",
         "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "status.set"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "detail": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "since": {
+              "type": "string",
+              "format": "date-time",
+              "maxLength": 40
+            },
+            "route": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "actions": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "label",
+                  "command"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "command": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,39}$"
+                  },
+                  "icon": {
+                    "enum": [
+                      "pause",
+                      "play",
+                      "done",
+                      "note",
+                      "bolt"
+                    ]
+                  },
+                  "primary": {
+                    "type": "boolean"
+                  },
+                  "prompt": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "title"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "placeholder": {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "maxLength": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      },
+                      "skip": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "status.clear"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
         "ok"
       ],
       "properties": {
@@ -483,6 +626,10 @@
             "id": {
               "type": "string",
               "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 1000
             }
           }
         }
