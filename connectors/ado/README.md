@@ -71,7 +71,7 @@ Errors are plain words with a code: `bad_request` (settings or arguments), `not_
 
 ## Doctor
 
-`workshop doctor ado` once WS7 adds the `workshop` command. Until then:
+`workshop doctor ado` runs these checks. The same script also runs on its own:
 
 ```
 node connectors/ado/doctor.mjs                 # check each connection and its PAT expiry, list what a sync finds (the helper's --test)

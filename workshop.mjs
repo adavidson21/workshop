@@ -514,9 +514,12 @@ export function checkoutTag(dir, tag, out) {
 }
 
 /** The release tags in a checkout, newest version first. */
+// Release tags are v<version> (Workshop, Docket) or core-v<version> (eng-agents). Other tags, such as a
+// docket-android build tag, are never offered as releases.
+export const isReleaseTag = t => validTag(t) && /^(core-)?v\d+(\.\d+)*$/.test(t);
 export function listTags(dir, max = 5) {
   const r = git(dir, ['tag', '--list', '--sort=-v:refname']);
-  return r.code === 0 ? r.out.split('\n').filter(t => validTag(t)).slice(0, max) : [];
+  return r.code === 0 ? r.out.split('\n').filter(isReleaseTag).slice(0, max) : [];
 }
 
 /** The Docket checkout the pinned copy is built from: <repo>/.remote/prioritizer, else a docket folder next to the repo. */

@@ -1,6 +1,7 @@
 # Install Workshop on Windows, per user, no admin rights.
 # It checks Node and creates %USERPROFILE%\.workshop. Start at login stays off unless you pass -Login.
-# Run it from PowerShell:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1   [-Login]
+# Run it from PowerShell:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1   [-Login] [-WorkMode]
+# -WorkMode turns on work mode and builds the pinned copy from the docket folder next to Workshop (README.md, Work mode).
 #Requires -Version 5
 $ErrorActionPreference = 'Stop'
 
@@ -21,15 +22,36 @@ if ($major -lt 22) {
 }
 Write-Host "Node $(node -v): ok."
 
-# -Login on this script becomes --login for the workshop command.
+# -Login and -WorkMode on this script become --login and --work-mode for the workshop command.
 $extra = @()
 if ($args -contains '-Login' -or $args -contains '--login') { $extra += '--login' }
+$work = $args -contains '-WorkMode' -or $args -contains '--work-mode'
+if ($work) { $extra += '--work-mode' }
 
-# Create the data folder (and turn on start at login with -Login).
+# Create the data folder (and turn on start at login with -Login, work mode with -WorkMode).
 node "$repo\workshop.mjs" install @extra
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($work) {
+  node "$repo\workshop.mjs" pin
+  if ($LASTEXITCODE -ne 0) { Write-Host "Building the pinned copy failed. See the messages above."; exit $LASTEXITCODE }
+}
+
+# A workshop command for new PowerShell windows (workshop start, workshop doctor, and so on), like the one-line installer.
+$binDir = Join-Path $env:USERPROFILE '.workshop\bin'
+New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+$nodeExe = (Get-Command node).Source
+Set-Content -Encoding ASCII -Path (Join-Path $binDir 'workshop.cmd') -Value "@`"$nodeExe`" `"$repo\workshop.mjs`" %*"
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (@($userPath -split ';') -notcontains $binDir) { [Environment]::SetEnvironmentVariable('Path', (@($binDir) + @($userPath -split ';' | Where-Object { $_ })) -join ';', 'User') }
 
 Write-Host ""
-Write-Host "Start Workshop now with:  node `"$repo\workshop.mjs`" start"
-Write-Host "Then open the address it prints in Chrome or Edge on this computer, to sign in."
-Write-Host "After that, open https://workshop.alexisdavidson.org in the same browser and click Connect."
+Write-Host "Added the workshop command. Open a new PowerShell window to use it, or use node `"$repo\workshop.mjs`" until then."
+Write-Host "Start Workshop now with:  workshop start"
+if ($work) {
+  Write-Host "Then run:  workshop open   Workshop opens on this computer from the pinned copy. There is no Connect step in work mode."
+  Write-Host "Finish with:  workshop doctor   and continue when it ends with: Result: all good."
+} else {
+  Write-Host "Then open the address it prints in Chrome or Edge on this computer, to sign in."
+  Write-Host "After that, open https://workshop.alexisdavidson.org in the same browser and click Connect."
+}
 Write-Host "See docs/security.md for what Workshop stores and where."

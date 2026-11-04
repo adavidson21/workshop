@@ -138,6 +138,7 @@ function detail(s, ctx) {
   }
   switch (s.id) {
     case 'connect': {
+      if (f.workMode) return `<p>Work mode is on: Workshop runs from the pinned copy on this computer, so there is nothing to connect. Open it with <code>workshop open</code> and check it with <code>workshop doctor</code>.</p>`;
       const site = /^https:\/\//.test(ctx.origin || '') ? ctx.origin : 'https://workshop.alexisdavidson.org';
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
@@ -178,7 +179,7 @@ function detail(s, ctx) {
       return `<p>Receipts keeps evidence of your and your team's work for reviews. Add one thing you did this week.</p><p>${btn('Open Receipts', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: run the installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
+        ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in the README (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
         : `<p>Dispatch runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; Dispatch's own setup guide walks you through it.</p><p>${btn('Open Dispatch', 'data-open="agents"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere}, or run:</p>${copy('workshop install --login')}<p>${settingsBtn()}</p>`;
