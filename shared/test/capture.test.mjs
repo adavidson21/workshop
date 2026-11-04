@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describe, findPeople, isCapture, nextKind, parseCapture, parseDay, parseLines, retarget, toHandoff } from '../capture.js';
+import { describe, findMap, findPeople, isCapture, nextKind, parseCapture, parseDay, parseLines, retarget, toHandoff } from '../capture.js';
 
 const people = [
   { id: 'p_me', name: 'Sam Self', relation: 'self' },
@@ -92,7 +92,8 @@ test('parseLines, retarget, nextKind, isCapture', () => {
   const r = retarget(ps[0], 'receipt', ctx);
   assert.equal(r.to, 'receipts');
   assert.equal(nextKind('task'), 'waiting');
-  assert.equal(nextKind('note'), 'task');
+  assert.equal(nextKind('note'), 'idea');
+  assert.equal(nextKind('idea'), 'task');
 });
 
 test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
@@ -125,4 +126,21 @@ test('handoff matches the docs schema', async () => {
     h.updatedAt = 1;
     assert.deepEqual(schemas.validate('handoff-item', h), [], line);
   }
+});
+
+test('p: a roadmap idea for Runway, to a named roadmap or Pending', () => {
+  const c = { ...ctx, maps: [{ id: 'm-docs', title: 'Docs Portal' }, { id: 'm-plat', title: 'Platform Q1' }, { id: 'm-plat2', title: 'Platform Q2' }] };
+  assert.deepEqual(parseCapture('p bug: search shows archived pages', c),
+    { kind: 'idea', to: 'runway', text: 'Bug: search shows archived pages', title: 'Bug: search shows archived pages', payload: { kind: 'idea' } }, 'no roadmap called bug: Pending');
+  const w = parseCapture('p docs portal: dark mode', c);
+  assert.deepEqual(w.payload, { kind: 'idea', map: 'm-docs', mapTitle: 'Docs Portal' });
+  assert.equal(w.text, 'Dark mode');
+  assert.equal(parseCapture('idea: docs: offline reading', c).payload.map, 'm-docs', 'the start of one title matches');
+  assert.equal(findMap('platform: x', c.maps), null, 'two titles start with it');
+  assert.equal(parseCapture('p platform q2: x', c).payload.map, 'm-plat2');
+  assert.equal(describe(w), 'Runway · Docs Portal, unscheduled');
+  assert.equal(describe(parseCapture('p something', c)), 'Runway · Pending assignment');
+  assert.equal(retarget(parseCapture('send the deck', c), 'idea', c).kind, 'idea');
+  const h = toHandoff(w, { sender: 'home', id: 'c_x', now: new Date('2026-11-04T21:00:00Z') });
+  assert.equal(h.to, 'runway'); assert.equal(h.accepted, true); assert.equal(h.payload.map, 'm-docs');
 });

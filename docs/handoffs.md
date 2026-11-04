@@ -53,6 +53,7 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 | `prioritizer` (Docket) | any app; accepted-ready for `task` | `kind`: `task`. Adds a task like Docket's Quick add: `title` (1 to 300 characters; the offer's `text` is the fallback), optional `list` (a list name, matched without case; otherwise Docket's default list), `people` (names, up to 10), `waiting` (`true` for "waiting on"), `due` (`YYYY-MM-DD`), `urgent` (`true`), `value` (1 to 4), `effort` (`XS` to `XL`), `notes`. Text is never parsed as Quick add syntax. |
 | `prioritizer` (Docket) | any app | `kind`: `every-sprint`. `title` (1 to 300 characters; the offer's `text` is the fallback), `dueDay` (1 to 60) or `last: true`, optional `planKind` (a Day view block kind), `value` (1 to 4), `effort` (`XS` to `XL`), `notes`. Accepting adds an every-sprint task in the Day view's settings. An offer whose `source.id` matches one already accepted updates that item instead of adding another. `date` is the day it was offered. |
 | `notes` | any app; accepted-ready for `note` | `kind`: `note`. From `home`: adds the offer's `text` as a bullet in the pinned Quick Notes note (`quick-notes.md`), newest first under a `## YYYY-MM-DD` heading for the offer's `date`. From any other app: adds a note in Notes' `inbox/` folder, `title` (1 to 120 characters; the first line of the offer's `text` is the fallback) and the offer's `text` as its body. |
+| `runway` (Runway) | `home`, `agents`; accepted-ready for `idea` | `kind`: `idea`. A feature, bug or other thought for a roadmap; the offer's `text` is the idea (first line its title, the rest its description). Optional `map`: a roadmap id from Runway's `index` (and `mapTitle`, its name, for display); the idea becomes an unscheduled item in that roadmap. Without one, or with a roadmap Runway does not have, it waits on Runway's Pending assignment list until it is assigned. |
 
 ## Senders
 
@@ -60,5 +61,5 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 | --- | --- |
 | `prioritizer` (Docket) | Receipts from Wrap up. |
 | `oneonones` (1:1s, retired) | Wins to Receipts. 1:1s is part of Rapport since 2.0.0 and writes no offers; Rapport still reads offers left in `oneonones.handoffs` until they are handled. |
-| `home` | Accepted captures from quick capture ([hub.md](hub.md)) to Docket, Receipts and Notes. |
+| `home` | Accepted captures from quick capture ([hub.md](hub.md)) to Docket, Receipts, Notes and Runway. |
 | `agents` (Dispatch) | Accepted captures from the hub ([hub.md](hub.md)) to Docket, Receipts and Notes. |

@@ -1,6 +1,6 @@
 # Hub
 
-The hub is one input for everything: capture a task, receipt or note, ask a question about your repos or your work, go to an app, or start an action. It lives on the Dispatch page and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub.
+The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives on the Dispatch page and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub.
 
 This contract covers the two files Workshop and Tandem pass between them, `request.md` and `route.json`, and how captures reach other apps.
 
@@ -84,7 +84,9 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 
 ## Captures
 
-The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport and Notes add it when they next load. No app writes another app's data.
+The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
+
+Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
 
 ## Rules
 
