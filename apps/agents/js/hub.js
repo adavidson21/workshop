@@ -1,0 +1,263 @@
+/* Dispatch: the hub (docs/hub.md). One input at the top of Dispatch for everything: captures, questions about your
+   repos and work, places to go, and suggested actions. Each message goes to Tandem's /hub through the opencode
+   connector (hub.run, write: true, Enter is the click) and the result is read back with hub.result.
+
+   Drawn once into #hub and never repainted by main.js, so typing is never lost.
+
+   - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
+     changed (Tab) or dismissed. Accepted captures go to Dispatch's own `handoffs` collection with accepted: true
+     (shared/capture-box.js); Docket, Receipts and Notes add them when they load. Nothing else is written.
+   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note.
+   - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
+   - clarify: chips that send the message again with the choice.
+   Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
+
+   When the hub cannot reach Tandem (browser mode, the connector or its Hub setting off, no /hub command), the box
+   still captures with the same rules as Home's quick capture, and questions say how to turn the hub on. */
+import { createCaptureStore } from '../../../shared/capture-box.js';
+import { describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
+import { actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, toProposal } from './hub-model.js';
+
+const OC = 'opencode';
+const POLL_MS = 1500;
+const GIVE_UP_MS = 10 * 60 * 1000;
+const KEEP_CARDS = 12;
+const APP_NAMES = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Receipts', queue: 'Queue', notes: 'Notes', oneonones: '1:1s', runway: 'Runway', settings: 'Settings', home: 'Home' };
+
+export function startHub(ws, root) {
+  const store = createCaptureStore(ws, { sender: 'agents' });
+  const cards = [];             // newest first: {id, text, state, route, answer, error, session, rows, at}
+  let src = {}, status = { ready: false, why: 'Checking the hub...' };
+
+  root.classList.add('hub');
+  root.innerHTML = `
+    <label class="cap-line hub-line"><span class="cap-prompt" aria-hidden="true">&gt;</span>
+      <input class="cap-in" type="text" autocomplete="off" aria-label="Hub: ask Tandem or capture" placeholder="Ask about your repos and work, or capture a task, receipt or note"></label>
+    <p class="hub-status" aria-live="polite"></p>
+    <div class="hub-cards"></div>`;
+  const input = root.querySelector('.cap-in');
+  const statusEl = root.querySelector('.hub-status');
+  const list = root.querySelector('.hub-cards');
+
+  /* ---------- what is available ---------- */
+  async function check() {
+    if (ws.backend !== 'agent') { status = { ready: false, why: 'The hub needs Workshop on this computer. Captures still work here, with simple rules.' }; return draw(); }
+    try {
+      const c = (await ws.connectors.list()).find(x => x.id === OC);
+      if (!c || c.status.state === 'disabled') status = { ready: false, why: 'Turn on the opencode connector in Settings to ask Tandem. Captures still work here, with simple rules.' };
+      else if (c.status.state !== 'ready') status = { ready: false, why: c.status.message || 'The opencode connector is not ready yet.' };
+      else {
+        let on = false;
+        try { const cfg = await ws.connectors.getConfig(OC); on = !!(cfg && cfg.config && cfg.config.hub === true); } catch (e) { on = false; }
+        status = on ? { ready: true, why: '' } : { ready: false, why: 'The hub is off. Turn on Hub in the opencode connector’s settings, in Workshop on this computer. Captures still work here, with simple rules.' };
+      }
+    } catch (e) { status = { ready: false, why: "Couldn't reach Workshop on this computer." }; }
+    draw();
+  }
+  async function readContext() {
+    const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
+    const [people, lists, queue] = await Promise.all([get('people', 'settings'), get('lists', 'prioritizer'), get('settings', 'queue')]);
+    src = { people, lists, queue };
+  }
+  const rulesCtx = () => {
+    const c = hubContext(src), d = new Date();
+    return { today: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10), people: c.people, lists: c.lists };
+  };
+
+  /* ---------- sending ---------- */
+  async function send(text) {
+    text = String(text || '').trim();
+    if (!text) return;
+    if (!status.ready) return rulesOnly(text);
+    const card = { id: hubId(), text, state: 'running', at: Date.now(), rows: [] };
+    cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
+    draw();
+    try {
+      const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, context: hubContext(src) }, { confirm: true });
+      card.session = r && r.session;
+      poll(card);
+    } catch (e) {
+      card.state = 'failed';
+      card.error = /no \/hub command/.test(e.message || '') ? 'Tandem has no /hub yet. Run the Tandem install command again (eng-agents Core 2.9.0), then restart opencode.' : (e.message || 'The hub could not start.');
+      draw();
+    }
+  }
+  function poll(card) {
+    const tick = async () => {
+      if (card.state !== 'running') return;
+      try {
+        const r = await ws.connectors.call(OC, 'hub.result', { id: card.id });
+        if (r.route) {
+          const route = checkRoute(r.route);
+          if (!route) { card.state = 'failed'; card.error = 'The hub could not read the answer. Check its session below.'; return draw(); }
+          if (!card.route) arrive(card, route);
+        }
+        if (r.state === 'done') { card.state = 'done'; card.answer = r.answer || ''; }
+        else if (r.state === 'routed') card.state = card.route && card.route.intent === 'ask' ? 'noanswer' : 'done';
+        else if (r.state === 'failed') { card.state = 'failed'; card.error = r.error; }
+        else if (r.state === 'none') { card.state = 'failed'; card.error = 'Workshop restarted before the hub finished. Send it again.'; }
+      } catch (e) { /* try again */ }
+      draw();
+      if (card.state === 'running') {
+        if (Date.now() - card.at > GIVE_UP_MS) { card.state = 'failed'; card.error = 'Still running after 10 minutes. Check its session below.'; draw(); }
+        else setTimeout(tick, POLL_MS);
+      }
+    };
+    setTimeout(tick, 400);
+  }
+  // A route arrived: captures become review rows, go opens the app.
+  function arrive(card, route) {
+    card.route = route;
+    if (route.intent === 'capture') card.rows = route.proposals.map(p => ({ p: toProposal(p), state: 'open' }));
+    if (route.intent === 'go') ws.open(route.go.path ? { app: route.go.app, path: route.go.path } : { app: route.go.app });
+  }
+  // No Tandem: the same rules as Home's quick capture.
+  function rulesOnly(text) {
+    const p = parseCapture(text, rulesCtx());
+    if (!p) return;
+    if (p.kind === 'go') { ws.open({ app: p.app }); return; }
+    const card = { id: hubId(), text, at: Date.now(), state: 'rules', rows: [] };
+    if (p.kind === 'ask') { card.state = 'failed'; card.error = status.why || 'Turn on the hub to ask Tandem.'; }
+    else card.rows = [{ p, state: 'open' }];
+    cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
+    draw();
+  }
+
+  /* ---------- review ---------- */
+  async function accept(card, idxs) {
+    const rows = idxs.map(i => card.rows[i]).filter(r => r && r.state === 'open' && isCapture(r.p));
+    if (!rows.length) return;
+    try {
+      const sent = await store.send(rows.map(r => r.p));
+      rows.forEach((r, i) => { r.state = 'sent'; r.hid = sent[i] && sent[i].id; });
+      ws.toast(rows.length === 1 ? `Sent to ${describe(rows[0].p).split(' · ')[0]}` : `${rows.length} captures sent`, { kind: 'success' });
+    } catch (e) { ws.toast(e && e.code === 'unavailable' ? 'Allow Workshop to use your folder first.' : "Couldn't save that. Try again.", { kind: 'error' }); }
+    draw();
+  }
+  async function undo(card, i) {
+    const r = card.rows[i];
+    if (!r || r.state !== 'sent' || !r.hid) return;
+    try { await store.withdraw(r.hid); r.state = 'open'; r.hid = null; ws.toast('Withdrawn. If the app already added it, remove it there too.'); }
+    catch (e) { ws.toast("Couldn't undo that.", { kind: 'error' }); }
+    draw();
+  }
+  async function runAct(card) {
+    const a = card.route && card.route.act;
+    if (!actAllowed(a)) return;
+    if (!window.confirm(`${a.label}?\n\nThis starts work in Tandem.`)) return;
+    try { await ws.connectors.call(a.connector, a.action, a.args, { confirm: true }); ws.toast('Started. It shows below.', { kind: 'success' }); card.acted = true; }
+    catch (e) { ws.toast(e.message || 'Could not start that.', { kind: 'error' }); }
+    draw();
+  }
+  async function spike(card) {
+    if (!window.confirm(`Start a spike on "${card.text}"?\n\nThe investigator reads code and writes findings in .work. It changes no code.`)) return;
+    try { await ws.connectors.call(OC, 'spike', { topic: card.text.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. It shows below.', { kind: 'success' }); }
+    catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
+  }
+  async function saveNote(card) {
+    const body = `${card.text}\n\n${card.answer || ''}`.trim();
+    const p = { kind: 'note', to: 'notes', text: body.slice(0, 2000), title: card.text.slice(0, 120), payload: { kind: 'note', title: card.text.slice(0, 120) } };
+    try { await store.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
+  }
+
+  /* ---------- drawing ---------- */
+  function rowHtml(card, r, i) {
+    const low = isLow(r.p) ? ' <span class="hub-low" title="The hub was not sure. Check it.">check this</span>' : '';
+    const why = r.p.reason ? `<span class="hub-why">${esc(r.p.reason)}</span>` : '';
+    const btns = r.state === 'sent'
+      ? `<span class="hub-sent">Sent</span><button class="btn ghost" type="button" data-hub-undo="${i}">Undo</button>`
+      : r.state === 'dismissed' ? '<span class="hub-sent">Dismissed</span>'
+      : r.state === 'edit' ? `<input class="hub-edit" value="${esc(r.p.text)}" data-hub-editbox="${i}" aria-label="Edit the capture"><button class="btn" type="button" data-hub-save="${i}">Save</button>`
+      : `<button class="btn primary" type="button" data-hub-accept="${i}">Accept</button><button class="btn ghost" type="button" data-hub-edit="${i}" title="Edit (e)">Edit</button><button class="btn ghost" type="button" data-hub-kind="${i}" title="Change what it is">Change</button><button class="btn ghost" type="button" data-hub-dismiss="${i}">Dismiss</button>`;
+    return `<li class="hub-row ${r.state}"><span class="cap-tag">${esc(describe(r.p))}</span><span class="cap-text">${esc(r.p.title || r.p.text)}${low}</span>${why}<span class="hub-btns">${btns}</span></li>`;
+  }
+  function cardHtml(card, ci) {
+    const head = `<header><span class="hub-q">${esc(card.text)}</span><span class="hub-state">${card.state === 'running' ? (card.route && card.route.intent === 'ask' ? 'Answering...' : 'Thinking...') : card.state === 'rules' ? 'Captured with rules' : ''}</span></header>`;
+    let body = '';
+    const route = card.route;
+    if (card.rows.length) {
+      const open = card.rows.filter(r => r.state === 'open').length;
+      body += `<ul class="hub-rows">${card.rows.map((r, i) => rowHtml(card, r, i)).join('')}</ul>` +
+        (open > 1 ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-all>Accept all ${open}</button></p>` : '');
+    }
+    if (route && route.intent === 'ask') {
+      body += card.answer != null ? `<div class="hub-answer">${answerHtml(card.answer)}</div>` : '';
+      if (route.ask.repos.length) body += `<p class="hub-meta">Looked in ${route.ask.repos.map(esc).join(', ')}</p>`;
+      if (card.state === 'done') body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
+      if (card.state === 'noanswer') body += '<p class="hub-meta">The hub ended without an answer. Check its session below, or ask again.</p>';
+    }
+    if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(APP_NAMES[route.go.app] || route.go.app)}.</p>`;
+    if (route && route.intent === 'act') {
+      body += actAllowed(route.act)
+        ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-act ${card.acted ? 'disabled' : ''}>${esc(route.act.label)}</button></p>`
+        : `<p class="hub-meta">Suggested: ${esc(route.act.label)}. Dispatch does not run that from the hub.</p>`;
+    }
+    if (route && route.intent === 'clarify') {
+      body += `<p class="hub-ask">${esc(route.clarify.question)}</p><p class="hub-actions">${route.clarify.choices.map((c, i) => `<button class="btn" type="button" data-hub-choice="${i}">${esc(c)}</button>`).join('')}</p>`;
+    }
+    if (card.error) body += `<p class="hub-error">${esc(card.error)}</p>`;
+    return `<article class="hub-card" data-card="${ci}">${head}${body}</article>`;
+  }
+  function draw() {
+    statusEl.textContent = status.ready ? 'Enter sends to Tandem. Captures wait for you to accept them; nothing changes in Azure DevOps or git.' : status.why;
+    statusEl.classList.toggle('off', !status.ready);
+    list.innerHTML = cards.map(cardHtml).join('');
+  }
+
+  /* ---------- input ---------- */
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = input.value; input.value = ''; send(t); return; }
+    if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; }
+  });
+  root.addEventListener('click', e => {
+    const el = e.target.closest('button,[data-hub-editbox]');
+    if (!el || el.tagName !== 'BUTTON') return;
+    const card = cards[+(el.closest('[data-card]') || {}).dataset?.card];
+    if (!card) return;
+    const d = el.dataset;
+    if (d.hubAccept != null) accept(card, [+d.hubAccept]);
+    else if (d.hubAll != null) accept(card, card.rows.map((_, i) => i));
+    else if (d.hubUndo != null) undo(card, +d.hubUndo);
+    else if (d.hubDismiss != null) { card.rows[+d.hubDismiss].state = 'dismissed'; draw(); }
+    else if (d.hubEdit != null) { card.rows[+d.hubEdit].state = 'edit'; draw(); const b = root.querySelector(`[data-card="${cards.indexOf(card)}"] [data-hub-editbox]`); if (b) b.focus(); }
+    else if (d.hubSave != null) saveEdit(card, +d.hubSave);
+    else if (d.hubKind != null) { const r = card.rows[+d.hubKind]; r.p = { ...retarget(r.p, nextKind(r.p.kind), rulesCtx()), confidence: r.p.confidence, reason: r.p.reason }; draw(); }
+    else if (d.hubAct != null) runAct(card);
+    else if (d.hubSpike != null) spike(card);
+    else if (d.hubNote != null) saveNote(card);
+    else if (d.hubChoice != null) send(`${card.text} (${card.route.clarify.choices[+d.hubChoice]})`);
+  });
+  function saveEdit(card, i) {
+    const box = root.querySelector(`[data-card="${cards.indexOf(card)}"] [data-hub-editbox="${i}"]`);
+    const r = card.rows[i];
+    if (!box || !r) return;
+    const text = box.value.trim();
+    if (text) {
+      const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ' }[r.p.kind] || '';
+      const again = parseCapture(prefix + text, rulesCtx());
+      // Keep what Tandem filled in that the words do not change (people, value, about), then the new text.
+      if (again) r.p = { ...again, payload: { ...r.p.payload, ...again.payload, title: again.payload.title || again.title }, confidence: r.p.confidence, reason: r.p.reason };
+    }
+    r.state = 'open';
+    draw();
+  }
+  root.addEventListener('keydown', e => {
+    const box = e.target.closest && e.target.closest('[data-hub-editbox]');
+    if (box && e.key === 'Enter') { e.preventDefault(); const card = cards[+box.closest('[data-card]').dataset.card]; saveEdit(card, +box.dataset.hubEditbox); }
+  });
+
+  readContext();
+  ws.data.subscribe('people', readContext, { app: 'settings' });
+  ws.data.subscribe('lists', readContext, { app: 'prioritizer' });
+  ws.data.subscribe('settings', readContext, { app: 'queue' });
+  if (ws.backend === 'agent') { ws.connectors.onStatus(OC, check); ws.on('online', p => { if (p && p.online) check(); }); }
+  store.load().catch(() => {});
+  check();
+
+  return {
+    focus: () => input.focus(),
+    /* From Home (#/agents/hub/<text>): Enter was pressed there, so the message is sent. */
+    async ask(text) { await check(); input.value = ''; send(text); input.focus(); },
+    check
+  };
+}

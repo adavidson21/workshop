@@ -9,6 +9,7 @@
 import { S } from './state.js';
 import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
 import { reviewsHtml, isReviewSession } from './pr-reviews.js';
+import { isHubCommand } from './hub-model.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -1086,7 +1087,9 @@ export function looseSessions() {
   return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
 }
 function looseHtml() {
-  const list = looseSessions().filter(o => !isReviewSession(o)); // PR reviews show on their own page (pr-reviews.js)
+  // PR reviews show on their own page (pr-reviews.js). Hub sessions (hub.js) show only while they wait for you.
+  const waits = o => L().permissions.some(p => p.sessionID === o.session) || L().questions.some(q => q.sessionID === o.session);
+  const list = looseSessions().filter(o => !isReviewSession(o) && (!isHubCommand(o.command) || waits(o)));
   if (!list.length) return '';
   return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
     list.map(o => {

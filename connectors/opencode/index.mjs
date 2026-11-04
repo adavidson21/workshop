@@ -21,6 +21,7 @@ import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
+import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 
 export const configSchema = {
   type: "object",
@@ -100,6 +101,12 @@ export const configSchema = {
         },
       },
     },
+    hub: {
+      type: "boolean",
+      title: "Hub",
+      description: "Let the hub on Dispatch's page send your messages to Tandem's /hub (eng-agents Core 2.9.0), with your people, Docket list and Queue area names. Answers come from your AI provider. Off: Home's quick capture still works, with no AI.",
+      default: false,
+    },
     pollSeconds: {
       type: "integer",
       title: "Re-read git state every (seconds)",
@@ -143,6 +150,7 @@ function resetAll() {
   resetReview();
   resetPrQueue();
   resetOneOnOnes();
+  resetHub();
 }
 
 async function init() {
@@ -381,6 +389,39 @@ const actions = {
     async run(args) {
       needReady();
       return oneOnOneResult(args);
+    },
+  },
+  "hub.run": {
+    title: "Send a hub message to Tandem (/hub, read only)",
+    write: true,
+    argsSchema: obj(["id", "text"], {
+      id: str("Hub request id", { pattern: HUB_ID.source }),
+      text: str("The message", { minLength: 1, maxLength: MAX_MESSAGE }),
+      context: {
+        type: "object",
+        title: "Names Tandem may use",
+        additionalProperties: false,
+        properties: {
+          people: { type: "array", maxItems: 200, items: { type: "object", additionalProperties: false, required: ["id", "name"], properties: {
+            id: str("Person id", { minLength: 1, maxLength: 110 }), name: str("Name", { minLength: 1, maxLength: 200 }),
+            relation: { type: "string", title: "Relation", enum: ["self", "report", "manager", "peer"] }, team: { type: "boolean", title: "On my team" } } } },
+          lists: { type: "array", maxItems: 200, items: str("Docket list", { maxLength: 120 }) },
+          areas: { type: "array", maxItems: 200, items: str("Queue area", { maxLength: 300 }) },
+        },
+      },
+    }),
+    async run(args) {
+      needReady();
+      return runHub(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "hub.result": {
+    title: "What Tandem made of a hub message, if it is ready",
+    write: false,
+    argsSchema: obj(["id"], { id: str("Hub request id", { pattern: HUB_ID.source }) }),
+    async run(args) {
+      needReady();
+      return hubResult(args, { config: ctxRef && ctxRef.config });
     },
   },
   "repo.add": {
