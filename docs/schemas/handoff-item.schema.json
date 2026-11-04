@@ -12,6 +12,7 @@
     "createdAt": {"$ref": "common.schema.json#/$defs/isoTime"},
     "text": {"type": "string", "minLength": 1, "maxLength": 2000},
     "payload": {"type": "object", "description": "Extra fields in a shape the receiver documents. Receivers ignore fields they do not know."},
+    "accepted": {"type": "boolean", "description": "True when the person already accepted the item in the sender (handoffs.md, rule 4). Missing or false: an ordinary offer."},
     "source": {
       "type": "object",
       "required": ["app"],
