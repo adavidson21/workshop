@@ -36,11 +36,71 @@ const readOnly = ws.mode === 'hosted';
 const content = $('#content');
 
 function toast(text, kind) { return ws.toast(text, { kind }); }
-function card(title, sub) {
+
+/* ---------- tabs ----------
+   General, one tab per connector (from the connector list, so a new connector gets its own tab), People,
+   Data. Each tab is a panel in #content; cards go into the panel named when they are made. The last tab
+   opened is remembered in this browser. */
+const tabsEl = $('#tabs');
+const TAB_KEY = 'workshop.settings.tab';
+const TAB_ORDER = { general: 0, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
+let wantTab = 'general';
+try { wantTab = localStorage.getItem(TAB_KEY) || 'general'; } catch (e) { /* storage blocked: start on General */ }
+
+function selectTab(id, remember) {
+  for (const b of tabsEl.querySelectorAll('[role=tab]')) {
+    const on = b.dataset.tab === id;
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;
+    $(`#panel-${b.dataset.tab}`).hidden = !on;
+  }
+  if (remember) { wantTab = id; try { localStorage.setItem(TAB_KEY, id); } catch (e) { /* not remembered */ } }
+}
+function panel(id, label, order) {
+  let p = $(`#panel-${id}`);
+  if (p) return p;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tab';
+  btn.id = `tab-${id}`;
+  btn.dataset.tab = id;
+  btn.dataset.order = order;
+  btn.setAttribute('role', 'tab');
+  btn.setAttribute('aria-controls', `panel-${id}`);
+  btn.innerHTML = `<span>${esc(label)}</span>`;
+  const after = [...tabsEl.children].find(b => Number(b.dataset.order) > order);
+  tabsEl.insertBefore(btn, after || null);
+  p = document.createElement('div');
+  p.id = `panel-${id}`;
+  p.className = 'panel';
+  p.setAttribute('role', 'tabpanel');
+  p.setAttribute('aria-labelledby', btn.id);
+  content.appendChild(p);
+  // Show the remembered tab once it exists; until then, General.
+  const cur = tabsEl.querySelector('[aria-selected=true]');
+  if (id === wantTab || !cur) selectTab(id);
+  else { p.hidden = true; btn.setAttribute('aria-selected', 'false'); btn.tabIndex = -1; }
+  return p;
+}
+const TAB_LABEL = { general: 'General', connectors: 'Connectors', people: 'People', data: 'Data' };
+tabsEl.addEventListener('click', e => { const b = e.target.closest('[role=tab]'); if (b) selectTab(b.dataset.tab, true); });
+tabsEl.addEventListener('keydown', e => {
+  const tabs = [...tabsEl.querySelectorAll('[role=tab]')];
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (j == null) return;
+  e.preventDefault();
+  const t = tabs[(j + tabs.length) % tabs.length];
+  t.focus(); selectTab(t.dataset.tab, true);
+});
+
+// A card in a tab (General unless named). A card with no title starts with its own heading.
+function card(title, sub, tab = 'general') {
   const sec = document.createElement('section');
   sec.className = 'card';
-  sec.innerHTML = `<h2>${esc(title)}</h2>${sub ? `<p class="sub">${sub}</p>` : ''}`;
-  content.appendChild(sec);
+  sec.innerHTML = `${title ? `<h2>${esc(title)}</h2>` : ''}${sub ? `<p class="sub">${sub}</p>` : ''}`;
+  panel(tab, TAB_LABEL[tab] || tab, TAB_ORDER[tab] ?? 50).appendChild(sec);
   return sec;
 }
 const errText = e => (e && e.message) || 'Something went wrong.';
@@ -85,7 +145,7 @@ function moveSummary(m) {
 }
 
 async function folderCard(cfg) {
-  const sec = card('Data folder', 'Every app saves its files here, one subfolder per app. It is yours: Workshop never syncs it.');
+  const sec = card('Data folder', 'Every app saves its files here, one subfolder per app. It is yours: Workshop never syncs it.', 'data');
   sec.dataset.folder = ws.storage;
   const body = document.createElement('div');
   sec.appendChild(body);
@@ -218,15 +278,31 @@ async function workshopCard(cfg) {
 }
 
 /* ---------- connectors ---------- */
+// One tab per connector, in list order, with its status as a dot on the tab.
+const NOTE = {
+  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in Set up.'
+};
 async function connectorsCard(cfg) {
-  const sec = card('Connectors', 'Turn on the ones you use. PATs never go in here: save one with <code>workshop pat</code> and name its variable in Set up.');
   let list;
-  try { list = await ws.connectors.list(); } catch (e) { sec.insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
-  if (!list.length) { sec.insertAdjacentHTML('beforeend', '<p class="sub">No connectors are installed.</p>'); return; }
-  for (const info of list) sec.appendChild(connectorBlock(info, cfg));
+  try { list = await ws.connectors.list(); }
+  catch (e) { card('Connectors', '', 'connectors').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
+  if (!list.length) { card('Connectors', 'No connectors are installed.', 'connectors'); return; }
+  list.forEach((info, i) => {
+    const tab = `c-${info.id}`;
+    panel(tab, info.name, 10 + i);
+    const sec = card('', '', tab);
+    sec.appendChild(connectorBlock(info, cfg, st => {
+      const b = $(`#tab-${tab}`);
+      let dot = b.querySelector('.tab-dot');
+      if (!dot) { dot = document.createElement('span'); dot.className = 'tab-dot'; b.prepend(dot); }
+      dot.dataset.state = st.state;
+      dot.title = STATE_LABEL[st.state] || st.state;
+    }));
+    if (NOTE[info.id]) sec.insertAdjacentHTML('beforeend', `<p class="sub conn-note">${NOTE[info.id]}</p>`);
+  });
 }
 
-function connectorBlock(info, cfg) {
+function connectorBlock(info, cfg, onState) {
   const box = document.createElement('div');
   box.className = 'conn';
   box.dataset.connector = info.id;
@@ -246,6 +322,7 @@ function connectorBlock(info, cfg) {
     ${info.test ? `<form class="test" data-test><label for="test-${info.id}">${esc(info.test.label)}</label><input id="test-${info.id}" class="cfg-input mono" required><button class="btn">Test</button><div class="test-out" aria-live="polite"></div></form>` : ''}`;
 
   const showStatus = st => {
+    if (onState) onState(st);
     const el = box.querySelector('[data-state]');
     el.textContent = STATE_LABEL[st.state] || st.state;
     el.dataset.state = st.state;
@@ -465,7 +542,7 @@ async function paintPeople() {
 }
 
 async function peopleCard() {
-  peopleSec = card('People', 'You, your manager, your reports and peers. Rapport (with its 1:1s) and Docket use this list, so you add someone once.');
+  peopleSec = card('People', 'You, your manager, your reports and peers. Rapport (with its 1:1s) and Docket use this list, so you add someone once.', 'people');
   peopleSec.dataset.people = '';
   peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
   try { await loadPeople(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
@@ -544,7 +621,7 @@ async function peopleCard() {
 
 /* ---------- data: bundles ---------- */
 function dataCard() {
-  const sec = card('Data', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.');
+  const sec = card('Backups', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.', 'data');
   sec.insertAdjacentHTML('beforeend', `<div class="acts left"><button class="btn" data-export>Download a copy</button>
     <label class="btn"><input type="file" accept=".json,application/json" data-import hidden>Import a copy</label><span class="msg" aria-live="polite"></span></div>`);
   const msg = sec.querySelector('.msg');
@@ -605,6 +682,7 @@ function sitesCard(cfg) {
 /* ---------- start ---------- */
 async function start() {
   header();
+  tabsEl.innerHTML = ''; content.innerHTML = '';
   if (ws.backend === 'agent') {
     try {
       const cfg = await ws.config.get();
