@@ -241,7 +241,7 @@ test('the nightly line: how to turn it on, or when it runs', () => {
   assert.match(reviewsHtml(), /Set a nightly review time in <button[^>]*data-cfg-open="1"/);
   S.L.prQueue.nightly = { at: '02:00', last: '2026-10-21' };
   const html = reviewsHtml();
-  assert.match(html, /Nightly review at <strong>02:00<\/strong>/);
+  assert.match(html, /Nightly review at <strong>2:00 AM<\/strong>/, "on a 12-hour clock");
   assert.match(html, /Last ran 2026-10-21/);
 });
 

@@ -56,7 +56,9 @@ function dayName(s) {
   if (p.length !== 3) return s;
   return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
-export function timeOf(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+export function timeOf(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }); }
+/** A date and time for a tooltip, on a 12-hour clock. */
+export function stamp(ms) { const d = new Date(ms); return isNaN(d) ? '' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }); }
 
 // ------------------------------------------------------------ live state helpers
 const L = () => S.L;
@@ -559,7 +561,7 @@ export function itemCard(it, noAgent) {
   const meta = [];
   meta.push(`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`);
   if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
-  meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">Touched ${ago(it.modifiedMs)}</span>`);
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`);
   meta.push(projectChip(it));
   meta.push(removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
@@ -1096,7 +1098,7 @@ function looseHtml() {
       const s = o.s;
       const perms = L().permissions.filter(p => p.sessionID === o.session), qs = L().questions.filter(q => q.sessionID === o.session);
       const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
-      return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+      return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(stamp(o.at))}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
         sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
     }).join('') + '</div></section>';
 }

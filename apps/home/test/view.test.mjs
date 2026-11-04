@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { agentCounts, render, summarize, greeting, profileForm } from '../js/view.js';
-import { dayNow, initials } from '../js/view.js';
+import { dayNow, fmt12, initials } from '../js/view.js';
 
 const TODAY = '2026-10-21';
 const lists = [{ id: 'l_main', name: 'Main', parentId: null }, { id: 'l2', name: 'Side', parentId: null }];
@@ -98,6 +98,16 @@ test('Now shows the template block on now, with when it ends and what is next', 
   assert.equal(n.current.until, '11:00');
   assert.equal(n.next.name, 'Meetings');
   assert.deepEqual(n.current.tasks, []);
+});
+
+test('the Now card shows times on a 12-hour clock', () => {
+  const now = new Date(2026, 10, 3, 10, 15);
+  const n = dayNow(plan(), nowTasks, now);
+  const html = render({ now, profile: {}, board: summarize({ tasks: [{ id: 'a', title: 'A', rank: 1, listId: 'l', value: 3 }], lists: [{ id: 'l', name: 'Main' }], people: [] }, TODAY), agents: { state: 'browser' }, dayNow: n });
+  assert.match(html, /until 11:00 AM/);
+  assert.match(html, /at 1:00 PM/);
+  assert.ok(!/\b1[3-9]:\d\d\b/.test(html), 'no 24-hour times');
+  assert.equal(fmt12('00:05'), '12:05 AM'); assert.equal(fmt12('12:30'), '12:30 PM');
 });
 
 test('Now uses the saved day: its blocks, lost ones skipped, and the tasks slotted in rank order', () => {
