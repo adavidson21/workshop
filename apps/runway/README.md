@@ -15,16 +15,27 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 - **Dates and sprints** (calendar button): where S1 and W1 count from, and when sprints start.
 - **Export:** PNG or SVG of the dates and lanes on screen (folded lanes left out), with or without the title, today line, and the goals and descriptions listed under the chart, light or dark. Markdown as a download, on the clipboard, or saved to your Workshop folder (`runway/exports/<id>.md`), optionally with a table (descriptions included).
 
-## ADO is optional
+## Azure DevOps (optional)
 
-Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or imported from Markdown, with no Azure DevOps link. It works on its own site, inside Workshop, and in browser-only mode (saved in the browser when Workshop is not running).
+Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or imported from Markdown. It works on its own site, inside Workshop, and in browser-only mode.
 
-Rules for the ADO phases, checked by `test/app-files.test.mjs`:
+When Runway uses Workshop on this computer and the ADO connector is on, it can also read Epics and Features from ADO (read only, nothing is written to ADO):
 
-- `app.json` never marks a connector as required.
-- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when the ADO connector is on. No other module imports it or calls a connector.
-- With the connector off or missing, ADO controls are hidden, never shown disabled with an error. Linked items keep their `ado` field and stay editable.
-- A roadmap can mix linked and unlinked items.
+- **From Azure DevOps** (roadmap list): pick area paths (filled in from Queue's), Epics and/or Features, lanes by area path or by Epic, and a kind:
+  - **Import, then edit:** work items become ordinary, editable items with an ADO link. **Refresh** adds new work items, updates the ones you have not changed, and marks the ones you changed whose ADO values also changed ("differs from ADO"); the item's panel shows both and offers **Use ADO's** or **Keep mine**. Work items no longer found are marked, never deleted. Add your own items alongside.
+  - **Live view:** rebuilt from ADO on every refresh. Items can't be edited; title, scale, dates shown and goals can. **Make editable** turns it into an ordinary roadmap.
+- **Add items from Azure DevOps** (any roadmap): link an ad hoc roadmap to ADO, so imported and ad hoc items mix.
+- Placement: a work item's own start and target dates, else its sprint's dates (`iterations.list`), else the Unscheduled tray.
+- Roadmaps that follow ADO refresh once when opened. Without the connector they show the last copy and stay editable (live ones stay read only).
+- Export: an **ADO ids** option adds `#<id>` to linked bars.
+
+Rules, checked by `test/app-files.test.mjs`:
+
+- `app.json` lists the ADO connector with `required: false`, and never as required.
+- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector.
+- With the connector off or missing, ADO controls are hidden.
+
+`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, base, remote?, missing?}`, where `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours. Lanes made from ADO carry `adoKey`.
 
 ## Outline format
 
@@ -66,7 +77,7 @@ App id `runway`. All collections are version 1 and follow Workshop's `docs/data-
 
 Files (through `ws.files`): `exports/<id>.md`, written only when you click Save to Workshop folder.
 
-Item dates are inclusive `YYYY-MM-DD` days. An item has `start` and `end`, or a `size` (`{n, unit}`) instead of dates, or neither (unscheduled). `ado` is reserved for Phase 2 (`{id, connection, rev}`).
+Item dates are inclusive `YYYY-MM-DD` days. An item has `start` and `end`, or a `size` (`{n, unit}`) instead of dates, or neither (unscheduled). `ado` links an item to a work item (see Azure DevOps).
 
 Saving: `js/store.js` stamps against what it read, puts with that `rev`, and on a conflict merges with what is stored and puts again. A failed write keeps the edit on screen, shows "Not saved yet" and retries every 5 seconds.
 
@@ -103,6 +114,8 @@ pip install playwright && python -m playwright install chromium
 python test/e2e.py
 ```
 
+`test/e2e_ado.py` runs Runway against a mock Workshop agent with a fake ADO connector: a live roadmap, a linked one with an edit that differs, an ad hoc item mixed in, and the connector turned off.
+
 `test/e2e.py` serves this repo the way runway.alexisdavidson.org does and drives it in headless Chrome: outline, drag, keys, tray, export PNG, SVG and Markdown, reload, escaping, phone width.
 
 ## Deploy
@@ -113,8 +126,7 @@ Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reloa
 
 ## Later
 
-- Phase 2 (optional, see ADO is optional): pull Epics and Features from Azure DevOps through Workshop's ADO connector, and refresh them.
-- Phase 3: Publish date and status changes back to ADO, only from a button, with a before and after list to tick.
+- Publish date and status changes back to ADO, only from a button, with a before and after list to tick.
 - Now / Next / Later board, slides export, a Home card.
 
 ## License

@@ -109,7 +109,7 @@ export function fileName(title, ext, now = new Date()) {
 }
 
 /** The SVG for an image export: what is on screen (range, folded lanes left out) with the options chosen. */
-export function exportSvg(doc, { range, theme = 'light', title = true, todayLine = true, details = true, now = new Date() } = {}) {
+export function exportSvg(doc, { range, theme = 'light', title = true, todayLine = true, details = true, showIds = false, now = new Date() } = {}) {
   const sched = schedule(doc);
   const r = range || viewRange(doc, sched, now);
   const L = layout(doc, { sched, range: r, hideCollapsed: true });
@@ -118,7 +118,8 @@ export function exportSvg(doc, { range, theme = 'light', title = true, todayLine
     title: title ? doc.meta.title : '',
     subtitle: `${fmt(r.from)} to ${fmt(r.to)}`,
     today: today(now),
-    showToday: todayLine
+    showToday: todayLine,
+    showIds
   });
   if (!details) return out;
   // Goals and descriptions under the chart: make the image taller and add them at the bottom.

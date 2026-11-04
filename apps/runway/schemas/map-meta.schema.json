@@ -17,6 +17,16 @@
     "hidden": {"type": "array", "items": {"type": "string"}, "description": "Folded lanes. Left out of image exports."},
     "goals": {"type": "array", "description": "Goals per period: the goal belongs to the period of the map's scale that holds date.", "items": {"type": "object", "required": ["date", "text"], "properties": {
       "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
-      "text": {"type": "string", "minLength": 1, "maxLength": 300}}}}
+      "text": {"type": "string", "minLength": 1, "maxLength": 300}}}},
+    "ado": {"type": "object", "required": ["mode", "areas"], "description": "Set when the roadmap follows Azure DevOps (optional).", "properties": {
+      "mode": {"enum": ["live", "linked"], "description": "live: rebuilt from ADO on every refresh, items read only. linked: imported items you edit; refresh never overwrites your edits."},
+      "areas": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "string"}},
+      "types": {"type": "array", "items": {"enum": ["Epic", "Feature"]}},
+      "lanes": {"enum": ["area", "epic"]},
+      "connection": {"type": "string", "maxLength": 40},
+      "includeClosed": {"type": "boolean"},
+      "fetchedAt": {"type": "string"},
+      "total": {"type": "integer"},
+      "truncated": {"type": "boolean"}}}
   }
 }

@@ -22,7 +22,18 @@
     "notes": {"type": "string", "maxLength": 4000, "description": "The description: what the item delivers. Shown under the timeline and in exports."},
     "dependsOn": {"type": "array", "items": {"type": "string"}},
     "afterMissing": {"type": "array", "items": {"type": "string"}, "description": "Names in the outline's after: that match no item, kept so the text round trips."},
-    "ado": {"type": "object", "required": ["id"], "description": "Phase 2: the linked work item.", "properties": {
-      "id": {"type": "integer"}, "connection": {"type": "string"}, "rev": {"type": "integer"}}}
+    "ado": {"type": "object", "required": ["id"], "description": "The linked Azure DevOps work item (optional).", "properties": {
+      "id": {"type": "integer"}, "connection": {"type": "string"}, "rev": {"type": "integer"},
+      "type": {"type": "string"}, "state": {"type": "string"}, "url": {"type": "string", "description": "http(s) only, else empty."},
+      "base": {"$ref": "#/$defs/adoFields", "description": "What the last refresh brought."},
+      "remote": {"$ref": "#/$defs/adoFields", "description": "ADO's values when they differ from yours."},
+      "missing": {"type": "boolean", "description": "The last refresh did not find the work item."}}}
+  },
+  "$defs": {
+    "adoFields": {"type": "object", "properties": {
+      "title": {"type": "string"},
+      "start": {"anyOf": [{"type": "null"}, {"type": "string"}]},
+      "end": {"anyOf": [{"type": "null"}, {"type": "string"}]},
+      "status": {"type": "string"}}}
   }
 }

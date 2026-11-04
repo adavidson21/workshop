@@ -16,7 +16,7 @@ import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
 import {
   ICON, OUTLINE_HELP, confirmDialog, exportDialog, importDialog, listHtml, panelHtml, promptDialog, rangeHtml,
-  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog
+  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
 } from './view.js';
 
 const app = document.getElementById('app');
@@ -49,6 +49,24 @@ const ui = {
 };
 let unsubMap = null;
 
+/* ---------- Azure DevOps: optional ----------
+   js/ado/ is loaded only when Runway uses Workshop on this computer. Without it (Runway on its own, browser mode,
+   connector off) nothing below shows and every roadmap works the same. */
+let ado = null;
+ui.adoRefreshing = false;
+ui.adoRefreshed = null;      // the roadmap id refreshed since it was opened
+const adoReady = () => !!(ado && ado.state.ready);
+const adoMod = () => import('./ado/model.js');
+if (ws.backend === 'agent') {
+  import('./ado/index.js').then(m => {
+    ado = m.createAdo(ws, { onChange: () => { requestPaint(); autoRefresh(); } });
+    return ado.check();
+  }).catch(() => { ado = null; });
+}
+/** A live ADO roadmap's items can't be changed here; neither can a roadmap saved by a newer Runway. */
+const live = () => !!(v.doc && v.doc.meta.ado && v.doc.meta.ado.mode === 'live');
+const locked = () => !!v.readOnly || live();
+
 const isDark = () => (window.WorkshopTheme ? WorkshopTheme.isDark() : false);
 const toast = (text, kind) => ws.toast(text, kind ? { kind } : undefined).catch(() => {});
 const toastErr = (e) => toast(e && e.message ? e.message : 'Something went wrong. Try again.', 'error');
@@ -77,7 +95,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws) }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady() }));
 }
 
 function mapShell() {
@@ -86,9 +104,10 @@ function mapShell() {
     <div class="map">
       <div data-r="tbar"></div>
       ${v.readOnly ? `<p class="notice">${v.readOnly}</p>` : ''}
+      <div data-r="adobar"></div>
       <div class="body" data-mode="${ui.mode}">
         <section class="outline" aria-label="Outline">
-          <textarea class="ta mono" spellcheck="false" wrap="off" aria-label="Outline" data-outline${v.readOnly ? ' readonly' : ''}></textarea>
+          <textarea class="ta mono" spellcheck="false" wrap="off" aria-label="Outline" data-outline${locked() ? ' readonly' : ''}></textarea>
           <div data-r="warns"></div>
           ${OUTLINE_HELP}
         </section>
@@ -103,10 +122,11 @@ function mapShell() {
     </div>`;
   const ta = app.querySelector('[data-outline]');
   ta.value = ui.outline;
+  ui.shellLocked = locked();
 }
 
 function paintMap() {
-  if (app.dataset.view !== 'map' || !app.querySelector('.map')) mapShell();
+  if (app.dataset.view !== 'map' || !app.querySelector('.map') || ui.shellLocked !== locked()) mapShell();
   const doc = ui.dragDoc || v.doc;
   const sched = schedule(doc);
   const range = viewRange(doc, sched);
@@ -120,7 +140,8 @@ function paintMap() {
   else { const s = tbar.querySelector('.save'); if (s) { s.dataset.save = v.save; s.textContent = { saved: 'Saved', saving: 'Saving', unsaved: 'Not saved yet' }[v.save]; } }
   app.querySelector('.body').dataset.mode = ui.mode;
   const rbar = app.querySelector('[data-r="rbar"]');
-  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range));
+  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked()));
+  setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
   tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true });
@@ -133,7 +154,7 @@ function paintMap() {
   const panel = app.querySelector('[data-r="panel"]');
   if (!panel.contains(document.activeElement) || ui.selected !== panel.dataset.for) {
     panel.dataset.for = ui.selected || '';
-    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, !!v.readOnly) : '');
+    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked()) : '');
   }
   app.querySelector('.body').classList.toggle('has-panel', !!ui.selected);
 }
@@ -183,6 +204,7 @@ async function route(path) {
   unsubMap = ws.data.subscribe(`maps/${path}`, async () => { await store.reload(`maps/${path}`); syncOutline(); requestPaint(); });
   mapShell();
   paint();
+  autoRefresh();
 }
 
 /* ---------- dialogs ---------- */
@@ -246,7 +268,7 @@ async function exportFlow() {
       const doc = v.doc;
       try {
         if (kind === 'png' || kind === 'svg') {
-          const text = exportSvg(doc, { range: ui.range, theme: form.theme.value, title: form.title.checked, todayLine: form.today.checked, details: form.details.checked });
+          const text = exportSvg(doc, { range: ui.range, theme: form.theme.value, title: form.title.checked, todayLine: form.today.checked, details: form.details.checked, showIds: !!(form.ids && form.ids.checked) });
           if (kind === 'svg') await saveFile(fileName(doc.meta.title, 'svg'), text, 'image/svg+xml');
           else await saveFile(fileName(doc.meta.title, 'png'), await toPng(text, 2), 'image/png');
           return;
@@ -262,6 +284,7 @@ async function exportFlow() {
 }
 
 async function addLane() {
+  if (locked()) return;
   const f = await showDialog(promptDialog('New lane', 'Name', '', 'Add'));
   if (!f) return;
   const title = f.v.value.trim().slice(0, 80);
@@ -270,7 +293,7 @@ async function addLane() {
 }
 
 function newItem(lane, start) {
-  if (!v.doc || v.readOnly) return;
+  if (!v.doc || locked()) return;
   const doc = v.doc;
   const sel = doc.items.find(i => i.id === ui.selected);
   const laneId = lane !== undefined ? lane : (sel ? sel.lane : ([...doc.lanes].sort((a, b) => a.order - b.order)[0] || {}).id || null);
@@ -328,6 +351,7 @@ app.addEventListener('click', async e => {
     else if ('new' in t.dataset) newRoadmap();
     else if ('example' in t.dataset) newRoadmap(docFromText(exampleOutline()));
     else if ('import' in t.dataset) importMarkdown();
+    else if ('fromado' in t.dataset) fromAdo();
     else if (t.dataset.dup) {
       const src = await ws.data.get(`maps/${t.dataset.dup}`).catch(() => null);
       if (!src) return toast("Couldn't read that roadmap.", 'error');
@@ -354,8 +378,105 @@ app.addEventListener('click', async e => {
   else if (t.dataset.tray) select(t.dataset.tray);
   else if ('close' in t.dataset) select(null);
   else if ('delete' in t.dataset) deleteItem(ui.selected);
+  else if ('adorefresh' in t.dataset) adoRefresh(true);
+  else if ('addado' in t.dataset || 'adoedit' in t.dataset) adoSource();
+  else if ('adostop' in t.dataset) adoStop();
+  else if ('adodiff' in t.dataset) { const it = v.doc.items.find(i => i.ado && i.ado.remote); if (it) select(it.id); }
+  else if ('adoUse' in t.dataset || 'adoKeep' in t.dataset || 'adoUnlink' in t.dataset) adoItem(t.dataset);
   else if ('unschedule' in t.dataset) edit(d => { const it = d.items.find(i => i.id === ui.selected); if (it) { it.start = null; it.end = null; it.size = null; } });
 });
+
+/* ---------- Azure DevOps actions ---------- */
+
+async function sourceForm(base, opts) {
+  const f = await showDialog(adoDialog({ ...base, ...opts }));
+  if (!f) return null;
+  const m = await adoMod();
+  const src = m.cleanSource({
+    mode: f.mode ? f.mode.value : (base.mode || 'linked'),
+    areas: f.areas.value,
+    types: [...f.querySelectorAll('[name="type"]:checked')].map(x => x.value),
+    lanes: f.lanes.value,
+    connection: f.connection.value,
+    includeClosed: f.closed.checked
+  });
+  if (!src) { toast('Add at least one area path.', 'warn'); return null; }
+  return { src, title: f.title ? f.title.value.trim().slice(0, 120) : '' };
+}
+
+/** A new roadmap from ADO: live or linked. */
+async function fromAdo() {
+  if (!adoReady()) return;
+  const d = await ado.defaults();
+  const r = await sourceForm({ areas: d.areas, connection: d.connection }, { title: 'Team roadmap' });
+  if (!r) return;
+  try {
+    toast('Reading Epics and Features from ADO.');
+    const doc = blankDoc(r.title || 'Team roadmap');
+    const out = await ado.refresh(doc, r.src);
+    if (!out.doc.items.length) toast('No Epics or Features under those area paths. The roadmap is empty for now.', 'warn');
+    ui.adoRefreshed = null;
+    const id = await store.create(out.doc);
+    ui.adoRefreshed = id;
+    go(id);
+  } catch (e) { toastErr(e); }
+}
+
+/** Add ADO to this roadmap (linked), or change what a roadmap that follows ADO reads. */
+async function adoSource() {
+  if (!adoReady() || v.readOnly) return;
+  const cur = v.doc.meta.ado;
+  const d = cur ? { ...cur } : await ado.defaults();
+  const r = await sourceForm(d, { chooseMode: false, heading: cur ? 'Change what comes from ADO' : 'Add items from Azure DevOps', mode: cur ? cur.mode : 'linked' });
+  if (!r) return;
+  edit(doc => { doc.meta.ado = { ...(doc.meta.ado || {}), ...r.src }; });
+  adoRefresh(true);
+}
+
+/** Refresh from ADO. Applied to the roadmap as it is when the answer comes, so edits made meanwhile are kept. */
+async function adoRefresh(manual = false) {
+  if (!v.doc || !v.doc.meta.ado || !adoReady() || ui.adoRefreshing || v.readOnly) return;
+  const id = v.mapId;
+  ui.adoRefreshing = true; ui.adoRefreshed = id; requestPaint();
+  try {
+    const m = await adoMod();
+    const { src, result, data } = await ado.pull(v.doc.meta.ado);
+    if (v.mapId !== id || !v.doc) return;
+    let counts = null;
+    edit(d => {
+      const r = src.mode === 'live' ? { doc: m.applyLive(d, data, src, result) } : m.mergeLinked(d, data, src, result);
+      d.meta = r.doc.meta; d.lanes = r.doc.lanes; d.items = r.doc.items;
+      counts = r;
+    });
+    if (manual || (counts && (counts.added || counts.differs))) {
+      const bits = counts && src.mode !== 'live' ? [counts.added && `${counts.added} added`, counts.updated && `${counts.updated} updated`, counts.differs && `${counts.differs} differ from ADO`, counts.missing && `${counts.missing} not found`].filter(Boolean) : [];
+      toast(bits.length ? `From ADO: ${bits.join(', ')}.` : 'Up to date with ADO.', 'success');
+    }
+  } catch (e) { toastErr(e); }
+  finally { ui.adoRefreshing = false; requestPaint(); }
+}
+
+/** Refresh once when a roadmap that follows ADO is opened (or when the connector becomes ready). */
+function autoRefresh() {
+  if (v.doc && v.doc.meta.ado && adoReady() && ui.adoRefreshed !== v.mapId) adoRefresh(false);
+}
+
+async function adoStop() {
+  const isLive = live();
+  const f = await showDialog(confirmDialog(isLive ? 'Make this roadmap editable?' : 'Stop following ADO?',
+    isLive ? 'It stops refreshing from ADO and becomes an ordinary roadmap you can edit. Items keep their ADO links.' : 'Refresh stops. Items keep their ADO links and stay as they are.',
+    isLive ? 'Make editable' : 'Stop following'));
+  if (!f) return;
+  const m = await adoMod();
+  edit(d => { m.stopFollowing(d); });
+}
+
+async function adoItem(ds) {
+  if (!ui.selected || locked()) return;
+  const m = await adoMod();
+  const id = ui.selected;
+  edit(d => { if ('adoUse' in ds) m.useRemote(d, id); else if ('adoKeep' in ds) m.keepMine(d, id); else m.unlink(d, id); });
+}
 
 function askPair() {
   showDialog(`<form method="dialog" class="sheet small"><h3>Use Workshop on this computer</h3>
@@ -382,6 +503,7 @@ app.addEventListener('input', e => {
   }
   if (t.matches('[data-title]')) { const val = t.value.trim().slice(0, 120); if (val) edit(d => { d.meta.title = val; }); return; }
   const p = t.closest('[data-panel]');
+  if (p && locked()) return;
   if (p && (t.dataset.f === 'title' || t.dataset.f === 'notes')) {
     const id = p.dataset.panel, val = t.value;
     edit(d => { const it = d.items.find(i => i.id === id); if (it) it[t.dataset.f] = t.dataset.f === 'title' ? (val.trim() || 'Untitled').slice(0, 200) : val.slice(0, 4000); });
@@ -389,7 +511,7 @@ app.addEventListener('input', e => {
 });
 
 function applyOutline() {
-  if (!v.doc || v.readOnly) return;
+  if (!v.doc || locked()) return;
   const parsed = parse(ui.outline, { today: today(), defaults: v.doc.meta });
   const r = reconcile(v.doc, parsed);
   ui.warnings = r.warnings;
@@ -407,7 +529,7 @@ app.addEventListener('change', e => {
     return;
   }
   const p = t.closest('[data-panel]');
-  if (!p) return;
+  if (!p || locked()) return;
   const id = p.dataset.panel;
   const doc = v.doc;
   const sched = schedule(doc);
@@ -463,7 +585,7 @@ app.addEventListener('pointerdown', e => {
   if (bar) {
     const id = bar.dataset.id;
     if (ui.selected !== id) ui.selected = id;
-    if (v.readOnly) return requestPaint();
+    if (locked()) return requestPaint();
     const grip = e.target.closest('.grip');
     ui.drag = { id, edge: grip ? grip.dataset.edge : null, x0: p.x, y0: p.y, moved: false, base: structuredClone(v.doc), L: ui.L, pointer: e.pointerId };
     tl.setPointerCapture(e.pointerId);
@@ -517,7 +639,7 @@ app.addEventListener('pointerup', endDrag);
 app.addEventListener('pointercancel', e => { if (ui.drag && ui.drag.pointer === e.pointerId) { ui.drag = null; ui.dragDoc = null; requestPaint(); } });
 
 app.addEventListener('dblclick', e => {
-  if (!e.target.closest('[data-tl]') || e.target.closest('g.bar') || !ui.L || v.readOnly) return;
+  if (!e.target.closest('[data-tl]') || e.target.closest('g.bar') || !ui.L || locked()) return;
   const p = pt(e);
   const lane = laneAt(ui.L, p.y);
   if (!lane || p.x < ui.L.gutter) return;
@@ -533,7 +655,7 @@ app.addEventListener('dragstart', e => {
 });
 app.addEventListener('dragover', e => { if (e.target.closest('[data-tl]') && [...e.dataTransfer.types].includes('text/x-runway-item')) e.preventDefault(); });
 app.addEventListener('drop', e => {
-  if (!e.target.closest('[data-tl]') || !ui.L) return;
+  if (!e.target.closest('[data-tl]') || !ui.L || locked()) return;
   const id = e.dataTransfer.getData('text/x-runway-item');
   if (!id) return;
   e.preventDefault();
@@ -561,7 +683,7 @@ document.addEventListener('keydown', e => {
   if (typing(document.activeElement)) { if (e.key === 'Escape') document.activeElement.blur(); return; }
   if (e.ctrlKey || e.metaKey) return;
   const key = e.key;
-  if ((key === 'n' || key === 'N') && !e.altKey && !v.readOnly) { e.preventDefault(); newItem(); return; }
+  if ((key === 'n' || key === 'N') && !e.altKey && !locked()) { e.preventDefault(); newItem(); return; }
   if (!ui.selected) {
     if ((key === 'ArrowDown' || key === 'ArrowRight') && document.activeElement && document.activeElement.matches('[data-tl]')) { const o = barOrder(); if (o.length) { e.preventDefault(); select(o[0]); } }
     return;
@@ -569,13 +691,13 @@ document.addEventListener('keydown', e => {
   const id = ui.selected;
   if (key === 'Escape') { e.preventDefault(); select(null); return; }
   if (key === 'Enter') { e.preventDefault(); const t = app.querySelector('[data-panel] [data-f="title"]'); if (t) t.focus(); return; }
-  if ((key === 'Delete' || key === 'Backspace') && !v.readOnly) { e.preventDefault(); deleteItem(id); return; }
+  if ((key === 'Delete' || key === 'Backspace') && !locked()) { e.preventDefault(); deleteItem(id); return; }
   if ((key === 'ArrowUp' || key === 'ArrowDown') && !e.altKey) {
     const o = barOrder(); const i = o.indexOf(id);
     if (o.length) { e.preventDefault(); select(o[Math.max(0, Math.min(o.length - 1, (i < 0 ? 0 : i) + (key === 'ArrowDown' ? 1 : -1)))]); }
     return;
   }
-  if (v.readOnly) return;
+  if (locked()) return;
   const snap = SNAP[v.doc.meta.scale] || 1;
   if (key === 'ArrowLeft' || key === 'ArrowRight') {
     e.preventDefault();
@@ -624,7 +746,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) store
 window.addEventListener('beforeunload', e => { if (store.hasPending()) { store.flush(); e.preventDefault(); } });
 
 // Tests drive the page through this.
-window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () => store.flush() };
+window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () => store.flush(), get ado() { return ado; } };
 
 paint();
 await store.load();

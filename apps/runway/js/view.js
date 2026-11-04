@@ -27,7 +27,8 @@ export { ICON };
 
 /* ---------- the list of roadmaps ---------- */
 
-export function listHtml(v, { canPair = false, paired = false } = {}) {
+export function listHtml(v, { canPair = false, paired = false, ado = false } = {}) {
+  const adoBtn = ado ? '<button class="btn" data-fromado>From Azure DevOps</button>' : '';
   const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
     <li class="rrow">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
@@ -39,11 +40,11 @@ export function listHtml(v, { canPair = false, paired = false } = {}) {
     </li>`).join('');
   const empty = `<div class="engcard"><h2>Start a roadmap</h2>
     <p>Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export an image or Markdown.</p>
-    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button></div></div>`;
+    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}</div></div>`;
   return `<header class="lhead">
       <p class="eyebrow">Runway</p>
       <h1 class="page-title dot">Roadmaps</h1>
-      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button><button class="btn ghost" data-example>Example</button></div>` : ''}
+      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button></div>` : ''}
     </header>
     ${v.list.length ? `<ul class="rlist">${rows}</ul>` : empty}
     ${canPair ? `<p class="hint pairline">Your roadmaps are saved in this browser. <button class="lnk" data-pair>Use Workshop on this computer</button> to keep them in your Workshop folder.</p>` : ''}
@@ -69,7 +70,7 @@ export function toolbarHtml(v, ui) {
   </div>`;
 }
 
-export function rangeHtml(v, range) {
+export function rangeHtml(v, range, locked = false) {
   const auto = !v.doc.meta.range;
   return `<div class="rbar">
     <span class="eyebrow">Showing</span>
@@ -78,8 +79,8 @@ export function rangeHtml(v, range) {
     <label class="fld"><span class="sr">To</span><input type="date" data-to value="${esc(range.to)}" aria-label="To"></label>
     <button class="btn ghost" data-fit${auto ? ' disabled' : ''}>Fit to items</button>
     <span class="grow"></span>
-    <button class="btn ghost" data-addlane>${ICON.plus}Lane</button>
-    <button class="btn ghost" data-additem>${ICON.plus}Item <kbd>N</kbd></button>
+    ${locked ? '' : `<button class="btn ghost" data-addlane>${ICON.plus}Lane</button>
+    <button class="btn ghost" data-additem>${ICON.plus}Item <kbd>N</kbd></button>`}
   </div>`;
 }
 
@@ -169,6 +170,7 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
     </div></fieldset>
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
       ${it.afterMissing.length ? `<p class="hint">Not in this roadmap: ${esc(it.afterMissing.join(', '))}</p>` : ''}</fieldset>
+    ${it.ado ? adoPanel(it, readOnly) : ''}
     <label class="pf"><span>Description</span><textarea data-f="notes" rows="4" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
     ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
     <footer>${readOnly ? '' : `<button type="button" class="btn text-danger" data-delete>Delete</button>`}</footer>
@@ -198,6 +200,7 @@ export function exportDialog(doc, { dark = false } = {}) {
       <label class="pc"><input type="checkbox" name="title" checked> Title</label>
       <label class="pc"><input type="checkbox" name="details" checked> Goals and descriptions</label>
       <label class="pc"><input type="checkbox" name="today" checked> Today line</label>
+      ${doc.items.some(i => i.ado) ? '<label class="pc"><input type="checkbox" name="ids"> ADO ids</label>' : ''}
       <label class="pf inline"><span>Theme</span><select name="theme"><option value="light"${dark ? '' : ' selected'}>Light (for printing)</option><option value="dark"${dark ? ' selected' : ''}>Dark</option></select></label>
     </div>
     <div class="acts"><button type="button" class="btn primary" data-x="png">${ICON.down}PNG image</button><button type="button" class="btn" data-x="svg">${ICON.down}SVG image</button></div>
@@ -229,5 +232,65 @@ export function confirmDialog(title, body, ok = 'Remove') {
   return `<form method="dialog" class="sheet small">
     <h3>${esc(title)}</h3><p>${esc(body)}</p>
     <footer><span class="grow"></span><button class="btn" value="cancel">Cancel</button><button class="btn danger" value="ok">${esc(ok)}</button></footer>
+  </form>`;
+}
+
+/* ---------- Azure DevOps (optional: shown only for roadmaps or items that use it) ---------- */
+
+const ADO_FIELDS = { title: 'Title', start: 'Start', end: 'End', status: 'Status' };
+const httpOnly = u => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
+
+/** The ADO part of the item panel: its work item, and what to do when it differs or is gone. */
+export function adoPanel(it, readOnly = false) {
+  const a = it.ado;
+  const url = httpOnly(a.url);
+  const name = `${esc(a.type || 'Work item')} #${esc(a.id)}`;
+  const diff = a.remote ? Object.keys(ADO_FIELDS).filter(f => (a.remote[f] ?? null) !== (it[f] ?? null)) : [];
+  const val = (f, x) => esc(f === 'start' || f === 'end' ? (x ? fmt(x) : 'none') : (x || 'none'));
+  return `<div class="adobox" data-adobox>
+    <p class="eyebrow">Azure DevOps</p>
+    <p>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name}${a.state ? ` <span class="muted">· ${esc(a.state)}</span>` : ''}</p>
+    ${a.missing ? '<p class="hint warn">The last refresh did not find this work item (closed, moved or removed).</p>' : ''}
+    ${diff.length ? `<p class="hint warn">Differs from ADO:</p><ul class="adodiff">${diff.map(f => `<li><span class="muted">${ADO_FIELDS[f]}:</span> yours ${val(f, it[f])}, ADO ${val(f, a.remote[f])}</li>`).join('')}</ul>` : ''}
+    ${readOnly ? '' : `<div class="acts">${diff.length ? '<button type="button" class="btn" data-ado-use>Use ADO&#39;s</button><button type="button" class="btn ghost" data-ado-keep>Keep mine</button>' : ''}<button type="button" class="lnk" data-ado-unlink>Unlink</button></div>`}
+  </div>`;
+}
+
+/** The strip above the timeline for a roadmap that follows ADO, or the offer to add items from it. */
+export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false } = {}) {
+  const src = doc.meta.ado;
+  if (!src) return ready && !readOnly ? `<div class="adobar"><span class="grow"></span><button class="btn ghost" data-addado>Add items from Azure DevOps</button></div>` : '';
+  const live = src.mode === 'live';
+  const differs = doc.items.filter(i => i.ado && i.ado.remote).length;
+  const missing = doc.items.filter(i => i.ado && i.ado.missing).length;
+  const when = src.fetchedAt ? relTime(Date.parse(src.fetchedAt)) : 'not yet';
+  return `<div class="adobar">
+    <span class="eyebrow">Azure DevOps</span>
+    <span>${live ? 'Live view, read only' : 'Linked'} · ${esc(src.areas.length)} area path${src.areas.length === 1 ? '' : 's'} · updated ${esc(when)}${src.truncated ? ' · showing the newest 2000' : ''}</span>
+    ${differs ? `<button class="lnk" data-adodiff>${differs} differ${differs === 1 ? 's' : ''} from ADO</button>` : ''}
+    ${missing ? `<span class="muted">${missing} not found</span>` : ''}
+    ${!ready ? `<span class="muted">${esc(message || 'Connect Workshop on this computer to refresh.')} Showing the last copy.</span>` : ''}
+    <span class="grow"></span>
+    ${ready && !readOnly ? `<button class="btn ghost" data-adorefresh${refreshing ? ' disabled' : ''}>${refreshing ? 'Refreshing' : 'Refresh'}</button><button class="btn ghost" data-adoedit>Change</button>` : ''}
+    ${readOnly ? '' : `<button class="btn ghost" data-adostop>${live ? 'Make editable' : 'Stop following'}</button>`}
+  </div>`;
+}
+
+/** Choose what to read from ADO. `mode` false hides the live or linked choice (adding to an existing roadmap). */
+export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, chooseMode = true, heading = 'From Azure DevOps' } = {}) {
+  const t = (x) => `<label class="pc"><input type="checkbox" name="type" value="${x}"${types.includes(x) ? ' checked' : ''}> ${x}s</label>`;
+  return `<form method="dialog" class="sheet wide">
+    <h3>${esc(heading)}</h3>
+    ${chooseMode ? `<label class="pf"><span>Name</span><input name="title" value="${esc(title)}" maxlength="120" required autofocus></label>
+    <fieldset class="pf"><legend>Kind</legend>
+      <label class="pc"><input type="radio" name="mode" value="linked"${mode !== 'live' ? ' checked' : ''}> Import, then edit freely. Refresh adds new work items and shows what differs; it never overwrites your edits. Add your own items too.</label>
+      <label class="pc"><input type="radio" name="mode" value="live"${mode === 'live' ? ' checked' : ''}> Live view of ADO. Rebuilt on every refresh; items can't be edited here.</label>
+    </fieldset>` : ''}
+    <label class="pf"><span>Area paths</span><textarea name="areas" rows="4" class="mono" required placeholder="Project\\Team">${esc(areas.join('\n'))}</textarea><small class="hint">One per line. Work items under each are included.</small></label>
+    <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic')}${t('Feature')}</fieldset>
+      <label class="pf inline"><span>Lanes by</span><select name="lanes"><option value="area"${lanes !== 'epic' ? ' selected' : ''}>Area path</option><option value="epic"${lanes === 'epic' ? ' selected' : ''}>Epic</option></select></label></div>
+    <label class="pc"><input type="checkbox" name="closed"${includeClosed ? ' checked' : ''}> Include closed work items</label>
+    <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Read only. Nothing is written to ADO.</small></label>
+    <footer><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${chooseMode ? 'Create' : 'Add'}</button></footer>
   </form>`;
 }

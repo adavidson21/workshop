@@ -148,3 +148,13 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .dname:hover{color:var(--accent)}
 .dcol code{font-family:var(--mono);font-size:.78rem;background:var(--panel);padding:.05rem .3rem;border-radius:4px}
 @media (max-width:900px){.dgrid{grid-template-columns:1fr}.details{max-height:none}}
+
+/* Azure DevOps (optional) */
+.adobar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.45rem 1.25rem;border-bottom:1px solid var(--line);font-size:.86rem}
+.adobar .eyebrow{margin:0}
+.adobox{border-top:1px solid var(--line);padding-top:.6rem;display:grid;gap:.35rem}
+.adobox p{margin:0}
+.adobox .acts{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.adodiff{margin:0;padding-left:1.1rem;font-size:.86rem}
+.hint.warn{color:var(--warn)}
+@media (max-width:600px){.adobar{padding:.45rem .9rem}}
