@@ -1017,6 +1017,21 @@ export function repoUrlCheck(raw) {
   if (!/^(https?:\/\/[^/]+\/.+|ssh:\/\/[^/]+\/.+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+)$/i.test(u)) return { error: 'That does not look like a git URL. Copy it from the repo\'s Clone button, for example https://github.com/owner/repo.git' };
   return { url: u };
 }
+// Category folders Add a repo can clone into: the parser's list, plus any in repo names (Category/repo).
+export function repoCategories() {
+  const set = new Set(((S.D && S.D.repoCategories) || []).filter(c => typeof c === 'string' && c));
+  ((S.D && S.D.repos) || []).forEach(r => { const i = String(r.folder || '').indexOf('/'); if (i > 0) set.add(r.folder.slice(0, i)); });
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+export const NEW_CATEGORY = '__new';
+// The category from the picker: '' for the top of the workspace, else one folder name.
+export function repoCategoryCheck(pick, typed) {
+  if (pick !== NEW_CATEGORY) return { category: pick || '' };
+  const c = String(typed || '').trim();
+  if (!c) return { error: 'Name the new category folder, or pick another one.' };
+  if (!/^[A-Za-z0-9._-]{1,100}$/.test(c) || c.startsWith('.') || c.startsWith('-')) return { error: 'A category is one folder name: letters, numbers, dots, dashes and underscores, such as Platform.' };
+  return { category: c };
+}
 function repoSheetHtml() {
   const st = S.ui.repo;
   const head = `<div class="sheet-head"><h3 id="repo-h">${st.added ? 'Repo added' : 'Add a repo'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
@@ -1031,6 +1046,7 @@ function repoSheetHtml() {
     body = `<p>Clones it into your workspace with the git sign-in on this computer.</p>` +
       `<form class="cfg" data-repo-form="1" novalidate>` +
       `<label class="cfg-row"><span class="cfg-t">Clone URL</span><input type="text" class="mono repo-url" data-draft="repo:url" value="${h(S.ui.drafts['repo:url'] || '')}" placeholder="https://github.com/owner/repo.git" spellcheck="false" autocomplete="off"></label>` +
+      repoCategoryHtml() +
       `<label class="cfg-row"><span class="cfg-t">What it is, in one line (optional)</span><span class="cfg-d">Helps agents pick the right repo for a task.</span><input type="text" data-draft="repo:about" value="${h(S.ui.drafts['repo:about'] || '')}" placeholder="The web app customers use" maxlength="200" autocomplete="off"></label></form>` +
       `<p class="note">Already have the code on this computer? Move or clone the folder into your workspace (<code>${h(S.D && S.D.workspace)}</code>) and it shows up here.</p>` +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
@@ -1038,6 +1054,17 @@ function repoSheetHtml() {
       `<button type="button" class="btn primary" data-repo-go="1"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning' : 'Add repo'}</button>`;
   }
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="repo-h">${head}${body}<footer>${foot}</footer></div></div>`;
+}
+
+function repoCategoryHtml() {
+  const cats = repoCategories();
+  const pick = S.ui.drafts['repo:category'] || '';
+  const opts = [`<option value=""${pick === '' ? ' selected' : ''}>None (top of the workspace)</option>`]
+    .concat(cats.map(c => `<option value="${h(c)}"${c === pick ? ' selected' : ''}>${h(c)}</option>`))
+    .concat([`<option value="${NEW_CATEGORY}"${pick === NEW_CATEGORY ? ' selected' : ''}>New category</option>`]);
+  if (pick && pick !== NEW_CATEGORY && !cats.includes(pick)) opts.splice(1, 0, `<option value="${h(pick)}" selected>${h(pick)}</option>`);
+  return `<label class="cfg-row"><span class="cfg-t">Category</span><span class="cfg-d">The folder in your workspace it goes in.</span><select data-draft="repo:category" data-repo-cat="1">${opts.join('')}</select></label>` +
+    (pick === NEW_CATEGORY ? `<label class="cfg-row"><span class="cfg-t">New category folder</span><input type="text" class="mono repo-newcat" data-draft="repo:newcat" value="${h(S.ui.drafts['repo:newcat'] || '')}" placeholder="Platform" maxlength="100" spellcheck="false" autocomplete="off"></label>` : '');
 }
 
 // --------------------------------------------------------- getting set up

@@ -290,25 +290,49 @@ export function addToRepoMap(workspace, folder, about) {
   return "added";
 }
 
-/** Clone a repo into the workspace by its git URL and list it in the repo map. */
-export async function addRepo({ url, about }) {
+/**
+ * The category folder to clone into: null for the top of the workspace, else one folder name. It is made if
+ * it is not there, and it cannot be a repo itself (repos inside repos are not listed).
+ */
+export function categoryFolder(workspace, category) {
+  const raw = String(category == null ? "" : category).trim();
+  if (!raw) return null;
+  const c = repoFolder(raw);
+  if (!c || c.includes("/")) throw httpError(400, `"${raw}" is not a valid category folder name. Use one folder name, such as Platform.`);
+  const dir = path.join(workspace, c);
+  if (fs.existsSync(path.join(dir, ".git"))) throw httpError(400, `${c} is a repo, not a category folder. Pick another category.`);
+  if (fs.existsSync(dir) && !fs.statSync(dir).isDirectory()) throw httpError(409, `There is a file named ${c} in the workspace. Pick another category.`);
+  return c;
+}
+
+/**
+ * Clone a repo into the workspace by its git URL, at the top or in a category folder (<category>/<repo>),
+ * and list it in the repo map.
+ */
+export async function addRepo({ url, about, category }) {
   const name = repoNameFromUrl(url);
   if (!name) throw httpError(400, "That does not look like a git URL. Copy the clone URL from the repo's page, for example https://github.com/owner/repo.git");
-  const dest = path.join(opt.workspace, name);
-  if (fs.existsSync(dest)) throw httpError(409, `There is already a ${name} folder in the workspace.`);
-  const r = await git(["clone", "--", String(url).trim(), name], opt.workspace);
+  const cat = categoryFolder(opt.workspace, category);
+  const parent = cat ? path.join(opt.workspace, cat) : opt.workspace;
+  const folder = cat ? `${cat}/${name}` : name;
+  const dest = path.join(parent, name);
+  if (fs.existsSync(dest)) throw httpError(409, `There is already a ${folder} folder in the workspace.`);
+  const madeCategory = cat && !fs.existsSync(parent);
+  if (madeCategory) fs.mkdirSync(parent);
+  const r = await git(["clone", "--", String(url).trim(), name], parent);
   if (r.code !== 0) {
     fs.rmSync(dest, { recursive: true, force: true });
+    if (madeCategory) fs.rmSync(parent, { recursive: true, force: true });
     const auth = /authentication|could not read username|permission denied|403|401|terminal prompts disabled/i.test(r.out);
     const msg = r.out.split(/\r?\n/).filter(Boolean).slice(-2).join(" ");
     throw httpError(auth ? 403 : 502, auth
       ? `git could not sign in to clone ${name}. Sign in to your git host on this computer once (for example by cloning any private repo in a terminal, or with gh auth login for GitHub), then try again. git said: ${msg}`
       : `git could not clone ${name}: ${msg}`);
   }
-  const map = addToRepoMap(opt.workspace, name, about);
+  const map = addToRepoMap(opt.workspace, folder, about);
   await refresh();
-  log(`cloned ${name} into the workspace (repo map: ${map})`);
-  return { folder: name, repoMap: map };
+  log(`cloned ${folder} into the workspace (repo map: ${map})`);
+  return { folder, repoMap: map };
 }
 
 // ------------------------------------------------------------------ ADO

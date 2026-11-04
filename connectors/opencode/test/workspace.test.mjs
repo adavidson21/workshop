@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { addToRepoMap, createLocalItem, localWorkItemText, nextLocalNumber, prFromUrl, repoNameFromUrl, slugOf } from "../lib/workspace.mjs";
+import { addToRepoMap, categoryFolder, createLocalItem, localWorkItemText, nextLocalNumber, prFromUrl, repoNameFromUrl, slugOf } from "../lib/workspace.mjs";
 import { parseProviders } from "../lib/opencode-state.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "oc-ws-"));
@@ -75,4 +75,22 @@ test("PR links: the number and a clean link from ADO pull request URLs; anything
   assert.deepEqual(prFromUrl("https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/812?_a=files#c1"), { id: "812", url: "https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/812" });
   assert.deepEqual(prFromUrl(" https://dev.azure.com/org/proj/_git/repo/pullrequest/42/ "), { id: "42", url: "https://dev.azure.com/org/proj/_git/repo/pullrequest/42" });
   for (const bad of ["", "812", "https://github.com/o/r/pull/3", "https://x/_git/r/pullrequest/1;calc", "https://x/a b/_git/r/pullrequest/1", "file:///_git/r/pullrequest/1", "https://x/_git/r/pullrequest/abc"]) assert.equal(prFromUrl(bad), null, bad);
+});
+
+test("Add a repo's category: empty is the top of the workspace, else one folder that is not a repo", () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "oc-cat-"));
+  try {
+    fs.mkdirSync(path.join(ws, "Platform"));
+    fs.mkdirSync(path.join(ws, "api", ".git"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "notes.txt"), "x");
+    assert.equal(categoryFolder(ws, ""), null);
+    assert.equal(categoryFolder(ws, null), null);
+    assert.equal(categoryFolder(ws, " Platform "), "Platform");
+    assert.equal(categoryFolder(ws, "Data"), "Data", "a new category is fine; addRepo makes it");
+    assert.throws(() => categoryFolder(ws, "api"), /is a repo, not a category/);
+    assert.throws(() => categoryFolder(ws, "notes.txt"), /file named notes.txt/);
+    for (const bad of ["a/b", "..", ".hidden", "-x", "a b"]) assert.throws(() => categoryFolder(ws, bad), /not a valid category/, bad);
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
 });

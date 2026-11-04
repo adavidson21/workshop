@@ -14,7 +14,7 @@ if (window.parent === window && location.hostname === 'workshop.alexisdavidson.o
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
@@ -417,11 +417,16 @@ async function repoGo() {
   if (!st || st.busy) return;
   const r = repoUrlCheck(ui().drafts['repo:url']);
   if (r.error) { st.error = r.error; paint(); return; }
+  const c = repoCategoryCheck(ui().drafts['repo:category'], ui().drafts['repo:newcat']);
+  if (c.error) { st.error = c.error; paint(); focusFirst('.repo-newcat'); return; }
   st.busy = true; st.error = null; paint();
   try {
     const about = String(ui().drafts['repo:about'] || '').trim();
-    const res = await write('repo.add', about ? { url: r.url, about } : { url: r.url });
-    delete ui().drafts['repo:url']; delete ui().drafts['repo:about'];
+    const args = { url: r.url };
+    if (about) args.about = about;
+    if (c.category) args.category = c.category;
+    const res = await write('repo.add', args);
+    delete ui().drafts['repo:url']; delete ui().drafts['repo:about']; delete ui().drafts['repo:category']; delete ui().drafts['repo:newcat'];
     if (ui().repo) { ui().repo.busy = false; ui().repo.added = res; }
   } catch (e) {
     if (ui().repo) { ui().repo.busy = false; ui().repo.error = errText(e); }
@@ -767,6 +772,13 @@ app.addEventListener('input', ev => {
 app.addEventListener('change', ev => {
   if (ev.target.hasAttribute('data-start-project') && ui().start) { ui().start.project = ev.target.value; return; }
   if (ev.target.hasAttribute('data-proj-folder') && ui().project) { ui().project.folder = ev.target.value; return; }
+  if (ev.target.hasAttribute('data-repo-cat')) {
+    ui().drafts['repo:category'] = ev.target.value;
+    if (ui().repo) ui().repo.error = null;
+    paint();
+    if (ev.target.value === NEW_CATEGORY) focusFirst('.repo-newcat');
+    return;
+  }
   if (ev.target.tagName === 'SELECT' && ev.target.getAttribute('data-draft')) { ui().drafts[ev.target.getAttribute('data-draft')] = ev.target.value; return; }
   if (ev.target.type === 'checkbox' && ui().settings) {
     if (ev.target.hasAttribute('data-cfg-enabled')) { ui().settings.enabled = ev.target.checked; return; }

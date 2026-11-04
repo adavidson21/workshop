@@ -60,7 +60,9 @@ test("workspace repos: top-level ones and ones a folder down (Category/repo); a 
     fs.mkdirSync(path.join(ws.dir, "Empty"));
     const r = spawnSync(ps, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-WorkRoot", ws.work, "-AsJson"], { cwd: ws.dir, encoding: "utf8", windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
-    assert.deepEqual(JSON.parse(r.stdout).repos.map((x) => x.folder), ["Platform/api", "Platform/web", "top-repo"]);
+    const out = JSON.parse(r.stdout);
+    assert.deepEqual(out.repos.map((x) => x.folder), ["Platform/api", "Platform/web", "top-repo"]);
+    assert.deepEqual(out.repoCategories, ["Deep", "Empty", "Platform"], "non-repo top-level folders are categories, empty ones too");
   } finally { ws.remove(); }
 });
 

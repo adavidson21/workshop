@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
-import { render, briefHtml, briefOpen, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, onboardSteps, aiState, looseSessions } from '../js/view.js';
+import { render, briefHtml, briefOpen, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, repoCategories, repoCategoryCheck, NEW_CATEGORY, onboardSteps, aiState, looseSessions } from '../js/view.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -357,6 +357,26 @@ test('add a repo: a clone URL, then an offer to draft its guide', () => {
   assert.deepEqual(repoUrlCheck('git@github.com:owner/repo.git'), { url: 'git@github.com:owner/repo.git' });
   assert.match(repoUrlCheck('owner/repo').error, /git URL/);
   assert.match(repoUrlCheck('').error, /clone URL/);
+});
+
+test('add a repo: a category picker with the workspace folders, top of the workspace, or a new one', () => {
+  load(clone(FIXTURE));
+  S.D.repoCategories = ['Tools', 'Platform'];
+  S.D.repos = (S.D.repos || []).concat([{ folder: 'Billing/invoices', git: {} }]);
+  assert.deepEqual(repoCategories(), ['Billing', 'Platform', 'Tools'], 'parser categories plus Category/repo names, sorted');
+  S.ui.repo = { busy: false, error: null, added: null };
+  let html = render();
+  assert.match(html, /data-repo-cat="1"><option value="" selected>None \(top of the workspace\)<\/option><option value="Billing">Billing<\/option>.*<option value="__new">New category<\/option>/s);
+  assert.doesNotMatch(html, /repo-newcat/, 'no name box until New category is picked');
+  S.ui.drafts['repo:category'] = NEW_CATEGORY;
+  assert.match(render(), /<option value="__new" selected>New category.*class="mono repo-newcat" data-draft="repo:newcat"/s);
+  assert.deepEqual(repoCategoryCheck('', ''), { category: '' });
+  assert.deepEqual(repoCategoryCheck('Platform', 'ignored'), { category: 'Platform' });
+  assert.deepEqual(repoCategoryCheck(NEW_CATEGORY, ' Data '), { category: 'Data' });
+  assert.match(repoCategoryCheck(NEW_CATEGORY, '').error, /Name the new category/);
+  for (const bad of ['a/b', '.hidden', '-x', 'has space']) assert.match(repoCategoryCheck(NEW_CATEGORY, bad).error, /one folder name/, bad);
+  S.ui.repo.added = { folder: 'Platform/web-app', repoMap: 'added' };
+  assert.match(render(), /<b>Platform\/web-app<\/b>.*data-guide="Platform\/web-app">Draft its guide/s);
 });
 
 test('AI: the checklist and a banner say how to connect one; unknown is not treated as missing', () => {
