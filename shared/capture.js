@@ -8,16 +8,16 @@
 
      t <text>   Docket task (also the default with no prefix)
      w <text>   Docket task, waiting on someone ("waiting on ..." works too)
-     r <text>   Receipts win ("r growth: ..." and so on for the other kinds)
+     r <text>   Rapport receipt, a win ("r growth: ..." and so on for the other kinds)
      n <text>   note ("note: ..." works too)
      ? <text>   a question for the Dispatch hub (a line that ends in "?" too)
-     > <app>    go to an app
+     > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
 
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
    "!" on its own, or "!!", marks a task urgent. */
 
 export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes' };
-export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Receipts', notes: 'Notes' };
+export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
 export const KINDS = ['task', 'waiting', 'receipt', 'note'];
 const MAX_TEXT = 2000;
@@ -25,9 +25,11 @@ const MAX_TEXT = 2000;
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
   home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'agents', agents: 'agents',
-  hub: 'agents', receipts: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'oneonones',
-  '1:1': 'oneonones', oneonones: 'oneonones', 'one-on-ones': 'oneonones', runway: 'runway', roadmap: 'runway'
+  hub: 'agents', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
+  '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', runway: 'runway', roadmap: 'runway'
 };
+/* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0. */
+export const PLACE_PATHS = { '1:1s': '1on1s', '1:1': '1on1s', oneonones: '1on1s', 'one-on-ones': '1on1s' };
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const pad = n => String(n).padStart(2, '0');
@@ -105,8 +107,9 @@ export function parseCapture(line, ctx = {}) {
   let m;
   if ((m = /^>\s*(.+)$/.exec(s))) {
     const word = m[1].trim().toLowerCase();
-    const app = PLACES[word] || PLACES[word.replace(/^the\s+/, '')] || null;
-    return app ? { kind: 'go', app, text: s } : { kind: 'ask', text: s.replace(/^>\s*/, '') };
+    const key = PLACES[word] ? word : word.replace(/^the\s+/, '');
+    const app = PLACES[key] || null;
+    return app ? { kind: 'go', app, ...(PLACE_PATHS[key] ? { path: PLACE_PATHS[key] } : {}), text: s } : { kind: 'ask', text: s.replace(/^>\s*/, '') };
   }
   if ((m = /^\?\s*(.*)$/.exec(s))) return { kind: 'ask', text: m[1].trim() || s };
   if ((m = /^(t|task)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'task'; s = m[2]; }
@@ -213,7 +216,7 @@ export function describe(p) {
   if (p.kind === 'ask') return 'Ask in Dispatch';
   if (p.kind === 'go') return 'Go to ' + p.app;
   const q = p.payload || {};
-  const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Receipts, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
+  const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (q.people && q.people.length) bits.push(q.people.join(', '));
   if (q.list) bits.push('#' + q.list);
   if (q.due) bits.push('due ' + q.due);

@@ -1,4 +1,4 @@
-// A fake Workshop SDK and synthetic envelopes for 1:1s tests. Everything here is made up.
+// A fake Workshop SDK and synthetic envelopes for Rapport's 1:1s tests. Everything here is made up.
 import { data as rules } from '../../../shared/workshop-sdk.js';
 
 export const TODAY = '2026-11-03';
@@ -16,10 +16,14 @@ export const entry = (id, extra = {}) => ({ id, updatedAt: 1, about: 'p_r1', kin
 
 export const PERSON = { id: 'p_abc1', name: 'Dev One', links: { docket: 'DevA', receipts: 'p_r1', queue: 'dev.one@example.com' }, cadenceDays: 7, archived: false };
 
-/** In-memory data and files, with revisions and conflicts like the agent, and a scripted opencode connector. */
-export function fakeWs({ backend = 'agent', stored = {}, others = {}, files = {}, opencode = 'ready' } = {}) {
+/** In-memory data and files, with revisions and conflicts like the agent, and a scripted opencode connector.
+    The app is Rapport (`receipts`). `others` holds other apps' collections by `<app>.<name>`, the old 1:1s app
+    included; `otherFiles` other apps' files by `<app>:<path>`. */
+export function fakeWs({ backend = 'agent', stored = {}, others = {}, files = {}, otherFiles = {}, opencode = 'ready' } = {}) {
   const store = structuredClone(stored);
   const disk = structuredClone(files); // path -> {content, mtime}
+  const away = structuredClone(otherFiles); // '<app>:<path>' -> {content, mtime}
+  const mine = o => !o || !o.app || o.app === 'receipts';
   let clock = 1000;
   const ws = {
     backend, embedded: true, calls: [], puts: [], allowed: true,
@@ -27,7 +31,7 @@ export function fakeWs({ backend = 'agent', stored = {}, others = {}, files = {}
     data: {
       async get(name, o) {
         if (!ws.allowed) throw Object.assign(new Error('Allow'), { code: 'unavailable' });
-        if (o && o.app && o.app !== 'oneonones') return others[`${o.app}.${name}`] ? structuredClone(others[`${o.app}.${name}`]) : null;
+        if (!mine(o)) return others[`${o.app}.${name}`] ? structuredClone(others[`${o.app}.${name}`]) : null;
         return store[name] ? structuredClone(store[name]) : null;
       },
       async put(name, env) {
@@ -42,17 +46,23 @@ export function fakeWs({ backend = 'agent', stored = {}, others = {}, files = {}
       subscribe() { return () => {}; }
     },
     files: {
-      async list(folder) { return Object.keys(disk).filter(p => p.startsWith(folder + '/')).sort().map(p => ({ path: p, mtime: disk[p].mtime, size: disk[p].content.length })); },
-      async read(p) { return disk[p] ? { app: 'oneonones', path: p, ...structuredClone(disk[p]) } : null; },
+      async list(folder, o) {
+        if (!mine(o)) return Object.keys(away).filter(k => k.startsWith(`${o.app}:${folder}/`)).sort().map(k => ({ path: k.slice(o.app.length + 1), mtime: away[k].mtime, size: away[k].content.length }));
+        return Object.keys(disk).filter(p => p.startsWith(folder + '/')).sort().map(p => ({ path: p, mtime: disk[p].mtime, size: disk[p].content.length }));
+      },
+      async read(p, o) {
+        if (!mine(o)) { const f = away[`${o.app}:${p}`]; return f ? { app: o.app, path: p, ...structuredClone(f) } : null; }
+        return disk[p] ? { app: 'receipts', path: p, ...structuredClone(disk[p]) } : null;
+      },
       async write(p, content, o = {}) {
         const cur = disk[p];
         if ((o.create && cur) || (!o.create && (!cur || cur.mtime !== o.mtime))) throw Object.assign(new Error('conflict'), { code: 'conflict', current: cur ? { path: p, ...structuredClone(cur) } : null });
         disk[p] = { content, mtime: ++clock };
-        return { app: 'oneonones', path: p, mtime: disk[p].mtime, size: content.length };
+        return { app: 'receipts', path: p, mtime: disk[p].mtime, size: content.length };
       },
       subscribe() { return () => {}; }
     },
-    store, disk,
+    store, disk, away,
     connectors: {
       async list() { return opencode ? [{ id: 'opencode', status: { state: opencode } }] : []; },
       async call(id, action, args = {}, opts = {}) {

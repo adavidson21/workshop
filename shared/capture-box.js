@@ -1,7 +1,7 @@
 /* Workshop: the capture box shared by Home's quick capture and the Dispatch hub (docs/hub.md).
 
    createCaptureStore keeps the app's own `handoffs` collection (docs/handoffs.md): every capture the person
-   accepts becomes an item there with accepted: true, and Docket, Receipts and Notes add it when they next load.
+   accepts becomes an item there with accepted: true, and Docket, Rapport and Notes add it when they next load.
    No DOM, so Node tests drive it with a fake `ws` (shared/test/capture-box.test.mjs).
 
    mountCapture draws the input, a live preview of what Enter will do, and a Recent list with Undo. Keys:
@@ -86,7 +86,7 @@ export function createCaptureStore(ws, { sender, now = () => new Date() } = {}) 
 }
 
 /* The input, preview and Recent list inside `root`.
-   opts: {ws, sender, context: () => ({today, people, lists}), onAsk(text), onGo({app}), placeholder, hint} */
+   opts: {ws, sender, context: () => ({today, people, lists}), onAsk(text), onGo({app, path?}), placeholder, hint} */
 export function mountCapture(root, opts) {
   const { ws, sender } = opts;
   const store = opts.store || createCaptureStore(ws, { sender });
@@ -141,7 +141,7 @@ export function mountCapture(root, opts) {
     const ask = ps.find(p => p.kind === 'ask');
     const go = ps.find(p => p.kind === 'go');
     if (ps.length === 1 && ask) { reset(); opts.onAsk && opts.onAsk(ask.text); return; }
-    if (ps.length === 1 && go) { reset(); opts.onGo ? opts.onGo(go) : ws.open({ app: go.app }); return; }
+    if (ps.length === 1 && go) { reset(); opts.onGo ? opts.onGo(go) : ws.open(go.path ? { app: go.app, path: go.path } : { app: go.app }); return; }
     try {
       const sent = await store.send(ps);
       lastSent = sent.map(h => h.id);

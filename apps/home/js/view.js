@@ -218,7 +218,7 @@ export function render(v) {
   // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
   // before the Day view's day end, wrapState; a check once wrapped). Triage is its tile.
   const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
-  const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Receipts today.` : '';
+  const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
   const dayTools = b ? hbtn(ICON.day, b.focus.total ? 'Plan today' : "Pick today's tasks", `data-open="prioritizer" data-path="${b.focus.total ? 'day/today' : 'today'}"`, !b.triage && !b.focus.total ? 'primary' : '')
     + (w.wrapped ? hbtn(ICON.check, 'Day wrapped', 'data-open="prioritizer" data-path="shutdown"', 'done', 'Day wrapped.' + offered)
       : hbtn(ICON.moon, 'Wrap up the day', 'data-open="prioritizer" data-path="shutdown"', w.due ? 'primary' : '', "Wrap up the day: breadcrumbs and tomorrow's top 3." + offered)) : '';

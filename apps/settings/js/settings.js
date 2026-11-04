@@ -381,7 +381,7 @@ function summarize(result) {
 }
 
 /* ---------- people directory (docs/people.md) ----------
-   Settings' own collection `people`, read by Receipts, Docket and 1:1s. Data writes work in every mode
+   Settings' own collection `people`, read by Rapport (and its 1:1s) and Docket. Data writes work in every mode
    (only config is read-only from a hosted site), so this card is always editable. */
 let peopleEnv = null;     // the stored envelope, or blank() before the first save
 let peopleUnreadable = false;
@@ -454,18 +454,18 @@ async function paintPeople() {
     ${active.length ? `<ul class="people">${active.map(personRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
     ${peopleEditing === 'new' ? `<div class="person editing">${personForm(P.cleanPerson({ id: 'new', relation: active.some(p => p.relation === 'self') ? 'report' : 'self' }))}</div>` : ''}
     <div class="acts left">${peopleEditing === 'new' ? '' : '<button class="btn primary" data-person-new>Add a person</button>'}
-      ${canImport ? `<button class="btn" data-people-import>Import from Receipts</button>` : ''}<span class="msg" aria-live="polite"></span></div>
+      ${canImport ? `<button class="btn" data-people-import>Import from Rapport</button>` : ''}<span class="msg" aria-live="polite"></span></div>
     ${canImport ? `<details class="import-preview"><summary>What the import adds (${plan.add.length + plan.update.length})</summary>
       <ul>${plan.add.map(p => `<li>Add <b>${esc(p.name)}</b> as ${esc(P.RELATION_LABEL[p.relation].toLowerCase())}${p.adoIdentity ? ` (<span class="mono">${esc(p.adoIdentity)}</span>)` : ''}${p.archived ? ', archived' : ''}</li>`).join('')}
       ${plan.update.map(u => `<li>Set ${esc(u.name)}'s Azure DevOps to <span class="mono">${esc(u.adoIdentity)}</span></li>`).join('')}</ul>
       ${plan.notes.length ? `<ul class="import-notes">${plan.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      <p class="cfg-help">Receipts keeps its own list unchanged.</p></details>` : ''}
+      <p class="cfg-help">Rapport keeps its own list unchanged.</p></details>` : ''}
     ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(personRow).join('')}</ul></details>` : ''}`;
   if (peopleEditing && sec.querySelector('#pName')) sec.querySelector('#pName').focus();
 }
 
 async function peopleCard() {
-  peopleSec = card('People', 'You, your manager, your reports and peers. Receipts, Docket and 1:1s use this list, so you add someone once.');
+  peopleSec = card('People', 'You, your manager, your reports and peers. Rapport (with its 1:1s) and Docket use this list, so you add someone once.');
   peopleSec.dataset.people = '';
   peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
   try { await loadPeople(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }

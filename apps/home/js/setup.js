@@ -170,7 +170,7 @@ function detail(s, ctx) {
     case 'task':
       return `<p>Docket decides what you work on next. It opens with a short tour; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
     case 'receipt':
-      return `<p>Receipts keeps evidence of your and your team's work for reviews. Add one thing you did this week.</p><p>${btn('Open Receipts', 'data-open="receipts" data-path="me"', true)}</p>`;
+      return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
         ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in the README (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`

@@ -74,12 +74,12 @@ export function importPlan({ receipts = {}, existing = [], now = Date.now() } = 
   const findByName = n => known.find(p => key(p.name) === key(n));
 
   const rOk = !!receipts.people && receipts.people.schema === 'receipts.people' && receipts.people.version === 1;
-  if (receipts.people && !rOk) notes.push('Receipts\' people were saved by a different Receipts version, so they were skipped.');
+  if (receipts.people && !rOk) notes.push('Rapport\'s people were saved by a different Rapport version, so they were skipped.');
   const rPeople = rOk ? receipts.people.items || [] : [];
   for (const r of rPeople) {
     if (!r || !r.name || known.some(p => p.id === r.id)) continue;
     if (findByName(r.name)) { notes.push(`${r.name} is already in the directory.`); continue; }
-    if (!ID.test(r.id)) { notes.push(`${r.name} was skipped: their Receipts id can't be kept.`); continue; }
+    if (!ID.test(r.id)) { notes.push(`${r.name} was skipped: their Rapport id can't be kept.`); continue; }
     const p = cleanPerson({ id: r.id, name: r.name, relation: 'report', role: r.role, since: r.since, archived: !!r.archived }, now);
     add.push(p); known.push(p);
   }

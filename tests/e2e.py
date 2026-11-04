@@ -175,7 +175,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'oneonones', 'runway', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -192,22 +192,36 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-    check('Receipts opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
+    check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
         rf.fill('.composer textarea', 'Shipped the e2e check'); rf.press('.composer textarea', 'Control+Enter'); pg.wait_for_timeout(500)
-        check('Receipts saves a receipt in browser storage', rf.locator('.entry').count() == 1)
+        check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
+        check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
 
     pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
 
-    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
-    of = next((f for f in pg.frames if '/apps/oneonones/' in f.url), None)
-    check('1:1s opens from the rail', of is not None and pg.url.endswith('#/oneonones'))
-    check('1:1s with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
+    # 1:1s are part of Rapport (2.0.0): the tab, then the copy of the old 1:1s app's data on a fresh open.
+    pg.evaluate("location.hash = '#/receipts/1on1s'"); pg.wait_for_timeout(800)
+    of = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+    check('1:1s in Rapport with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
+    op = ctx.new_page(); watch(op); op.goto(HUB + '/apps/settings/'); op.wait_for_timeout(500)
+    op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'oneonones'});
+      await ws.data.put('people', {schema: 'oneonones.people', version: 1, rev: 0, deleted: {}, items: [{id: 'p_old1', updatedAt: 1, name: 'Old Peer', links: {}, cadenceDays: 7, archived: false}]});
+      await ws.files.write('notes/p-old1/2026-10-01.md', '# 1:1 with Old Peer\\n', {create: true}); }""")
+    op.goto(HUB + '/apps/receipts/#/1on1s')
+    op.wait_for_function("() => document.querySelector('.oo-row')", timeout=10000)
+    check('Rapport copies the old 1:1s people in on first open', 'Old Peer' in op.inner_text('.oo-people'))
+    moved = op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js');
+      const r = await connect({app: 'receipts'}); const o = await connect({app: 'oneonones'});
+      const files = await r.files.list('oneonones/notes'); const old = await o.files.list('notes');
+      const people = await r.data.get('oneonones/people'); return [files.map(f => f.path), old.length, people && people.schema]; }""")
+    check('Rapport copies old 1:1 notes and keeps the old ones', moved == [['oneonones/notes/p-old1/2026-10-01.md'], 1, 'receipts.oneonones/people'])
+    op.close()
 
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1500)
+    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1500)
     wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
     check('Runway is on the rail and opens', wf is not None and pg.url.endswith('#/runway'))
     if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
@@ -216,7 +230,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -245,8 +259,22 @@ def browser_mode_checks(ctx, pg, frame, watch):
         # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
         pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
         rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-        check('Receipts lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
+        check('Rapport lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
               and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
+        if rf2:
+            # A report's page: start 1:1s, write today's note, log a win twice: one receipt.
+            rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-report]', timeout=5000)
+            rf2.click('[data-start-report]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
+            rf2.click('[data-start-note]'); rf2.wait_for_selector('#oo-editor', timeout=5000)
+            text = rf2.input_value('#oo-editor')
+            check("Rapport's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
+            rf2.fill('#oo-editor', text.replace('## Wins\n\n- ', '## Wins\n\n- Led the e2e review'))
+            rf2.press('#oo-editor', 'Control+s'); rf2.wait_for_timeout(500)
+            for _ in range(2):
+                rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
+                rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
+            check('a win logged after a 1:1 becomes one receipt about the report', rf2.inner_text('.list').count('Led the e2e review') == 1
+                  and 'From a 1:1' in rf2.inner_text('.list'))
         pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(800)
 
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
