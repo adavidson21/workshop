@@ -8,7 +8,7 @@
    What it never touches: requests to another origin, such as Runway calling Workshop on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const CACHE = 'runway-' + VERSION;
 const CORE = ['./', './index.html', './manifest.webmanifest', './app.json', './icon.svg'];
 
