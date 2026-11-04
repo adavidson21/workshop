@@ -11,7 +11,7 @@ Version 1. Data stays on the user's computer in every mode. No mode sends data t
 | `local` | Only Workshop on this computer: the Settings page the agent serves at `http://127.0.0.1:<port>/` | `agent` | Available | The page for sign-in, pairing and the settings only this computer may change |
 | `local`, work mode | The pinned copy on this computer (`workshop pin`), served by the agent at `http://127.0.0.1:<port>/` | `agent` | Available | Off. Turned on with `features.workMode` (see Work mode below) |
 
-Unless work mode is on, the agent serves no hub and no other app. Workshop, Docket, Dispatch, Receipts and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
+Unless work mode is on, the agent serves no hub and no other app. Workshop, Docket, Dispatch, Rapport and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
 
 `browser` mode exists for machines where a local server is blocked. Prioritizer works there with file export and import (see [data-format.md](data-format.md), Bundles).
 
