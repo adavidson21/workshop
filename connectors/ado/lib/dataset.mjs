@@ -1,6 +1,6 @@
 // "dataset": port of dataset() in Docket's ado-helper/ado_helper.py.
 //
-// Read-only raw data for the Reports view, for a whole team rather than just you. The app computes
+// Read-only raw data for Runway's Team reports (Docket's Reports view before Docket 4.17.0), for a whole team rather than just you. The app computes
 // every report from this one pull, so new reports need no connector change.
 //   items       items in scope changed in the window, plus every open item in scope
 //   events      priority, iteration (sprint), assignment and state changes in the window, and creations
