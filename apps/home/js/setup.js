@@ -187,6 +187,24 @@ function detail(s, ctx) {
   }
 }
 
+const ICON_UI = {
+  refresh: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10a6 6 0 0 1 10.3-4.2M16 10a6 6 0 0 1-10.3 4.2"/><path d="M14.6 2.8v3.3h-3.3M5.4 17.2v-3.3h3.3"/></svg>',
+  up: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 12.5L10 8l4.5 4.5"/></svg>',
+  down: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg>',
+  x: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>'
+};
+const ibtn = (icon, label, attr) => `<button type="button" class="ibtn" ${attr} aria-label="${esc(label.split('.')[0])}" title="${esc(label)}">${icon}</button>`;
+
+/** The one-line form of the checklist under the greeting: the next step and n of total. Click opens the card. */
+export function strip(view) {
+  const cur = view.steps.find(s => s.id === view.current);
+  const label = view.complete ? "You're set up" : cur ? 'Next: ' + cur.title : 'Get started';
+  return `<section class="su-strip${view.complete ? ' complete' : ''}" aria-label="Get started">
+    <button type="button" class="su-line" data-setup-expand aria-expanded="false"><span class="su-ic">${view.complete ? ICON.done : ICON[cur ? cur.state : 'todo']}</span>
+      <span class="su-title">${esc(label)}</span><span class="su-count num">${view.finished}/${view.total}</span>${ICON_UI.down}</button>
+    ${ibtn(ICON_UI.x, 'Hide. The progress button at the top brings it back.', 'data-setup-hide')}</section>`;
+}
+
 /**
  * The checklist card. `view` from stepsFor(); `open` the id of the step shown expanded (null: the current
  * one); ctx as in detail(). Returns {html, copies}: data-copy="<n>" buttons copy copies[n].
@@ -206,19 +224,22 @@ export function card(view, open, ctx) {
       </div>` : ''}
     </li>`;
   };
-  const core = view.steps.filter(s => s.core), later = view.steps.filter(s => !s.core);
+  // Finished steps fold into one line ("3 done") unless asked for, or one of them is the step shown.
+  const folded = st => st.state === 'done' && !ctx.showDone && st.id !== shown;
+  const nDone = view.steps.filter(folded).length;
+  const core = view.steps.filter(s => s.core && !folded(s)), later = view.steps.filter(s => !s.core && !folded(s));
   const pct = Math.round(100 * view.finished / view.total);
   const html = `<section class="setup" aria-labelledby="setup-h">
     <div class="su-top">
       <div><p class="su-eyebrow">Get started · ${view.finished} of ${view.total}</p>
         <h2 id="setup-h">${view.complete ? "You're set up" : 'Set up Workshop'}</h2>
-        <p class="su-sub">${view.complete ? 'Everything below ticks itself off as you go. Hide this whenever you like; <b>Get started</b> at the top brings it back.' : 'Each step ticks itself off when Workshop sees it done. Skip anything you don\'t use.'}</p></div>
-      <div class="su-tools">${btn('Check again', 'data-setup-check')}${btn('Hide', 'data-setup-hide')}</div>
+        <p class="su-sub">${view.complete ? 'Everything below ticks itself off as you go. Hide this whenever you like; the progress button at the top brings it back.' : 'Each step ticks itself off when Workshop sees it done. Skip anything you don\'t use.'}</p></div>
+      <div class="su-tools">${ibtn(ICON_UI.refresh, 'Check again', 'data-setup-check')}${ibtn(ICON_UI.up, 'Fold to one line', 'data-setup-collapse')}${ibtn(ICON_UI.x, 'Hide. The progress button at the top brings it back.', 'data-setup-hide')}</div>
     </div>
     <div class="su-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${view.total}" aria-valuenow="${view.finished}" aria-label="Setup progress"><span style="width:${pct}%"></span></div>
-    <ol class="su-steps">${core.map(row).join('')}</ol>
-    <p class="su-later">Later</p>
-    <ol class="su-steps">${later.map(row).join('')}</ol>
+    ${nDone ? `<button type="button" class="su-done" data-setup-done>${ICON.done}<span>${nDone} done</span><span class="su-fine">Show</span></button>` : ''}
+    ${core.length ? `<ol class="su-steps">${core.map(row).join('')}</ol>` : ''}
+    ${later.length ? `<p class="su-later">Later</p><ol class="su-steps">${later.map(row).join('')}</ol>` : ''}
   </section>`;
   return { html, copies: c.copies };
 }

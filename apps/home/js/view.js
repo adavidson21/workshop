@@ -15,6 +15,41 @@ const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
+/* Symbols, in the same line style as Docket's rows: color only when something needs you. */
+const svg = (d, w = 1.5) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+export const ICON = {
+  sun: svg('<circle cx="10" cy="10" r="3.2"/><path d="M10 2.6v1.7M10 15.7v1.7M2.6 10h1.7M15.7 10h1.7M4.8 4.8L6 6M14 14l1.2 1.2M4.8 15.2L6 14M14 6l1.2-1.2"/>'),
+  triage: svg('<path d="M3 4.5h14l-5.3 6.3v4.4l-3.4 1.6v-6z"/>'),
+  overdue: svg('<rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2M10 10.5v2.3"/><circle cx="10" cy="14.6" r=".6" fill="currentColor" stroke="none"/>'),
+  cal: svg('<rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2"/>'),
+  day: svg('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M6.5 7.5h7M6.5 10.5h4.5M6.5 13.5h6"/>'),
+  moon: svg('<path d="M15.8 12.6A6.5 6.5 0 0 1 7.4 4.2a6.5 6.5 0 1 0 8.4 8.4z"/>'),
+  check: svg('<path d="M4.5 10.5l3.5 3.5 7.5-8"/>', 1.8),
+  pencil: svg('<path d="M12.8 3.7l3.5 3.5L7.5 16H4v-3.5z"/><path d="M11 5.5l3.5 3.5"/>'),
+  ring: svg('<circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 1 6.5 6.5H10z" fill="currentColor" stroke="none"/>'),
+  open: svg('<circle cx="10" cy="10" r="6"/>'),
+  wait: svg('<path d="M5.5 3h9M5.5 17h9M6.5 3c0 3.5 3.5 4.5 3.5 7s-3.5 3.5-3.5 7M13.5 3c0 3.5-3.5 4.5-3.5 7s3.5 3.5 3.5 7"/>'),
+  noest: svg('<circle cx="10" cy="10" r="6" stroke-dasharray="2.2 2.2"/>'),
+  unassigned: svg('<circle cx="8" cy="7" r="2.8"/><path d="M3 16c.8-2.6 2.7-4 5-4 1 0 1.9.3 2.7.8M14.5 11.5a1.8 1.8 0 1 1 1.8 2c-.5.2-.8.6-.8 1.2M15.5 17.2v.1"/>'),
+  stale: svg('<path d="M3.5 10a6.5 6.5 0 1 0 2-4.7"/><path d="M3.2 3.3v3.2h3.2"/><path d="M10 6.5V10l2.3 1.6"/>'),
+  changed: svg('<path d="M4 10a6 6 0 0 1 10.3-4.2M16 10a6 6 0 0 1-10.3 4.2"/><path d="M14.6 2.8v3.3h-3.3M5.4 17.2v-3.3h3.3"/>'),
+  bell: svg('<path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.3 1.5H4.2z"/><path d="M8.3 17a1.8 1.8 0 0 0 3.4 0"/>'),
+  play: svg('<path d="M6.5 4.3v11.4l9-5.7z"/>'),
+  chev: svg('<path d="M5.5 8l4.5 4.5L14.5 8"/>', 1.6),
+  x: svg('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>', 1.6)
+};
+// Round icon button; the tooltip (title) and aria-label carry the words.
+export const hbtn = (icon, label, attrs, cls = '', tip = label) => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(label)}" title="${esc(tip)}">${icon}</button>`;
+// Same as Docket's listColor and initials, so a list keeps its dot color and a person their initials everywhere.
+export const listColor = id => { let h = 0; for (const c of String(id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 6; };
+export function initials(name) {
+  const s = String(name || '').trim(); if (!s) return '?';
+  const words = s.split(/[\s._-]+/).filter(Boolean);
+  if (words.length > 1) return (words[0][0] + words[1][0]).toUpperCase();
+  const cap = [...s.slice(1)].find(c => c >= 'A' && c <= 'Z' || c >= '0' && c <= '9');
+  return (s[0] + (cap || s[1] || '')).toUpperCase();
+}
+
 // Prioritizer's isTriaged and isStale
 const isTriaged = t => t.value != null && t.effort != null;
 const isStale = (t, today) => !t.done && !t.due && !!t.value && isDate(t.ageFrom) && daysBetween(t.ageFrom, today) >= 2 * WINDOW[t.value];
@@ -30,7 +65,7 @@ export function summarize({ tasks = [], lists = [], people = [] }, today) {
   // Prioritizer's isFocus: on Today, and open or finished today
   const focus = all.filter(t => t.focusOn === today && (!t.done || (!t.wontDo && t.doneAt === today)));
   const upNext = open.filter(t => !t.waiting).sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).slice(0, 3)
-    .map(t => ({ id: t.id, title: t.title, list: lists.length > 1 ? listName.get(t.listId) : '', due: isDate(t.due) ? t.due : null, people: Array.isArray(t.people) ? t.people : [] }));
+    .map(t => ({ id: t.id, title: t.title, list: lists.length > 1 ? listName.get(t.listId) : '', listId: t.listId, due: isDate(t.due) ? t.due : null, people: Array.isArray(t.people) ? t.people : [], triaged: isTriaged(t) }));
   const names = people.map(p => p.name).filter(n => typeof n === 'string' && n.trim());
   const team = names.map(name => {
     const mine = open.filter(t => Array.isArray(t.people) && t.people.some(p => String(p).toLowerCase() === name.toLowerCase()));
@@ -186,9 +221,19 @@ const fmtDue = (d, today) => {
   if (n < 0) return n === -1 ? 'Due yesterday' : `${-n} days overdue`;
   return 'Due ' + parseD(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 };
+// The short label on a due pill: Today, Tomorrow, Yesterday, a weekday this week, else Nov 14.
+const dueShort = (d, today) => {
+  const n = daysBetween(today, d);
+  if (n === 0) return 'Today';
+  if (n === 1) return 'Tomorrow';
+  if (n === -1) return 'Yesterday';
+  if (n > 1 && n < 7) return parseD(d).toLocaleDateString(undefined, { weekday: 'short' });
+  return parseD(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" role="img" aria-label="${esc(tip)}" title="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
 
-const tile = (n, label, sub, tone, path) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}">
-  <span class="n num">${n}</span><span class="lbl">${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
+const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}" title="${esc(tip)}">
+  <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
 /* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
    profile {name, role}; board = summarize() or null; boardNote = why there is no board (string) or '';
@@ -198,12 +243,20 @@ export function render(v) {
   const today = dateStr(v.now);
   const p = v.profile || {};
   const name = (p.name || '').trim(), role = (p.role || '').trim();
+  const b = v.board && v.board.total ? v.board : null;
+  // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
+  // before the Day view's day end, wrapState; a check once wrapped). Triage is its tile.
+  const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
+  const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Receipts today.` : '';
+  const dayTools = b ? hbtn(ICON.day, b.focus.total ? 'Plan today' : "Pick today's tasks", `data-open="prioritizer" data-path="${b.focus.total ? 'day/today' : 'today'}"`, !b.triage && !b.focus.total ? 'primary' : '')
+    + (w.wrapped ? hbtn(ICON.check, 'Day wrapped', 'data-open="prioritizer" data-path="shutdown"', 'done', 'Day wrapped.' + offered)
+      : hbtn(ICON.moon, 'Wrap up the day', 'data-open="prioritizer" data-path="shutdown"', w.due ? 'primary' : '', "Wrap up the day: breadcrumbs and tomorrow's top 3." + offered)) : '';
   const head = `<header class="hello">
     <div class="who">
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
-    ${v.waiting ? '' : `<button class="btn ghost" data-edit-profile>${name ? 'Edit profile' : 'Add your name'}</button>`}
+    ${v.waiting ? '' : `<div class="htools">${dayTools}${hbtn(ICON.pencil, name ? 'Edit profile' : 'Add your name', 'data-edit-profile')}</div>`}
   </header>`;
 
   if (v.waiting) return head + waitingCard(v.embedded);
@@ -211,46 +264,41 @@ export function render(v) {
   if (!v.board) {
     return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + queueCard(v.queue) + agentsCard(v.agents);
   }
-  const b = v.board;
-  if (!b.total) {
+  if (!b) {
     return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + queueCard(v.queue) + agentsCard(v.agents);
   }
 
+  const allDone = b.focus.total && b.focus.done === b.focus.total;
   const tiles = `<section class="tiles" aria-label="Today">
-    ${tile(b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'On Today', b.focus.total && b.focus.done === b.focus.total ? 'All done' : '', '', 'today')}
-    ${tile(b.triage, 'To triage', '', b.triage ? 'warn' : '', 'triage')}
-    ${tile(b.overdue, 'Overdue', '', b.overdue ? 'danger' : '', 'prioritize')}
-    ${tile(b.dueWeek, 'Due this week', `${plural(b.open, 'open task')}`, '', 'prioritize')}
+    ${tile(ICON.sun, b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'Today', allDone ? 'All done' : '', b.focus.total ? (allDone ? 'good' : '') : 'zero', 'today', b.focus.total ? `${b.focus.done} of ${b.focus.total} on Today done` : 'Nothing on Today yet. Pick 3 to 5.')}
+    ${tile(ICON.triage, b.triage, 'Triage', '', b.triage ? 'warn' : 'zero', 'triage', b.triage ? `${plural(b.triage, 'task')} to sort` : 'Nothing to triage')}
+    ${tile(ICON.overdue, b.overdue, 'Overdue', '', b.overdue ? 'danger' : 'zero', 'prioritize')}
+    ${tile(ICON.cal, b.dueWeek, 'This week', `${plural(b.open, 'open task')}`, b.dueWeek ? '' : 'zero', 'prioritize', 'Due in the next 7 days')}
   </section>`;
-  // One button per part of the day. The first one that needs doing is the primary.
-  // Wrap up is the primary step from an hour before the Day view's day end (wrapState); once wrapped it says so.
-  const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
-  const late = w.due && !w.wrapped;
-  const step = (label, path, primary, tip) => `<button class="btn${primary ? ' primary' : ''}" data-open="prioritizer" data-path="${path}"${tip ? ` title="${esc(tip)}"` : ''}>${label}</button>`;
-  const first = b.triage ? 'triage' : !b.focus.total ? 'plan' : late ? 'wrap' : 'plan';
-  const day = `<nav class="dayflow" aria-label="Your day">
-    ${b.triage ? step(`Triage ${b.triage}`, 'triage', first === 'triage') : ''}
-    ${step(b.focus.total ? 'Plan today' : 'Pick today\'s tasks', b.focus.total ? 'day/today' : 'today', first === 'plan')}
-    ${step(w.wrapped ? 'Day wrapped' : 'Wrap up the day', 'shutdown', first === 'wrap', w.receipts ? `${plural(w.receipts, 'receipt')} offered to Receipts today` : '')}
-  </nav>`;
 
   const next = `<section class="card">
     <div class="ch"><h2>Up next</h2><button class="lnk" data-open="prioritizer" data-path="prioritize">All tasks</button></div>
-    ${b.upNext.length ? `<ol class="next">${b.upNext.map((t, i) => `<li><button class="nrow" data-task="${esc(t.id)}">
-      <span class="rk num">${i + 1}</span><span class="tt">${esc(t.title)}</span>
-      <span class="tm">${[t.due ? `<span class="${t.due < today ? 'late' : ''}">${fmtDue(t.due, today)}</span>` : '', t.list ? esc(t.list) : '', t.people.length ? esc(t.people.join(', ')) : ''].filter(Boolean).join(' · ')}</span>
-    </button></li>`).join('')}</ol>` : `<p class="soft">Nothing open. Everything left is waiting on someone.</p>`}
+    ${b.upNext.length ? `<ol class="next">${b.upNext.map((t, i) => {
+      const meta = (t.due ? sig(ICON.cal, (t.due < today ? 'Overdue. ' : '') + fmtDue(t.due, today), t.due < today ? 'danger' : daysBetween(today, t.due) <= 3 ? 'soon' : '', dueShort(t.due, today)) : '')
+        + (t.triaged === false ? sig(ICON.noest, 'No estimate yet', 'quiet') : '')
+        + (t.people.length ? `<span class="ppl" role="img" aria-label="${esc(t.people.join(', '))}" title="${esc(t.people.join(', '))}">${t.people.slice(0, 2).map(n => `<i class="av">${esc(initials(n))}</i>`).join('')}${t.people.length > 2 ? `<i class="av">+${t.people.length - 2}</i>` : ''}</span>` : '')
+        + (t.list ? `<span class="lst" role="img" aria-label="List: ${esc(t.list)}" title="${esc(t.list)}"><i class="lc${listColor(t.listId)}"></i></span>` : '');
+      return `<li><button class="nrow" data-task="${esc(t.id)}"><span class="rk num">${i + 1}</span><span class="tt">${esc(t.title)}</span><span class="tm">${meta}</span></button></li>`;
+    }).join('')}</ol>` : `<p class="soft">Nothing open. Everything left is waiting on someone.</p>`}
   </section>`;
 
+  // People with something open; the rest are in Docket's People.
+  const busy = b.team.filter(m => m.open);
   const team = `<section class="card">
     <div class="ch"><h2>People</h2><button class="lnk" data-open="prioritizer" data-path="people">All people</button></div>
-    ${b.team.length ? `<ul class="team">${b.team.slice(0, 8).map(m => `<li><span class="av" aria-hidden="true">${esc(m.name.trim()[0].toUpperCase())}</span><span class="nm">${esc(m.name)}</span>
-      <span class="ct">${m.open ? `${m.open} open` : 'Nothing open'}${m.waiting ? ` · ${m.waiting} waiting` : ''}</span></li>`).join('')}</ul>`
+    ${busy.length ? `<ul class="team">${busy.slice(0, 8).map(m => `<li><span class="av" aria-hidden="true">${esc(initials(m.name))}</span><span class="nm">${esc(m.name)}</span>
+      <span class="ct">${sig(ICON.open, plural(m.open, 'open task'), '', String(m.open))}${m.waiting ? sig(ICON.wait, `${m.waiting} waiting on ${m.name}`, '', String(m.waiting)) : ''}</span></li>`).join('')}</ul>`
+      : b.team.length ? '<p class="soft">Nothing open with anyone.</p>'
       : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + day + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
+  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
@@ -261,29 +309,21 @@ export function waitingCard(embedded) {
     ${embedded ? '' : '<p><button class="btn primary" data-open="home">Open Workshop</button></p>'}</section>`;
 }
 
-/* The Queue card: read-only counts from the queue's last refresh. Clicking opens the Queue. */
+const pill = (icon, n, label, tone, app) => `<button class="pill${n ? ' ' + tone : ' zero'}" data-open="${app}" aria-label="${n} ${esc(label)}" title="${esc(label)}">${icon}<b class="num">${n}</b></button>`;
+/* The Queue card: read-only counts from the queue's last refresh, as icon pills. Clicking opens the Queue. */
 export function queueCard(q) {
   if (!q) return '';
-  const body = q.fetchedAt
-    ? `<div class="pair three">
-      <button class="stat${q.unassigned ? ' warn' : ''}" data-open="queue"><span class="n num">${q.unassigned}</span><span class="lbl">Unassigned</span></button>
-      <button class="stat" data-open="queue"><span class="n num">${q.stale}</span><span class="lbl">Stale</span></button>
-      <button class="stat${q.changedMine ? ' warn' : ''}" data-open="queue"><span class="n num">${q.changedMine}</span><span class="lbl">Yours, changed</span></button></div>`
-    : '<p class="soft">Open the Queue to load your team\'s items.</p>';
+  const calm = q.fetchedAt && !q.unassigned && !q.stale && !q.changedMine;
+  const body = !q.fetchedAt ? '<p class="soft">Open the Queue to load your team\'s items.</p>'
+    : `<div class="pills">${pill(ICON.unassigned, q.unassigned, 'Unassigned', 'warn', 'queue')}${pill(ICON.stale, q.stale, 'Stale', 'quiet', 'queue')}${pill(ICON.changed, q.changedMine, 'Yours, changed', 'acc', 'queue')}${calm ? `<span class="calm" title="Nothing to act on">${ICON.check}</span>` : ''}</div>`;
   return `<section class="card"><div class="ch"><h2>Queue</h2><button class="lnk" data-open="queue">Open</button></div>${body}</section>`;
 }
 
+/* Dispatch: only when it is connected. Its setup lives in Dispatch and Get started, not on Home. */
 function agentsCard(a) {
-  a = a || { state: 'loading' };
-  let body;
-  if (a.state === 'ready') {
-    body = `<div class="pair">
-      <button class="stat${a.needYou ? ' warn' : ''}" data-open="agents"><span class="n num">${a.needYou}</span><span class="lbl">Need you</span></button>
-      <button class="stat" data-open="agents"><span class="n num">${a.working}</span><span class="lbl">Working</span></button></div>`;
-  } else if (a.state === 'browser') body = '<p class="soft">Dispatch needs Workshop running on this computer.</p>';
-  else if (a.state === 'off') body = `<p class="soft">${esc(a.message || 'The opencode connector is off. Turn it on in Settings.')}</p>`;
-  else body = '<p class="soft">Checking…</p>';
-  return `<section class="card"><div class="ch"><h2>Dispatch</h2><button class="lnk" data-open="agents">Open</button></div>${body}</section>`;
+  if (!a || a.state !== 'ready') return '';
+  return `<section class="card"><div class="ch"><h2>Dispatch</h2><button class="lnk" data-open="agents">Open</button></div>
+    <div class="pills">${pill(ICON.bell, a.needYou, 'Need you', 'warn', 'agents')}${pill(ICON.play, a.working, 'Working', 'acc', 'agents')}</div></section>`;
 }
 
 export function profileForm(p) {
