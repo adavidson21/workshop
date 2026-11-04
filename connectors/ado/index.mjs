@@ -233,7 +233,7 @@ export default {
       }
     },
     roadmap: {
-      title: 'Epics and Features in my team\'s areas, with story progress',
+      title: 'Epics and Features in my team\'s areas, with story progress (and the stories, when asked)',
       write: false,
       argsSchema: {
         type: 'object',
@@ -241,7 +241,8 @@ export default {
         properties: {
           connection: { type: 'string', maxLength: 40 },
           areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
-          includeClosed: { type: 'boolean' }
+          includeClosed: { type: 'boolean' },
+          stories: { type: 'boolean' }
         }
       },
       async run(args, ctx) {
