@@ -3,7 +3,7 @@
 Builds the pinned copy with `workshop pin` into a temporary Workshop home (with Docket from .remote/prioritizer
 when that checkout is there), starts the real agent with work mode on, signs a browser in, and checks:
 
-  - the hub opens from 127.0.0.1 in local mode, with Home, Docket, Dispatch, Receipts and Settings on the rail
+  - the hub opens from 127.0.0.1 in local mode, with Home, Docket, Dispatch, Rapport and Settings on the rail
   - Settings says work mode is on and names the pinned build
   - Docket opens inside the hub and saves its board in the data folder (when Docket is included)
   - no request goes anywhere but 127.0.0.1
@@ -68,7 +68,7 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Dispatch', 'Receipts', 'Settings'] + (['Docket'] if with_docket else []):
+            for name in ['Dispatch', 'Rapport', 'Settings'] + (['Docket'] if with_docket else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')
