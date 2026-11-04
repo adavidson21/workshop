@@ -10,7 +10,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { createOneOnOnes } from './data.js';
-import { APP, SOURCES, buildPacket, cadenceState, docketNames, isoDay, noteTemplate, packetMarkdown, parseFollowUps, parseWins, queuePeople, quickAddLines, readable, receiptsPeople, winOffers } from './model.js';
+import { APP, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, queuePeople, quickAddLines, readable, receiptsPeople, winOffers } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard } from './view.js';
 
 const app = document.getElementById('app');
@@ -54,15 +54,19 @@ function packetFor(person) {
   });
 }
 
+// With Workshop's people directory, the Receipts and Queue pickers list its people (as Receipts and Queue do).
 function pickers() {
+  const dir = !!directoryPeople(v.src.directory);
   return {
     docket: docketNames(v.src.docketPeople),
-    receipts: receiptsPeople(v.src.receiptsPeople),
-    queue: queuePeople(v.src.queueSettings),
+    receipts: receiptsPeople(v.src.receiptsPeople, v.src.directory),
+    queue: queuePeople(v.src.queueSettings, v.src.directory),
+    fromDirectory: directorySuggestions(v.people, v.src.directory),
+    directory: dir,
     states: {
       docket: readable(v.src.docketPeople, SOURCES.docketPeople).state,
-      receipts: readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state,
-      queue: readable(v.src.queueSettings, SOURCES.queueSettings).state
+      receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state,
+      queue: dir ? 'ok' : readable(v.src.queueSettings, SOURCES.queueSettings).state
     }
   };
 }
@@ -84,7 +88,7 @@ function paint() {
       person, packet: packetFor(person), note: ui.note, notes: d.notesOf(person.id), today: today(),
       ai: ui.ai, aiOpts: { enabled: v.settings.aiDraft, ready: v.oc }
     });
-  } else html = homeHtml(homeRows(), ui);
+  } else html = homeHtml(homeRows(), ui, directorySuggestions(v.people, v.src.directory));
   app.innerHTML = `<div class="page">${html}</div>`;
   if (keep) {
     const e2 = app.querySelector('[data-editor]');
@@ -279,6 +283,14 @@ app.addEventListener('click', async e => {
   let x;
   if ((x = el('[data-person]'))) { openPerson(x.dataset.person); return; }
   if ((x = el('[data-route]'))) { if (ui.note && ui.note.dirty) await saveNote(); ui.route = x.dataset.route; ui.edit = null; paint(); return; }
+  if ((x = el('[data-add-dir]'))) {
+    const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === x.dataset.addDir);
+    if (dp) {
+      try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketPeople))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
+      catch (err) { toastErr(err); }
+    }
+    return;
+  }
   if (el('[data-add-person]')) { ui.edit = {}; paint(); app.querySelector('[data-person-form] input')?.focus(); return; }
   if ((x = el('[data-edit-person]'))) { ui.edit = v.people.find(p => p.id === x.dataset.editPerson) || null; paint(); return; }
   if (el('[data-cancel-person]')) { ui.edit = null; paint(); return; }

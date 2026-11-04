@@ -11,7 +11,10 @@
      receipts.people v1      items: {id, name, role, since, archived}
      queue.settings v1       meta: {people: [{name, email}], staleDays, ...}
      queue.snapshot v1       items: queue.list items {id, title, state, type, assignee: {name, email}, changed, ...};
-                             meta: {fetchedAt, categories: {type: {state: category}}} */
+                             meta: {fetchedAt, categories: {type: {state: category}}}
+     settings.people v1      Workshop's people directory (docs/people.md): {id, name, relation, team?, adoIdentity?,
+                             archived?}. When it exists it is the list for the Receipts and Queue pickers, the way
+                             Receipts and Queue themselves use it; while it is missing they read their own lists. */
 
 export const APP = 'oneonones';
 export const VERSION = 1;
@@ -26,7 +29,8 @@ export const SOURCES = {
   receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1 },
   receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1 },
   queueSettings: { app: 'queue', collection: 'settings', schema: 'queue.settings', version: 1 },
-  queueSnapshot: { app: 'queue', collection: 'snapshot', schema: 'queue.snapshot', version: 1 }
+  queueSnapshot: { app: 'queue', collection: 'snapshot', schema: 'queue.snapshot', version: 1 },
+  directory: { app: 'settings', collection: 'people', schema: 'settings.people', version: 1 }
 };
 
 /** Receipts kinds, in the order the packet shows them. */
@@ -82,8 +86,25 @@ export function docketNames(peopleEnv) {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
-/** Receipts reports (receipts.people), for the link picker: [{id, name, archived}]. */
-export function receiptsPeople(peopleEnv) {
+/** Workshop's people directory, cleaned, or null when it is missing or unreadable (then apps use their own lists). */
+export function directoryPeople(dirEnv) {
+  const r = readable(dirEnv, SOURCES.directory);
+  if (r.state !== 'ok') return null;
+  return r.env.items.filter(p => p && typeof p.id === 'string' && p.id && str(p.name, 200)).map(p => ({
+    id: p.id, name: str(p.name, 200), relation: p.relation,
+    team: typeof p.team === 'boolean' ? p.team : p.relation === 'self' || p.relation === 'report',
+    adoIdentity: str(p.adoIdentity, 200), archived: !!p.archived
+  }));
+}
+
+/** The Queue key for a directory person, as Queue itself matches them: the email, else the exact ADO name. */
+export const directoryQueueKey = p => (p.adoIdentity.includes('@') ? lower(p.adoIdentity) : p.adoIdentity || p.name);
+
+/** Receipts reports for the link picker: [{id, name, archived}]. From the directory's reports when it exists
+    (Receipts lists the same people, with the same ids), else from receipts.people. */
+export function receiptsPeople(peopleEnv, dirEnv = null) {
+  const dir = directoryPeople(dirEnv);
+  if (dir) return dir.filter(p => p.relation === 'report').map(p => ({ id: p.id, name: p.name, archived: p.archived })).sort((a, b) => a.name.localeCompare(b.name));
   const r = readable(peopleEnv, SOURCES.receiptsPeople);
   if (r.state !== 'ok') return [];
   return r.env.items.filter(p => p && typeof p.id === 'string' && p.id)
@@ -91,8 +112,18 @@ export function receiptsPeople(peopleEnv) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Queue people (queue.settings meta.people), for the link picker: [{key, name}]. key is the email, else the name. */
-export function queuePeople(settingsEnv) {
+/** Queue people for the link picker: [{key, name}]. key is the email, else the name. From the directory's
+    active team when it exists (Queue's Team view uses the same people), else from queue.settings meta.people. */
+export function queuePeople(settingsEnv, dirEnv = null) {
+  const dir = directoryPeople(dirEnv);
+  if (dir) {
+    const out = [];
+    for (const p of dir.filter(x => x.team && !x.archived)) {
+      const key = directoryQueueKey(p);
+      if (!out.some(x => x.key === key)) out.push({ key, name: p.name });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
   const r = readable(settingsEnv, SOURCES.queueSettings);
   if (r.state !== 'ok') return [];
   const list = r.env.meta && Array.isArray(r.env.meta.people) ? r.env.meta.people : [];
@@ -116,7 +147,8 @@ export function cleanPerson(p) {
   const x = p && typeof p === 'object' ? p : {};
   const l = x.links && typeof x.links === 'object' ? x.links : {};
   const links = {};
-  const docket = str(l.docket, 200), receipts = str(l.receipts, 100), queue = lower(str(l.queue, 200));
+    // Queue matches by email (any case) or by the exact name, so only an email is lowercased.
+  const docket = str(l.docket, 200), receipts = str(l.receipts, 100), q = str(l.queue, 200), queue = q.includes('@') ? lower(q) : q;
   if (docket) links.docket = docket;
   if (receipts) links.receipts = receipts;
   if (queue) links.queue = queue;
@@ -128,6 +160,26 @@ export function cleanPerson(p) {
     cadenceDays: Number.isInteger(c) && c >= 1 && c <= 90 ? c : DEFAULT_CADENCE,
     archived: x.archived === true
   };
+}
+
+/** Directory reports with no 1:1s person yet (none linked to them in Receipts, none with the same name). */
+export function directorySuggestions(people, dirEnv) {
+  const dir = directoryPeople(dirEnv);
+  if (!dir) return [];
+  return dir.filter(d => d.relation === 'report' && !d.archived
+    && !people.some(p => p.links.receipts === d.id || lower(p.name) === lower(d.name)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A new 1:1s person for a directory person, linked to Receipts (same id), Queue (if on your team) and Docket
+    (a Docket person with the same name, ignoring case). */
+export function personFromDirectory(d, docket = []) {
+  const links = {};
+  if (d.relation === 'report') links.receipts = d.id;
+  if (d.team && !d.archived) links.queue = directoryQueueKey(d);
+  const dn = docket.find(n => lower(n) === lower(d.name));
+  if (dn) links.docket = dn;
+  return { name: d.name, links, cadenceDays: DEFAULT_CADENCE, archived: false };
 }
 
 export function sortPeople(list) {

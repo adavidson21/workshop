@@ -6,7 +6,8 @@
      settings  no items; meta: {aiDraft} (false turns the draft step off)
      handoffs  offers to Receipts (docs/handoffs.md), schema oneonones.handoffs
    Own files: notes/<person folder>/<yyyy-mm-dd>.md, plain Markdown.
-   Read only: Docket's tasks and people, Receipts' entries and people, Queue's settings and snapshot. */
+   Read only: Docket's tasks and people, Receipts' entries and people, Queue's settings and snapshot, and
+   Workshop's people directory (Settings' people). */
 import { APP, VERSION, SOURCES, cleanPerson, isoDay, keepRecent, newPersonId, notePath, notesFor, sortPeople } from './model.js';
 
 const OC = 'opencode';

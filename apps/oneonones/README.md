@@ -4,6 +4,7 @@ Prep 1:1s with your direct reports. For one person and the time since your last 
 
 - **People:** the people you meet with, each with a cadence (default every 7 days). The list puts whoever is due first: no note yet, or the last note is as old as their cadence.
 - **Links (settings, gear icon):** match each person to their name in Docket, their report in Receipts and their entry in Queue settings. The pickers list what those apps already have. A person with no links still gets notes.
+- **People from Workshop:** when Workshop's people directory exists (People in Workshop's Settings, `docs/people.md`), the Receipts picker lists its direct reports and the Queue picker everyone on your team, the same people Receipts and Queue show. Direct reports with no 1:1s person yet are offered as one-click buttons on the empty list and in settings; the new person comes linked to Receipts, Queue (if on your team) and Docket (a Docket person with the same name). Without the directory, the pickers read Receipts' and Queue's own lists as before.
 - **Prep:** since the last 1:1 note (or *cadence* days ago when there is none):
   - Docket: open tasks tagged with them, tasks waiting on them, and nudges due.
   - Receipts: wins, feedback, growth, concerns and notes about them in that period.

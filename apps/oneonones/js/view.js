@@ -25,12 +25,12 @@ export function setupCard(v, embedded) {
 /* ---------- the people list ---------- */
 
 /** rows: [{person, lastDay, days, due}] */
-export function homeHtml(rows, ui) {
+export function homeHtml(rows, ui, fromDir = []) {
   const acts = `<button class="ibtn" data-route="settings" title="1:1s settings" aria-label="1:1s settings">${GEAR}</button>`;
   if (!rows.length) {
     return header('1:1s', 'People', acts) + `<section class="engcard"><h2>Who do you meet with?</h2>
       <p>Add the people you have 1:1s with, and link each one to what Docket, Receipts and Queue already know about them. Prep then gathers it in one place.</p>
-      <p><button class="btn primary" data-route="settings">Add people</button></p></section>`;
+      <p><button class="btn primary" data-route="settings">Add people</button></p>${fromDir.length ? fromDirectoryHtml(fromDir) : ''}</section>`;
   }
   return header('1:1s', 'People', acts) + `<p class="hint soft">Due means the last 1:1 note is as old as that person's cadence.</p>
     <ul class="people" role="list">${rows.map((r, i) => `<li><button class="prow${ui.selected === i ? ' on' : ''}" data-person="${esc(r.person.id)}">
@@ -168,6 +168,7 @@ export function settingsHtml(v, pick, edit) {
     <button class="lnk" data-edit-person="${esc(p.id)}">Edit</button></li>`;
   return header('Settings', '1:1s', back) + `
     ${edit ? personForm(edit, pick) : `<p><button class="btn primary" data-add-person>Add a person</button></p>`}
+    ${!edit && pick.fromDirectory.length ? fromDirectoryHtml(pick.fromDirectory) : ''}
     ${active.length ? `<ul class="slist">${active.map(row).join('')}</ul>` : ''}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul class="slist">${archived.map(row).join('')}</ul></details>` : ''}
     <form class="settings" data-settings>
@@ -176,6 +177,12 @@ export function settingsHtml(v, pick, edit) {
       <p class="soft small">Off: the button never shows and nothing is sent to opencode. Prep and notes never need it.</p>
       <div class="acts"><button class="btn">Save</button></div>
     </form>`;
+}
+
+/** Direct reports in Workshop's People with no 1:1s person yet: one click adds them, linked. */
+export function fromDirectoryHtml(list) {
+  return `<div class="from-dir"><p class="soft small">From People in Workshop's Settings: add with Receipts, Queue and Docket already linked.</p>
+    ${list.map(p => `<button class="chip" data-add-dir="${esc(p.id)}">+ ${esc(p.name)}</button>`).join('')}</div>`;
 }
 
 function picker(name, label, list, cur, state, hint) {
@@ -194,8 +201,8 @@ export function personForm(p, pick) {
       <label>Cadence (days between 1:1s)<input name="cadenceDays" type="number" min="1" max="90" value="${esc(p.cadenceDays || 7)}"></label>
     </div>
     ${picker('docket', 'Docket person', pick.docket.map(n => ({ value: n, label: n })), l.docket, pick.states.docket, 'No people in Docket yet. Tag a task with @name there.')}
-    ${picker('receipts', 'Receipts report', pick.receipts.filter(r => !r.archived || r.id === l.receipts).map(r => ({ value: r.id, label: r.name })), l.receipts, pick.states.receipts, 'No reports in Receipts yet.')}
-    ${picker('queue', 'Queue person', pick.queue.map(q => ({ value: q.key, label: q.key.includes('@') ? `${q.name} (${q.key})` : q.name })), l.queue, pick.states.queue, 'No people in Queue settings yet.')}
+    ${picker('receipts', 'Receipts report', pick.receipts.filter(r => !r.archived || r.id === l.receipts).map(r => ({ value: r.id, label: r.name })), l.receipts, pick.states.receipts, pick.directory ? 'No direct reports in People yet. Add them in Workshop\'s Settings.' : 'No reports in Receipts yet.')}
+    ${picker('queue', 'Queue person', pick.queue.map(q => ({ value: q.key, label: q.key.includes('@') ? `${q.name} (${q.key})` : q.name })), l.queue, pick.states.queue, pick.directory ? 'No one is on your team in People yet.' : 'No people in Queue settings yet.')}
     ${p.id ? `<label class="chk"><input type="checkbox" name="archived"${p.archived ? ' checked' : ''}> Archived (hidden from the list; notes are kept)</label>` : ''}
     <div class="acts"><button type="button" class="btn" data-cancel-person>Cancel</button><button class="btn primary">${p.id ? 'Save' : 'Add'}</button></div>
   </form>`;
