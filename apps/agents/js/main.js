@@ -17,6 +17,7 @@ import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck } from './view.js';
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
+import { startHub } from './hub.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
 const OC = 'opencode';
@@ -28,6 +29,9 @@ S.canNotify = typeof window.Notification === 'function';
 document.documentElement.classList.toggle('embed', ws.embedded);
 // On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
 if (!ws.embedded) mountBar('Dispatch');
+
+/* ---------- the hub (hub.js): one input for asks and captures, drawn once above the page ---------- */
+const hub = startHub(ws, document.getElementById('hub'));
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------
    Progress, the port and the computer type are kept per browser. Pairing works like the shell's Connect
@@ -291,7 +295,10 @@ function focusItem(id) {
   return true;
 }
 function wantFocus(path) {
-  const id = String(path || '').split('/')[0];
+  const p = String(path || '');
+  // #/agents/hub/<text>: a question sent from Home's quick capture (Enter was pressed there).
+  if (/^hub(\/|$)/.test(p)) { const text = p.replace(/^hub\/?/, '').trim(); if (text) hub.ask(text); else hub.focus(); return; }
+  const id = p.split('/')[0];
   if (!id) return;
   S.ui.scope = { kind: /^pr-\d+$/.test(id) ? 'reviews' : 'all' }; // the item may be outside the project in view
   // The page may not have the item yet: keep trying for a while as data arrives.

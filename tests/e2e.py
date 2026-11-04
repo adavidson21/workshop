@@ -1035,6 +1035,17 @@ def main():
         af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
         check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
         check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
+        if af:
+            check('the hub in browser mode says it needs Workshop on this computer', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
+            af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
+            check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
+            af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
+            sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
+            check('Accept in the hub saves an accepted note handoff', sent == [['notes', True, 'note']] and af.locator('#hub .hub-row.sent').count() == 1)
+            af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
+            check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
+            af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
+            check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
         check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
         check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')

@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -16,7 +16,14 @@
     {
       "path": ":id",
       "title": "Show a work item"
+    },
+    {
+      "path": "hub/:text",
+      "title": "Ask the hub"
     }
+  ],
+  "data": [
+    "handoffs"
   ],
   "connectors": [
     {
@@ -58,6 +65,8 @@
     "js/sidebar.js",
     "js/local.js",
     "js/pr-reviews.js",
+    "js/hub.js",
+    "js/hub-model.js",
     "review.html",
     "review.css",
     "js/review.js",

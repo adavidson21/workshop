@@ -39,6 +39,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
 | `prReviews.nightlyAt` | empty (off) | (new) | `HH:MM`, 24-hour, local time. Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Hosted pages may change it. |
+| `hub` | `false` | (new) | Lets the hub on Dispatch's page send messages to Tandem's `/hub` (see The hub). Changed only from Workshop on this computer. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
@@ -75,6 +76,8 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `pr.inbox.save` | no | `prs`: up to 200, same shape | (new) | Remembers the PRs waiting on you for the nightly review. Dispatch calls it after each ADO `sync.prs`. `{ok, count}`. |
 | `oneonone.draft` | yes | `personId`, `date` (`YYYY-MM-DD`), `packet` (Markdown, up to 50 KB) | (new) | The 1:1s app's optional draft step (see 1:1 drafts). Saves `packet` as `packet.md` in this connector's own folder, removes an earlier `draft.md`, and runs `/one-on-one <path to packet.md>` (eng-agents Core 2.8.0) in a new session, listed in `liveMode.live.others`. Refused (`conflict`) while a draft for the same person and day runs. `{session, folder}`. |
 | `oneonone.result` | no | `personId`, `date` | (new) | `{state}`: `none` (never asked), `running`, `done` with `text` (the `draft.md` the agent wrote), or `failed` with `error`. |
+| `hub.run` | yes | `id` (`hub_...`), `text` (up to 4000 characters), optional `context` (`people` `[{id, name, relation?, team?}]`, `lists`, `areas`: names only) | (new) | The hub on Dispatch's page (see The hub). Refused unless the `hub` setting is on. Saves `request.md` in this connector's own folder, removes an earlier `route.json` and `answer.md`, and runs `/hub <path to request.md>` (eng-agents Core 2.9.0) in a new session. Refused (`conflict`) while the same id runs. Keeps the newest 200 request folders. `{session, id}`. |
+| `hub.result` | no | `id` | (new) | `{state}`: `none`, `running` (with `route` once written), `routed` (`route`, no answer), `done` (`route` and `answer`), or `failed` with `error`. `route` is `route.json` as written; Dispatch checks it against `docs/schemas/hub-route.schema.json`. |
 | `repo.add` | yes | `url`, optional `about` | (new) | `git clone` into the workspace (no terminal prompts; credential helpers still work), then adds a row to the repo map (`AGENTS.md` in the workspace, created if missing). `{folder, repoMap: "created" | "added" | "listed"}`. |
 | `repo.guide` | yes | `repo` (a folder in the workspace) | (new) | Runs `/onboard-repo <repo>` in a new session, listed in `liveMode.live.others`. `{session}`. |
 | `session.dismiss` | no | `session` | (new) | Stops listing a spike or repo guide session in `others`. The opencode session is kept. |
@@ -124,6 +127,12 @@ Status `details`: `{workspace, opencode: {connected, kind, version, error}, pars
 
 The 1:1s app (`apps/oneonones/`) can ask your opencode agents for draft talking points. `lib/one-on-one.mjs` keeps this away from your code: the packet holds people data, so it is saved in `<Workshop home>/data/_connectors/opencode/oneonones/<personId>-<date>/packet.md` (the same folder as this connector's `ctx.storage`), never in the workspace or `.work`. Tandem's `/one-on-one` (agent **people-prep**) reads it and writes `draft.md` next to it, and may edit nothing else. The app leaves out the person's name, and Receipts concerns unless the person asks for them on that run. The session shows in Dispatch with the others, so a permission prompt can be answered there.
 
+
+## The hub
+
+Dispatch's hub (`apps/agents/js/hub.js`, Workshop `docs/hub.md`) sends each message to Tandem's `/hub` (agent **hub**). `lib/hub.mjs` keeps it away from your code: the message and the names it may use (people directory, Docket lists, Queue areas) are saved as `<Workshop home>/data/_connectors/opencode/hub/<id>/request.md`, never in the workspace or `.work`. The hub agent writes `route.json` and, for a question, `answer.md` next to it, and may edit nothing else; it runs only read-only commands and cannot fetch web pages.
+
+The **Hub** setting (`hub`, off by default) turns this on. It is not marked `x-workshop-hosted`, so only Workshop on this computer can turn it on; a paired site cannot. While it is off, both actions answer `unavailable` and Dispatch's hub captures with simple rules instead, like Home's quick capture. Hub sessions are listed in Dispatch only while they wait for you (a permission or a question).
 ## PR review queue
 
 *Review all* in Dispatch and the optional nightly review run Tandem's `/pr-review` (eng-agents Core 2.6.0) on several pull requests, one at a time, so they never compete for opencode or your git clones. The queue lives in the connector (`lib/review-queue.mjs`, wired by `lib/pr-queue.mjs`) and is saved in `.work/_dashboard/pr-queue.json`, so it keeps going with Dispatch closed. Like `pr.review`, it only drafts comments: nothing is posted to Azure DevOps.
