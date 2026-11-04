@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { agentCounts, render, summarize, greeting, profileForm } from '../js/view.js';
-import { dayNow } from '../js/view.js';
+import { dayNow, initials } from '../js/view.js';
 
 const TODAY = '2026-10-21';
 const lists = [{ id: 'l_main', name: 'Main', parentId: null }, { id: 'l2', name: 'Side', parentId: null }];
@@ -62,7 +62,7 @@ test('the page: profile, empty board, and escaping', () => {
   assert.match(empty, /Good morning</);
   assert.match(empty, /Add your name/);
   assert.match(empty, /No tasks yet/);
-  assert.match(empty, /needs Workshop running/);
+  assert.ok(!empty.includes('<h2>Dispatch</h2>'), 'no Dispatch card until it is connected');
   const bad = [t('x', { title: '<img src=x onerror=alert(1)>' })];
   const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: summarize({ tasks: bad, lists, people: [] }, TODAY), agents: { state: 'ready', needYou: 2, working: 1 } });
   assert.match(html, /Good morning, Test</);
@@ -158,8 +158,28 @@ test('Wrap up step: primary from an hour before day end on a working day; says D
   assert.deepEqual(wrapState({ settings, offers, day }, today, 9 * 60), { wrapped: true, due: false, receipts: 1 });
   const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
   const due = render({ ...v, wrap: { wrapped: false, due: true, receipts: 2 } });
-  assert.match(due, /class="btn primary" data-open="prioritizer" data-path="shutdown" title="2 receipts offered to Receipts today">Wrap up the day/);
+  assert.match(due, /class="hbtn primary" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day" title="[^"]*2 receipts offered to Receipts today\."/);
   const early = render({ ...v, wrap: { wrapped: false, due: false, receipts: 0 } });
-  assert.match(early, /class="btn" data-open="prioritizer" data-path="shutdown">Wrap up the day/);
-  assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="btn" data-open="prioritizer" data-path="shutdown">Day wrapped/);
+  assert.match(early, /class="hbtn" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day"/);
+  assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="hbtn done" data-open="prioritizer" data-path="shutdown" aria-label="Day wrapped"/);
+});
+
+test('symbols: tiles carry icons and tone, rows use signals, quiet people and Queue counts', () => {
+  const board = summarize({ tasks: [
+    { id: 'a', title: 'Late', listId: 'l1', rank: 1, value: 3, effort: 'S', due: '2026-10-19', people: ['Dana Lee'] },
+    { id: 'b', title: 'Raw', listId: 'l2', rank: 2 }
+  ], lists: [{ id: 'l1', name: 'Main' }, { id: 'l2', name: 'Side' }], people: [{ name: 'Dana Lee' }, { name: 'Idle' }] }, '2026-10-20');
+  const html = render({ now: new Date(2026, 9, 20, 9), profile: { name: 'A' }, board, agents: { state: 'off' } });
+  assert.match(html, /class="tile danger"/);
+  assert.match(html, /class="tile warn"/);
+  assert.match(html, /class="sig danger txt"[^>]*aria-label="Overdue\. Due yesterday"/);
+  assert.match(html, /<i class="av">DL<\/i>/);
+  assert.match(html, /aria-label="List: Main"/);
+  assert.match(html, /aria-label="No estimate yet"/);
+  assert.ok(!html.includes('>Idle<'), 'people with nothing open are left out');
+  assert.ok(!html.includes('<h2>Dispatch</h2>'));
+  assert.match(queueCard({ fetchedAt: 'x', total: 3, unassigned: 0, stale: 0, changedMine: 0 }), /class="calm"/);
+  assert.match(queueCard({ fetchedAt: 'x', total: 3, unassigned: 2, stale: 0, changedMine: 0 }), /class="pill warn"[^>]*aria-label="2 Unassigned"/);
+  assert.equal(initials('DevA'), 'DA');
+  assert.equal(initials('Dana Lee'), 'DL');
 });

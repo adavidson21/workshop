@@ -5,12 +5,16 @@
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { createHome, dayCollections } from './data.js';
-import { profileForm, render } from './view.js';
-import { card as setupCard, createSetup } from './setup.js';
+import { ICON, hbtn, profileForm, render } from './view.js';
+import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
+import { startCapture } from './capture.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: 'home' });
 document.documentElement.classList.toggle('embed', ws.embedded);
+
+/* ---------- quick capture (capture.js), drawn once and never repainted, so typing is never lost ---------- */
+const capture = startCapture(ws, document.getElementById('capture'));
 
 let editing = false, visible = true;
 const home = createHome(ws, { onChange: () => paint() });
@@ -18,7 +22,7 @@ const v = home.v;
 
 /* ---------- Get started checklist (setup.js) ---------- */
 const setup = createSetup(ws, { onChange: () => paint(), extra: () => ({ name: v.profile.name, tasks: v.board ? v.board.total : null }) });
-let openStep = null, copies = [];
+let openStep = null, copies = [], setupOpen = false, showDone = false;
 const platform = (() => { const p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''); return /win/i.test(p) ? 'win' : /mac/i.test(p) ? 'mac' : 'linux'; })();
 // Where connector settings can be changed: in Workshop when this page is Workshop on this computer
 // (ws.mode local), otherwise on that page, at the address this site paired with (Settings is read only here).
@@ -27,26 +31,28 @@ function settingsTarget() {
   try { const p = JSON.parse(localStorage.getItem('workshop.agent') || 'null'); if (p && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(p.url)) return { href: p.url + '/apps/settings/' }; } catch (e) { /* not paired */ }
   return null;
 }
+// Three forms: hidden (a progress button in the header brings it back), one line under the greeting (the
+// default: the next step and n of total), or the full card while you work through it (per window).
 function placeSetup() {
   copies = [];
   const hello = app.querySelector('.hello');
   if (!hello || editing || home.waiting || !setup.s.loaded) return;
   const view = setup.view();
   if (setup.s.hidden) {
-    const b = document.createElement('button');
-    b.className = 'btn ghost'; b.dataset.setupShow = '';
-    b.textContent = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
-    hello.appendChild(b);
+    const tools = hello.querySelector('.htools');
+    const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
+    if (tools) tools.insertAdjacentHTML('beforeend', hbtn(ICON.ring, label, 'data-setup-show', view.complete ? '' : 'acc'));
     return;
   }
-  const out = setupCard(view, openStep, { facts: setup.s.facts, platform, origin: location.origin, settings: settingsTarget() });
+  if (!setupOpen) { hello.insertAdjacentHTML('afterend', setupStrip(view)); return; }
+  const out = setupCard(view, openStep, { facts: setup.s.facts, platform, origin: location.origin, settings: settingsTarget(), showDone });
   copies = out.copies;
   hello.insertAdjacentHTML('afterend', out.html);
 }
 
 // Sections that fade in. They play once: a section already on screen keeps still through repaints
 // (a repaint comes with every agent event and once a minute).
-const ENTERS = ['.hello', '.setup', '.dayflow', '.tiles', '.cols', '.card.note'];
+const ENTERS = ['.hello', '.setup', '.su-strip', '.tiles', '.cols', '.card.note'];
 function paint() {
   if (home.waiting) editing = false;
   const had = ENTERS.map(q => !!app.querySelector(q));
@@ -89,7 +95,10 @@ app.addEventListener('click', e => {
   if (t.closest('[data-skip]')) { const id = t.closest('[data-skip]').dataset.skip; openStep = null; saving(() => setup.skip(id)); return; }
   if (t.closest('[data-unskip]')) { const id = t.closest('[data-unskip]').dataset.unskip; openStep = id; saving(() => setup.unskip(id)); return; }
   if (t.closest('[data-setup-hide]')) { saving(setup.hide); return; }
-  if (t.closest('[data-setup-show]')) { openStep = null; saving(setup.show); setup.load(); return; }
+  if (t.closest('[data-setup-show]')) { openStep = null; setupOpen = true; saving(setup.show); setup.load(); return; }
+  if (t.closest('[data-setup-expand]')) { setupOpen = true; paint(); return; }
+  if (t.closest('[data-setup-collapse]')) { setupOpen = false; openStep = null; paint(); return; }
+  if (t.closest('[data-setup-done]')) { showDone = !showDone; paint(); return; }
   if (t.closest('[data-setup-check]')) { setup.load().then(() => ws.toast('Checked', { kind: 'success' })); home.loadBoard(); return; }
   if (t.closest('[data-edit-profile]')) { if (!home.waiting) { editing = true; paint(); } return; }
   if (t.closest('[data-cancel]')) { editing = false; paint(); }
@@ -116,7 +125,11 @@ async function copyText(text, b) {
     ta.remove();
   }
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && editing) { editing = false; paint(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && editing) { editing = false; paint(); return; }
+  // "/" anywhere on Home (not while typing) jumps to quick capture.
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) { e.preventDefault(); capture.focus(); }
+});
 
 // Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
 // "overdue" change at midnight; the counts change when you work in other apps).

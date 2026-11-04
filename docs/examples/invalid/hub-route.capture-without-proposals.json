@@ -1,0 +1,1 @@
+{"version": 1, "intent": "capture", "act": {"connector": "ado", "action": "workitem.update", "args": {}, "label": "Assign it"}}
