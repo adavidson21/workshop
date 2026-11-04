@@ -40,10 +40,12 @@ SAMPLES = 'http://localhost:8804'
 DOCKET = os.environ.get('DOCKET_DIR') or os.path.join(ROOT, '.remote', 'prioritizer')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
+# Runway (apps/remote.json) is served the same way from its checkout, when there is one.
+RUNWAY = os.environ.get('RUNWAY_DIR') or os.path.join(ROOT, '.remote', 'runway')
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
-    """This repo as a static site, with /apps/prioritizer/ served from the Docket checkout like the Worker does."""
+    """This repo as a static site, with /apps/prioritizer/ and /apps/runway/ served from their checkouts like the Worker does."""
     def log_message(self, *a): pass
 
     def translate_path(self, path):
@@ -51,6 +53,9 @@ class Static(http.server.SimpleHTTPRequestHandler):
         if clean.startswith('/apps/prioritizer/'):
             rest = clean[len('/apps/prioritizer/'):]
             return os.path.join(DOCKET, *[p for p in rest.split('/') if p and p not in ('.', '..')])
+        if clean.startswith('/apps/runway/'):
+            rest = clean[len('/apps/runway/'):]
+            return os.path.join(RUNWAY, *[p for p in rest.split('/') if p and p not in ('.', '..')])
         return super().translate_path(path)
 
 
@@ -170,7 +175,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'oneonones', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'oneonones', 'runway', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -199,8 +204,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
     mf = next((f for f in pg.frames if '/apps/pm/' in f.url), None)
-    check('Roadmap opens from the rail', mf is not None and pg.url.endswith('#/pm'))
-    check('Roadmap in browser mode says it needs Workshop on this computer', mf is not None and 'needs Workshop on this computer' in mf.inner_text('#app'))
+    check('Releases opens from the rail', mf is not None and pg.url.endswith('#/pm'))
+    check('Releases in browser mode says release health needs Workshop on this computer', mf is not None and 'needs Workshop on this computer' in mf.inner_text('#app'))
+    check('Releases has no roadmap tab and points to Runway', mf is not None and mf.locator('[data-tab="roadmap"]').count() == 0 and mf.locator('[data-open-app="runway"]').count() == 1)
 
     pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
@@ -212,7 +218,14 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('1:1s opens from the rail', of is not None and pg.url.endswith('#/oneonones'))
     check('1:1s with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
 
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1500)
+    wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
+    check('Runway opens from the rail', wf is not None and pg.url.endswith('#/runway'))
+    if wf:
+        wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
+        check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
+
+    pg.keyboard.press('Alt+9'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
@@ -983,6 +996,8 @@ def string_waits():
 def main():
     bad = string_waits()
     if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
+    if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
+        sys.exit(f'Runway is not checked out at {RUNWAY}. Run: git clone https://github.com/adavidson21/runway .remote/runway')
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     serve(8802, functools.partial(Static, directory=ROOT))

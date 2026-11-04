@@ -2,6 +2,7 @@
 // The site is this repo's static files; worker/index.js routes the Dispatch domain and serves apps from other
 // sites (apps/remote.json) under /apps/<id>/ (see that file).
 // DOCKET is the "docket" Worker (adavidson21/docket, docket.alexisdavidson.org): /apps/prioritizer/ comes from it.
+// RUNWAY is the "runway" Worker (adavidson21/runway, runway.alexisdavidson.org): /apps/runway/ comes from it.
 {
   "name": "workshop",
   "main": "worker/index.js",
@@ -12,7 +13,8 @@
     "run_worker_first": true
   },
   "services": [
-    { "binding": "DOCKET", "service": "docket" }
+    { "binding": "DOCKET", "service": "docket" },
+    { "binding": "RUNWAY", "service": "runway" }
   ],
   "routes": [
     { "pattern": "workshop.alexisdavidson.org", "custom_domain": true },

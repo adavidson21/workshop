@@ -162,6 +162,90 @@
           "shared/workshop-sdk.js"
         ]
       }
+    },
+    {
+      "id": "runway",
+      "site": "https://runway.alexisdavidson.org",
+      "repo": "adavidson21/runway",
+      "binding": "RUNWAY",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "runway",
+        "name": "Runway",
+        "version": "1.1.0",
+        "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 50,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "connectors": [
+          {
+            "id": "ado",
+            "required": false
+          }
+        ],
+        "routes": [
+          {
+            "path": ":id",
+            "title": "Open a roadmap"
+          }
+        ],
+        "commands": [
+          {
+            "id": "new-roadmap",
+            "title": "New roadmap",
+            "route": ""
+          },
+          {
+            "id": "new-item",
+            "title": "New roadmap item"
+          },
+          {
+            "id": "export",
+            "title": "Export roadmap"
+          }
+        ],
+        "files": [
+          "app.css",
+          "icons/app-192.png",
+          "icons/app-512.png",
+          "icons/app-maskable-512.png",
+          "icons/app-touch-180.png",
+          "icons/favicon-32.png",
+          "icons/favicon.svg",
+          "js/ado/index.js",
+          "js/ado/model.js",
+          "js/dates.js",
+          "js/example.js",
+          "js/export.js",
+          "js/main.js",
+          "js/model.js",
+          "js/outline.js",
+          "js/store.js",
+          "js/timeline.js",
+          "js/view.js",
+          "shared/device-fs.js",
+          "shared/fonts/fonts.css",
+          "shared/fonts/inter-latin-ext-wght-normal.woff2",
+          "shared/fonts/inter-latin-wght-normal.woff2",
+          "shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2",
+          "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
+          "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
+          "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
+          "shared/pair.js",
+          "shared/save-file.js",
+          "shared/standalone-bar.js",
+          "shared/sw-register.js",
+          "shared/theme.js",
+          "shared/themes.css",
+          "shared/ui.css",
+          "shared/workshop-sdk.js"
+        ]
+      }
     }
   ]
 }

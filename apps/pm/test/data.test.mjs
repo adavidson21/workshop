@@ -8,7 +8,7 @@ import { dayplanSettings, epic, fakeWs, feature, products, queueSettings } from 
 
 const NOW = Date.parse('2026-11-03T12:00:00Z');
 const make = ws => createPm(ws, { now: () => NOW });
-const ui = (extra = {}) => ({ tab: 'roadmap', open: new Set(), release: null, draft: null, ...extra });
+const ui = (extra = {}) => ({ tab: 'releases', release: null, draft: null, ...extra });
 
 test('with no products and no Queue area paths, it asks for setup and calls nothing in ADO', async () => {
   const ws = fakeWs();
@@ -109,7 +109,7 @@ test('a collection saved by a newer Roadmap is read only', async () => {
   assert.equal(pm.v.newer, 'cadence');
   await assert.rejects(pm.saveCadence([{ name: 'Retro', last: true }]), e => e.code === 'downgrade');
   assert.equal(ws.puts.length, 0);
-  assert.match(render(pm.v, ui(), NOW, true), /Saved by a newer Roadmap/);
+  assert.match(render(pm.v, ui(), NOW, true), /Saved by a newer Releases/);
 });
 
 test('browser mode: no ADO calls, a note that the roadmap needs Workshop, cadence still works', async () => {
@@ -142,14 +142,14 @@ test('a write conflict merges with what another window saved', async () => {
   assert.deepEqual(ws.store.cadence.items.map(c => c.id).sort(), ['cer_other', 'cer_ref']);
 });
 
-test('items with no dates go on the Now, Next, Later board', async () => {
-  const ws = fakeWs({ stored: { products: products() }, items: [epic(1, { iteration: 'Web App' }), epic(2, { state: 'New', iteration: 'Web App' }), feature(3, null, { iteration: 'Web App\\Sprint 12' })] });
+test('opens on release health and points to Runway for roadmaps', async () => {
+  const ws = fakeWs({ stored: { products: products() }, items: [epic(1, { iteration: 'Web App' }), feature(3, 1, { iteration: 'Web App\\Sprint 12' })] });
   const pm = make(ws);
   await pm.loadAll();
   await pm.refresh();
   const html = render(pm.v, ui(), NOW, true);
-  assert.match(html, /class="board"/);
-  assert.match(html, /<h3 class="section-label">Now<\/h3><ul><li><a [^>]*>Synthetic version 1</);
-  assert.match(html, /<h3 class="section-label">Later<\/h3><ul><li><a [^>]*>Synthetic version 2</);
-  assert.match(html, /Features with no version/, 'a Feature placed by its sprint is on the chart');
+  assert.match(html, /aria-selected="true" data-tab="releases"/);
+  assert.doesNotMatch(html, /data-tab="roadmap"/, 'the roadmap timeline moved to Runway');
+  assert.match(html, /data-open-app="runway"/);
+  assert.match(html, /Synthetic version 1/);
 });
