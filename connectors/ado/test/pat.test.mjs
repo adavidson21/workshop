@@ -145,9 +145,9 @@ test('a 401 error says how to save a new PAT; a 403 keeps the helper\'s wording'
   } finally { await ado.stop(); await srv.close(); }
 });
 
-test('connection.resolve and config.import are setup actions; the others are not', () => {
+test('connection.resolve, config.import and config.fromUrl are setup actions; the others are not', () => {
   const setup = Object.entries(ado.actions).filter(([, a]) => a.setup === true).map(([n]) => n).sort();
-  assert.deepEqual(setup, ['config.import', 'connection.resolve']);
+  assert.deepEqual(setup, ['config.fromUrl', 'config.import', 'connection.resolve']);
   for (const n of setup) assert.equal(ado.actions[n].write, false);
 });
 

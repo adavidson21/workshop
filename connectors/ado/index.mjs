@@ -5,6 +5,7 @@ import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
 import { dataset } from './lib/dataset.mjs';
 import { importConfig, importFile } from './lib/import.mjs';
+import { configFromUrl } from './lib/url.mjs';
 import { authTracker, patStatus } from './lib/pat.mjs';
 import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
@@ -133,7 +134,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.2.0',
+  version: '1.3.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -371,6 +372,16 @@ export default {
         // file: one parsed file from Settings (docs/connector.md, Import from a file); which kind it is is guessed.
         if (args?.file) return importFile(args.file, ctx.config);
         return importConfig({ helper: args?.helper, engAgents: args?.engAgents, current: ctx.config });
+      }
+    },
+    'config.fromUrl': {
+      title: 'Fill in the settings from a link copied out of ADO',
+      write: false,
+      setup: true,
+      argsSchema: { type: 'object', required: ['url'], properties: { url: { type: 'string', maxLength: 2000 } } },
+      async run(args, ctx) {
+        try { const { config, notes } = configFromUrl(args?.url, ctx.config); return { config, notes }; }
+        catch (e) { throw new SettingsError(e.message); }
       }
     }
   },

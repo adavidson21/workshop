@@ -51,6 +51,8 @@ export default {
 
 If a connector has a read action named `config.import` with `setup: true`, Settings shows **Import settings from a file** on its card. The user picks a `.json` file; Settings parses it, drops every key whose name looks like a secret (`pat`, `token`, `password`, `secret`, `key`), and calls the action with `{"file": <parsed JSON>}`. The action returns `{config, notes}`: `config` is the connector's settings with the import merged in, and `notes` is a list of plain-words remarks. Nothing is saved: Settings fills the form with `config` and the user reviews it and clicks Save.
 
+If a connector has a read action named `config.fromUrl` with `setup: true`, Settings shows **Paste any link from <connector>** on its card. Settings calls the action with `{"url": <the pasted link>}`; it returns `{config, notes}` the same way as `config.import`, and Settings fills the form for review. Nothing is saved until the user clicks Save.
+
 ### Actions
 
 | Field | Required | Meaning |
