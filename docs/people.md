@@ -52,4 +52,5 @@ Settings keeps one collection named `people`, so its schema is `settings.people`
 | --- | --- | --- |
 | `receipts` | `report` people for Reports, the `manager` for Upward. Receipts entries keep `about: 'me'` and `about: 'up'`; other `about` values are directory ids. | Its own `people` collection |
 | `queue` | People with `team` and an `adoIdentity` for the Team view and assign pickers. | `queue.settings` `meta.people` |
+| `oneonones` (1:1s) | People you have 1:1s with: name and the Docket, Receipts and Queue links. | Its own `people` collection |
 | `prioritizer` (Docket) | Names as suggestions for its own people; a Docket person may store `personId`. Reports can fill its team profile from people with `team`. | None needed |

@@ -15,6 +15,8 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
 | People directory | [people.md](people.md) | `settings.people` v1 | `person` | `tests/check-contracts.mjs` (examples) |
 
+Also here, not contracts: [team-testing.md](team-testing.md) (prerequisites before testing with work data), [security.md](security.md) and [for-security-teams.md](for-security-teams.md).
+
 ## Layout
 
 - `docs/*.md`: the contracts.
@@ -23,7 +25,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 - `docs/examples/invalid/<name>.<case>.json`: examples that must fail validation. They prove the schema constrains what the doc says it does.
 - `docs/examples/work/`: a synthetic `.work` folder for [work-format.md](work-format.md).
 - `tests/mock-agent.mjs`: a small agent that implements [agent-api.md](agent-api.md), keeping data in a data folder (a temporary one unless given `dataDir`).
-- `tests/contract/`: the contract suite. It runs against the mock in CI, and against the real agent once WS1 lands.
+- `tests/contract/`: the contract suite. It runs against the mock and against the real agent in CI.
 
 ## Schema subset
 
