@@ -50,6 +50,6 @@ Settings keeps one collection named `people`, so its schema is `settings.people`
 
 | App | Uses | Fallback while missing |
 | --- | --- | --- |
-| `receipts` | `report` people for Reports, the `manager` for Upward. Receipts entries keep `about: 'me'` and `about: 'up'`; other `about` values are directory ids. | Its own `people` collection |
-| `oneonones` (1:1s) | People you have 1:1s with: name and the Docket and Receipts links. | Its own `people` collection |
+| `receipts` (Rapport) | `report` people for Reports, the `manager` for Upward. Receipts entries keep `about: 'me'` and `about: 'up'`; other `about` values are directory ids. | Its own `people` collection |
+| `receipts` (Rapport's 1:1s) | People you have 1:1s with: name and the Docket and report links. The report picker reads the directory. 1:1s was its own app (`oneonones`) until Rapport 2.0.0; its data was copied into Rapport. | Its own `oneonones/people` collection |
 | `prioritizer` (Docket) | Names as suggestions for its own people; a Docket person may store `personId`. Reports can fill its team profile from people with `team`. | None needed |

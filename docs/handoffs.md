@@ -1,6 +1,6 @@
 # Handoffs
 
-A handoff is one app offering an item to another app, which the person then accepts or dismisses there. Example: Docket's Wrap up offers today's finished tasks to Receipts as possible receipts.
+A handoff is one app offering an item to another app, which the person then accepts or dismisses there. Example: Docket's Wrap up offers today's finished tasks to Rapport (app id `receipts`, formerly Receipts) as possible receipts.
 
 A handoff can also carry something the person already accepted where they typed it (an **accepted** offer). Example: a capture from Home's quick capture or the Dispatch hub ([hub.md](hub.md)). The receiver adds it the next time it loads, without asking again.
 
@@ -49,7 +49,7 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 
 | Receiver | Accepts from | `payload` |
 | --- | --- | --- |
-| `receipts` | any app; accepted-ready for every kind | `kind`: `win`, `feedback`, `growth`, `concern` or `note` (default `win`); `impact`: 0 to 3 (default 0); `about`: `me` (default) or the id of a report in Receipts' own people list (`p_...`); an id Receipts does not know is treated as `me`. The receipt's date is the offer's `date`, its text the offer's `text`. |
+| `receipts` (Rapport) | any app; accepted-ready for every kind | `kind`: `win`, `feedback`, `growth`, `concern` or `note` (default `win`); `impact`: 0 to 3 (default 0); `about`: `me` (default) or the id of a report in Receipts' own people list (`p_...`); an id Receipts does not know is treated as `me`. The receipt's date is the offer's `date`, its text the offer's `text`. |
 | `prioritizer` (Docket) | any app; accepted-ready for `task` | `kind`: `task`. Adds a task like Docket's Quick add: `title` (1 to 300 characters; the offer's `text` is the fallback), optional `list` (a list name, matched without case; otherwise Docket's default list), `people` (names, up to 10), `waiting` (`true` for "waiting on"), `due` (`YYYY-MM-DD`), `urgent` (`true`), `value` (1 to 4), `effort` (`XS` to `XL`), `notes`. Text is never parsed as Quick add syntax. |
 | `prioritizer` (Docket) | any app | `kind`: `every-sprint`. `title` (1 to 300 characters; the offer's `text` is the fallback), `dueDay` (1 to 60) or `last: true`, optional `planKind` (a Day view block kind), `value` (1 to 4), `effort` (`XS` to `XL`), `notes`. Accepting adds an every-sprint task in the Day view's settings. An offer whose `source.id` matches one already accepted updates that item instead of adding another. `date` is the day it was offered. |
 | `notes` | any app; accepted-ready for `note` | `kind`: `note`. Adds a note in Notes' `inbox/` folder: `title` (1 to 120 characters; the first line of the offer's `text` is the fallback) and the offer's `text` as its body. |
@@ -59,6 +59,6 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 | Sender | Offers |
 | --- | --- |
 | `prioritizer` (Docket) | Receipts from Wrap up. |
-| `oneonones` (1:1s) | Wins to Receipts. |
+| `oneonones` (1:1s, retired) | Wins to Receipts. 1:1s is part of Rapport since 2.0.0 and writes no offers; Rapport still reads offers left in `oneonones.handoffs` until they are handled. |
 | `home` | Accepted captures from quick capture ([hub.md](hub.md)) to Docket, Receipts and Notes. |
 | `agents` (Dispatch) | Accepted captures from the hub ([hub.md](hub.md)) to Docket, Receipts and Notes. |

@@ -46,7 +46,7 @@ dont forget about the onboarding doc for person one
 | `People` | The people directory ([people.md](people.md)): id, name, relation, team. Archived people left out. |
 | `Docket lists` | Docket's list names, so a capture can name one. |
 
-Sections with nothing in them say `None.` Nothing else goes in: no Receipts entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
+Sections with nothing in them say `None.` Nothing else goes in: no Rapport entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
 
 ## route.json
 
@@ -84,7 +84,7 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 
 ## Captures
 
-The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Receipts and Notes add it when they next load. No app writes another app's data.
+The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport and Notes add it when they next load. No app writes another app's data.
 
 ## Rules
 
