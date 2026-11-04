@@ -97,6 +97,8 @@ const isTime = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s)
 const toMin = s => isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
 const pad2 = n => String(n).padStart(2, '0');
 const fromMin = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
+/* "HH:MM" on a 12-hour clock: "9:30 AM". Workshop shows every time this way. */
+export const fmt12 = s => isTime(s) ? `${+s.slice(0, 2) % 12 || 12}:${s.slice(3)} ${+s.slice(0, 2) < 12 ? 'AM' : 'PM'}` : (s || '');
 function cleanSprint(sp) {
   const o = Object.assign({}, sp);
   if (!isDate(o.anchor)) return null;
@@ -174,9 +176,9 @@ function nowCard(n) {
   const rows = list => list.length ? `<ul class="blk">${list.slice(0, 5).map(t => `<li><button class="nrow${t.done ? ' done' : ''}" data-task="${esc(t.id)}"><span class="tt">${esc(t.title)}</span></button></li>`).join('')}</ul>` : '';
   const c = n.current;
   const body = c
-    ? `<p class="blkname"><b>${esc(c.name)}</b> <span class="soft mono">until ${esc(c.until)}</span></p>${rows(c.tasks) || '<p class="soft">Nothing planned in this block.</p>'}
-       ${n.next ? `<p class="soft">Next: ${esc(n.next.name)} at ${esc(n.next.at)}</p>` : ''}`
-    : `<p class="blkname"><b>${esc(n.next.name)}</b> <span class="soft mono">at ${esc(n.next.at)}</span></p>${rows(n.next.tasks)}`;
+    ? `<p class="blkname"><b>${esc(c.name)}</b> <span class="soft mono">until ${esc(fmt12(c.until))}</span></p>${rows(c.tasks) || '<p class="soft">Nothing planned in this block.</p>'}
+       ${n.next ? `<p class="soft">Next: ${esc(n.next.name)} at ${esc(fmt12(n.next.at))}</p>` : ''}`
+    : `<p class="blkname"><b>${esc(n.next.name)}</b> <span class="soft mono">at ${esc(fmt12(n.next.at))}</span></p>${rows(n.next.tasks)}`;
   return `<section class="card now"><div class="ch"><h2>${c ? 'Now' : 'Next block'}</h2><button class="lnk" data-open="prioritizer" data-path="day/today">Open Day</button></div>${body}</section>`;
 }
 

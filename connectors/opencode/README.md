@@ -38,7 +38,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `engAgentsConfig` | `~/.config/eng-agents/config.json` (the parser's default) | `--config` | Read by the parser only, for work item links. |
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
-| `prReviews.nightlyAt` | `19:00` | (new) | `HH:MM`, 24-hour, local time. Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Empty turns it off. Hosted pages may change it. |
+| `prReviews.nightlyAt` | `7:00 PM` | (new) | Local time, like `2:00 AM` (`02:00` works too). Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Empty turns it off. Hosted pages may change it. |
 | `hub` | `false` | (new) | Lets the hub on Dispatch's page send messages to Tandem's `/hub` (see The hub). Changed only from Workshop on this computer. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.

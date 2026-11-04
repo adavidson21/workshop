@@ -9,11 +9,11 @@
 .cap-preview:empty{display:none}
 .cap-props{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.2rem}
 .cap-props li,.cap-recent li{display:flex;align-items:baseline;gap:.6rem;min-width:0}
-.cap-tag{flex:none;font:500 10.5px/1.6 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--eyebrow)}
+.cap-tag{flex:none;font:500 11.5px/1.6 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--eyebrow)}
 .cap-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cap-keys,.cap-note,.cap-hint{margin:.25rem 0 0;color:var(--muted);font-size:.8rem}
 .cap-hint:empty{display:none}
-.cap-keys kbd{font:500 11px/1 var(--mono);padding:.1rem .3rem;border:1px solid var(--line);border-radius:3px}
+.cap-keys kbd{font:500 12px/1 var(--mono);padding:.1rem .3rem;border:1px solid var(--line);border-radius:3px}
 .cap-recent{list-style:none;margin:0;padding:0;border-top:1px solid var(--line);outline:none}
 .cap-recent:empty{display:none}
 .cap-recent li{padding:.3rem .2rem;border-bottom:1px solid var(--line);font-size:.88rem}

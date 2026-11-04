@@ -110,7 +110,7 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 1. Check `node -v` says 22 or later (22.15 or later on Windows, so Node uses the system certificate store). Get it from https://nodejs.org or your company's software portal.
 2. Clone Workshop and Docket at their release tags, side by side in one folder:
    `git clone --branch <workshop tag> https://github.com/adavidson21/workshop` and `git clone --branch <docket tag> https://github.com/adavidson21/docket`
-3. Install in work mode and build the pinned copy: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1 -WorkMode` (on a Mac or Linux: `bash workshop/scripts/install.sh --work-mode`). It turns on work mode, builds the copy from the `docket` folder next to Workshop, and adds a `workshop` command for new terminal windows. Open a new terminal before using `workshop`; until then use `node workshop/workshop.mjs` the same way.
+3. Install in work mode and build the pinned copy: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1 -WorkMode` (on a Mac or Linux: `bash workshop/scripts/install.sh --work-mode`). It turns on work mode, builds the copy from the `docket` and `runway` folders next to Workshop, and adds a `workshop` command for new terminal windows. Open a new terminal before using `workshop`; until then use `node workshop/workshop.mjs` the same way.
 4. `workshop start`, then `workshop open`. Workshop opens at the `http://127.0.0.1:...` address from the pinned copy. Settings says "Work mode is on" and shows the tags. There is no **Connect** step in work mode.
 5. Add your ADO connection in Settings and save your token with `workshop pat ADO_PAT` (the Home page's **Get started** walks you through it).
 6. Run `workshop doctor` and continue when it ends with `Result: all good.`
@@ -123,11 +123,11 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 4. Run `workshop doctor` again. It checks that opencode can use only the approved provider.
 5. Update Tandem only to a tag: `.\update.ps1 -Tag <core tag>` in the eng-agents folder.
 
-**What is not in work mode:** Runway comes from its own private site and is not part of the pinned copy, so it does not show on the rail. Everything else does, including Docket.
+**Runway in work mode:** Runway's repo is private, so the one-line installer can only download it when GitHub lets it; otherwise it says so and builds the copy without Runway. To add it, clone it next to Workshop while signed in to GitHub (`git clone https://github.com/adavidson21/runway`), then run `workshop pin`: the copy picks up a `runway` folder next to Workshop (or pass `--runway <folder>`). Everything else is in the pinned copy, including Docket.
 
 **With the one-line installer:** `/install-work.ps1` and `/install-work.sh` are the same installers with work mode on (At work, above). On a new install, work mode puts the data folder in your company OneDrive when there is one (`OneDriveCommercial` on Windows, `~/Library/CloudStorage/OneDrive-<Company>` on a Mac; never a personal OneDrive); set `WORKSHOP_DATA_DIR` to choose another folder. An existing data folder is never moved by the installer: `workshop data-folder <folder>` or `--onedrive` copies it and switches. To pin releases, set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
 
-**Updating:** `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
+**Updating:** `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 
 Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
 
@@ -215,7 +215,7 @@ node --test "apps/*/test/*.test.mjs"     apps' own tests
 node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, apps from another site
 node tests/check-vendor.mjs              vendored libraries match their pinned SHA256SUMS (--write after updating one)
 python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage (needs .remote/prioritizer)
-python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy, Docket inside it, no hosted access
+python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy, Docket and Runway inside it, no hosted access
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).

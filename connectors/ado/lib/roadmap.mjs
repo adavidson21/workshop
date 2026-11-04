@@ -49,7 +49,9 @@ async function parentsAndStates(ado, ids) {
  * "roadmap": Epics and Features under the areas, newest change first, at most MAX_ITEMS. Each Feature also has
  * storiesTotal and storiesDone: its User Story and Issue children, not counting won't-do states, and those in a
  * state that counts as done (closedStates).
- * args: {connection?, areas[], includeClosed?}
+ * With stories: true, those children are also returned in items (same shape, parentId is the Feature), open ones
+ * only unless includeClosed. Callers that do not ask get Epics and Features only, as before.
+ * args: {connection?, areas[], includeClosed?, stories?}
  * @param {object} d {cfg, env, signal}
  */
 export async function roadmapList(d, args = {}) {
@@ -92,6 +94,19 @@ export async function roadmapList(d, args = {}) {
     if (done.has(c.state)) n.storiesDone++;
   }
   for (const f of features) Object.assign(f, counts.get(f.id));
+
+  if (args.stories) {
+    const ended = new Set([...d.cfg.closedStates, ...d.cfg.removedStates]);
+    const kids = await ado.details(childIds.slice(0, MAX_CHILDREN));
+    for (const id of childIds.slice(0, MAX_CHILDREN)) {
+      const w = kids.get(id);
+      if (!w) continue;
+      const s = roadmapItem(ado, w);
+      if (!counts.has(s.parentId) || !CHILD_TYPES.includes(s.type)) continue;
+      if (!args.includeClosed && ended.has(s.state)) continue;
+      items.push(s);
+    }
+  }
 
   return { connection: conn.name, items, total: ids.length, truncated, childrenTruncated, fetchedAt: new Date().toISOString() };
 }

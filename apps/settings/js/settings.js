@@ -586,7 +586,7 @@ async function workCard() {
   if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off below.'); return; }
   const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
   const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update --tag</code>.');
-  sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString())}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
+  sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }))}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
 }
 
 // One button to Workshop's own site. Docket and Dispatch open inside Workshop, so their sites are not listed

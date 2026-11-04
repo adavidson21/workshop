@@ -88,3 +88,28 @@ test('roadmap is a read action, and works through the agent', async () => {
     await srv.close();
   }
 });
+
+test('roadmap with stories: true also returns the open stories under its Features', () => withAdo(async ({ d }) => {
+  const out = await roadmapList(d, { areas: [TEAM_A], stories: true });
+  const stories = out.items.filter(i => i.type === 'User Story' || i.type === 'Issue');
+  // 801 Closed and 803 Resolved are done, 805 sits under a closed Feature, 806 has no Feature here.
+  assert.deepEqual(stories.map(s => s.id).sort(), [802, 804]);
+  const s802 = stories.find(s => s.id === 802);
+  assert.equal(s802.parentId, 711);
+  assert.equal(s802.title, 'Synthetic story 802');
+  assert.equal(s802.iteration, 'Web App\\Sprint 12');
+  assert.deepEqual(out.items.slice(0, 4).map(i => i.id), [701, 711, 712, 702], 'Epics and Features come first, unchanged');
+  const f711 = out.items.find(i => i.id === 711);
+  assert.deepEqual([f711.storiesTotal, f711.storiesDone], [3, 2], 'counts still include done stories');
+}));
+
+test('roadmap with stories and includeClosed returns done stories too', () => withAdo(async ({ d }) => {
+  const out = await roadmapList(d, { areas: [TEAM_A], stories: true, includeClosed: true });
+  const ids = out.items.filter(i => i.type === 'User Story' || i.type === 'Issue').map(s => s.id).sort();
+  assert.deepEqual(ids, [801, 802, 803, 804, 805]);
+}));
+
+test('roadmap without stories returns no stories', () => withAdo(async ({ d }) => {
+  const out = await roadmapList(d, { areas: [TEAM_A] });
+  assert.equal(out.items.some(i => i.type === 'User Story' || i.type === 'Issue'), false);
+}));

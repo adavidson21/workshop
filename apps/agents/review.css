@@ -19,7 +19,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line); margin: 0 4px; }
 .rv-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rv-chip { font-size: 12px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); background: var(--surface); }
-.rv-repo select { font: 500 12px var(--mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); }
+.rv-repo select { font: 500 12.5px var(--mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); }
 .rv-segs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
 .rv-seg { padding: 6px 10px; font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid transparent; border-radius: var(--r-sm); }
 .rv-segs .rv-seg { border: 0; border-radius: 0; }
@@ -46,13 +46,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 
 /* files tree */
 .rv-tree { list-style: none; margin: 0; padding: 0; }
-.rv-dir { display: flex; align-items: center; gap: 6px; padding: 5px 8px 3px calc(8px + var(--d) * 14px); font: 500 12px var(--mono); color: var(--muted); }
+.rv-dir { display: flex; align-items: center; gap: 6px; padding: 5px 8px 3px calc(8px + var(--d) * 14px); font: 500 12.5px var(--mono); color: var(--muted); }
 .rv-dir svg { width: 13px; height: 13px; flex: none; }
 .rv-file { width: 100%; display: flex; align-items: center; gap: 7px; padding: 5px 8px 5px calc(8px + var(--d) * 14px); border-radius: var(--r-sm); text-align: left; font-size: 13px; }
 .rv-file:hover { background: var(--hover); }
 .rv-file.on { background: var(--accent-soft); }
 .rv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rv-badge { flex: none; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 4px; font: 600 10.5px var(--mono); border: 1px solid currentColor; }
+.rv-badge { flex: none; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 4px; font: 600 11.5px var(--mono); border: 1px solid currentColor; }
 .rv-badge.s-added { color: #2F7A4E; }
 .rv-badge.s-modified { color: var(--warn); }
 .rv-badge.s-deleted { color: var(--danger); }
@@ -62,7 +62,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-delta .add { color: #2F7A4E; }
 .rv-delta .del { color: var(--danger); }
 :root[data-theme=dark] .rv-delta .add { color: #8FCFA6; }
-.rv-ccount { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font: 600 11px var(--mono); color: var(--on-accent); background: var(--accent); }
+.rv-ccount { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font: 600 12px var(--mono); color: var(--on-accent); background: var(--accent); }
 
 /* diff */
 .rv-diffwrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
@@ -112,7 +112,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-hint { margin-right: auto; font-size: 11.5px; color: var(--muted); }
 
 /* comment type labels (cards, panel) */
-.rv-type { flex: none; font: 600 10.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
+.rv-type { flex: none; font: 600 11.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
 .rv-type.t-must_fix { color: var(--danger); background: var(--danger-soft); }
 .rv-type.t-suggestion { color: var(--accent); background: var(--accent-soft); }
 .rv-type.t-question { color: var(--warn); background: var(--warn-soft); }
@@ -131,7 +131,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-resolved:hover { opacity: 1; }
 .rv-resolved .rv-entry { background: transparent; }
 .rv-answer { margin: 0 0 4px 8px; font-size: 12.5px; }
-.rv-astatus { font: 600 10.5px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.rv-astatus { font: 600 11.5px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
 .rv-astatus.a-fixed { color: #2F7A4E; }
 :root[data-theme=dark] .rv-astatus.a-fixed { color: #8FCFA6; }
 .rv-astatus.a-declined { color: var(--danger); }
