@@ -37,6 +37,8 @@ main() {
   WORKSPACE="${WORKSHOP_WORKSPACE:-~/work}"
   OS="$(uname -s)"; ARCH="$(uname -m)"
   WORK="${WORKSHOP_WORK_MODE:-}"
+  # /install-work.sh serves this file with {{WORK}} set to 1 (worker/index.js), so work mode needs no variable.
+  if [ -z "$WORK" ] && [ '{{WORK}}' = '1' ]; then WORK=1; fi
   # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
   DISPATCH="${WORKSHOP_DISPATCH:-}"
   if [ -z "$DISPATCH" ]; then if [ "$WORK" = "1" ]; then DISPATCH=0; else DISPATCH=1; fi; fi
@@ -256,6 +258,8 @@ main() {
   step "Setting up Workshop"
   local wargs=(install --allow "$SITE")
   [ "$WORK" = "1" ] && wargs=(install --work-mode)
+  # The data folder, for a new install only: WORKSHOP_DATA_DIR, else in work mode the company OneDrive if there is one.
+  if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then wargs+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "$WORK" = "1" ]; then wargs+=(--onedrive); fi
   # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
   [ "${WORKSHOP_LOGIN:-}" = "1" ] && wargs+=(--login)
   if [ -n "$OPENCODE" ]; then
@@ -289,7 +293,7 @@ main() {
     printf '\n\033[32mDone. Workshop is running and starts when you log in.\033[0m\n'
   else
     printf '\n\033[32mDone. Workshop is running.\033[0m\n'
-    echo "It does not start by itself when you log in. Start it with  workshop start  in a new terminal, or turn on Start at login in Workshop on this computer (workshop open)."
+    echo "It does not start by itself when you log in. Each day, run  workshop up : it starts Workshop if needed and opens it. Something stuck? workshop restart"
   fi
   if [ "$WORK" = "1" ]; then
     echo "Workshop opened in your browser from the pinned copy on this computer (work mode). No site can pair with it."

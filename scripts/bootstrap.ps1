@@ -22,6 +22,8 @@
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
 #                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
+#                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
+#                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
 # Dispatch (opencode, git, Tandem and an AI model) is only for coding agents:
 #   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no git download, no AI question
 #   WORKSHOP_DISPATCH=1   install it. The default is 1, except in work mode, where it is 0 until you ask for it.
@@ -37,7 +39,8 @@ if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
 $Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket' }
-$Work = ($env:WORKSHOP_WORK_MODE -eq '1')
+# /install-work.ps1 serves this file with {{WORK}} set to 1 (worker/index.js), so work mode needs no variable.
+$Work = ($env:WORKSHOP_WORK_MODE -eq '1') -or ('{{WORK}}' -eq '1')
 $Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG }
 $TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG' }
 # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
@@ -275,6 +278,9 @@ $wsPath = $Workspace -replace '^~', $env:USERPROFILE
 $wsArgs = if ($Work) { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--work-mode') } else { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--allow', $Site) }
 # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
 if ($env:WORKSHOP_LOGIN -eq '1') { $wsArgs += '--login' }
+# The data folder, for a new install only (an existing one is never moved): WORKSHOP_DATA_DIR, else in work mode
+# the company OneDrive, which backs it up on storage the company manages.
+if ($env:WORKSHOP_DATA_DIR) { $wsArgs += @('--data-dir', $env:WORKSHOP_DATA_DIR) } elseif ($Work) { $wsArgs += '--onedrive' }
 if ($ocCmd) {
   New-Item -ItemType Directory -Force -Path $wsPath | Out-Null
   $wsArgs += @('--workspace', $Workspace)
@@ -294,6 +300,25 @@ New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 Set-Content -Encoding ASCII -Path (Join-Path $binDir 'workshop.cmd') -Value "@`"$node`" `"$(Join-Path $wsDir 'workshop.mjs')`" %*"
 Add-UserPath $binDir
 
+# Start menu shortcuts, so Workshop opens like any other program: Workshop (starts it if needed, then opens it)
+# and Restart Workshop. Per user, no admin rights. workshop uninstall removes them.
+try {
+  $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Workshop'
+  New-Item -ItemType Directory -Force -Path $menu | Out-Null
+  $shell = New-Object -ComObject WScript.Shell
+  foreach ($sc in @(@('Workshop', 'up', 'Start Workshop if it is not running, then open it'), @('Restart Workshop', 'restart', 'Stop Workshop and start it again in the background'), @('Stop Workshop', 'stop', 'Stop Workshop'))) {
+    $lnk = $shell.CreateShortcut((Join-Path $menu "$($sc[0]).lnk"))
+    $lnk.TargetPath = $node
+    $lnk.Arguments = "`"$(Join-Path $wsDir 'workshop.mjs')`" $($sc[1])"
+    $lnk.WorkingDirectory = $wsDir
+    $lnk.Description = $sc[2]
+    $lnk.WindowStyle = 7
+    if (Test-Path (Join-Path $wsDir 'icons\icon.ico')) { $lnk.IconLocation = Join-Path $wsDir 'icons\icon.ico' }
+    $lnk.Save()
+  }
+  Say 'Added Workshop, Restart Workshop and Stop Workshop to the Start menu.'
+} catch { Say 'Could not add Start menu shortcuts. Use  workshop up  instead.' }
+
 # ---------------------------------------------------------------- 6. start and sign in
 Step 'Starting Workshop'
 Start-Process -FilePath $node -ArgumentList @("`"$(Join-Path $wsDir 'agent\start.mjs')`"", '--quiet') -WindowStyle Hidden
@@ -312,7 +337,8 @@ Write-Host ""
 if ($loginOn) { Write-Host "Done. Workshop is running and starts when you log in." -ForegroundColor Green }
 else {
   Write-Host "Done. Workshop is running." -ForegroundColor Green
-  Write-Host "It does not start by itself when you log in. Start it with  workshop start  in a new PowerShell window, or turn on Start at login in Workshop on this computer (workshop open)."
+  Write-Host "It does not start by itself when you log in. Each day, open Workshop from the Start menu (or run  workshop up ): it starts Workshop if needed and opens it."
+  Write-Host "Something stuck? Start menu, Restart Workshop (or  workshop restart )."
 }
 if ($Work) {
   Write-Host "Workshop opened in your browser from the pinned copy on this computer (work mode). No site can pair with it."

@@ -14,6 +14,17 @@ Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
 
+## At work: start here
+
+On a work computer, use work mode. Workshop runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive so it is backed up.
+
+1. **Install.** In PowerShell, as yourself (not admin): `irm https://workshop.alexisdavidson.org/install-work.ps1 | iex` (macOS: `curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash`). It needs no admin rights and leaves Dispatch out. If your company blocks piping a script, use the by-hand steps in Work mode below.
+2. **Open it.** The installer opens Workshop when it finishes. After that, open it from the Start menu: **Workshop** starts it if needed and opens it (`workshop up` does the same). **Restart Workshop** and **Stop Workshop** are next to it. On a Mac, `workshop up` and `workshop restart`.
+3. **Follow Get started on Home.** It ticks itself off as you go: your name, backup, Azure DevOps (`workshop pat` saves your token; Settings imports your `ado-helper.json`), your team, a Docket task and a receipt. Docket starts syncing ADO by itself once the connector is ready.
+4. **Every day:** Home's quick capture for anything that comes up, Docket for what to do next, Rapport for 1:1s and receipts.
+
+Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart`, `workshop update` (see Work mode).
+
 Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
 
 Your data stays on your device. There are no accounts and no server holds your data: it is saved in your browser, or in files on this computer when Workshop runs there. The page talks only to its own site, `127.0.0.1` and the systems you set up in Settings. The exception is Dispatch, whose coding agents send work to the AI provider you connect to opencode. What Workshop stores, where it sends data and what to tell your security team: [docs/security.md](docs/security.md) and [docs/for-security-teams.md](docs/for-security-teams.md).
@@ -114,7 +125,7 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 
 **What is not in work mode:** Runway comes from its own private site and is not part of the pinned copy, so it does not show on the rail. Everything else does, including Docket.
 
-**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
+**With the one-line installer:** `/install-work.ps1` and `/install-work.sh` are the same installers with work mode on (At work, above). On a new install, work mode puts the data folder in your company OneDrive when there is one (`OneDriveCommercial` on Windows, `~/Library/CloudStorage/OneDrive-<Company>` on a Mac; never a personal OneDrive); set `WORKSHOP_DATA_DIR` to choose another folder. An existing data folder is never moved by the installer: `workshop data-folder <folder>` or `--onedrive` copies it and switches. To pin releases, set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
 
 **Updating:** `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 

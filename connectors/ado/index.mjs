@@ -30,9 +30,9 @@ export const configSchema = {
         additionalProperties: false,
         required: ['name', 'serverUrl', 'collection', 'patEnv'],
         properties: {
-          name: { type: 'string', title: 'Name', pattern: '^[A-Za-z0-9_-]{1,40}$' },
+          name: { type: 'string', title: 'Name', pattern: '^[A-Za-z0-9_-]{1,40}$', default: 'work', description: 'Any short name for this connection, letters, digits, - or _ (for example work).' },
           serverUrl: { type: 'string', title: 'Server URL', format: 'uri', description: 'The part before the collection, for example https://ado.example.com or https://ado.example.com/tfs.' },
-          collection: { type: 'string', title: 'Collection' },
+          collection: { type: 'string', title: 'Collection', description: 'The part of your ADO address right after the server, for example DefaultCollection in https://ado.example.com/DefaultCollection/MyProject.' },
           project: { type: 'string', title: 'Project', description: 'Used when a work item does not say its project.' },
           patEnv: { type: 'string', title: 'PAT environment variable', 'x-workshop-env': true, default: 'ADO_PAT', description: 'Save the PAT with: workshop pat ADO_PAT (or the name you use here).' },
           patExpires: { type: 'string', title: 'PAT expires', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', maxLength: 10, description: 'Optional, YYYY-MM-DD: the expiry date ADO showed when you made the PAT. Workshop warns 14 days before.' },
