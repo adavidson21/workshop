@@ -41,6 +41,23 @@ async function loadOffers() {
     try { offerEnvs[app] = await ws.data.get('handoffs', { app }); } catch (e) { offerEnvs[app] = null; }
   }
 }
+// Captures you already accepted in Home or the Dispatch hub (accepted: true): added with no second click.
+let picking = false;
+async function pickUp() {
+  if (picking || !store.entries || !store.config) return;
+  const known = people().map(p => p.id);
+  const seen = [...store.entries.items.map(e => e.id), ...Object.keys(store.entries.deleted || {})];
+  const todo = Object.keys(R.SENDERS).flatMap(app => R.acceptedOffers(app, offerEnvs[app], cfg().handled, known, seen));
+  if (!todo.length) return;
+  picking = true;
+  try {
+    const made = todo.map(o => R.entryFromOffer(o));
+    await save('entries', env => { const ids = new Set(env.items.map(e => e.id)); env.items.push(...made.filter(e => !ids.has(e.id))); });
+    await saveConfig({ handled: R.markHandled(cfg().handled, todo.map(o => o.key)) });
+    ws.toast(todo.length === 1 ? `Receipt added from ${todo[0].from}.` : `${todo.length} receipts added from ${todo[0].from}.`, { kind: 'success' });
+  } catch (e) { /* tried again on the next change */ }
+  finally { picking = false; }
+}
 const offers = () => {
   const known = people().map(p => p.id);
   return Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled, known));
@@ -676,12 +693,13 @@ ws.on('command', async ({ id }) => {
 // Another window (or a change to the folder outside the browser) wrote: re-read and repaint.
 for (const n of NAMES) ws.data.subscribe(n, async () => { store[n] = (await ws.data.get(n)) || blank(n); paint(); });
 ws.data.subscribe('people', async () => { await loadDirectory(); paint(); }, { app: 'settings' });
-for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); paint(); }, { app });
-ws.on('online', async () => { await loadAll(); paint(); });
+for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); await pickUp(); paint(); }, { app });
+ws.on('online', async () => { await loadAll(); await pickUp(); paint(); });
 
 /* ---------- start ---------- */
 await loadAll();
 loaded = true;
+await pickUp();
 if (!ws.embedded && ws.storage === 'folder') { try { folderStatus = await ws.folder.status(); } catch (e) { folderStatus = null; } }
 const moved = !ws.embedded && ws.folder.lastMove ? ws.folder.lastMove() : null;
 if (moved) ws.toast(`Now saving to the folder "${moved.folder}".`, { kind: 'success' });

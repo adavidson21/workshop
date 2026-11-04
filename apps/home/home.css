@@ -136,3 +136,80 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .now .blk{list-style:none;margin:0 0 .4rem;padding:0}
 .now .blk .nrow{padding:.4rem .1rem;grid-template-columns:minmax(0,1fr)}
 .now .blk .nrow.done .tt{text-decoration:line-through;color:var(--muted)}
+
+/* ---------- symbols: header icon buttons, tile icons, row signals, pills (Docket's style) ---------- */
+/* Line icons in the page's ink; color only where something needs you. Lists keep Docket's dot colors. */
+:root{--lc0:#4F6B78;--lc1:#8B6340;--lc2:#66783F;--lc3:#9A4F5E;--lc4:#5E5A8A;--lc5:#3F7F78}
+:root[data-theme=dark]{--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}}
+.lc0{--lc:var(--lc0)}.lc1{--lc:var(--lc1)}.lc2{--lc:var(--lc2)}.lc3{--lc:var(--lc3)}.lc4{--lc:var(--lc4)}.lc5{--lc:var(--lc5)}
+.hello .htools{display:flex;align-items:center;gap:.45rem;margin-bottom:.35rem}
+.hbtn{display:inline-grid;place-items:center;width:2.4rem;height:2.4rem;flex:none;border-radius:50%;border:1px solid var(--line);color:var(--muted);background:transparent;transition:background-color .15s,color .15s,border-color .15s,transform .1s}
+.hbtn svg{width:18px;height:18px}
+.hbtn:hover{color:var(--ink);border-color:var(--muted);background:var(--surface)}
+.hbtn:active{transform:scale(.96)}
+.hbtn.primary{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+.hbtn.primary:hover{background:color-mix(in srgb,var(--accent) 86%,var(--ink));color:var(--on-accent)}
+.hbtn.acc{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.hbtn.done{color:var(--accent);background:var(--accent-soft);border-color:transparent}
+.tile .lbl{display:flex;align-items:center;gap:.4rem}
+.tile .lbl svg{width:15px;height:15px;flex:none}
+.tile.warn{background:var(--warn-soft)}
+.tile.warn .lbl{color:var(--warn)}
+.tile.danger{background:var(--danger-soft)}
+.tile.danger .lbl{color:var(--danger)}
+.tile.good .n{color:var(--accent)}
+.tile.zero .n{color:color-mix(in srgb,var(--muted) 55%,transparent)}
+.tile.warn:hover{background:color-mix(in srgb,var(--warn) 20%,var(--surface))}
+.tile.danger:hover{background:color-mix(in srgb,var(--danger) 16%,var(--surface))}
+.sig{display:inline-flex;align-items:center;justify-content:center;gap:.22rem;flex:none;min-width:22px;height:22px;border-radius:11px;color:var(--muted);line-height:1}
+.sig svg{width:14px;height:14px;flex:none}
+.sig.txt{padding:0 .45rem 0 .38rem}
+.sig b{font:500 .72rem var(--mono)}
+.sig.danger{background:var(--danger-soft);color:var(--danger)}
+.sig.soon{background:var(--warn-soft);color:var(--warn)}
+.sig.quiet{opacity:.7}
+.nrow{grid-template-columns:2.2rem minmax(0,1fr) auto;grid-template-rows:auto;align-items:center}
+.nrow .rk{grid-row:auto}
+.nrow .tm{display:flex;align-items:center;gap:.3rem;font-size:.8rem}
+.ppl{display:inline-flex;align-items:center;padding-left:5px}
+.av{display:inline-grid;place-items:center;width:21px;height:21px;margin-left:-5px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font:500 9.5px/1 var(--mono);font-style:normal;letter-spacing:.02em;color:var(--muted)}
+.lst{display:inline-grid;place-items:center;width:14px;height:22px}
+.lst i{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--muted))}
+.team .av{width:1.75rem;height:1.75rem;margin:0;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--muted);font:500 .68rem/1 var(--mono)}
+.team .ct{display:inline-flex;gap:.35rem;font:inherit}
+.pills{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding-top:.75rem;border-top:1px solid var(--rule)}
+.pill{display:inline-flex;align-items:center;gap:.4rem;height:2.1rem;padding:0 .8rem 0 .65rem;border-radius:1.05rem;border:1px solid var(--line);color:var(--muted);transition:background-color .15s,border-color .15s}
+.pill svg{width:16px;height:16px}
+.pill b{font:500 .95rem var(--mono)}
+.pill:hover{background:var(--surface);border-color:var(--muted)}
+.pill.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.pill.acc{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.pill.zero{opacity:.55}
+.pills .calm{display:inline-grid;place-items:center;color:var(--accent);margin-left:.15rem}
+.pills .calm svg{width:18px;height:18px}
+/* Get started as one line, and the card's icon tools */
+.su-strip{display:flex;align-items:center;gap:.4rem;margin-top:-1rem;padding:.25rem .35rem .25rem .6rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);animation:rise .6s ease-out .04s both}
+.su-line{flex:1;min-width:0;display:flex;align-items:center;gap:.6rem;padding:.4rem .2rem;text-align:left;color:var(--ink)}
+.su-line:hover .su-title{color:var(--accent)}
+.su-line .su-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;font-size:.92rem;transition:color .2s}
+.su-line .su-count{font:500 .78rem var(--mono);color:var(--muted)}
+.su-line>svg{width:16px;height:16px;color:var(--muted)}
+.su-strip .ibtn svg,.su-tools .ibtn svg{width:16px;height:16px}
+.su-strip.complete .su-ic svg circle{fill:var(--accent);stroke:var(--accent)}
+.su-strip.complete .su-ic svg path{stroke:var(--on-accent);stroke-width:1.8}
+.su-done{display:flex;align-items:center;gap:.7rem;width:100%;padding:.55rem .1rem;border-bottom:1px solid var(--line);text-align:left;color:var(--muted);font-size:.9rem}
+.su-done .su-fine{margin-left:auto}
+.su-done svg{width:18px;height:18px}
+.su-done svg circle{fill:var(--accent);stroke:var(--accent)}
+.su-done svg path{fill:none;stroke:var(--on-accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.su-done:hover{color:var(--ink)}
+.su-tools{align-items:center}
+@media (max-width:760px){
+  .hello{align-items:flex-start}
+  .hello .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hello .htools{width:100%;margin:0}
+  .hbtn{width:2.75rem;height:2.75rem}
+  .su-strip{margin-top:-.75rem}
+  .nrow .tm{grid-column:2;grid-row:2;margin-top:.15rem}
+}
