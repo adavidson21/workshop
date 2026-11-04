@@ -2,7 +2,7 @@
    from another app or the person is escaped with esc(); notes go through the escaping renderer in markdown.js.
    Class names start with oo- where Rapport's own styles use the same word. */
 import { KINDS, KIND_LABELS, esc } from './model.js';
-import { render as renderMd } from './markdown.js';
+import { render as renderMd } from '../markdown.js';
 
 const plural = (n, w, ws = w + 's') => `${n} ${n === 1 ? w : ws}`;
 const opt = (value, label, sel) => `<option value="${esc(value)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;

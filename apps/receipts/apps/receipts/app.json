@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "receipts",
   "name": "Rapport",
-  "version": "2.0.0",
-  "description": "Receipts and 1:1s for you, your reports and your manager: log wins and feedback, prep each 1:1 from what Docket, Rapport and Queue know, and build review drafts by section.",
+  "version": "2.1.0",
+  "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 30,
@@ -15,6 +15,9 @@
     {"path": "1on1s", "title": "1:1s"},
     {"path": "1on1s/settings", "title": "1:1s people and links"},
     {"path": "1on1s/:id", "title": "Prep a 1:1 with a person"},
+    {"path": "goals", "title": "Goals for this quarter"},
+    {"path": "goals/:quarter", "title": "Goals for a quarter"},
+    {"path": "goals/:quarter/:owner", "title": "Goals: the team's or one report's doc"},
     {"path": "up", "title": "Upward"},
     {"path": "review", "title": "Build a review"},
     {"path": "settings", "title": "Rapport settings"}
@@ -26,7 +29,8 @@
   "commands": [
     {"id": "new", "title": "Add a receipt", "route": "me"},
     {"id": "prep", "title": "Prep a 1:1", "route": "1on1s"},
-    {"id": "review", "title": "Build a review", "route": "review"}
+    {"id": "review", "title": "Build a review", "route": "review"},
+    {"id": "goals", "title": "Open goals", "route": "goals"}
   ],
-  "files": ["app.css", "js/main.js", "js/state.js", "js/oneonones/data.js", "js/oneonones/markdown.js", "js/oneonones/model.js", "js/oneonones/page.js", "js/oneonones/view.js"]
+  "files": ["app.css", "js/main.js", "js/state.js", "js/oneonones/data.js", "js/markdown.js", "js/oneonones/model.js", "js/oneonones/page.js", "js/oneonones/view.js", "js/goals/model.js", "js/goals/page.js", "js/goals/view.js"]
 }

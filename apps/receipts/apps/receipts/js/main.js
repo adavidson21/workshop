@@ -3,7 +3,8 @@
    Me (self review) is the main area. Reports keeps receipts per direct report, with your 1:1 prep and note at
    the top of each report's page. 1:1s lists everyone you meet with by who is due, reports or not. Upward (off
    until you turn it on in Settings) tracks support, asks and feedback for your manager. Review turns any of
-   them into a draft grouped by your rubric sections. The app id stays `receipts` (Rapport was Receipts until
+   them into a draft grouped by your rubric sections. Goals holds the team's and each report's OKRs as Markdown
+   files, shown as a tree (js/goals/). The app id stays `receipts` (Rapport was Receipts until
    2.0.0, and 1:1s was its own app); the 1:1s parts live in js/oneonones/.
 
    Everything goes through the Workshop SDK (shared/workshop-sdk.js): on its own page that is this browser's
@@ -14,6 +15,7 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as R from './state.js';
 import { createOneOnOnesPage } from './oneonones/page.js';
+import { createGoalsPage } from './goals/page.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: R.APP });
@@ -124,12 +126,13 @@ const peopleLink = label => `<button class="btn" data-act="people-settings">${es
    On its own page the hash is #/<view>[/<id>]. Inside Workshop the shell owns the hash (#/receipts/<path>)
    and tells us the path with the route event. */
 function parse(path) {
-  const [view, id] = String(path || '').replace(/^#?\/?/, '').split('/');
-  const views = ['me', 'team', '1on1s', 'up', 'review', 'settings'];
-  return { view: views.includes(view) ? view : 'me', id: id ? decodeURIComponent(id) : '' };
+  const [view, id, sub] = String(path || '').replace(/^#?\/?/, '').split('/');
+  const views = ['me', 'team', '1on1s', 'goals', 'up', 'review', 'settings'];
+  return { view: views.includes(view) ? view : 'me', id: id ? decodeURIComponent(id) : '', sub: sub ? decodeURIComponent(sub) : '' };
 }
 let oo = null; // the 1:1s parts, set up below
-function setRoute(r) { S.route = r; if (oo) oo.route(r.view, r.id); paint(); }
+let goals = null; // the Goals tab (js/goals/), set up below
+function setRoute(r) { S.route = r; if (oo) oo.route(r.view, r.id); if (goals) goals.route(r.view, r.id, r.sub); paint(); }
 function go(path) {
   if (ws.embedded) ws.open({ app: R.APP, path });
   else if (location.hash !== '#/' + path) location.hash = '#/' + path;
@@ -150,6 +153,9 @@ async function addWins(list) {
   return fresh.length;
 }
 oo = createOneOnOnesPage(ws, app, { repaint: () => paint(), go: path => go(path), isReport, reportName: id => nameOf(id), addWins });
+
+/* ---------- Goals (js/goals/) ---------- */
+goals = createGoalsPage(ws, app, { repaint: () => paint(), go: path => go(path), reports: () => people() });
 
 /* ---------- icons ---------- */
 const I = {
@@ -405,7 +411,7 @@ function settingsView(fs) {
   const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
-      <p class="lede">${I.lock} Your receipts and 1:1 notes are saved in ${esc(where)}.</p>
+      <p class="lede">${I.lock} Your receipts, 1:1 notes and goals are saved in ${esc(where)}.</p>
       ${ws.embedded ? `<p class="fine">Storage and backups are in Workshop's Settings.</p>`
       : ws.storage === 'indexeddb' ? `<p class="fine">Clearing browsing data deletes them. Save to a folder to keep them as files (Chrome or Edge).</p>
         <div class="acts"><button class="btn" data-act="folder">Save to a folder</button></div>`
@@ -415,7 +421,7 @@ function settingsView(fs) {
         <label class="btn">Restore from a backup<input type="file" accept=".json,application/json" data-act="import" hidden></label>
         <button class="btn" data-act="dl-csv-all">${I.down} All receipts (.csv)</button>
       </div>
-      <p class="fine">Restoring merges a backup in. It never deletes receipts. Backups hold receipts, 1:1 people and settings; 1:1 notes are Markdown files in your Workshop folder.</p>
+      <p class="fine">Restoring merges a backup in. It never deletes receipts. Backups hold receipts, 1:1 people and settings; 1:1 notes and goals are Markdown files in your Workshop folder.</p>
     </section>
     <form class="set" data-form="cycle">
       <h3 class="section-label">Review cycle</h3>
@@ -444,8 +450,8 @@ function settingsView(fs) {
 }
 
 /* ---------- paint ---------- */
-const TABS = () => [['me', 'Me'], ['team', 'Reports'], ['1on1s', '1:1s'], ...(cfg().upward ? [['up', 'Upward']] : []), ['review', 'Review'], ['settings', 'Settings']];
-const TITLES = { me: 'My receipts', team: 'Reports', '1on1s': '1:1s', up: 'Upward', review: 'Review', settings: 'Settings' };
+const TABS = () => [['me', 'Me'], ['team', 'Reports'], ['1on1s', '1:1s'], ['goals', 'Goals'], ...(cfg().upward ? [['up', 'Upward']] : []), ['review', 'Review'], ['settings', 'Settings']];
+const TITLES = { me: 'My receipts', team: 'Reports', '1on1s': '1:1s', goals: 'Goals', up: 'Upward', review: 'Review', settings: 'Settings' };
 let folderStatus = null;
 
 // Nothing is drawn until the first load finishes: the shell's route event and change events can arrive first.
@@ -461,11 +467,12 @@ function paint() {
   let body;
   if (view === 'team') body = id ? personView(id) : teamView();
   else if (view === '1on1s') body = oo.view();
+  else if (view === 'goals') body = goals.view();
   else if (view === 'up') body = upView();
   else if (view === 'review') body = reviewView();
   else if (view === 'settings') body = settingsView(folderStatus);
   else body = meView();
-  app.classList.toggle('wide', oo.isWide());
+  app.classList.toggle('wide', oo.isWide() || goals.isWide());
   app.innerHTML = `<header class="head">
       <p class="eyebrow">Rapport</p>
       <h1 class="page-title dot">${esc(title)}</h1>
@@ -477,6 +484,7 @@ function paint() {
     if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); el.scrollTop = keep.top; } catch (e) { /* not a text field */ } }
   }
   document.title = ws.embedded ? 'Rapport' : `${title} · Rapport`;
+  goals.afterPaint();
 }
 
 /* ---------- edit dialog ---------- */
@@ -710,6 +718,7 @@ document.addEventListener('keydown', ev => {
 ws.commands.register({ id: 'new', title: 'Add a receipt' });
 ws.commands.register({ id: 'review', title: 'Build a review' });
 ws.commands.register({ id: 'prep', title: 'Prep a 1:1' });
+ws.commands.register({ id: 'goals', title: 'Open goals' });
 ws.on('command', async ({ id }) => {
   if (id === 'prep') oo.prep();
   if (id === 'new') { if (!document.querySelector('.composer')) go('me'); focusComposer(); }
@@ -728,6 +737,7 @@ loaded = true;
 await pickUp();
 paint();
 await oo.start(S.route.view, S.route.id);
+await goals.start(S.route.view, S.route.id, S.route.sub);
 if (!ws.embedded && ws.storage === 'folder') { try { folderStatus = await ws.folder.status(); } catch (e) { folderStatus = null; } }
 const moved = !ws.embedded && ws.folder.lastMove ? ws.folder.lastMove() : null;
 if (moved) ws.toast(`Now saving to the folder "${moved.folder}".`, { kind: 'success' });
