@@ -169,7 +169,11 @@ async function pickBackend() {
    Checked before any request, on every backend, so a bad name is always bad_request. */
 const APP_RE = /^[a-z][a-z0-9-]{0,39}$/;
 const SEG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const FILE_RE = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json)$/;
+const FILE_RE = /^([a-z0-9][a-z0-9-]{0,39})\.(md|json|png|jpg|jpeg|gif|webp)$/;
+// Images (docs/agent-api.md, Files, Images): base64 on the wire, a Blob in apps.
+const IMAGE_RE = /\.(png|jpg|jpeg|gif|webp)$/;
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+const isImage = (p) => IMAGE_RE.test(p || '');
 const MAX_SEGS = 4;
 const FILE_MAX = 10 * 1024 * 1024;
 const bad = (msg) => new WorkshopError('bad_request', msg, 400);
@@ -191,12 +195,12 @@ function checkFolder(name) {
   if (segs.length > MAX_SEGS - 1 || !segs.every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid folder name.`);
   return segs;
 }
-// A file path: 1 to 4 segments, the last ending in .md or .json.
+// A file path: 1 to 4 segments, the last ending in .md, .json or an image extension.
 function checkFile(name) {
   const segs = typeof name === 'string' ? name.split('/') : [];
   if (segs.length < 1 || segs.length > MAX_SEGS || !segs.slice(0, -1).every(s => SEG_RE.test(s))) throw bad(`"${name}" is not a valid file path. Use names like notes/2026-plan.md.`);
   const last = segs[segs.length - 1];
-  if (!FILE_RE.test(last)) throw bad(/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last) ? 'Only .md and .json files are allowed.' : `"${last}" is not a valid file name.`);
+  if (!FILE_RE.test(last)) throw bad(/^[a-z0-9][a-z0-9-]{0,39}\.[^.]+$/.test(last) ? 'Only .md, .json, .png, .jpg, .jpeg, .gif and .webp files are allowed.' : `"${last}" is not a valid file name.`);
   return segs;
 }
 // Light envelope check before a write (the agent checks the full schema; this catches the same mistakes apps make).
@@ -230,6 +234,52 @@ function checkFileContent(app, path, content) {
   }
   return size;
 }
+const extOf = (p) => p.slice(p.lastIndexOf('.') + 1);
+const imageBlob = (path, bytes) => new Blob([bytes], { type: IMAGE_TYPES[extOf(path)] });
+function looksLikeImage(path, b) {
+  const at = (i, bytes) => bytes.every((x, k) => b[i + k] === x);
+  const ascii = (str) => [...str].map(c => c.charCodeAt(0));
+  const ext = extOf(path);
+  if (ext === 'png') return at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (ext === 'jpg' || ext === 'jpeg') return at(0, [0xff, 0xd8, 0xff]);
+  if (ext === 'gif') return at(0, ascii('GIF87a')) || at(0, ascii('GIF89a'));
+  if (ext === 'webp') return at(0, ascii('RIFF')) && at(8, ascii('WEBP'));
+  return false;
+}
+function toBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function fromBase64(str) {
+  const bin = atob(str);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+// A file's content checked for its path: {size, data}, data a string for text and a Uint8Array for an image.
+async function prepareFile(app, path, content) {
+  if (!isImage(path)) return { size: checkFileContent(app, path, content), data: content };
+  let bytes;
+  if (content instanceof Uint8Array) bytes = content;
+  else if (content instanceof ArrayBuffer) bytes = new Uint8Array(content);
+  else if (content && typeof content === 'object' && typeof content.arrayBuffer === 'function') bytes = new Uint8Array(await content.arrayBuffer());
+  else throw bad(`${path} is an image. Pass a Blob, ArrayBuffer or Uint8Array.`);
+  if (bytes.length > FILE_MAX) throw new WorkshopError('too_large', 'A file can be at most 10 MB.', 413);
+  if (!looksLikeImage(path, bytes)) throw bad(`That content is not a ${extOf(path).toUpperCase()} image.`);
+  return { size: bytes.length, data: bytes };
+}
+// A file from the agent: base64 images become Blobs.
+function fromWire(f) {
+  if (!f || f.encoding !== 'base64') return f;
+  const { encoding, ...rest } = f;
+  return Object.assign(rest, { content: imageBlob(f.path, fromBase64(f.content)) });
+}
+async function sameContent(a, b) {
+  if (typeof a === 'string' || typeof b === 'string') return a === b;
+  const [x, y] = [new Uint8Array(await a.arrayBuffer()), new Uint8Array(await b.arrayBuffer())];
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
 function checkWriteOpts(opts) {
   const o = opts || {};
   const hasM = typeof o.mtime === 'number', hasC = o.create === true;
@@ -243,7 +293,7 @@ const downgrade = (stored, mine) => new WorkshopError('downgrade', `This data is
 const trashStamp = (d) => d.toISOString().replace(/[-:.]/g, '');
 // Does a file event at `path` concern a subscription to `target` (a file path, a folder, or '' for every file)?
 const coversPath = (target, path) => !target || target === path || path.startsWith(target + '/');
-const isFilePath = (s) => /\.(md|json)$/.test(s || '');
+const isFilePath = (s) => /\.(md|json|png|jpg|jpeg|gif|webp)$/.test(s || '');
 // Envelope as stored: no extra top-level fields, rev and updatedAt set by the backend.
 function storedEnvelope(env, rev, updatedAt) {
   const next = { schema: env.schema, version: env.version, rev, updatedAt, items: env.items };
@@ -366,18 +416,19 @@ function makeAgentBackend(ctx) {
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({ headers: headers() }, common));
       if (res.status === 404) return null;
       if (!res.ok) throw errorFrom(body, res.status);
-      return body;
+      return fromWire(body);
     },
     async write(app, path, content, opts) {
       const segs = checkFile(path);
       const o = checkWriteOpts(opts);
-      checkFileContent(app, path, content);
+      const { data } = await prepareFile(app, path, content);
+      const wire = typeof data === 'string' ? { content: data } : { content: toBase64(data), encoding: 'base64' };
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({
         method: 'PUT',
         headers: headers({ 'Content-Type': 'application/json', 'X-Workshop-Client': ctx.clientId }),
-        body: JSON.stringify(o.create ? { content, create: true } : { content, mtime: o.mtime })
+        body: JSON.stringify(Object.assign(wire, o.create ? { create: true } : { mtime: o.mtime }))
       }, common));
-      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? body.current : null; throw err; }
+      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? fromWire(body.current) : null; throw err; }
       if (!res.ok) throw errorFrom(body, res.status);
       return body; // {app, path, mtime, size}
     },
@@ -387,7 +438,7 @@ function makeAgentBackend(ctx) {
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}${m}`, Object.assign({
         method: 'DELETE', headers: headers({ 'X-Workshop-Client': ctx.clientId })
       }, common));
-      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? body.current : null; throw err; }
+      if (res.status === 409) { const err = errorFrom(body, 409); err.current = body ? fromWire(body.current) : null; throw err; }
       if (!res.ok) throw errorFrom(body, res.status);
       return body; // {app, path, trash}
     },
@@ -453,14 +504,15 @@ function makeIdbStore(ctx, opts = {}) {
     return { app, collections };
   }
 
-  const view = (app, path, v) => ({ app, path, mtime: v.mtime, size: new TextEncoder().encode(v.content).length, content: v.content });
+  const sizeOf = (c) => (typeof c === 'string' ? new TextEncoder().encode(c).length : c.size);
+  const view = (app, path, v) => ({ app, path, mtime: v.mtime, size: sizeOf(v.content), content: v.content });
   const files = {
     async list(app, folder) {
       checkApp(app);
       const segs = checkFolder(folder);
       const prefix = key(app, segs.length ? segs.join('/') + '/' : '');
       return (await idbEntries('files')).filter(([k]) => k.startsWith(prefix))
-        .map(([k, v]) => ({ path: k.slice(app.length + 1), mtime: v.mtime, size: new TextEncoder().encode(v.content).length }))
+        .map(([k, v]) => ({ path: k.slice(app.length + 1), mtime: v.mtime, size: sizeOf(v.content) }))
         .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     },
     async read(app, path) {
@@ -471,7 +523,8 @@ function makeIdbStore(ctx, opts = {}) {
     async write(app, path, content, opts) {
       checkApp(app); checkFile(path);
       const o = checkWriteOpts(opts);
-      const size = checkFileContent(app, path, content);
+      const { size, data } = await prepareFile(app, path, content);
+      const stored = typeof data === 'string' ? data : imageBlob(path, data);
       const result = await idbTx('files', 'readwrite', async (s) => {
         const cur = await reqAsPromise(s.files.get(key(app, path)));
         if (o.create && cur) throw fileConflict(`${path} already exists.`, view(app, path, cur));
@@ -479,7 +532,7 @@ function makeIdbStore(ctx, opts = {}) {
         if (!o.create && cur.mtime !== o.mtime) throw fileConflict('That file changed since you loaded it. Reload and try again.', view(app, path, cur));
         // Always later than the previous mtime, so an mtime names one version of the file.
         const mtime = Math.max(nowMs(), cur ? cur.mtime + 1 : 0);
-        s.files.put({ content, mtime }, key(app, path));
+        s.files.put({ content: stored, mtime }, key(app, path));
         return { app, path, mtime, size };
       });
       post({ app, path, mtime: result.mtime, client: ctx.clientId });
@@ -741,11 +794,14 @@ function makeFolderStore(ctx, root, opts = {}) {
     if (!f) return null;
     const v = { app, path, mtime: f.lastModified, size: f.size };
     if (f.size > FILE_MAX) return Object.assign(v, { content: '', tooLarge: true, file: f });
+    if (isImage(path)) return Object.assign(v, { content: imageBlob(path, new Uint8Array(await f.arrayBuffer())), file: f });
     const content = await f.text();
     if (isCollectionText(app, path, content)) throw bad(`${path} is a collection. Use ws.data for it.`);
     return Object.assign(v, { content, file: f });
   }
   const plain = (c) => { if (!c) return null; const { tooLarge, file, ...rest } = c; return rest; };
+  // The Android device store keeps text only (docs/run-modes.md, Device store).
+  const noImages = (path) => { if (storage === 'device' && isImage(path)) throw new WorkshopError('unavailable', 'Images cannot be saved in the app on this device.', 503); };
 
   const files = {
     async list(app, folder) {
@@ -755,6 +811,7 @@ function makeFolderStore(ctx, root, opts = {}) {
         const out = [];
         for (const { path, file } of await walk(app, fsegs)) {
           if (await isCollectionFile(app, path, file)) continue;
+          if (storage === 'device' && isImage(path)) continue;
           out.push({ path, mtime: file.lastModified, size: file.size });
         }
         return out;
@@ -763,6 +820,7 @@ function makeFolderStore(ctx, root, opts = {}) {
     async read(app, path) {
       checkApp(app);
       const segs = [app, ...checkFile(path)];
+      if (storage === 'device' && isImage(path)) return null;
       return access(async () => {
         const c = await current(app, path, segs);
         if (c && c.tooLarge) throw new WorkshopError('too_large', `${path} is larger than 10 MB, so Workshop does not read it.`, 413);
@@ -773,7 +831,9 @@ function makeFolderStore(ctx, root, opts = {}) {
       checkApp(app);
       const segs = [app, ...checkFile(path)];
       const o = checkWriteOpts(opts);
-      const size = checkFileContent(app, path, content);
+      noImages(path);
+      const { size, data } = await prepareFile(app, path, content);
+      const body = typeof data === 'string' ? data : imageBlob(path, data);
       const result = await access(() => withLock(relKey(segs), async () => {
         for (let attempt = 0; ; attempt++) {
           const cur = await current(app, path, segs);
@@ -785,12 +845,12 @@ function makeFolderStore(ctx, root, opts = {}) {
             if (attempt < RESTARTS) continue;
             throw fileConflict('That file keeps changing. Reload and try again.', plain(await current(app, path, segs)));
           }
-          let f = await writeData(segs, content);
+          let f = await writeData(segs, body);
           // An mtime must name one version: if the file system kept the old time, write again a little later.
           for (const ms of SAME_MTIME_WAITS) {
             if (!cur || f.lastModified !== cur.mtime) break;
             await sleep(ms);
-            f = await writeData(segs, content);
+            f = await writeData(segs, body);
           }
           own.set(relKey(segs), f.lastModified);
           return { app, path, mtime: f.lastModified, size };
@@ -807,12 +867,12 @@ function makeFolderStore(ctx, root, opts = {}) {
         const cur = await current(app, path, segs);
         if (!cur) throw new WorkshopError('not_found', `${app} has no file ${path}.`, 404);
         if (want !== null && cur.mtime !== want) throw fileConflict('That file changed since you loaded it. Reload and try again.', plain(cur));
-        const m = /^(.*)\.(md|json)$/.exec(relKey(segs));
+        const m = /^(.*)\.([a-z]+)$/.exec(relKey(segs));
         const base = `.trash/${m[1]}.${trashStamp(new Date(nowMs()))}`;
         let dest = `${base}.${m[2]}`;
         for (let i = 1; await exists(dest.split('/')); i++) dest = `${base}-${i}.${m[2]}`;
         // Copy into the trash first, then remove the original: the file is never lost, only moved.
-        await writeData(dest.split('/'), cur.file);
+        await writeData(dest.split('/'), isImage(path) ? cur.content : cur.file);
         await (await dirAt(segs.slice(0, -1), false)).removeEntry(segs[segs.length - 1]);
         own.set(relKey(segs), null);
         return { app, path, trash: dest };
@@ -955,8 +1015,8 @@ async function moveIntoFolder({ source, target, folderName, now = () => Date.now
   for (const { app, path, content } of await source.files()) {
     const there = await target.files.read(app, path);
     if (!there) { await target.files.write(app, path, content, { create: true }); summary.files.created.push(`${app}/${path}`); continue; }
-    if (there.content === content) { summary.files.same.push(`${app}/${path}`); continue; }
-    const m = /^(.*\/)?([^/]+)\.(md|json)$/.exec(path);
+    if (await sameContent(there.content, content)) { summary.files.same.push(`${app}/${path}`); continue; }
+    const m = /^(.*\/)?([^/]+)\.([a-z]+)$/.exec(path);
     for (let i = 1; ; i++) {
       const suffix = i === 1 ? '-from-browser' : `-from-browser-${i}`;
       const alt = `${m[1] || ''}${m[2].slice(0, 40 - suffix.length)}${suffix}.${m[3]}`;
@@ -1341,7 +1401,8 @@ export async function connect(options) {
       read(path, opts) { return data.files.read((opts && opts.app) || app, path); },
       write(path, content, opts) { return data.files.write(app, path, content, opts); },
       trash(path, opts) { return data.files.trash(app, path, opts); },
-      subscribe(pathOrFolder, handler, opts) { return data.files.subscribe((opts && opts.app) || app, pathOrFolder || '', handler); }
+      subscribe(pathOrFolder, handler, opts) { return data.files.subscribe((opts && opts.app) || app, pathOrFolder || '', handler); },
+      isImage(path) { return isImage(path); }
     },
 
     /* the data folder (docs/sdk.md, Folder): for the shell and the Settings app */
