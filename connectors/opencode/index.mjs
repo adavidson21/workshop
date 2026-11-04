@@ -93,9 +93,9 @@ export const configSchema = {
       properties: {
         nightlyAt: {
           type: "string",
-          title: "Nightly review time (HH:MM, 24-hour)",
+          title: "Nightly review time (like 2:00 AM)",
           description: "Each day at this time, first-pass reviews of the PRs that were waiting on you the last time Dispatch checked. If the computer was asleep, it runs when Workshop next starts that day. Empty: off.",
-          pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9])?$",
+          pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9]|(1[0-2]|0?[1-9]):[0-5][0-9] ?[AaPp]\\.?[Mm]?\\.?)?$",
           default: "",
           "x-workshop-hosted": true,
         },

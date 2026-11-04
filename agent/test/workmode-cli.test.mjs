@@ -21,8 +21,9 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, pull: false });
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', pull: false });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, pull: false });
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', pull: false });
+  assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
   assert.ok(parseUpdateArgs(['--pull', '--tag', 'v1']).error);
@@ -31,6 +32,9 @@ test('update, pin and install read their options', () => {
   assert.equal(parsePinArgs(['--docket', 'x']).opts.docket, path.resolve('x'));
   assert.ok(parsePinArgs(['--docket']).error);
   assert.ok(parsePinArgs(['--docket', 'x', '--no-docket']).error);
+  assert.equal(parsePinArgs(['--no-runway']).opts.noRunway, true);
+  assert.equal(parsePinArgs(['--runway', 'y']).opts.runway, path.resolve('y'));
+  assert.ok(parsePinArgs(['--runway', 'y', '--no-runway']).error);
   assert.equal(parseInstallArgs(['--work-mode']).opts.workMode, true);
   assert.ok(parseInstallArgs(['--work-mode', '--allow', 'https://x.example.org']).error, 'no site can pair in work mode');
 });
@@ -54,14 +58,15 @@ test('pin builds a checked copy from this install, and doctor reports it', async
   const home = tempDir('workshop-wm-pin-');
   const defaultDir = path.join(tempDir('workshop-wm-data-'), 'Workshop');
   try {
-    const r = pin({ home, repo: REPO, opts: { noDocket: true } });
+    const r = pin({ home, repo: REPO, opts: { noDocket: true, noRunway: true } });
     assert.equal(r.docketDir, null);
     assert.equal(r.build.docket, null);
+    assert.equal(r.build.runway, null);
     assert.ok(r.build.files['index.html']);
     assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
 
     // Pinning again keeps the previous copy beside it.
-    pin({ home, repo: REPO, opts: { noDocket: true } });
+    pin({ home, repo: REPO, opts: { noDocket: true, noRunway: true } });
     assert.ok(fs.existsSync(path.join(home, 'ui.previous', 'build.json')));
     assert.ok(!fs.existsSync(path.join(home, 'ui.next')));
 
@@ -70,7 +75,7 @@ test('pin builds a checked copy from this install, and doctor reports it', async
     let d = await doctorReport({ home, env: {}, platform: 'linux', nodeVersion: 'v22.22.0', probe: noAgent, defaultDir });
     let text = d.lines.join('\n');
     assert.equal(d.code, 0, text);
-    assert.match(text, /Work mode: on\. Pinned copy: Workshop .*no Docket.*all \d+ files match build\.json/);
+    assert.match(text, /Work mode: on\. Pinned copy: Workshop .*no Docket, no Runway.*all \d+ files match build\.json/);
     assert.match(text, /Hosted mode: on \(not used: work mode is on/);
 
     // A changed file fails doctor.
@@ -83,6 +88,28 @@ test('pin builds a checked copy from this install, and doctor reports it', async
     d = await doctorReport({ home, env: {}, platform: 'linux', nodeVersion: 'v22.22.0', probe: noAgent, defaultDir });
     assert.match(d.lines.join('\n'), /Work mode: off\./);
   } finally { rm(home); rm(path.dirname(defaultDir)); }
+});
+
+test('pin includes Runway from its own checkout, so work mode shows roadmaps', () => {
+  const home = tempDir('workshop-wm-pin3-');
+  const runway = tempDir('workshop-wm-runway-');
+  try {
+    fs.writeFileSync(path.join(runway, 'app.json'), JSON.stringify({ manifestVersion: 1, id: 'runway', name: 'Runway', version: '0.1.0', icon: 'icon.svg', entry: 'index.html', order: 30, modes: ['local', 'hosted', 'browser'] }));
+    fs.writeFileSync(path.join(runway, 'index.html'), '<!doctype html><title>Runway</title>');
+    fs.writeFileSync(path.join(runway, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    fs.mkdirSync(path.join(runway, 'scripts'));
+    fs.writeFileSync(path.join(runway, 'scripts', 'build.mjs'), '');
+    fs.writeFileSync(path.join(runway, '.assetsignore'), 'scripts\n');
+    const r = pin({ home, repo: REPO, opts: { noDocket: true, runway } });
+    assert.equal(r.dirs.runway, runway);
+    assert.equal(r.build.runway.version, '0.1.0');
+    assert.ok(r.build.files['apps/runway/index.html']);
+    assert.ok(!r.build.files['apps/runway/scripts/build.mjs'], '.assetsignore is honored');
+    const reg = JSON.parse(fs.readFileSync(path.join(home, 'ui', 'apps', 'registry.json'), 'utf8'));
+    assert.ok(reg.apps.some(a => a.manifest.id === 'runway'), 'Runway is in the rail');
+    assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
+    assert.throws(() => pin({ home, repo: REPO, opts: { noDocket: true, runway: home } }), /not a Runway checkout/);
+  } finally { rm(home); rm(runway); }
 });
 
 test('pin refuses a folder that is not a Docket checkout', () => {

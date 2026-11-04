@@ -87,6 +87,10 @@ describe("PR review queue", () => {
     assert.equal(cleanPr({ url: LINK(5), commit: "not-a-sha" }, prFromUrl).commit, null);
     assert.deepEqual(nightlyTime("02:30"), { h: 2, m: 30, text: "02:30" });
     assert.equal(nightlyTime("24:00"), null);
+    assert.deepEqual(nightlyTime("2:30 AM"), { h: 2, m: 30, text: "02:30" }, "12-hour times work too");
+    assert.deepEqual(nightlyTime("11:05 p.m."), { h: 23, m: 5, text: "23:05" });
+    assert.equal(nightlyTime("12:00 am").h, 0);
+    assert.equal(nightlyTime("13:00 pm"), null);
     assert.equal(nightlyTime(""), null);
     assert.equal(upToDate({ reviewed: true, reviewedCommit: "1aaaaaa" }, SHA(1)), true);
     assert.equal(upToDate({ reviewed: true, reviewedCommit: "bbbbbbb" }, SHA(1)), false);

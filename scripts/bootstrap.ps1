@@ -21,7 +21,8 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket (DOCKET_TAG, else its newest code) and builds the copy (workshop pin).
+#                         downloads Docket and Runway (DOCKET_TAG and RUNWAY_TAG, else their newest code) and builds
+#                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
 #                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
 # Dispatch (opencode, git, Tandem and an AI model) is only for coding agents:
@@ -38,11 +39,11 @@ $Site = '{{SITE}}'
 if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org' }
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
-$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket' }
+$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket'; runway = 'https://github.com/adavidson21/runway' }
 # /install-work.ps1 serves this file with {{WORK}} set to 1 (worker/index.js), so work mode needs no variable.
 $Work = ($env:WORKSHOP_WORK_MODE -eq '1') -or ('{{WORK}}' -eq '1')
-$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG }
-$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG' }
+$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG; runway = $env:RUNWAY_TAG }
+$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG'; runway = 'RUNWAY_TAG' }
 # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
 $Dispatch = if ($env:WORKSHOP_DISPATCH -eq '0') { $false } elseif ($env:WORKSHOP_DISPATCH -eq '1') { $true } else { -not $Work }
 $OcVersion = if ($env:OPENCODE_VERSION) { $env:OPENCODE_VERSION } else { 'latest' }
@@ -139,9 +140,9 @@ if (Test-Workshop) {
 # ---------------------------------------------------------------- 2. Workshop and Tandem
 $names = @('workshop')
 if ($Dispatch) { $names += 'eng-agents' }
-if ($Work) { $names += 'docket' }
+if ($Work) { $names += @('docket', 'runway') }
 foreach ($name in $names) {
-  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
+  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
   $dir = Join-Path $Root $name
   $tag = $Tags[$name]
   if (Test-Path (Join-Path $dir '.git')) {
@@ -155,6 +156,18 @@ foreach ($name in $names) {
     }
     else { Say 'Updating your git checkout.'; git -C $dir pull --ff-only }
     continue
+  }
+  $ref = if ($tag) { "refs/tags/$tag" } else { 'refs/heads/main' }
+  # Runway's repo is private, so a download without a GitHub sign-in fails. It is optional: skip it, and the
+  # pinned copy is built without it until there is a clone of it here.
+  if ($name -eq 'runway') {
+    $reachable = $true
+    try { Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$($Repos[$name])/archive/$ref.zip" | Out-Null } catch { $reachable = $false }
+    if (-not $reachable) {
+      Say 'Runway could not be downloaded (its repo is private), so the pinned copy leaves it out.'
+      Say "To add it: git clone $($Repos[$name]) `"$dir`" (signed in to GitHub), then run: workshop pin"
+      continue
+    }
   }
   if (Test-Path $dir) {
     $prev = "$dir.previous"
@@ -290,7 +303,8 @@ if ($ocCmd) {
 if ($LASTEXITCODE -ne 0) { Fail 'Workshop setup failed. See the messages above.' }
 if ($Work) {
   Step 'Building the pinned copy (work mode)'
-  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket')
+  $runwayArgs = if (Test-Path (Join-Path $Root 'runway\app.json')) { @('--runway', (Join-Path $Root 'runway')) } else { @('--no-runway') }
+  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket') @runwayArgs
   if ($LASTEXITCODE -ne 0) { Fail 'Building the pinned copy failed. See the messages above.' }
 }
 

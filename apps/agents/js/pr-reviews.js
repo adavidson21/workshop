@@ -16,7 +16,7 @@
    - My PRs (scope "mine"): the pull requests of your own runs (pr.md, at Ship), with where each repo's
      code review stands. Same data as the run cards; only gathered in one place. */
 import { S } from './state.js';
-import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar } from './view.js';
+import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar, stamp } from './view.js';
 import { projectChip } from './sidebar.js';
 
 const SEV = [['blocking', 'Blocking'], ['should-fix', 'Should fix'], ['optional', 'Optional']];
@@ -147,7 +147,7 @@ export function reviewCard(it, p) {
   if (p) meta.push(...inboxFlags(p));
   if (pr.repo) meta.push(`<span class="mono">${h(pr.repo)}</span>`);
   if (pr.author) meta.push(`<span>by ${h(pr.author)}</span>`);
-  meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">${pr.reviewed ? 'Reviewed' : 'Touched'} ${ago(it.modifiedMs)}</span>`);
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">${pr.reviewed ? 'Reviewed' : 'Touched'} ${ago(it.modifiedMs)}</span>`);
   meta.push(removeBtn(it));
   let body = '';
   if (pr.reviewed) {
@@ -212,7 +212,7 @@ function startingCard(o) {
   const id = linkPrId(o.command);
   const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
   return `<article class="item rv" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${id ? `<span class="num">!${h(id)}</span>` : ''}Fetching the pull request</h4>` +
-    `<div class="meta"><span class="tag">Starting</span><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+    `<div class="meta"><span class="tag">Starting</span><span title="${h(stamp(o.at))}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
     sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
 }
 
@@ -247,7 +247,7 @@ function inboxHtml() {
 }
 
 const Q_STATE = { queued: 'Queued', running: 'Reviewing', done: 'Reviewed', asking: 'Needs you', failed: 'Failed', skipped: 'Skipped' };
-const dayTime = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
+const dayTime = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true }); };
 
 /** Review all's progress, above the inbox. Hidden when the queue is empty. */
 export function queueHtml() {
@@ -287,6 +287,8 @@ export function queueHtml() {
     '</section>';
 }
 
+/** "HH:MM" on a 12-hour clock ("2:00 AM"); anything else as is. */
+const clock12 = s => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(s || ''); return m ? `${+m[1] % 12 || 12}:${m[2]} ${+m[1] < 12 ? 'AM' : 'PM'}` : (s || ''); };
 /** The nightly review's line under the inbox. */
 function nightlyHtml() {
   const q = prQueue();
@@ -294,7 +296,7 @@ function nightlyHtml() {
   const n = q.nightly || {};
   if (!n.at) return '<p class="hint rv-night">Want these ready in the morning? Set a nightly review time in <button type="button" class="lnk" data-cfg-open="1">opencode settings</button>.</p>';
   const last = n.last ? ` Last ran ${h(n.last)}.` : '';
-  return `<p class="hint rv-night">Nightly review at <strong>${h(n.at)}</strong> on the PRs listed here.${last} <button type="button" class="lnk" data-cfg-open="1">Change</button></p>`;
+  return `<p class="hint rv-night">Nightly review at <strong>${h(clock12(n.at))}</strong> on the PRs listed here.${last} <button type="button" class="lnk" data-cfg-open="1">Change</button></p>`;
 }
 
 // Review a pull request by its link. Hidden behind "Review a link" unless open, typed in, or showing an error.
@@ -369,7 +371,7 @@ const MINE_GROUPS = [
 function mineCard(it) {
   const st = mineState(it);
   const meta = [`<span class="flag ${['fix', 'missing'].includes(st) ? 'bad' : ['review', 'push'].includes(st) ? 'warn' : 'ok'}">${h(MINE_STATE[st])}</span>`];
-  meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">Touched ${ago(it.modifiedMs)}</span>`);
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`);
   meta.push(projectChip(it));
   meta.push(`<button type="button" class="lnk plain" data-side-run="${h(it.folder)}">Open run</button>`);
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);

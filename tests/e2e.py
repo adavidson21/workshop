@@ -1071,7 +1071,9 @@ def main():
         check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
         check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
         if af:
-            check('the hub in browser mode says it needs Workshop on this computer', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
+            check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
+            af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
+            check('clicking the unavailable AI button explains it under the input', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
             af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
             check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
             af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)

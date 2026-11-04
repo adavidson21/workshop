@@ -17,6 +17,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCKET = os.path.join(ROOT, '.remote', 'prioritizer')
+RUNWAY = os.path.join(ROOT, '.remote', 'runway')
 HOSTED = 'https://workshop.example.org'
 failures = 0
 
@@ -38,7 +39,9 @@ def main():
                    'features': {'startAtLogin': False, 'hostedMode': True, 'workMode': True}, 'connectors': {}}, f)
     env = {**os.environ, 'WORKSHOP_HOME': home}
     with_docket = os.path.exists(os.path.join(DOCKET, 'app.json'))
-    pin = subprocess.run(['node', os.path.join(ROOT, 'workshop.mjs'), 'pin'] + (['--docket', DOCKET] if with_docket else ['--no-docket']),
+    with_runway = os.path.exists(os.path.join(RUNWAY, 'app.json'))
+    pin = subprocess.run(['node', os.path.join(ROOT, 'workshop.mjs'), 'pin'] + (['--docket', DOCKET] if with_docket else ['--no-docket'])
+                         + (['--runway', RUNWAY] if with_runway else ['--no-runway']),
                          env=env, capture_output=True, text=True)
     check(pin.returncode == 0, 'workshop pin builds the pinned copy')
     if pin.returncode != 0:
@@ -68,7 +71,7 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Dispatch', 'Rapport', 'Settings'] + (['Docket'] if with_docket else []):
+            for name in ['Dispatch', 'Rapport', 'Settings'] + (['Docket'] if with_docket else []) + (['Runway'] if with_runway else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')
@@ -103,6 +106,16 @@ def main():
                         break
                     pg.wait_for_timeout(200)
                 check(saved, 'Docket saves its board in the data folder through the agent')
+
+            if with_runway:
+                pg.goto(f'{url}/#/runway')
+                rframe = None
+                for _ in range(75):
+                    rframe = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
+                    if rframe and rframe.locator('body').count() and rframe.inner_text('body').strip():
+                        break
+                    pg.wait_for_timeout(200)
+                check(rframe is not None and bool(rframe.inner_text('body').strip()), 'Runway opens inside the hub from the pinned copy')
 
             check(not foreign, 'no request went anywhere but this computer' + (f': {foreign[:3]}' if foreign else ''))
             browser.close()
