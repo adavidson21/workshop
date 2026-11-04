@@ -113,13 +113,14 @@ function statusText(s, known) {
   return known ? `Saved ${age(known.mtime)}` : '';
 }
 function conflictBar(ui) {
-  if (ui.status.kind === 'failed') return `<div class="bar warn">Your edits are kept here. <button class="btn" data-act="retry">Retry now</button></div>`;
-  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert">This note changed outside Notes since you opened it. Your edits are still here.
-      <button class="btn" data-act="take-theirs">Load the new version</button>
+  if (ui.status.kind === 'failed') return `<div class="bar warn"><span class="bar-msg">Your edits are kept here.</span>
+      <span class="bar-acts"><button class="btn" data-act="retry">Retry now</button></span></div>`;
+  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This note changed outside Notes since you opened it. Your edits are still here.</span>
+      <span class="bar-acts"><button class="btn" data-act="take-theirs">Load the new version</button>
       <button class="btn" data-act="keep-copy">Save mine as a copy</button>
-      <button class="btn ghost" data-act="overwrite">Overwrite with mine</button></div>`;
-  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert">This note was moved or trashed outside Notes. Your text is still here.
-      <button class="btn" data-act="restore">Save it again</button></div>`;
+      <button class="btn ghost" data-act="overwrite">Overwrite with mine</button></span></div>`;
+  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This note was moved or trashed outside Notes. Your text is still here.</span>
+      <span class="bar-acts"><button class="btn" data-act="restore">Save it again</button></span></div>`;
   return '';
 }
 
@@ -154,7 +155,7 @@ export function empty(state) {
   if (!notes.loaded) return `<div class="engcard"><p class="eyebrow">Notes</p><h1 class="page-title dot">Waiting for your notes</h1><p>${esc(notes.error)}</p></div>`;
   return `<div class="engcard"><p class="eyebrow">Notes</p><h1 class="page-title dot">Write it down</h1>
     <p>Markdown notes in your Workshop folder, under <code>notes/</code>. Link notes with <kbd>[[</kbd>, tag them with <code>#tag</code>, paste images straight in.</p>
-    <p><button class="btn primary" data-act="new-note">New note <kbd>N</kbd></button></p></div>`;
+    <div class="acts"><button class="btn primary" data-act="new-note">New note <kbd>N</kbd></button></div></div>`;
 }
 
 /* ---------- dialogs ---------- */
