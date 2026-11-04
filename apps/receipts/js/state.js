@@ -292,7 +292,7 @@ export const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-
    config.meta.handled (newest HANDLED_MAX ids), so Receipts never writes the other app's data.
    payload.about: 'me' (the default) or a report's person id ('p_...'). An offer about a report shows on that
    report's page and in Me. One about a person id that is not in your list is about you, so it is never lost. */
-export const SENDERS = { prioritizer: 'Docket', oneonones: '1:1s' };
+export const SENDERS = { prioritizer: 'Docket', oneonones: '1:1s', home: 'Home', agents: 'Dispatch' };
 export const HANDLED_MAX = 500;
 const HANDOFF_VERSION = 1;
 
@@ -307,17 +307,32 @@ export function offerAbout(payload, known = []) {
 export function pendingOffers(app, env, handled = [], known = []) {
   if (!env || env.schema !== `${app}.handoffs` || env.version !== HANDOFF_VERSION || !Array.isArray(env.items)) return [];
   const done = new Set(handled);
+  return readOffers(app, env, handled, known).filter(o => !o.accepted)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.text.localeCompare(b.text)));
+}
+function readOffers(app, env, handled, known) {
+  if (!env || env.schema !== `${app}.handoffs` || env.version !== HANDOFF_VERSION || !Array.isArray(env.items)) return [];
+  const done = new Set(handled);
   return env.items.filter(h => h && typeof h.id === 'string' && h.to === APP && !done.has(`${app}:${h.id}`)
       && parseDay(h.date) && typeof h.text === 'string' && h.text.trim())
-    .map(h => ({ key: `${app}:${h.id}`, from: SENDERS[app] || app, date: h.date, text: h.text.trim().slice(0, 2000),
+    .map(h => ({ key: `${app}:${h.id}`, app, id: h.id, from: SENDERS[app] || app, date: h.date, text: h.text.trim().slice(0, 2000),
       kind: h.payload && KINDS.includes(h.payload.kind) ? h.payload.kind : 'win',
       impact: h.payload && [0, 1, 2, 3].includes(h.payload.impact) ? h.payload.impact : 0,
-      about: offerAbout(h.payload, known) }))
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.text.localeCompare(b.text)));
+      about: offerAbout(h.payload, known), accepted: h.accepted === true }));
+}
+
+/* Accepted offers (docs/handoffs.md in workshop, rule 4): a capture the person already accepted in Home or the
+   Dispatch hub. Receipts adds these with no second click, for every kind. Each becomes an entry with a fixed id
+   (offerEntryId), so the same capture is never added twice, even after the handled list is trimmed or the entry
+   was deleted (its tombstone keeps the id). seen: entry ids that exist or were deleted. */
+export const offerEntryId = (app, id) => ('h-' + app + '-' + String(id)).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 120);
+export function acceptedOffers(app, env, handled = [], known = [], seen = []) {
+  const have = new Set(seen);
+  return readOffers(app, env, handled, known).filter(o => o.accepted && !have.has(offerEntryId(o.app, o.id)));
 }
 /* The receipt an accepted offer becomes: about you, or about the report the offer names. */
 export function entryFromOffer(o, now = new Date()) {
-  return cleanEntry({ id: newId('r'), about: o.about || 'me', kind: o.kind, text: o.text, date: o.date, impact: o.impact,
+  return cleanEntry({ id: o.accepted ? offerEntryId(o.app, o.id) : newId('r'), about: o.about || 'me', kind: o.kind, text: o.text, date: o.date, impact: o.impact,
     evidence: `From ${o.from}`, createdAt: now.toISOString() });
 }
 /* The handled list with these keys added, newest last, capped. */
