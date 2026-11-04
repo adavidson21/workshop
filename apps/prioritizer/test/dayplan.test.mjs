@@ -351,7 +351,7 @@ test('saved day plan items match the JSON Schemas in schemas/', () => {
   no('dayplan-settings.schema.json', dpEnvelopeFromBoard('dayplan/settings', dp, null).meta.sprint);
   for (const t of dpEnvelopeFromBoard('dayplan/templates', dp, null).items) no('dayplan-template.schema.json', t);
   for (const d of dpEnvelopeFromBoard('dayplan/days/2026', dp, null).items) no('dayplan-day.schema.json', d);
-  dp.recurring = [M.cleanRecurring({title: 'Refinement', dueDay: 4, made: ['2026-11-04']})];
+  dp.recurring = [M.cleanRecurring({title: 'Refinement', dueDay: 4, made: ['2026-11-04']}), M.cleanRecurring({title: 'Check logs', repeat: 'weekly', weekday: 1, at: '09:15', made: ['2026-11-09']})];
   for (const r of dpEnvelopeFromBoard('dayplan/recurring', dp, null).items) no('dayplan-recurring.schema.json', r);
 });
 
@@ -374,6 +374,42 @@ test('every-sprint tasks: made on day 1, due on their sprint day, once per sprin
   assert.equal(M.recurDue(hol, '2026-11-04')[0].due, '2026-11-10');
   assert.equal(M.sprintDayDate(hol.sprint, '2026-11-04', 40), '2026-11-17', 'past the end: the last working day');
   assert.equal(M.cleanRecurring({title: '  '}), null);
+});
+
+/* ---------- daily and weekly repeats ---------- */
+test('daily, workday and weekly repeats: one task a matching day, due that day, no sprint needed', () => {
+  const dp = board({sprint: {...SPRINT, holidays: ['2026-11-11']}, recurring: [
+    {id: 'logs', title: 'Check logs', repeat: 'workdays', at: '09:15'}, {id: 'any', title: 'Journal', repeat: 'daily'},
+    {id: 'wk', title: 'Weekly notes', repeat: 'weekly', weekday: 5}, {id: 'old', title: 'Refinement', dueDay: 4, made: ['2026-11-04']}]});
+  assert.equal(dp.recurring[3].repeat, 'sprint', 'items saved before repeat existed are every-sprint');
+  assert.deepEqual(M.recurDue(dp, '2026-11-06').map(d => [d.id, d.due, d.day]),
+    [['r_logs_2026-11-06', '2026-11-06', '2026-11-06'], ['r_any_2026-11-06', '2026-11-06', '2026-11-06'], ['r_wk_2026-11-06', '2026-11-06', '2026-11-06']], 'Friday: all three');
+  assert.deepEqual(M.recurDue(dp, '2026-11-07').map(d => d.item.id), ['any'], 'Saturday: only every day');
+  assert.deepEqual(M.recurDue(dp, '2026-11-11').map(d => d.item.id), ['any'], 'a holiday is not a workday');
+  const mon = M.recurDue(dp, '2026-11-09'); mon.forEach(d => d.item.made.push(d.start));
+  assert.deepEqual(M.recurDue(dp, '2026-11-09'), [], 'once a day');
+  const noSprint = board({sprint: {}, recurring: [{id: 'logs', title: 'Check logs', repeat: 'workdays'}, {id: 'old', title: 'R', dueDay: 1}]});
+  assert.deepEqual(M.recurDue(noSprint, '2026-11-10').map(d => d.item.id), ['logs'], 'without a sprint, only the daily one');
+  assert.equal(M.cleanRecurring({title: 'x', repeat: 'hourly', at: '9am'}).repeat, 'sprint');
+  assert.equal('at' in M.cleanRecurring({title: 'x', at: '9am'}), false, 'at is saved as HH:MM only');
+  assert.equal(M.repeatLabel(dp.recurring[0]), 'Every workday at 9:15 AM');
+  assert.equal(M.repeatLabel(dp.recurring[2]), 'Fridays');
+  assert.equal(M.repeatLabel(dp.recurring[3]), 'Every sprint, day 4');
+});
+
+test('a repeating task with a time goes into the block on at that time', () => {
+  const dp = board({recurring: [{id: 'logs', title: 'Check logs', repeat: 'workdays', at: '13:30'}, {id: 'early', title: 'E', repeat: 'daily', at: '07:00'}, {id: 'late', title: 'L', repeat: 'daily', at: '20:00'}]});
+  assert.equal(M.autoPlan(dp, dp.recurring[0], 'r_logs_2026-11-05', '2026-11-05').id, 'mt', '1:30 PM is in Meetings');
+  assert.equal(M.autoPlan(dp, dp.recurring[1], 'r_early_2026-11-05', '2026-11-05').id, 'am', 'before the first block: the next one');
+  assert.equal(M.autoPlan(dp, dp.recurring[2], 'r_late_2026-11-05', '2026-11-05'), null, 'after the last block: not planned');
+});
+
+test('times: typed on a 12-hour clock, saved as HH:MM, shown with AM or PM', () => {
+  const cases = {'9:30 am': '09:30', '9:30a': '09:30', '9pm': '21:00', '930': '09:30', '21:15': '21:15', '09:00': '09:00',
+    '1:30': '13:30', '12': '12:00', '12am': '00:00', '12:15 PM': '12:15', '7': '07:00', '13:61': null, '13pm': null, 'soon': null, '': null};
+  for (const [v, want] of Object.entries(cases)) assert.equal(M.parseTime(v), want, v);
+  assert.equal(M.fmt12('09:05'), '9:05 AM'); assert.equal(M.fmt12('00:30'), '12:30 AM'); assert.equal(M.fmt12('12:00'), '12:00 PM');
+  assert.equal(M.fmt12('17:45'), '5:45 PM'); assert.equal(M.fmt12(null), '');
 });
 
 test('automatic Day planning: an every-sprint task goes into its kind of block on its due day, once', () => {

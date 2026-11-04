@@ -194,6 +194,41 @@ def main():
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !t.recur); P.commit(); }}")
         made = pg.evaluate(f"() => {P}.recurTick()")
         check('deleting it does not bring it back this sprint', made == 0 and pg.evaluate(f"() => {P}.state.tasks.filter(t => t.recur).length") == 0)
+        # 12-hour clock: block times show AM or PM, and a typed "1:30" in a time field is read as 1:30 PM.
+        times = pg.locator('main .dtime').all_inner_texts()
+        check('block times show on a 12-hour clock', times and all(('AM' in t or 'PM' in t) and not any(f'{h}:' in t for h in range(13, 24)) for t in times))
+        # Repeating tasks: make one from a task's drawer, every workday at a typed time.
+        pg.evaluate(f"() => {{ const P = {P}; P.state.view = 'today'; P.commit(); }}"); pg.wait_for_timeout(200)
+        pg.keyboard.press('n'); pg.fill('#cmdInput', 'Check logs'); pg.keyboard.press('Enter'); pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        tid = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Check logs').id")
+        pg.evaluate(f"id => {P}.openDrawer(id)", tid); pg.wait_for_timeout(200)
+        pg.select_option('#dRepeat', 'daily'); pg.wait_for_timeout(300)
+        pg.fill('.drawer [data-f=repeatAt]', '930a'); pg.keyboard.press('Tab'); pg.wait_for_timeout(300)
+        item = pg.evaluate(f"id => {{ const P = {P}, t = P.state.tasks.find(x => x.id === id); return t.recur && P.dp.recurring.find(r => r.id === t.recur.id); }}", tid)
+        check('a task can be made to repeat every day at a time from its drawer', item is not None and item['repeat'] == 'daily' and item['at'] == '09:30')
+        check('the typed time is tidied to 9:30 AM', pg.input_value('.drawer [data-f=repeatAt]') == '9:30 AM')
+        check('the task row shows its repeat time', '9:30 AM' in pg.inner_text(f'main .row[data-id="{tid}"] .sig.recur'))
+        check('it does not make a second task for today', pg.evaluate(f"() => {P}.recurTick()") == 0)
+        # Tomorrow's task replaces an unfinished one from today, which is closed as skipped.
+        nxt = pg.evaluate(f"""id => {{ const P = {P}, t = P.state.tasks.find(x => x.id === id), r = P.dp.recurring.find(x => x.id === t.recur.id);
+          const d = new Date(); d.setDate(d.getDate() + 1); const tom = d.toLocaleDateString('en-CA'); const due = P.dayModel.recurDue(P.dp, tom); return due.map(x => x.id); }}""", tid)
+        check('the next day makes a fresh one', len(nxt) == 1 and nxt[0].startswith('r_'))
+        pg.select_option('#dRepeat', ''); pg.wait_for_timeout(300)
+        check("Doesn't repeat stops it and keeps the task", pg.evaluate(f"id => !{P}.state.tasks.find(x => x.id === id).recur && !{P}.dp.recurring.some(r => r.title === 'Check logs')", tid))
+        pg.keyboard.press('Escape')
+        # Pasting ADO's Copy to clipboard (text plus an HTML link) into the add box keeps the link.
+        pg.keyboard.press('n'); pg.wait_for_timeout(100)
+        pg.evaluate("""() => { const el = document.querySelector('#cmdInput'); el.focus(); const dt = new DataTransfer();
+          dt.setData('text/plain', 'Issue 12345: Fix login');
+          dt.setData('text/html', '<a href="https://dev.azure.com/acme/Platform/_workitems/edit/12345">Issue 12345</a>: Fix login');
+          el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }""")
+        check('the pasted text goes in the box', pg.input_value('#cmdInput') == 'Issue 12345: Fix login')
+        pg.keyboard.press('Enter'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Issue 12345: Fix login')")
+        check('the task keeps the ADO link', t and t.get('ado', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['ado']['type'] == 'Issue' and t['ado']['pasted'] is True)
+        check('its row has a link that opens the item in ADO', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado[href*="_workitems/edit/12345"][target=_blank]').count() == 1)
+        check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.ado && t.ado.id === 12345).done; }}"""))
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.ado && t.ado.id === 12345)); P.state.view = 'day'; P.commit(); }}")
         # ---------- every-sprint offers from another app (Workshop docs/handoffs.md): inside Workshop only ----------
         # A sender (app id example-app) writes an offer to its own handoffs collection, in this browser's storage.
         offer_put = """async ([id, dueDay]) => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'example-app'});

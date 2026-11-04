@@ -24,6 +24,22 @@ const rid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(3
 const isTime = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const toMin = s => isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
 const fromMin = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
+/* Times are saved as "HH:MM" (24-hour) and always shown on a 12-hour clock: "9:30 AM". */
+const fmt12 = s => { if (!isTime(s)) return ''; const h = +s.slice(0, 2), m = s.slice(3); return `${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}`; };
+/* A typed time to "HH:MM", or null. Takes "9:30 am", "9:30a", "9pm", "930", "21:15" and "09:00". Without am or pm,
+   1 to 6 is afternoon (a workday clock: "1:30" is 1:30 PM), 7 to 11 morning, and 0 or 13 to 23 are 24-hour. */
+function parseTime(v){
+  const m = String(v ?? '').trim().toLowerCase().replace(/\./g, '').match(/^(\d{1,2})(?::?(\d{2}))?\s*(a|am|p|pm)?$/);
+  if (!m) return null;
+  let h = +m[1]; const min = m[2] ? +m[2] : 0;
+  if (min > 59) return null;
+  if (m[3]){
+    if (h < 1 || h > 12) return null;
+    h = (h % 12) + (m[3][0] === 'p' ? 12 : 0);
+  } else if (h > 23) return null;
+  else if (h >= 1 && h <= 6 && !/^0/.test(m[1])) h += 12;
+  return `${pad(h)}:${pad(min)}`;
+}
 
 const COLORS = ['slate', 'sage', 'sky', 'butter', 'peach', 'blush', 'lavender', 'stone'];
 const DEFAULT_SPRINT = {anchor: null, lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [], dayStart: '09:00', dayEnd: '17:00'};
@@ -358,12 +374,19 @@ function dismissCarry(dp, date){
   rec.carry = Object.assign({tray: []}, rec.carry, {done: true});
 }
 
-/* ---------- every-sprint tasks ----------
-   A recurring item is {id, title, dueDay, last, value, effort, listId, notes, paused}, plus from: {app, id} when it
-   came from another app's offer (offers-model.js). Each sprint whose due day
-   has not passed gets one fresh task on its first working day (or as soon as Docket opens after that), due on
-   that sprint day. The task's id is fixed per item and sprint (r_<item id>_<sprint start>), so two windows make
-   the same task, and a task you delete stays deleted (made lists the sprints already done). */
+/* ---------- repeating tasks (every sprint, every day, every week) ----------
+   A recurring item is {id, title, repeat, dueDay, last, weekday, at, value, effort, listId, notes, paused}, plus
+   from: {app, id} when it came from another app's offer (offers-model.js).
+   repeat 'sprint' (the default, and every item saved before repeat existed): each sprint whose due day has not
+   passed gets one fresh task on its first working day (or as soon as Docket opens after that), due on that
+   sprint day (dueDay, or the last working day with last).
+   repeat 'workdays' (your sprint's workdays, minus holidays), 'daily' or 'weekly' (on weekday, 0 Sunday to 6
+   Saturday): each matching day gets a fresh task that day, due that day and on the Today list. These don't need
+   a sprint. at is an optional time ("HH:MM") the task is for; it is shown on the task and plans it into the block
+   on at that time. A day that was missed (Docket not open) is not made later.
+   The task's id is fixed per item and sprint or day (r_<item id>_<sprint start or date>), so two windows make the
+   same task, and a task you delete stays deleted (made lists the sprints or days already done). */
+const REPEATS = ['sprint', 'workdays', 'daily', 'weekly'];
 const EFFORT_KEYS = ['XS', 'S', 'M', 'L', 'XL'];
 function cleanRecurring(r){
   if (!r || typeof r !== 'object') return null;
@@ -371,8 +394,11 @@ function cleanRecurring(r){
   o.id = str(o.id, 40) || rid();
   o.title = str(o.title, 300).trim();
   if (!o.title) return null;
+  o.repeat = REPEATS.includes(o.repeat) ? o.repeat : 'sprint';
   o.dueDay = Number.isInteger(+o.dueDay) && +o.dueDay >= 1 && +o.dueDay <= 60 ? +o.dueDay : 1;
   o.last = o.last === true;
+  o.weekday = Number.isInteger(+o.weekday) && +o.weekday >= 0 && +o.weekday <= 6 ? +o.weekday : 1;
+  if (isTime(o.at)) o.at = o.at; else delete o.at;
   o.value = Number.isInteger(+o.value) && +o.value >= 1 && +o.value <= 4 ? +o.value : 2;
   o.effort = EFFORT_KEYS.includes(o.effort) ? o.effort : 'S';
   o.listId = typeof o.listId === 'string' ? o.listId : null;
@@ -398,33 +424,58 @@ function sprintDayDate(sp, start, n, last = false){
   return lastDay;
 }
 const recurTaskId = (item, start) => `r_${item.id}_${start}`;
-/* Tasks to create on `today`: [{item, id, start, due}]. Skips paused items, sprints already made, and sprints
-   whose due day has passed. today must be on or after the sprint's first working day. */
+/* Whether a daily or weekly item makes a task on date. */
+function repeatsOn(sp, item, date){
+  if (item.repeat === 'daily') return true;
+  if (item.repeat === 'workdays') return isWorkday(sp, date);
+  if (item.repeat === 'weekly') return pd(date).getDay() === item.weekday;
+  return false;
+}
+/* Tasks to create on `today`: [{item, id, start, due, sprint}] for every-sprint items, [{item, id, start, due,
+   day}] for the rest (start and due are today). Skips paused items, sprints and days already made, and sprints
+   whose due day has passed. An every-sprint task needs today on or after the sprint's first working day. */
 function recurDue(dp, today){
+  const sp = cleanSprint(dp.sprint);
   const info = sprintInfo(dp.sprint, today);
-  if (!info) return [];
-  const first = sprintDayDate(dp.sprint, info.start, 1);
-  if (!first || today < first) return [];
+  const first = info && sprintDayDate(dp.sprint, info.start, 1);
   const out = [];
   for (const item of dp.recurring){
-    if (item.paused || item.made.includes(info.start)) continue;
-    const due = sprintDayDate(dp.sprint, info.start, item.dueDay, item.last);
-    if (!due || today > due) continue;
-    out.push({item, id: recurTaskId(item, info.start), start: info.start, due, sprint: info.id});
+    if (item.paused) continue;
+    if ((item.repeat || 'sprint') === 'sprint'){
+      if (!info || !first || today < first || item.made.includes(info.start)) continue;
+      const due = sprintDayDate(dp.sprint, info.start, item.dueDay, item.last);
+      if (!due || today > due) continue;
+      out.push({item, id: recurTaskId(item, info.start), start: info.start, due, sprint: info.id});
+    } else if (repeatsOn(sp, item, today) && !item.made.includes(today)){
+      out.push({item, id: recurTaskId(item, today), start: today, due: today, day: today});
+    }
   }
   return out;
 }
+/* How a recurring item repeats, in words: "Every workday at 9:00 AM", "Mondays", "Every sprint, day 4". */
+const WEEKDAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+function repeatLabel(item){
+  const r = item.repeat || 'sprint';
+  const base = r === 'daily' ? 'Every day' : r === 'workdays' ? 'Every workday' : r === 'weekly' ? WEEKDAYS[item.weekday] : `Every sprint, ${item.last ? 'last day' : 'day ' + item.dueDay}`;
+  return item.at ? `${base} at ${fmt12(item.at)}` : base;
+}
 
-/* Automatic Day planning: put an every-sprint task into the first open block of the item's kind on its due day
-   (that day's first open block if none has the kind). Done once, when the task is made, so unplanning it
+/* Automatic Day planning: put a repeating task into the first open block of the item's kind on its due day
+   (that day's first open block if none has the kind), or with no kind but a time, the block on at that time
+   (or the next one after it; none when the time is after the day's last block). Done once, when the task is made, so unplanning it
    sticks. Returns the block, or null when the item has no kind, the day has no open blocks, or the task is
    already planned that day. */
 function autoPlan(dp, item, taskId, due){
-  if (!item.planKind) return null;
+  if (!item.planKind && !item.at) return null;
   const rec = dayView(dp, due).rec;
   if (slotOf(rec, taskId)) return null;
   const open = rec.sections.filter(s => !s.lost);
-  const to = open.find(s => s.kind === item.planKind) || open[0];
+  // With a kind, the first block of that kind; with only a time, the block on at that time (else the next one).
+  let to = item.planKind ? open.find(s => s.kind === item.planKind) || open[0] : null;
+  if (!to && item.at){
+    const cur = currentSection({sections: open}, toMin(item.at));
+    to = cur.current || cur.next || null;
+  }
   if (!to) return null;
   slotTask(dp, due, taskId, to.id);
   return to;
@@ -455,10 +506,10 @@ function createHistory(max = MAX_UNDO){
 }
 
 export {
-  autoPlan, cleanRecurring, recurDue, recurTaskId, sprintDayDate,
+  REPEATS, autoPlan, cleanRecurring, recurDue, recurTaskId, repeatLabel, repeatsOn, sprintDayDate,
   COLORS, DEFAULT_SPRINT, addDays, addSection, carryCandidates, carryOver, carryPending, cleanDayplan, cleanRecord, cleanSection,
   cleanSprint, cleanTemplate, createHistory, currentSection, dayView, daysBetween, dismissCarry, editDay, formatDays, freshDayplan,
-  fromMin, isDate, isTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,
+  fmt12, fromMin, isDate, isTime, parseTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,
   removeSection, resetDay, restFrom, restoreSection, sectionLoad, sectionOf, sectionTasks, shiftDay, slotOf, slotTask, sprintInfo,
   templateErrors, templateFor, toMin, unslotTask, updateSection
 };

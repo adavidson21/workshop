@@ -3,6 +3,7 @@ import { TOUCH, VALUE } from './constants.js';
 import { hideTip } from './events.js';
 import { closeMenu } from './overlays.js';
 import { parseQuick } from './quick-add.js';
+import { takePasted } from './paste.js';
 import { defaultListId, isWaiting, listById, state } from './state.js';
 import { $, esc, fmtLong, todayStr } from './util.js';
 /* Prioritizer: The command bar (N or Ctrl+K) for adding tasks. */
@@ -41,7 +42,7 @@ cmdInput.addEventListener('input', cmdPreview);
 cmdInput.addEventListener('keydown', e => {
   if (e.key === 'Enter'){
     e.preventDefault();
-    const t = addTask(cmdInput.value, state.view === 'today' ? {focusOn: todayStr()} : {});
+    const t = addTask(cmdInput.value, {...(state.view === 'today' ? {focusOn: todayStr()} : {}), ado: takePasted(cmdInput)});
     if (t){ cmdAdded = t.title; cmdInput.value = ''; cmdPreview(); }
   }
 });

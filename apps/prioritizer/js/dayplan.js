@@ -29,24 +29,33 @@ async function dayplanBoot(ws, {render, status}){
   return dstore;
 }
 
-/* Every-sprint tasks: make this sprint's tasks that are due to exist (dayplan-model.js, recurDue). Runs at
-   startup, every minute (so a new sprint is picked up while Docket stays open), and when the items change. */
+/* Repeating tasks: make the tasks that are due to exist (dayplan-model.js, recurDue). Runs at startup, every
+   minute (so a new sprint or day is picked up while Docket stays open), and when the items change.
+   A daily or weekly task goes on the Today list. Making one also closes that item's older tasks that are still
+   open, as won't do (skipped), so a missed "Check logs" doesn't pile up; they stay in Done. */
 function recurTick(){
   if (!dstore || isWaiting() || !dp.recurring.length) return 0;
   const due = recurDue(dp, todayStr());
   if (!due.length) return 0;
   let maxRank = state.tasks.reduce((m, t) => Math.max(m, t.rank), 0), made = 0;
-  for (const {item, id, start, due: dueOn, sprint} of due){
+  for (const {item, id, start, due: dueOn, sprint, day} of due){
     item.made = [...item.made, start].slice(-12);
     if (state.tasks.some(t => t.id === id)) continue;
     ensureYear(dueOn);
     autoPlan(dp, item, id, dueOn);
+    if (day){
+      for (const old of state.tasks){
+        if (old.done || !old.recur || old.recur.id !== item.id || !old.recur.day || old.recur.day >= day) continue;
+        old.done = true; old.wontDo = true; old.doneAt = day;
+      }
+    }
     state.tasks.push({
       id, title: item.title, notes: item.notes || '', color: COLORS[0], rank: ++maxRank,
       value: item.value, effort: item.effort, due: dueOn, urgentFlag: false,
       listId: item.listId && listById(item.listId) ? item.listId : topLists()[0].id,
       done: false, doneAt: null, wontDo: false, createdAt: start, ageFrom: start,
-      waiting: false, nudgeOn: null, focusOn: null, people: [], recur: {id: item.id, sprint}
+      waiting: false, nudgeOn: null, focusOn: day || null, people: [],
+      recur: day ? {id: item.id, day} : {id: item.id, sprint}
     });
     made++;
   }

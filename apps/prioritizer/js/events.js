@@ -2,6 +2,7 @@ import { addTask, downgradeUrgent, moveTask, toggleDone, toggleFocus } from './a
 import { onAdoClick } from './ado.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
+import { takePasted } from './paste.js';
 import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
@@ -95,6 +96,7 @@ document.addEventListener('click', e => {
     });
     return;
   }
+  if (t.closest('a.sig[href]')) return;   // the ADO chip on a row opens the item, not the drawer
   const r = t.closest('.row[data-id]'); if (r && !t.closest('.qform,.pform')){ openDrawer(r.dataset.id); return; }
 });
 document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); }, true);
@@ -114,7 +116,7 @@ document.addEventListener('submit', e => {
   if (pf){
     e.preventDefault();
     const p = pf.dataset.person;
-    if (addTask(pf.querySelector('input').value, {people: [p]})){
+    if (addTask(pf.querySelector('input').value, {people: [p], ado: takePasted(pf.querySelector('input'))})){
       const again = [...document.querySelectorAll('.pform')].find(x => x.dataset.person === p);
       if (again) again.querySelector('input').focus();
     }
@@ -122,7 +124,7 @@ document.addEventListener('submit', e => {
   }
   const f = e.target.closest && e.target.closest('.qform'); if (!f) return;
   e.preventDefault();
-  addTask(f.querySelector('input').value, {quad: {zone: f.dataset.qform, kind: state.view}});
+  addTask(f.querySelector('input').value, {quad: {zone: f.dataset.qform, kind: state.view}, ado: takePasted(f.querySelector('input'))});
 });
 document.addEventListener('focusout', e => {
   const f = e.target.closest && e.target.closest('.qform');

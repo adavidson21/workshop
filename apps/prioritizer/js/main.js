@@ -14,6 +14,7 @@ import { applySide } from './events.js';
 import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
 import { drawerInit, openDrawer } from './drawer.js';
+import { pasteInit } from './paste.js';
 import { dayInit, setDate } from './day-view.js';
 import { maybeOnboard, openTour, tourInit } from './onboarding.js';
 import { dp, recurTick } from './dayplan.js';
@@ -72,10 +73,10 @@ window.__prioritizer = {
   // Resolves after pending saves and updates from other windows have run.
   saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null, fstore ? fstore.idle() : null]), get store(){ return store; },
   get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel, offers, watchSender,
-  get focusLog(){ return focusLog; }, get fstore(){ return fstore; }, focusModel, openShutdown
+  get focusLog(){ return focusLog; }, get fstore(){ return fstore; }, focusModel, openShutdown, openDrawer
 };
 
-drawerInit(); dayInit(); tourInit();
+drawerInit(); dayInit(); tourInit(); pasteInit();
 adoInit(); rpInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.

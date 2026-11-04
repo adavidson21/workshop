@@ -9,6 +9,8 @@ import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scope
 import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
+import { dp } from './dayplan.js';
+import { fmt12, repeatLabel } from './dayplan-model.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
@@ -129,9 +131,18 @@ function row(t, o = {}){
   let meta = '';
   // Signals are icons with a tooltip (data-tip and aria-label say the words). Color only when it needs you.
   const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" data-tip="${esc(tip)}" role="img" aria-label="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
-  if (t.ado) meta += sig(ICON.item, `ADO ${t.ado.type} #${t.ado.id}, ${t.ado.state}`, 'ado', String(t.ado.id));
+  if (t.ado){
+    const tip = `${t.ado.url ? 'Open ' : ''}ADO ${t.ado.type || 'item'} #${t.ado.id}${t.ado.state ? ', ' + t.ado.state : ''}`;
+    meta += t.ado.url
+      ? `<a class="sig ado txt" href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${ICON.item}<b>${t.ado.id}</b></a>`
+      : sig(ICON.item, tip, 'ado', String(t.ado.id));
+  }
   if (t.ado && !t.done) meta += engChip(t.ado.id);
-  if (t.recur) meta += sig(ICON.repeat, `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`, 'recur');
+  if (t.recur){
+    const item = dp.recurring.find(r => r.id === t.recur.id);
+    const tip = item ? repeatLabel(item) + (t.recur.sprint ? `: sprint ${t.recur.sprint}` : '') : `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`;
+    meta += sig(ICON.repeat, tip, 'recur', item && item.at ? fmt12(item.at) : '');
+  }
   if (t.pr){
     meta += sig(ICON.pr, prTip(t.pr), 'ado', String(t.pr.id));
     if (!t.done && !t.pr.waiting){

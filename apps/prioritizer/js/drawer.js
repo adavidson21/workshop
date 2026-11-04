@@ -8,7 +8,7 @@ import { canonPerson, commit, findTask, isWaiting, orderedLists, save, scopeOpen
 import { suggestions } from './directory-model.js';
 import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
-import { planFieldChange, planFieldClick, planFieldHtml, resetDrawerDate } from './day-view.js';
+import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
 /* ---------- selection + keyboard navigation ---------- */
@@ -89,6 +89,7 @@ function renderDrawer(){
       <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.people.join(', '))}" placeholder="Names, separated by commas" autocomplete="off">
         <datalist id="dPeopleList">${[...state.people, ...suggestions(state.people)].map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
+      ${repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
         ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
@@ -145,7 +146,7 @@ drawer.addEventListener('change', e => {
   else if (f === 'nudge') t.nudgeOn = isDate(v) ? v : null;
   else if (f === 'people') t.people = [...new Set(v.split(',').map(canonPerson).filter(Boolean))];
   else if (f === 'list') t.listId = v;
-  else { if (planFieldChange(t, f, v)) renderDrawer(); return; }
+  else { if (planFieldChange(t, f, v) || repeatFieldChange(t, f, v)) renderDrawer(); return; }
   commit();
 });
 drawer.addEventListener('click', e => {
@@ -168,6 +169,7 @@ drawer.addEventListener('click', e => {
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
   if (focusDrawerClick(t, a)) return;
   if (planFieldClick(t, a)) return renderDrawer();
+  if (repeatFieldClick(t, a)) return;
 });
 }
 

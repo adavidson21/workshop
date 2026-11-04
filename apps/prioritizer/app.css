@@ -655,7 +655,7 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .dtable th{text-align:left;font:500 10px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:0 .25rem .25rem}
 .dtable td{padding:.15rem .2rem}
 .dtable td input[type=number]{width:4.2rem}
-.dtable td input[type=time]{width:6.5rem}
+.dtable td input.tin{width:6.5rem}
 .dtable .dact{white-space:nowrap}
 .dtable .dact .ibtn{width:26px;height:26px}
 .dchoice{display:grid;gap:.55rem;margin:.6rem 0 .2rem;font-size:.9rem}
@@ -834,3 +834,9 @@ button.sig.warn:hover{background:color-mix(in srgb,var(--danger) 18%,var(--surfa
   .htools.icons{width:auto;order:2;margin-left:auto;gap:.35rem}
   .htools.icons+.hadd{order:3}
 }
+/* Time fields are text on a 12-hour clock ("9:30 AM"); see parseTime in js/dayplan-model.js. */
+input.tin{width:7rem;font-variant-numeric:tabular-nums}
+input.tin.bad{border-color:var(--danger)}
+.dbody .drep{flex-wrap:nowrap}
+.dbody .drep select{width:auto;flex:1;min-width:0}
+.dbody .drep input.tin{width:6.5rem;flex:none}

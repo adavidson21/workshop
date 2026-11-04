@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Docket day plan: an every-sprint task (an item of prioritizer.dayplan/recurring v1)",
+  "title": "Docket day plan: a repeating task (an item of prioritizer.dayplan/recurring v1)",
   "type": "object",
   "required": [
     "id",
@@ -28,15 +28,35 @@
       "minLength": 1,
       "maxLength": 300
     },
+    "repeat": {
+      "enum": [
+        "sprint",
+        "workdays",
+        "daily",
+        "weekly"
+      ],
+      "description": "How it repeats. Missing means sprint (items saved before repeat existed)."
+    },
     "dueDay": {
       "type": "integer",
       "minimum": 1,
       "maximum": 60,
-      "description": "Sprint day it is due on (the last working day if the sprint is shorter)."
+      "description": "repeat sprint: the sprint day it is due on (the last working day if the sprint is shorter)."
     },
     "last": {
       "type": "boolean",
       "description": "Due on the last working day instead of dueDay."
+    },
+    "weekday": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6,
+      "description": "repeat weekly: the day of the week, 0 Sunday to 6 Saturday."
+    },
+    "at": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+      "description": "Optional time the task is for, 24-hour HH:MM (shown on a 12-hour clock). Plans it into the block on at that time."
     },
     "value": {
       "type": "integer",
@@ -75,7 +95,7 @@
         "type": "string",
         "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
       },
-      "description": "Start dates of sprints that already got their task."
+      "description": "Start dates of sprints (repeat sprint) or the days (the rest) that already got their task."
     },
     "planKind": {
       "type": "string",

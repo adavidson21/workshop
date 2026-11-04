@@ -134,7 +134,7 @@ function adoApply(res){
   if (Array.isArray(res.items)){ if (pending.length !== oldPending.size || pending.some(p => !oldPending.has(p.id))) n.pendingChanged = true; state.ado.pending = pending; }
   if (res.prs) prApply(res.prs, n);
   for (const g of res.gone || []){
-    const t = byId.get(g.id); if (!t) continue;
+    const t = byId.get(g.id); if (!t || t.ado.pasted) continue;
     if (g.state) t.ado.state = g.state;
     if (t.done){ t.ado.gone = t.ado.gone || g.reason; continue; }
     t.ado.gone = g.reason;
@@ -259,7 +259,7 @@ async function adoSync(manual){
   if (adoVia === 'connector' && adoNoteNow.error){ ui.ado.error = adoNoteNow.error; saveUi(); setAdo(); if (manual) toast(ui.ado.error); return; }
   adoBusy = true; setAdo();
   try {
-    const known = state.tasks.filter(t => t.ado && !t.done).map(t => t.ado.id);
+    const known = state.tasks.filter(t => t.ado && !t.ado.pasted && !t.done).map(t => t.ado.id);
     const knownPrs = state.tasks.filter(t => t.pr && !t.done).map(t => t.pr.key);
     const res = await adoCall('sync', {known, knownPrs});
     flushText();

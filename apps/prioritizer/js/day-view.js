@@ -6,7 +6,7 @@ import {
   COLORS, addDays, addSection, carryCandidates, carryOver, carryPending, cleanSprint, cleanTemplate, currentSection, dayView, dismissCarry,
   daysBetween, formatDays, isDate, sprintDayDate, isTime, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection, removeSection,
   resetDay, restFrom, restoreSection, sectionLoad, sectionOf, sectionTasks, shiftDay, slotOf, slotTask, sprintInfo, templateErrors,
-  toMin, unslotTask, updateSection
+  toMin, unslotTask, updateSection, fmt12, parseTime, repeatLabel, repeatsOn
 } from './dayplan-model.js';
 import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setRecurring, setSprint, setTemplates } from './dayplan.js';
 import { cmdOpen } from './command-bar.js';
@@ -14,7 +14,7 @@ import { acceptOffer, dismissOffer, offers } from './offers.js';
 import { SENDERS, applyOffer, matchFor } from './offers-model.js';
 import { closeMenu, closeModal, confirmBox, menuEl, modal, popMenu, showModal, toast } from './overlays.js';
 import { main, render, row, sel, setSel } from './render.js';
-import { findTask, isWaiting, orderedLists, scopeName, scopeOpen, state } from './state.js';
+import { commit, findTask, isWaiting, orderedLists, scopeName, scopeOpen, state } from './state.js';
 import { EFFORTS, VALUE } from './constants.js';
 import { $, esc, fmtLong, plural, todayStr } from './util.js';
 
@@ -87,8 +87,8 @@ function section(rec, s, byId, now){
   const items = sectionTasks(rec, s.id, byId);
   const load = sectionLoad(rec, s.id, byId, POINTS), over = overCapacity(s, load);
   const isNow = now.current && now.current.id === s.id, isNext = !now.current && now.next && now.next.id === s.id;
-  const end = s.around && s.minutes ? ` to ${minToStr(toMin(s.around) + s.minutes)}` : '';
-  const time = s.around ? `<span class="dtime">${esc(s.around)}${esc(end)}</span>` : s.minutes ? `<span class="dtime">${s.minutes} min</span>` : '';
+  const end = s.around && s.minutes ? ` to ${fmt12(minToStr(toMin(s.around) + s.minutes))}` : '';
+  const time = s.around ? `<span class="dtime">${esc(fmt12(s.around))}${esc(end)}</span>` : s.minutes ? `<span class="dtime">${s.minutes} min</span>` : '';
   const rows = items.map(({task}) => withBtn(row(task, {compact: true, showList: true, noToday: true}),
     `<button class="ibtn dpbtn" data-dp="rowmenu" aria-label="Options for ${esc(task.title)}" data-tip="Move or unplan (P)">${ICON.dots}</button>`)).join('');
   return `<section class="dsec${s.lost ? ' lost' : ''}${isNow ? ' now' : ''}" data-color="${esc(s.color)}" data-sec="${esc(s.id)}">
@@ -160,7 +160,7 @@ function pickSection(taskId, anchor){
   const d = curDate(), rec = dayView(dp, d).rec, slot = slotOf(rec, taskId), t = findTask(taskId);
   if (!t) return;
   const open = rec.sections.filter(s => !s.lost);
-  const html = (open.length ? `<div class="mnote">${slot ? 'Move to' : 'Plan into'}</div>` + open.map((s, i) => `<button data-to="${esc(s.id)}"${slot && slot.sectionId === s.id ? ' class="on"' : ''}><span class="dsw" data-color="${esc(s.color)}"></span>${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}${esc(s.name)}${s.around ? ` <span class="mut">${esc(s.around)}</span>` : ''}</button>`).join('')
+  const html = (open.length ? `<div class="mnote">${slot ? 'Move to' : 'Plan into'}</div>` + open.map((s, i) => `<button data-to="${esc(s.id)}"${slot && slot.sectionId === s.id ? ' class="on"' : ''}><span class="dsw" data-color="${esc(s.color)}"></span>${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}${esc(s.name)}${s.around ? ` <span class="mut">${esc(fmt12(s.around))}</span>` : ''}</button>`).join('')
     : `<div class="mnote">This day has no open blocks.</div><button data-dpm="addsec">Add a block</button>`)
     + (slot ? `<div class="sep"></div><button data-dpm="up">Move up</button><button data-dpm="down">Move down</button><button data-dpm="unplan">Back to the tray</button>` : '');
   const m = popMenu(html, anchor || main.querySelector(`.row[data-id="${CSS.escape(taskId)}"]`) || main, 'right');
@@ -235,7 +235,7 @@ function sectionFields(s){
     <label class="wide">Name <input name="name" maxlength="80" value="${esc(s.name)}" required autocomplete="off"></label>
     <label>Kind <input name="kind" maxlength="40" value="${esc(s.kind)}" placeholder="focus, meetings, admin" list="dpKinds" autocomplete="off"></label>
     <label>Color <select name="color">${COLORS.map(c => `<option value="${c}"${s.color === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
-    <label>Around <input type="time" name="around" value="${esc(s.around || '')}"></label>
+    <label>Around <input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="9:00 AM" name="around" value="${esc(fmt12(s.around))}"></label>
     <label>Minutes <input type="number" name="minutes" min="0" max="1440" step="5" value="${s.minutes ?? ''}"></label>
     <label>Capacity (pts) <input type="number" name="capacity" min="0" max="99" step="1" value="${s.capacity ?? ''}"></label>
   </div><datalist id="dpKinds">${kinds().map(k => `<option value="${esc(k)}">`).join('')}</datalist>`;
@@ -243,7 +243,7 @@ function sectionFields(s){
 const kinds = (ts = dp.templates) => [...new Set(['focus', 'meetings', 'admin', 'review', ...ts.flatMap(t => t.sections.map(s => s.kind)).filter(Boolean)])];
 function readSection(root){
   const g = n => root.querySelector(`[name=${n}]`).value.trim();
-  return {name: g('name'), kind: g('kind'), color: g('color'), around: isTime(g('around')) ? g('around') : null,
+  return {name: g('name'), kind: g('kind'), color: g('color'), around: parseTime(g('around')),
     minutes: g('minutes') === '' ? null : +g('minutes'), capacity: g('capacity') === '' ? null : +g('capacity')};
 }
 
@@ -320,8 +320,8 @@ function drawSettings(sh){
     <section class="dset"><h4>Sprint</h4><div class="dgrid">
       <label>A sprint starts on <input type="date" data-s="anchor" value="${esc(sp.anchor || '')}"></label>
       <label>Length (weeks) <input type="number" min="1" max="8" data-s="lengthWeeks" value="${sp.lengthWeeks}" data-redraw></label>
-      <label>Day starts <input type="time" data-s="dayStart" value="${esc(sp.dayStart)}"></label>
-      <label>Day ends <input type="time" data-s="dayEnd" value="${esc(sp.dayEnd)}"></label>
+      <label>Day starts <input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="9:00 AM" data-s="dayStart" value="${esc(fmt12(sp.dayStart))}"></label>
+      <label>Day ends <input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="5:00 PM" data-s="dayEnd" value="${esc(fmt12(sp.dayEnd))}"></label>
       <fieldset class="wide"><legend>Workdays</legend>${WD.map(([n, l]) => `<label class="chk"><input type="checkbox" data-wd="${n}"${sp.workdays.includes(n) ? ' checked' : ''}> ${l}</label>`).join('')}</fieldset>
       <div class="wide"><span class="lbl">Holidays</span><div class="dhol">${sp.holidays.map(h => `<span class="chip">${esc(fmtLong(h))} <button class="lnk" data-delhol="${esc(h)}" aria-label="Remove ${esc(h)}">${ICON.x}</button></span>`).join('') || '<span class="mut">None</span>'}
         <input type="date" id="dpHol" aria-label="Holiday to add"><button class="btn" data-addhol>Add</button></div></div>
@@ -331,10 +331,10 @@ function drawSettings(sh){
       ${draft.templates.map((t, ti) => templateCard(t, ti)).join('')}
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
-    <section class="dset drec"><h4>Every sprint</h4><p class="dhelp">Tasks you do once a sprint, like refinement or a release. Each sprint adds a new one on day 1, due on its sprint day. With <b>Plan into</b>, it also goes into that kind of block on its due day.</p>
+    <section class="dset drec"><h4>Repeating tasks</h4><p class="dhelp">Tasks you do every day, every week or once a sprint, like checking logs or a release. A daily or weekly one is added that morning, due that day and on your Today list; an every-sprint one is added on day 1, due on its sprint day. With a time, the task shows it and goes into the block on at that time. With <b>Plan into</b>, it goes into that kind of block instead.</p>
       ${offersHtml()}
-      ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Due on</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
-      <div class="acts"><button class="btn" data-addrec>${ICON.plus} Every-sprint task</button></div>
+      ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Repeats</th><th>At</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
+      <div class="acts"><button class="btn" data-addrec>${ICON.plus} Repeating task</button></div>
     </section>
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-savesettings>Save</button></footer>`;
   showErrors(sh);
@@ -344,7 +344,7 @@ function templateCard(t, ti){
     <td><input data-sf="name" value="${esc(s.name)}" maxlength="80" aria-label="Block name"></td>
     <td><input data-sf="kind" value="${esc(s.kind)}" maxlength="40" list="dpKinds" aria-label="Kind"></td>
     <td><select data-sf="color" aria-label="Color">${COLORS.map(c => `<option${s.color === c ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
-    <td><input type="time" data-sf="around" value="${esc(s.around || '')}" aria-label="Around"></td>
+    <td><input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="9:00 AM" data-sf="around" value="${esc(fmt12(s.around))}" aria-label="Around"></td>
     <td><input type="number" data-sf="minutes" min="0" max="1440" step="5" value="${s.minutes ?? ''}" aria-label="Minutes"></td>
     <td><input type="number" data-sf="capacity" min="0" max="99" value="${s.capacity ?? ''}" aria-label="Capacity in points"></td>
     <td class="dact"><button class="ibtn" data-secup aria-label="Move up">${ICON.up}</button><button class="ibtn" data-secdel aria-label="Remove block">${ICON.x}</button></td></tr>`;
@@ -376,11 +376,16 @@ function recurRow(r, ri){
   const sp = cleanSprint(draft.sprint), max = sp.lengthWeeks * 7;
   const when = info => info ? ` (${info})` : '';
   const dayName = n => { if (!sp.anchor) return ''; const d = sprintDayDate(sp, sprintInfo(sp, todayStr()).start, n); return d ? new Date(d + 'T12:00').toLocaleDateString(undefined, {weekday: 'short'}) + ' wk ' + (Math.floor(daysBetween(sprintInfo(sp, todayStr()).start, d) / 7) + 1) : ''; };
-  const opts = [`<option value="last"${r.last ? ' selected' : ''}>Last day</option>`].concat(Array.from({length: max}, (_, i) => i + 1)
-    .filter(n => n <= sp.workdays.length * sp.lengthWeeks).map(n => `<option value="${n}"${!r.last && r.dueDay === n ? ' selected' : ''}>Day ${n}${when(dayName(n))}</option>`));
+  const rep = r.repeat || 'sprint', on = (cond) => cond ? ' selected' : '';
+  const sprintOpts = [`<option value="last"${on(rep === 'sprint' && r.last)}>Last day</option>`].concat(Array.from({length: max}, (_, i) => i + 1)
+    .filter(n => n <= sp.workdays.length * sp.lengthWeeks).map(n => `<option value="${n}"${on(rep === 'sprint' && !r.last && r.dueDay === n)}>Day ${n}${when(dayName(n))}</option>`));
+  const opts = [`<optgroup label="Every day"><option value="workdays"${on(rep === 'workdays')}>Every workday</option><option value="daily"${on(rep === 'daily')}>Every day</option></optgroup>`,
+    `<optgroup label="Every week">${WD.map(([n, d]) => `<option value="w${n}"${on(rep === 'weekly' && r.weekday === n)}>${d}</option>`).join('')}</optgroup>`,
+    `<optgroup label="Every sprint">${sprintOpts.join('')}</optgroup>`];
   return `<tr data-ri="${ri}">
     <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task">${r.from ? `<span class="mut dfrom">From ${esc(SENDERS[r.from.app] || r.from.app)}</span>` : ''}</td>
-    <td><select data-rf="due" aria-label="Due on">${opts.join('')}</select></td>
+    <td><select data-rf="due" aria-label="Repeats">${opts.join('')}</select></td>
+    <td><input type="text" class="tin" inputmode="text" autocomplete="off" data-rf="at" value="${esc(fmt12(r.at))}" placeholder="Any time" aria-label="At"></td>
     <td><select data-rf="planKind" aria-label="Plan into a block on its due day"><option value="">Don't plan</option>${[...new Set([...kinds(draft.templates), r.planKind].filter(Boolean))].map(k => `<option value="${esc(k)}"${r.planKind === k ? ' selected' : ''}>${esc(k)} block</option>`).join('')}</select></td>
     <td><select data-rf="value" aria-label="Value">${[1, 2, 3, 4].map(v => `<option value="${v}"${r.value === v ? ' selected' : ''}>${VALUE[v]}</option>`).join('')}</select></td>
     <td><select data-rf="effort" aria-label="Effort">${EFFORTS.map(e => `<option${r.effort === e ? ' selected' : ''}>${e}</option>`).join('')}</select></td>
@@ -393,7 +398,13 @@ function readSettingsField(el){
   if (reEl && el.dataset.rf){
     const r = draft.recurring[+reEl.dataset.ri], f = el.dataset.rf;
     if (f === 'title') r.title = el.value;
-    if (f === 'due'){ r.last = el.value === 'last'; if (!r.last) r.dueDay = +el.value; }
+    if (f === 'due'){
+      const v = el.value;
+      if (v === 'workdays' || v === 'daily') r.repeat = v;
+      else if (/^w[0-6]$/.test(v)){ r.repeat = 'weekly'; r.weekday = +v.slice(1); }
+      else { r.repeat = 'sprint'; r.last = v === 'last'; if (!r.last) r.dueDay = +v; }
+    }
+    if (f === 'at'){ const t = parseTime(el.value); if (t) r.at = t; else delete r.at; el.classList.toggle('bad', !!el.value.trim() && !t); }
     if (f === 'value') r.value = +el.value;
     if (f === 'effort') r.effort = el.value;
     if (f === 'listId') r.listId = el.value;
@@ -401,7 +412,7 @@ function readSettingsField(el){
     if (f === 'planKind') r.planKind = el.value;
     return;
   }
-  if (el.dataset.s){ const v = el.value; sp[el.dataset.s] = el.dataset.s === 'lengthWeeks' ? Math.max(1, Math.min(8, Math.round(+v) || 2)) : v || null; return; }
+  if (el.dataset.s){ const v = el.value; sp[el.dataset.s] = el.dataset.s === 'lengthWeeks' ? Math.max(1, Math.min(8, Math.round(+v) || 2)) : /^day(Start|End)$/.test(el.dataset.s) ? parseTime(v) || sp[el.dataset.s] : v || null; return; }
   if (el.dataset.wd != null){ const n = +el.dataset.wd; sp.workdays = el.checked ? [...new Set([...sp.workdays, n])] : sp.workdays.filter(x => x !== n); return; }
   const tEl = el.closest('[data-ti]'); if (!tEl) return;
   const t = draft.templates[+tEl.dataset.ti];
@@ -411,7 +422,7 @@ function readSettingsField(el){
   const rEl = el.closest('[data-si]');
   if (rEl && el.dataset.sf){
     const s = t.sections[+rEl.dataset.si], f = el.dataset.sf, v = el.value;
-    s[f] = f === 'minutes' || f === 'capacity' ? (v === '' ? null : +v) : f === 'around' ? (isTime(v) ? v : null) : v;
+    s[f] = f === 'minutes' || f === 'capacity' ? (v === '' ? null : +v) : f === 'around' ? parseTime(v) : v;
   }
 }
 function showErrors(sh){
@@ -434,12 +445,12 @@ function settingsClick(e, sh){
     if (r){
       // The accepted item is saved now; show it in the open settings too, with the same id.
       draft.recurring = applyOffer(draft.recurring, r.offer, {id: r.item.id, listId: r.item.listId}).recurring;
-      toast(r.updated ? `Updated "${r.item.title}"` : `Added "${r.item.title}" to Every sprint`);
+      toast(r.updated ? `Updated "${r.item.title}"` : `Added "${r.item.title}" to Repeating tasks`);
     }
     drawSettings(sh); return;
   }
   if (b.dataset.offerDismiss){ dismissOffer(b.dataset.offerDismiss); drawSettings(sh); return; }
-  if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', dueDay: 1, last: false, planKind: '', value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
+  if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', repeat: 'workdays', weekday: 1, dueDay: 1, last: false, planKind: '', value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
   const reEl = b.closest('[data-ri]');
   if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, sections: [blank()]}); drawSettings(sh); return; }
@@ -475,7 +486,7 @@ function planFieldHtml(t){
   const open = rec.sections.filter(s => !s.lost);
   return `<div class="dfld"><label for="dPlanDate">Plan for</label><div class="drow dplan">
     <input type="date" id="dPlanDate" data-f="plandate" data-fk="plandate" value="${d}">
-    <select data-f="plansec" data-fk="plansec" aria-label="Block">${open.length ? '' : '<option value="">No blocks that day</option>'}${slot ? '' : open.length ? '<option value="">Pick a block</option>' : ''}${open.map(s => `<option value="${esc(s.id)}"${slot && slot.sectionId === s.id ? ' selected' : ''}>${esc(s.name)}${s.around ? ' · ' + esc(s.around) : ''}</option>`).join('')}</select>
+    <select data-f="plansec" data-fk="plansec" aria-label="Block">${open.length ? '' : '<option value="">No blocks that day</option>'}${slot ? '' : open.length ? '<option value="">Pick a block</option>' : ''}${open.map(s => `<option value="${esc(s.id)}"${slot && slot.sectionId === s.id ? ' selected' : ''}>${esc(s.name)}${s.around ? ' · ' + esc(fmt12(s.around)) : ''}</option>`).join('')}</select>
     ${slot ? `<button class="lnk" data-d="unplan" data-fk="unplan">Unplan</button>` : ''}</div></div>`;
 }
 /* Returns true when the drawer should re-render. */
@@ -489,6 +500,63 @@ function planFieldClick(t, a){
   unplan(t.id, drawerDate || curDate()); return true;
 }
 const resetDrawerDate = () => { drawerDate = null; };
+
+/* ---------- the drawer's "Repeat" field ----------
+   Makes a task repeat (a recurring item, dayplan-model.js) without opening settings: every workday, every day or
+   weekly on that weekday, with an optional time. The task you made it from counts as today's (or this week's). */
+const WD_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const itemOf = t => t.recur ? dp.recurring.find(r => r.id === t.recur.id) || null : null;
+function repeatFieldHtml(t){
+  const item = itemOf(t);
+  if (item && (item.repeat || 'sprint') === 'sprint'){
+    return `<div class="dfld"><span class="lbl">Repeat</span><div class="drow"><span class="hint">${esc(repeatLabel(item))}</span><button class="lnk" data-d="repeat-settings" data-fk="rset">Change</button></div></div>`;
+  }
+  if (!item && (t.done || t.recur)) return '';
+  const wd = item && item.repeat === 'weekly' ? item.weekday : new Date().getDay();
+  const cur = item ? item.repeat : '';
+  const o = (v, label) => `<option value="${v}"${cur === v ? ' selected' : ''}>${label}</option>`;
+  return `<div class="dfld"><label for="dRepeat">Repeat</label><div class="drow drep">
+    <select id="dRepeat" data-f="repeat" data-fk="repeat">${o('', "Doesn't repeat")}${o('workdays', 'Every workday')}${o('daily', 'Every day')}${o('weekly', `Every ${WD_LONG[wd]}`)}</select>
+    ${item ? `<input type="text" class="tin" inputmode="text" autocomplete="off" data-f="repeatAt" data-fk="repeatAt" value="${esc(fmt12(item.at))}" placeholder="Any time" aria-label="At">` : ''}
+    ${item ? `<button class="lnk" data-d="repeat-settings" data-fk="rset">More</button>` : ''}</div></div>`;
+}
+/* Returns true when the drawer should re-render. */
+function repeatFieldChange(t, f, v){
+  if (f !== 'repeat' && f !== 'repeatAt') return false;
+  const item = itemOf(t), today = todayStr();
+  if (f === 'repeatAt'){
+    if (!item) return true;
+    const at = parseTime(v);
+    if (v.trim() && !at){ toast('Times look like 9:30 AM'); return true; }
+    setRecurring(dp.recurring.map(r => r.id === item.id ? Object.assign({}, r, {at: at || undefined}) : r));
+    return true;
+  }
+  if (!v){
+    if (item){
+      setRecurring(dp.recurring.filter(r => r.id !== item.id));
+      delete t.recur; commit();
+      toast(`"${t.title}" won't repeat`);
+    }
+    return true;
+  }
+  const weekday = item && item.repeat === 'weekly' ? item.weekday : new Date().getDay();
+  if (item){
+    setRecurring(dp.recurring.map(r => r.id === item.id ? Object.assign({}, r, {repeat: v, weekday}) : r));
+    return true;
+  }
+  const n = {id: Math.random().toString(36).slice(2, 9), title: t.title, repeat: v, weekday, dueDay: 1, last: false, planKind: '',
+    value: t.value || 2, effort: t.effort || 'S', listId: t.listId, notes: t.notes || '', paused: false, made: []};
+  if (repeatsOn(cleanSprint(dp.sprint), n, today)){ n.made = [today]; t.recur = {id: n.id, day: today}; }
+  else t.recur = {id: n.id};
+  setRecurring([...dp.recurring, n]);
+  commit();
+  toast(`Repeats: ${repeatLabel(n)}`);
+  return true;
+}
+function repeatFieldClick(t, a){
+  if (a !== 'repeat-settings') return false;
+  openSettings('recurring'); return true;
+}
 
 /* ---------- events ---------- */
 function onClick(e){
@@ -590,6 +658,13 @@ function dayInit(){
   page.addEventListener('submit', onSubmit);
   page.addEventListener('change', e => { if (e.target.id === 'dpDate' && isDate(e.target.value)) setDate(e.target.value); });
   document.addEventListener('keydown', onKey, true);
+  // Time fields are text, shown on a 12-hour clock: tidy what was typed ("930a") once you leave the field.
+  document.addEventListener('change', e => {
+    const el = e.target; if (!el.classList || !el.classList.contains('tin')) return;
+    const t = parseTime(el.value);
+    if (t) el.value = fmt12(t);
+    el.classList.toggle('bad', !!el.value.trim() && !t);
+  }, true);
   document.addEventListener('dragstart', onDragStart);
   document.addEventListener('dragover', onDragOver);
   document.addEventListener('drop', onDrop, true);
@@ -604,4 +679,4 @@ function dayInit(){
   }, 30000);
 }
 
-export { I as DAY_ICON, curDate, dayDrop, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, resetDrawerDate, setDate };
+export { I as DAY_ICON, curDate, dayDrop, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate, setDate };

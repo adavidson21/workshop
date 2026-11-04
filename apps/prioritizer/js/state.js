@@ -43,7 +43,7 @@ function migrateTask(t){
   if ('crumbs' in t){ t.crumbs = cleanCrumbs(t.crumbs); if (!t.crumbs.length) delete t.crumbs; }
   delete t.urgent; delete t.important;
 }
-// ADO link on a task: {id, type, state, url, project, due, gone}. Anything malformed is dropped.
+// ADO link on a task: {id, type, state, url, project, due, gone, pasted}. Anything malformed is dropped.
 function cleanAdo(a){
   if (!a || typeof a !== 'object') return null;
   const id = parseInt(a.id, 10);
@@ -52,6 +52,7 @@ function cleanAdo(a){
   const o = {id, type: str(a.type), state: str(a.state), url: /^https?:\/\//.test(a.url) ? str(a.url) : '', project: str(a.project)};
   if (isDate(a.due)) o.due = a.due;
   if (['closed','removed','reassigned','missing','filtered'].includes(a.gone)) o.gone = a.gone;
+  if (a.pasted === true) o.pasted = true;   // pasted into Docket (js/paste.js), not from a sync: syncs leave it alone until ADO lists it as yours
   return o;
 }
 // PR review link on a task: {key, id, repo, project, url, author, tier, via, waiting, lastBlocker, gone}.
