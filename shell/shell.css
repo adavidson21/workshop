@@ -85,7 +85,10 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
   .stage{grid-row:1}
   .rail{grid-row:2;width:auto;height:60px;flex-direction:row;justify-content:space-around;padding:0 .5rem env(safe-area-inset-bottom);border-right:0;border-top:1px solid var(--line)}
   .rail .mark,.rail .grow{display:none}
-  .app-btn{width:auto;min-width:64px;padding:0 .6rem}
+  .rail{padding-left:.25rem;padding-right:.25rem;overflow-x:auto;scrollbar-width:none}
+  /* every app fits a phone: buttons share the width instead of each taking 64px (8 apps overflowed 390px) */
+  .app-btn{width:auto;flex:1 1 0;min-width:40px;max-width:72px;padding:0 .15rem}
+  .app-btn .lbl{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.6rem}
   .app-btn.on{box-shadow:none;background:transparent}
   .app-btn.on::before{left:16px;right:16px;top:-1px;bottom:auto;width:auto;height:2px}
   .topbar{min-height:56px;padding:env(safe-area-inset-top) 12px 0 16px}
