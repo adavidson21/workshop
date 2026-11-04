@@ -203,6 +203,33 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
 
+    # The running Docket task in the top bar (ws.status), on every app, with Pause asking for a breadcrumb.
+    pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(1500)
+    frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)  # Notes reloaded the page
+    frame.click('#drawer [data-d="focus-start"]'); pg.wait_for_timeout(300); frame.press('#drawer', 'Escape')
+    pg.wait_for_function("() => !document.querySelector('#wstatus').hidden", timeout=5000)
+    check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
+          'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
+          and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
+    check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
+    pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
+    check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
+    pg.fill('.ws-prompt input', 'check the token refresh'); pg.keyboard.press('Enter'); pg.wait_for_timeout(500)
+    check('and pauses the task with that breadcrumb, from Notes',
+          pg.locator('#wstatus').is_hidden() and frame.evaluate(f"window.__prioritizer.focusModel.activeOf(window.__prioritizer.focusLog, new Date().toLocaleDateString('en-CA'))") is None
+          and frame.evaluate(f"window.__prioritizer.state.tasks.find(t => t.id === '{tid}').crumbs.at(-1).text") == 'check the token refresh'
+          and pg.url.endswith('#/notes'))
+    pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
+    frame.click('#drawer [data-d="focus-start"]'); pg.wait_for_timeout(300); frame.press('#drawer', 'Escape')
+    frame.evaluate('window.__prioritizer.saved()'); pg.wait_for_timeout(500)
+    pg.goto(HUB + '/#/notes'); pg.wait_for_timeout(2500)
+    frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    check('Docket loads in the background, so the task is in the top bar before Docket is opened',
+          pg.url.endswith('#/notes') and pg.is_visible('#wstatus') and 'check the token refresh' in pg.inner_text('#wstatus .ws-detail'))
+    pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200); pg.keyboard.press('Escape'); pg.wait_for_timeout(500)
+    check('Esc skips the breadcrumb and still pauses', pg.locator('#wstatus').is_hidden() and pg.locator('.ws-prompt').count() == 0)
+
     # 1:1s are part of Rapport (2.0.0): the tab, then the copy of the old 1:1s app's data on a fresh open.
     pg.evaluate("location.hash = '#/receipts/1on1s'"); pg.wait_for_timeout(800)
     of = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
