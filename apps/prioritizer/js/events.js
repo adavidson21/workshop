@@ -11,7 +11,7 @@ import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, u
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { activeTask, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
-import { copyText, exitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { copyText, exitTriage, fitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -102,6 +102,12 @@ document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
   if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); } commit(); }
   if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; renderTriage(); }
+  if (e.target.id === 'triList' && tri.draft){ tri.draft.listId = e.target.value; }
+});
+// Triage title and notes: typed text lives in the draft until Save and next.
+document.addEventListener('input', e => {
+  const f = e.target.dataset && e.target.dataset.tf;
+  if (f && tri.draft){ tri.draft[f] = e.target.value; fitTriage(); }
 });
 document.addEventListener('submit', e => {
   const pf = e.target.closest && e.target.closest('.pform');
@@ -151,6 +157,7 @@ document.addEventListener('keydown', e => {
     if (state.view === 'triage') return exitTriage();
     return;
   }
+  if (tri.draft && e.key === 'Enter' && !e.isComposing && ((ae.id === 'triTitle' && !e.shiftKey) || (ae.id === 'triNotes' && (e.ctrlKey || e.metaKey)))){ e.preventDefault(); triageSave(); return; }
   if (ae.id === 'triDue' && e.key === 'Enter' && tri.draft){ e.preventDefault(); tri.draft.due = isDate(ae.value) ? ae.value : null; triageSave(); return; }
   if (menuEl && (e.key === 'ArrowDown' || e.key === 'ArrowUp')){
     const items = [...menuEl.querySelectorAll('button')], i = items.indexOf(ae);

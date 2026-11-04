@@ -80,6 +80,7 @@ function showHelp(){
       ${r('<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>', 'Effort: XS, S, M, L, XL')}
       ${r('<kbd>D</kbd> / <kbd>U</kbd> / <kbd>Space</kbd>', 'Due date / Urgent / Today')}
       ${r('<kbd>Enter</kbd> / <kbd>S</kbd> / <kbd>0</kbd>', "Save and next / Skip / Won't do")}
+      ${r('Click the title or notes', 'Edit them; <kbd>Enter</kbd> in the title or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in notes saves and goes on')}
     </tbody></table>
     <table class="keys"><tbody><tr><td colspan="2"><h4>In Day</h4></td></tr>
       ${r('<kbd>P</kbd>', 'Plan the selected task into a block (then <kbd>1</kbd> to <kbd>9</kbd>)')}

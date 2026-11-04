@@ -89,6 +89,33 @@ def main():
         check('a backup is a Workshop bundle with all four collections', bundle['schema'] == 'workshop.bundle'
               and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'people', 'settings', 'tasks'])
 
+        # ---------- Triage: title, notes and list edit in place; typing there never fires shortcuts ----------
+        P = 'window.__prioritizer'
+        tid = pg.evaluate(f"""() => {{ const P = {P}, t = P.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank)[0];
+          t.value = null; t.effort = null; P.commit(); return t.id; }}""")
+        pg.keyboard.press('3'); pg.wait_for_timeout(300)
+        check('3 opens Triage with an editable title', pg.evaluate(f'{P}.state.view') == 'triage' and pg.locator('#triTitle').count() == 1)
+        for _ in range(20):  # skip ahead to the task this test cleared
+            if pg.locator('#triTitle').count() == 0 or pg.input_value('#triTitle') == pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}').title"): break
+            pg.keyboard.press('s'); pg.wait_for_timeout(150)
+        pg.click('#triTitle'); pg.keyboard.press('Control+a'); pg.keyboard.type('Write the Q4 guide'); pg.wait_for_timeout(100)
+        pg.click('#triNotes'); pg.keyboard.press('Control+a'); pg.keyboard.type('Start with setup\nthen 2 examples')
+        lists = pg.evaluate("() => [...document.querySelectorAll('#triList option')].map(o => o.value)")
+        target = lists[-1]
+        pg.select_option('#triList', target)
+        pg.locator('body').click(position={'x': 5, 'y': 5}); pg.wait_for_timeout(100)
+        d = pg.evaluate(f'() => {{ const t = {P}.state.tasks.find(t => t.id === "{tid}"); return [t.value, t.effort]; }}')
+        check('typing a q or a digit in the title or notes sets no value or effort', d == [None, None])
+        pg.keyboard.press('4'); pg.keyboard.press('w'); pg.wait_for_timeout(150)
+        check('the typed title survives picking value and effort', pg.input_value('#triTitle') == 'Write the Q4 guide')
+        pg.click('#triTitle'); pg.keyboard.press('End'); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+        t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{tid}")')
+        check('Enter in the title saves title, notes, list, value and effort', t['title'] == 'Write the Q4 guide' and t['notes'] == 'Start with setup\nthen 2 examples'
+              and t['listId'] == target and t['value'] == 4 and t['effort'] == 'S')
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        if pg.evaluate(f'{P}.state.view') == 'triage': pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        check('Esc leaves Triage', pg.evaluate(f'{P}.state.view') != 'triage')
+
         # ---------- Day view (WS12): set the sprint, templates, plan tasks, lose a block, shift, undo, reload ----------
         P = 'window.__prioritizer'
         pg.keyboard.press('2'); pg.wait_for_timeout(300)

@@ -31,7 +31,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 ## Views
 
 - **Today:** your short list for the day (3 to 5 works best), plus Up next by score and everything you're waiting on, with follow-up nudges.
-- **Triage:** one unsorted or stale task at a time. A task is stale at twice its implied window (4, 8, 14 or 28 days).
+- **Triage:** one unsorted or stale task at a time. Title, notes and list can be edited in place. A task is stale at twice its implied window (4, 8, 14 or 28 days).
 - **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
 - **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda. Anyone can be a card: teammates, other teams, vendors. Inside Workshop, people from Workshop's People (in Settings) who have no card yet show under the cards to add in one click, and are suggested in a task's People field.
 - **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
@@ -110,7 +110,7 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 
-`1` to `6` switch views in sidebar order (Today, Day, Triage, Prioritize, People, Reports), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next, `S` skip, `0` won't do. Press `?` for the full list.
+`1` to `6` switch views in sidebar order (Today, Day, Triage, Prioritize, People, Reports), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next (also from the title, or `Ctrl+Enter` from notes), `S` skip, `0` won't do. Press `?` for the full list.
 
 ## Themes
 

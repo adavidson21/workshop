@@ -100,36 +100,51 @@ function renderTriage(){
   }
   if (tri.id !== cur.id){
     tri.id = cur.id;
-    tri.draft = {value: cur.value, effort: cur.effort, due: cur.due, urgentFlag: cur.urgentFlag, today: cur.focusOn === todayStr(), stale: isStale(cur)};
+    tri.draft = {title: cur.title, notes: cur.notes || '', listId: cur.listId, value: cur.value, effort: cur.effort, due: cur.due, urgentFlag: cur.urgentFlag, today: cur.focusOn === todayStr(), stale: isStale(cur)};
   }
   const d = tri.draft, pos = tri.seen.size + 1, total = tri.seen.size + rest.length;
   const preview = Object.assign({}, cur, {value: d.value, effort: d.effort, due: d.due, urgentFlag: d.urgentFlag});
   const s = score(preview), ek = eKey(preview), vk = vKey(preview);
-  const L = listById(cur.listId);
+  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '\u00a0\u00a0' : ''}${esc(l.name)}</option>`).join('');
+  const opt = (on, attr, key, label, extra = '') => `<button class="opt${on ? ' on' : ''}" ${attr} aria-pressed="${on}"${key ? ` aria-keyshortcuts="${key}"` : ''}>${label}${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
   main.innerHTML = `<div class="tri"><div class="tri-card" aria-live="polite">
-    <div class="tri-top"><span class="num">${pos} of ${total}</span><span class="grow"></span><span>${esc(L ? L.name : '')}</span><span>·</span><span>${ageDays(cur)}d old</span></div>
-    <h2>${esc(cur.title)}</h2>
-    ${cur.notes ? `<div class="notes">${esc(cur.notes)}</div>` : ''}
+    <div class="tri-top"><span class="num">${pos} of ${total}</span><span class="grow"></span>
+      <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${ageDays(cur)}d old</span></div>
+    <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
+    <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
     ${cur.people.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${cur.people.map(p => `<span class="chip">@${esc(p)}</span>`).join('')}</div>` : ''}
     ${d.stale ? `<div class="stale">Stale: it's been ${ageDays(cur)} days. Do it, give it a due date, or mark it won't do.</div>` : ''}
-    <div class="tfld"><label>Value</label><div class="opts">${[1,2,3,4].map(v => `<button class="opt${d.value === v ? ' on' : ''}" data-tv="${v}" aria-pressed="${d.value === v}"><kbd>${v}</kbd>${VALUE[v]}</button>`).join('')}</div></div>
-    <div class="tfld"><label>Effort</label><div class="opts">${EFFORTS.map((e, i) => `<button class="opt${d.effort === e ? ' on' : ''}" data-te="${e}" aria-pressed="${d.effort === e}"><kbd>${'QWERT'[i]}</kbd>${e}<span class="pts">${POINTS[e]}</span></button>`).join('')}</div></div>
-    <div class="tfld"><label>Due</label><div class="opts"><input type="date" id="triDue" value="${d.due || ''}" aria-label="Due date"><kbd>D</kbd>
-      ${d.due ? `<button class="lnk" data-tdue-clear>Clear</button>` : `<span class="hint">${d.value ? `No date: aging pushes it up after ${fmtDay(addDays(cur.ageFrom, WINDOW[d.value]))}` : 'Optional'}</span>`}</div></div>
-    <div class="tfld"><label>Flags</label><div class="opts">
-      <button class="opt${d.urgentFlag ? ' on' : ''}" data-tt="urgentFlag" aria-pressed="${d.urgentFlag}"><kbd>U</kbd>Urgent</button>
-      <button class="opt${d.today ? ' on' : ''}" data-tt="today" aria-pressed="${d.today}"><kbd>Space</kbd>Today</button></div></div>
-    <div class="tri-foot">
-      <span class="tri-score">${s != null ? `Score <span class="num">${fmtScore(s)}</span> · ` : ''}${ek ? EQ[ek].title : 'Unsorted'}${vk ? ` · ${VQ[vk].title}` : ''}</span>
-      <span class="grow"></span>
-      <button class="btn text-danger" data-tact="wont"><kbd>0</kbd>Won't do</button>
-      <button class="btn" data-tact="skip"><kbd>S</kbd>Skip</button>
-      <button class="btn primary" data-tact="save"><kbd>Enter</kbd>Save and next</button>
+    <div class="tri-fields">
+      <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
+      <div class="tfld"><label>Effort<kbd>Q-T</kbd></label><div class="seg-row">${EFFORTS.map(e => opt(d.effort === e, `data-te="${e}"`, '', e, `<span class="pts">${POINTS[e]}</span>`)).join('')}</div></div>
+      <div class="tfld"><label for="triDue">Due<kbd>D</kbd></label><div class="opts"><input type="date" id="triDue" value="${d.due || ''}">
+        ${d.due ? `<button class="lnk" data-tdue-clear>Clear</button>` : `<span class="hint">${d.value ? `Rises on its own after ${fmtDay(addDays(cur.ageFrom, WINDOW[d.value]))}` : 'Optional'}</span>`}</div></div>
+      <div class="tfld"><label>Flags</label><div class="opts">
+        ${opt(d.urgentFlag, 'data-tt="urgentFlag"', 'U', 'Urgent')}${opt(d.today, 'data-tt="today"', 'Space', 'Today')}</div></div>
     </div>
-  </div><p class="soft kb-only" style="text-align:center"><kbd>Esc</kbd> to leave Triage</p></div>`;
+    <div class="tri-foot">
+      <span class="tri-score">${s != null ? `<span class="num">${fmtScore(s)}</span> · ` : ''}${ek ? EQ[ek].title : 'Unsorted'}${vk ? ` · ${VQ[vk].title}` : ''}</span>
+      <span class="grow"></span>
+      <button class="btn ghost text-danger" data-tact="wont">Won't do<kbd>0</kbd></button>
+      <button class="btn ghost" data-tact="skip">Skip<kbd>S</kbd></button>
+      <button class="btn primary" data-tact="save">Save and next<kbd>Enter</kbd></button>
+    </div>
+  </div><p class="tri-help kb-only">Click the title or notes to edit. <kbd>Enter</kbd> in the title or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in notes saves. <kbd>Esc</kbd> leaves Triage.</p></div>`;
+  fitTriage();
+}
+// Title and notes grow with their text (field-sizing where the browser has it, scrollHeight otherwise).
+function fitTriage(){
+  for (const id of ['triTitle', 'triNotes']){
+    const el = $('#' + id); if (!el || CSS.supports('field-sizing', 'content')) continue;
+    el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px';
+  }
 }
 function triageSave(){
   const t = findTask(tri.id), d = tri.draft; if (!t || !d) return;
+  const title = String(d.title || '').replace(/\s+/g, ' ').trim();
+  if (title) t.title = title;
+  t.notes = String(d.notes || '').trim();
+  if (d.listId && listById(d.listId)) t.listId = d.listId;
   t.value = d.value; t.effort = d.effort; t.due = d.due || null; t.urgentFlag = !!d.urgentFlag;
   if (d.today) t.focusOn = todayStr(); else if (t.focusOn === todayStr()) t.focusOn = null;
   // kept after triage: restart the aging clock, so a task you just placed doesn't come straight back as stale
@@ -274,4 +289,4 @@ function renderArchive(){
   </div>`;
 }
 
-export { copyText, dayLabel, exitTriage, recapData, recapText, renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage, triageKey, triageSave, triageSkip, triageWont };
+export { fitTriage, copyText, dayLabel, exitTriage, recapData, recapText, renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage, triageKey, triageSave, triageSkip, triageWont };
