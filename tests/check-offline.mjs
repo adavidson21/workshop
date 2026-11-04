@@ -39,7 +39,7 @@ for (const a of registry.apps) {
   const base = a.base.replace(/^\//, '');
   let m = a.manifest;
   if (remote.includes(m.id)) {
-    if (!fs.existsSync(path.join(root, '.remote', m.id))) { skipped.push(m.id); continue; }
+    if (!fs.existsSync(path.join(root, '.remote', m.id, 'app.json'))) { skipped.push(m.id); continue; }
     // The Worker serves the app's live app.json (worker/index.js), so check against the checkout's, not the snapshot.
     m = JSON.parse(fs.readFileSync(path.join(root, '.remote', m.id, 'app.json'), 'utf8'));
   }

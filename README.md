@@ -1,13 +1,14 @@
 # Workshop
 
-An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Receipts, Queue, Roadmap, Notes, 1:1s, and Tandem, the agent scaffolding Dispatch runs on.
+An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Receipts, Queue, Releases, Notes, 1:1s, Runway, and Tandem, the agent scaffolding Dispatch runs on.
 
 - **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
 - **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next, and has team-wide ADO **Reports** for capacity conversations. Its code lives in its own repo, [adavidson21/docket](https://github.com/adavidson21/docket), and its own site, https://docket.alexisdavidson.org; Workshop shows it inside the shell by serving that site under `apps/prioritizer/` (see Apps from another site below). User guide: [Docket's README](https://github.com/adavidson21/docket#readme).
 - **Dispatch** (formerly Agents; code and URLs still say `agents`) is the front end for [Tandem](https://github.com/adavidson21/eng-agents) (the eng-agents repo), the agent scaffolding that drives opencode. It shows your work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
 - **Receipts** keeps the receipts for performance reviews: your own (the main use), each direct report's, and optional upward notes, then builds a review draft grouped by your review form's sections. Its home is its own repo, [adavidson21/receipts](https://github.com/adavidson21/receipts), and its own site, https://receipts.alexisdavidson.org; `apps/receipts/` here is a copy of that repo's `apps/receipts/` (copy it again after changing the app there, then run `node shell/registry.mjs`). Guide: [apps/receipts/README.md](apps/receipts/README.md).
 - **Queue** is your team's Azure DevOps work: open items in your team's area paths as Mine, Team, Unassigned and Current sprint, with details, comments and history. Change state, assignee, priority, sprint and tags, comment, and create items, each after a confirm, without opening ADO. It needs Workshop running on this computer with the ADO connector on; changing items needs a PAT with Work Items (Read & Write). Guide: [apps/queue/README.md](apps/queue/README.md).
-- **Roadmap** is your products on a time axis: one lane per product with its Epics (versions) and Features from Azure DevOps, release health per Epic (progress, stale features, what changed since you looked), and the sprint's ceremonies, which it can offer to Docket as every-sprint tasks. It only reads ADO. It needs Workshop running on this computer with the ADO connector on; the last copy shows offline. Guide: [apps/pm/README.md](apps/pm/README.md).
+- **Releases** (app id `pm`, formerly Roadmap) is release health per Epic from Azure DevOps (progress, stale features, what changed since you looked) and the sprint's ceremonies, which it can offer to Docket as every-sprint tasks. It only reads ADO; Sprint cadence works without it. Guide: [apps/pm/README.md](apps/pm/README.md).
+- **Runway** is team and project roadmaps: type an outline or drag a timeline, export an image or Markdown. Ad hoc roadmaps need nothing else; with the ADO connector on it can also import Epics and Features to edit, or show a live ADO view. Its code lives in [adavidson21/runway](https://github.com/adavidson21/runway) and is served here under `/apps/runway/`.
 - **Notes** is Markdown notes in your Workshop folder, like a small Obsidian: a folder tree, links with backlinks, tags, search, and images you paste in. Files are plain `.md` with standard links, so they work in any Markdown tool. Copy or download a note as Markdown; nothing is published. Guide: [apps/notes/README.md](apps/notes/README.md).
 - **1:1s** preps 1:1s with your direct reports: for each person and the time since your last 1:1, what Docket, Receipts and Queue already know about them, then a 1:1 note kept as a plain `.md` file in your Workshop folder. After the meeting, follow-ups are copied as Docket quick-add lines and wins are offered to Receipts. Drafting talking points with your opencode agents is optional and can be turned off. Guide: [apps/oneonones/README.md](apps/oneonones/README.md).
 - **Settings** turns Workshop's features and connectors on and off, edits each connector's settings (for example which ADO collection and project a repo maps to), and downloads or imports a copy of your data.
@@ -129,7 +130,7 @@ shared/                 used by the shell and every app
   test/                 SDK tests
 apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
-  remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket)
+  remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket, Runway)
   agents/               Agents (the eng-agents live dashboard, on the opencode connector)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
@@ -158,7 +159,7 @@ An app can live in its own repo and deploy to its own site, and still open insid
 - `/apps/registry.json` gets the app's live `app.json` from its site, so a new file or command needs no Workshop change. The snapshot is the fallback if the site is down; `node shell/registry.mjs --refresh-remote` updates it.
 - Opening `/apps/<id>/` on its own (not in the shell) goes to the app's site, its standalone address.
 - The app keeps exact copies of the `shared/` files it uses, so it also runs on its own. After changing one of those here, update the copies in the app's repo (Docket: `node scripts/sync-workshop.mjs --update`).
-- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer`.
+- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` and `git clone https://github.com/adavidson21/runway .remote/runway`.
 - Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
 
 ### No third-party requests

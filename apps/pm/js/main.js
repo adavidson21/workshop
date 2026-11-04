@@ -1,7 +1,7 @@
-/* Roadmap: your products' Epics and Features on a time axis, release health per Epic, and the sprint's ceremonies.
+/* Releases: release health per Epic (version) and the sprint's ceremonies. Timelines are Runway's job.
 
    Reads Epics and Features in your products' area paths through the ADO connector's roadmap action (read only),
-   shows them as one lane per product, and keeps the last copy so it opens offline. Ceremonies are offered to
+   groups them by product, and keeps the last copy so it opens offline. Ceremonies are offered to
    Docket as every-sprint tasks through this app's own handoffs collection.
 
    data.js loads, saves and calls the connector; view.js and model.js are pure; this file owns the page. */
@@ -14,14 +14,13 @@ import { render } from './view.js';
 const app = document.getElementById('app');
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Roadmap');
+if (!ws.embedded) mountBar('Releases');
 
 const pm = createPm(ws, { onChange: () => paint() });
 const v = pm.v;
 
 const ui = {
-  tab: 'roadmap',          // roadmap | releases | cadence | settings
-  open: new Set(),         // Epic ids whose features show
+  tab: 'releases',         // releases | cadence | settings
   release: null,           // Epic id picked in Release health, or null for all
   draft: null              // unsaved ceremony edits, or null
 };
@@ -87,12 +86,6 @@ app.addEventListener('click', async e => {
   const el = s => e.target.closest(s);
   let x;
   if ((x = el('[data-tab]'))) { setTab(x.dataset.tab); return; }
-  if ((x = el('[data-toggle]'))) {
-    const id = Number(x.dataset.toggle);
-    if (ui.open.has(id)) ui.open.delete(id); else ui.open.add(id);
-    paint();
-    return;
-  }
   if ((x = el('[data-release]'))) { ui.release = Number(x.dataset.release); setTab('releases'); return; }
   if ((x = el('[data-seen]'))) {
     const id = Number(x.dataset.seen);
@@ -135,7 +128,7 @@ app.addEventListener('submit', async e => {
     staleDays: Number(d.get('staleDays')),
     refreshMinutes: Number(d.get('refreshMinutes'))
   };
-  try { ui.tab = 'roadmap'; await pm.saveSettings({ products: parseProducts(d.get('products')), settings }); ws.toast('Saved the roadmap settings.', { kind: 'success' }); paint(); }
+  try { ui.tab = 'releases'; await pm.saveSettings({ products: parseProducts(d.get('products')), settings }); ws.toast('Saved the Releases settings.', { kind: 'success' }); paint(); }
   catch (err) { ui.tab = 'settings'; toastErr(err); paint(); }
 });
 
@@ -145,10 +138,10 @@ ws.on('route', p => {
   const m = /^releases\/(\d+)$/.exec(path);
   if (m) { ui.release = Number(m[1]); ui.tab = 'releases'; }
   else if (['releases', 'cadence', 'settings'].includes(path)) ui.tab = path;
-  else ui.tab = 'roadmap';
+  else ui.tab = 'releases';
   paint();
 });
-ws.commands.register({ id: 'refresh', title: 'Refresh the roadmap' });
+ws.commands.register({ id: 'refresh', title: 'Refresh release health' });
 ws.commands.register({ id: 'scope', title: 'Scope new work' });
 ws.on('command', p => {
   if (p.id === 'refresh') pm.refresh();

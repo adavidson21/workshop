@@ -1,8 +1,7 @@
-/* Roadmap: the HTML. Pure functions with no DOM or SDK, so Node tests can import them. Every string from ADO,
-   other apps or the person is escaped with esc(). */
+/* Releases: the HTML. Pure functions with no DOM or SDK, so Node tests can import them. Every string from ADO,
+   other apps or the person is escaped with esc(). Timelines (roadmaps) are Runway's job, not this app's. */
 import {
-  ago, axisRange, barPos, bucketOf, buildLanes, ceremonyStatus, esc, isDate, iterationIndex, monthTicks,
-  placeEpic, placeItem, productsText, progress, releaseHealth, sortCeremonies, sprintDayDate, sprintStrip, todayOf
+  ago, buildLanes, ceremonyStatus, esc, isDate, productsText, releaseHealth, sortCeremonies, sprintDayDate, sprintStrip, todayOf
 } from './model.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -19,7 +18,6 @@ const fmtDay = d => (isDate(d) ? new Date(d + 'T12:00').toLocaleDateString('en-U
 const pctText = p => (p.pct == null ? 'No stories' : `${p.pct}% (${p.done} of ${p.total} stories)`);
 
 export const TABS = [
-  { id: 'roadmap', name: 'Roadmap' },
   { id: 'releases', name: 'Release health' },
   { id: 'cadence', name: 'Sprint cadence' }
 ];
@@ -30,11 +28,12 @@ const chevron = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" str
 function head(v) {
   const canRefresh = v.ado.state === 'ready' && v.snap.areas.length + v.products.length + v.queue.areas.length > 0;
   return `<header class="phead">
-    <div><p class="eyebrow">Azure DevOps</p><h1 class="page-title">Roadmap</h1></div>
+    <div><p class="eyebrow">Azure DevOps</p><h1 class="page-title">Releases</h1></div>
     <div class="acts">
       ${canRefresh ? `<button class="btn" data-refresh${v.refreshing ? ' disabled' : ''}>Refresh</button>` : ''}
+      <button class="btn" data-open-app="runway" title="Roadmaps and timelines, ad hoc or from ADO, are in Runway">Roadmaps in Runway</button>
       <button class="btn primary" data-scope title="Opens Dispatch. Use Start work there to scope it.">Scope new work</button>
-      <button class="ibtn" data-tab="settings" title="Roadmap settings" aria-label="Roadmap settings">${gear}</button>
+      <button class="ibtn" data-tab="settings" title="Releases settings" aria-label="Releases settings">${gear}</button>
     </div></header>`;
 }
 
@@ -55,107 +54,30 @@ function statusLine(v, now) {
 /** Shown instead of the roadmap when it cannot work yet. Returns '' when it can show. */
 export function setupCard(v, embedded) {
   if (v.waiting) {
-    return `<section class="engcard" role="status"><h2>Allow Workshop to use your folder to see the roadmap</h2>
+    return `<section class="engcard" role="status"><h2>Allow Workshop to use your folder to see your releases</h2>
       <p>${embedded ? 'Click <b>Allow</b> in the bar at the top of Workshop.' : 'Open Workshop and click <b>Allow</b> in the bar at the top.'} Chrome asks again after it restarts.</p></section>`;
   }
-  if (v.newer) return `<section class="engcard"><h2>Saved by a newer Roadmap</h2><p>Update Workshop to use the roadmap here. Nothing was changed.</p></section>`;
+  if (v.newer) return `<section class="engcard"><h2>Saved by a newer Releases</h2><p>Update Workshop to use Releases here. Nothing was changed.</p></section>`;
   return '';
 }
 
 function adoCard(v) {
   if (v.items.length) return '';
   if (v.ado.state === 'browser') {
-    return `<section class="engcard"><h2>The roadmap needs Workshop on this computer</h2>
-      <p>The roadmap reads Epics and Features from Azure DevOps through Workshop on this computer. Start Workshop, then click <b>Connect</b> on the rail. Sprint cadence works without it.</p></section>`;
+    return `<section class="engcard"><h2>Release health needs Workshop on this computer</h2>
+      <p>Release health reads Epics and Features from Azure DevOps through Workshop on this computer. Start Workshop, then click <b>Connect</b> on the rail. Sprint cadence works without it.</p></section>`;
   }
   if (v.ado.state === 'off') {
     return `<section class="engcard"><h2>Turn on the ADO connector</h2><p>${esc(v.ado.message)}</p>
-      <p>In Settings, add your ADO connection and turn the connector on. The roadmap only reads ADO, so Work Items (Read) is enough.</p>
+      <p>In Settings, add your ADO connection and turn the connector on. Releases only reads ADO, so Work Items (Read) is enough.</p>
       <p><button class="btn primary" data-open-app="settings">Open Settings</button></p></section>`;
   }
   if (!v.products.length && !(v.settings.useQueueAreas && v.queue.areas.length)) {
     return `<section class="engcard"><h2>Which area paths are your products?</h2>
-      <p>Each product gets a lane. Name it and list its area paths. Queue's area paths are used too, unless you turn that off.</p>
+      <p>Each product groups its versions. Name it and list its area paths. Queue's area paths are used too, unless you turn that off.</p>
       <p><button class="btn primary" data-tab="settings">Set up products</button></p></section>`;
   }
   return '';
-}
-
-/* ---------- Roadmap: lanes on a time axis ---------- */
-
-/** Everything the Roadmap tab needs: lanes, the axis, and each row's place. */
-export function roadmapModel(v, ui, now) {
-  const today = todayOf(now);
-  const iters = iterationIndex(v.snap.iterations);
-  const lanes = buildLanes(v.items, { products: v.products, queueAreas: v.settings.useQueueAreas ? v.queue.areas : [] });
-  const spans = [];
-  for (const l of lanes) {
-    for (const r of l.epics) {
-      r.place = placeEpic(r, iters);
-      r.progress = progress(r.features);
-      for (const f of r.features) f.place = placeItem(f, iters);
-      if (r.place.from) spans.push(r.place);
-    }
-    for (const f of l.loose) { f.place = placeItem(f, iters); if (f.place.from) spans.push(f.place); }
-  }
-  return { today, lanes, range: axisRange(spans, today) };
-}
-
-function bar(item, place, range, p) {
-  const pos = barPos(place, range);
-  if (!pos) return `<span class="nodates">${place.from ? 'Outside this window' : 'No dates'}</span>`;
-  const when = `${fmtDay(place.start)} to ${fmtDay(place.end)}${place.from === 'sprint' ? ', from its sprint' : place.from === 'features' ? ', from its features' : ''}`;
-  return `<span class="bar s-${stateClass(item)}${place.from !== 'dates' ? ' soft-bar' : ''}" style="--l:${pos.left}%;--w:${pos.width}%" title="${esc(when)}">
-    ${p && p.pct != null ? `<span class="fill" style="--p:${p.pct}%"></span>` : ''}<span class="sr">${esc(when)}. ${esc(pctText(p || { pct: null }))}.</span></span>`;
-}
-
-function track(range, today, inner) {
-  const pos = barPos({ start: today, end: today, from: 'dates' }, range);
-  return `<div class="track">${pos ? `<span class="todayline" style="--l:${pos.left}%" aria-hidden="true"></span>` : ''}${inner}</div>`;
-}
-
-function featureRow(f, range, today, changed) {
-  const p = progress(f);
-  return `<div class="trow feat"><div class="tlabel"><span class="tname">${changed.has(f.id) ? '<span class="dot" title="Changed since you looked"></span>' : ''}<a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener noreferrer">${esc(f.title)}</a></span>
-    <span class="tmeta">${esc(f.state)} · ${esc(p.pct == null ? 'no stories' : `${p.done}/${p.total}`)}</span></div>${track(range, today, bar(f, f.place, range, p))}</div>`;
-}
-
-function laneHtml(l, m, ui, changed) {
-  const { range, today } = m;
-  const placed = l.epics.filter(r => r.place.from);
-  const placedLoose = l.loose.filter(f => f.place.from);
-  const board = { now: [], next: [], later: [] };
-  for (const r of l.epics.filter(x => !x.place.from)) board[bucketOf(r.epic)].push({ item: r.epic, p: r.progress, n: r.features.length });
-  for (const f of l.loose.filter(x => !x.place.from)) board[bucketOf(f)].push({ item: f, p: progress(f), n: null });
-  const ticks = monthTicks(range);
-  const rows = placed.map(r => {
-    const open = ui.open.has(r.epic.id);
-    const fid = `f-${r.epic.id}`;
-    return `<div class="trow epic"><div class="tlabel">
-        <button class="tog" data-toggle="${r.epic.id}" aria-expanded="${open}" aria-controls="${fid}" aria-label="${open ? 'Hide' : 'Show'} the features of ${esc(r.epic.title)}"${r.features.length ? '' : ' disabled'}>${chevron}</button>
-        <span class="tname">${changed.has(r.epic.id) ? '<span class="dot" title="Changed since you looked"></span>' : ''}<button class="lnk" data-release="${r.epic.id}">${esc(r.epic.title)}</button></span>
-        <span class="tmeta">${esc(r.epic.state)} · ${plural(r.features.length, 'feature')} · ${esc(r.progress.pct == null ? 'no stories' : `${r.progress.pct}%`)}</span></div>
-        ${track(range, today, bar(r.epic, r.place, range, r.progress))}</div>
-      <div id="${fid}" class="feats"${open ? '' : ' hidden'}>${open ? r.features.map(f => featureRow(f, range, today, changed)).join('') : ''}</div>`;
-  }).join('') + (placedLoose.length ? `<p class="subhead">Features with no version</p>${placedLoose.map(f => featureRow(f, range, today, changed)).join('')}` : '');
-  const chart = rows ? `<div class="chart" role="group" aria-label="Timeline for ${esc(l.name)}" tabindex="0"><div class="chart-in">
-      <div class="trow axis" aria-hidden="true"><div class="tlabel"></div><div class="track">${ticks.map(t => `<span class="tick" style="--l:${t.left}%">${esc(t.label)}</span>`).join('')}</div></div>
-      ${rows}</div></div>` : '';
-  const col = (key, name) => `<div class="bcol"><h3 class="section-label">${name}</h3>${board[key].length ? `<ul>${board[key].map(x => `<li><a href="${esc(safeUrl(x.item.url))}" target="_blank" rel="noopener noreferrer">${esc(x.item.title)}</a>
-      <span class="soft">${esc(x.item.type)} · ${esc(x.item.state)}${x.n != null ? ` · ${plural(x.n, 'feature')}` : ''} · ${esc(x.p.pct == null ? 'no stories' : `${x.p.pct}%`)}</span></li>`).join('')}</ul>` : '<p class="soft">Nothing here.</p>'}</div>`;
-  const undated = board.now.length + board.next.length + board.later.length;
-  const boardHtml = undated ? `<div class="board" aria-label="No dates yet">${col('now', 'Now')}${col('next', 'Next')}${col('later', 'Later')}</div>` : '';
-  const count = l.epics.length + l.loose.length;
-  return `<section class="lane" aria-label="${esc(l.name)}"><h2 class="lane-title">${esc(l.name)} <span class="soft num">${plural(l.epics.length, 'version')}${l.loose.length ? `, ${plural(l.loose.length, 'loose feature')}` : ''}</span></h2>
-    ${count ? chart + boardHtml : '<p class="soft">No open Epics or Features here.</p>'}</section>`;
-}
-
-export function roadmapHtml(v, ui, now) {
-  const m = roadmapModel(v, ui, now);
-  const changed = new Set(v.items.filter(i => v.seen[i.id] !== undefined && v.seen[i.id] < i.rev).map(i => i.id));
-  if (!m.lanes.length) return '<p class="soft empty">No lanes yet. Add products in settings.</p>';
-  return `<p class="legend soft"><span class="lg"><span class="key s-now"></span>In progress</span><span class="lg"><span class="key s-new"></span>Not started</span><span class="lg"><span class="key s-done"></span>Done</span><span class="lg"><span class="key soft-bar s-now"></span>Dates from a sprint or its features</span></p>` +
-    m.lanes.map(l => laneHtml(l, m, ui, changed)).join('');
 }
 
 /* ---------- Release health ---------- */
@@ -220,7 +142,7 @@ export function cadenceHtml(v, ui, now) {
   let top = '';
   let strip = null;
   if (d.state === 'newer') top = `<section class="engcard"><h2>Docket's sprint was saved by a newer Docket</h2><p>Update Workshop to see the sprint here. Nothing was changed.</p></section>`;
-  else if (d.state !== 'ok') top = `<section class="engcard"><h2>Set your sprint in Docket first</h2><p>The sprint (start date, length, workdays and holidays) lives in Docket's Day view settings. The roadmap only reads it.</p>
+  else if (d.state !== 'ok') top = `<section class="engcard"><h2>Set your sprint in Docket first</h2><p>The sprint (start date, length, workdays and holidays) lives in Docket's Day view settings. Releases only reads it.</p>
     <p><button class="btn primary" data-open-docket>Open Docket's Day view</button></p></section>`;
   else {
     strip = sprintStrip(d.sprint, today, sortCeremonies(v.cadence));
@@ -256,15 +178,15 @@ export function settingsHtml(v) {
   const s = v.settings;
   return `<form class="settings" data-settings>
     <label>Products, one per line<textarea name="products" rows="5" placeholder="Product A: Project\\Team A, Project\\Team B">${esc(productsText(v.products))}</textarea>
-      <span class="soft">A name, a colon, then its area paths. Each product is a lane. Work under a path counts for that product.</span></label>
+      <span class="soft">A name, a colon, then its area paths. Each product groups its versions. Work under a path counts for that product.</span></label>
     <label class="chk"><input type="checkbox" name="useQueueAreas"${s.useQueueAreas ? ' checked' : ''}> Also use Queue's area paths${v.queue.areas.length ? `: ${esc(v.queue.areas.join(', '))}` : ' (none set)'}</label>
     <div class="two">
       <label>Stale after (days without a change)<input name="staleDays" type="number" min="1" max="180" value="${s.staleDays}"></label>
       <label>Refresh every (minutes)<input name="refreshMinutes" type="number" min="5" max="240" value="${s.refreshMinutes}"></label>
     </div>
     <label>ADO connection name<input name="connection" value="${esc(s.connection)}" placeholder="${esc(v.queue.connection || 'Same as Queue')}"></label>
-    <p class="soft">Saved in your Workshop folder. The roadmap only reads ADO.</p>
-    <div class="acts left"><button class="btn primary">Save</button><button type="button" class="lnk" data-tab="roadmap">Back</button></div>
+    <p class="soft">Saved in your Workshop folder. Releases only reads ADO.</p>
+    <div class="acts left"><button class="btn primary">Save</button><button type="button" class="lnk" data-tab="releases">Back</button></div>
   </form>`;
 }
 
@@ -274,7 +196,7 @@ export function render(v, ui, now, embedded) {
   if (setup) return head(v) + setup;
   if (ui.tab === 'settings') return head(v) + `<h2 class="sub">Settings</h2>` + settingsHtml(v);
   const body = ui.tab === 'cadence' ? cadenceHtml(v, ui, now)
-    : (adoCard(v) || (ui.tab === 'releases' ? releasesHtml(v, ui, now) : roadmapHtml(v, ui, now)));
+    : (adoCard(v) || releasesHtml(v, ui, now));
   return head(v) + statusLine(v, now) + tabs(ui) + `<div class="body" role="tabpanel">${body}</div>`;
 }
 

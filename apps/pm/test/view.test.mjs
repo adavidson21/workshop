@@ -1,5 +1,5 @@
-// Roadmap HTML: everything from ADO, other apps or the person is escaped, links are only http(s), and the
-// chart, health and cadence views show what the model says.
+// Releases HTML: everything from ADO, other apps or the person is escaped, links are only http(s), and the
+// health and cadence views show what the model says.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanCeremony, cleanSettings, sprintStrip } from '../js/model.js';
@@ -8,7 +8,7 @@ import { SPRINT, epic, feature } from './fake.mjs';
 
 const NOW = Date.parse('2026-11-03T12:00:00Z');
 const EVIL = '<img src=x onerror=alert(1)>"\'&';
-const ui = (extra = {}) => ({ tab: 'roadmap', open: new Set(), release: null, draft: null, ...extra });
+const ui = (extra = {}) => ({ tab: 'releases', release: null, draft: null, ...extra });
 
 const base = (extra = {}) => ({
   loaded: true, waiting: false, newer: '', settings: cleanSettings({}),
@@ -21,16 +21,16 @@ const base = (extra = {}) => ({
 
 const noRawTags = html => assert.equal(/<img|<script|onerror=alert\(1\)>/.test(html.replace(/&lt;img src=x onerror=alert\(1\)&gt;/g, '')), false, 'no raw markup from data');
 
-test('roadmap escapes titles, states, product names and URLs from ADO', () => {
+test('release health escapes titles, states, product names and URLs from ADO', () => {
   const v = base({
     items: [epic(701, { title: `Version ${EVIL}`, state: EVIL, startDate: '2026-10-01', targetDate: '2026-12-15', url: 'javascript:alert(1)' }),
       feature(711, 701, { title: `Feature ${EVIL}`, url: `https://ado.example.com/x?"${EVIL}` }), epic(702, { title: `Undated ${EVIL}`, iteration: 'Web App' })]
   });
-  const html = render(v, ui({ open: new Set([701]) }), NOW, true);
+  const html = render(v, ui(), NOW, true);
   noRawTags(html);
   assert.match(html, /Product &lt;img src=x onerror=alert\(1\)&gt;&quot;&#39;&amp;/);
   assert.equal(html.includes('javascript:'), false, 'only http(s) links');
-  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /Version &lt;img/);
   assert.match(html, /Feature &lt;img/);
   assert.match(html, /Undated &lt;img/);
 });

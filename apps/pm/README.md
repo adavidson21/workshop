@@ -1,20 +1,19 @@
-# Roadmap
+# Releases
 
-Your products on a time axis, from Azure DevOps. App id `pm`; the name on the rail is Roadmap.
+Release health for your products, from Azure DevOps, and the sprint's ceremonies. App id `pm` (it was called Roadmap; the id and data stay so nothing moves). Timelines and roadmaps, ad hoc or from ADO, are in [Runway](https://github.com/adavidson21/runway): **Roadmaps in Runway** opens it.
 
-- **Roadmap:** one lane per product. Each Epic (a version) is a bar, placed by its start and target dates. Expand it to see its Features. An item with no dates uses its sprint's dates; an Epic with neither spans its Features. Anything still without dates goes on a **Now, Next, Later** board under the lane: Now is work that started, Next is in a sprint, Later is neither. Progress is done stories over all stories under each Feature.
 - **Release health:** per Epic, its Features with state, progress, stale (no change in *Stale after* days, default 14) and a dot for each one whose ADO revision moved since you last looked. **Mark as seen** clears the dots for that Epic.
 - **Sprint cadence:** your ceremonies, each on a sprint day (or Last day), with minutes, the Docket block kind to plan it into, and your role (generic text like Facilitator). A strip shows the current sprint, day by day, with each ceremony on its day. Weekends and holidays show as off. **Send to Docket** offers each ceremony to Docket as an every-sprint task. Accept them in Docket's Day view settings.
 - **Scope new work** opens Dispatch. Use **Start work** there to scope it.
-- Keyboard: every bar's label is a button (Enter or Space expands it), and charts scroll sideways with the arrow keys once focused. Palette: Refresh the roadmap, Scope new work, Sprint cadence.
+- Palette: Refresh release health, Scope new work, Sprint cadence.
 
 ## Needs
 
-- Workshop running on this computer with the ADO connector on (Settings). The roadmap only reads ADO: Work Items (Read) is enough.
-- Products (gear icon): one per line, a name, a colon, then its area paths, like `Product A: Project\Team A, Project\Team B`. Queue's area paths are used too unless you turn that off. Without products, each Queue area path is a lane.
-- For Sprint cadence: your sprint in Docket's Day view settings (start date, length, workdays, holidays). The roadmap only reads it. Until it is set, the cadence tab says so and links there.
+- Workshop running on this computer with the ADO connector on (Settings). Releases only reads ADO: Work Items (Read) is enough.
+- Products (gear icon): one per line, a name, a colon, then its area paths, like `Product A: Project\Team A, Project\Team B`. Queue's area paths are used too unless you turn that off. Without products, each Queue area path is a product.
+- For Sprint cadence: your sprint in Docket's Day view settings (start date, length, workdays, holidays). Releases only reads it. Until it is set, the cadence tab says so and links there.
 
-Without the connector (browser mode, connector off, ADO unreachable) the roadmap shows the last copy it saved, with its age. Sprint cadence works without ADO.
+Without the connector (browser mode, connector off, ADO unreachable) Release health shows the last copy it saved, with its age. Sprint cadence works without ADO.
 
 ## Behavior
 
@@ -32,13 +31,13 @@ App id `pm`. All collections are version 1 and follow `docs/data-format.md`. ADO
 | --- | --- |
 | `pm.products` | Items: `{id, name, areas[]}`. `meta`: `connection` (empty means Queue's, else the connector's connection for my work items), `useQueueAreas` (default `true`), `staleDays` (1 to 180), `refreshMinutes` (5 to 240). |
 | `pm.cadence` | Ceremonies: `{id, name, dueDay (1 to 60), last, minutes, planKind, role}`. |
-| `pm.seen` | `{id, rev}` per Epic or Feature: the revision you last looked at. Items that leave the roadmap are dropped. |
+| `pm.seen` | `{id, rev}` per Epic or Feature: the revision you last looked at. Items that leave the results are dropped. |
 | `pm.snapshot` | The last `roadmap` result: items in the connector's `roadmap` shape with `id` as a string. `meta`: `fetchedAt`, `connection`, `total`, `truncated`, `childrenTruncated`, `iterations` (project to sprints), `areas`. Replaced on every refresh. |
 | `pm.handoffs` | Offers to Docket, as above. Offers older than 60 days are made fresh or dropped. |
 
 Read only, never written: `queue.settings` (area paths, connection), `prioritizer.dayplan/settings` (`meta.sprint`) and `prioritizer.dayplan/recurring` (to see which ceremonies Docket accepted, by their `from`). Each is read only at version 1; a newer version reads as unavailable.
 
-A collection of its own with a newer `version` is read only: the roadmap says so and changes nothing.
+A collection of its own with a newer `version` is read only: Releases says so and changes nothing.
 
 ## Files
 

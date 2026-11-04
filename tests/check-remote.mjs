@@ -24,7 +24,7 @@ const sha = f => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
 for (const app of remote) {
   const dir = path.join(root, '.remote', app.id);
-  if (!fs.existsSync(dir)) { warnings.push(`${app.id}: no checkout in .remote/${app.id}/, skipped (git clone https://github.com/${app.repo} .remote/${app.id})`); continue; }
+  if (!fs.existsSync(path.join(dir, 'app.json'))) { warnings.push(`${app.id}: no checkout in .remote/${app.id}/, skipped (git clone https://github.com/${app.repo} .remote/${app.id})`); continue; }
   checked.push(app.id);
 
   const live = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'));

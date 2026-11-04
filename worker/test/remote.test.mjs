@@ -46,6 +46,20 @@ test('remote.json lists Docket at docket.alexisdavidson.org, with the DOCKET bin
   assert.match(wrangler, /"service":\s*"docket"/, 'to the docket Worker');
 });
 
+test('remote.json lists Runway at runway.alexisdavidson.org, with the RUNWAY binding', () => {
+  const r = REMOTE.apps.find(a => a.id === 'runway');
+  assert.equal(r.site, 'https://runway.alexisdavidson.org');
+  assert.equal(r.binding, 'RUNWAY');
+  assert.equal(r.manifest.id, 'runway');
+  assert.ok(!(r.manifest.connectors || []).some(c => c.required), 'Runway needs no connector');
+  const wrangler = fs.readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
+  assert.match(wrangler, /"binding":\s*"RUNWAY"/, 'wrangler.jsonc binds RUNWAY');
+  assert.match(wrangler, /"service":\s*"runway"/, 'to the runway Worker');
+  const m = remoteMatch(REMOTE.apps, '/apps/runway/js/ado/index.js');
+  assert.equal(m.app.id, 'runway');
+  assert.equal(m.path, '/js/ado/index.js');
+});
+
 test('paths under /apps/prioritizer/ map to the root of Docket\'s site', () => {
   const apps = REMOTE.apps;
   assert.deepEqual(remoteMatch(apps, '/apps/prioritizer/'), { app: apps[0], path: '/' });
