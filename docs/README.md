@@ -14,6 +14,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
 | Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
 | People directory | [people.md](people.md) | `settings.people` v1 | `person` | `tests/check-contracts.mjs` (examples) |
+| Hub request and answer | [hub.md](hub.md) | `route.json` v1 | `hub-route` | `tests/check-contracts.mjs` (examples) |
 
 Also here, not contracts: [team-testing.md](team-testing.md) (prerequisites before testing with work data), [security.md](security.md) and [for-security-teams.md](for-security-teams.md).
 

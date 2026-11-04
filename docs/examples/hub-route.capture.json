@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "intent": "capture",
+  "proposals": [
+    {
+      "to": "prioritizer",
+      "text": "Onboarding doc for Person One",
+      "payload": {"kind": "task", "title": "Onboarding doc for Person One", "people": ["Person One"], "value": 3},
+      "confidence": 0.8,
+      "reason": "A reminder about a report, no date given"
+    },
+    {
+      "to": "receipts",
+      "text": "Person One shipped the migration a week early",
+      "payload": {"kind": "win", "impact": 2, "about": "p_one"},
+      "confidence": 0.9,
+      "reason": "Something a report did well"
+    }
+  ]
+}

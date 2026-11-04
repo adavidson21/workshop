@@ -1,0 +1,11 @@
+{
+  "id": "hub_k3m9q2",
+  "updatedAt": 1793736000000,
+  "to": "prioritizer",
+  "date": "2026-11-03",
+  "createdAt": "2026-11-03T22:15:00.000Z",
+  "text": "Onboarding doc for Person One",
+  "payload": {"kind": "task", "title": "Onboarding doc for Person One", "people": ["Person One"], "value": 3},
+  "source": {"app": "agents", "id": "hub_k3m9q2"},
+  "accepted": true
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "route.json v1: what Tandem's /hub made of one hub message",
+  "description": "Written by the hub agent next to request.md and read by Dispatch through the opencode connector's hub.result. Only the field for the intent is read. See hub.md.",
+  "type": "object",
+  "required": ["version", "intent"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "intent": {"enum": ["capture", "ask", "go", "act", "clarify"]},
+    "proposals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["to", "text", "payload"],
+        "additionalProperties": false,
+        "properties": {
+          "to": {"enum": ["prioritizer", "receipts", "notes"]},
+          "text": {"type": "string", "minLength": 1, "maxLength": 2000},
+          "payload": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {"kind": {"enum": ["task", "win", "feedback", "growth", "concern", "note"]}},
+            "description": "A handoff payload for that receiver (handoffs.md, Receivers)."
+          },
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "reason": {"type": "string", "maxLength": 300}
+        }
+      }
+    },
+    "ask": {
+      "type": "object",
+      "required": ["repos"],
+      "additionalProperties": false,
+      "properties": {
+        "repos": {"type": "array", "maxItems": 10, "items": {"type": "string", "minLength": 1, "maxLength": 100}}
+      }
+    },
+    "go": {
+      "type": "object",
+      "required": ["app"],
+      "additionalProperties": false,
+      "properties": {
+        "app": {"$ref": "common.schema.json#/$defs/name"},
+        "path": {"type": "string", "maxLength": 200}
+      }
+    },
+    "act": {
+      "type": "object",
+      "required": ["connector", "action", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "connector": {"$ref": "common.schema.json#/$defs/name"},
+        "action": {"$ref": "common.schema.json#/$defs/actionName"},
+        "args": {"type": "object"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120}
+      }
+    },
+    "clarify": {
+      "type": "object",
+      "required": ["question", "choices"],
+      "additionalProperties": false,
+      "properties": {
+        "question": {"type": "string", "minLength": 1, "maxLength": 300},
+        "choices": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "minLength": 1, "maxLength": 80}}
+      }
+    }
+  },
+  "allOf": [
+    {"anyOf": [{"not": {"properties": {"intent": {"const": "capture"}}}}, {"required": ["proposals"]}]},
+    {"anyOf": [{"not": {"properties": {"intent": {"const": "ask"}}}}, {"required": ["ask"]}]},
+    {"anyOf": [{"not": {"properties": {"intent": {"const": "go"}}}}, {"required": ["go"]}]},
+    {"anyOf": [{"not": {"properties": {"intent": {"const": "act"}}}}, {"required": ["act"]}]},
+    {"anyOf": [{"not": {"properties": {"intent": {"const": "clarify"}}}}, {"required": ["clarify"]}]}
+  ]
+}
