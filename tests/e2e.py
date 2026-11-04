@@ -175,7 +175,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'pm', 'notes', 'oneonones', 'runway', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'queue', 'notes', 'oneonones', 'runway', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -203,22 +203,16 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Queue in browser mode says it needs Workshop on this computer', qf is not None and 'needs Workshop on this computer' in qf.inner_text('#app'))
 
     pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
-    mf = next((f for f in pg.frames if '/apps/pm/' in f.url), None)
-    check('Releases opens from the rail', mf is not None and pg.url.endswith('#/pm'))
-    check('Releases in browser mode says release health needs Workshop on this computer', mf is not None and 'needs Workshop on this computer' in mf.inner_text('#app'))
-    check('Releases has no roadmap tab and points to Runway', mf is not None and mf.locator('[data-tab="roadmap"]').count() == 0 and mf.locator('[data-open-app="runway"]').count() == 1)
-
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
 
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     of = next((f for f in pg.frames if '/apps/oneonones/' in f.url), None)
     check('1:1s opens from the rail', of is not None and pg.url.endswith('#/oneonones'))
     check('1:1s with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
 
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1500)
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1500)
     wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
     check('Runway is on the rail and opens', wf is not None and pg.url.endswith('#/runway'))
     if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
@@ -227,7 +221,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+9'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
