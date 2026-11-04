@@ -5,7 +5,17 @@ html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .wrap{max-width:1040px;margin:0 auto;padding:2.75rem 1.75rem 4rem;display:flex;flex-direction:column;gap:2.25rem}
 #app{display:contents}
-#capture{animation:rise .6s ease-out both}
+/* Quick capture is Home's front door: right under the greeting, before everything else (order moves it there,
+   since #app is repainted and #capture never is), and drawn larger than the Dispatch hub's box. */
+.wrap>#app>.hello{order:-2}
+#capture{order:-1;width:100%;max-width:780px;margin:0 auto;animation:rise .6s ease-out .02s both}
+#capture .cap-line{position:relative;gap:.85rem;padding:1.05rem 1.25rem;border:1.5px solid var(--line);border-top-color:var(--rule);border-radius:var(--r-md);box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s}
+#capture .cap-line:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--shadow)}
+#capture .cap-prompt{font-size:20px;color:var(--accent)}
+#capture .cap-in{font-size:18px}
+#capture .cap-line::after{content:"/";flex:none;display:grid;place-items:center;width:1.6rem;height:1.6rem;border:1px solid var(--line);border-radius:4px;font:500 12px/1 var(--mono);color:var(--muted)}
+#capture .cap-line:focus-within::after{content:none}
+#capture .cap-hint{text-align:center}
 .soft{color:var(--muted);font-size:.9rem;margin:.2rem 0}
 
 /* greeting */
