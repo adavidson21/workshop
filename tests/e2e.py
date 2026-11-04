@@ -309,6 +309,34 @@ def browser_mode_checks(ctx, pg, frame, watch):
                 rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
             check('a win logged after a 1:1 becomes one receipt about the report', rf2.inner_text('.list').count('Led the e2e review') == 1
                   and 'From a 1:1' in rf2.inner_text('.list'))
+            # Rapport Goals: start the team's goals, then the report's; the report's objective sits under the team's.
+            pg.evaluate("location.hash = '#/receipts/goals'"); pg.wait_for_timeout(1200)
+            gf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+            check('Goals: an empty quarter offers Start team goals', gf is not None and 'No team goals for' in gf.inner_text('main') and gf.locator('[data-g-start=team]').count() == 1)
+            if gf:
+                gf.click('[data-g-start=team]'); gf.wait_for_selector('[data-g-editor]', timeout=5000)
+                gf.click('[data-g-back]'); gf.wait_for_selector('.g-tree', timeout=5000)
+                check('Goals: the tree lists the team template', gf.locator('[data-g-node="o:0"] .g-otitle').first.inner_text() == 'First objective')
+                gf.click('.g-missing [data-g-start]'); gf.wait_for_selector('[data-g-editor]', timeout=5000)
+                gf.click('[data-g-back]'); gf.wait_for_selector('.g-tree', timeout=5000)
+                gf.click('[data-g-expand=all]'); gf.wait_for_timeout(300)
+                check("Goals: the report's first objective sits under the first team objective, the name as text",
+                      gf.locator('[data-g-node="s:0:0"] .g-who').text_content() == '<b>Dev</b> One' and gf.locator('[data-g-node="s:0:0"] .g-otitle').inner_text() == 'First objective')
+                gf.locator('[data-g-node="o:0"] > ul .g-krs button.g-prog').first.click(); gf.wait_for_selector('#g-pop-progress', timeout=3000)
+                gf.fill('#g-pop-progress', '50%'); gf.select_option('.g-pop select', 'at risk'); gf.click('.g-pop button.primary'); gf.wait_for_timeout(800)
+                team = gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'receipts'});
+                  const q = document.querySelector('[data-g-quarter]').value; return (await ws.files.read('goals/team/' + q + '.md')).content; }""")
+                lines = team.split('\n')
+                check('Goals: updating a KR from the tree rewrites only that line', "- First key result, with how you'll measure it: 50% [at risk]" in lines
+                      and len([l for l in lines if '[at risk]' in l]) == 1 and lines.count('- Second key result: 0%') == 2 and lines.count('- Third key result: 0%') == 2
+                      and lines[0].startswith('# Team goals, Q'))
+                gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'receipts'});
+                  const f = (await ws.files.list('goals')).find(x => !x.path.includes('/team/')); const r = await ws.files.read(f.path);
+                  await ws.files.write(f.path, r.content.replace('Supports: Second objective', 'Supports: Nothing by this name') + '\\n## <script>alert(1)</script>\\n\\n- x: 1%\\n', {mtime: r.mtime}); }""")
+                gf.wait_for_timeout(1200); gf.click('[data-g-expand=all]'); gf.wait_for_timeout(300)
+                ua = gf.locator('[data-g-node="ua"]')
+                check('Goals: an objective whose Supports names nothing is Not aligned', ua.count() == 1 and 'Second objective' in ua.inner_text())
+                check('Goals: a <script> in an objective title shows as text', '<script>alert(1)</script>' in ua.inner_text() and gf.locator('main script').count() == 0)
         pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(800)
 
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
