@@ -401,7 +401,7 @@ function Get-PrSections {
         $repo = Get-CleanValue $head
         if (-not $repo) { continue }
         $branch = $null; $target = $null
-        $bm = [regex]::Match($body, '(?mi)^\s*(?:-\s*)?(?:\*\*)?Branch:(?:\*\*)?\s*`?([^`\s]+)`?\s*(?:->|=>|to|→)\s*`?([^`\s]+)`?')
+        $bm = [regex]::Match($body, '(?mi)^\s*(?:-\s*)?(?:\*\*)?Branch:(?:\*\*)?\s*`?([^`\s]+)`?\s*(?:->|=>|to|\u2192)\s*`?([^`\s]+)`?')
         if ($bm.Success) { $branch = Get-CleanValue $bm.Groups[1].Value; $target = Get-CleanValue $bm.Groups[2].Value }
         $title = $null
         $tm = [regex]::Match($body, '(?mi)^\s*(?:\*\*)?Title:(?:\*\*)?[ \t]*(.+?)\s*$')
