@@ -13,6 +13,7 @@ import { closeModal, showModal, toast } from './overlays.js';
 import { dp } from './dayplan.js';
 import { isWorkday, nextWorkday, toMin } from './dayplan-model.js';
 import { embedded, ws } from './ws.js';
+import { ICON } from './constants.js';
 
 const PREFS_KEY = 'prioritizer.focus';   // this device only: the wrap-up reminder
 const REMIND_BEFORE_MIN = 30;
@@ -127,24 +128,23 @@ function rowCrumb(t){
   return c ? `<span class="crumb" data-tip="Left off ${esc(crumbAge(c.at))}">${esc(c.text)}</span>` : '';
 }
 
-/* ---------- the now bar (under the page header, on every view) ---------- */
+/* ---------- the now bar (under the page header, only while a task is running) ---------- */
+/* Idle, it is hidden: Start next is the play button in Today's header, and S anywhere. */
 function renderNow(){
   const el = $('#nowbar'); if (!el) return;
   const d = todayStr(), t = activeTask(), n = F.dayCounts(log, d);
-  if (isWaiting() || (!t && !n.switches && !n.interrupts && !nextTask())){ el.hidden = true; el.innerHTML = ''; return; }
-  const c = t && F.lastCrumb(t);
-  // Counts show once there is something to count; zeros are noise.
-  const parts = [n.switches ? switches(n.switches) : '', n.interrupts ? plural(n.interrupts, 'interruption') : ''].filter(Boolean);
-  const counts = parts.length ? `<span class="ncount" data-tip="Today, counted only from what you start and log here">${parts.join(' · ')}</span>` : '';
-  const interrupted = `<button class="btn" data-now="interrupt" data-tip="Something pulled you away. Shortcut: I">Interrupted</button>`;
+  if (isWaiting() || !t){ el.hidden = true; el.innerHTML = ''; return; }
+  const c = F.lastCrumb(t);
+  // Counts show once there is something to count; zeros are noise. Icon and number; the words are in the label.
+  const words = [n.switches ? switches(n.switches) : '', n.interrupts ? plural(n.interrupts, 'interruption') : ''].filter(Boolean).join(' · ');
+  const counts = words ? `<span class="ncount" role="img" aria-label="${words}" data-tip="Today: ${words}. Counted only from what you start and log here.">`
+    + (n.switches ? `<span>${ICON.swap}${n.switches}</span>` : '') + (n.interrupts ? `<span>${ICON.bolt}${n.interrupts}</span>` : '') + '</span>' : '';
+  const ib = (act, icon, tip, cls = '') => `<button class="hbtn sm${cls ? ' ' + cls : ''}" data-now="${act}" aria-label="${tip.split('.')[0]}" data-tip="${tip}">${icon}</button>`;
   el.hidden = false;
-  el.classList.toggle('idle', !t);
-  el.innerHTML = t
-    ? `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="nlabel">Working on</span><button class="ntitle" data-now="open">${esc(t.title)}</button></div>
-        ${c ? `<div class="ncrumb" data-tip="Your last breadcrumb, ${esc(crumbAge(c.at))}">Last time: ${esc(c.text)}</div>` : ''}</div>
-      <div class="nact">${counts}${interrupted}<button class="btn" data-now="pause">Pause</button><button class="btn primary" data-now="done">Done</button></div>`
-    : (() => { const nx = nextTask(); return `<div class="nmain"><div class="nline">${nx ? `<span class="nlabel">Next</span><button class="ntitle" data-now="opennext" data-id="${esc(nx.id)}">${esc(nx.title)}</button>` : '<span class="nlabel">Nothing started</span>'}</div></div>
-      <div class="nact">${counts}${interrupted}${nx ? `<button class="btn primary" data-now="startnext" data-tip="Today's top task. Shortcut: S">Start</button>` : ''}</div>`; })();
+  el.classList.remove('idle');
+  el.innerHTML = `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="sr-only">Working on</span><button class="ntitle" data-now="open">${esc(t.title)}</button></div>
+      ${c ? `<div class="ncrumb" data-tip="Your last breadcrumb, ${esc(crumbAge(c.at))}">${esc(c.text)}</div>` : ''}</div>
+    <div class="nact">${counts}${ib('interrupt', ICON.bolt, 'Interrupted. Something pulled you away. Shortcut: I')}${ib('pause', ICON.pause, 'Pause. Shortcut: S')}${ib('done', ICON.check20, 'Done', 'primary')}</div>`;
 }
 
 /* ---------- shutdown ritual ---------- */
@@ -254,4 +254,4 @@ async function importFocus(bundle){
   return cols.length;
 }
 
-export { activeId, activeTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };
+export { activeId, activeTask, nextTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };

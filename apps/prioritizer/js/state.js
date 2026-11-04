@@ -1,7 +1,7 @@
 // storage.js comes first: it pulls in events.js and, through it, drawer.js before render.js. drawer.js no longer
 // does anything when it loads (its listeners are in drawerInit, called by main.js), but keep this order.
 import { scheduleSave } from './storage.js';
-import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS } from './constants.js';
+import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
 import { isStale, isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
@@ -196,6 +196,5 @@ function canonPerson(n){
   state.people.push(n);
   return n;
 }
-const initials = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 
 export { PR_GONES, isWaiting, setWaiting, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

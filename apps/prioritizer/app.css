@@ -735,3 +735,77 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .from-dir .chip{cursor:pointer;border:1px solid var(--line);font-family:inherit}
 .from-dir .chip svg{width:12px;height:12px}
 [data-rp-team]{margin-top:.35rem;align-self:flex-start}
+
+/* ---------- symbols: row signals, avatars, list colors, round header buttons (render.js) ---------- */
+/* Line icons in the ink of the page. A soft tinted circle only when a task needs you, so it stands out. */
+:root{--lc0:#4F6B78;--lc1:#8B6340;--lc2:#66783F;--lc3:#9A4F5E;--lc4:#5E5A8A;--lc5:#3F7F78}
+:root[data-theme=dark]{--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}}
+.lc0{--lc:var(--lc0)}.lc1{--lc:var(--lc1)}.lc2{--lc:var(--lc2)}.lc3{--lc:var(--lc3)}.lc4{--lc:var(--lc4)}.lc5{--lc:var(--lc5)}
+.sitem .dot[class*=lc]{background:var(--lc)}
+.sitem.on .dot[class*=lc]{background:var(--lc);box-shadow:0 0 0 3px color-mix(in srgb,var(--lc) 22%,transparent)}
+.sig{display:inline-flex;align-items:center;justify-content:center;gap:.22rem;flex:none;width:22px;height:22px;border-radius:50%;color:var(--muted);line-height:1;border:0;background:transparent;font:inherit}
+.sig svg{width:14px;height:14px;flex:none}
+.sig.txt{width:auto;padding:0 .45rem 0 .38rem;border-radius:11px}
+.sig b{font:500 .72rem var(--mono);letter-spacing:.01em}
+.sig.ado b{font-weight:400;color:var(--muted)}
+.sig.warn{background:var(--danger-soft);color:var(--danger)}
+.sig.acc{background:var(--accent-soft);color:var(--accent)}
+.sig.soon{background:var(--warn-soft);color:var(--warn)}
+.sig.stale{opacity:.6}
+button.sig{cursor:pointer}
+button.sig.warn:hover{background:color-mix(in srgb,var(--danger) 18%,var(--surface))}
+.row .meta{gap:.3rem}
+.row .who{display:inline-flex;align-items:center;max-width:none;padding-left:5px}
+.av{display:inline-grid;place-items:center;width:21px;height:21px;margin-left:-5px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font:500 9.5px/1 var(--mono);font-style:normal;letter-spacing:.02em;color:var(--muted)}
+.av.more{background:var(--panel)}
+.row .lst{display:inline-grid;place-items:center;width:14px;height:22px;max-width:none}
+.row .lst i{width:8px;height:8px;background:var(--lc,var(--muted))}
+/* the score waits for hover or selection; the bar on the left already shows the tier */
+.row .score{opacity:0;transition:opacity .12s}
+.row:hover .score,.row.sel .score,.row:focus-within .score{opacity:1}
+.row .score.none{opacity:.7;display:inline-grid;place-items:center;min-width:22px}
+.row .score.none svg{width:14px;height:14px}
+.tday,.tstart{display:inline-grid;place-items:center;width:26px;height:26px;min-width:26px;padding:0;border-radius:50%;border:1px solid transparent}
+.tday svg,.tstart svg{width:15px;height:15px}
+.tday:hover,.tstart:hover{border-color:var(--line);background:var(--surface)}
+.tday.on{background:var(--warn-soft);color:var(--warn)}
+.tstart.on{background:var(--accent);color:var(--on-accent)}
+.hbtn{display:inline-grid;place-items:center;width:2.25rem;height:2.25rem;flex:none;border-radius:50%;border:1px solid var(--line);color:var(--muted);background:transparent;transition:background-color .15s,color .15s,border-color .15s,transform .1s}
+.hbtn svg{width:17px;height:17px}
+.hbtn:hover{color:var(--ink);border-color:var(--muted);background:var(--surface)}
+.hbtn:active{transform:scale(.96)}
+.hbtn.primary{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+.hbtn.primary:hover{background:color-mix(in srgb,var(--accent) 86%,var(--ink));color:var(--on-accent)}
+.hbtn.sm{width:1.9rem;height:1.9rem}
+.hbtn.sm svg{width:15px;height:15px}
+.cap svg{width:17px;height:17px}
+.banner.carry .ctext{display:inline-flex;align-items:center;gap:.4rem;margin-right:auto}
+.banner.carry .ctext svg{width:16px;height:16px;color:var(--muted)}
+.banner.carry .btn svg{width:15px;height:15px;margin-right:.3rem}
+.hint-ic{display:inline-flex;align-items:center;gap:.3rem;flex-wrap:wrap}
+.hint-ic svg{width:14px;height:14px;vertical-align:-2px}
+.focus-empty .hint-ic{justify-content:center;color:var(--muted)}
+.row .crumb::before{content:"↳ ";font:inherit;letter-spacing:0;text-transform:none;margin-right:0}
+.nowbar .ncount{display:inline-flex;gap:.6rem;margin-right:.2rem}
+.nowbar .ncount span{display:inline-flex;align-items:center;gap:.2rem}
+.nowbar .ncount svg{width:13px;height:13px}
+.nowbar .dotlive{animation:engpulse 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.nowbar .dotlive{animation:none}}
+.legend-h{margin:1rem 0 .4rem;font:600 .9rem var(--sans)}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.35rem 1rem;font-size:.84rem;color:var(--muted)}
+.legend .lg{display:flex;align-items:center;gap:.5rem}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media (max-width:900px){ .row .who{display:inline-flex} }
+@media (hover:none) and (pointer:coarse){
+  .hbtn{width:44px;height:44px}
+  .tday,.tstart{width:40px;height:40px}
+  .row .score{display:none}
+}
+.banner.carry .ctext{flex:1;min-width:0}
+.banner.carry .btn span{flex:none;min-width:0}
+.row .score:empty{visibility:hidden}
+@media (max-width:759px){
+  .htools.icons{width:auto;order:2;margin-left:auto;gap:.35rem}
+  .htools.icons+.hadd{order:3}
+}

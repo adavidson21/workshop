@@ -61,23 +61,23 @@ function renderToday(){
   const nudges = waiting.filter(nudgeDue).length;
   main.innerHTML = `<div class="focus">
     <div class="fmain">
-      ${left.length ? `<div class="banner"><span>${plural(left.length, 'unfinished task')} from an earlier day. Keep going today?</span>
-        <button class="btn" data-left="clear">Back to lists</button><button class="btn primary" data-left="carry">Add to today</button></div>` : ''}
+      ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
+        <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today.">${ICON.sun}<span>Keep</span></button></div>` : ''}
       ${focus.length ? `<div class="fhead"><span class="count"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span></div>
         <div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
       <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
-        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b>${TOUCH ? 'Tap + to add a task' : 'Press N to add a task'}, or pick 3 to 5 from Up next.${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
+        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${ICON.plus} new, or ${ICON.sun} 3 to 5 from Up next</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
       ${open.length > 5 ? `<p class="soft">${open.length} tasks on Today. Keep it to 3 to 5.</p>` : ''}
       ${doneGroup(done)}
     </div>
     <aside>
       <section class="panel dropzone" data-zone="unfocus">
-        <header><h3>Up next</h3><span class="n">by score</span>${pickAll.length > 6 ? `<button class="lnk" data-pickall>${showAllPick ? 'Show less' : `Show all ${pickAll.length}`}</button>` : ''}</header>
+        <header><h3 data-tip="Open tasks, best score first">Up next</h3>${pickAll.length > 6 ? `<button class="lnk" data-pickall>${showAllPick ? 'Show less' : `Show all ${pickAll.length}`}</button>` : ''}</header>
         <div class="rows">${pick.map(t => row(t, {compact: true, showList: true})).join('') || `<div class="pempty">Nothing else open here.</div>`}</div>
-        ${pick.length ? `<p class="soft">${TOUCH ? 'Tap Today on a task to add it. Press and hold a task to reorder.' : 'Click Today on a task, press T, or drag it over.'}</p>` : ''}
+        ${pick.length ? `<p class="soft hint-ic">${ICON.sun} ${TOUCH ? 'adds to Today. Hold to reorder.' : 'or T adds to Today. Or drag it over.'}</p>` : ''}
       </section>
       <section class="panel">
-        <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="chip warn" style="margin-left:auto">${plural(nudges, 'nudge')} due</span>` : ''}</header>
+        <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="sig acc txt" style="margin-left:auto" role="img" aria-label="${plural(nudges, 'nudge')} due" data-tip="${plural(nudges, 'nudge')} due">${ICON.bell}<b>${nudges}</b></span>` : ''}</header>
         <div class="rows">${waiting.map(t => row(t, {compact: true, showList: true})).join('') || `<div class="pempty">Nothing blocked. Mark a task as waiting in its details.</div>`}</div>
       </section>
     </aside>
@@ -175,7 +175,7 @@ function renderPeople(){
     const open = ts.filter(t => !t.done).length, nud = wait.filter(nudgeDue).length;
     const rows = list => `<div class="rows">${list.map(t => row(t, {compact: true, skipPerson: p, noScore: true})).join('')}</div>`;
     return `<section class="pcard dropzone" data-zone="person" data-person="${esc(p)}">
-      <header><span class="avatar">${esc(initials(p))}</span><span class="pname" data-tip="Double-click to rename">${esc(p)}</span>${open ? `<span class="n">${open} open</span>` : ''}${nud ? `<span class="chip warn">${plural(nud, 'nudge')}</span>` : ''}
+      <header><span class="avatar">${esc(initials(p))}</span><span class="pname" data-tip="Double-click to rename">${esc(p)}</span>${open ? `<span class="n">${open} open</span>` : ''}${nud ? `<span class="sig acc txt" role="img" aria-label="${plural(nud, 'nudge')} due" data-tip="${plural(nud, 'nudge')} due">${ICON.bell}<b>${nud}</b></span>` : ''}
         <span class="ibtn" data-pmenu="${esc(p)}" role="button" tabindex="0" aria-label="Options for ${esc(p)}">${ICON.dots}</span></header>
       ${wait.length ? `<div class="sub">Waiting on them</div>${rows(wait)}` : ''}
       ${rest.length ? `<div class="sub">${wait.length ? 'To discuss or do' : 'Open'}</div>${rows(rest)}` : ''}

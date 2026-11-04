@@ -77,10 +77,19 @@ Plan a day as a list of blocks (Deep focus, Meetings, Admin, and so on) and slot
 
 ## Focus: start, breadcrumbs, wrap up
 
-- **Start a task** with **Start** on a Today row, **Start** in its details, or `S` on the selected task. One task is active at a time. A bar under the page header shows it on every view, with **Interrupted**, **Pause** and **Done**. The active task never carries over to the next day.
+- **Start a task** with the play button on a Today row or in Today's header (the top task), **Start** in its details, or `S` on the selected task. One task is active at a time. While it runs, a bar under the page header shows it on every view, with interrupted, pause and done buttons. The active task never carries over to the next day.
 - **Breadcrumbs:** when you pause, or switch to another task while one is unfinished, Docket asks "Where did you leave off?" in one line. `Enter` saves, `Esc` skips. The last one shows under the task on Today and in the bar when you start it again, and its details list the newest three. **Add a breadcrumb** in its details leaves one any time.
 - **Switch counter:** starting a task while another unfinished one is active counts as a switch. Finishing first and then starting is not one. **Interrupted** (or `I`) logs something that pulled you away without changing the task. Today's counts show in the bar once there is something to count. Nothing watches other apps or your computer: only what you start and log here counts.
 - **Wrap up** (on Today, or **Wrap up the day** in Workshop's command palette) goes through what you finished, asks for a breadcrumb on each unfinished task you started today, and picks tomorrow's top 3. Picks get the next working day's Today (by the Day view's sprint workdays and holidays). Today's leftovers you don't pick go back to their lists, so tomorrow opens on only what you chose. Inside Workshop, it also offers each finished task to **Receipts**: tick the ones worth keeping, adjust the line, pick Win, Learned or Note, and they wait in Receipts for you to accept (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)). It can remind you 30 minutes before the Day view's day end, on that device. Inside Workshop, `#/prioritizer/shutdown` opens it.
+
+## Symbols
+
+Rows and headers use small line icons instead of words; hover (or long-press) any of them for what it means, and `?` lists them all. Color shows up only when something needs you:
+
+- On a row: a red circle for a PR blocked on you or a task that's been urgent too long, amber for due soon (red when overdue), blue for time to nudge or asked to review. Quiet gray for stale, waiting, every sprint, and ADO or PR links (with their number).
+- People are initials; the list is a colored dot (each list keeps its color, in the sidebar too). The score shows on hover; the bar on the left is the tier.
+- Header buttons are round icons: start the next task, plan the day, wrap up, suggest order, weekly capacity, and the solid + to add a task.
+- The bar under the header shows only while a task is running, with interrupted, pause and done, and today's switch and interruption counts.
 
 ## Adding tasks
 

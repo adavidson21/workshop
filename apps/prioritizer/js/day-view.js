@@ -50,12 +50,11 @@ function dayHead(){
       <div class="dnav"><button class="ibtn" data-dp="prev" aria-label="Previous working day" data-tip="Previous working day ([)">${ICON.chevL}</button>
         <input type="date" id="dpDate" value="${d}" aria-label="Day to plan">
         <button class="ibtn" data-dp="next" aria-label="Next working day" data-tip="Next working day (])">${ICON.chevR}</button>
-        ${d !== todayStr() ? `<button class="btn" data-dp="today">Today</button>` : ''}</div>
-      <button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)"${history.canUndo ? '' : ' disabled'}>${I.undo}</button>
-      <button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)"${history.canRedo ? '' : ' disabled'}>${I.redo}</button>
-      <button class="btn" data-dp="daymenu" aria-haspopup="menu">This day ${ICON.chevD}</button>
+        ${d !== todayStr() ? `<button class="ibtn" data-dp="today" aria-label="Back to today" data-tip="Back to today">${ICON.today}</button>` : ''}</div>
+      ${history.canUndo ? `<button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)">${I.undo}</button>` : ''}
+      ${history.canRedo ? `<button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)">${I.redo}</button>` : ''}
+      <button class="ibtn" data-dp="daymenu" aria-haspopup="menu" aria-label="This day" data-tip="This day: add a block, shift, reset">${ICON.dots}</button>
       ${(() => { const n = offers().length; return `<button class="ibtn${n ? ' has-dot' : ''}" data-dp="settings" aria-label="Day plan settings${n ? `, ${plural(n, 'offer')} waiting` : ''}" data-tip="${n ? `Sprint and templates. ${plural(n, 'offer')} waiting` : 'Sprint and templates'}">${I.gear}</button>`; })()}
-      ${d === todayStr() ? `<button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>` : ''}
     </div>`;
 }
 

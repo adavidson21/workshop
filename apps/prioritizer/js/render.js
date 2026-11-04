@@ -1,5 +1,5 @@
-import { PR_TIER, adoShort, prTip } from './ado.js';
-import { ICON, LENSES, NAV, NAV_OF, POINTS, TOUCH, VIEWS } from './constants.js';
+import { PR_TIER, prTip } from './ado.js';
+import { ICON, LENSES, NAV, NAV_OF, POINTS, TOUCH, VIEWS, initials, listColor } from './constants.js';
 import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
 import { closeSide } from './events.js';
@@ -10,7 +10,7 @@ import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from '.
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
-import { isActive, renderNow, rowCrumb } from './focus.js';
+import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
@@ -79,7 +79,7 @@ function renderSide(){
     const n = sub ? state.tasks.filter(t => !t.done && t.listId === l.id).length : open(l.id);
     const on = state.scope === l.id || (state.lists.length === 1 && state.scope === 'all');
     return `<div class="sitem${sub ? ' child' : ''}${on ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${on}">
-      <i class="dot"></i><span class="lbl">${esc(l.name)}</span>${n ? `<span class="n">${n}</span>` : ''}
+      <i class="dot lc${listColor(l.id)}"></i><span class="lbl">${esc(l.name)}</span>${n ? `<span class="n">${n}</span>` : ''}
       <span class="ibtn more" data-menu="${l.id}" role="button" tabindex="0" aria-label="Options for ${esc(l.name)}" style="width:24px;height:24px">${ICON.dots}</span></div>`;
   };
   // "All lists" only means something once there are two lists to pick between.
@@ -89,7 +89,9 @@ function renderSide(){
 }
 
 /* header */
-const addBtn = (label = 'Add task') => `<button class="btn primary addbtn" data-add data-tip="Add a task. Shortcut: N or Ctrl+K">${ICON.plus}<span class="lbl">${label}</span><kbd>N</kbd></button>`;
+// Header actions are round icon buttons; the tooltip and aria-label carry the words.
+const hbtn = (icon, tip, attrs, cls = '') => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(tip.split('.')[0])}" data-tip="${esc(tip)}">${icon}</button>`;
+const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'primary addbtn');
 function renderHead(){
   const v = state.view, nav = NAV_OF(v);
   const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
@@ -98,21 +100,24 @@ function renderHead(){
   let sub = esc(scopeName()), tools = '';
   if (v === 'today'){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
-    tools = `<button class="btn" data-view="day" data-tip="Time blocks for today. Shortcut: 2">Plan day</button><button class="btn" data-shutdown data-tip="Breadcrumbs and tomorrow's top 3">Wrap up</button>`;
+    const nx = !activeTask() && nextTask();
+    tools = (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
+      + hbtn(ICON.day, 'Plan the day in time blocks. Shortcut: 2', 'data-view="day"')
+      + hbtn(ICON.moon, "Wrap up: breadcrumbs and tomorrow's top 3", 'data-shutdown');
   }
   if (nav === 'prio'){
     const open = scopeOpen().length;
     sub += v === 'archive' ? ` · ${state.tasks.filter(t => t.done && scopeListIds().includes(t.listId)).length} done` : ` · ${open} open`;
     tools = `<div class="lens" role="tablist" aria-label="Prioritize by">${Object.entries({...LENSES, archive: 'Done'}).map(([k, n]) =>
       `<button data-view="${k}" role="tab" aria-selected="${v === k}"${v === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>`;
-    if (v === 'rank') tools += `<label class="cap" data-tip="Weekly budget in effort points (XS 1, S 2, M 3, L 5, XL 8)"><span class="hide-sm">Capacity</span> <input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> pts</label>
-      ${open > 1 ? `<button class="btn" data-suggest data-tip="Preview an order by score">Suggest order</button>` : ''}`;
+    if (v === 'rank') tools += `<label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
+      ${open > 1 ? hbtn(ICON.wand, 'Suggest an order by score (you preview it first)', 'data-suggest') : ''}`;
   }
   if (v === 'triage') sub += ` · ${plural(triageQueue().length, 'task')} to sort`;
-  if (v === 'people') tools = `<button class="btn" data-addperson>${ICON.plus}<span class="hide-sm">Person</span></button>`;
+  if (v === 'people') tools = hbtn(ICON.addPerson, 'Add a person', 'data-addperson');
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
     <div class="ptitle"><h1>${title}</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
-    ${tools ? `<div class="htools">${tools}</div>` : ''}${v !== 'archive' ? `<div class="hadd">${addBtn()}</div>` : ''}`;
+    ${tools ? `<div class="htools${v === 'today' || v === 'people' ? ' icons' : ''}">${tools}</div>` : ''}${v !== 'archive' ? `<div class="hadd">${addBtn()}</div>` : ''}`;
 }
 
 /* rows */
@@ -122,32 +127,39 @@ function row(t, o = {}){
   const tr = t.done ? null : tier(t);
   const s = score(t);
   let meta = '';
-  if (t.ado) meta += `<span class="chip ado" data-tip="ADO ${esc(t.ado.type)} #${t.ado.id}, ${esc(t.ado.state)}">${esc(adoShort(t.ado.type))} ${t.ado.id}</span>`;
+  // Signals are icons with a tooltip (data-tip and aria-label say the words). Color only when it needs you.
+  const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" data-tip="${esc(tip)}" role="img" aria-label="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
+  if (t.ado) meta += sig(ICON.item, `ADO ${t.ado.type} #${t.ado.id}, ${t.ado.state}`, 'ado', String(t.ado.id));
   if (t.ado && !t.done) meta += engChip(t.ado.id);
-  if (t.recur) meta += `<span class="chip" data-tip="Every sprint${t.recur.sprint ? `: sprint ${esc(t.recur.sprint)}` : ''}">Every sprint</span>`;
+  if (t.recur) meta += sig(ICON.repeat, `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`, 'recur');
   if (t.pr){
-    meta += `<span class="chip ado" data-tip="${esc(prTip(t.pr))}">PR ${t.pr.id}</span>`;
-    if (!t.done && !t.pr.waiting) meta += `<span class="chip${t.pr.tier === 'blocking' ? ' warn' : t.pr.tier === 'asked' ? ' acc' : ''}" data-tip="${esc(PR_TIER[t.pr.tier].tip)}">${t.pr.lastBlocker ? 'Last approval' : PR_TIER[t.pr.tier].label}</span>`;
+    meta += sig(ICON.pr, prTip(t.pr), 'ado', String(t.pr.id));
+    if (!t.done && !t.pr.waiting){
+      const tip = (t.pr.lastBlocker ? 'Last approval needed. ' : '') + PR_TIER[t.pr.tier].tip;
+      if (t.pr.tier === 'blocking') meta += sig(ICON.block, tip, 'warn');
+      else if (t.pr.tier === 'asked') meta += sig(ICON.eye, tip, 'acc');
+    }
   }
   if (!t.done){
-    if (nudgeDue(t)) meta += `<span class="chip warn" data-tip="Follow-up date ${fmtLong(t.nudgeOn)}">Nudge</span>`;
-    else if (t.waiting) meta += `<span class="chip">Waiting</span>`;
+    if (nudgeDue(t)) meta += sig(ICON.bell, `Time to nudge. Follow-up date ${fmtLong(t.nudgeOn)}`, 'acc');
+    else if (t.waiting) meta += sig(ICON.wait, 'Waiting on someone');
     if (t.due){
       const d = daysBetween(today(), t.due);
-      meta += `<span class="chip${d < 0 ? ' warn' : d <= 3 ? ' acc' : ''}" data-tip="Due ${fmtLong(t.due)}">${d < 0 ? 'Overdue ' : ''}${fmtDay(t.due)}</span>`;
+      meta += sig(ICON.cal, `${d < 0 ? 'Overdue. ' : ''}Due ${fmtLong(t.due)}`, d < 0 ? 'warn' : d <= 3 ? 'soon' : '', fmtDay(t.due));
     }
-    if (stillUrgent(t)) meta += `<button class="chip warn" data-act="still" data-tip="Urgent for over a week. Click to make it not urgent.">Still urgent?</button>`;
-    else if (isStale(t)) meta += `<span class="chip" data-tip="Older than its window. It's back in Triage.">Stale</span>`;
+    if (stillUrgent(t)) meta += `<button class="sig warn" data-act="still" data-tip="Urgent for over a week. Click to make it not urgent." aria-label="Still urgent? Click to make it not urgent">${ICON.alert}</button>`;
+    else if (isStale(t)) meta += sig(ICON.stale, `Untouched for ${ageDays(t)} days. It's back in Triage.`, 'stale');
   }
   if (!o.compact){
     const ppl = t.people.filter(p => p !== o.skipPerson);
-    if (ppl.length) meta += `<span class="who">${ppl.map(p => '@' + esc(p)).join(' ')}</span>`;
-    if (multi && L) meta += `<span class="lst"><i></i>${esc(L.name)}</span>`;
-    if (!t.done) meta += `<span class="age" data-tip="Age">${ageDays(t)}d</span>`;
-  } else if (o.showList && multi && L) meta += `<span class="lst"><i></i>${esc(L.name)}</span>`;
+    if (ppl.length) meta += `<span class="who" data-tip="${esc(ppl.join(', '))}" role="img" aria-label="${esc(ppl.join(', '))}">${ppl.slice(0, 2).map(p => `<i class="av">${esc(initials(p))}</i>`).join('')}${ppl.length > 2 ? `<i class="av more">+${ppl.length - 2}</i>` : ''}</span>`;
+  }
+  if ((!o.compact || o.showList) && multi && L) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
   const fon = t.focusOn === todayStr();
+  // The score is on hover; the priority bar on the left already shows the tier.
   const scoreHtml = t.done || o.noScore ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
-    : o.estimate && !t.done ? `<span class="score none">no estimate</span>` : '';
+    : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in Triage." role="img" aria-label="No estimate">${ICON.noest}</span>`
+    : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
   const act = !t.done && isActive(t.id), crumb = o.crumb ? rowCrumb(t) : '';
   return `<article class="row${t.done ? ' done' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
     + (o.rank != null ? `<span class="rank">${o.rank}</span>` : '')
@@ -156,8 +168,8 @@ function row(t, o = {}){
     + (crumb ? `<span class="tcol"><span class="title">${esc(t.title)}</span>${crumb}</span>` : `<span class="title">${esc(t.title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
     + scoreHtml
-    + (o.start && !t.done ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? 'Pause' : 'Start'}</button>` : '')
-    + (t.done || o.noToday ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">Today</button>`)
+    + (o.start && !t.done ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
+    + (t.done || o.noToday ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;
 }
 const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="donegrp" id="doneGrp"${doneOpen ? ' open' : ''}><summary>${ICON.tri}${label} <span class="num">${ts.length}</span></summary>

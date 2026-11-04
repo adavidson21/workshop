@@ -1,4 +1,4 @@
-import { EMBEDDED } from './constants.js';
+import { EMBEDDED, ICON } from './constants.js';
 import { applyOrder } from './actions.js';
 import { hideTip } from './events.js';
 import { byScore, fmtScore, isTriaged, score } from './model.js';
@@ -48,9 +48,19 @@ function confirmBox(title, msg, okLabel, cb){
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn danger" data-ok>${okLabel}</button></footer></div>`,
     s => { const b = s.querySelector('[data-ok]'); b.onclick = () => { closeModal(); cb(); }; b.focus(); });
 }
+// Every row and header symbol, with what it means: the "?" sheet's legend.
+const LEGEND = [
+  ['block', 'warn', 'Blocking: a PR waits on you'], ['eye', 'acc', 'Asked to review'], ['bell', 'acc', 'Time to nudge'],
+  ['cal', 'soon', 'Due soon (red when overdue)'], ['alert', 'warn', 'Still urgent? Click to calm it'], ['stale', 'stale', 'Untouched a while'],
+  ['wait', '', 'Waiting on someone'], ['repeat', '', 'Every sprint'], ['item', 'ado', 'ADO work item'], ['pr', 'ado', 'Pull request'],
+  ['sun', '', 'On Today (T)'], ['play', '', 'Start (S)'], ['bolt', '', 'Interrupted (I)'], ['swap', '', 'Switched tasks'],
+  ['day', '', 'Plan the day'], ['moon', '', 'Wrap up'], ['wand', '', 'Suggest order'], ['gauge', '', 'Weekly capacity']
+];
 function showHelp(){
   const r = (k, d) => `<tr><td>${k}</td><td>${d}</td></tr>`;
-  showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"><h3>Keyboard shortcuts</h3>
+  showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Symbols and shortcuts"><h3>Symbols and shortcuts</h3>
+    <div class="legend">${LEGEND.map(([ic, cls, d]) => `<span class="lg"><span class="sig${cls ? ' ' + cls : ''}" aria-hidden="true">${ICON[ic]}</span>${d}</span>`).join('')}</div>
+    <h4 class="legend-h">Keys</h4>
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
