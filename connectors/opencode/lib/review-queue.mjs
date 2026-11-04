@@ -23,6 +23,7 @@ export const INBOX_MAX_AGE_MS = 7 * 24 * 3600 * 1000; // older than this, the ni
 const FINISH_DELAY_MS = 1500; // let the agent's last file writes land before reading the review
 const POLL_MS = 10_000;
 const NIGHTLY_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const NIGHTLY_12_RE = /^(1[0-2]|0?[1-9]):([0-5]\d)\s*([ap])\.?m?\.?$/i;
 const KEEP_DONE = 50;
 
 function writeJsonAtomic(file, data) {
@@ -44,10 +45,15 @@ export function cleanPr(p, prFromUrl) {
   return { id: pr.id, url: pr.url, title: clip(typeof p.title === "string" ? p.title : "", 200) || null, commit, waiting: p.waiting === true };
 }
 
-/** "HH:MM" or null. */
+/** "HH:MM" (24-hour) or "h:MM AM/PM", as {h, m, text} with text always "HH:MM"; or null. */
 export function nightlyTime(v) {
-  const m = NIGHTLY_RE.exec(String(v || "").trim());
-  return m ? { h: Number(m[1]), m: Number(m[2]), text: m[0] } : null;
+  const s = String(v || "").trim();
+  let m = NIGHTLY_RE.exec(s);
+  if (m) return { h: Number(m[1]), m: Number(m[2]), text: m[0] };
+  m = NIGHTLY_12_RE.exec(s);
+  if (!m) return null;
+  const h = (Number(m[1]) % 12) + (m[3].toLowerCase() === "p" ? 12 : 0);
+  return { h, m: Number(m[2]), text: `${String(h).padStart(2, "0")}:${m[2]}` };
 }
 
 /**
