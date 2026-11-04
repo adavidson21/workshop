@@ -6,7 +6,7 @@
 
    mountCapture draws the input, a live preview of what Enter will do, and a Recent list with Undo. Keys:
      Enter          accept the preview (a question goes to onAsk, "> app" opens it)
-     Tab            change what the preview is (task, waiting on, receipt, note)
+     Tab            change what the preview is (task, waiting on, receipt, note, roadmap idea)
      Ctrl+Enter     send the line to onAsk as a question, whatever it looks like
      Escape         clear the input
      ArrowDown      into Recent; there j/k move, x or Delete undoes, e puts it back in the input, Escape returns

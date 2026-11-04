@@ -289,7 +289,7 @@ export function startHub(ws, root) {
     if (!box || !r) return;
     const text = box.value.trim();
     if (text) {
-      const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ' }[r.p.kind] || '';
+      const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ', idea: 'p ' }[r.p.kind] || '';
       const again = parseCapture(prefix + text, rulesCtx());
       // Keep what Tandem filled in that the words do not change (people, value, about), then the new text.
       if (again) r.p = { ...again, payload: { ...r.p.payload, ...again.payload, title: again.payload.title || again.title }, confidence: r.p.confidence, reason: r.p.reason };

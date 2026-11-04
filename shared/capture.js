@@ -10,16 +10,18 @@
      w <text>   Docket task, waiting on someone ("waiting on ..." works too)
      r <text>   Rapport receipt, a win ("r growth: ..." and so on for the other kinds)
      n <text>   note ("note: ..." works too)
+     p <text>   roadmap idea for Runway: a feature, bug or any thought for a project ("idea: ..." works too).
+                "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
      ? <text>   a question for the Dispatch hub (a line that ends in "?" too)
      > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
 
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
    "!" on its own, or "!!", marks a task urgent. */
 
-export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes' };
-export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes' };
+export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway' };
+export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
-export const KINDS = ['task', 'waiting', 'receipt', 'note'];
+export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea'];
 const MAX_TEXT = 2000;
 
 /* Places "> name" can go: words people use to the app id. */
@@ -95,8 +97,20 @@ function nameCase(s, found) {
   return out;
 }
 
+/* The roadmap a "p" capture names before a colon: {map, rest} or null. maps: [{id, title}] from Runway's index.
+   The name matches a title without case, or the start of exactly one title. */
+export function findMap(text, maps = []) {
+  const m = /^([^:\n]{1,120}):\s*(\S[\s\S]*)$/.exec(String(text || ''));
+  if (!m) return null;
+  const want = m[1].trim().toLowerCase();
+  const live = (maps || []).filter(x => x && typeof x.id === 'string' && typeof x.title === 'string' && x.title.trim());
+  const exact = live.filter(x => x.title.trim().toLowerCase() === want);
+  const hits = exact.length ? exact : live.filter(x => x.title.trim().toLowerCase().startsWith(want));
+  return want && hits.length === 1 ? { map: hits[0], rest: m[2].trim() } : null;
+}
+
 /* One line to one proposal, or null for an empty line.
-   ctx: {today: 'YYYY-MM-DD', people: directory items, lists: Docket list names}.
+   ctx: {today: 'YYYY-MM-DD', people: directory items, lists: Docket list names, maps: Runway roadmaps [{id, title}]}.
    Returns {kind, to, text, title, payload} for a capture, {kind: 'ask', text} or {kind: 'go', app, text}. */
 export function parseCapture(line, ctx = {}) {
   let s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
@@ -116,6 +130,7 @@ export function parseCapture(line, ctx = {}) {
   else if (/^waiting\s+(?:on|for)\s+/i.test(s)) kind = 'waiting';
   else if ((m = /^(w|waiting)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'waiting'; s = m[2]; }
   else if ((m = /^(n|note)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'note'; s = m[2]; }
+  else if ((m = /^(p|idea)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'idea'; s = m[2]; }
   else if ((m = /^(r|receipt|win|feedback|growth|concern)(?::\s*|\s+)(.+)$/i.exec(s))) {
     kind = 'receipt';
     const head = m[1].toLowerCase();
@@ -128,6 +143,14 @@ export function parseCapture(line, ctx = {}) {
   if (!kind) kind = /^waiting\s+(?:on|for)\s+/i.test(s) ? 'waiting' : 'task';
   if (!s.trim()) return null;
 
+  if (kind === 'idea') {
+    const named = findMap(s.trim(), ctx.maps);
+    const body = cap((named ? named.rest : s).trim());
+    if (!body) return null;
+    const payload = { kind: 'idea' };
+    if (named) { payload.map = named.map.id; payload.mapTitle = named.map.title.trim().slice(0, 120); }
+    return { kind, to: TARGETS[kind], text: body, title: body.split('\n')[0].slice(0, 200), payload };
+  }
   const found = findPeople(s, ctx.people);
   if (kind === 'note') {
     const body = s.trim();
@@ -189,7 +212,7 @@ export const isCapture = p => !!(p && TARGETS[p.kind] && p.to === TARGETS[p.kind
 /* Change what a proposal is (Tab in the review list), keeping the words. */
 export function retarget(p, kind, ctx = {}) {
   if (!p || !KINDS.includes(kind)) return p;
-  const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ' }[kind];
+  const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ', idea: 'p ' }[kind];
   return parseCapture(prefix + (p.text || p.title || ''), ctx) || p;
 }
 export const nextKind = kind => KINDS[(KINDS.indexOf(kind) + 1) % KINDS.length] || 'task';
@@ -216,6 +239,7 @@ export function describe(p) {
   if (p.kind === 'ask') return 'Ask in Dispatch';
   if (p.kind === 'go') return 'Go to ' + p.app;
   const q = p.payload || {};
+  if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (q.people && q.people.length) bits.push(q.people.join(', '));
   if (q.list) bits.push('#' + q.list);
