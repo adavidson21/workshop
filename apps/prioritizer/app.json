@@ -2,11 +2,12 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "4.18.0",
+  "version": "4.19.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 10,
+  "background": true,
   "modes": [
     "local",
     "hosted",

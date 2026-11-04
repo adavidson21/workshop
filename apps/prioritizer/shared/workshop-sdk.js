@@ -14,7 +14,7 @@
      3. Otherwise -> mode 'browser', backend 'browser': the folder store when a folder handle is saved
         (File System Access API), else the IndexedDB store. ws.storage says which.
 
-   Shell methods (open, toast, badge, notify, commands, theme, events) travel to the shell by
+   Shell methods (open, toast, badge, notify, status, commands, theme, events) travel to the shell by
    postMessage. Data and connector calls go straight to the agent or the browser backend, so an
    app also works when opened on its own (ws.embedded === false). */
 import { deviceAvailable, openDeviceRoot } from './device-fs.js';
@@ -1197,6 +1197,8 @@ function makeShellChannel(ctx) {
         return Promise.resolve(null);
       }
       case 'commands.unregister': return Promise.resolve(null);
+      // Standalone there is no top bar: the app shows its own status. Rejecting tells it so.
+      case 'status.set': case 'status.clear': return Promise.reject(new WorkshopError('not_found', 'There is no shell top bar on a standalone page.'));
       default: return Promise.resolve(null);
     }
   }
@@ -1335,6 +1337,11 @@ export async function connect(options) {
     toast(text, opts) { return shell.request('toast', Object.assign({ text }, opts)); },
     badge(count) { return shell.request('badge', { count }); },
     notify(opts) { return shell.request('notify', opts); },
+    // One line about what this app is doing right now, in the shell's top bar on every app (docs/sdk.md, Status).
+    status: {
+      set(st) { return shell.request('status.set', st); },
+      clear() { return shell.request('status.clear', {}); }
+    },
     commands: {
       register(cmd) {
         shell.request('commands.register', cmd);

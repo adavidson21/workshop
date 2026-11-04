@@ -314,6 +314,16 @@ def main():
         pg.hover(f'main .row[data-id="{fa}"]'); pg.click(f'main .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         check('Start on a Today row makes it the task in the now bar', pg.is_visible('#nowbar') and pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').title") in pg.inner_text('#nowbar .ntitle')
               and pg.locator(f'main .row.active[data-id="{fa}"]').count() == 1)
+        check('the focus band sits above the page header, with a timer, Pause and the tab title',
+              pg.evaluate("() => document.querySelector('#nowbar').nextElementSibling.id") == 'phead'
+              and pg.inner_text('#nowbar .ntime').strip() == '0m' and pg.locator('#nowbar .npause').count() == 1
+              and pg.evaluate('document.title').startswith('\u25CF 0m '))
+        pg.click('#phead [data-view="day"]') if pg.locator('#phead [data-view="day"]').count() else pg.keyboard.press('2'); pg.wait_for_timeout(200)
+        check('the focus band stays on other views', pg.is_visible('#nowbar'))
+        pg.keyboard.press('1'); pg.wait_for_timeout(200)
+        pg.click('#nowbar [data-now=crumb]'); pg.wait_for_timeout(200)
+        check('the band\'s breadcrumb button asks for one', pg.locator('.modal .crumbsheet').count() == 1)
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         pg.hover(f'main .row[data-id="{fb}"]'); pg.click(f'main .row[data-id="{fb}"] [data-act=start]'); pg.wait_for_timeout(200)
         check('switching to another task asks where you left off', pg.locator('.modal .crumbsheet').count() == 1)
         pg.fill('.modal .crumbsheet input', 'next: <b>write</b> the test'); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
@@ -332,7 +342,8 @@ def main():
           const q = r.result.transaction('data').objectStore('data').getAllKeys(); q.onsuccess = () => res(q.result); }; })""")
         check('the focus log is saved as focus/days next to the board, and the counts survive a reload',
               f'prioritizer/focus/days/{y}' in cols and pg.evaluate(f"() => {P}.focusModel.dayCounts({P}.focusLog, new Date().toLocaleDateString('en-CA')).switches") == 1)
-        check('with nothing running, the now bar is hidden and Today has a Start button', not pg.is_visible('#nowbar') and pg.locator('#phead [data-now=startnext]').count() == 1)
+        check('with nothing running, the now bar is hidden and Today has a Start button', not pg.is_visible('#nowbar') and pg.locator('#phead [data-now=startnext]').count() == 1
+              and not pg.evaluate('document.title').startswith('\u25CF'))
         pg.hover(f'main .row[data-id="{fa}"]'); pg.click(f'main .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-nowbar.png'))
         pg.click('[data-shutdown]'); pg.wait_for_timeout(300)

@@ -785,3 +785,21 @@ input.tin.bad{border-color:var(--danger)}
 .dbody .drep{flex-wrap:nowrap}
 .dbody .drep select{width:auto;flex:1;min-width:0}
 .dbody .drep input.tin{width:6.5rem;flex:none}
+
+/* Focus band: the running task, pinned above the page header on every view. */
+.nowbar{grid-template-columns:minmax(0,1fr) auto;margin:0;padding:.55rem var(--gutter);border:0;border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));border-radius:0;
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface));box-shadow:inset 3px 0 0 var(--accent)}
+.nowbar .nlabel{color:var(--accent)}
+.nowbar .ntitle{font-size:.95rem}
+.nowbar .ntime{flex:none;font:500 .78rem/1 var(--mono);color:var(--muted);padding:.2rem .45rem;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.nowbar .ntime.long{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.nowbar .ncrumb{padding-left:calc(7px + .5rem)}
+.nowbar .npause{display:inline-flex;align-items:center;gap:.35rem;font-weight:600}
+.nowbar .npause svg{width:14px;height:14px}
+body.focusing .phead{padding-top:1rem}
+.row.active{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+@media (max-width:759px){ .nowbar{padding:.5rem .75rem} .nowbar .nact{justify-content:flex-start} body.focusing .phead{padding-top:.6rem} }
+
+/* Inside Workshop the running task is in the shell's top bar (on every app), so Docket's own band steps aside. */
+body.shellfocus .nowbar{display:none}
+body.shellfocus.focusing .phead{padding-top:1.6rem}

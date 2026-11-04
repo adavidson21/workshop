@@ -12,7 +12,7 @@ import { $, esc, fmtDay, plural, todayStr } from './util.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { dp } from './dayplan.js';
 import { isWorkday, nextWorkday, toMin } from './dayplan-model.js';
-import { embedded, ws } from './ws.js';
+import { embedded, ready, ws } from './ws.js';
 import { ICON } from './constants.js';
 
 const PREFS_KEY = 'prioritizer.focus';   // this device only: the wrap-up reminder
@@ -41,6 +41,7 @@ async function focusBoot(wsh, {render, status}){
   await fstore.load();
   fstore.start();
   setInterval(remindTick, 60000);
+  setInterval(nowTick, 30000);
   remindTick();
   return fstore;
 }
@@ -58,9 +59,12 @@ function startTask(id){
   save();
   if (left) askCrumb(left, 'You switched tasks. Where did you leave off?');
 }
-function pauseTask(){
+/* From Docket, Pause asks for a breadcrumb here. From the shell's top bar the shell already asked: `text` is
+   what was typed (or undefined if skipped), and nothing opens inside Docket, which may be hidden. */
+function pauseTask(fromShell = false, text){
   const id = F.stopActive(log, todayStr(), nowIso(), 'pause');
   if (!id) return;
+  if (fromShell){ const t = findTask(id); if (t && text && F.addCrumb(t, text, nowIso())) commit(); save(); return; }
   save();
   askCrumb(id);
 }
@@ -78,6 +82,7 @@ function logInterrupt(){
   if (isWaiting()) return;
   const ev = F.addEvent(log, todayStr(), {at: nowIso(), type: 'interrupt'});
   save();
+  if (shellOn && ws && !shownHere()) { ws.toast('Interruption logged'); return; }
   toast('Interruption logged', 'Undo', () => { F.dropEvent(log, todayStr(), ev); save(); });
 }
 /* actions.js calls this when a task is completed, marked won't do, or deleted. */
@@ -128,24 +133,99 @@ function rowCrumb(t){
   return c ? `<span class="crumb" data-tip="Left off ${esc(crumbAge(c.at))}">${esc(c.text)}</span>` : '';
 }
 
-/* ---------- the now bar (under the page header, only while a task is running) ---------- */
-/* Idle, it is hidden: Start next is the play button in Today's header, and S anywhere. */
+/* ---------- the focus band (top of the page, on every view, only while a task is running) ---------- */
+/* Idle, it is hidden: Start next is the play button in Today's header, and S anywhere. Running, it sits above the
+   page header so the one task you are on, how long it has been running, and Pause are always in reach. */
+const LONG_RUN_MIN = 90;     // the timer turns amber past this: a hint to pause if you stepped away
+const AWAY_MIN = 20;         // back after this long with the page hidden: ask whether you are still on it
+const BASE_TITLE = document.title;
+let hiddenAt = null;
+
+function runMinutes(){
+  const since = F.activeSince(log, todayStr());
+  return since ? Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 60000)) : 0;
+}
+const fmtRun = m => m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+
 function renderNow(){
   const el = $('#nowbar'); if (!el) return;
   const d = todayStr(), t = activeTask(), n = F.dayCounts(log, d);
-  if (isWaiting() || !t){ el.hidden = true; el.innerHTML = ''; return; }
-  const c = F.lastCrumb(t);
+  document.body.classList.toggle('focusing', !!t && !isWaiting());
+  shellStatus(isWaiting() ? null : t);
+  if (isWaiting() || !t){ el.hidden = true; el.innerHTML = ''; setTitle(null); return; }
+  const c = F.lastCrumb(t), m = runMinutes();
   // Counts show once there is something to count; zeros are noise. Icon and number; the words are in the label.
   const words = [n.switches ? switches(n.switches) : '', n.interrupts ? plural(n.interrupts, 'interruption') : ''].filter(Boolean).join(' · ');
   const counts = words ? `<span class="ncount" role="img" aria-label="${words}" data-tip="Today: ${words}. Counted only from what you start and log here.">`
     + (n.switches ? `<span>${ICON.swap}${n.switches}</span>` : '') + (n.interrupts ? `<span>${ICON.bolt}${n.interrupts}</span>` : '') + '</span>' : '';
   const ib = (act, icon, tip, cls = '') => `<button class="hbtn sm${cls ? ' ' + cls : ''}" data-now="${act}" aria-label="${tip.split('.')[0]}" data-tip="${tip}">${icon}</button>`;
   el.hidden = false;
-  el.classList.remove('idle');
-  el.innerHTML = `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="sr-only">Working on</span><button class="ntitle" data-now="open">${esc(t.title)}</button></div>
+  el.innerHTML = `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="nlabel">Focus</span>
+        <button class="ntitle" data-now="open" data-tip="Open the task">${esc(t.title)}</button>
+        <span class="ntime${m >= LONG_RUN_MIN ? ' long' : ''}" data-tip="${m >= LONG_RUN_MIN ? 'Running a while. Pause if you stepped away.' : 'Time on this task since you started it'}">${fmtRun(m)}</span></div>
       ${c ? `<div class="ncrumb" data-tip="Your last breadcrumb, ${esc(crumbAge(c.at))}">${esc(c.text)}</div>` : ''}</div>
-    <div class="nact">${counts}${ib('interrupt', ICON.bolt, 'Interrupted. Something pulled you away. Shortcut: I')}${ib('pause', ICON.pause, 'Pause. Shortcut: S')}${ib('done', ICON.check20, 'Done', 'primary')}</div>`;
+    <div class="nact">${counts}${ib('crumb', ICON.crumb, 'Leave a breadcrumb')}${ib('interrupt', ICON.bolt, 'Interrupted. Something pulled you away. Shortcut: I')}
+      <button class="btn npause" data-now="pause" data-tip="Pause and leave a breadcrumb. Shortcut: S">${ICON.pause}<span>Pause</span></button>${ib('done', ICON.check20, 'Done', 'primary')}</div>`;
+  setTitle(t, m);
 }
+/* The browser tab says what you are on, so a running task is visible even from another tab. */
+function setTitle(t, m){
+  if (embedded) return;   // inside Workshop the shell owns the title
+  document.title = t ? `● ${fmtRun(m)} ${t.title} · ${BASE_TITLE}` : BASE_TITLE;
+}
+/* Inside Workshop the running task lives in the shell's top bar instead (ws.status), on every app, and Docket's
+   own band hides. An older shell without it rejects the call, and the band stays. */
+let shellOn = false, shellSent = '';
+function shellStatus(t){
+  if (!embedded) return;
+  const c = t && F.lastCrumb(t);
+  const st = t ? {text: t.title, detail: c ? c.text : '', since: F.activeSince(log, todayStr()) || undefined, route: `task/${t.id}`,
+    actions: [
+      {label: 'Leave a breadcrumb', command: 'focus-crumb', icon: 'note', prompt: {title: 'Leave a breadcrumb', placeholder: 'Next step', maxLength: F.CRUMB_LEN, skip: false}},
+      {label: 'Interrupted', command: 'focus-interrupt', icon: 'bolt'},
+      {label: 'Pause', command: 'focus-pause', icon: 'pause', prompt: {title: 'Where did you leave off?', placeholder: c ? c.text : 'Next step', maxLength: F.CRUMB_LEN}},
+      {label: 'Done', command: 'focus-done', icon: 'done', primary: true}
+    ]} : null;
+  const key = JSON.stringify(st);
+  if (key === shellSent) return;
+  shellSent = key;
+  ready.then(w => {
+    if (!w || key !== shellSent) return;
+    (st ? w.status.set(st) : w.status.clear()).then(() => { if (!shellOn){ shellOn = true; document.body.classList.add('shellfocus'); } }, () => {});
+  });
+}
+/* The top bar's buttons arrive as commands (main.js routes focus-done, which needs actions.js). */
+function focusCommand(id, text){
+  const t = activeTask();
+  if (id === 'focus-pause') pauseTask(true, text);
+  if (id === 'focus-interrupt') logInterrupt();
+  if (id === 'focus-crumb' && t && text && F.addCrumb(t, text, nowIso())){ commit(); toastHere('Breadcrumb saved'); }
+}
+/* Inside Workshop, is Docket the app on screen? A hidden pane gives its frame no size. */
+const shownHere = () => !embedded || document.documentElement.clientWidth > 0;
+/* A toast where the user can see it: the shell's when Docket is hidden inside Workshop, else Docket's own. */
+function toastHere(msg){
+  if (shellOn && ws && !shownHere()) ws.toast(msg); else toast(msg);
+}
+/* Every 30 seconds: refresh the timer without a full render. */
+function nowTick(){
+  const t = activeTask(), el = $('#nowbar .ntime');
+  if (!t || !el) return;
+  const m = runMinutes();
+  el.textContent = fmtRun(m);
+  if (m >= LONG_RUN_MIN && !el.classList.contains('long')){ el.classList.add('long'); el.dataset.tip = 'Running a while. Pause if you stepped away.'; }
+  setTitle(t, m);
+}
+/* Back after a while away: still on it? One tap pauses (and asks for the breadcrumb). */
+function awayCheck(){
+  if (document.hidden){ hiddenAt = Date.now(); return; }
+  const was = hiddenAt; hiddenAt = null;
+  const t = activeTask();
+  if (!was || !t || isWaiting() || Date.now() - was < AWAY_MIN * 60000) return;
+  if (shellOn && ws && !shownHere()) ws.toast(`Still on "${t.title}"?`, {action: {label: 'Pause', command: 'focus-pause'}});
+  else toast(`Still on "${t.title}"?`, 'Pause', () => pauseTask(), 15000);
+}
+document.addEventListener('visibilitychange', awayCheck);
 
 /* ---------- shutdown ritual ---------- */
 /* Tomorrow: the next working day by the Day view's sprint settings (weekends and holidays skipped). */
@@ -254,4 +334,4 @@ async function importFocus(bundle){
   return cols.length;
 }
 
-export { activeId, activeTask, nextTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };
+export { activeId, activeTask, askCrumb, focusCommand, nextTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };

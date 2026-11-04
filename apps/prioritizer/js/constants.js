@@ -70,6 +70,7 @@ const ICON = {
   gauge: svg('<path d="M3.5 14.5a6.5 6.5 0 1 1 13 0"/><path d="M10 14.5l3-4"/>'),
   addPerson: svg('<circle cx="8" cy="7" r="2.8"/><path d="M3 16c.8-2.6 2.7-4 5-4s4.2 1.4 5 4M15.5 5.5v5M13 8h5"/>'),
   noest: svg('<circle cx="10" cy="10" r="6" stroke-dasharray="2.2 2.2"/>'),
+  crumb: svg('<path d="M4 15.5l1-3.8 8.3-8.3a1.9 1.9 0 0 1 2.7 2.7L7.7 14.4z"/><path d="M11.8 5l2.7 2.7"/>'),
   swap: svg('<path d="M4 7h11.5l-3-3M16 13H4.5l3 3"/>'),
   check20: svg('<path d="M4.5 10.5l3.5 3.5 7.5-8"/>', 1.8)
 };

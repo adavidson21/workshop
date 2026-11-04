@@ -11,7 +11,7 @@ import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope,
 import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
-import { activeTask, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
+import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
 import { copyText, exitTriage, fitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
@@ -68,6 +68,7 @@ document.addEventListener('click', e => {
     if (a === 'pause') pauseTask();
     if (a === 'done' && cur) toggleDone(cur.id);
     if (a === 'interrupt') logInterrupt();
+    if (a === 'crumb' && cur) askCrumb(cur.id, 'Leave a breadcrumb');
     if (a === 'startnext') startNext();
     if (a === 'opennext') openDrawer(nw.dataset.id);
     return;
