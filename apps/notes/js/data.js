@@ -107,6 +107,9 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
     return r;
   }
 
+  /** Read one note again after a write made here outside the editor (Quick Notes pickup), and rebuild. */
+  async function refresh(path) { const f = await readNote(path); rebuild(); return f; }
+
   /** Read another app's note (read only). */
   async function readOther(app, path) { return ws.files.read(path, { app }); }
 
@@ -146,7 +149,7 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
   }
 
   return {
-    load, loadOthers, readNote, create, save, trash, readOther, imageUrl, addImage,
+    load, loadOthers, readNote, refresh, create, save, trash, readOther, imageUrl, addImage,
     get index() { return index; },
     get loaded() { return loaded; },
     get error() { return error; },

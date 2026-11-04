@@ -2,11 +2,13 @@
    markdown.js. main.js owns events and the editor. */
 import { esc, plainText } from './markdown.js';
 import { age, baseName, dirOf, stem } from './model.js';
+import { QUICK, QUICK_TITLE } from './pickup.js';
 
 const ICON = {
   note: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M9.3 1.8V5h3.2"/></svg>',
   folder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.8 3.5h4.4l1.4 1.6h6.6v8H1.8z"/></svg>',
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
+  pin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 1.8h4l-.6 4.2 2.4 2.4H4.2l2.4-2.4zM8 8.4v5.8"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -27,15 +29,29 @@ export function sidebar(state) {
     <label class="search"><span class="sr">Search notes</span>
       <input type="search" data-search value="${esc(q)}" placeholder="Search, tag:x, path:folder" autocomplete="off" spellcheck="false">
     </label>
+    ${q.trim() ? '' : pinnedHtml(state)}
     <nav class="side-body" aria-label="${q.trim() ? 'Search results' : 'Notes'}">${body}</nav>
     ${othersHtml(state)}
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}`;
 }
 
+/* Pinned: Quick Notes, where Home's note captures go (pickup.js), always at the top once it exists. */
+export const PINNED = [QUICK];
+function pinnedHtml(state) {
+  const { notes, ui } = state;
+  const pins = PINNED.filter(p => notes.texts.has(p));
+  if (!notes.loaded || !pins.length) return '';
+  return `<nav class="pinned" aria-label="Pinned"><p class="section-label">Pinned</p><ul class="tree">${pins.map(p => {
+    const n = notes.index.notes.get(p);
+    const cur = ui.path === p;
+    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(p)}"><a class="row" href="#" data-open="${esc(p)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="pin">${ICON.pin}</span><span class="name">${esc(n ? n.title : QUICK_TITLE)}</span></a></li>`;
+  }).join('')}</ul></nav>`;
+}
+
 function treeHtml(state) {
   const { tree, ui, notes } = state;
   if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
-  if (!tree.notes.length && !tree.folders.length) return '<p class="side-note">No notes yet. Make one with <kbd>N</kbd>.</p>';
+  if (!tree.notes.filter(p => !PINNED.includes(p)).length && !tree.folders.length) return notes.texts.has(QUICK) ? '' : '<p class="side-note">No notes yet. Make one with <kbd>N</kbd>.</p>';
   return `<ul class="tree" role="tree">${folderItems(tree, state, 0)}</ul>`;
 }
 function folderItems(dir, state, depth) {
@@ -51,6 +67,7 @@ function folderItems(dir, state, depth) {
       ${open ? `<ul role="group">${folderItems(f, state, depth + 1)}</ul>` : ''}</li>`;
   }
   for (const p of dir.notes) {
+    if (depth === 0 && PINNED.includes(p)) continue;
     const n = notes.index.notes.get(p);
     const title = n ? n.title : stem(p);
     const cur = ui.path === p;

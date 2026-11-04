@@ -499,7 +499,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
