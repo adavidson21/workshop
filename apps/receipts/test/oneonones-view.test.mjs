@@ -2,10 +2,10 @@
 // http(s), and the draft step only shows when it is on and the connector is ready. Synthetic data only.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inline, render } from '../js/markdown.js';
-import { buildPacket, notePath } from '../js/model.js';
-import { aiHtml, homeHtml, logHtml, noteHtml, packetHtml, personForm, settingsHtml } from '../js/view.js';
-import { NOW, PERSON, TODAY, docketTasks, entry, receiptsEntries, task } from './fake.mjs';
+import { inline, render } from '../js/oneonones/markdown.js';
+import { buildPacket, notePath } from '../js/oneonones/model.js';
+import { aiHtml, homeHtml, logHtml, noteHtml, packetHtml, personForm, personHtml, settingsHtml, startPanelHtml } from '../js/oneonones/view.js';
+import { NOW, PERSON, TODAY, docketTasks, entry, receiptsEntries, task } from './oneonones-fake.mjs';
 
 const BAD = '<img src=x onerror=alert(1)>"\'&';
 const noRaw = html => !html.includes('<img') && !html.includes('onerror=alert(1)>');
@@ -67,4 +67,16 @@ test('the draft step shows only when it is on and the opencode connector is read
   assert.ok(html.includes('data-draft') && html.includes('data-include-concerns') && !html.includes('data-include-concerns checked'));
   assert.ok(noRaw(html));
   assert.ok(noRaw(aiHtml({ ...ai, state: 'failed', error: BAD }, { enabled: true, ready: true })));
+});
+
+test("a report's page: the 1:1 section, or one click to start, both escaped", async () => {
+  const start = startPanelHtml('<b>Dev</b>');
+  assert.ok(start.includes('data-start-report'));
+  assert.ok(!start.includes('<b>Dev</b>') && start.includes('&lt;b&gt;Dev&lt;/b&gt;'));
+  const p = { ...PERSON, name: 'Dev <One>' };
+  const packet = buildPacket({ person: p, today: TODAY, now: NOW, notes: [], lastText: null, src: {} });
+  const html = personHtml({ person: p, packet, note: null, notes: [], today: TODAY, ai: { state: 'idle' }, aiOpts: { enabled: true, ready: false }, panel: true, due: { lastDay: '', days: null, due: true } });
+  assert.ok(html.includes('oo-panel') && html.includes('Due') && html.includes('data-log'));
+  assert.ok(!html.includes('Dev <One>'), 'the name is not drawn raw');
+  assert.ok(!html.includes('All 1:1s'), 'no way back on a report page: it is already on their page');
 });

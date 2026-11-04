@@ -132,7 +132,7 @@ test('Wrap up step: primary from an hour before day end on a working day; says D
   assert.deepEqual(wrapState({ settings, offers, day }, today, 9 * 60), { wrapped: true, due: false, receipts: 1 });
   const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
   const due = render({ ...v, wrap: { wrapped: false, due: true, receipts: 2 } });
-  assert.match(due, /class="hbtn primary" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day" title="[^"]*2 receipts offered to Receipts today\."/);
+  assert.match(due, /class="hbtn primary" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day" title="[^"]*2 receipts offered to Rapport today\."/);
   const early = render({ ...v, wrap: { wrapped: false, due: false, receipts: 0 } });
   assert.match(early, /class="hbtn" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day"/);
   assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="hbtn done" data-open="prioritizer" data-path="shutdown" aria-label="Day wrapped"/);

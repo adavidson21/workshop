@@ -89,7 +89,7 @@ test('import skips an unknown Receipts version and does not change the sources',
   src.people.version = 2;
   const before = JSON.stringify(src);
   const plan = P.importPlan({ receipts: src, existing: [], now: NOW });
-  assert.ok(plan.notes.some(n => /different Receipts version/.test(n)));
+  assert.ok(plan.notes.some(n => /different Rapport version/.test(n)));
   assert.ok(!plan.add.some(p => p.id === 'p_abc1'));
   assert.equal(JSON.stringify(src), before);
 });

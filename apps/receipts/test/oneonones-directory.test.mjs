@@ -3,10 +3,10 @@
 // changes. Synthetic data only.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import * as M from '../js/model.js';
-import { homeHtml, personForm, settingsHtml } from '../js/view.js';
-import { createOneOnOnes } from '../js/data.js';
-import { fakeWs, receiptsPeopleEnv } from './fake.mjs';
+import * as M from '../js/oneonones/model.js';
+import { homeHtml, personForm, settingsHtml } from '../js/oneonones/view.js';
+import { createOneOnOnes } from '../js/oneonones/data.js';
+import { fakeWs, receiptsPeopleEnv } from './oneonones-fake.mjs';
 
 const dir = items => ({ schema: 'settings.people', version: 1, rev: 1, items, deleted: {} });
 const person = (id, name, relation, extra = {}) => ({ id, updatedAt: 1, name, relation, ...extra });

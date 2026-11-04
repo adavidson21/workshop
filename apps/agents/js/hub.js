@@ -6,7 +6,7 @@
 
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
      changed (Tab) or dismissed. Accepted captures go to Dispatch's own `handoffs` collection with accepted: true
-     (shared/capture-box.js); Docket, Receipts and Notes add them when they load. Nothing else is written.
+     (shared/capture-box.js); Docket, Rapport and Notes add them when they load. Nothing else is written.
    - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note.
    - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
    - clarify: chips that send the message again with the choice.
@@ -22,7 +22,7 @@ const OC = 'opencode';
 const POLL_MS = 1500;
 const GIVE_UP_MS = 10 * 60 * 1000;
 const KEEP_CARDS = 12;
-const APP_NAMES = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Receipts', queue: 'Queue', notes: 'Notes', oneonones: '1:1s', runway: 'Runway', settings: 'Settings', home: 'Home' };
+const APP_NAMES = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', settings: 'Settings', home: 'Home' };
 
 export function startHub(ws, root) {
   const store = createCaptureStore(ws, { sender: 'agents' });
@@ -115,7 +115,7 @@ export function startHub(ws, root) {
   function rulesOnly(text) {
     const p = parseCapture(text, rulesCtx());
     if (!p) return;
-    if (p.kind === 'go') { ws.open({ app: p.app }); return; }
+    if (p.kind === 'go') { ws.open(p.path ? { app: p.app, path: p.path } : { app: p.app }); return; }
     const card = { id: hubId(), text, at: Date.now(), state: 'rules', rows: [] };
     if (p.kind === 'ask') { card.state = 'failed'; card.error = status.why || 'Turn on the hub to ask Tandem.'; }
     else card.rows = [{ p, state: 'open' }];

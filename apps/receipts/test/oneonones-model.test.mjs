@@ -2,8 +2,8 @@
 // gets (concerns left out unless asked), quick-add lines and Receipts offers. Synthetic data only.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import * as M from '../js/model.js';
-import { NOW, PERSON, TODAY, docketPeople, docketTasks, entry, receiptsEntries, receiptsPeopleEnv, task } from './fake.mjs';
+import * as M from '../js/oneonones/model.js';
+import { NOW, PERSON, TODAY, docketPeople, docketTasks, entry, receiptsEntries, receiptsPeopleEnv, task } from './oneonones-fake.mjs';
 
 const notes = days => days.map(d => ({ day: d, path: M.notePath(PERSON.id, d), mtime: 1 }));
 
@@ -21,10 +21,11 @@ test('cadence: due when there is no note, or the last one is cadence days old', 
   assert.equal(M.cadenceState(notes(['2026-10-30']), TODAY, 7).due, false);
 });
 
-test('notes: one folder per person, following Workshop name rules', () => {
-  assert.equal(M.noteFolder('p_mh3k9x2a'), 'notes/p-mh3k9x2a');
-  assert.match(M.notePath('P_Odd.Id', TODAY), /^notes\/[a-z0-9][a-z0-9-]{0,39}\/2026-11-03\.md$/);
-  const list = M.notesFor([{ path: 'notes/p-abc1/2026-10-27.md' }, { path: 'notes/p-abc1/2026-11-03.md' }, { path: 'notes/p-abc1/scratch.md' }, { path: 'notes/p-other/2026-11-01.md' }], 'p_abc1');
+test('notes: one folder per person under oneonones/notes, following Workshop name rules (4 segments)', () => {
+  assert.equal(M.noteFolder('p_mh3k9x2a'), 'oneonones/notes/p-mh3k9x2a');
+  assert.match(M.notePath('P_Odd.Id', TODAY), /^oneonones\/notes\/[a-z0-9][a-z0-9-]{0,39}\/2026-11-03\.md$/);
+  assert.equal(M.notePath('p_abc1', TODAY).split('/').length, 4, 'at most 4 segments');
+  const list = M.notesFor([{ path: 'oneonones/notes/p-abc1/2026-10-27.md' }, { path: 'oneonones/notes/p-abc1/2026-11-03.md' }, { path: 'oneonones/notes/p-abc1/scratch.md' }, { path: 'oneonones/notes/p-other/2026-11-01.md' }, { path: 'notes/p-abc1/2026-11-02.md' }], 'p_abc1');
   assert.deepEqual(list.map(n => n.day), ['2026-11-03', '2026-10-27']);
 });
 
@@ -141,12 +142,28 @@ test('quick-add lines for Docket: @name only for a one-word name', () => {
   assert.deepEqual(M.quickAddLines(['Send the doc'], ''), ['Follow up: Send the doc']);
 });
 
-test('wins become Receipts offers about the linked report, with stable ids', () => {
-  const a = M.winOffers({ person: PERSON, day: TODAY, wins: ['Shipped the import fix'], nowIso: '2026-11-03T20:00:00.000Z' });
+test('wins become receipts about the linked report, with stable ids', () => {
+  const a = M.winEntries({ person: PERSON, day: TODAY, wins: ['Shipped the import fix'], nowIso: '2026-11-03T20:00:00.000Z' });
   assert.equal(a.length, 1);
-  assert.deepEqual({ to: a[0].to, date: a[0].date, payload: a[0].payload, source: a[0].source }, { to: 'receipts', date: TODAY, payload: { kind: 'win', about: 'p_r1' }, source: { app: 'oneonones', id: 'p_abc1' } });
-  const b = M.winOffers({ person: PERSON, day: TODAY, wins: ['Shipped the import fix'], nowIso: 'later' });
+  assert.deepEqual({ about: a[0].about, kind: a[0].kind, date: a[0].date, text: a[0].text, evidence: a[0].evidence }, { about: 'p_r1', kind: 'win', date: TODAY, text: 'Shipped the import fix', evidence: 'From a 1:1' });
+  assert.match(a[0].id, /^o-p-abc1-2026-11-03-[a-z0-9]+$/);
+  const b = M.winEntries({ person: PERSON, day: TODAY, wins: ['Shipped  the import fix'], nowIso: 'later' });
   assert.equal(a[0].id, b[0].id, 'the same win reuses its id');
-  assert.deepEqual(M.winOffers({ person: { ...PERSON, links: {} }, day: TODAY, wins: ['x'], nowIso: '' }), []);
-  assert.deepEqual(M.keepRecent([{ date: '2026-08-01' }, { date: '2026-10-01' }], TODAY).map(h => h.date), ['2026-10-01']);
+  assert.deepEqual(M.winEntries({ person: { ...PERSON, links: {} }, day: TODAY, wins: ['x'], nowIso: '' }), []);
+});
+
+test('the old 1:1s app: envelopes get the new schema and rev 0; note paths move under oneonones/', () => {
+  const old = { schema: 'oneonones.people', version: 1, rev: 9, items: [{ ...PERSON, updatedAt: 5 }], deleted: { p_gone: 4 } };
+  const env = M.legacyEnvelope(old, 'people');
+  assert.deepEqual({ schema: env.schema, version: env.version, rev: env.rev }, { schema: 'receipts.oneonones/people', version: 1, rev: 0 });
+  assert.deepEqual(env.items, old.items);
+  assert.deepEqual(env.deleted, { p_gone: 4 });
+  assert.equal(M.legacyEnvelope({ ...old, version: 2 }, 'people'), null, 'unknown version is not copied');
+  assert.equal(M.legacyEnvelope({ ...old, schema: 'other.people' }, 'people'), null);
+  assert.equal(M.legacyEnvelope(null, 'people'), null);
+  assert.equal(M.legacyEnvelope({ schema: 'oneonones.settings', version: 1, rev: 2, items: [], meta: { aiDraft: false } }, 'settings').meta.aiDraft, false);
+  assert.equal(M.legacyNotePath('notes/p-abc1/2026-11-03.md'), 'oneonones/notes/p-abc1/2026-11-03.md');
+  assert.equal(M.legacyNotePath('notes/p-abc1/scratch.md'), '');
+  assert.equal(M.legacyNotePath('other/p-abc1/2026-11-03.md'), '');
+  assert.equal(M.legacyNotePath('notes/../x/2026-11-03.md'), '');
 });

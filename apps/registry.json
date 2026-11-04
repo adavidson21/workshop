@@ -404,9 +404,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "receipts",
-        "name": "Receipts",
-        "version": "1.7.0",
-        "description": "Log wins and feedback for yourself, your reports and your manager. Build review drafts by section.",
+        "name": "Rapport",
+        "version": "2.0.0",
+        "description": "Receipts and 1:1s for you, your reports and your manager: log wins and feedback, prep each 1:1 from what Docket, Rapport and Queue know, and build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 30,
@@ -426,7 +426,19 @@
           },
           {
             "path": "team/:id",
-            "title": "Report"
+            "title": "A report: 1:1 and receipts"
+          },
+          {
+            "path": "1on1s",
+            "title": "1:1s"
+          },
+          {
+            "path": "1on1s/settings",
+            "title": "1:1s people and links"
+          },
+          {
+            "path": "1on1s/:id",
+            "title": "Prep a 1:1 with a person"
           },
           {
             "path": "up",
@@ -438,7 +450,13 @@
           },
           {
             "path": "settings",
-            "title": "Receipts settings"
+            "title": "Rapport settings"
+          }
+        ],
+        "connectors": [
+          {
+            "id": "opencode",
+            "required": false
           }
         ],
         "data": [
@@ -453,6 +471,11 @@
             "route": "me"
           },
           {
+            "id": "prep",
+            "title": "Prep a 1:1",
+            "route": "1on1s"
+          },
+          {
             "id": "review",
             "title": "Build a review",
             "route": "review"
@@ -461,7 +484,12 @@
         "files": [
           "app.css",
           "js/main.js",
-          "js/state.js"
+          "js/state.js",
+          "js/oneonones/data.js",
+          "js/oneonones/markdown.js",
+          "js/oneonones/model.js",
+          "js/oneonones/page.js",
+          "js/oneonones/view.js"
         ]
       }
     },
@@ -509,59 +537,6 @@
           "js/markdown.js",
           "js/view.js",
           "js/export.js"
-        ]
-      }
-    },
-    {
-      "base": "/apps/oneonones/",
-      "manifest": {
-        "manifestVersion": 1,
-        "id": "oneonones",
-        "name": "1:1s",
-        "version": "1.2.0",
-        "description": "Prep 1:1s with your direct reports from what Docket and Receipts already know. Notes stay in your Workshop folder.",
-        "icon": "icon.svg",
-        "entry": "index.html",
-        "order": 47,
-        "modes": [
-          "local",
-          "hosted",
-          "browser"
-        ],
-        "routes": [
-          {
-            "path": "p/:id",
-            "title": "Prep a 1:1 with a person"
-          },
-          {
-            "path": "settings",
-            "title": "1:1s settings"
-          }
-        ],
-        "connectors": [
-          {
-            "id": "opencode",
-            "required": false
-          }
-        ],
-        "data": [
-          "people",
-          "settings",
-          "handoffs"
-        ],
-        "commands": [
-          {
-            "id": "prep",
-            "title": "Prep a 1:1"
-          }
-        ],
-        "files": [
-          "oneonones.css",
-          "js/main.js",
-          "js/data.js",
-          "js/model.js",
-          "js/view.js",
-          "js/markdown.js"
         ]
       }
     },

@@ -1,8 +1,10 @@
-/* Receipts: keep the receipts for your performance reviews.
+/* Rapport: receipts and 1:1s for you, your reports and your manager.
 
-   Me (self review) is the main area. Reports keeps receipts per direct report, and Upward (off until you
-   turn it on in Settings) tracks support, asks and feedback for your manager. Review turns any of them into
-   a draft grouped by your rubric sections.
+   Me (self review) is the main area. Reports keeps receipts per direct report, with your 1:1 prep and note at
+   the top of each report's page. 1:1s lists everyone you meet with by who is due, reports or not. Upward (off
+   until you turn it on in Settings) tracks support, asks and feedback for your manager. Review turns any of
+   them into a draft grouped by your rubric sections. The app id stays `receipts` (Rapport was Receipts until
+   2.0.0, and 1:1s was its own app); the 1:1s parts live in js/oneonones/.
 
    Everything goes through the Workshop SDK (shared/workshop-sdk.js): on its own page that is this browser's
    storage, or a folder on this computer once you pick one in Settings. Inside Workshop it is Workshop's
@@ -11,11 +13,12 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as R from './state.js';
+import { createOneOnOnesPage } from './oneonones/page.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: R.APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Receipts');
+if (!ws.embedded) mountBar('Rapport');
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -122,17 +125,31 @@ const peopleLink = label => `<button class="btn" data-act="people-settings">${es
    and tells us the path with the route event. */
 function parse(path) {
   const [view, id] = String(path || '').replace(/^#?\/?/, '').split('/');
-  const views = ['me', 'team', 'up', 'review', 'settings'];
+  const views = ['me', 'team', '1on1s', 'up', 'review', 'settings'];
   return { view: views.includes(view) ? view : 'me', id: id ? decodeURIComponent(id) : '' };
 }
+let oo = null; // the 1:1s parts, set up below
+function setRoute(r) { S.route = r; if (oo) oo.route(r.view, r.id); paint(); }
 function go(path) {
   if (ws.embedded) ws.open({ app: R.APP, path });
   else if (location.hash !== '#/' + path) location.hash = '#/' + path;
-  else { S.route = parse(path); paint(); }
+  else setRoute(parse(path));
 }
-if (ws.embedded) ws.on('route', ({ path }) => { S.route = parse(path); paint(); });
-else window.addEventListener('hashchange', () => { S.route = parse(location.hash); paint(); window.scrollTo(0, 0); });
+if (ws.embedded) ws.on('route', ({ path }) => setRoute(parse(path)));
+else window.addEventListener('hashchange', () => { setRoute(parse(location.hash)); window.scrollTo(0, 0); });
 S.route = parse(ws.embedded ? '' : location.hash);
+
+/* ---------- 1:1s (js/oneonones/) ---------- */
+const isReport = id => people().some(p => p.id === id);
+// Wins logged after a 1:1 become receipts here directly. Ids are stable, so a win already added (or deleted) is
+// not added again.
+async function addWins(list) {
+  const have = new Set([...store.entries.items.map(e => e.id), ...Object.keys(store.entries.deleted || {})]);
+  const fresh = list.filter(e => !have.has(e.id) && isReport(e.about)).map(R.cleanEntry);
+  if (fresh.length) { await save('entries', env => { env.items.push(...fresh); }); paint(); }
+  return fresh.length;
+}
+oo = createOneOnOnesPage(ws, app, { repaint: () => paint(), go: path => go(path), isReport, reportName: id => nameOf(id), addWins });
 
 /* ---------- icons ---------- */
 const I = {
@@ -321,6 +338,8 @@ function personView(id) {
       ${dir ? '<button class="btn ghost" data-act="people-settings">Edit in Workshop</button>' : `<button class="btn ghost" data-act="edit-person">Edit</button>
       <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button>`}</div>
     ${S.addingPerson === id && !dir ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
+    ${p.archived ? '' : oo.panel(id, p.name)}
+    <h3 class="section-label rhead">Receipts</h3>
     <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
     ${offersHtml(id)}
     ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
@@ -335,7 +354,9 @@ function upView() {
   const period = R.findPeriod(c, f.period);
   const all = entries();
   const list = R.filterEntries(all, { about: 'up', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
-  return `${composerHtml('up', 'Support you got, an ask, or feedback to share')}
+  const mgr = oo.findByName(upName());
+  return `${mgr ? `<div class="bar"><span class="grow"></span><button class="btn" data-act="go" data-path="1on1s/${esc(mgr.id)}">1:1s with ${esc(mgr.name)}</button></div>` : ''}
+    ${composerHtml('up', 'Support you got, an ask, or feedback to share')}
     ${filtersHtml('up')}
     <div class="list">${feedHtml(list, all.some(e => e.about === 'up') ? 'Nothing matches these filters.' : 'No upward notes yet. Add one above.')}</div>`;
 }
@@ -384,7 +405,7 @@ function settingsView(fs) {
   const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
-      <p class="lede">${I.lock} Receipts are saved in ${esc(where)}.</p>
+      <p class="lede">${I.lock} Your receipts and 1:1 notes are saved in ${esc(where)}.</p>
       ${ws.embedded ? `<p class="fine">Storage and backups are in Workshop's Settings.</p>`
       : ws.storage === 'indexeddb' ? `<p class="fine">Clearing browsing data deletes them. Save to a folder to keep them as files (Chrome or Edge).</p>
         <div class="acts"><button class="btn" data-act="folder">Save to a folder</button></div>`
@@ -394,7 +415,7 @@ function settingsView(fs) {
         <label class="btn">Restore from a backup<input type="file" accept=".json,application/json" data-act="import" hidden></label>
         <button class="btn" data-act="dl-csv-all">${I.down} All receipts (.csv)</button>
       </div>
-      <p class="fine">Restoring merges a backup in. It never deletes receipts.</p>
+      <p class="fine">Restoring merges a backup in. It never deletes receipts. Backups hold receipts, 1:1 people and settings; 1:1 notes are Markdown files in your Workshop folder.</p>
     </section>
     <form class="set" data-form="cycle">
       <h3 class="section-label">Review cycle</h3>
@@ -423,8 +444,8 @@ function settingsView(fs) {
 }
 
 /* ---------- paint ---------- */
-const TABS = () => [['me', 'Me'], ['team', 'Reports'], ...(cfg().upward ? [['up', 'Upward']] : []), ['review', 'Review'], ['settings', 'Settings']];
-const TITLES = { me: 'My receipts', team: 'Reports', up: 'Upward', review: 'Review', settings: 'Settings' };
+const TABS = () => [['me', 'Me'], ['team', 'Reports'], ['1on1s', '1:1s'], ...(cfg().upward ? [['up', 'Upward']] : []), ['review', 'Review'], ['settings', 'Settings']];
+const TITLES = { me: 'My receipts', team: 'Reports', '1on1s': '1:1s', up: 'Upward', review: 'Review', settings: 'Settings' };
 let folderStatus = null;
 
 // Nothing is drawn until the first load finishes: the shell's route event and change events can arrive first.
@@ -434,25 +455,28 @@ function paint() {
   const { view, id } = S.route;
   // Keep focus and caret across repaints (search boxes repaint as you type).
   const a = document.activeElement;
-  const keep = a && a.id ? { id: a.id, s: a.selectionStart, e: a.selectionEnd } : null;
+  const keep = a && a.id ? { id: a.id, s: a.selectionStart, e: a.selectionEnd, top: a.scrollTop } : null;
+  oo.setOwn(store.entries, store.people);
   const title = view === 'team' && id ? 'Reports' : TITLES[view];
   let body;
   if (view === 'team') body = id ? personView(id) : teamView();
+  else if (view === '1on1s') body = oo.view();
   else if (view === 'up') body = upView();
   else if (view === 'review') body = reviewView();
   else if (view === 'settings') body = settingsView(folderStatus);
   else body = meView();
+  app.classList.toggle('wide', oo.isWide());
   app.innerHTML = `<header class="head">
-      <p class="eyebrow">Receipts</p>
+      <p class="eyebrow">Rapport</p>
       <h1 class="page-title dot">${esc(title)}</h1>
     </header>
     <nav class="tabs" aria-label="Sections">${TABS().map(([k, l]) => `<button data-act="go" data-path="${k}"${k === view ? ' class="on" aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>
     <main class="v-${view}">${body}</main>`;
   if (keep) {
     const el = document.getElementById(keep.id);
-    if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (e) { /* not a text field */ } }
+    if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); el.scrollTop = keep.top; } catch (e) { /* not a text field */ } }
   }
-  document.title = ws.embedded ? 'Receipts' : `${title} · Receipts`;
+  document.title = ws.embedded ? 'Rapport' : `${title} · Rapport`;
 }
 
 /* ---------- edit dialog ---------- */
@@ -618,7 +642,7 @@ app.addEventListener('change', async ev => {
       const r = await ws.data.import(bundle);
       await loadAll();
       ws.toast(`Restored: ${r.created} new, ${r.merged} merged.`, { kind: 'success' });
-    } catch (e) { ws.toast(e instanceof SyntaxError ? 'That file is not a Receipts backup.' : e.message, { kind: 'error' }); }
+    } catch (e) { ws.toast(e instanceof SyntaxError ? 'That file is not a Rapport backup.' : e.message, { kind: 'error' }); }
     paint();
     return;
   }
@@ -685,7 +709,9 @@ document.addEventListener('keydown', ev => {
 /* ---------- commands and live updates ---------- */
 ws.commands.register({ id: 'new', title: 'Add a receipt' });
 ws.commands.register({ id: 'review', title: 'Build a review' });
+ws.commands.register({ id: 'prep', title: 'Prep a 1:1' });
 ws.on('command', async ({ id }) => {
+  if (id === 'prep') oo.prep();
   if (id === 'new') { if (!document.querySelector('.composer')) go('me'); focusComposer(); }
   if (id === 'review') go('review');
   if (id === 'undo-delete' && lastDeleted) { const e = lastDeleted; lastDeleted = null; await safely(() => upsertEntry(e), 'Restored.'); }
@@ -700,11 +726,13 @@ ws.on('online', async () => { await loadAll(); await pickUp(); paint(); });
 await loadAll();
 loaded = true;
 await pickUp();
+paint();
+await oo.start(S.route.view, S.route.id);
 if (!ws.embedded && ws.storage === 'folder') { try { folderStatus = await ws.folder.status(); } catch (e) { folderStatus = null; } }
 const moved = !ws.embedded && ws.folder.lastMove ? ws.folder.lastMove() : null;
 if (moved) ws.toast(`Now saving to the folder "${moved.folder}".`, { kind: 'success' });
 paint();
-// On its own page, this site's service worker makes Receipts installable and open offline.
+// On its own page, this site's service worker makes Rapport installable and open offline.
 let swReload = null;
 ws.on('command', ({ id }) => { if (id === 'sw-reload' && swReload) swReload(); });
 if (!ws.embedded && window.WorkshopSw) window.WorkshopSw.register((msg, label, fn) => { swReload = fn; ws.toast(msg, { action: { label, command: 'sw-reload' } }); });

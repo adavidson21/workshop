@@ -1,7 +1,8 @@
-/* 1:1s: the rules, with no DOM or SDK, so Node tests can import them.
+/* Rapport's 1:1s: the rules, with no DOM or SDK, so Node tests can import them.
 
-   The app keeps its own `people` link table and reads (never writes) what Docket and Receipts keep
-   about the same people. Each read checks the envelope's schema and version: an unknown version is
+   1:1s was its own Workshop app (id `oneonones`) until Rapport 2.0.0 folded it in. It keeps its own
+   `oneonones/people` link table inside Rapport (app id `receipts`) and reads (never writes) what Docket keeps
+   about the same people. Rapport's own entries and people are handed in by main.js. Each read checks the envelope's schema and version: an unknown version is
    unreadable, not empty (docs/data-format.md, Migrations, rule 6).
 
    Shapes read from other apps (copied here, not imported: apps never import other app folders):
@@ -14,18 +15,25 @@
                              itself uses it; while it is missing the picker reads Receipts' own list.
    Queue was removed (Nov 4): a stored `links.queue` is kept as is but no longer read. */
 
-export const APP = 'oneonones';
+export const APP = 'receipts';
 export const VERSION = 1;
 export const DEFAULT_CADENCE = 7;
 export const MAX_PACKET = 50000;          // characters sent to the draft step, at most
-export const HANDOFF_KEEP_DAYS = 60;      // docs/handoffs.md: senders keep at most 60 days of offers
 
-/** Collections read from other apps, with the schema and version this app understands. */
+/** Rapport's collections and files for 1:1s (nested names, docs/data-format.md in workshop). */
+export const PEOPLE = 'oneonones/people';
+export const SETTINGS = 'oneonones/settings';
+export const NOTES = 'oneonones/notes';
+/** The old 1:1s app's data, copied in once (copyLegacy in data.js) and never changed. */
+export const LEGACY = { app: 'oneonones', people: 'people', settings: 'settings', notes: 'notes' };
+
+/** Collections read, with the schema and version this app understands. `own: true` are Rapport's own,
+    handed in by main.js instead of read here. */
 export const SOURCES = {
   docketTasks: { app: 'prioritizer', collection: 'tasks', schema: 'prioritizer.tasks', version: 3 },
   docketPeople: { app: 'prioritizer', collection: 'people', schema: 'prioritizer.people', version: 1 },
-  receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1 },
-  receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1 },
+  receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1, own: true },
+  receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1, own: true },
   directory: { app: 'settings', collection: 'people', schema: 'settings.people', version: 1 }
 };
 
@@ -159,7 +167,7 @@ export function sortPeople(list) {
 /** The notes folder for a person. File names follow Workshop's name rules (lowercase letters, digits, -). */
 export function noteFolder(personId) {
   const seg = lower(personId).replace(/[^a-z0-9-]/g, '-').replace(/^-+/, '').slice(0, 40) || 'person';
-  return `notes/${seg}`;
+  return `${NOTES}/${seg}`;
 }
 export const notePath = (personId, day) => `${noteFolder(personId)}/${day}.md`;
 
@@ -383,7 +391,7 @@ export function quickAddLines(followUps, docketName) {
   return followUps.map(oneLine).filter(Boolean).map(t => `Follow up: ${t}${tag}`);
 }
 
-/** A short stable hash, so offering the same win again reuses its id (docs/handoffs.md, id). */
+/** A short stable hash, so logging the same win again reuses its id. */
 export function hashText(s) {
   let h = 2166136261;
   for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
@@ -391,26 +399,49 @@ export function hashText(s) {
 }
 
 /**
- * Receipts offers for wins: items of oneonones.handoffs v1, `about` the person's Receipts id. Returns [] when
- * the person has no Receipts link.
+ * Receipts for the ticked wins: entries of receipts.entries, about the person's report id. The id is stable
+ * per person, day and text, so logging the same win twice adds it once. [] when the person has no report link.
  */
-export function winOffers({ person, day, wins, nowIso }) {
+export function winEntries({ person, day, wins, nowIso }) {
   const about = person.links && person.links.receipts;
   if (!about) return [];
+  const seg = noteFolder(person.id).split('/').pop();
   return wins.map(oneLine).filter(Boolean).map(text => ({
-    id: `h_${person.id}_${day}_${hashText(text)}`.slice(0, 200),
+    id: `o-${seg}-${day}-${hashText(text)}`.slice(0, 120),
     updatedAt: 0,
-    to: 'receipts',
-    date: day,
     createdAt: nowIso,
+    date: day,
+    about,
+    kind: 'win',
     text: text.slice(0, 2000),
-    payload: { kind: 'win', about },
-    source: { app: APP, id: person.id }
+    sections: [],
+    impact: 0,
+    evidence: 'From a 1:1',
+    metric: '',
+    people: '',
+    star: false
   }));
 }
 
-/** Offers older than HANDOFF_KEEP_DAYS are dropped. */
-export function keepRecent(items, today) {
-  const cut = addDays(today, -HANDOFF_KEEP_DAYS);
-  return items.filter(h => isDay(h.date) && h.date >= cut);
+/* ---------- the copy from the old 1:1s app ---------- */
+
+/** The old app's envelope as Rapport's: same items, deleted and meta, new schema, rev 0 (a create).
+    null when the old one is missing or not a version this code knows. */
+export function legacyEnvelope(env, name) {
+  if (!env || env.schema !== `${LEGACY.app}.${name}` || env.version !== VERSION || !Array.isArray(env.items)) return null;
+  return {
+    schema: `${APP}.oneonones/${name}`, version: VERSION, rev: 0,
+    items: structuredClone(env.items), deleted: structuredClone(env.deleted || {}),
+    ...(env.meta ? { meta: structuredClone(env.meta) } : {})
+  };
 }
+
+/** Where an old note goes: notes/<person>/<day>.md becomes oneonones/notes/<person>/<day>.md. '' if not a note. */
+export function legacyNotePath(path) {
+  const m = /^notes\/([a-z0-9][a-z0-9-]{0,39})\/(\d{4}-\d{2}-\d{2})\.md$/.exec(String(path || ''));
+  return m ? `${NOTES}/${m[1]}/${m[2]}.md` : '';
+}
+
+/** Old notes are copied on every load for this long after the first copy, so a note written in the old app
+    while both were around still arrives. After that a note removed by hand stays removed. */
+export const LEGACY_FILES_DAYS = 30;

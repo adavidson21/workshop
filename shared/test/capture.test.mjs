@@ -75,6 +75,8 @@ test('questions and places', () => {
   assert.deepEqual(parseCapture('what version of .NET is the portal on?', ctx), { kind: 'ask', text: 'what version of .NET is the portal on?' });
   assert.equal(parseCapture('? where did I leave off', ctx).kind, 'ask');
   assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'receipts', text: '> receipts' });
+  assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'receipts', path: '1on1s', text: '> 1:1s' }, '1:1s are part of Rapport');
+  assert.deepEqual(parseCapture('> the rapport', ctx), { kind: 'go', app: 'receipts', text: '> the rapport' });
   assert.equal(parseCapture('> queue', ctx).kind, 'ask', 'Queue was removed');
   assert.equal(parseCapture('> docket', ctx).app, 'prioritizer');
   assert.equal(parseCapture('> somewhere odd', ctx).kind, 'ask');
@@ -109,7 +111,7 @@ test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
 
 test('describe', () => {
   assert.equal(describe(parseCapture('w keys from jordan fri !', ctx)), 'Docket, waiting on · Jordan Two · due 2026-11-06 · urgent');
-  assert.equal(describe(parseCapture('r growth: x', ctx)), 'Receipts, growth');
+  assert.equal(describe(parseCapture('r growth: x', ctx)), 'Rapport, growth');
   assert.equal(describe(parseCapture('n x', ctx)), 'Notes');
 });
 
