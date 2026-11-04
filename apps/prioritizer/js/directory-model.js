@@ -4,8 +4,7 @@
 
    Docket's people stay Docket's: anyone you wait on or talk to, teams and vendors included. The directory
    only adds name suggestions, a link from a Docket person to the matching directory person (`personId` on
-   their item in prioritizer.people, an extra field, so the collection stays v1), and a quick fill for the
-   Reports team profile. */
+   their item in prioritizer.people, an extra field, so the collection stays v1). */
 
 let current = null; // [{id, name, relation, team, adoIdentity, archived}] or null when there is no directory
 
@@ -47,8 +46,3 @@ export function linkPeople(board, dir = current){
   return changed;
 }
 
-/** Lines for the Reports team profile: the ADO email or display name of everyone active on your team. */
-export function teamLines(dir = current){
-  if (!dir) return [];
-  return [...new Set(dir.filter(p => p.team && !p.archived).map(p => p.adoIdentity || p.name))];
-}

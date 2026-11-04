@@ -1,8 +1,8 @@
 // Workshop's people directory in Docket (directory-model.js; docs/people.md in the workshop repo):
-// read only, suggestions, links from Docket people to directory people, and the Reports team fill.
+// read only, suggestions, links from Docket people to directory people.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readDirectory, suggestions, linkPeople, teamLines } from '../js/directory-model.js';
+import { readDirectory, suggestions, linkPeople } from '../js/directory-model.js';
 import { MAIN_LIST, applyEnvelope, envelopeFromBoard } from '../js/store-format.js';
 
 const env = items => ({ schema: 'settings.people', version: 1, rev: 1, items, deleted: {} });
@@ -55,7 +55,3 @@ test('a v1 people file without personId still loads', () => {
   assert.deepEqual(back.personLinks, {});
 });
 
-test('teamLines: ADO email or name for active team people', () => {
-  assert.deepEqual(teamLines(DIR), ['a@example.com', 'dev.one@example.com', 'Dev Two', 'Peer Three']);
-  assert.deepEqual(teamLines(null), []);
-});

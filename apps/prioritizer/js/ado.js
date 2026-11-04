@@ -353,7 +353,7 @@ function onAdoClick(btn){
   popMenu(`<div class="who"><b>Azure DevOps</b>${ui.ado.error ? esc(ui.ado.error) : `Last sync ${esc(ago)}`}</div>
     ${!ui.ado.error && adoVia === 'connector' && adoNoteNow.warn ? `<div class="mnote warn">${esc(adoNoteNow.warn)}</div>` : ''}
     ${state.ado.pending.length ? `<button data-a="review">Review ${plural(state.ado.pending.length, 'new item')}</button>` : ''}
-    <button data-a="now">Sync now</button><button data-a="show">Show ADO list</button><button data-a="reports">Team reports</button><button data-a="setup">Settings</button>`, btn)
+    <button data-a="now">Sync now</button><button data-a="show">Show ADO list</button>${adoVia === 'connector' ? '<button data-a="reports">Team reports in Runway</button>' : ''}<button data-a="setup">Settings</button>`, btn)
     .addEventListener('click', e => {
       const b = e.target.closest('[data-a]'); if (!b) return;
       closeMenu();
@@ -361,7 +361,7 @@ function onAdoClick(btn){
       if (b.dataset.a === 'now') adoSync(true);
       if (b.dataset.a === 'show'){ adoList(); setScope(state.ado.listId); }
       if (b.dataset.a === 'setup') adoSetup();
-      if (b.dataset.a === 'reports') setView('reports');
+      if (b.dataset.a === 'reports') ready.then(w => { if (w) w.open({app: 'runway', path: 'reports'}).catch(() => {}); });
     });
 }
 

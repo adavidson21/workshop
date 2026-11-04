@@ -19,7 +19,7 @@ const VQ = {
   fill:  {title: 'Fill-ins',   sub: 'Low value, low effort'},
   pit:   {title: 'Money pits', sub: 'Low value, high effort'}
 };
-const VIEWS = ['today','day','triage','rank','eisen','ve','people','archive','reports'];
+const VIEWS = ['today','day','triage','rank','eisen','ve','people','archive'];
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 // A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
@@ -46,7 +46,6 @@ const ICON = {
   triage: svg('<path d="M3 4.5h14l-5.3 6.3v4.4l-3.4 1.6v-6z"/>'),
   prio: svg('<path d="M4 5h12M4 10h8.5M4 15h5"/>', 1.7),
   people: svg('<circle cx="7.5" cy="7" r="2.7"/><path d="M2.8 16c.8-2.6 2.6-4 4.7-4s3.9 1.4 4.7 4"/><path d="M12.8 4.6a2.7 2.7 0 0 1 0 4.8M14.2 12.3c1.4.5 2.4 1.7 3 3.7"/>'),
-  reports: svg('<path d="M3 16.5h14"/><rect x="4.5" y="9.5" width="2.6" height="5" rx=".7"/><rect x="8.7" y="5.5" width="2.6" height="9" rx=".7"/><rect x="12.9" y="11" width="2.6" height="3.5" rx=".7"/>'),
   archive: svg('<rect x="2.8" y="4" width="14.4" height="3.6" rx="1"/><path d="M4 7.6v7.4a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V7.6M8 10.8h4"/>'),
   up: svg('<path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9"/>', 1.6),
   top: svg('<path d="M10 16V8M6 11.5L10 7.5l4 4M4.5 4h11"/>', 1.6),
@@ -86,7 +85,7 @@ function initials(name){
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
 // [key, label, icon, shortcut]. Number keys follow the sidebar, top to bottom.
-const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['triage','Triage',ICON.triage,'3'],['prio','Prioritize',ICON.prio,'4'],['people','People',ICON.people,'5'],['reports','Reports',ICON.reports,'6']];
-const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'reports'};
+const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['triage','Triage',ICON.triage,'3'],['prio','Prioritize',ICON.prio,'4'],['people','People',ICON.people,'5']];
+const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people'};
 
 export { initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

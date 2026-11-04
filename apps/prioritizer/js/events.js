@@ -175,7 +175,7 @@ document.addEventListener('keydown', e => {
   if (state.view === 'triage' && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
-  else if (/^[1-6]$/.test(k)){ const nav = NAV_KEYS[k]; setView(nav === 'prio' ? state.lens : nav); }
+  else if (/^[1-5]$/.test(k)){ const nav = NAV_KEYS[k]; setView(nav === 'prio' ? state.lens : nav); }
   else if (k === 'j' || k === 'ArrowDown' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(1); }
   else if (k === 'k' || k === 'ArrowUp' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(-1); }
   else if (k === 'Enter' && !onButton){

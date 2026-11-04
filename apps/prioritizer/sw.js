@@ -8,7 +8,7 @@
    What it never touches: requests to another origin, such as Docket calling Workshop on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '1.13.0';
+const VERSION = '1.14.0';
 const CACHE = 'docket-' + VERSION;
 const CORE = ['./', './index.html', './manifest.webmanifest', './app.json', './icon.svg'];
 

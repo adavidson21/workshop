@@ -4,7 +4,6 @@ import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
-import { renderReports, rpHead } from './reports.js';
 import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
@@ -44,7 +43,6 @@ function render(){
   else if (v === 'triage') renderTriage();
   else if (v === 'people') renderPeople();
   else if (v === 'archive') renderArchive();
-  else if (v === 'reports') renderReports();
   else if (v === 'day') renderDay();
   else renderMatrix(v);
   markSel();
@@ -97,7 +95,6 @@ const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'pri
 function renderHead(){
   const v = state.view, nav = NAV_OF(v);
   const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
-  if (v === 'reports') return rpHead();
   if (v === 'day') return dayHead();
   let sub = esc(scopeName()), tools = '';
   if (v === 'today'){

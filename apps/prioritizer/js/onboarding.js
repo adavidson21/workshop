@@ -91,7 +91,7 @@ function body(name){
     <p>${state.tasks.filter(t => !t.done).length ? `You have ${plural(state.tasks.filter(t => !t.done).length, 'open task')}.` : 'No tasks yet.'}</p>
     <table class="keys"><tbody>
       <tr><td>${TOUCH ? 'The + button' : '<kbd>N</kbd>'}</td><td>Add a task from anywhere</td></tr>
-      ${TOUCH ? '' : '<tr><td><kbd>1</kbd> to <kbd>6</kbd></td><td>Today, Day, Triage, Prioritize, People, Reports</td></tr><tr><td><kbd>T</kbd> / <kbd>X</kbd></td><td>Add the selected task to Today / complete it</td></tr><tr><td><kbd>P</kbd></td><td>In Day, plan the selected task into a block</td></tr>'}
+      ${TOUCH ? '' : '<tr><td><kbd>1</kbd> to <kbd>5</kbd></td><td>Today, Day, Triage, Prioritize, People</td></tr><tr><td><kbd>T</kbd> / <kbd>X</kbd></td><td>Add the selected task to Today / complete it</td></tr><tr><td><kbd>P</kbd></td><td>In Day, plan the selected task into a block</td></tr>'}
       <tr><td>${TOUCH ? '' : '<kbd>?</kbd>'}</td><td>${TOUCH ? '' : 'All shortcuts, and this tour again'}</td></tr>
     </tbody></table>`;
 }
