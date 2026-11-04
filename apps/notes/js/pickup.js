@@ -2,16 +2,23 @@
 
    A note captured in Home's quick capture or the Dispatch hub arrives as an offer in that app's own `handoffs`
    collection, addressed to `notes` with payload.kind 'note' and accepted: true. The person already accepted it
-   where they typed it, so Notes writes it as a new note in `inbox/` the next time it loads, with no second click.
+   where they typed it, so Notes adds it the next time it loads, with no second click:
+     - from Home: a bullet in the one Quick Notes note (`quick-notes.md`, pinned in the sidebar), newest first
+       under a heading for its day. A Quick Notes that was trashed or renamed is made again on the next capture.
+     - from Dispatch: a new note in `inbox/`.
 
    Notes records each capture it handled in its own collection `taken` (notes.taken v1; items {id: '<app>:<offer
    id>', path}), never in the sender's. A capture is written once: a note deleted later does not come back.
 
-   acceptedNotes and noteFile are pure (apps/notes/test/pickup.test.mjs); startPickup does the reading and writing. */
+   acceptedNotes, noteFile, quickEntry and addToQuick are pure (apps/notes/test/pickup.test.mjs); startPickup does the reading and writing. */
 import { freePath, newNoteText, slugify } from './model.js';
 
 export const SENDERS = { home: 'Home', agents: 'Dispatch' };
 export const INBOX = 'inbox';
+export const QUICK = 'quick-notes.md';
+export const QUICK_TITLE = 'Quick Notes';
+export const QUICK_FROM = new Set(['home']);
+const QUICK_HEAD = `# ${QUICK_TITLE}\n\nNotes you capture on Home land here, newest first.\n`;
 const VERSION = 1;
 const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -24,7 +31,7 @@ export function acceptedNotes(app, env, taken = new Set()) {
       const text = h.text.trim().slice(0, 20000);
       const first = text.split('\n')[0].trim();
       const title = (typeof h.payload.title === 'string' && h.payload.title.trim() ? h.payload.title.trim() : first).replace(/\s+/g, ' ').slice(0, 120) || 'Captured note';
-      return { key: `${app}:${h.id}`, app, from: SENDERS[app] || app, id: h.id, date: h.date, title, text };
+      return { key: `${app}:${h.id}`, app, from: SENDERS[app] || app, id: h.id, date: h.date, at: typeof h.createdAt === 'string' ? h.createdAt : '', title, text };
     });
 }
 
@@ -35,9 +42,42 @@ export function noteFile(o, paths) {
   return { path, content: newNoteText(o.title) + body + `\nCaptured in ${o.from} on ${o.date}.\n` };
 }
 
+/* One capture as a Markdown bullet. Later lines are indented so they stay in the bullet. */
+export function quickEntry(o) {
+  const lines = o.text.replace(/\r\n?/g, '\n').split('\n').map(l => l.trimEnd());
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return '- ' + lines.map((l, i) => (i && l ? '  ' + l : l)).join('\n');
+}
+
+/* Quick Notes with captures added. content: the note as it is ('' or null when there is none). entries: oldest
+   first. Each goes at the top of the list under its day's `## YYYY-MM-DD` heading; a missing day heading is put
+   above the first `## ` heading (so newer days come first), or at the end when there is none. */
+export function addToQuick(content, entries) {
+  let lines = (content && content.trim() ? content.replace(/\r\n?/g, '\n') : QUICK_HEAD).split('\n');
+  for (const o of entries) {
+    const head = `## ${o.date}`;
+    const bullet = quickEntry(o).split('\n');
+    let at = lines.findIndex(l => l.trim() === head);
+    if (at >= 0) {
+      let i = at + 1;
+      while (i < lines.length && !lines[i].trim()) i++;
+      lines.splice(at + 1, i - at - 1, '', ...bullet);
+      continue;
+    }
+    const first = lines.findIndex(l => /^## /.test(l));
+    if (first >= 0) lines.splice(first, 0, head, '', ...bullet, '');
+    else {
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+      lines.push('', head, '', ...bullet);
+    }
+  }
+  return lines.join('\n').replace(/\n*$/, '\n');
+}
+
 /* Read the senders, write what is new, record it. notes: the data layer (createNotes), for the paths it knows.
-   Returns the number of notes written. Safe to call often: one run at a time. */
-export function startPickup(ws, notes, { onAdded = () => {} } = {}) {
+   hold(path): true while the person has unsaved edits in that note, so Quick Notes waits (run again after a save).
+   Returns the number of captures added. Safe to call often: one run at a time. */
+export function startPickup(ws, notes, { onAdded = () => {}, hold = () => false } = {}) {
   let running = false, again = false;
 
   async function taken() {
@@ -60,10 +100,23 @@ export function startPickup(ws, notes, { onAdded = () => {} } = {}) {
         try { src = await ws.data.get('handoffs', { app }); } catch (e) { src = null; }
         todo.push(...acceptedNotes(app, src, done));
       }
-      if (!todo.length) return 0;
+      const quick = hold(QUICK) ? [] : todo.filter(o => QUICK_FROM.has(o.app));
+      const files = todo.filter(o => !QUICK_FROM.has(o.app));
+      if (!quick.length && !files.length) return 0;
       const paths = new Set(notes.files ? notes.files.keys() : []);
       const written = [];
-      for (const o of todo) {
+      if (quick.length) {
+        quick.sort((a, b) => (a.date + a.at + a.id < b.date + b.at + b.id ? -1 : 1));
+        for (let tries = 0; ; tries++) {
+          const cur = await ws.files.read(QUICK);
+          const content = addToQuick(cur ? cur.content : '', quick);
+          try { await ws.files.write(QUICK, content, cur ? { mtime: cur.mtime } : { create: true }); break; }
+          catch (e) { if (e.code !== 'conflict' || tries >= 2) throw e; }
+        }
+        paths.add(QUICK);
+        written.push(...quick.map(o => ({ id: o.key, path: QUICK })));
+      }
+      for (const o of files) {
         const f = noteFile(o, paths);
         try { await ws.files.write(f.path, f.content, { create: true }); }
         catch (e) {
@@ -85,7 +138,7 @@ export function startPickup(ws, notes, { onAdded = () => {} } = {}) {
         await ws.data.put('taken', ws.data.merge(after, e.current));
       }
       added = written.length;
-      if (added) onAdded(written, todo[0].from);
+      if (added) onAdded(written, (quick[0] || files[0]).from);
     } catch (e) {
       // Waiting for the folder, or a write failed: try again on the next change.
     } finally {

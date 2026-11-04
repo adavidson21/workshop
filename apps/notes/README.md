@@ -10,6 +10,7 @@ Markdown notes in your Workshop folder, like a small Obsidian. Plan: `claude/not
 - **Search:** `/` or `Ctrl+Shift+F`. Words match titles, paths and text; `tag:ops` and `path:runbooks` filter. Arrow keys and `Enter` open a result at its line.
 - **Images:** paste or drop an image into the editor. It is saved under `notes/attachments/` and linked with `![name](attachments/...)`. PNG, JPEG, GIF and WebP. Remote images (`https://...`) are never loaded.
 - **Export:** **Copy for wiki** puts the note on the clipboard twice over, with its images inside: as Markdown with each image embedded as a `data:image/...;base64` URL, and as HTML for a visual editor. Paste into the wiki's visual editor or its Markdown box. Links to other notes become plain text in the HTML (they lead nowhere outside Workshop) and stay as written in the Markdown. **Copy** is the Markdown only, image links as they are; **Download** saves the `.md`. Nothing is published or shared anywhere.
+- **Quick Notes:** notes captured on Home (`n ...` in quick capture) are added to one note, `quick-notes.md`, newest first under a heading for each day. It is pinned at the top of the sidebar. Trash or rename it and the next capture makes a new one. If it has unsaved edits, captures wait until it saves. Notes captured in the Dispatch hub still become their own note in `inbox/`.
 - **Other apps:** `.md` files other apps keep in the folder (for example Receipts summaries) are listed under *Other apps* and open read only.
 
 ## Files

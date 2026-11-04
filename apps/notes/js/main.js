@@ -6,7 +6,7 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { saveFile } from '../../../shared/save-file.js';
 import { createNotes } from './data.js';
-import { startPickup } from './pickup.js';
+import { QUICK, startPickup } from './pickup.js';
 import { dataUrl, inlineImages, wikiHtml } from './export.js';
 import { render, headingId } from './markdown.js';
 import {
@@ -41,8 +41,16 @@ let found = [];
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => paintChrome(), onExternal });
-// Notes captured in Home or the Dispatch hub (pickup.js): written to inbox/ with no second click.
-const pickup = startPickup(ws, notes, { onAdded: (w, from) => ws.toast(w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from} to inbox/`, { kind: 'success' }) });
+// Notes captured in Home (into Quick Notes) or the Dispatch hub (into inbox/), pickup.js. No second click.
+const pickup = startPickup(ws, notes, {
+  hold: (path) => path === ui.path && !ui.other && ['dirty', 'saving', 'failed', 'conflict'].includes(ui.status.kind),
+  async onAdded(w, from) {
+    if (w.some(x => x.path === QUICK)) { try { await notes.refresh(QUICK); onExternal({ path: QUICK, gone: false }); } catch { /* shows on the next load */ } }
+    const quick = w.filter(x => x.path === QUICK).length;
+    ws.toast(quick === w.length ? `Added ${quick === 1 ? 'a note' : quick + ' notes'} from ${from} to Quick Notes`
+      : w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from}`, { kind: 'success' });
+  }
+});
 const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });
 
 /* ---------- painting ---------- */
@@ -211,6 +219,7 @@ async function saveNow() {
       clearTimeout(retryTimer);
       setStatus(editor.value === text ? 'saved' : 'dirty');
       if (editor.value !== text) scheduleSave();
+      else if (path === QUICK) pickup.run(); // captures that waited while Quick Notes had edits
     } catch (e) {
       if (ui.path !== path) return;
       if (e.code === 'conflict') {
