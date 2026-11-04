@@ -2,31 +2,32 @@
 // next, skipping, hiding, and reading everything through a fake SDK.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STEPS, adoFact, card, createSetup, factsFor, stepsFor } from '../js/setup.js';
+import { STEPS, adoFact, card, createSetup, factsFor, onOneDrive, stepsFor, teamCount } from '../js/setup.js';
 
 const fresh = { connected: false, ado: { state: 'browser' }, receipts: 0, dispatch: null, startAtLogin: null, name: '', tasks: 0 };
-const all = { connected: true, ado: { state: 'ready', message: '' }, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', tasks: 4 };
+const OD = 'C:\\Users\\sam\\OneDrive - Acme\\Workshop';
+const all = { connected: true, ado: { state: 'ready', message: '' }, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', tasks: 4, team: 3, dataDir: OD };
 const ctx = { platform: 'win', origin: 'https://workshop.alexisdavidson.org', settings: { href: 'http://127.0.0.1:4380/apps/settings/' } };
 const states = v => Object.fromEntries(v.steps.map(s => [s.id, s.state]));
 
 test('a brand-new browser: Connect is first, steps that need Workshop wait for it', () => {
   const v = stepsFor(fresh);
-  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', ado: 'blocked', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
+  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', ado: 'blocked', team: 'todo', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
   assert.equal(v.current, 'connect');
-  assert.deepEqual([v.finished, v.total, v.complete], [0, 5, false]);
+  assert.deepEqual([v.finished, v.total, v.complete], [0, 7, false]);
 });
 
 test('everything done: complete, nothing current', () => {
   const v = stepsFor(all);
   assert.ok(v.steps.every(s => s.state === 'done'));
-  assert.deepEqual([v.done, v.finished, v.complete, v.current], [5, 5, true, null]);
+  assert.deepEqual([v.done, v.finished, v.complete, v.current], [7, 7, true, null]);
 });
 
 test('skipping ADO: core done moves on to the later steps', () => {
   const v = stepsFor({ ...all, ado: { state: 'off' }, dispatch: 'off', startAtLogin: false }, ['ado']);
   assert.equal(states(v).ado, 'skipped');
   assert.equal(v.complete, true);
-  assert.equal(v.done, 4);
+  assert.equal(v.done, 6);
   assert.equal(v.current, 'dispatch');
   assert.equal(stepsFor({ ...all }, ['ado']).steps.find(s => s.id === 'ado').state, 'done', 'done wins over skipped');
 });
@@ -59,14 +60,14 @@ test('adoFact turns connector info into one plain state', () => {
 
 test('the card: the current step is open with what to do next, and every command can be copied', () => {
   const { html, copies } = card(stepsFor(fresh), null, { ...ctx, facts: fresh });
-  assert.match(html, /Get started · 0 of 5/);
+  assert.match(html, /Get started · 0 of 7/);
   assert.match(html, /data-step="connect"[^>]*>\s*<button[^>]*aria-expanded="true"/);
-  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex']);
+  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex', 'irm https://workshop.alexisdavidson.org/install-work.ps1 | iex']);
   assert.match(html, /data-copy="0"/);
   assert.match(html, /Skip this step/);
   assert.equal((html.match(/aria-expanded="true"/g) || []).length, 1);
   const mac = card(stepsFor(fresh), null, { ...ctx, platform: 'mac', origin: 'http://127.0.0.1:4380', facts: fresh });
-  assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash'], 'never an http installer address');
+  assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash', 'curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'], 'never an http installer address');
 });
 
 test('the ADO step names the PAT variable to save and links to Settings on this computer', () => {
@@ -108,6 +109,7 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
     data: {
       async get(c, o) {
         if (o && o.app === 'receipts') return { items: [] };
+        if (o && o.app === 'settings') return { items: [{ id: 'p1', relation: 'self' }, { id: 'p2', relation: 'report' }] };
         if (c === 'setup') return saved;
         return null;
       },
@@ -117,18 +119,18 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
       async list() { return [{ id: 'ado', enabled: true, status: { state: 'error', message: 'ADO_PAT is not set.', details: { patsMissing: ['ADO_PAT'] } } }, { id: 'opencode', enabled: false, status: { state: 'disabled' } }]; },
       async getConfig() { return { config: { connections: [{ name: 'main', patEnv: 'ADO_PAT' }] } }; }
     },
-    config: { async get() { return { features: { startAtLogin: false, workMode: true } }; } }
+    config: { async get() { return { dataDir: OD, features: { startAtLogin: false, workMode: true } }; } }
   };
   return ws;
 }
 
 test('factsFor reads every app and connector, and keeps going when one fails', async () => {
   const f = await factsFor(fakeWs());
-  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, dispatch: 'off', startAtLogin: false, workMode: true });
+  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, team: 1, dataDir: OD, dispatch: 'off', startAtLogin: false, workMode: true });
   const ws = fakeWs({ backend: 'browser' });
   ws.data.get = async () => { throw new Error('no'); };
   const b = await factsFor(ws);
-  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, dispatch: null, startAtLogin: null, workMode: false });
+  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, team: 0, dataDir: null, dispatch: null, startAtLogin: null, workMode: false });
 });
 
 test('createSetup saves hide and skip in home.setup, merges on a conflict, and puts it back if saving fails', async () => {
@@ -156,4 +158,29 @@ test('every step has a unique id and later steps come after the core ones', () =
   const firstLater = STEPS.findIndex(s => !s.core);
   assert.ok(STEPS.slice(firstLater).every(s => !s.core));
   for (const s of STEPS) if (s.needs) assert.ok(STEPS.findIndex(x => x.id === s.needs) < STEPS.indexOf(s));
+});
+
+test('backup ticks off once the data folder is in OneDrive, and offers the move command until then', () => {
+  assert.ok(onOneDrive(OD) && onOneDrive('/Users/sam/Library/CloudStorage/OneDrive-Acme/Workshop'));
+  assert.ok(!onOneDrive('C:\\Users\\sam\\Workshop') && !onOneDrive(null));
+  const local = { ...all, dataDir: 'C:\\Users\\sam\\Workshop' };
+  const v = stepsFor(local);
+  assert.equal(states(v).backup, 'todo');
+  assert.equal(v.current, 'backup');
+  const { html, copies } = card(v, 'backup', { ...ctx, facts: local });
+  assert.ok(copies.includes('workshop data-folder --onedrive'));
+  assert.match(html, /C:\\Users\\sam\\Workshop/);
+});
+
+test('team counts active reports and the manager from the people directory', () => {
+  assert.equal(teamCount({ items: [{ relation: 'self' }, { relation: 'report' }, { relation: 'report', archived: true }, { relation: 'manager' }, { relation: 'peer' }] }), 2);
+  assert.equal(teamCount(null), 0);
+  assert.equal(states(stepsFor({ ...all, team: 0 })).team, 'todo');
+});
+
+test('Connect offers the work mode installer next to the usual one', () => {
+  const { copies } = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh });
+  assert.ok(copies.includes('irm https://workshop.alexisdavidson.org/install-work.ps1 | iex'));
+  const mac = card(stepsFor(fresh), 'connect', { ...ctx, platform: 'mac', facts: fresh });
+  assert.ok(mac.copies.includes('curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'));
 });

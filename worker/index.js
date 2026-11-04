@@ -8,6 +8,7 @@
 //
 // On every host, /install.ps1 and /install.sh serve the one-line installers (scripts/bootstrap.ps1 and .sh)
 // as plain text, with {{SITE}} replaced by this site's origin so Workshop allows the site the installer came from.
+// /install-work.ps1 and /install-work.sh serve the same installers with work mode on.
 //
 // Apps from another site (apps/remote.json; docs/app-manifest.md, "Apps from another site"), like Docket from
 // docket.alexisdavidson.org: their code lives in their own repo and deploys there, and they show up here as if
@@ -28,15 +29,21 @@ export function dispatchPath(pathname) {
   return '/apps/agents' + (pathname === '/' || pathname === '' ? '/' : pathname);
 }
 
-export const INSTALLERS = { '/install.ps1': '/scripts/bootstrap.ps1', '/install.sh': '/scripts/bootstrap.sh' };
+// /install-work.* is the same installer with work mode on ({{WORK}} becomes 1), for a work computer.
+export const INSTALLERS = {
+  '/install.ps1': { file: '/scripts/bootstrap.ps1', work: false },
+  '/install.sh': { file: '/scripts/bootstrap.sh', work: false },
+  '/install-work.ps1': { file: '/scripts/bootstrap.ps1', work: true },
+  '/install-work.sh': { file: '/scripts/bootstrap.sh', work: true }
+};
 
 /** The installer script for this request, with the site filled in, or null if the path is not an installer. */
 export async function installer(url, request, env) {
-  const file = INSTALLERS[url.pathname];
-  if (!file) return null;
-  const res = await env.ASSETS.fetch(new Request(new URL(file, url.origin).toString(), request));
+  const entry = INSTALLERS[url.pathname];
+  if (!entry) return null;
+  const res = await env.ASSETS.fetch(new Request(new URL(entry.file, url.origin).toString(), request));
   if (!res || !res.ok) return new Response('The installer is not available right now.', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-  const text = (await res.text()).replaceAll('{{SITE}}', url.origin);
+  const text = (await res.text()).replaceAll('{{SITE}}', url.origin).replaceAll('{{WORK}}', entry.work ? '1' : '0');
   return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
 }
 

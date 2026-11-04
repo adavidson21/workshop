@@ -28,7 +28,15 @@ import { writeCheck } from './lib/write.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const DEFAULT_HELPER = path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py');
+// Where ado_helper.py usually is: Docket's checkout (next to Workshop, as the installers put it, or in
+// .remote/prioritizer), then the old in-repo path. The copy you run day to day, with its ado-helper.json, is
+// usually somewhere else: pass --helper for that one.
+export const HELPER_CANDIDATES = [
+  path.join(path.dirname(REPO), 'docket', 'ado-helper', 'ado_helper.py'),
+  path.join(REPO, '.remote', 'prioritizer', 'ado-helper', 'ado_helper.py'),
+  path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py')
+];
+const DEFAULT_HELPER = HELPER_CANDIDATES.find(f => fs.existsSync(f)) || HELPER_CANDIDATES[0];
 const HARNESS = path.join(HERE, 'lib', 'helper_harness.py');
 
 const USAGE = `Usage: node connectors/ado/doctor.mjs [options]
@@ -36,7 +44,7 @@ const USAGE = `Usage: node connectors/ado/doctor.mjs [options]
   (no option)                Check each connection and list what a sync finds.
   --config <file>            Use connector settings from this JSON file instead of Workshop's config.
   --compare                  Compare ado_helper.py with the connector on your ADO. Prints counts only, writes nothing.
-    --helper <file>          ado_helper.py to compare with (default: the one in this repo). Its ado-helper.json is used.
+    --helper <file>          the ado_helper.py you run today (default: Docket's copy next to Workshop). Its ado-helper.json is used.
     --python <command>       Python to run it with (default: py -3 on Windows, else python3).
     --known <ids>            Work item IDs to treat as already known, comma separated.
     --areas <a;b>            Area paths for the team dataset, separated by semicolons.
@@ -168,8 +176,10 @@ const split = s => String(s || '').split(';').map(x => x.trim()).filter(Boolean)
 
 async function runCompare(o, io) {
   const helperPy = path.resolve(o.helper || DEFAULT_HELPER);
-  if (!fs.existsSync(helperPy)) throw new SettingsError(`No ado_helper.py at ${helperPy}. Pass --helper.`);
-  const helperCfg = readJson(path.join(path.dirname(helperPy), 'ado-helper.json'), 'ado-helper.json');
+  if (!fs.existsSync(helperPy)) throw new SettingsError(`No ado_helper.py at ${helperPy}. Pass --helper <the ado_helper.py you run today>; its ado-helper.json must be next to it.`);
+  const helperCfgFile = path.join(path.dirname(helperPy), 'ado-helper.json');
+  if (!fs.existsSync(helperCfgFile)) throw new SettingsError(`There is no ado-helper.json next to ${helperPy}. Pass --helper <the ado_helper.py you run today>: the one in the folder where you first ran it, which has your ado-helper.json.`);
+  const helperCfg = readJson(helperCfgFile, 'ado-helper.json');
   const { config: cfg } = normalize(importConfig({ helper: helperCfg }).config);
   const known = cleanKnown(String(o.known || '').split(',').filter(Boolean));
   const req = { areas: split(o.areas), people: split(o.people), days: o.days ? Number(o.days) : 42 };

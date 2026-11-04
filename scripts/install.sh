@@ -23,7 +23,9 @@ echo "Node $(node -v): ok."
 # Create ~/.workshop (pass --login to also turn on start at login, --work-mode for work mode).
 WORK=0
 for a in "$@"; do [ "$a" = "--work-mode" ] && WORK=1; done
-node "$REPO/workshop.mjs" install "$@"
+EXTRA=()
+if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then EXTRA+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "$WORK" = 1 ]; then EXTRA+=(--onedrive); fi
+node "$REPO/workshop.mjs" install "$@" ${EXTRA[@]+"${EXTRA[@]}"}
 if [ "$WORK" = 1 ]; then
   node "$REPO/workshop.mjs" pin || { echo "Building the pinned copy failed. See the messages above."; exit 1; }
 fi
@@ -35,9 +37,9 @@ chmod +x "$HOME/.workshop/bin/workshop"
 
 echo
 case ":$PATH:" in *":$HOME/.workshop/bin:"*) ;; *) echo "Add the workshop command to your PATH:  export PATH=\"\$HOME/.workshop/bin:\$PATH\"  (in ~/.zshrc or ~/.bashrc)";; esac
-echo "Start Workshop now with:  workshop start   (or node \"$REPO/workshop.mjs\" start)"
+echo "Start Workshop and open it with:  workshop up   (or node \"$REPO/workshop.mjs\" up)"
 if [ "$WORK" = 1 ]; then
-  echo "Then run:  workshop open   Workshop opens on this computer from the pinned copy. There is no Connect step in work mode."
+  echo "Workshop opens on this computer from the pinned copy. There is no Connect step in work mode; Home's Get started walks you through the rest."
   echo "Finish with:  workshop doctor   and continue when it ends with: Result: all good."
 else
   echo "Then open the address it prints in Chrome or Edge on this computer, to sign in."

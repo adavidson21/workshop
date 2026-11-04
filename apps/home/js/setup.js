@@ -31,6 +31,12 @@ export function adoFact(info, config) {
 
 const count = env => (env && Array.isArray(env.items) ? env.items.length : 0);
 
+/** Active reports and manager in Settings' people directory (docs/people.md): the people Rapport works with. */
+export const teamCount = env => (env && Array.isArray(env.items) ? env.items.filter(p => p && !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
+
+/** Whether a data folder is inside OneDrive (any OneDrive: "OneDrive - Company" on Windows, OneDrive-Company on a Mac). */
+export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(String(dir || ''));
+
 /**
  * Everything the checklist needs, read through the SDK. Never throws: a fact it cannot read is null
  * ("don't know yet"), which keeps that step open rather than ticking it.
@@ -38,8 +44,9 @@ const count = env => (env && Array.isArray(env.items) ? env.items.length : 0);
 export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
-  const [receipts, list, cfg, adoCfg] = await Promise.all([
+  const [receipts, people, list, cfg, adoCfg] = await Promise.all([
     quiet(ws.data.get('entries', { app: 'receipts' })),
+    quiet(ws.data.get('people', { app: 'settings' })),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
     agent ? quiet(ws.connectors.getConfig('ado')) : null
@@ -51,6 +58,8 @@ export async function factsFor(ws) {
     mode: ws.mode,
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
     receipts: count(receipts),
+    team: teamCount(people),
+    dataDir: cfg && typeof cfg.dataDir === 'string' ? cfg.dataDir : null,
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,
     startAtLogin: cfg && cfg.features ? cfg.features.startAtLogin === true : null,
     workMode: cfg && cfg.features ? cfg.features.workMode === true : false
@@ -63,7 +72,9 @@ export async function factsFor(ws) {
 export const STEPS = [
   { id: 'connect', core: true, title: 'Connect Workshop on this computer' },
   { id: 'name', core: true, title: 'Add your name' },
+  { id: 'backup', core: true, title: 'Keep your data backed up', needs: 'connect' },
   { id: 'ado', core: true, title: 'Connect Azure DevOps', needs: 'connect' },
+  { id: 'team', core: true, title: 'Add your team' },
   { id: 'task', core: true, title: 'Add your first task in Docket' },
   { id: 'receipt', core: true, title: 'Log your first receipt' },
   { id: 'dispatch', core: false, title: 'Set up Dispatch for coding agents', needs: 'connect' },
@@ -81,7 +92,9 @@ export function stepsFor(facts, skipped = []) {
   const done = {
     connect: f.connected === true,
     name: !!(f.name && String(f.name).trim()),
+    backup: onOneDrive(f.dataDir),
     ado: f.ado && f.ado.state === 'ready',
+    team: Number(f.team) > 0,
     task: Number(f.tasks) > 0,
     receipt: f.receipts > 0,
     dispatch: f.dispatch === 'ready',
@@ -141,8 +154,20 @@ function detail(s, ctx) {
         ${copy(cmd)}
         <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If your company blocks piping a script, follow "By hand" in the README.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
-        <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
+        <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>
+        <p><b>On a work computer</b>, install in work mode instead. Workshop then runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive:</p>
+        ${copy(ctx.platform === 'win' ? `irm ${site}/install-work.ps1 | iex` : `curl -fsSL ${site}/install-work.sh | bash`)}
+        <p class="su-fine">It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
     }
+    case 'backup': {
+      const where = f.dataDir ? `<code>${esc(f.dataDir)}</code>` : 'your data folder';
+      if (onOneDrive(f.dataDir)) return `<p>Your data is in ${where}, so OneDrive backs it up.</p>`;
+      return `<p>Everything you add is saved as files in ${where}. Workshop never uploads it, so if this computer is replaced, those files are your only copy.</p>
+        <p>Move it into your company OneDrive, which backs it up. This copies your files, switches to the new folder and keeps the old one:</p>${copy('workshop data-folder --onedrive')}
+        <p class="su-fine">Prefer another folder? <code>workshop data-folder &lt;folder&gt;</code>. Happy with local files? Skip this step.</p>`;
+    }
+    case 'team':
+      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John).</p><p>${btn('Add people in Settings', 'data-open="settings"', true)}</p>`;
     case 'name':
       return `<p>Used only for the greeting on this page.</p><p>${btn('Add your name', 'data-edit-profile', true)}</p>`;
     case 'ado': {

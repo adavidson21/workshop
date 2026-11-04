@@ -45,7 +45,9 @@ const SERVED_FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
 
 const USAGE = `Usage: workshop <command> [options]
 
-  start [--port <n>] [--quiet]   Start the agent, print the address to open.
+  up                             Start Workshop in the background if it is not running, then open it. The Start
+                                 menu's Workshop shortcut runs this.
+  start [--port <n>] [--quiet]   Start the agent in this window, print the address to open.
   install [--login] [options]    Create ~/.workshop. --login also turns on start at login (no admin).
                                  --allow <origin>       turn on hosted mode and allow this site
                                  --work-mode            turn on work mode: Workshop runs from a pinned copy on
@@ -53,11 +55,16 @@ const USAGE = `Usage: workshop <command> [options]
                                  --workspace <folder>   turn on the opencode connector with this workspace
                                  --opencode <command>   the command that runs opencode (if not set yet)
                                  --powershell <command> the PowerShell command (if not set yet)
+                                 --data-dir <folder>    use this data folder (new installs only: never moves data)
+                                 --onedrive             use Workshop in your company OneDrive as the data folder,
+                                                        when there is one (new installs only)
   open [--print]                 Open Workshop on this computer in your default browser: it signs that browser in,
                                  links to Workshop's site to pair, and has the settings only this computer can change.
                                  --print only prints the sign-in address, to open in another browser.
   stop                           Stop Workshop if it is running.
   restart                        Stop Workshop, then start it again in the background (no window).
+  data-folder [<folder>]         Say where your data is. With a folder (or --onedrive for your company OneDrive),
+              [--onedrive]       copy your data there and use it from now on. The old folder is kept.
   pat [NAME] [--remove]          Save a personal access token in the user environment variable NAME (default
                                  ADO_PAT). Paste it when asked; it is not shown or kept in shell history.
                                  Workshop picks it up within seconds on Windows, with no restart.
@@ -317,10 +324,11 @@ async function setStartAtLoginFlag(home, schemas, on) {
 /** Read install's setup options. Returns {opts} or {error}. --allow can be given more than once. */
 export function parseInstallArgs(rest) {
   const opts = { login: false, allow: [], workMode: false };
-  const value = { '--workspace': 'workspace', '--opencode': 'opencode', '--powershell': 'powershell' };
+  const value = { '--workspace': 'workspace', '--opencode': 'opencode', '--powershell': 'powershell', '--data-dir': 'dataDir' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--login') { opts.login = true; continue; }
+    if (a === '--onedrive') { opts.oneDrive = true; continue; }
     if (a === '--work-mode') { opts.workMode = true; continue; }
     if (a === '--allow' || value[a]) {
       const v = rest[++i];
@@ -331,7 +339,55 @@ export function parseInstallArgs(rest) {
     return { error: `Unknown option ${a}. Run "workshop help".` };
   }
   if (opts.workMode && opts.allow.length) return { error: '--work-mode and --allow do not go together: in work mode no site can pair.' };
+  if (opts.dataDir && opts.oneDrive) return { error: 'Pass --data-dir or --onedrive, not both.' };
   return { opts };
+}
+
+/**
+ * The company OneDrive folder on this computer, or null. Only the work (OneDrive for Business) folder, never a
+ * personal OneDrive: work data stays on storage the company manages. Windows sets OneDriveCommercial; on a Mac
+ * it is the one ~/Library/CloudStorage/OneDrive-<Company> folder (not OneDrive-Personal).
+ */
+export function companyOneDrive(env = process.env, { platform = process.platform, home = os.homedir() } = {}) {
+  const od = env.OneDriveCommercial;
+  if (od && (path.isAbsolute(od) || path.win32.isAbsolute(od))) return od;
+  if (platform === 'darwin') {
+    const cs = path.join(home, 'Library', 'CloudStorage');
+    let names = [];
+    try { names = fs.readdirSync(cs).filter(n => /^OneDrive-/.test(n) && !/^OneDrive-Personal/i.test(n)); } catch { /* none */ }
+    if (names.length === 1) return path.join(cs, names[0]);
+  }
+  return null;
+}
+
+/** Whether a folder exists and has anything in it. */
+export const hasFiles = dir => { try { return fs.readdirSync(dir).length > 0; } catch { return false; } };
+
+/** Whether a path is inside a OneDrive folder (any OneDrive). */
+export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(String(dir || ''));
+
+/**
+ * Pick the data folder at install (opts.dataDir, or opts.oneDrive for the company OneDrive). Only for a new
+ * install: a dataDir already in config.json is kept, and so is the default folder once it holds data, because
+ * changing dataDir never moves files (`workshop data-folder` does). Returns plain-words lines.
+ */
+export function chooseDataDir(config, opts, { home, env = process.env, defaultDir = defaultDataDir(), platform, userHome } = {}) {
+  if (!opts.dataDir && !opts.oneDrive) return [];
+  let want = opts.dataDir ? path.resolve(opts.dataDir) : null;
+  if (!want) {
+    const od = companyOneDrive(env, { platform, home: userHome });
+    if (!od) return ['No company OneDrive on this computer, so your data stays in ' + configDataDir(config, defaultDir) + '.'];
+    want = path.join(od, 'Workshop');
+  }
+  const now = configDataDir(config, defaultDir);
+  if (path.resolve(now) === want) return [`Data folder: ${want} (unchanged).`];
+  if (config.dataDir || hasFiles(defaultDir)) {
+    return [`Your data is in ${now}, so it stays there. To move it to ${want}, run: workshop data-folder "${want}"`];
+  }
+  const problem = dataDirProblem(want, home);
+  if (problem) throw new Error(problem);
+  config.dataDir = want;
+  return [`Data folder: ${want}${onOneDrive(want) ? ' (in your company OneDrive, so it is backed up)' : ''}.`];
 }
 
 /**
@@ -378,11 +434,14 @@ async function runInstall(opts, io) {
   }
   const created = await ensureHome(home);
   io.out(created ? `Created ${home} with default settings (everything off).` : `Using ${home}.`);
-  if (opts.allow?.length || opts.workMode || opts.workspace || opts.opencode || opts.powershell) {
+  if (opts.allow?.length || opts.workMode || opts.workspace || opts.opencode || opts.powershell || opts.dataDir || opts.oneDrive) {
     const info = inspectConfig(homePaths(home).config, schemas);
     if (info.state !== 'ok') { io.out('config.json has a problem. Run "workshop doctor" and fix it first.'); return 1; }
     let said;
-    try { said = setupFromFlags(info.config, opts, schemas); } catch (e) { io.out(e.message); return 1; }
+    try {
+      said = setupFromFlags(info.config, opts, schemas);
+      said.push(...chooseDataDir(info.config, opts, { home, env: io.env, defaultDir: io.defaultDataDir || defaultDataDir(), platform: io.platform, userHome: io.userHome }));
+    } catch (e) { io.out(e.message); return 1; }
     const errs = schemas.validate('config', info.config);
     if (errs.length) { io.out(`Those settings are not valid: ${errs[0]}`); return 1; }
     await writeJsonAtomic(homePaths(home).config, info.config);
@@ -398,7 +457,7 @@ async function runInstall(opts, io) {
     const r = await enableStartAtLogin({ repo: REPO, env: io.env, dir: io.env.WORKSHOP_LOGIN_DIR });
     io.out(`Start at login is on. Launcher: ${r.path}`);
   }
-  io.out('\nStart Workshop now with:  workshop start');
+  io.out('\nStart Workshop and open it with:  workshop up');
   return 0;
 }
 
@@ -413,6 +472,8 @@ async function runUninstall(io) {
   try { await setStartAtLoginFlag(home, schemas, false); } catch (e) { io.out(e.message); return 1; }
   const r = await disableStartAtLogin({ repo: REPO, env: io.env, dir: io.env.WORKSHOP_LOGIN_DIR });
   io.out(r.removed ? `Start at login is off. Removed ${r.path}.` : 'Start at login was already off.');
+  const menu = startMenuDir(io.env, io.platform || process.platform);
+  if (menu && fs.existsSync(menu)) { fs.rmSync(menu, { recursive: true, force: true }); io.out(`Removed the Start menu shortcuts (${menu}).`); }
   const dataDir = configDataDir(inspectConfig(homePaths(home).config, schemas).config, io.defaultDataDir);
   io.out(`Uninstall left your data folder (${dataDir}) and the Workshop home folder (${home}) in place. Delete them yourself if you want them gone.`);
   return 0;
@@ -638,7 +699,7 @@ export function signInUrl(home, port) {
 async function runOpen(rest, io) {
   const home = resolveHome(io.env);
   const port = (inspectConfig(homePaths(home).config, loadSchemas()).config?.port) ?? DEFAULT_PORT;
-  if (!(await agentHealth(port))) { io.out(`Workshop is not running on port ${port}. Log out and back in, or run: workshop start`); return 1; }
+  if (!(await agentHealth(port))) { io.out(`Workshop is not running on port ${port}. Start it and open it with: workshop up`); return 1; }
   let url;
   try { url = signInUrl(home, port); } catch { io.out(`Could not read the token in ${home}.`); return 1; }
   const work = inspectConfig(homePaths(home).config, loadSchemas()).config?.features?.workMode === true;
@@ -671,6 +732,98 @@ async function runRestart(io) {
   const r = await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
   io.out(r.message);
   return r.ok ? 0 : 1;
+}
+
+/** The Start menu folder the Windows installers put Workshop's shortcuts in, or null off Windows. */
+export const startMenuDir = (env = process.env, platform = process.platform) =>
+  platform === 'win32' && env.APPDATA ? path.join(env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Workshop') : null;
+
+/** workshop up: start in the background when needed, then open Workshop in the browser. */
+async function runUp(rest, io) {
+  const port = configuredPort(io);
+  const probe = io.probe || agentHealth;
+  if (!(await probe(port))) {
+    const r = await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
+    io.out(r.message);
+    if (!r.ok) return 1;
+  }
+  return (io.open || runOpen)(rest, io);
+}
+
+/** Read data-folder's options. Returns {opts} or {error}. */
+export function parseDataFolderArgs(rest) {
+  const opts = { target: null, oneDrive: false };
+  for (const a of rest) {
+    if (a === '--onedrive') { opts.oneDrive = true; continue; }
+    if (a.startsWith('-')) return { error: `Unknown option ${a}. Usage: workshop data-folder [<folder> | --onedrive]` };
+    if (opts.target) return { error: 'Give one folder.' };
+    opts.target = a;
+  }
+  if (opts.target && opts.oneDrive) return { error: 'Give a folder or --onedrive, not both.' };
+  return { opts };
+}
+
+/**
+ * workshop data-folder: say where the data is, or move it. Moving copies every file into the new folder (which
+ * must be empty), points dataDir at it, and keeps the old folder untouched. Workshop is stopped for the copy and
+ * started again afterwards if it was running.
+ */
+async function runDataFolder(rest, io) {
+  const parsed = parseDataFolderArgs(rest);
+  if (parsed.error) { io.out(parsed.error); return 1; }
+  const { opts } = parsed;
+  const home = resolveHome(io.env);
+  const schemas = loadSchemas();
+  const paths = homePaths(home);
+  const info = inspectConfig(paths.config, schemas);
+  const defaultDir = io.defaultDataDir || defaultDataDir();
+  const now = configDataDir(info.config, defaultDir);
+  const od = companyOneDrive(io.env, { platform: io.platform, home: io.userHome });
+  if (!opts.target && !opts.oneDrive) {
+    io.out(`Your data is in ${now}${onOneDrive(now) ? ' (in OneDrive, so it is backed up)' : ''}.`);
+    if (!onOneDrive(now)) io.out(od ? `To keep it in your company OneDrive instead: workshop data-folder --onedrive (${path.join(od, 'Workshop')})` : 'It is not backed up by Workshop. Copy it somewhere safe now and then, or move it with: workshop data-folder <folder>');
+    return 0;
+  }
+  if (info.state !== 'ok' && info.state !== 'missing') { io.out('config.json has a problem. Run "workshop doctor" and fix it first.'); return 1; }
+  let target;
+  if (opts.oneDrive) {
+    if (!od) { io.out('There is no company OneDrive on this computer. Sign in to OneDrive for your work account, or give a folder: workshop data-folder <folder>'); return 1; }
+    target = path.join(od, 'Workshop');
+  } else target = path.resolve(opts.target);
+  if (path.resolve(now) === target) { io.out(`Your data is already in ${target}.`); return 0; }
+  const problem = dataDirProblem(target, home);
+  if (problem) { io.out(problem); return 1; }
+  if (hasFiles(target)) { io.out(`${target} already has files in it. Pick an empty or new folder, so nothing in it is written over.`); return 1; }
+  const port = info.config?.port ?? DEFAULT_PORT;
+  const probe = io.probe || agentHealth;
+  const wasRunning = Boolean(await probe(port));
+  if (wasRunning) {
+    const s = await stopAgent({ port, probe, ...(io.control || {}) });
+    if (!s.ok) { io.out(s.message); return 1; }
+    io.out('Stopped Workshop for the move.');
+  }
+  let copied = 0;
+  try {
+    fs.mkdirSync(target, { recursive: true });
+    if (fs.existsSync(now)) {
+      fs.cpSync(now, target, { recursive: true, force: false, errorOnExist: true, filter: src => { if (fs.statSync(src).isFile()) copied++; return true; } });
+    }
+  } catch (e) {
+    io.out(`Could not copy your data to ${target} (${e.code || e.message}). Nothing was changed: Workshop still uses ${now}.`);
+    if (wasRunning) await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
+    return 1;
+  }
+  const config = info.config || defaultConfig();
+  config.dataDir = target;
+  await writeJsonAtomic(paths.config, config);
+  io.out(`Copied ${copied} file${copied === 1 ? '' : 's'} to ${target}. Workshop uses that folder from now on.`);
+  io.out(`Your old folder (${now}) is kept as it was. Delete it once you have checked everything is there.`);
+  if (wasRunning) {
+    const r = await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
+    io.out(r.message);
+    if (!r.ok) return 1;
+  }
+  return 0;
 }
 
 /**
@@ -725,6 +878,8 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') { io.out(USAGE); return 0; }
   if (cmd === 'version' || cmd === '--version' || cmd === '-v') { io.out(VERSION); return 0; }
 
+  if (cmd === 'up') return runUp(rest, io);
+  if (cmd === 'data-folder') return runDataFolder(rest, io);
   if (cmd === 'start') return runStart(rest);
   if (cmd === 'stop') return runStop(io);
   if (cmd === 'restart') return runRestart(io);
