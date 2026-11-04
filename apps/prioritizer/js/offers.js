@@ -1,4 +1,4 @@
-/* Docket: every-sprint offers from other apps (offers-model.js), inside Workshop only. Reads each known sender's
+/* Docket: every-sprint offers from other apps (offers-model.js), inside Workshop only. Reads each sender's
    `handoffs` collection (read only), and on Accept or Dismiss changes only Docket's own day plan: the every-sprint
    items and dayplan/settings meta.handled. On its own site Docket shares no data folder with other apps
    (Workshop docs/handoffs.md, rule 5), so it shows nothing. */
@@ -8,6 +8,7 @@ import { topLists } from './state.js';
 import { embedded } from './ws.js';
 
 const envs = {};
+const watched = new Set();
 let onChange = () => {};
 let wsh = null;
 
@@ -21,15 +22,22 @@ async function load(app){
 async function offersBoot(ws, {render}){
   if (!embedded) return;
   wsh = ws; onChange = render;
-  await Promise.all(Object.keys(SENDERS).map(load));
-  for (const app of Object.keys(SENDERS)) ws.data.subscribe('handoffs', async () => { await load(app); onChange(); }, {app});
+  await Promise.all(Object.keys(SENDERS).map(watchSender));
   onChange();
+}
+
+/* Start reading one app's `handoffs` collection, and again whenever it changes. Called for each SENDERS id. */
+async function watchSender(app){
+  if (!wsh || watched.has(app)) return;
+  watched.add(app);
+  await load(app);
+  wsh.data.subscribe('handoffs', async () => { await load(app); onChange(); }, {app});
 }
 
 /* Offers waiting, oldest first. Empty on Docket's own site. */
 function offers(){
   if (!here()) return [];
-  return Object.keys(SENDERS).flatMap(app => pendingOffers(app, envs[app], dp.handled));
+  return [...watched].flatMap(app => pendingOffers(app, envs[app], dp.handled));
 }
 
 /* Accept: add the every-sprint item, or update the one accepted from the same source. Returns {item, updated}. */
@@ -50,4 +58,4 @@ function dismissOffer(key){
   return true;
 }
 
-export { acceptOffer, dismissOffer, offers, offersBoot };
+export { acceptOffer, dismissOffer, offers, offersBoot, watchSender };

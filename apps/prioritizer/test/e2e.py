@@ -168,13 +168,13 @@ def main():
         made = pg.evaluate(f"() => {P}.recurTick()")
         check('deleting it does not bring it back this sprint', made == 0 and pg.evaluate(f"() => {P}.state.tasks.filter(t => t.recur).length") == 0)
         # ---------- every-sprint offers from another app (Workshop docs/handoffs.md): inside Workshop only ----------
-        # A sender (Roadmap, app id pm) writes an offer to its own handoffs collection, in this browser's storage.
-        offer_put = """async ([id, dueDay]) => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'pm'});
-          const before = (await ws.data.get('handoffs')) || {schema: 'pm.handoffs', version: 1, rev: 0, items: [], deleted: {}};
+        # A sender (app id example-app) writes an offer to its own handoffs collection, in this browser's storage.
+        offer_put = """async ([id, dueDay]) => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'example-app'});
+          const before = (await ws.data.get('handoffs')) || {schema: 'example-app.handoffs', version: 1, rev: 0, items: [], deleted: {}};
           const after = structuredClone(before);
           after.items = after.items.filter(h => h.id !== id).concat([{id, to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T13:40:00.000Z',
             text: 'Refinement <b>x</b>', payload: {kind: 'every-sprint', title: id === 'h_cer_ref' ? 'Refinement <b>x</b>' : 'Demo', dueDay, planKind: 'admin', value: 3, effort: 'M',
-            notes: 'Role: Facilitator.'}, source: {app: 'pm', id: id.slice(2)}}]);
+            notes: 'Role: Facilitator.'}, source: {app: 'example-app', id: id.slice(2)}}]);
           ws.data.stamp(before, after); return (await ws.data.put('handoffs', after)).rev; }"""
         pg.evaluate(offer_put, ['h_cer_ref', 2])
         pg.keyboard.press('2'); pg.wait_for_timeout(300)
@@ -191,28 +191,30 @@ def main():
             if fr.evaluate('() => !!(window.__prioritizer && window.__prioritizer.dp && window.__prioritizer.dp.sprint.anchor)'): break
             host.wait_for_timeout(250)
         host.wait_for_timeout(1500)
+        # No Workshop app sends these today, so the test adds its sender the way a SENDERS entry would.
+        fr.evaluate(f"() => {P}.watchSender('example-app')"); host.wait_for_timeout(300)
         check('inside Workshop, Docket sees the every-sprint offer', fr.evaluate(f'{P}.offers().length') == 1)
         fr.click('main'); host.keyboard.press('2'); host.wait_for_timeout(300)
         check('the Day view gear shows that offers are waiting', fr.locator('[data-dp=settings].has-dot').count() == 1)
         fr.click('[data-dp=settings]'); host.wait_for_timeout(200)
         sheet = fr.text_content('.dsettings')
-        check('settings show it as Offered by Roadmap, escaped', 'Offered by Roadmap' in sheet and 'Refinement <b>x</b>' in sheet and fr.locator('.doffers b b').count() == 0)
+        check('settings show it as Offered by example-app, escaped', 'Offered by example-app' in sheet and 'Refinement <b>x</b>' in sheet and fr.locator('.doffers b b').count() == 0)
         fr.click('.dsettings [data-offer-accept]'); host.wait_for_timeout(300)
-        rec = fr.evaluate(f"() => {P}.dp.recurring.filter(r => r.from && r.from.app === 'pm')")
-        check('Accept adds an every-sprint task marked with where it came from', len(rec) == 1 and rec[0]['from'] == {'app': 'pm', 'id': 'cer_ref'} and rec[0]['dueDay'] == 2 and rec[0]['value'] == 3 and rec[0]['effort'] == 'M')
-        check('it shows in the open settings, with From Roadmap, and the offer is gone', fr.locator('.dsettings .dfrom', has_text='From Roadmap').count() == 1 and fr.locator('.dsettings .doffers').count() == 0)
+        rec = fr.evaluate(f"() => {P}.dp.recurring.filter(r => r.from && r.from.app === 'example-app')")
+        check('Accept adds an every-sprint task marked with where it came from', len(rec) == 1 and rec[0]['from'] == {'app': 'example-app', 'id': 'cer_ref'} and rec[0]['dueDay'] == 2 and rec[0]['value'] == 3 and rec[0]['effort'] == 'M')
+        check('it shows in the open settings, with From example-app, and the offer is gone', fr.locator('.dsettings .dfrom', has_text='From example-app').count() == 1 and fr.locator('.dsettings .doffers').count() == 0)
         fr.click('.dsettings [data-savesettings]'); host.wait_for_timeout(300)
         fr.evaluate(f'{P}.saved()'); host.wait_for_timeout(300)
         meta = fr.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
           const q = r.result.transaction('data').objectStore('data').get('prioritizer/dayplan/settings'); q.onsuccess = () => res(q.result && q.result.meta); }; })""")
-        check('what was handled is kept in Docket\'s own dayplan/settings', meta is not None and len(meta.get('handled', [])) == 1 and meta['handled'][0].startswith('pm:h_cer_ref:'))
+        check('what was handled is kept in Docket\'s own dayplan/settings', meta is not None and len(meta.get('handled', [])) == 1 and meta['handled'][0].startswith('example-app:h_cer_ref:'))
         # The sender changes the offer: it shows again, and accepting updates the same task.
         rev = host.evaluate(offer_put, ['h_cer_ref', 5]); host.wait_for_timeout(1200)
         check('a changed offer from the same source shows again, as an update', fr.evaluate(f'{P}.offers().length') == 1)
         fr.click('[data-dp=settings]'); host.wait_for_timeout(200)
         check('its button says Update', fr.locator('.dsettings [data-offer-accept]').inner_text() == 'Update')
         fr.click('.dsettings [data-offer-accept]'); host.wait_for_timeout(300)
-        rec = fr.evaluate(f"() => {P}.dp.recurring.filter(r => r.from && r.from.app === 'pm')")
+        rec = fr.evaluate(f"() => {P}.dp.recurring.filter(r => r.from && r.from.app === 'example-app')")
         check('accepting it updates that task instead of adding another', len(rec) == 1 and rec[0]['dueDay'] == 5)
         fr.click('.dsettings [data-close]'); host.wait_for_timeout(200)
         # Dismiss: gone, nothing added. Docket never writes the sender's collection.
@@ -223,7 +225,7 @@ def main():
         fr.evaluate(f'{P}.saved()'); host.wait_for_timeout(300)
         check('Dismiss hides it and adds nothing', fr.evaluate(f'{P}.offers().length') == 0 and fr.evaluate(f"() => {P}.dp.recurring.filter(r => r.from).length") == 1)
         sender = fr.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
-          const q = r.result.transaction('data').objectStore('data').get('pm/handoffs'); q.onsuccess = () => res(q.result && q.result.rev); }; })""")
+          const q = r.result.transaction('data').objectStore('data').get('example-app/handoffs'); q.onsuccess = () => res(q.result && q.result.rev); }; })""")
         check('Docket never writes the sender\'s collection', sender == rev)
         host.close()
         pg.reload(); pg.wait_for_function('window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000); pg.wait_for_timeout(1000)

@@ -1,7 +1,7 @@
 /* Docket: every-sprint tasks other apps offer (Workshop docs/handoffs.md, Receivers). Pure functions with no DOM,
    so Node tests can import them (test/offers.test.mjs).
 
-   Another app (Roadmap's sprint cadence, for now) writes offers to its own `handoffs` collection. Docket reads the
+   Another app writes offers to its own `handoffs` collection. Docket reads the
    ones addressed to it with payload.kind 'every-sprint', shows them in the Day view's settings, and the person
    accepts or dismisses each. Accepting adds an every-sprint item marked `from: {app, id}`; a later offer with the
    same source updates that item instead of adding another. What was handled is kept in Docket's own data
@@ -10,7 +10,10 @@
    A handled key is `<app>:<offer id>:<fingerprint of its text and payload>`, so an offer the sender changes after
    you handled it shows again (to update the item), while one sent again unchanged does not. */
 
-const SENDERS = {pm: 'Roadmap'};
+/* The apps Docket reads offers from: app id to the name shown for it. An app read but not named here shows by its
+   id. No Workshop app sends these offers today, so the list is empty. A new sender follows Workshop
+   docs/handoffs.md (Receivers) and is added here by its app id. */
+const SENDERS = {};
 const HANDLED_MAX = 200;
 const HANDOFF_VERSION = 1;
 const EFFORTS = ['XS', 'S', 'M', 'L', 'XL'];

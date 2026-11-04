@@ -20,7 +20,7 @@ import { dp, recurTick } from './dayplan.js';
 import * as focusModel from './focus-model.js';
 import { focusLog, fstore, openShutdown } from './focus.js';
 import * as dayModel from './dayplan-model.js';
-import { offers } from './offers.js';
+import { offers, watchSender } from './offers.js';
 import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
 import { findTask } from './state.js';
@@ -71,7 +71,7 @@ window.__prioritizer = {
   engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
   saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null, fstore ? fstore.idle() : null]), get store(){ return store; },
-  get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel, offers,
+  get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel, offers, watchSender,
   get focusLog(){ return focusLog; }, get fstore(){ return fstore; }, focusModel, openShutdown
 };
 

@@ -9,14 +9,14 @@ import { $, esc, fmtMD, plural, todayStr } from './util.js';
 import { teamLines } from './directory-model.js';
 /* Prioritizer: Reports: team-wide ADO reports from one read-only pull, with Excel export. */
 /* ---------- reports: team-wide ADO reports from one read-only pull ----------
-   The ADO helper's /dataset returns the team's work items plus their priority, sprint, assignment and state
-   changes in a window, and sprint dates. Every report below is computed here from that one pull, so a new
+   One `dataset` request (Workshop's ADO connector, or the helper's /dataset; see adoCall in ado.js) returns
+   the team's work items plus their priority, sprint, assignment and state changes in a window, and sprint dates. Every report below is computed here from that one pull, so a new
    report only needs a compute block, a render block and (optionally) an export sheet. The team profile
    (area paths, people) lives in ui.rp on this device; the last pull is cached in IndexedDB. */
 const RP_TABS = [['churn', 'Priority churn'], ['other', "Other teams' work"], ['carry', 'Sprint carryover'],
   ['scope', 'Sprint scope churn'], ['load', 'Load by person'], ['aging', 'Aging and throughput']];
 const RP_DAYS = [14, 30, 42, 60, 90, 120, 180];
-const RP_OLD = 'Your ADO helper is out of date. Download the new ado_helper.py from ADO Settings and restart it.';
+const RP_OLD = 'This ADO source has no Reports. If you use the helper, download the new ado_helper.py from ADO Settings and restart it. If you use Workshop\'s ADO connector, update Workshop.';
 let rp = {data: null, busy: false, error: '', calc: null};
 // Report settings and the last pulled data. Called by main.js once every module has loaded.
 function rpInit(){
