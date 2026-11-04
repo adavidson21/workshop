@@ -6,7 +6,7 @@ Node standard library only. It calls only opencode on this computer (`127.0.0.1`
 
 ## Source
 
-Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) `main` at `e2d202abf5223e74d3af942fcd8ff56bd12cf811` (Core 2.1.0, Dashboard 1.6.1). eng-agents is frozen until WS8 and was not changed.
+Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) `main` at `e2d202abf5223e74d3af942fcd8ff56bd12cf811` (Core 2.1.0, Dashboard 1.6.1). Later Dashboard releases are synced as listed in PARITY.md.
 
 | eng-agents | Here |
 | --- | --- |

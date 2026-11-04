@@ -22,17 +22,17 @@ Your data stays on your device. There are no accounts and no server holds your d
 
 Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
 
-## Agents
+## Dispatch
 
-Agents is the eng-agents live dashboard as a Workshop app. It reads `.work` and follows opencode through the opencode connector ([connectors/opencode/README.md](connectors/opencode/README.md)), so it needs the Workshop agent on this computer. There is nothing to start in eng-agents and no `shellOrigins` to set.
+Dispatch is where Tandem's coding agents run, as a Workshop app (it replaced the eng-agents live dashboard). It reads `.work` and follows opencode through the opencode connector ([connectors/opencode/README.md](connectors/opencode/README.md)), so it needs the Workshop agent on this computer. There is nothing to start in eng-agents and no `shellOrigins` to set.
 
 **Once:**
 
 1. Start Workshop on this computer (`node workshop.mjs start`) and open it.
 2. In **Settings**, turn on the opencode connector and set **Workspace folder** to the folder that holds `.work` and your repos. The connector needs PowerShell (`pwsh` on a Mac) and opencode 1.x or 2.x with eng-agents installed.
-3. Open **Agents**. If the connector can't start, the page says why.
+3. Open **Dispatch**. If the connector can't start, the page says why.
 
-Prioritizer shows each ADO task's eng-agents stage and can start a work item, through the same connector. Clicking a stage opens that item in Agents (`#/agents/<work item id>`).
+Docket shows each ADO task's Tandem stage and can start a work item, through the same connector. Clicking a stage opens that item in Dispatch (`#/agents/<work item id>`).
 
 eng-agents' own static page (`/dashboard static`) is unchanged.
 
@@ -94,18 +94,31 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 
 **Testing with a team:** work mode is a prerequisite. Before anyone tests with real work data, go through [docs/team-testing.md](docs/team-testing.md).
 
+**Release tags.** Work mode installs and updates only by tag. Tags are `v<version>` in Workshop and Docket (for example `v1.0.0` and `v4.13.1`) and `core-v<version>` in eng-agents (for example `core-v2.8.1`). Use the newest of each, listed on each repo's Releases page.
+
 **Set it up (by hand, recommended at work):**
 
-1. Clone Workshop and Docket at release tags, side by side:
+1. Check `node -v` says 22 or later (22.15 or later on Windows, so Node uses the system certificate store). Get it from https://nodejs.org or your company's software portal.
+2. Clone Workshop and Docket at their release tags, side by side in one folder:
    `git clone --branch <workshop tag> https://github.com/adavidson21/workshop` and `git clone --branch <docket tag> https://github.com/adavidson21/docket`
-2. Check `node -v` says 22.15 or later (from https://nodejs.org, or your company's software portal).
-3. `node workshop/workshop.mjs install --work-mode`, then `node workshop/workshop.mjs pin` (it finds the `docket` folder next to Workshop; or pass `--docket <folder>`).
-4. `node workshop/workshop.mjs start` and open the address it prints. Workshop opens there, from the pinned copy.
-5. In Settings, set the opencode connector's **Approved AI providers** to your company's provider, then run `workshop doctor`: it checks the pinned copy and that opencode can use no other provider.
+3. Install in work mode and build the pinned copy: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1 -WorkMode` (on a Mac or Linux: `bash workshop/scripts/install.sh --work-mode`). It turns on work mode, builds the copy from the `docket` folder next to Workshop, and adds a `workshop` command for new terminal windows. Open a new terminal before using `workshop`; until then use `node workshop/workshop.mjs` the same way.
+4. `workshop start`, then `workshop open`. Workshop opens at the `http://127.0.0.1:...` address from the pinned copy. Settings says "Work mode is on" and shows the tags. There is no **Connect** step in work mode.
+5. Add your ADO connection in Settings and save your token with `workshop pat ADO_PAT` (the Home page's **Get started** walks you through it).
+6. Run `workshop doctor` and continue when it ends with `Result: all good.`
 
-**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='v1.8.1'; $env:DOCKET_TAG='v4.7.0'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
+**Dispatch in work mode (only if your company allows a coding agent):**
 
-**Updating:** `workshop update` lists the tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
+1. Install opencode, and clone eng-agents at its tag next to the others: `git clone --branch <core tag> https://github.com/adavidson21/eng-agents`, then run its `install.ps1` (or `install.sh`).
+2. In Settings, turn on the opencode connector and set its **Workspace folder** first (the folder with your repos and `.work`). Then set **Approved AI providers** to your company's provider.
+3. Add `"enabled_providers": ["<that provider>"]` to `~/.config/opencode/opencode.json`, so opencode cannot use any other provider.
+4. Run `workshop doctor` again. It checks that opencode can use only the approved provider.
+5. Update Tandem only to a tag: `.\update.ps1 -Tag <core tag>` in the eng-agents folder.
+
+**What is not in work mode:** Runway comes from its own private site and is not part of the pinned copy, so it does not show on the rail. Everything else does, including Docket.
+
+**With the one-line installer:** set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
+
+**Updating:** `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 
 Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
 
@@ -130,7 +143,7 @@ shared/                 used by the shell and every app
 apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
   remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket, Runway)
-  agents/               Agents (the eng-agents live dashboard, on the opencode connector)
+  agents/               Dispatch (Tandem's runs, on the opencode connector)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)
@@ -158,7 +171,7 @@ An app can live in its own repo and deploy to its own site, and still open insid
 - `/apps/registry.json` gets the app's live `app.json` from its site, so a new file or command needs no Workshop change. The snapshot is the fallback if the site is down; `node shell/registry.mjs --refresh-remote` updates it.
 - Opening `/apps/<id>/` on its own (not in the shell) goes to the app's site, its standalone address.
 - The app keeps exact copies of the `shared/` files it uses, so it also runs on its own. After changing one of those here, update the copies in the app's repo (Docket: `node scripts/sync-workshop.mjs --update`).
-- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` and `git clone https://github.com/adavidson21/runway .remote/runway`.
+- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` and, if you have access to the private Runway repo, `git clone https://github.com/adavidson21/runway .remote/runway` (CI and the checks skip Runway without it).
 - Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
 
 ### No third-party requests
@@ -167,7 +180,7 @@ Pages load files from this site only, plus the local helpers on `http://127.0.0.
 
 ### Themes
 
-Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/theme.js` (`node tests/check-themes.mjs` fails until they match). Every app, Agents included, loads `themes.css` directly. Until WS8, eng-agents' static page still copies it with `sync-themes.mjs`.
+Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/theme.js` (`node tests/check-themes.mjs` fails until they match). Every app, Dispatch included, loads `themes.css` directly.
 
 ## Running it locally
 

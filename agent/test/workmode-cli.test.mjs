@@ -107,7 +107,7 @@ function repos() {
   fs.writeFileSync(path.join(origin, 'f.txt'), 'one');
   g(origin, 'add', '.'); g(origin, 'commit', '-qm', 'one'); g(origin, 'tag', 'v1.0.0');
   fs.writeFileSync(path.join(origin, 'f.txt'), 'two');
-  g(origin, 'commit', '-qam', 'two'); g(origin, 'tag', 'v1.1.0');
+  g(origin, 'commit', '-qam', 'two'); g(origin, 'tag', 'v1.1.0'); g(origin, 'tag', 'docket-android');
   fs.writeFileSync(path.join(origin, 'f.txt'), 'three');
   g(origin, 'commit', '-qam', 'three');
   const clone = path.join(root, 'clone');
@@ -119,7 +119,7 @@ function repos() {
 test('update moves a checkout to a release tag, lists tags newest first, and refuses local changes or unknown tags', { skip: !hasGit && 'git is not installed' }, () => {
   const { root, origin, clone, g } = repos();
   try {
-    assert.deepEqual(listTags(clone), ['v1.1.0', 'v1.0.0']);
+    assert.deepEqual(listTags(clone), ['v1.1.0', 'v1.0.0'], 'only release tags, not docket-android');
     const out = [];
     assert.equal(checkoutTag(clone, 'v1.0.0', s => out.push(s)), true, out.join('\n'));
     assert.equal(fs.readFileSync(path.join(clone, 'f.txt'), 'utf8'), 'one');

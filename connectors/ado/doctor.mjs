@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// workshop doctor ado: checks the ADO connector from a terminal. Until the `workshop` command exists
-// (WS7), run it as:  node connectors/ado/doctor.mjs [options]
+// workshop doctor ado: checks the ADO connector from a terminal. Also runs on its own as:
+//   node connectors/ado/doctor.mjs [options]
 //
 //   (no option)      Check each connection and list what a sync finds. Same as ado_helper.py --test.
 //   --compare        Run ado_helper.py and the connector against your ADO and print match and mismatch
