@@ -8,7 +8,7 @@
 
    A manifest app is a same-origin page in a frame, kept loaded while hidden so its state survives
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open,
-   toast, badge, notify, commands.register, commands.unregister) and sends them events (theme, route,
+   toast, badge, notify, status.set, status.clear, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
@@ -120,6 +120,7 @@ function renderTopbar() {
   if (!bar) return;
   bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
     + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span></nav>`
+    + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
     + WorkshopTheme.toggleHtml();
 }
 function markTopbar() {
@@ -164,6 +165,20 @@ function parseHash() {
   if (!byId[id] && byId[RENAMED[id]]) id = RENAMED[id];
   return { id: byId[id] ? id : null, path: rest.length ? rest.map(decodeURIComponent).join('/') : '' };
 }
+function paneOf(app) {
+  let pane = document.getElementById('pane-' + app.id);
+  if (!pane) {
+    pane = document.createElement('section');
+    pane.className = 'pane'; pane.id = 'pane-' + app.id; pane.setAttribute('aria-label', app.manifest.name);
+    pane.hidden = true;
+    $('#panes').appendChild(pane);
+  }
+  return pane;
+}
+// Apps with background: true load hidden when Workshop opens, so their status shows before the first visit.
+function mountBackground() {
+  for (const app of apps) if (app.manifest.background && !mounted.has(app.id)) ensureMounted(app, paneOf(app));
+}
 function route() {
   const parsed = parseHash(), id = parsed.id || homeId();
   const app = byId[id];
@@ -171,18 +186,13 @@ function route() {
   const prev = current && current !== id ? byId[current] : null;
   if (prev) sendTo(prev, 'visible', { visible: false });
   current = id;
-  let pane = document.getElementById('pane-' + id);
-  if (!pane) {
-    pane = document.createElement('section');
-    pane.className = 'pane'; pane.id = 'pane-' + id; pane.setAttribute('aria-label', app.manifest.name);
-    $('#panes').appendChild(pane);
-  }
+  const pane = paneOf(app);
   document.querySelectorAll('.pane').forEach(p => { p.hidden = p !== pane; });
   if (!mounted.has(id)) ensureMounted(app, pane);
   sendTo(app, 'visible', { visible: true }); // before ready, the ready reply carries it
   deliverRoute(app, parsed.path);
   focusFrame(app);
-  document.title = `${app.manifest.name} · Workshop`;
+  setTitle();
   markRail();
   // Tidy the address: home is the bare page, and a one-time path is dropped so a reload does not repeat it.
   const want = id === homeId() ? '' : '#/' + id;
@@ -290,6 +300,8 @@ function handleRequest(app, method, p) {
       return null;
     }
     case 'commands.unregister': { if (app.runtimeCommands) app.runtimeCommands.delete(p.id); return null; }
+    case 'status.set': setStatus(app, p); return null;
+    case 'status.clear': clearStatus(app); return null;
     default: throw fail('not_found', `The shell does not know "${method}".`);
   }
 }
@@ -303,6 +315,103 @@ function notify(app, p) {
     toast(p.body ? `${p.title}: ${p.body}` : p.title, 'Open', open);
   }
 }
+
+/* ---------- status: one line an app keeps in the top bar (ws.status, docs/sdk.md Status) ----------
+   Shown on every app, so what an app is doing (Docket's running task) and its buttons are always in reach.
+   One status per app; the newest one set is shown. An action button sends the app a command event; one with a
+   prompt asks for a line of text first and sends it along (Esc or Skip sends it without text, if allowed). */
+const STATUS_ICONS = {
+  pause: svg('<path d="M7 4.5v11M13 4.5v11"/>'),
+  play: svg('<path d="M6.5 4.3v11.4l9-5.7z"/>'),
+  done: svg('<path d="M4.5 10.5l3.5 3.5 7.5-8"/>'),
+  note: svg('<path d="M4 15.5l1-3.8 8.3-8.3a1.9 1.9 0 0 1 2.7 2.7L7.7 14.4z"/><path d="M11.8 5l2.7 2.7"/>'),
+  bolt: svg('<path d="M11 2.5L4.5 11.2H10L9 17.5l6.5-8.7H10z"/>')
+};
+const statuses = new Map();   // appId -> {app, st, at}
+let statusPrompt = null;
+function shownStatus() {
+  let best = null;
+  for (const s of statuses.values()) if (!best || s.at > best.at) best = s;
+  return best;
+}
+function setStatus(app, p) {
+  if (!p || typeof p.text !== 'string' || !p.text.trim()) throw fail('bad_request', 'A status needs text.');
+  const st = {
+    text: p.text.slice(0, 200), detail: typeof p.detail === 'string' ? p.detail.slice(0, 300) : '',
+    since: p.since && !isNaN(Date.parse(p.since)) ? p.since : null, route: typeof p.route === 'string' ? p.route : '',
+    actions: (Array.isArray(p.actions) ? p.actions : []).slice(0, 4).filter(a => a && a.label && /^[a-z][a-z0-9-]{0,39}$/.test(a.command))
+  };
+  const prev = statuses.get(app.id);
+  // Updating the same status keeps its place; a new one (different text) comes to the front.
+  statuses.set(app.id, { app, st, at: prev && prev.st.text === st.text ? prev.at : Date.now() });
+  renderStatus();
+}
+function clearStatus(app) {
+  if (!statuses.delete(app.id)) return;
+  if (statusPrompt && statusPrompt.appId === app.id) closeStatusPrompt();
+  renderStatus();
+}
+const runFor = since => {
+  const m = Math.max(0, Math.floor((Date.now() - Date.parse(since)) / 60000));
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+};
+function renderStatus() {
+  const el = $('#wstatus');
+  if (!el) return;
+  const s = shownStatus();
+  document.body.classList.toggle('has-status', !!s);
+  if (!s) { el.hidden = true; el.innerHTML = ''; setTitle(); return; }
+  const { app, st } = s;
+  el.hidden = false;
+  el.dataset.app = app.id;
+  el.innerHTML = `<span class="ws-dot" aria-hidden="true"></span>`
+    + `<button class="ws-text" data-status-open title="${esc(st.detail ? `${st.text}\n${st.detail}` : st.text)}"><span class="ws-app">${esc(app.manifest.name)}</span><span class="ws-main">${esc(st.text)}</span>${st.detail ? `<span class="ws-detail">${esc(st.detail)}</span>` : ''}</button>`
+    + (st.since ? `<span class="ws-time" title="Since ${esc(new Date(st.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}">${runFor(st.since)}</span>` : '')
+    + `<span class="ws-acts">${st.actions.map((a, i) => `<button class="ws-act${a.primary ? ' primary' : ''}${a.icon && !a.primary && a.icon !== 'pause' ? ' icon' : ''}" data-status-act="${i}" aria-label="${esc(a.label)}" title="${esc(a.label)}">${a.icon && STATUS_ICONS[a.icon] ? STATUS_ICONS[a.icon] : ''}${a.primary || (a.icon && a.icon !== 'pause') ? '' : `<span>${esc(a.label)}</span>`}</button>`).join('')}</span>`;
+  setTitle();
+}
+// The tab title: the current app, with the status in front of it when there is one.
+function setTitle() {
+  const app = byId[current], s = shownStatus();
+  const base = app ? `${app.manifest.name} · Workshop` : 'Workshop';
+  document.title = s ? `● ${s.st.since ? runFor(s.st.since) + ' ' : ''}${s.st.text} · ${base}` : base;
+}
+setInterval(() => { if (statuses.size) renderStatus(); }, 30000);
+
+function runStatusAction(i) {
+  const s = shownStatus(), a = s && s.st.actions[i];
+  if (!a) return;
+  if (!a.prompt) { sendTo(s.app, 'command', { id: a.command }); return; }
+  openStatusPrompt(s.app, a);
+}
+function openStatusPrompt(app, a) {
+  closeStatusPrompt();
+  const p = a.prompt, skip = p.skip !== false;
+  const d = document.createElement('form');
+  d.className = 'ws-prompt'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', p.title);
+  d.innerHTML = `<label class="ws-ptitle" for="wsPromptIn">${esc(p.title)}</label>
+    <input id="wsPromptIn" autocomplete="off" maxlength="${Math.min(1000, p.maxLength || 300)}" placeholder="${esc(p.placeholder || '')}">
+    <div class="acts"><span class="hint">Enter saves${skip ? '. Esc skips' : ''}.</span>${skip ? '<button type="button" class="btn ghost" data-skip>Skip</button>' : '<button type="button" class="btn ghost" data-cancel>Cancel</button>'}<button class="btn primary">${esc(a.label)}</button></div>`;
+  document.body.appendChild(d);
+  statusPrompt = { el: d, appId: app.id };
+  const input = d.querySelector('input');
+  const send = text => { closeStatusPrompt(); sendTo(app, 'command', text ? { id: a.command, text } : { id: a.command }); };
+  d.addEventListener('submit', e => { e.preventDefault(); const v = input.value.trim(); if (v || skip) send(v); });
+  d.addEventListener('click', e => { if (e.target.closest('[data-skip]')) send(''); if (e.target.closest('[data-cancel]')) closeStatusPrompt(); });
+  d.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); skip ? send('') : closeStatusPrompt(); } });
+  input.focus();
+}
+function closeStatusPrompt() {
+  if (!statusPrompt) return;
+  statusPrompt.el.remove(); statusPrompt = null;
+  const app = byId[current]; if (app) focusFrame(app);
+}
+document.addEventListener('click', e => {
+  const act = e.target.closest('[data-status-act]');
+  if (act) { runStatusAction(+act.dataset.statusAct); return; }
+  if (e.target.closest('[data-status-open]')) { const s = shownStatus(); if (s) go(s.app.id, s.st.route); return; }
+  if (statusPrompt && !e.target.closest('.ws-prompt')) closeStatusPrompt();
+});
 
 /* ---------- command palette (Ctrl+K) ----------
    Manifest commands (shown before the app has loaded) plus commands apps register at runtime, plus a few
@@ -506,4 +615,5 @@ folderBar();
 if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found</h2><p>There is no app list for this site. If you publish Workshop as static files, run <code>node shell/registry.mjs</code> first.</p></div>';
 window.addEventListener('hashchange', route);
 route();
+mountBackground();
 WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));

@@ -29,6 +29,8 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | `ws.toast(text, {kind?, action?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. |
 | `ws.badge(count)` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. |
 | `ws.notify({title, body?, route?})` | System notification if the user allowed them, else a toast. Clicking it opens `route` in this app. |
+| `ws.status.set({text, detail?, since?, route?, actions?})` | One line in the shell's top bar about what this app is doing right now, shown on every app (see Status below). Calling it again replaces it. Standalone it rejects with `not_found`, so the app shows its own. |
+| `ws.status.clear()` | Removes this app's status. |
 | `ws.commands.register({id, title, shortcut?})` | Adds a command to the shell palette (`Ctrl+K`). Returns an unregister function. `id` is unique within the app; the shell scopes it to the app. Running it sends the app a `command` event. |
 | `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (`light`, `dark`, or `system`); `scheme` is `light` or `dark`. |
 | `ws.on(event, handler)` | Subscribe to `theme`, `route`, `command`, `visible` or `online`. Returns an unsubscribe function. |
@@ -39,7 +41,7 @@ Events:
 | --- | --- | --- |
 | `theme` | `{key, scheme}` | The user changed the theme. Apps that use `shared/themes.css` and `data-theme` get it applied automatically; the event is for canvas and charts. |
 | `route` | `{path}` | The part of the hash after `#/<app>/` changed, including on first show. |
-| `command` | `{id}` | A palette command, shortcut, manifest command or toast action for this app ran. |
+| `command` | `{id, text?}` | A palette command, shortcut, manifest command, toast action or status action for this app ran. `text` is what the user typed into a status action's prompt. |
 | `visible` | `{visible}` | The app was shown or hidden in the shell. |
 | `online` | `{online}` | The agent became reachable or unreachable. |
 
@@ -126,6 +128,20 @@ For the Settings app. Other apps keep their own settings in their own data.
 | `ws.config.get()` | The public view of `config.json` ([config.md](config.md)), from `GET /api/config`. In browser mode rejects with `unavailable`. |
 | `ws.config.put(patch)` | Changes features, allowed origins, connectors on and off, the port or the data folder (`PUT /api/config`). Resolves `{config, restartRequired}`. From a hosted page rejects with `local_only`. |
 
+### Status
+
+A status is for something ongoing the user should see and act on from any app, like Docket's running task. The shell shows one at a time in the top bar (the most recently started), and puts it in the tab title.
+
+| Field | Meaning |
+| --- | --- |
+| `text` | The line itself, up to 200 characters. Clicking it opens this app at `route`. |
+| `detail` | A second, quieter line (Docket: the last breadcrumb). Hidden on narrow windows. |
+| `since` | ISO time. The shell shows the time since then (`12m`, `1h 05m`) and keeps it ticking. |
+| `route` | Where clicking the text goes in this app. Empty opens the app. |
+| `actions` | Up to four buttons: `{label, command, icon?, primary?, prompt?}`. A click sends this app a `command` event with that id. `icon`: `pause`, `play`, `done`, `note` or `bolt`; an icon button shows only the icon (label in its tooltip), except `pause`, which also shows its label. `primary` is the filled one. `prompt: {title, placeholder?, maxLength?, skip?}` asks for one line first, under the top bar, and sends it as `text`; with `skip` (the default) Esc or Skip still sends the command without text. |
+
+A manifest with `background: true` loads the app hidden when Workshop opens, so its status is there before the first visit.
+
 ## Shell messages
 
 `ws.open`, `toast`, `badge`, `notify`, `commands` and the events travel between the app frame and the shell by `postMessage`. Apps never send these by hand; this section is for the shell and SDK implementers. Data and connector calls do not use messages: the SDK calls the agent (or the browser backend) directly, so an app also works when opened on its own.
@@ -144,7 +160,7 @@ Every message is an object with `workshop: 1`. Schema [sdk-message](schemas/sdk-
 | `response` | shell to app | `id` of the request, `ok`, then `result` or `error: {code, message}` |
 | `event` | shell to app | `event`, `payload` |
 
-Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `toast`, `badge`, `notify`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
+Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
 
 Rules:
 
@@ -154,7 +170,7 @@ Rules:
 
 ## Standalone pages
 
-When an app page is opened outside the shell (`ws.embedded === false`), shell methods still work: `open` changes `location` to the shell URL with that hash, `toast` shows a small in-page message, `badge` prefixes `document.title` with `(n)`, `notify` uses the Notification API if allowed, and `commands.register` binds its shortcut on the page. Data and connectors work as usual.
+When an app page is opened outside the shell (`ws.embedded === false`), shell methods still work: `open` changes `location` to the shell URL with that hash, `toast` shows a small in-page message, `badge` prefixes `document.title` with `(n)`, `notify` uses the Notification API if allowed, `status.set` and `status.clear` reject with `not_found` (there is no top bar, so the app shows its own), and `commands.register` binds its shortcut on the page. Data and connectors work as usual.
 
 ## Examples
 

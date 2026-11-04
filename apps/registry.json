@@ -49,6 +49,7 @@
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 10,
+        "background": true,
         "modes": [
           "local",
           "hosted",
