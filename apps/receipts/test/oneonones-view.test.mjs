@@ -2,7 +2,7 @@
 // http(s), and the draft step only shows when it is on and the connector is ready. Synthetic data only.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inline, render } from '../js/oneonones/markdown.js';
+import { inline, render } from '../js/markdown.js';
 import { buildPacket, notePath } from '../js/oneonones/model.js';
 import { aiHtml, homeHtml, logHtml, noteHtml, packetHtml, personForm, personHtml, settingsHtml, startPanelHtml } from '../js/oneonones/view.js';
 import { NOW, PERSON, TODAY, docketTasks, entry, receiptsEntries, task } from './oneonones-fake.mjs';

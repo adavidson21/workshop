@@ -76,6 +76,8 @@ test('questions and places', () => {
   assert.equal(parseCapture('? where did I leave off', ctx).kind, 'ask');
   assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'receipts', text: '> receipts' });
   assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'receipts', path: '1on1s', text: '> 1:1s' }, '1:1s are part of Rapport');
+  assert.deepEqual(parseCapture('> goals', ctx), { kind: 'go', app: 'receipts', path: 'goals', text: '> goals' }, 'Goals are part of Rapport');
+  assert.deepEqual(parseCapture('> OKRs', ctx), { kind: 'go', app: 'receipts', path: 'goals', text: '> OKRs' });
   assert.deepEqual(parseCapture('> the rapport', ctx), { kind: 'go', app: 'receipts', text: '> the rapport' });
   assert.equal(parseCapture('> queue', ctx).kind, 'ask', 'Queue was removed');
   assert.equal(parseCapture('> docket', ctx).app, 'prioritizer');

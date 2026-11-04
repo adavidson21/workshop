@@ -28,10 +28,10 @@ const MAX_TEXT = 2000;
 export const PLACES = {
   home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'agents', agents: 'agents',
   hub: 'agents', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
-  '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', runway: 'runway', roadmap: 'runway'
+  '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', goals: 'receipts', okrs: 'receipts', runway: 'runway', roadmap: 'runway'
 };
-/* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0. */
-export const PLACE_PATHS = { '1:1s': '1on1s', '1:1': '1on1s', oneonones: '1on1s', 'one-on-ones': '1on1s' };
+/* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
+export const PLACE_PATHS = { '1:1s': '1on1s', '1:1': '1on1s', oneonones: '1on1s', 'one-on-ones': '1on1s', goals: 'goals', okrs: 'goals' };
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const pad = n => String(n).padStart(2, '0');
