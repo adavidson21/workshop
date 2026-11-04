@@ -13,7 +13,7 @@ Version: `route.json` is version 1.
 3. Tandem's **hub** agent writes `route.json` next to it. For a question it goes on to answer and writes `answer.md`.
 4. Dispatch reads both through `hub.result`, checks `route.json` against [schemas/hub-route.schema.json](schemas/hub-route.schema.json), and shows the result. Anything that does not match is dropped, never acted on.
 
-Both connector actions refuse unless the local-only setting `features.hubAI` is on (off by default). Details: `connectors/opencode/README.md`.
+Both connector actions refuse unless the opencode connector's **Hub** setting (`hub` in its config, off by default) is on. Connector settings can only be changed from Workshop on this computer, never from a hosted page. Details: `connectors/opencode/README.md`.
 
 ## request.md
 
