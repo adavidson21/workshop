@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
 import { render } from '../js/view.js';
 import { sidebarHtml, inScope } from '../js/sidebar.js';
-import { reviewItems, reviewsHtml, reviewCard, reviewUrlCheck, startingReviews, toReviewCount, reviewAllList, prArg, queueHtml } from '../js/pr-reviews.js';
+import { reviewItems, reviewsHtml, reviewCard, reviewUrlCheck, startingReviews, toReviewCount, reviewAllList, prArg, queueHtml, mineItems, mineState, mineHtml, mineNeedsCount } from '../js/pr-reviews.js';
 import { emptyLocal } from '../js/local.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -55,16 +55,18 @@ function load() {
 }
 beforeEach(load);
 
-test('PR reviews have their own page: not in All runs or the run counts, listed under PR reviews', () => {
+test('PR reviews have their own page: not in All runs or the run counts, listed under Pull requests, To review', () => {
   const pr = S.D.items.find(i => i.folder === 'pr-812');
   assert.equal(inScope(pr), false, 'not in All runs');
   const all = render();
   assert.doesNotMatch(all, /id="item-pr-812"/);
-  assert.match(sidebarHtml(), /data-side-scope="reviews" title="[^"]*"><span class="sl">PR reviews<\/span><span class="cnt" title="1 PR waiting on you with no review yet">1<\/span>/);
+  assert.match(sidebarHtml(), /<h3 id="sh-prs">Pull requests<\/h3>/);
+  assert.match(sidebarHtml(), /data-side-scope="reviews" title="[^"]*"><span class="sl">To review<\/span><span class="cnt" title="1 PR waiting on you with no review yet">1<\/span>/);
   S.ui.scope = { kind: 'reviews' };
   assert.equal(inScope(pr), true);
   const page = render();
-  assert.match(page, /<h2>PR reviews<\/h2>/);
+  assert.match(page, /<h2>To review<\/h2>/);
+  assert.doesNotMatch(page, /<aside>/, 'no repos or activity panels on the PR pages');
   assert.match(page, /id="item-pr-812"/);
   assert.equal(reviewItems().length, 1);
 });
@@ -105,10 +107,13 @@ test('an unfinished review with no agent working offers to run it again', () => 
   assert.match(html, /The review did not finish\..*Run the review again/s);
 });
 
-test('waiting on you: the inbox with Review buttons, See review for reviewed ones, and Waiting for author', () => {
+test('waiting on you: one entry per PR, the review card in place for reviewed ones, Review for the rest', () => {
   const html = reviewsHtml();
   assert.match(html, /Waiting on you <span class="n">3<\/span>/);
-  assert.match(html, /<a class="btn" href="#item-pr-812" data-jump="item-pr-812">See review<\/a>/);
+  assert.equal(html.match(/!812/g).length, 1, 'a reviewed PR is listed once');
+  assert.match(html, /<article class="item rv" id="item-pr-812"[^>]*><div class="item-head"><h4 class="t"><span class="num">!812<\/span>.*<span class="tier" data-tier="blocking"/s);
+  assert.doesNotMatch(html, /See review|id="rvp-812"/);
+  assert.doesNotMatch(html, /Earlier reviews/, 'the only review is of a PR still waiting on you');
   assert.match(html, /data-rv-url="https:[^"]+hooks\/pullrequest\/900">Review<\/button>/);
   assert.match(html, /<span class="tier" data-tier="pool"[^>]*>Team<\/span>/);
   assert.match(html, /via Platform/);
@@ -130,13 +135,14 @@ test('the inbox says how to turn on ADO when the connector is off, and shows err
   assert.equal(toReviewCount(), 0);
 });
 
-test('a /pr-review session with no folder yet shows under Starting with its agent box, not under Investigations', () => {
+test('a /pr-review session with no folder yet shows at the top of Waiting on you with its agent box, not under Investigations', () => {
   S.L.sessions.ses_rv1 = { id: 'ses_rv1', status: 'idle', title: '/pr-review ' + LINK.replace('812', '913'), command: '/pr-review ' + LINK.replace('812', '913'), error: null, text: 'NOREPO: hooks is not cloned in the workspace.', folder: null };
   S.L.others = (S.L.others || []).concat([{ session: 'ses_rv1', command: '/pr-review ' + LINK.replace('812', '913'), at: S.now - 60e3 }]);
   assert.equal(startingReviews().length, 1);
   S.ui.scope = { kind: 'reviews' };
   const page = render();
-  assert.match(page, /Starting <span class="n">1<\/span>/);
+  assert.match(page, /<span class="tag">Starting<\/span>/);
+  assert.ok(page.indexOf('Fetching the pull request') < page.indexOf('!812'), 'above the inbox PRs');
   assert.match(page, /<span class="num">!913<\/span>Fetching the pull request/);
   assert.match(page, /NOREPO: hooks is not cloned/);
   assert.match(page, /data-dismiss="ses_rv1"/);
@@ -144,11 +150,13 @@ test('a /pr-review session with no folder yet shows under Starting with its agen
   assert.doesNotMatch(render(), /Fetching the pull request/, 'not in the runs list');
 });
 
-test('a review in progress: the inbox row says Reviewing and Review again is disabled', () => {
+test('a review in progress: its card shows the agent and Review again is disabled; a row being reviewed says Reviewing', () => {
   S.L.items['pr-812'] = { current: 'ses_rv2', sessions: [{ id: 'ses_rv2', command: '/pr-review ' + LINK }] };
   S.L.sessions.ses_rv2 = { id: 'ses_rv2', status: 'busy', command: '/pr-review ' + LINK, activity: 'git diff', folder: 'pr-812' };
+  S.ui.busy['rv:900'] = true;
   const html = reviewsHtml();
-  assert.match(html, /<span class="rv-busy"><span class="spin" aria-hidden="true"><\/span>Reviewing<\/span>/);
+  assert.match(html, /id="rvp-900".*<span class="rv-busy"><span class="spin" aria-hidden="true"><\/span>Reviewing<\/span>/s);
+  assert.match(html, /data-rv-again="1" disabled>Review again</);
   assert.match(html, /<div class="agent busy">/);
   assert.match(html, /data-abort="ses_rv2"/);
 });
@@ -158,6 +166,11 @@ test('the paste box checks the link before asking the agent', () => {
   assert.match(reviewUrlCheck('').error, /Paste/);
   assert.match(reviewUrlCheck('812').error, /not a link/);
   assert.match(reviewUrlCheck('https://github.com/o/r/pull/3').error, /pullrequest/);
+  assert.doesNotMatch(reviewsHtml(), /id="rv-url"/, 'hidden until Review a link');
+  assert.match(reviewsHtml(), /data-rv-open="1">Review a link</);
+  S.ui.prReview = { open: true };
+  assert.match(reviewsHtml(), /id="rv-url"/);
+  assert.doesNotMatch(reviewsHtml(), /data-rv-open/);
   S.ui.prReview = { busy: false, error: 'That is not a link.' };
   assert.match(reviewsHtml(), /<p class="err">That is not a link\.<\/p>/);
 });
@@ -230,4 +243,65 @@ test('the nightly line: how to turn it on, or when it runs', () => {
   const html = reviewsHtml();
   assert.match(html, /Nightly review at <strong>02:00<\/strong>/);
   assert.match(html, /Last ran 2026-10-21/);
+});
+
+test('a review of a PR no longer waiting on you is listed under Earlier reviews; with the inbox off, under Reviews', () => {
+  S.inbox.items = S.inbox.items.filter(p => p.id !== 812);
+  let html = reviewsHtml();
+  assert.match(html, /Earlier reviews <span class="n">1<\/span>.*id="item-pr-812"/s);
+  assert.match(html, /<span class="tag">PR review<\/span>/, 'no tier without an inbox entry');
+  S.inbox = { state: 'off', items: [], notes: [], error: null, at: 1 };
+  html = reviewsHtml();
+  assert.match(html, /<h3 id="gh-rvl">Reviews <span class="n">1<\/span>/);
+});
+
+test('a reviewer asking you something shows under Needs you, counted in the sidebar', () => {
+  S.L.items['pr-812'] = { current: 'ses_rv3', sessions: [{ id: 'ses_rv3', command: '/pr-review ' + LINK }] };
+  S.L.sessions.ses_rv3 = { id: 'ses_rv3', status: 'idle', command: '/pr-review ' + LINK, folder: 'pr-812' };
+  S.L.questions.push({ id: 'q_rv', sessionID: 'ses_rv3', folder: 'pr-812', questions: [{ question: 'Which base branch?', options: [] }] });
+  const before = sidebarHtml().match(/data-side-scope="needs"><span class="sl">Needs you<\/span><span class="cnt">(\d+)/);
+  S.ui.scope = { kind: 'needs' };
+  const page = render();
+  assert.match(page, /<h3 id="gh-prs">PR reviews <span class="n">1<\/span>/);
+  assert.match(page, /id="item-pr-812"/);
+  assert.match(page, /and 1 PR review waiting on you/);
+  assert.ok(before && Number(before[1]) >= 1);
+});
+
+test('My PRs: your runs at Ship with their PRs, grouped by whose turn it is, in the sidebar under Pull requests', () => {
+  const it = S.D.items.find(i => i.folder === '41610-rate-limit-headers');
+  assert.deepEqual(mineItems().map(i => i.folder), [it.folder]);
+  assert.equal(mineState(it), 'review', 'branch only local, connected: review before you push');
+  assert.equal(mineNeedsCount(), 1);
+  assert.match(sidebarHtml(), /data-side-scope="mine" title="[^"]*"><span class="sl">My PRs<\/span><span class="cnt"[^>]*>1<\/span>/);
+  S.ui.scope = { kind: 'mine' };
+  let page = render();
+  assert.match(page, /<h2>My PRs<\/h2>/);
+  assert.match(page, /<h3 id="gh-mine-you">Your turn <span class="n">1<\/span>/);
+  assert.match(page, /id="mine-41610"/);
+  assert.match(page, /Review before you push/);
+  assert.match(page, /href="review\.html\?id=41610&amp;repo=gateway"/, 'the code review link, same as on the run card');
+  assert.match(page, /data-side-run="41610-rate-limit-headers">Open run</);
+  assert.doesNotMatch(page, /<aside>/);
+
+  S.D.reviews = { [it.folder]: { gateway: { status: 'revising', revision: 2, run: { status: 'running' } } } };
+  assert.equal(mineState(it), 'revising');
+  assert.match(mineHtml(), /With the agent/);
+  assert.equal(mineNeedsCount(), 0);
+  S.D.reviews[it.folder].gateway.run.status = 'failed';
+  assert.equal(mineState(it), 'fix');
+  S.D.reviews[it.folder].gateway = { status: 'approved', revision: 2 };
+  assert.match(mineHtml(), /Ready for a PR/);
+  it.pr[0].push = { local: true, remote: true, unpushed: 0 };
+  assert.equal(mineState(it), 'pushed');
+  it.pr[0].push = { local: true, remote: false, unpushed: null };
+  S.D.reviews = {};
+  S.conn = 'off';
+  assert.equal(mineState(it), 'push', 'not connected: push by hand');
+});
+
+test('My PRs with none yet says where they come from', () => {
+  S.D.items = S.D.items.filter(i => i.stage !== 'ship');
+  assert.match(mineHtml(), /When a run reaches Ship, its pull requests show here/);
+  assert.match(sidebarHtml(), /<span class="sl">My PRs<\/span><span class="n"><\/span>/);
 });

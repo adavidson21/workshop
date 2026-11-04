@@ -159,6 +159,12 @@ function queueAction(what) {
 }
 
 /* ---------- PR reviews: start one (the opencode connector's pr.review action) ---------- */
+// "Review a link" on the To review page shows the paste box.
+function openPaste() {
+  ui().prReview = { ...(ui().prReview || {}), open: true };
+  paint();
+  focusFirst('#rv-url');
+}
 function startReview(url, again) {
   const ck = reviewUrlCheck(url);
   if (!ck.ok) { ui().prReview = { busy: false, error: ck.error }; paint(); return; }
@@ -474,7 +480,7 @@ function openRunFromSide(folder) {
   // Show the run where it is: keep the current list if it has it, else its project's.
   const sc = ui().scope || { kind: 'all' };
   const pid = (S.D && S.D.projects && S.D.projects.runs[folder]) || INBOX;
-  if (sc.kind === 'project' && sc.id !== pid) ui().scope = S.D && S.D.projects ? { kind: 'project', id: pid } : { kind: 'all' };
+  if ((sc.kind === 'project' && sc.id !== pid) || sc.kind === 'mine' || sc.kind === 'reviews') ui().scope = S.D && S.D.projects ? { kind: 'project', id: pid } : { kind: 'all' };
   if (sc.kind === 'needs' && !(app.querySelector('#item-' + CSS.escape(itemKey(it))))) ui().scope = { kind: 'all' };
   ui().side = false;
   paint();
@@ -687,6 +693,7 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-repo-go]')) { repoGo(); return; }
   const gb = t.closest('[data-guide]');
   if (gb) { draftGuide(gb.getAttribute('data-guide')); return; }
+  if (t.closest('[data-rv-open]')) { openPaste(); return; }
   if (t.closest('[data-rv-go]')) { startReview(ui().drafts['rv:url'] || ''); return; }
   const rvu = t.closest('[data-rv-url]');
   if (rvu) { startReview(rvu.getAttribute('data-rv-url'), rvu.hasAttribute('data-rv-again')); return; }
@@ -810,7 +817,7 @@ ws.on('command', ({ id }) => {
   if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
   if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
   if (id === 'project' && S.D && S.D.projects) openProject(null);
-  if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setScope('reviews'); focusFirst('#rv-url'); }
+  if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setScope('reviews'); openPaste(); }
 });
 
 /* ---------- start ---------- */

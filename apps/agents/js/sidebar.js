@@ -1,5 +1,6 @@
 /* Dispatch: the left sidebar (Dispatch App Experience Plan, phase 1, P2), as HTML strings from S.
-   Start work, Pinned, All runs, Needs you, and Projects (with folders), each project expandable to its
+   Start work, Pinned, All runs and Needs you, Pull requests (To review: teammates' PRs; My PRs: your
+   runs' PRs), and Projects (with folders), each project expandable to its
    recent runs with a status dot. Picking an entry sets S.ui.scope, which filters the main list (view.js).
    Projects and which run is in which come from the opencode connector (`state.projects`, lib/projects.mjs);
    folders and pins come from this browser (local.js, S.local). With an older connector that has no
@@ -7,7 +8,7 @@
 import { S } from './state.js';
 import { h, bucketOf, itemSession, isBusy, autoIs, itemKey, plural, ICON } from './view.js';
 import { isPinned } from './local.js';
-import { toReviewCount, reviewsAsking } from './pr-reviews.js';
+import { toReviewCount, reviewsAsking, mineNeedsCount, mineItems } from './pr-reviews.js';
 
 export const INBOX = 'inbox';
 export const projectsOn = () => !!(S.D && S.D.projects && Array.isArray(S.D.projects.projects));
@@ -40,7 +41,7 @@ export const runsIn = pid => newest(items().filter(it => projectOf(it) === pid))
 export function runLabel(it) { return it.id ? '#' + it.id + ' ' + it.title : it.title; }
 
 // ------------------------------------------------------------------ scope
-// S.ui.scope: {kind: 'all'} | {kind: 'needs'} | {kind: 'reviews'} | {kind: 'project', id}.
+// S.ui.scope: {kind: 'all'} | {kind: 'needs'} | {kind: 'reviews'} (To review) | {kind: 'mine'} (My PRs) | {kind: 'project', id}.
 export function scope() {
   const sc = S.ui.scope || { kind: 'all' };
   if (sc.kind === 'project' && !projectById(sc.id)) return { kind: 'all' };
@@ -49,6 +50,7 @@ export function scope() {
 export function inScope(it) {
   const sc = scope();
   if (it.kind === 'pr' || sc.kind === 'reviews') return sc.kind === 'reviews' && it.kind === 'pr';
+  if (sc.kind === 'mine') return mineItems().includes(it);
   if (sc.kind === 'needs') return bucketOf(it) === 'needs';
   if (sc.kind === 'project') return projectOf(it) === sc.id;
   return true;
@@ -139,26 +141,31 @@ function reviewBadge() {
 
 /** The sidebar. open: shown as a drawer on narrow screens. */
 export function sidebarHtml() {
-  const needs = needsReview().length;
+  const needs = needsReview().length + reviewsAsking();
   const all = items().length;
   const nav = '<ul class="snav">' +
     `<li><button type="button" class="srow${on('all') ? ' on' : ''}" data-side-scope="all"><span class="sl">All runs</span><span class="n">${all || ''}</span></button></li>` +
-    `<li><button type="button" class="srow needs${on('needs') ? ' on' : ''}" data-side-scope="needs"><span class="sl">Needs you</span>${badge(needs)}</button></li>` +
-    `<li><button type="button" class="srow prs${on('reviews') ? ' on' : ''}" data-side-scope="reviews" title="First-pass reviews of your team's pull requests"><span class="sl">PR reviews</span>${reviewBadge()}</button></li></ul>`;
+    `<li><button type="button" class="srow needs${on('needs') ? ' on' : ''}" data-side-scope="needs"><span class="sl">Needs you</span>${badge(needs)}</button></li></ul>`;
+  const mineN = mineNeedsCount();
+  const prs = '<section class="sgroup" aria-labelledby="sh-prs"><h3 id="sh-prs">Pull requests</h3><ul class="snav">' +
+    `<li><button type="button" class="srow prs${on('reviews') ? ' on' : ''}" data-side-scope="reviews" title="Teammates' pull requests and their first-pass reviews"><span class="sl">To review</span>${reviewBadge()}</button></li>` +
+    `<li><button type="button" class="srow mine${on('mine') ? ' on' : ''}" data-side-scope="mine" title="Pull requests from your runs"><span class="sl">My PRs</span>` +
+    (mineN ? `<span class="cnt" title="${plural(mineN, 'run')} with a code review to do">${mineN}</span>` : `<span class="n">${mineItems().length || ''}</span>`) + '</button></li></ul></section>';
   return `<nav class="side${S.ui.side ? ' open' : ''}" aria-label="Runs and projects">` +
     `<div class="side-top"><button type="button" class="btn primary new-run" data-start-open="1" title="Start a run in ${h((projectById(scopeProject()) || INBOX_ROW).name)}">Start work</button>` +
     `<button type="button" class="ibtn side-close" data-side-close="1" aria-label="Close the sidebar">${ICON.x}</button></div>` +
-    pinnedSection() + nav + projectsSection() + '</nav>' +
+    pinnedSection() + nav + prs + projectsSection() + '</nav>' +
     (S.ui.side ? '<div class="side-scrim" data-side-close="1"></div>' : '');
 }
 
 /** The line above the list when a project or Needs you is in view. */
 export function scopeHeadHtml() {
   const sc = scope();
-  if (sc.kind === 'all' || sc.kind === 'reviews') return '';
+  if (sc.kind === 'all' || sc.kind === 'reviews' || sc.kind === 'mine') return '';
   if (sc.kind === 'needs') {
-    const n = needsReview().length;
-    return `<div class="scope-head"><h2>Needs you</h2><span class="dim">${n ? plural(n, 'run') + ' waiting on you, across all projects' : 'Nothing is waiting on you.'}</span>` +
+    const n = needsReview().length, r = reviewsAsking();
+    const what = [n ? plural(n, 'run') : '', r ? plural(r, 'PR review') : ''].filter(Boolean).join(' and ');
+    return `<div class="scope-head"><h2>Needs you</h2><span class="dim">${what ? what + ' waiting on you, across all projects' : 'Nothing is waiting on you.'}</span>` +
       '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
   }
   const p = projectById(sc.id);

@@ -981,6 +981,13 @@ def agents_checks(b, watch):
 
         # The sidebar (Dispatch App Experience Plan, P2): projects through the connector, folders and pins in the browser.
         check('the sidebar counts Needs you across all projects', sp.inner_text('.side [data-side-scope=needs] .cnt') == '2')
+        sp.click('.side [data-side-scope=mine]')
+        check('My PRs lists runs at Ship with their PRs, on one column', seen(sp, '#mine-41610') and sp.inner_text('.scope-head h2') == 'My PRs' and sp.locator('.content aside').count() == 0)
+        sp.click('#mine-41610 [data-side-run]')
+        check('Open run goes from My PRs to the run card', seen(sp, '#item-41610'))
+        sp.click('.side [data-side-scope=reviews]')
+        check('To review sits under Pull requests in the sidebar', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'To review' and sp.locator('#sh-prs').count() == 1)
+        sp.click('.side [data-side-scope=all]'); sp.wait_for_selector('.scope-head', state='detached')
         sp.click('.side [data-proj-new]'); sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]')
         check('New project saves through the connector and shows only its runs', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Orders API' and sp.locator('article.item').count() == 0)
         sp.click('.scope-head [data-side-scope=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")')

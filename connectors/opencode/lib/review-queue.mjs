@@ -294,7 +294,7 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
       return;
     }
     if (now().getTime() - Date.parse(inbox.at) > INBOX_MAX_AGE_MS) {
-      q.message = "Nightly run skipped: the list of PRs waiting on you is more than a week old. Open Dispatch's PR reviews to refresh it.";
+      q.message = "Nightly run skipped: the list of PRs waiting on you is more than a week old. Open To review in Dispatch to refresh it.";
       save();
       return;
     }

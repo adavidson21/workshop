@@ -17,7 +17,7 @@ export const S = {
   briefs: {},           // brief.md per item folder, read through file.read: {text, error, at, loading}
   // UI state that must survive repaints: open sections, drafts, question picks, busy buttons, overlays.
   // scope: what the main list shows (sidebar.js); side: the sidebar drawer is open on a narrow screen.
-  // prReview: the paste box on the PR reviews page ({busy, error}).
+  // prReview: the paste box on the To review page ({open, busy, error}).
   ui: { open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null, scope: { kind: 'all' }, side: false, project: null, folder: null, move: null, prReview: null }
 };
 
