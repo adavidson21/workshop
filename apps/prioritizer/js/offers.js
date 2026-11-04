@@ -2,9 +2,12 @@
    `handoffs` collection (read only), and on Accept or Dismiss changes only Docket's own day plan: the every-sprint
    items and dayplan/settings meta.handled. On its own site Docket shares no data folder with other apps
    (Workshop docs/handoffs.md, rule 5), so it shows nothing. */
-import { SENDERS, applyOffer, markHandled, pendingOffers } from './offers-model.js';
+import { SENDERS, acceptedTasks, applyOffer, listFor, markHandled, pendingOffers, taskFromOffer } from './offers-model.js';
 import { dp, setHandled, setRecurring } from './dayplan.js';
-import { topLists } from './state.js';
+import { COLORS } from './constants.js';
+import { canonPerson, commit, isWaiting, state, topLists } from './state.js';
+import { todayStr, uid } from './util.js';
+import { toast } from './overlays.js';
 import { embedded } from './ws.js';
 
 const envs = {};
@@ -16,6 +19,28 @@ const here = () => embedded && !!wsh;
 
 async function load(app){
   try { envs[app] = await wsh.data.get('handoffs', {app}); } catch (e) { envs[app] = null; }
+  pickUp(app);
+}
+
+/* Accepted captures from Home and the Dispatch hub (Workshop docs/handoffs.md, rule 4): added as tasks with no
+   second click, then marked handled in Docket's own data. Never while Docket waits for the folder. */
+function pickUp(app){
+  if (!here() || isWaiting() || !state || !Array.isArray(state.tasks)) return 0;
+  const todo = acceptedTasks(app, envs[app], dp.handled, state.tasks);
+  if (!todo.length) return 0;
+  const fallback = (topLists()[0] || {}).id;
+  if (!fallback) return 0;
+  let rank = state.tasks.reduce((m, t) => Math.max(m, t.rank || 0), 0);
+  for (const o of todo){
+    const t = taskFromOffer(o, {id: uid(), listId: listFor(o, state.lists, fallback), rank: ++rank,
+      color: COLORS[state.colorIdx++ % COLORS.length], today: todayStr()});
+    t.people = [...new Set(t.people.map(canonPerson).filter(Boolean))];
+    state.tasks.push(t);
+  }
+  setHandled(markHandled(dp.handled, todo.map(o => o.key)));
+  commit();
+  toast(todo.length === 1 ? `Added "${todo[0].title}" from ${todo[0].from}` : `Added ${todo.length} tasks from ${todo[0].from}`);
+  return todo.length;
 }
 
 /* Called once by storage.js after the day plan loaded. render is called when offers change. */
@@ -58,4 +83,4 @@ function dismissOffer(key){
   return true;
 }
 
-export { acceptOffer, dismissOffer, offers, offersBoot, watchSender };
+export { acceptOffer, dismissOffer, offers, offersBoot, pickUp, watchSender };

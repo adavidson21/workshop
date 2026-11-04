@@ -105,3 +105,66 @@ test('an accepted item matches the recurring schema', () => {
   const dp = M.cleanDayplan({recurring: [item]});
   for (const r of dpEnvelopeFromBoard('dayplan/recurring', dp, null).items) assert.deepEqual(ds.validate('dayplan-recurring.schema.json', r), []);
 });
+
+/* ---------- accepted tasks from Home and the Dispatch hub (Workshop docs/handoffs.md, rule 4) ---------- */
+import { SENDERS, acceptedTasks, cleanTaskOffer, listFor, taskFromOffer } from '../js/offers-model.js';
+
+// The shape of Workshop's docs/examples/handoff-item.task-accepted.json.
+const TASK = {
+  id: 'hub_k3m9q2', updatedAt: 1793736000000, to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:15:00.000Z',
+  text: 'Onboarding doc for Person One', payload: {kind: 'task', title: 'Onboarding doc for Person One', people: ['Person One'], value: 3},
+  source: {app: 'agents', id: 'hub_k3m9q2'}, accepted: true
+};
+const hubEnv = (items, app = 'agents') => ({schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {}});
+
+test('Home and Dispatch are senders', () => {
+  assert.equal(SENDERS.home, 'Home');
+  assert.equal(SENDERS.agents, 'Dispatch');
+});
+
+test('only accepted task offers for Docket are picked up', () => {
+  const items = [
+    TASK,
+    {...TASK, id: 'not_accepted', accepted: false},
+    {...TASK, id: 'no_flag', accepted: undefined},
+    {...TASK, id: 'other_app', to: 'receipts'},
+    {...TASK, id: 'other_kind', payload: {kind: 'every-sprint', title: 'x', dueDay: 1}},
+    {...TASK, id: 'from_text', payload: {kind: 'task'}, text: 'Title from @text ^tomorrow'}
+  ];
+  const got = acceptedTasks('agents', hubEnv(items));
+  assert.deepEqual(got.map(o => o.id), ['from_text', 'hub_k3m9q2']);
+  assert.equal(got[0].title, 'Title from @text ^tomorrow', 'never parsed as Quick add syntax');
+  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK], 'home')), [], 'the schema must name the sender');
+  assert.deepEqual(acceptedTasks('agents', {...hubEnv([TASK]), version: 2}), [], 'an unknown version reads as nothing');
+});
+
+test('handled keys and tasks already added are skipped', () => {
+  const [o] = acceptedTasks('agents', hubEnv([TASK]));
+  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK]), [o.key]), []);
+  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK]), [], [{id: 't1', from: {app: 'agents', id: 'hub_k3m9q2'}}]), [], 'even after the handled list was trimmed');
+});
+
+test('fields are cleaned', () => {
+  const o = cleanTaskOffer('home', {...TASK, payload: {kind: 'task', title: '  Keys  ', people: ['A', 'A', '', 3], waiting: true, due: '2026-11-06', urgent: true, value: 9, effort: 'XXL', list: 'This sprint', notes: ' n '}});
+  assert.deepEqual({title: o.title, people: o.people, waiting: o.waiting, due: o.due, urgent: o.urgent, value: o.value, effort: o.effort, list: o.list, notes: o.notes},
+    {title: 'Keys', people: ['A'], waiting: true, due: '2026-11-06', urgent: true, value: null, effort: null, list: 'This sprint', notes: 'n'});
+  assert.equal(cleanTaskOffer('home', {...TASK, payload: {kind: 'task', due: '11/6'}}).due, null);
+});
+
+test('the list is matched by name, else the fallback', () => {
+  const lists = [{id: 'main', name: 'Main'}, {id: 'sp', name: 'This sprint', parentId: 'main'}];
+  assert.equal(listFor({list: 'this SPRINT'}, lists, 'main'), 'sp');
+  assert.equal(listFor({list: 'Nope'}, lists, 'main'), 'main');
+  assert.equal(listFor({list: ''}, lists, 'main'), 'main');
+});
+
+test('taskFromOffer builds a Docket task that remembers where it came from', () => {
+  const [o] = acceptedTasks('agents', hubEnv([TASK]));
+  const t = taskFromOffer(o, {id: 't9', listId: 'main', rank: 4, color: 'sage', today: '2026-11-03'});
+  assert.deepEqual(t.from, {app: 'agents', id: 'hub_k3m9q2'});
+  assert.equal(t.value, 3);
+  assert.equal(t.urgentFlag, false);
+  assert.equal(t.waiting, false);
+  assert.deepEqual(t.people, ['Person One']);
+  assert.equal(t.createdAt, '2026-11-03');
+});

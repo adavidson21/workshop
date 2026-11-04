@@ -11,9 +11,9 @@
    you handled it shows again (to update the item), while one sent again unchanged does not. */
 
 /* The apps Docket reads offers from: app id to the name shown for it. An app read but not named here shows by its
-   id. No Workshop app sends these offers today, so the list is empty. A new sender follows Workshop
-   docs/handoffs.md (Receivers) and is added here by its app id. */
-const SENDERS = {};
+   id. A new sender follows Workshop docs/handoffs.md (Receivers) and is added here by its app id. Home's quick
+   capture and the Dispatch hub send accepted tasks (kind 'task', accepted: true; Workshop docs/hub.md). */
+const SENDERS = { home: 'Home', agents: 'Dispatch' };
 const HANDLED_MAX = 200;
 const HANDOFF_VERSION = 1;
 const EFFORTS = ['XS', 'S', 'M', 'L', 'XL'];
@@ -82,4 +82,57 @@ function markHandled(handled, keys){
 }
 const cleanHandled = h => Array.isArray(h) ? [...new Set(h.filter(k => typeof k === 'string' && k.length <= 500))].slice(-HANDLED_MAX) : [];
 
-export { HANDLED_MAX, HANDOFF_VERSION, SENDERS, applyOffer, cleanHandled, cleanOffer, fingerprint, markHandled, matchFor, offerKey, pendingOffers };
+/* ---------- accepted tasks (Workshop docs/handoffs.md, rule 4) ----------
+   A capture the person already accepted in Home or the Dispatch hub: payload.kind 'task' and accepted: true.
+   Docket adds it as a task when it loads, with no second click, and records it as handled. Text is never parsed
+   as Quick add syntax. A task keeps `from: {app, id}`, so the same capture is never added twice even after the
+   handled list is trimmed. */
+const MAX_PEOPLE = 10;
+const taskKey = (app, h) => `${app}:${h.id}:task`;
+
+function cleanTaskOffer(app, h){
+  if (!h || typeof h !== 'object' || typeof h.id !== 'string' || !h.id || h.to !== 'prioritizer' || h.accepted !== true) return null;
+  const p = h.payload;
+  if (!p || typeof p !== 'object' || p.kind !== 'task') return null;
+  const title = str(p.title, 300) || str(h.text, 300);
+  if (!title) return null;
+  const people = Array.isArray(p.people) ? [...new Set(p.people.map(n => str(n, 80)).filter(Boolean))].slice(0, MAX_PEOPLE) : [];
+  return {
+    key: taskKey(app, h), app, from: SENDERS[app] || app, id: h.id, title, people,
+    list: str(p.list, 120), waiting: p.waiting === true, due: isDate(p.due) ? p.due : null, urgent: p.urgent === true,
+    value: Number.isInteger(p.value) && p.value >= 1 && p.value <= 4 ? p.value : null,
+    effort: EFFORTS.includes(p.effort) ? p.effort : null,
+    notes: typeof p.notes === 'string' ? p.notes.trim().slice(0, 2000) : ''
+  };
+}
+
+/* Accepted tasks from one sender that Docket has not added yet. tasks: Docket's tasks, to skip one already
+   added (its `from` matches). */
+function acceptedTasks(app, env, handled = [], tasks = []){
+  if (!env || env.schema !== `${app}.handoffs` || env.version !== HANDOFF_VERSION || !Array.isArray(env.items)) return [];
+  const done = new Set(handled);
+  const have = new Set((tasks || []).filter(t => t && t.from && t.from.app).map(t => `${t.from.app}:${t.from.id}`));
+  return env.items.map(h => cleanTaskOffer(app, h)).filter(o => o && !done.has(o.key) && !have.has(`${o.app}:${o.id}`))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/* The list an accepted task goes to: the one named (without case, top level or nested), else fallback. */
+function listFor(o, lists, fallback){
+  const want = (o.list || '').toLowerCase();
+  const hit = want && (lists || []).find(l => l && typeof l.name === 'string' && l.name.toLowerCase() === want);
+  return hit ? hit.id : fallback;
+}
+
+/* A new task from an accepted offer. ctx: {id, listId, rank, color, today}. people are names; the caller
+   makes them Docket's canonical spellings. */
+function taskFromOffer(o, ctx){
+  return {
+    id: ctx.id, title: o.title, notes: o.notes, color: ctx.color, rank: ctx.rank,
+    value: o.value, effort: o.effort, due: o.due, urgentFlag: o.urgent,
+    listId: ctx.listId, done: false, doneAt: null, wontDo: false,
+    createdAt: ctx.today, ageFrom: ctx.today, waiting: o.waiting, nudgeOn: null, focusOn: null,
+    people: o.people.slice(), from: {app: o.app, id: o.id}
+  };
+}
+
+export { HANDLED_MAX, HANDOFF_VERSION, SENDERS, acceptedTasks, applyOffer, cleanHandled, cleanOffer, cleanTaskOffer, fingerprint, listFor, markHandled, matchFor, offerKey, pendingOffers, taskFromOffer };

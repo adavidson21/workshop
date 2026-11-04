@@ -227,6 +227,17 @@ def main():
         sender = fr.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
           const q = r.result.transaction('data').objectStore('data').get('example-app/handoffs'); q.onsuccess = () => res(q.result && q.result.rev); }; })""")
         check('Docket never writes the sender\'s collection', sender == rev)
+        # An accepted capture from the Dispatch hub (Workshop docs/handoffs.md, rule 4) is added as a task with no click.
+        host.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'});
+          const before = (await ws.data.get('handoffs')) || {schema: 'agents.handoffs', version: 1, rev: 0, items: [], deleted: {}};
+          const after = structuredClone(before);
+          after.items.push({id: 'c_hub1', to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:00:00.000Z', text: 'Keys <b>x</b>',
+            payload: {kind: 'task', title: 'Keys <b>x</b> @nobody', people: ['Person One'], waiting: true, urgent: true}, source: {app: 'agents', id: 'c_hub1'}, accepted: true});
+          ws.data.stamp(before, after); await ws.data.put('handoffs', after); }"""); host.wait_for_timeout(1500)
+        got = fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').map(t => [t.title, t.waiting, t.urgentFlag, t.people])")
+        check('an accepted capture from Dispatch becomes a Docket task, once, with its fields', got == [['Keys <b>x</b> @nobody', True, True, ['Person One']]])
+        fr.evaluate(f"() => {P}.watchSender('agents')"); host.wait_for_timeout(500)
+        check('reading the sender again does not add it twice', fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').length") == 1)
         host.close()
         pg.reload(); pg.wait_for_function('window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000); pg.wait_for_timeout(1000)
 
