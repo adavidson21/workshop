@@ -1,13 +1,16 @@
 /* The top bar for an app opened on its own page (not inside the Workshop shell), so it looks like every
    other tool on tools.alexisdavidson.org: breadcrumbs on the left and the round light/dark toggle in the top
-   right corner. On alexisdavidson.org the crumbs lead back up to LifeKit and its Office section; anywhere else
-   (the agent on 127.0.0.1, another company's domain) they start at Workshop.
+   right corner. On alexisdavidson.org the crumbs lead back up to LifeKit and its Office section; in the Android
+   app there is only the app's name; anywhere else (the agent on 127.0.0.1, another company's domain) they
+   start at Workshop.
 
    import { mountBar } from '../../shared/standalone-bar.js';
    mountBar('Prioritizer');   // adds <header class="ws-bar"> as the first child of <body> and body.standalone
 
    Needs shared/theme.js (for the toggle) and shared/themes.css (colors). Styles are injected here because not
    every app loads shared/ui.css. A page lays itself out around the bar with body.standalone. */
+
+import { deviceAvailable } from './device-fs.js';
 
 const LIFEKIT = /(^|\.)alexisdavidson\.org$/.test(location.hostname);
 
@@ -25,7 +28,8 @@ const CSS = `
 .ws-bar .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .ws-bar .theme-toggle svg{width:18px;height:18px;display:block;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
 .ws-bar .theme-toggle:hover svg{transform:rotate(-20deg)}
-@media (max-width:720px){.ws-bar{min-height:56px;padding:env(safe-area-inset-top) 12px 0 16px}}
+@media (max-width:720px){.ws-bar{min-height:56px;padding:var(--safe-area-inset-top,env(safe-area-inset-top,0px)) 12px 0 16px}}
+@media (hover:none) and (pointer:coarse){.ws-bar .theme-toggle{width:44px;height:44px}}
 @media (prefers-reduced-motion:reduce){.ws-bar .theme-toggle,.ws-bar .theme-toggle svg{transition:none}}`;
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -35,7 +39,9 @@ export function mountBar(name) {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
-  const up = LIFEKIT
+  // In the Android app (mobile/) the app is the whole world: no crumbs leading to a site it does not have.
+  const up = deviceAvailable() ? []
+    : LIFEKIT
     ? [['LifeKit', 'https://tools.alexisdavidson.org/'], ['Office', 'https://tools.alexisdavidson.org/office/']]
     : [['Workshop', '../../']];
   const bar = document.createElement('header');
