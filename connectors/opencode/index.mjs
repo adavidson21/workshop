@@ -427,7 +427,7 @@ const actions = {
   "repo.add": {
     title: "Clone a repo into the workspace",
     write: true,
-    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }) }),
+    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }), category: str("Category folder to clone into (empty: the top of the workspace)", { maxLength: 100 }) }),
     async run(args) {
       needReady();
       return addRepo(args);
@@ -436,7 +436,7 @@ const actions = {
   "repo.guide": {
     title: "Draft a repo's guide (/onboard-repo)",
     write: true,
-    argsSchema: obj(["repo"], { repo: str("Repo folder", { minLength: 1, maxLength: 100 }) }),
+    argsSchema: obj(["repo"], { repo: str("Repo folder (repo or Category/repo)", { minLength: 1, maxLength: 201 }) }),
     async run(args) {
       needReady();
       return onboardRepo(args);
