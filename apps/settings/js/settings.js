@@ -312,6 +312,9 @@ function connectorBlock(info, cfg, onState) {
       <input type="checkbox" class="toggle" role="switch" aria-label="${esc(info.name)} on" data-enable${info.enabled ? ' checked' : ''}${readOnly ? ' disabled' : ''}>
     </div>
     <p class="conn-status"><span class="state" data-state></span><span class="state-msg" data-state-msg></span></p>
+    ${!readOnly && canFromUrl(info) ? `<form class="from-url" data-from-url><label for="url-${esc(info.id)}">Paste any link from ${esc(info.name)}</label>
+      <div class="from-url-row"><input id="url-${esc(info.id)}" class="cfg-input mono" type="url" required placeholder="https://ado.example.com/tfs/Main/Project/_workitems/edit/123" autocomplete="off"><button class="btn">Fill in</button></div>
+      <p class="cfg-help">A work item, board, repo or pull request link works. Workshop reads the server, collection and project from it; you review before saving.</p></form>` : ''}
     <div class="conn-tools">
       <button type="button" class="btn" data-recheck hidden>Check again</button>
       <span class="msg" aria-live="polite" data-tools-msg></span>
@@ -378,12 +381,38 @@ function connectorBlock(info, cfg, onState) {
     } catch (err) { toolsMsg.textContent = errText(err); }
   });
 
+  const fromUrl = box.querySelector('[data-from-url]');
+  if (fromUrl) fromUrl.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = fromUrl.querySelector('button');
+    btn.disabled = true; toolsMsg.textContent = 'Reading the link...';
+    try {
+      // Pasting a link means setting it up, so an off connector is turned on first (the agent refuses calls to it).
+      if (!info.enabled) {
+        await ws.config.put({ connectors: { [info.id]: { enabled: true } } });
+        info.enabled = true;
+        box.querySelector('[data-enable]').checked = true;
+        await new Promise(r => setTimeout(r, 300));
+        const fresh = (await ws.connectors.list()).find(c => c.id === info.id);
+        if (fresh) showStatus(fresh.status);
+      }
+      const out = await ws.connectors.call(info.id, 'config.fromUrl', { url: fromUrl.querySelector('input').value });
+      details.open = true; built = true;
+      await buildForm(info, box.querySelector('[data-form]'), { config: out.config, notes: out.notes || [] });
+      toolsMsg.textContent = 'Filled in from the link. Nothing is saved yet: check Set up below, then Save.';
+      fromUrl.reset();
+    } catch (err) { toolsMsg.textContent = errText(err); }
+    btn.disabled = false;
+  });
+
   const test = box.querySelector('[data-test]');
   if (test) test.addEventListener('submit', e => { e.preventDefault(); runTest(info, test); });
   return box;
 }
 
 // Import from a file (docs/connector.md): a connector's config.import setup action, called with one file.
+// Paste a link: a connector's config.fromUrl setup action, called with {url}; returns {config, notes} like an import.
+function canFromUrl(info) { return (info.actions || []).some(a => a.name === 'config.fromUrl' && a.setup === true && !a.write); }
 function canImport(info) { return (info.actions || []).some(a => a.name === 'config.import' && a.setup === true && !a.write); }
 
 // Keys that may hold a secret never leave the page, even to this computer's agent.

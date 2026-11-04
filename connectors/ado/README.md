@@ -60,6 +60,7 @@ Call with `POST /api/connectors/ado/<action>` and `{"args": {...}}`, or `connect
 | `workitem.create` (write) | `type`, `title`, `project`, `description` (plain text; a Bug's goes in Repro Steps), `area`, `iteration`, `priority`, `assignedTo`, `connection` | The new item in the `queue.list` shape. |
 | `connection.resolve` | `connection` or `path` | Which connection and project would be used, and whether its PAT variable is set. Calls nothing. Setup action: runs while the connector reports an error. |
 | `config.import` | `helper` (parsed ado-helper.json), `engAgents` (parsed eng-agents config.json), or `file` (either one; the kind is guessed) | `{config, notes}`: settings merged with the current ones. Saves nothing; the Settings app shows them and saves with `PUT /api/connectors/ado/config`. Setup action, so it works before any connection exists. Never reads a PAT from the file. |
+| `config.fromUrl` | `url`: any link copied out of ADO (work item, board, repo, PR or project page; server or cloud) | `{config, notes}`: the current settings with the link's server, collection and project filled in (a new connection, or the project on the matching one), the default connection and a PR source for that project when there are none. Saves nothing, like `config.import`. Setup action. |
 
 The connection is picked in eng-agents order: `connection` by name, then a `paths` match for `path`, then `defaultConnection`, then the only connection. eng-agents also matched a repo's git remote; the connector does not run git, so map such repos in `paths`.
 

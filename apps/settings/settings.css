@@ -71,7 +71,7 @@ label.btn{cursor:pointer}
 .toggle:checked::after{transform:translateX(1.1rem)}
 .toggle:disabled{opacity:.55;cursor:default}
 .conn-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}
-.conn-tools:not(:has(button:not([hidden]),label)){display:none}
+.conn-tools:not(:has(button:not([hidden]),label,.msg:not(:empty))){display:none}
 .conn-tools .msg{color:var(--muted);font-size:.82rem}
 .import-notes{margin:.2rem 0 .6rem;padding-left:1.1rem;color:var(--muted);font-size:.84rem}
 .switch{display:flex;align-items:center;gap:.35rem;font-size:.84rem;cursor:pointer}
@@ -146,3 +146,10 @@ label.btn{cursor:pointer}
 .panel>.card{animation:none}
 .card>.conn:first-child{border-top:0;padding-top:0}
 .conn-note{margin:.6rem 0 0;padding-top:.7rem;border-top:1px dashed var(--line);font-size:.84rem}
+
+/* paste a link: fills the connector's settings for review */
+.from-url{margin:.8rem 0 .2rem;padding:.8rem .9rem .7rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg)}
+.from-url>label{display:block;margin:0 0 .4rem;font-size:.88rem;font-weight:500}
+.from-url-row{display:flex;gap:.5rem}
+.from-url-row .cfg-input{flex:1;min-width:0}
+.from-url .cfg-help{margin-top:.4rem}
