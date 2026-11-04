@@ -26,6 +26,7 @@
     "shared/theme.js": "shared/theme.js",
     "shared/themes.css": "shared/themes.css",
     "shared/ui.css": "shared/ui.css",
+    "shared/vendor/xlsx.full.min.js": "shared/vendor/xlsx.full.min.js",
     "shared/workshop-sdk.js": "shared/workshop-sdk.js",
     "test/workshop/schema.mjs": "tests/lib/schema.mjs",
     "test/workshop/schemas/app.schema.json": "docs/schemas/app.schema.json",

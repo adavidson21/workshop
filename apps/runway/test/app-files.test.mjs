@@ -48,7 +48,7 @@ test('app.json passes the manifest schema Workshop validates against (Workshop s
 });
 
 // ADO is optional: Runway must work with no connector at all, for ad hoc roadmaps and on machines without Workshop.
-// Phase 2 and 3 code goes in js/ado/, is loaded with a dynamic import only when the connector is on,
+// Phase 2 and 3 code and the team reports go in js/ado/, are loaded with a dynamic import only when needed,
 // and no other module imports it or calls a connector.
 test('ADO is optional: no required connector and no connector calls outside js/ado/', () => {
   const required = (manifest.connectors || []).filter(c => c.required);

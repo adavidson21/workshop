@@ -158,3 +158,55 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .adodiff{margin:0;padding-left:1.1rem;font-size:.86rem}
 .hint.warn{color:var(--warn)}
 @media (max-width:600px){.adobar{padding:.45rem .9rem}}
+
+/* ---------- team reports (moved from Docket) ---------- */
+.rpage{max-width:66rem}
+.rpage .lhead .eyebrow a{color:inherit;text-decoration:none}
+.rpage .lhead .eyebrow a:hover{color:var(--ink)}
+.rpage .lacts{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.4rem}
+.rp-tabs{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 0 .4rem;width:max-content;max-width:100%}
+.rp-tabs::-webkit-scrollbar{display:none}
+.rp-tabs button{white-space:nowrap}
+.insight{font-size:.88rem;color:var(--ink)}
+.wl-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));margin-top:.9rem;border-top:1px solid var(--rule);overflow:hidden}
+.wl-kpi{padding:.8rem .85rem .9rem;text-align:left;border-bottom:1px solid var(--line);box-shadow:1px 0 0 var(--line)}
+.wl-kpi b{display:block;font-family:var(--serif);font-size:2rem;line-height:1.05;font-weight:600;font-variation-settings:"opsz" 72;font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
+.wl-kpi span{display:block;margin-top:.35rem;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.reports{max-width:64rem}
+.reports .wl-kpis{margin-top:.6rem}
+.rp-insight{max-width:48rem;margin:.9rem 0 0;line-height:1.5}
+.rp-sec{margin-top:1.5rem}
+.rp-sec h3{display:flex;align-items:center;gap:14px;margin:0 0 .75rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.rp-sec h3::after{content:"";flex:1;height:1px;background:var(--line)}
+.rp-note{margin:-.25rem 0 .5rem}
+.rp-scroll{overflow-x:auto;border-top:1px solid var(--rule)}
+.rp-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.rp-table th{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--line);white-space:nowrap;font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rp-table td{padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top}
+.rp-table tr:hover td{background:var(--surface)}
+.rp-table td.num{white-space:nowrap;font-family:var(--mono);font-size:.8rem}
+.rp-table td.t{min-width:14rem}
+.rp-none{color:var(--muted);text-align:center;padding:1.2rem}
+.rp-tag{display:inline-block;font:500 .66rem/1.5 var(--mono);padding:0 .35rem;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-left:.25rem;white-space:nowrap}
+.rp-bars{display:grid;gap:.35rem;max-width:44rem}
+.rp-bar{display:grid;grid-template-columns:minmax(6rem,12rem) 1fr 2.5rem;align-items:center;gap:.6rem;font-size:.82rem}
+.rp-bar .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.rp-bar .track{display:flex;height:12px;border-radius:2px;background:var(--panel);overflow:hidden;gap:1px}
+.rp-bar .track i{display:block;height:100%}
+.rp-bar .v{text-align:right;color:var(--muted)}
+.rp-cols{display:flex;align-items:flex-end;gap:.35rem;height:9rem;max-width:44rem;padding-top:.3rem}
+.rp-col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;height:100%;gap:.3rem}
+.rp-col .stack{flex:1;display:flex;align-items:flex-end;gap:2px;justify-content:center}
+.rp-col .stack i{display:block;flex:1;max-width:1.6rem;min-height:2px;border-radius:2px 2px 0 0}
+.rp-col span{font-family:var(--mono);font-size:.62rem;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden}
+.rp-legend{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin-top:.5rem;font-size:.78rem;color:var(--muted)}
+.rp-legend span{display:inline-flex;align-items:center;gap:.35rem}
+.rp-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.s-a,.p1{background:var(--accent)}
+.s-b{background:color-mix(in srgb,var(--accent) 35%,var(--muted))}
+.p2{background:color-mix(in srgb,var(--accent) 60%,var(--surface))}
+.p3{background:color-mix(in srgb,var(--muted) 70%,var(--surface))}
+.p4{background:color-mix(in srgb,var(--muted) 40%,var(--surface))}
+.p5{background:var(--line)}
+.rp-days{border:1px solid var(--line);border-radius:var(--r-sm);padding:.3rem .45rem;background:var(--surface);color:var(--ink);font:inherit;font-size:.84rem;min-height:2rem}
+@media (max-width:560px){.rp-bar{grid-template-columns:6.5rem 1fr 2rem}.rp-col span{font-size:.58rem}}

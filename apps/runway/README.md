@@ -28,13 +28,14 @@ When Runway uses Workshop on this computer and the ADO connector is on, it can a
   - **Live view:** rebuilt from ADO on every refresh. Items can't be edited; title, scale, dates shown and goals can. **Make editable** turns it into an ordinary roadmap.
 - **Add items from Azure DevOps** (any roadmap): link an ad hoc roadmap to ADO, so imported and ad hoc items mix.
 - Placement: a work item's own start and target dates, else its sprint's dates (`iterations.list`), else the Unscheduled tray.
+- **Team reports** (roadmap list, moved from Docket): sprint health for your team from one read-only ADO pull through the connector's `dataset` action. Six tabs: Priority churn, Other teams' work, Sprint carryover, Sprint scope churn, Load by person, Aging and throughput. **Team profile** sets area paths, people (or "Use my team from Workshop") and the window; it is kept in this browser, and the first time it is taken from Docket's old profile when Docket ran in this browser. **Export to Excel** writes the workload tracker with every report and Summary formulas. The last pull is cached in this browser, so the page opens without asking ADO again.
 - Roadmaps that follow ADO refresh once when opened. Without the connector they show the last copy and stay editable (live ones stay read only).
 - Export: an **ADO ids** option adds `#<id>` to linked bars.
 
 Rules, checked by `test/app-files.test.mjs`:
 
 - `app.json` lists the ADO connector with `required: false`, and never as required.
-- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector.
+- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector. Team reports are in `js/ado/reports/` (`model.js` computes every report and the workbook, `view.js` is the HTML, `index.js` the page) and load the first time the page opens.
 - With the connector off or missing, ADO controls are hidden.
 
 `meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, base, remote?, missing?}`, where `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours. Lanes made from ADO carry `adoKey`.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runway with Azure DevOps, in headless Chrome: this repo served together with a small mock Workshop agent whose
-ADO connector answers `roadmap` and `iterations.list` from synthetic data. Checks a live ADO roadmap (read only,
-refresh rebuilds it), a linked one (your edit is kept and shows as differing), mixing in an ad hoc item, and that
+ADO connector answers `roadmap`, `iterations.list` and `dataset` from synthetic data. Checks a live ADO roadmap (read only,
+refresh rebuilds it), team reports, a linked one (your edit is kept and shows as differing), mixing in an ad hoc item, and that
 with the connector off Runway shows no ADO controls and still opens every roadmap.
 
   pip install playwright && python -m playwright install chromium
@@ -29,6 +29,19 @@ STATE = {
         {'id': 104, 'rev': 1, 'type': 'Feature', 'title': '<img src=x onerror="window.__pwned=1">', 'state': 'Closed', 'area': 'Platform\\Lighthouse',
          'iteration': '', 'parentId': None, 'startDate': '2027-01-10', 'targetDate': '2027-01-30', 'url': 'javascript:window.__pwned=1'}
     ]
+}
+DATASET = {
+    'schema': 1, 'days': 42, 'since': '2026-09-23', 'base': 'https://ado.example.test/Main', 'connection': 'work',
+    'generatedAt': '2026-11-04T12:00:00.000Z', 'areas': ['Platform\\Wiki'], 'people': ['dev.one@example.test'], 'truncated': False, 'scanned': 2,
+    'config': {'highPriorities': [1, 2], 'escalationPriority': 1, 'bugTypes': ['Bug'], 'closedStates': ['Closed'], 'removedStates': ['Removed']},
+    'iterations': {},
+    'items': [
+        {'id': 501, 'title': 'Escalated thing', 'url': 'https://ado.example.test/_workitems/edit/501', 'type': 'User Story', 'state': 'Active', 'priority': 1,
+         'area': 'Platform\\Wiki', 'iteration': '', 'assignedTo': 'Dev One', 'assignedEmail': 'dev.one@example.test', 'created': '2026-10-01', 'effort': None, 'effortField': ''},
+        {'id': 502, 'title': '<img src=x onerror="window.__pwned=1">', 'url': 'javascript:window.__pwned=1', 'type': 'Bug', 'state': 'Active', 'priority': 2,
+         'area': 'Other\\Team', 'iteration': '', 'assignedTo': 'Dev One', 'assignedEmail': 'dev.one@example.test', 'created': '2026-10-20', 'effort': None, 'effortField': ''}
+    ],
+    'events': [{'id': 501, 'kind': 'priority', 'date': '2026-10-21T10:00:00Z', 'by': 'Exec A', 'from': 3, 'to': 1}]
 }
 ITER = {'Platform': [{'path': 'Platform\\Sprint 1', 'name': 'Sprint 1', 'start': '2027-01-06', 'finish': '2027-01-19', 'current': False}]}
 
@@ -100,6 +113,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if action == 'roadmap':
             items = [i for i in STATE['items'] if any(i['area'].lower().startswith(a.lower()) for a in args.get('areas', []))]
             return self.send_json(200, {'result': {'connection': 'work', 'items': items, 'total': len(items), 'truncated': False, 'fetchedAt': '2026-11-03T12:00:00Z'}})
+        if action == 'dataset':
+            return self.send_json(200, {'result': DATASET})
         if action == 'iterations.list':
             return self.send_json(200, {'result': {'connection': 'work', 'project': args.get('project'), 'iterations': ITER.get(args.get('project'), [])}})
         return self.send_json(400, {'code': 'bad_request', 'error': 'Unknown action'})
@@ -206,6 +221,38 @@ def main():
         pg.evaluate(f'() => {R}.flush()')
         linked_id = pg.evaluate(f'() => {R}.store.v.mapId')
 
+        # Team reports (moved from Docket): the page, the profile, one dataset pull, tabs, escaped ADO text, export.
+        pg.goto(SITE + '/#/')
+        pg.wait_for_selector('[data-reports]', timeout=5000)
+        pg.click('[data-reports]')
+        pg.wait_for_selector('.rpage .engcard', timeout=8000)
+        check('Team reports opens from the list and asks for a team profile', 'Set up your team profile' in pg.inner_text('.rpage'))
+        pg.click('.rpage [data-rp="profile"]')
+        pg.fill('dialog textarea[name="areas"]', 'Platform\\Wiki')
+        pg.fill('dialog textarea[name="people"]', 'dev.one@example.test')
+        pg.click('dialog button[value="ok"]')
+        pg.wait_for_selector('.rpage .wl-kpis', timeout=8000)
+        ds = [c for c in STATE['calls'] if c[0] == 'dataset']
+        check('saving the profile pulls one dataset with the areas, people and window', len(ds) == 1 and ds[0][1].get('areas') == ['Platform\\Wiki']
+              and ds[0][1].get('people') == ['dev.one@example.test'] and ds[0][1].get('days') == 42)
+        check('Priority churn shows the escalation', 'escalated to P1' in pg.inner_text('.rpage').lower() or 'ESCALATED TO P1' in pg.inner_text('.rpage'))
+        pg.click('.rpage [data-tab="other"]'); pg.wait_for_timeout(200)
+        txt = pg.inner_text('.rpage .reports')
+        check("Other teams' work lists the item outside the areas, as text", '<img src=x' in txt and pg.evaluate('() => !window.__pwned')
+              and pg.query_selector('.rpage a[href^="javascript"]') is None)
+        tabs = pg.evaluate("() => [...document.querySelectorAll('.rp-tabs [role=tab]')].map(b => b.textContent)")
+        for t in ['carry', 'scope', 'load', 'aging']:
+            pg.click(f'.rpage [data-tab="{t}"]'); pg.wait_for_timeout(100)
+        check('all six report tabs render', len(tabs) == 6 and pg.query_selector('.rpage .rp-sec') is not None)
+        with pg.expect_download(timeout=15000) as dl: pg.click('.rpage [data-rp="export"]')
+        check('Export to Excel saves a workbook', dl.value.suggested_filename.startswith('team-reports-') and dl.value.suggested_filename.endswith('.xlsx'))
+        pg.reload()
+        pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
+        pg.wait_for_selector('.rpage .wl-kpis', timeout=8000)
+        check('after a reload the last pull shows without asking ADO again', len([c for c in STATE['calls'] if c[0] == 'dataset']) == 1)
+        pg.click('.rpage [data-rp="home"]'); pg.wait_for_timeout(300)
+        check('Runway goes back to the roadmap list', pg.evaluate("document.getElementById('app').dataset.view") == 'list')
+
         # The connector turned off: no ADO controls, roadmaps still open and edit.
         STATE['connector'] = 'disabled'
         pg.goto(SITE + '/#/')
@@ -213,6 +260,9 @@ def main():
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         pg.wait_for_function(f'() => {R}.ado && {R}.ado.state.checked && !{R}.ado.state.ready', timeout=8000)
         check('connector off: no From Azure DevOps on the list', pg.query_selector('[data-fromado]') is None)
+        pg.evaluate(f'() => {R}.route("reports")'); pg.wait_for_selector('.rpage .engcard', timeout=5000)
+        check('connector off: Team reports explains it needs the connector', 'Connect Azure DevOps' in pg.inner_text('.rpage'))
+        pg.evaluate(f'() => {R}.route("")'); pg.wait_for_timeout(200)
         calls = len(STATE['calls'])
         pg.evaluate(f'() => {R}.route("{linked_id}")')
         pg.wait_for_selector('.adobar', timeout=5000)

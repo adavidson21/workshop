@@ -27,8 +27,9 @@ export { ICON };
 
 /* ---------- the list of roadmaps ---------- */
 
-export function listHtml(v, { canPair = false, paired = false, ado = false } = {}) {
+export function listHtml(v, { canPair = false, paired = false, ado = false, reports = false } = {}) {
   const adoBtn = ado ? '<button class="btn" data-fromado>From Azure DevOps</button>' : '';
+  const repLink = reports ? '<a class="btn ghost" href="#/reports" data-reports>Team reports</a>' : '';
   const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
     <li class="rrow">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
@@ -40,11 +41,11 @@ export function listHtml(v, { canPair = false, paired = false, ado = false } = {
     </li>`).join('');
   const empty = `<div class="engcard"><h2>Start a roadmap</h2>
     <p>Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export an image or Markdown.</p>
-    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}</div></div>`;
+    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}${repLink}</div></div>`;
   return `<header class="lhead">
       <p class="eyebrow">Runway</p>
       <h1 class="page-title dot">Roadmaps</h1>
-      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button></div>` : ''}
+      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button>${repLink}</div>` : ''}
     </header>
     ${v.list.length ? `<ul class="rlist">${rows}</ul>` : empty}
     ${canPair ? `<p class="hint pairline">Your roadmaps are saved in this browser. <button class="lnk" data-pair>Use Workshop on this computer</button> to keep them in your Workshop folder.</p>` : ''}

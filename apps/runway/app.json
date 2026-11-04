@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "runway",
   "name": "Runway",
-  "version": "1.2.0",
-  "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps.",
+  "version": "1.3.0",
+  "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 50,
@@ -19,6 +19,10 @@
     }
   ],
   "routes": [
+    {
+      "path": "reports",
+      "title": "Team reports"
+    },
     {
       "path": ":id",
       "title": "Open a roadmap"
@@ -37,6 +41,11 @@
     {
       "id": "export",
       "title": "Export roadmap"
+    },
+    {
+      "id": "team-reports",
+      "title": "Team reports",
+      "route": "reports"
     }
   ],
   "files": [
@@ -49,6 +58,9 @@
     "icons/favicon.svg",
     "js/ado/index.js",
     "js/ado/model.js",
+    "js/ado/reports/index.js",
+    "js/ado/reports/model.js",
+    "js/ado/reports/view.js",
     "js/dates.js",
     "js/example.js",
     "js/export.js",
@@ -73,6 +85,7 @@
     "shared/theme.js",
     "shared/themes.css",
     "shared/ui.css",
+    "shared/vendor/xlsx.full.min.js",
     "shared/workshop-sdk.js"
   ]
 }
