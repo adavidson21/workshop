@@ -161,6 +161,14 @@ export function pulled(result, iterations, src) {
       ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), base: { ...fields } }
     });
   }
+  // A Feature sits under its Epic when the Epic is an item in the same lane.
+  const byKey = new Map(items.map(i => [i.key, i]));
+  const all2 = new Map(keep.map(w => [String(w.id), w]));
+  for (const it of items) {
+    const w = all2.get(it.key);
+    const p = w && w.parentId != null ? byKey.get(String(w.parentId)) : null;
+    if (p && p.laneKey === it.laneKey) it.parentKey = p.key;
+  }
   const used = new Set(items.map(i => i.laneKey));
   return { lanes: lanes.filter(l => used.has(l.key)), items };
 }
@@ -179,7 +187,7 @@ export function applyLive(doc, data, src, result) {
   const items = data.items.map(it => {
     const lane = laneId.get(it.laneKey) || null;
     const order = counter.get(lane) || 0; counter.set(lane, order + 1);
-    return { id: `i-ado-${it.key}`, kind: 'item', lane, order, title: it.title, start: it.start, end: it.end, size: null, milestone: !!it.milestone, status: it.status, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: it.ado };
+    return { id: `i-ado-${it.key}`, kind: 'item', lane, order, parent: it.parentKey ? `i-ado-${it.parentKey}` : null, title: it.title, start: it.start, end: it.end, size: null, milestone: !!it.milestone, status: it.status, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: it.ado };
   });
   const ids = new Set(lanes.map(l => l.id));
   return { meta: { ...doc.meta, hidden: doc.meta.hidden.filter(h => ids.has(h)), ado: { ...src, mode: 'live', ...fetchInfo(result) } }, lanes, items };
@@ -211,7 +219,7 @@ export function mergeLinked(doc, data, src, result) {
   };
   const byAdo = new Map(out.items.filter(i => i.kind === 'item' && i.ado && Number.isInteger(i.ado.id)).map(i => [i.ado.id, i]));
   const seen = new Set();
-  for (const it of data.items) {
+  for (const it of [...data.items].sort((a, b) => (a.parentKey ? 1 : 0) - (b.parentKey ? 1 : 0))) {
     seen.add(it.ado.id);
     const cur = byAdo.get(it.ado.id);
     const remote = pick(it);
@@ -220,7 +228,10 @@ export function mergeLinked(doc, data, src, result) {
       const order = Math.max(-1, ...out.items.filter(i => (i.lane || null) === lane).map(i => Number(i.order) || 0)) + 1;
       let id = `i-ado-${it.key}`;
       while (out.items.some(i => i.id === id)) id += '-x';
-      out.items.push({ id, kind: 'item', lane, order, ...remote, size: null, milestone: !!it.milestone, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } });
+      const par = it.parentKey ? byAdo.get(Number(it.parentKey)) : null;
+      const added = { id, kind: 'item', lane, order, parent: par && (par.lane || null) === lane ? par.id : null, ...remote, size: null, milestone: !!it.milestone, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } };
+      out.items.push(added);
+      byAdo.set(it.ado.id, added);
       counts.added++;
       continue;
     }

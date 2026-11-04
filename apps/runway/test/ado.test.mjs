@@ -9,16 +9,16 @@ import { blankDoc, fromEnvelope, toEnvelopeParts } from '../js/model.js';
 import { createAdo } from '../js/ado/index.js';
 
 const URL = id => `https://ado.example.test/Platform/_workitems/edit/${id}`;
-const w = (id, type, title, extra = {}) => ({ id, rev: 1, type, title, state: 'Active', area: 'Platform\\Wiki', iteration: '', parentId: null, startDate: null, targetDate: null, changed: '2026-11-01T00:00:00Z', url: URL(id), ...extra });
+const w = (id, type, title, extra = {}) => ({ id, rev: 1, type, title, state: 'Active', area: 'Platform\\Docs', iteration: '', parentId: null, startDate: null, targetDate: null, changed: '2026-11-01T00:00:00Z', url: URL(id), ...extra });
 const ITER = { Platform: [{ path: 'Platform\\Sprint 1', start: '2027-01-06', finish: '2027-01-19' }] };
 const result = (items) => ({ connection: 'work', items, total: items.length, truncated: false, fetchedAt: '2026-11-03T12:00:00Z' });
-const SRC = cleanSource({ areas: 'Platform\\Wiki\nPlatform\\Lighthouse', mode: 'linked' });
+const SRC = cleanSource({ areas: 'Platform\\Docs\nPlatform\\Monitor', mode: 'linked' });
 
 const ITEMS = () => [
-  w(1, 'Epic', 'Wiki Edge', { startDate: '2027-01-04', targetDate: '2027-03-31' }),
+  w(1, 'Epic', 'Docs Portal', { startDate: '2027-01-04', targetDate: '2027-03-31' }),
   w(2, 'Feature', 'Content migration', { parentId: 1, iteration: 'Platform\\Sprint 1', storiesTotal: 4, storiesDone: 1 }),
   w(3, 'Feature', 'Search cutover', { parentId: 1, targetDate: '2027-02-20', state: 'New' }),
-  w(4, 'Feature', 'Alerting rework', { area: 'Platform\\Lighthouse\\Alerts', state: 'Closed' }),
+  w(4, 'Feature', 'Alerting rework', { area: 'Platform\\Monitor\\Alerts', state: 'Closed' }),
   w(5, 'Feature', 'Elsewhere', { area: 'Other\\Team' })
 ];
 
@@ -58,10 +58,10 @@ test('describe: type, id, state, stories, and only an http(s) link', () => {
 
 test('lanes by area: longest match wins, Other for the rest', () => {
   const d = pulled(result(ITEMS()), ITER, SRC);
-  assert.deepEqual(d.lanes.map(l => l.title), ['Wiki', 'Lighthouse', 'Other']);
+  assert.deepEqual(d.lanes.map(l => l.title), ['Docs', 'Monitor', 'Other']);
   const lane = Object.fromEntries(d.items.map(i => [i.title, i.laneKey]));
-  assert.equal(lane['Wiki Edge'], 'area:platform\\wiki');
-  assert.equal(lane['Alerting rework'], 'area:platform\\lighthouse');
+  assert.equal(lane['Docs Portal'], 'area:platform\\docs');
+  assert.equal(lane['Alerting rework'], 'area:platform\\monitor');
   assert.equal(lane.Elsewhere, 'area:other');
   const alerting = d.items.find(i => i.title === 'Alerting rework');
   assert.equal(alerting.status, 'done');
@@ -72,8 +72,8 @@ test('lanes by area: longest match wins, Other for the rest', () => {
 
 test('lanes by Epic: an Epic with Features is a lane, Features without one go to No Epic', () => {
   const d = pulled(result(ITEMS()), ITER, { ...SRC, lanes: 'epic' });
-  assert.deepEqual(d.lanes.map(l => l.title), ['Wiki Edge', 'No Epic']);
-  assert.deepEqual(d.items.map(i => i.title).sort(), ['Alerting rework', 'Content migration', 'Elsewhere', 'Search cutover', 'Wiki Edge']);
+  assert.deepEqual(d.lanes.map(l => l.title), ['Docs Portal', 'No Epic']);
+  assert.deepEqual(d.items.map(i => i.title).sort(), ['Alerting rework', 'Content migration', 'Docs Portal', 'Elsewhere', 'Search cutover']);
   const epic = d.items.find(i => i.ado.type === 'Epic');
   assert.deepEqual([epic.milestone, epic.start, epic.end, epic.laneKey], [true, '2027-03-31', '2027-03-31', 'epic:1'], 'the Epic is the lane, and its target date a milestone');
   const noDate = pulled(result(ITEMS().map(x => (x.id === 1 ? { ...x, targetDate: null } : x))), ITER, { ...SRC, lanes: 'epic' });
@@ -85,7 +85,7 @@ test('lanes by Epic: an Epic with Features is a lane, Features without one go to
 
 test('types filter', () => {
   const d = pulled(result(ITEMS()), ITER, { ...SRC, types: ['Epic'] });
-  assert.deepEqual(d.items.map(i => i.title), ['Wiki Edge']);
+  assert.deepEqual(d.items.map(i => i.title), ['Docs Portal']);
 });
 
 test('live: replaces lanes and items with stable ids, keeps your meta', () => {
@@ -171,7 +171,7 @@ test('linked: a work item that disappears is marked, never deleted; unlink and s
 test('createAdo: reports the connector state and reads through roadmap and iterations.list only', async () => {
   const calls = [];
   const ws = {
-    data: { async get(name, o) { return name === 'settings' && o.app === 'queue' ? { version: 1, meta: { areas: ['Platform\\Wiki'], connection: 'work' } } : null; } },
+    data: { async get(name, o) { return name === 'settings' && o.app === 'queue' ? { version: 1, meta: { areas: ['Platform\\Docs'], connection: 'work' } } : null; } },
     connectors: {
       status: 'ready',
       async list() { return [{ id: 'ado', status: { state: this.status, message: 'PAT missing' } }]; },
@@ -189,11 +189,11 @@ test('createAdo: reports the connector state and reads through roadmap and itera
   assert.equal((await ado.check()).message, 'PAT missing');
   ws.connectors.status = 'disabled';
   assert.match((await ado.check()).message, /off/);
-  assert.deepEqual(await ado.defaults(), { areas: ['Platform\\Wiki'], connection: 'work' });
-  const r = await ado.refresh(blankDoc(), { areas: ['Platform\\Wiki'], connection: 'work', mode: 'live' });
+  assert.deepEqual(await ado.defaults(), { areas: ['Platform\\Docs'], connection: 'work' });
+  const r = await ado.refresh(blankDoc(), { areas: ['Platform\\Docs'], connection: 'work', mode: 'live' });
   assert.equal(r.doc.meta.ado.mode, 'live');
   assert.ok(calls.every(c => c[0] === 'ado' && ['roadmap', 'iterations.list'].includes(c[1])));
-  assert.deepEqual(calls[0][2], { connection: 'work', areas: ['Platform\\Wiki'] });
+  assert.deepEqual(calls[0][2], { connection: 'work', areas: ['Platform\\Docs'] });
   await assert.rejects(ado.pull({ areas: '' }), /area path/);
   ws.connectors.list = async () => { throw new Error('down'); };
   assert.equal((await ado.check()).ready, false);
@@ -222,7 +222,7 @@ const STORIES = () => [
 ];
 
 test('User Stories: named Feature > Story, in their Feature\'s lane, and the Feature is not drawn again', () => {
-  const src = cleanSource({ areas: 'Platform\\Wiki\nPlatform\\Lighthouse', types: ['Epic', 'Feature', 'User Story'] });
+  const src = cleanSource({ areas: 'Platform\\Docs\nPlatform\\Monitor', types: ['Epic', 'Feature', 'User Story'] });
   const d = pulled(result(STORIES()), ITER, { ...src, lanes: 'epic' });
   const titles = d.items.map(i => i.title);
   assert.ok(titles.includes('Search cutover > Index rebuild') && titles.includes('Search cutover > Old links'));
@@ -233,7 +233,7 @@ test('User Stories: named Feature > Story, in their Feature\'s lane, and the Fea
   assert.equal(story.laneKey, 'epic:1');
   assert.deepEqual([story.start, story.end], ['2027-01-06', '2027-01-19'], 'placed by its sprint');
   const byArea = pulled(result(STORIES()), ITER, src);
-  assert.equal(byArea.items.find(i => i.title === 'Search cutover > Index rebuild').laneKey, 'area:platform\\wiki', 'by area, a story follows its Feature, not its own area');
+  assert.equal(byArea.items.find(i => i.title === 'Search cutover > Index rebuild').laneKey, 'area:platform\\docs', 'by area, a story follows its Feature, not its own area');
   const without = pulled(result(STORIES()), ITER, SRC);
   assert.ok(!without.items.some(i => i.title.includes(' > ')), 'stories only when asked');
 });

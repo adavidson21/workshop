@@ -20,13 +20,13 @@ STATE = {
     'calls': [],
     'data': {},
     'items': [
-        {'id': 101, 'rev': 1, 'type': 'Epic', 'title': 'Wiki Edge', 'state': 'Active', 'area': 'Platform\\Wiki', 'iteration': '', 'parentId': None,
+        {'id': 101, 'rev': 1, 'type': 'Epic', 'title': 'Docs Portal', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': '', 'parentId': None,
          'startDate': '2027-01-04', 'targetDate': '2027-03-31', 'url': 'https://ado.example.test/_workitems/edit/101'},
-        {'id': 102, 'rev': 1, 'type': 'Feature', 'title': 'Content migration', 'state': 'Active', 'area': 'Platform\\Wiki', 'iteration': 'Platform\\Sprint 1',
+        {'id': 102, 'rev': 1, 'type': 'Feature', 'title': 'Content migration', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': 'Platform\\Sprint 1',
          'parentId': 101, 'startDate': None, 'targetDate': None, 'storiesTotal': 4, 'storiesDone': 1, 'url': 'https://ado.example.test/_workitems/edit/102'},
-        {'id': 103, 'rev': 1, 'type': 'Feature', 'title': 'Search cutover', 'state': 'New', 'area': 'Platform\\Wiki', 'iteration': '',
+        {'id': 103, 'rev': 1, 'type': 'Feature', 'title': 'Search cutover', 'state': 'New', 'area': 'Platform\\Docs', 'iteration': '',
          'parentId': 101, 'startDate': '2027-02-01', 'targetDate': '2027-02-20', 'url': 'https://ado.example.test/_workitems/edit/103'},
-        {'id': 104, 'rev': 1, 'type': 'Feature', 'title': '<img src=x onerror="window.__pwned=1">', 'state': 'Closed', 'area': 'Platform\\Lighthouse',
+        {'id': 104, 'rev': 1, 'type': 'Feature', 'title': '<img src=x onerror="window.__pwned=1">', 'state': 'Closed', 'area': 'Platform\\Monitor',
          'iteration': '', 'parentId': None, 'startDate': '2027-01-10', 'targetDate': '2027-01-30', 'url': 'javascript:window.__pwned=1'}
     ]
 }
@@ -154,10 +154,10 @@ def main():
 
         # A live ADO roadmap.
         pg.click('[data-fromado]')
-        ado_dialog(pg, 'Live platform', 'Platform\\Wiki\nPlatform\\Lighthouse', 'live')
+        ado_dialog(pg, 'Live platform', 'Platform\\Docs\nPlatform\\Monitor', 'live')
         pg.wait_for_function(f'() => {R}.store.v.doc && {R}.store.v.doc.items.length === 4', timeout=8000)
         doc = pg.evaluate(f'() => {R}.store.v.doc')
-        check('live roadmap holds the Epics and Features, in a lane per area path', [l['title'] for l in sorted(doc['lanes'], key=lambda l: l['order'])] == ['Wiki', 'Lighthouse'])
+        check('live roadmap holds the Epics and Features, in a lane per area path', [l['title'] for l in sorted(doc['lanes'], key=lambda l: l['order'])] == ['Docs', 'Monitor'])
         check('live roadmap: meta says live', doc['meta']['ado']['mode'] == 'live')
         check('sprint dates place an item with none of its own',
               any(i['title'] == 'Content migration' and i['start'] == '2027-01-06' and i['end'] == '2027-01-19' for i in doc['items']))
@@ -179,7 +179,7 @@ def main():
         pg.click('[data-adorefresh]')
         pg.wait_for_function(f'() => {R}.store.v.doc.items.some(i => i.title === "Content migration v2")', timeout=8000)
         check('refresh rebuilds a live roadmap from ADO', True)
-        check('roadmap action got the area paths', any(c[0] == 'roadmap' and c[1].get('areas') == ['Platform\\Wiki', 'Platform\\Lighthouse'] for c in STATE['calls']))
+        check('roadmap action got the area paths', any(c[0] == 'roadmap' and c[1].get('areas') == ['Platform\\Docs', 'Platform\\Monitor'] for c in STATE['calls']))
         check('only read actions were called', all(c[0] in ('roadmap', 'iterations.list') for c in STATE['calls']))
 
         pg.click('[data-adostop]')
@@ -192,7 +192,7 @@ def main():
         pg.evaluate(f'() => {R}.route("")')
         pg.wait_for_selector('[data-fromado]', timeout=5000)
         pg.click('[data-fromado]')
-        ado_dialog(pg, 'Linked platform', 'Platform\\Wiki', 'linked')
+        ado_dialog(pg, 'Linked platform', 'Platform\\Docs', 'linked')
         pg.wait_for_function(f'() => {R}.store.v.doc && {R}.store.v.doc.meta.title === "Linked platform" && {R}.store.v.doc.items.length === 3', timeout=8000)
         check('linked roadmap is editable', pg.query_selector('[data-additem]') is not None)
         pg.keyboard.press('Escape')

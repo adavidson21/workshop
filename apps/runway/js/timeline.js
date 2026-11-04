@@ -3,9 +3,13 @@
 
    layout(doc, ...) places every lane and bar; svg(L, ...) draws it with the colors it is given (the page
    passes its current theme; the export passes the theme the user picks), so the picture never depends on
-   page CSS. All text is escaped. */
+   page CSS. All text is escaped.
+
+   Nesting: in each lane, items with no parent and no children share rows, packed by date, as before. Each item
+   with children (an epic) then gets its own block: its own row, then a row group per level under it (features,
+   then stories, then tasks), each packed by date. Bars are colored by level unless the item sets a color. */
 import { PX, addDays, addMonths, fromDay, isDate, monthStart, parts, periodLabel, periods, sprintOf, toDay, MONTHS } from './dates.js';
-import { COLORS, depWarnings, goalFor, schedule } from './model.js';
+import { COLORS, depWarnings, goalFor, itemColor, levels, schedule } from './model.js';
 
 export const GUTTER = 200;
 export const HEAD = 48;
@@ -68,22 +72,43 @@ export function layout(doc, { sched = schedule(doc), range, hideCollapsed = fals
       .map(i => ({ i, s: sched.get(i.id) }))
       .filter(({ s }) => s && s.end >= from && s.start <= to)
       .sort((a, b) => a.s.start.localeCompare(b.s.start) || a.i.order - b.i.order);
-    const ends = [];       // right edge used so far, per row
-    const placed = [];
-    for (const { i, s } of mine) {
-      const bx = i.milestone ? x(s.start) + px / 2 - 7 : Math.max(GUTTER, x(s.start));
-      const bxEnd = i.milestone ? bx + 14 : Math.min(width - 16, x(addDays(s.end, 1)));
-      const bw = Math.max(i.milestone ? 14 : 4, bxEnd - bx);
-      const label = i.title;
-      const inside = !i.milestone && label.length * CHAR + 16 <= bw;
-      const extent = inside ? bxEnd : bxEnd + 6 + Math.min(label.length, 40) * CHAR;
-      let row = ends.findIndex(e => e + 6 <= bx);
-      if (row < 0) { row = ends.length; ends.push(0); }
-      ends[row] = Math.max(ends[row], extent);
-      placed.push({ id: i.id, item: i, lane: lane.id, row, x: r1(bx), w: r1(bw), inside, start: s.start, end: s.end, clipL: s.start < from, clipR: s.end > to, color: i.color || color });
+    const lv = levels(doc);
+    const byId = new Map(items.map(i => [i.id, i]));
+    const rootOf = (it) => { let r = it, n = 0; while (r.parent && byId.has(r.parent) && n++ < 8) r = byId.get(r.parent); return r; };
+    const hasKids = new Set(items.filter(i => i.parent).map(i => i.parent));
+    // Blocks: the shared one (standalone items), then one per root with children, in order of their first date.
+    const shared = [], groups = new Map();
+    for (const m of mine) {
+      const root = rootOf(m.i);
+      if (root === m.i && !hasKids.has(m.i.id)) shared.push(m);
+      else { if (!groups.has(root.id)) groups.set(root.id, []); groups.get(root.id).push(m); }
     }
-    const h = collapsed ? COLLAPSED : Math.max(1, ends.length) * ROW + PAD * 2;
-    lanes.push({ id: lane.id, title: lane.title, y, h, collapsed, count: mine.length, rows: Math.max(1, ends.length), color });
+    const blocks = [shared, ...[...groups.values()]].filter(b => b.length);
+    let rowBase = 0;
+    const placed = [];
+    for (const block of blocks) {
+      const isGroup = block !== shared;
+      const depths = isGroup ? [...new Set(block.map(m => lv.get(m.i.id) || 0))].sort((a, b) => a - b) : [0];
+      for (const d of depths) {
+        const ends = [];       // right edge used so far, per row of this level
+        for (const { i, s } of block.filter(m => !isGroup || (lv.get(m.i.id) || 0) === d)) {
+          const bx = i.milestone ? x(s.start) + px / 2 - 7 : Math.max(GUTTER, x(s.start));
+          const bxEnd = i.milestone ? bx + 14 : Math.min(width - 16, x(addDays(s.end, 1)));
+          const bw = Math.max(i.milestone ? 14 : 4, bxEnd - bx);
+          const label = i.title;
+          const inside = !i.milestone && label.length * CHAR + 16 <= bw;
+          const extent = inside ? bxEnd : bxEnd + 6 + Math.min(label.length, 40) * CHAR;
+          let row = ends.findIndex(e => e + 6 <= bx);
+          if (row < 0) { row = ends.length; ends.push(0); }
+          ends[row] = Math.max(ends[row], extent);
+          const level = lv.get(i.id) || 0;
+          placed.push({ id: i.id, item: i, lane: lane.id, row: rowBase + row, level, x: r1(bx), w: r1(bw), inside, start: s.start, end: s.end, clipL: s.start < from, clipR: s.end > to, color: itemColor(i, level) });
+        }
+        rowBase += ends.length;
+      }
+    }
+    const h = collapsed ? COLLAPSED : Math.max(1, rowBase) * ROW + PAD * 2;
+    lanes.push({ id: lane.id, title: lane.title, y, h, collapsed, count: mine.length, rows: Math.max(1, rowBase), color });
     if (!collapsed) for (const b of placed) { b.y = y + PAD + b.row * ROW + (ROW - BAR) / 2; b.h = BAR; bars.push(b); }
     y += h;
   });

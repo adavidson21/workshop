@@ -7,6 +7,8 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 ## Using it
 
 - **Roadmaps:** the list. New roadmap, Import Markdown, or start from the example.
+- **Pending assignment** (top of the list, when there is something in it): features, bugs and other thoughts captured on Workshop's Home (`p ...` in quick capture). **Assign** picks a roadmap, a lane and optionally an item to sit under; it lands there unscheduled, in the Unscheduled tray. A capture that names a roadmap (`p docs portal: ...`) skips Pending and goes straight to that roadmap's tray. Ideas show in their own color.
+- **Levels:** an item can sit under another: epic, then feature, story and task (four levels). In the outline, indent a `- ` line under an item; in the panel, pick **Under**. Each level has its own color (an item's own color wins). On the timeline, items with no parent and no children share rows as before; each epic gets its own rows, one group per level under it. Moving an item to another lane takes everything under it along.
 - **Split, Outline, Timeline:** the outline and the timeline are two views of one roadmap. Editing either updates the other.
 - **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. Items with no dates wait in the Unscheduled tray; drag one onto the timeline.
 - **Keys** (timeline focused): `N` new item, `Up`/`Down` select, `Left`/`Right` move, `Shift`+`Left`/`Right` change the end, `Alt`+`Up`/`Down` change lane, `Enter` edit, `Delete` remove, `Esc` deselect.
@@ -50,12 +52,14 @@ sprint: 2027-01-06, 2 weeks    the first day of any sprint, and the length
 goal: S1 | Content moved, old pages redirect
 goal: S4 | Search on the new index
 
-## Wiki Edge
+## Docs Portal
 - Content migration | S1-S3
 - Search cutover | S4 | after: Content migration
 - * Launch | S5
 - Alerting rework | 3 sprints | after: Search cutover | status: at risk | color: amber
   Indented lines under an item are its description.
+  - Pager routing | S5
+    An indented "- " line is a child item.
 - Later idea
 ```
 
@@ -77,6 +81,10 @@ App id `runway`. All collections are version 1 and follow Workshop's `docs/data-
 | `index` | One item per roadmap: `{id, title}` ([index-item](schemas/index-item.schema.json)). Removing a roadmap tombstones it here; its file stays in the folder. |
 | `maps/<id>` | One roadmap. `meta` is its settings and goals (`goals: [{date, text}]`, date in the period) ([map-meta](schemas/map-meta.schema.json)); items are lanes ([map-lane](schemas/map-lane.schema.json)), items ([map-item](schemas/map-item.schema.json)) and outline lines that are not items ([map-text](schemas/map-text.schema.json)), told apart by `kind`. |
 | `settings` | `meta.lastOpen`. |
+| `pending` | Ideas waiting for a roadmap: `{id, title, notes, date, from}` ([pending-item](schemas/pending-item.schema.json)). |
+| `taken` | Captures already handled, so each is taken once: `{id: '<app>:<offer id>', to: 'pending' or a roadmap id}` ([taken-item](schemas/taken-item.schema.json)). |
+
+Captures: the `handoffs` collections of Home and Dispatch (read only), offers with `to: 'runway'`, `accepted: true` and payload `{kind: 'idea', map?}` (Workshop `docs/handoffs.md`). Runway reads them when it loads and when they change.
 
 Files (through `ws.files`): `exports/<id>.md`, written only when you click Save to Workshop folder.
 
@@ -99,10 +107,11 @@ Where it saves:
 | --- | --- |
 | `js/dates.js` | Dates as `YYYY-MM-DD`, scales (week, sprint, month, quarter), sizes. |
 | `js/outline.js` | Parse and write the outline; apply an edited outline to a roadmap keeping ids. |
-| `js/model.js` | The roadmap model: envelopes, scheduling, dependency warnings, the shown range, moves. |
+| `js/model.js` | The roadmap model: envelopes, levels (parents), scheduling, dependency warnings, the shown range, moves. |
 | `js/timeline.js` | Layout and SVG, used on screen and for image export. Every text is escaped. |
 | `js/export.js` | Markdown (with the optional table), image SVG, PNG, file names. |
 | `js/store.js` | Loading and saving through the SDK. |
+| `js/pending.js` | Pending assignment: picking up captures from Home, assigning them to a roadmap. |
 | `js/view.js` | HTML for the list, toolbar, panel and dialogs. |
 | `js/main.js` | The page: painting, pointer and keyboard, routes, commands. |
 

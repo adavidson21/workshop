@@ -5,17 +5,20 @@
      start: 2027-01-04
      sprint: 2027-01-06, 2 weeks
 
-     ## Wiki Edge
+     ## Docs Portal
      - Content migration | S1-S3
      - Search cutover | S4 | after: Content migration
      - * Launch | S5
      - Alerting rework | 3 sprints | status: at risk | color: amber
        Notes are the indented lines under an item.
+       - Pager routing | S5
+         An indented "- " line is a child item (epic > feature > story > task).
 
    `goal: S3 | text` is a goal for a period (a sprint, month or quarter, in the map's scale).
    `#` is the title, `##` a lane, `-` an item, `- *` a milestone. After the title, `|` separates the parts
    of an item: when it happens (a date range, a period or a size), `after:` (items it depends on), `status:`
-   and `color:`. A line that cannot be read stays as text with a warning; nothing is dropped.
+   and `color:`. A line that cannot be read stays as text with a warning; nothing is dropped. A note line that
+   starts with "- " is written "\- " so it stays a note.
 
    parse(text) reads it; serialize(doc) writes a roadmap back in the same format, so text, timeline and
    Markdown are one thing. reconcile(doc, parsed) applies an edited outline to a roadmap and keeps the ids,
@@ -24,7 +27,7 @@ import {
   MONTHS, SCALES, addDays, firstPeriod, isDate, monthEnd, monthStart, parts, periodAdd, periodEnd, periodStart,
   quarterOf, quarterStart, sprintNumber, sprintOf, ymd
 } from './dates.js';
-import { COLORS, STATUSES, newId } from './model.js';
+import { COLORS, MAX_DEPTH, STATUSES, newId } from './model.js';
 
 export const TABLE_MARK = '<!-- runway:table -->';
 const UNITS = { d: 'day', day: 'day', days: 'day', w: 'week', wk: 'week', wks: 'week', week: 'week', weeks: 'week',
@@ -170,8 +173,8 @@ function readHeaders(lines, todayStr) {
 
 /**
  * Read an outline. Returns {meta, lanes: [{title}], entries, warnings: [{line, message}]}, where each entry is
- * {kind: 'item', lane (index or -1), title, start?, end?, size?, milestone, status, color, after: [titles],
- * notes} or {kind: 'text', lane, raw}. `defaults` fills what the text leaves out (the map's current meta).
+ * {kind: 'item', lane (index or -1), parent (index of its parent entry, or -1), title, start?, end?, size?,
+ * milestone, status, color, after: [titles], notes} or {kind: 'text', lane, raw}. `defaults` fills what the text leaves out (the map's current meta).
  */
 export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = {}) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
@@ -186,18 +189,34 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
   const goals = [];
   let lane = -1;
   let last = null;      // the item notes attach to
-  const asText = (i, raw, message) => { entries.push({ kind: 'text', lane, raw }); if (message) warnings.push({ line: i + 1, message }); last = null; };
+  let stack = [];       // [{indent, entry}]: the items the next indented "- " line can sit under
+  const asText = (i, raw, message) => { entries.push({ kind: 'text', lane, raw }); if (message) warnings.push({ line: i + 1, message }); last = null; stack = []; };
+  const indentOf = (raw) => /^[ \t]*/.exec(raw)[0].replace(/\t/g, '  ').length;
+  let parentFor = -1;   // the entry index the item on this line sits under
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.trim();
     if (line === TABLE_MARK) break;
-    if (!line) { last = null; continue; }
-    // Indented lines under an item are its notes.
-    if (/^\s/.test(raw) && last) { last.notes = last.notes ? last.notes + '\n' + line : line; continue; }
+    if (!line) { last = null; stack = []; continue; }
+    parentFor = -1;
+    if (/^\s/.test(raw) && stack.length && /^[-*+]\s+/.test(line)) {
+      // An indented "- " line under an item is its child.
+      const ind = indentOf(raw);
+      while (stack.length && stack[stack.length - 1].indent >= ind) stack.pop();
+      if (stack.length) {
+        if (stack.length > MAX_DEPTH) { asText(i, raw, `Line ${i + 1} is nested more than ${MAX_DEPTH + 1} levels deep.`); continue; }
+        parentFor = entries.indexOf(stack[stack.length - 1].entry);
+      }
+    } else if (/^\s/.test(raw) && last) {
+      // Other indented lines under an item are its notes. "\- " keeps a bullet in the notes.
+      const note = line.replace(/^\\([-*+]\s)/, '$1');
+      last.notes = last.notes ? last.notes + '\n' + note : note;
+      continue;
+    }
     if (/^<!--.*-->$/.test(line)) continue;
     if (/^#\s+/.test(line)) { meta.title = line.replace(/^#\s+/, '').trim().slice(0, 120); last = null; continue; }
-    if (/^##\s+/.test(line)) { lanes.push({ title: line.replace(/^##\s+/, '').trim().slice(0, 80) || 'Lane' }); lane = lanes.length - 1; last = null; continue; }
+    if (/^##\s+/.test(line)) { lanes.push({ title: line.replace(/^##\s+/, '').trim().slice(0, 80) || 'Lane' }); lane = lanes.length - 1; last = null; stack = []; continue; }
     const h = header(line);
     if (h && h.key === 'goal') {
       const [when, ...rest] = splitBars(h.value);
@@ -217,7 +236,7 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
     const segs = splitBars(body);
     const title = segs.shift().slice(0, 200);
     if (!title) { asText(i, raw, `Line ${i + 1} has no title.`); continue; }
-    const it = { kind: 'item', lane, title, milestone, status: 'planned', color: '', after: [], notes: '' };
+    const it = { kind: 'item', lane, parent: parentFor, title, milestone, status: 'planned', color: '', after: [], notes: '' };
     let problem = '';
     for (const seg of segs) {
       if (!seg) continue;
@@ -239,6 +258,8 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
     if (milestone && it.start) it.end = it.start;
     entries.push(it);
     last = it;
+    if (parentFor < 0) stack = [];
+    stack.push({ indent: indentOf(raw), entry: it });
   }
   // One goal per period: a later line for the same period wins.
   meta.goals = [...new Map(goals.map(g => [g.date, g])).values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -247,7 +268,7 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
 
 /* ---------- serialize ---------- */
 
-function itemLine(it, doc, byId) {
+function itemLine(it, doc, byId, depth = 0) {
   const segs = [escTitle(it.title)];
   if (it.milestone && it.start) segs.push(it.start);
   else if (it.start && it.end) segs.push(formatWhen(it.start, it.end, doc.meta));
@@ -256,8 +277,9 @@ function itemLine(it, doc, byId) {
   if (after.length) segs.push('after: ' + after.map(escTitle).join(', '));
   if (it.status && it.status !== 'planned') segs.push('status: ' + it.status);
   if (it.color) segs.push('color: ' + it.color);
-  const notes = (it.notes || '').split('\n').filter(l => l.trim()).map(l => '  ' + l.trim());
-  return [`- ${it.milestone ? '* ' : ''}${segs.join(' | ')}`, ...notes].join('\n');
+  const pad = '  '.repeat(depth);
+  const notes = (it.notes || '').split('\n').filter(l => l.trim()).map(l => pad + '  ' + l.trim().replace(/^([-*+]\s)/, '\\$1'));
+  return [`${pad}- ${it.milestone ? '* ' : ''}${segs.join(' | ')}`, ...notes].join('\n');
 }
 
 /** A roadmap as outline text. */
@@ -273,7 +295,16 @@ export function serialize(doc) {
   }
   const byId = new Map(doc.items.filter(x => x.kind === 'item').map(x => [x.id, x]));
   const inLane = (laneId) => doc.items.filter(x => (x.lane || null) === laneId).sort((a, b) => a.order - b.order);
-  const block = (list) => list.map(x => x.kind === 'text' ? x.raw : itemLine(x, doc, byId));
+  const block = (list) => {
+    const here = new Set(list.map(x => x.id));
+    const out = [];
+    const add = (x, depth) => {
+      out.push(x.kind === 'text' ? x.raw : itemLine(x, doc, byId, depth));
+      if (x.kind === 'item') for (const c of list.filter(c => c.kind === 'item' && c.parent === x.id)) add(c, depth + 1);
+    };
+    for (const x of list) if (x.kind === 'text' || !x.parent || !here.has(x.parent)) add(x, 0);
+    return out;
+  };
   const loose = inLane(null);
   if (loose.length) out.push('', ...block(loose));
   for (const lane of [...doc.lanes].sort((a, b) => a.order - b.order)) {
@@ -300,7 +331,7 @@ export function reconcile(doc, parsed) {
   const oldText = doc.items.filter(x => x.kind === 'text');
   const used = new Set();
   const counters = new Map();
-  const items = parsed.entries.map(e => {
+  const items = parsed.entries.map((e, ei) => {
     const lane = laneOf(e.lane);
     const order = counters.get(lane) || 0;
     counters.set(lane, order + 1);
@@ -315,10 +346,16 @@ export function reconcile(doc, parsed) {
     const it = {
       ...(old || {}), id: old ? old.id : newId('i'), kind: 'item', lane, order, title: e.title,
       start: e.start || null, end: e.end || null, size: e.size || null, milestone: !!e.milestone,
-      status: e.status, color: e.color, notes: e.notes || '', dependsOn: [], afterMissing: [], _after: e.after
+      status: e.status, color: e.color, notes: e.notes || '', dependsOn: [], afterMissing: [], _after: e.after, _parent: e.parent
     };
     return it;
   });
+  for (const it of items) {
+    if (it.kind !== 'item') continue;
+    const p = Number.isInteger(it._parent) && it._parent >= 0 ? items[it._parent] : null;
+    it.parent = p && p.kind === 'item' ? p.id : null;
+    delete it._parent;
+  }
   const warnings = [...parsed.warnings];
   const real = items.filter(x => x.kind === 'item');
   for (const it of real) {

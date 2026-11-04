@@ -8,14 +8,15 @@ import { mountBar } from '../shared/standalone-bar.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
 import { saveFile } from '../shared/save-file.js';
 import { SNAP, addDays, isDate, periodEnd, periodStart, sizeEnd, sprintOf, toDay, today } from './dates.js';
-import { APP, blankDoc, cleanItem, goalFor, setGoal, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, viewRange } from './model.js';
+import { APP, blankDoc, cleanItem, fromEnvelope, goalFor, setGoal, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, setLane, setParent, viewRange } from './model.js';
 import { parse, reconcile, serialize } from './outline.js';
 import { dateAt, laneAt, layout, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
+import { createPending, ideaToItem, writeToMap } from './pending.js';
 import {
-  ICON, OUTLINE_HELP, confirmDialog, exportDialog, importDialog, listHtml, panelHtml, promptDialog, rangeHtml,
+  ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
   settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
 } from './view.js';
 
@@ -33,6 +34,21 @@ else {
 let painting = false;
 const store = createStore(ws, { onChange: () => { if (!painting) requestPaint(); } });
 const v = store.v;
+
+/* Pending assignment (js/pending.js): ideas captured on Home. The open roadmap takes them through the store,
+   so its unsaved edits are kept; other roadmaps get them straight in their collection. */
+const pending = createPending(ws, {
+  onChange: () => { if (!painting) requestPaint(); },
+  hasMap: id => v.list.some(r => r.id === id),
+  async addToMap(mapId, idea, opts) {
+    if (v.mapId === mapId && v.doc) {
+      if (!store.edit(d => d.items.push(ideaToItem(d, idea, opts)))) throw new Error("That roadmap can't be changed right now.");
+      await store.flush();
+      return;
+    }
+    await writeToMap(ws, mapId, fromEnvelope, idea, opts);
+  }
+});
 const prefMode = (() => { try { return localStorage.getItem('runway.mode'); } catch (e) { return null; } })();
 const ui = {
   mode: ['timeline', 'outline', 'split'].includes(prefMode) ? prefMode : 'split',
@@ -106,7 +122,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent' }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent', pending: pending.v }));
 }
 
 function paintReports() {
@@ -236,6 +252,32 @@ function showDialog(html, wire) {
     dlg.showModal();
     const f = dlg.querySelector('[autofocus]'); if (f) { f.focus(); if (f.select) f.select(); }
   });
+}
+
+/** Assign a pending idea: pick a roadmap, a lane and what it sits under. */
+async function assignIdea(id) {
+  const idea = pending.v.items.find(x => x.id === id);
+  if (!idea || !v.list.length) return;
+  let target = null;
+  const docOf = async (mapId) => {
+    if (v.mapId === mapId && v.doc) return v.doc;
+    const e = await ws.data.get(`maps/${mapId}`).catch(() => null);
+    return fromEnvelope(e || { items: [] });
+  };
+  const f = await showDialog(assignDialog(idea, v.list, store.lastOpen()), form => {
+    const map = form.querySelector('[data-amap]'), lane = form.querySelector('[data-alane]'), under = form.querySelector('[data-aparent]');
+    const fillUnder = () => { if (target) under.innerHTML = underOptions(target, lane.value || null); };
+    const fillLanes = async () => { target = await docOf(map.value); lane.innerHTML = laneOptions(target); if (target.lanes.length) lane.value = [...target.lanes].sort((a, b) => a.order - b.order)[0].id; fillUnder(); };
+    map.addEventListener('change', fillLanes);
+    lane.addEventListener('change', fillUnder);
+    fillLanes();
+  });
+  if (!f) return;
+  try {
+    const el = f.elements;
+    await pending.assign(id, el.map.value, { lane: el.lane.value || null, parent: el.parent.value || null });
+    toast(`Added to ${(v.list.find(r => r.id === el.map.value) || {}).title || 'the roadmap'}, unscheduled`, 'success');
+  } catch (e) { toastErr(e); }
 }
 
 async function newRoadmap(doc) {
@@ -383,6 +425,11 @@ app.addEventListener('click', async e => {
       const row = v.list.find(r => r.id === t.dataset.del);
       const f = await showDialog(confirmDialog('Remove this roadmap?', `"${row ? row.title : ''}" leaves the list. Its file stays in your Workshop folder (runway/maps/${t.dataset.del}.json).`));
       if (f) store.remove(t.dataset.del).catch(toastErr);
+    } else if (t.dataset.passign) assignIdea(t.dataset.passign);
+    else if (t.dataset.premove) {
+      const idea = pending.v.items.find(x => x.id === t.dataset.premove);
+      const f = await showDialog(confirmDialog('Remove this idea?', `"${idea ? idea.title : ''}" leaves Pending.`));
+      if (f) pending.remove(t.dataset.premove).catch(toastErr);
     } else if ('pair' in t.dataset) askPair();
     else if ('unpair' in t.dataset) forgetPairing();
     return;
@@ -564,7 +611,8 @@ app.addEventListener('change', e => {
       return;
     }
     switch (t.dataset.f) {
-      case 'lane': it.lane = t.value || null; it.order = nextOrder(d, it.lane); break;
+      case 'lane': setLane(d, it.id, t.value || null); break;
+      case 'parent': setParent(d, it.id, t.value || null); break;
       case 'status': it.status = t.value; break;
       case 'color': if (t.checked) it.color = t.value; break;
       case 'milestone':
@@ -637,7 +685,7 @@ app.addEventListener('pointermove', e => {
     moveItem(tmp, d.id, addDays(s.start, days), sched);
     const lane = laneAt(d.L, p.y);
     const it = tmp.items.find(i => i.id === d.id);
-    if (lane && (lane.id || null) !== (it.lane || null) && !lane.collapsed) { it.lane = lane.id; it.order = nextOrder(tmp, lane.id); }
+    if (lane && (lane.id || null) !== (it.lane || null) && !lane.collapsed) setLane(tmp, it.id, lane.id);
   }
   ui.dragDoc = tmp;
   paintMap();
@@ -690,7 +738,7 @@ app.addEventListener('drop', e => {
     it.start = start;
     it.end = it.milestone ? start : sizeEnd(start, it.size || { n: 1, unit: d.meta.scale }, sprint);
     it.size = null;
-    if (lane && !lane.collapsed) it.lane = lane.id;
+    if (lane && !lane.collapsed) setLane(d, it.id, lane.id);
   });
   select(id);
 });
@@ -738,7 +786,7 @@ document.addEventListener('keydown', e => {
       const it = d.items.find(i => i.id === id);
       const k = lanes.indexOf(it.lane || null) + (key === 'ArrowDown' ? 1 : -1);
       if (k < 0 || k >= lanes.length) return;
-      it.lane = lanes[k]; it.order = nextOrder(d, it.lane);
+      setLane(d, it.id, lanes[k]);
     });
   }
 });
@@ -761,8 +809,10 @@ ws.on('command', p => {
 });
 ws.on('theme', () => requestPaint());
 if (window.WorkshopTheme && WorkshopTheme.onChange) WorkshopTheme.onChange(() => requestPaint());
-ws.on('online', () => { if (v.waiting) { v.waiting = false; store.load().then(() => route(ui.pendingRoute || v.mapId || '')); } });
+ws.on('online', () => { if (v.waiting) { v.waiting = false; store.load().then(() => route(ui.pendingRoute || v.mapId || '')); } pending.load().then(() => pending.pickup()).catch(() => {}); });
 ws.data.subscribe('index', () => store.reload('index'));
+ws.data.subscribe('pending', () => pending.load().catch(() => {}));
+for (const app of ['home', 'agents']) ws.data.subscribe('handoffs', () => pending.pickup(), { app });
 document.addEventListener('visibilitychange', () => { if (document.hidden) store.flush(); });
 window.addEventListener('beforeunload', e => { if (store.hasPending()) { store.flush(); e.preventDefault(); } });
 
@@ -771,6 +821,7 @@ window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () =
 
 paint();
 await store.load();
+pending.load().then(() => pending.pickup()).catch(() => {});
 const first = ui.pendingRoute ?? (ws.embedded ? null : location.hash.replace(/^#\/?/, ''));
 ui.pendingRoute = null;
 if (first) await route(first);

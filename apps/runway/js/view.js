@@ -1,7 +1,7 @@
 /* Runway's HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
 import { SCALES, fmt } from './dates.js';
-import { COLORS, STATUSES, linksIn, schedule } from './model.js';
+import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
 import { summary } from './export.js';
 
@@ -27,7 +27,43 @@ export { ICON };
 
 /* ---------- the list of roadmaps ---------- */
 
-export function listHtml(v, { canPair = false, paired = false, ado = false, reports = false } = {}) {
+/** Pending assignment: ideas captured on Home that wait for a roadmap (js/pending.js). */
+export function pendingHtml(p, hasMaps) {
+  if (!p || !p.items.length) return '';
+  const dot = `<span class="idot" style="--c:${PALETTE.light[IDEA_COLOR]};--cd:${PALETTE.dark[IDEA_COLOR]}" aria-hidden="true"></span>`;
+  return `<section class="pending" id="pending" aria-label="Pending assignment">
+    <h2 class="section-label">Pending assignment <span class="count">${p.items.length}</span></h2>
+    <ul class="plist">${p.items.map(x => `<li class="prow-i">
+      ${dot}<span class="ptext"><span class="ptitle">${esc(x.title)}</span>${x.notes ? `<span class="hint pnotes">${esc(x.notes)}</span>` : ''}</span>
+      <span class="rmeta mono">${esc([x.from, x.date].filter(Boolean).join(' · '))}</span>
+      <span class="racts">${hasMaps ? `<button class="btn" data-passign="${esc(x.id)}">Assign</button>` : ''}<button class="btn text-danger" data-premove="${esc(x.id)}">Remove</button></span>
+    </li>`).join('')}</ul>
+    ${hasMaps ? '' : '<p class="hint">Make a roadmap to assign these to.</p>'}
+  </section>`;
+}
+
+/** Assign an idea: roadmap, lane, and what it sits under. The lane and Under lists are filled by main.js. */
+export function assignDialog(idea, list, mapId) {
+  return `<form method="dialog" class="sheet">
+    <h3>Assign to a roadmap</h3>
+    <p class="hint">${esc(idea.title)}</p>
+    <label class="pf"><span>Roadmap</span><select name="map" data-amap>${[...list].sort((a, b) => b.changed - a.changed).map(r => `<option value="${esc(r.id)}"${r.id === mapId ? ' selected' : ''}>${esc(r.title)}</option>`).join('')}</select></label>
+    <label class="pf"><span>Lane</span><select name="lane" data-alane><option value="">No lane</option></select></label>
+    <label class="pf"><span>Under</span><select name="parent" data-aparent><option value="">Nothing (top level)</option></select><small class="hint">Pick an epic to make this a feature under it. It lands unscheduled; drag it onto the timeline from the tray.</small></label>
+    <footer><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Assign</button></footer>
+  </form>`;
+}
+
+/** The options for a lane select and an Under select, from a roadmap. */
+export function laneOptions(doc) {
+  return `<option value="">No lane</option>${[...doc.lanes].sort((a, b) => a.order - b.order).map(l => `<option value="${esc(l.id)}">${esc(l.title)}</option>`).join('')}`;
+}
+export function underOptions(doc, lane) {
+  const lv = levels(doc);
+  return `<option value="">Nothing (top level)</option>${parentChoices(doc, null, lane).map(o => `<option value="${esc(o.id)}">${esc(LEVELS[lv.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}`;
+}
+
+export function listHtml(v, { canPair = false, paired = false, ado = false, reports = false, pending = null } = {}) {
   const adoBtn = ado ? '<button class="btn" data-fromado>From Azure DevOps</button>' : '';
   const repLink = reports ? '<a class="btn ghost" href="#/reports" data-reports>Team reports</a>' : '';
   const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
@@ -47,6 +83,7 @@ export function listHtml(v, { canPair = false, paired = false, ado = false, repo
       <h1 class="page-title dot">Roadmaps</h1>
       ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button>${repLink}</div>` : ''}
     </header>
+    ${pendingHtml(pending, v.list.length > 0)}
     ${v.list.length ? `<ul class="rlist">${rows}</ul>` : empty}
     ${canPair ? `<p class="hint pairline">Your roadmaps are saved in this browser. <button class="lnk" data-pair>Use Workshop on this computer</button> to keep them in your Workshop folder.</p>` : ''}
     ${paired ? `<p class="hint pairline">Saved in your Workshop folder. <button class="lnk" data-unpair>Stop using Workshop on this computer</button></p>` : ''}`;
@@ -114,7 +151,9 @@ goal: S1 | What this sprint delivers   (a month or Q2 on other scales)
 - Item | 2027-03-01..2027-03-20
 - Item | 3 sprints     a length: starts after its "after" items
 - * Milestone | 2027-04-15
-  Indented lines are its description.</code></pre></details>`;
+  Indented lines are its description.
+  - Child item | S3     an indented "- " line sits under the item
+    (epic, feature, story, task: each level its own color)</code></pre></details>`;
 
 /* ---------- under the timeline: goals and what each item delivers ---------- */
 
@@ -153,10 +192,14 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
   const others = doc.items.filter(x => x.kind === 'item' && x.id !== id);
   const links = linksIn(it.notes);
   const sized = !it.start && it.size;
+  const level = levels(doc).get(id) || 0;
+  const under = parentChoices(doc, id);
+  const lvAll = levels(doc);
   return `<form class="panel" data-panel="${esc(id)}" aria-label="Item">
-    <header><span class="eyebrow">${it.milestone ? 'Milestone' : 'Item'}</span><button type="button" class="ibtn" data-close aria-label="Close">${ICON.close}</button></header>
+    <header><span class="eyebrow">${it.milestone ? 'Milestone' : LEVELS[level]}</span><button type="button" class="ibtn" data-close aria-label="Close">${ICON.close}</button></header>
     <label class="pf"><span>Title</span><input data-f="title" value="${esc(it.title)}" maxlength="200"${ro}></label>
     <label class="pf"><span>Lane</span><select data-f="lane"${ro}>${lanes.map(l => `<option value="${esc(l.id)}"${(it.lane || '') === l.id ? ' selected' : ''}>${esc(l.title)}</option>`).join('')}</select></label>
+    <label class="pf"><span>Under</span><select data-f="parent"${ro}><option value="">Nothing (top level)</option>${under.map(o => `<option value="${esc(o.id)}"${it.parent === o.id ? ' selected' : ''}>${esc(LEVELS[lvAll.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}</select><small class="hint">Epic, then feature, story and task. Each level has its own color.</small></label>
     <label class="pc"><input type="checkbox" data-f="milestone"${it.milestone ? ' checked' : ''}${ro}> Milestone (one date)</label>
     ${sized ? `<p class="hint">${esc(`${it.size.n} ${it.size.unit}${it.size.n === 1 ? '' : 's'}`)}${s ? `, ${esc(fmt(s.start))} to ${esc(fmt(s.end))}` : ''}. Set dates to pin it.</p>` : ''}
     <div class="prow">
@@ -166,7 +209,7 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
     ${it.start || sized ? `<button type="button" class="lnk" data-unschedule${ro}>Unschedule</button>` : ''}
     <label class="pf"><span>Status</span><select data-f="status"${ro}>${STATUSES.map(x => `<option value="${x}"${it.status === x ? ' selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>
     <fieldset class="pf"><legend>Color</legend><div class="swatches">
-      <label class="swl" title="Lane color"><input type="radio" name="color" data-f="color" value=""${!it.color ? ' checked' : ''}${ro}><span class="swc auto">A</span></label>
+      <label class="swl" title="${LEVELS[level]} color"><input type="radio" name="color" data-f="color" value=""${!it.color ? ' checked' : ''}${ro}><span class="swc auto" style="--c:${PALETTE.light[LEVEL_COLORS[level]]};--cd:${PALETTE.dark[LEVEL_COLORS[level]]}">A</span></label>
       ${COLORS.map(c => `<label class="swl" title="${c}"><input type="radio" name="color" data-f="color" value="${c}"${it.color === c ? ' checked' : ''}${ro}><span class="swc" style="--c:${PALETTE.light[c]};--cd:${PALETTE.dark[c]}"></span></label>`).join('')}
     </div></fieldset>
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
