@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Notes",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -15,5 +15,6 @@
     {"id": "new", "title": "New note"},
     {"id": "search", "title": "Search notes"}
   ],
-  "files": ["notes.css", "js/main.js", "js/data.js", "js/model.js", "js/markdown.js", "js/view.js", "js/export.js"]
+  "data": ["taken"],
+  "files": ["notes.css", "js/pickup.js", "js/main.js", "js/data.js", "js/model.js", "js/markdown.js", "js/view.js", "js/export.js"]
 }

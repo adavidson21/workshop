@@ -394,7 +394,7 @@
         "manifestVersion": 1,
         "id": "receipts",
         "name": "Receipts",
-        "version": "1.6.0",
+        "version": "1.7.0",
         "description": "Log wins and feedback for yourself, your reports and your manager. Build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -522,7 +522,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -548,8 +548,12 @@
             "title": "Search notes"
           }
         ],
+        "data": [
+          "taken"
+        ],
         "files": [
           "notes.css",
+          "js/pickup.js",
           "js/main.js",
           "js/data.js",
           "js/model.js",

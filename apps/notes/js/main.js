@@ -6,6 +6,7 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { saveFile } from '../../../shared/save-file.js';
 import { createNotes } from './data.js';
+import { startPickup } from './pickup.js';
 import { dataUrl, inlineImages, wikiHtml } from './export.js';
 import { render, headingId } from './markdown.js';
 import {
@@ -40,6 +41,8 @@ let found = [];
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => paintChrome(), onExternal });
+// Notes captured in Home or the Dispatch hub (pickup.js): written to inbox/ with no second click.
+const pickup = startPickup(ws, notes, { onAdded: (w, from) => ws.toast(w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from} to inbox/`, { kind: 'success' }) });
 const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });
 
 /* ---------- painting ---------- */
@@ -687,12 +690,14 @@ ws.on('route', (p) => {
 ws.on('online', async (p) => {
   if (!p.online) return;
   await notes.load();
+  pickup.run();
   if (!ui.path && !ui.other) await openLast();
 });
 ws.on('visible', (p) => { if (!p.visible && ui.status.kind === 'dirty') saveNow(); });
 
 paintChrome();
 await notes.load();
+pickup.run();
 async function openLast() {
   const first = pendingRoute || store('last');
   pendingRoute = null;
