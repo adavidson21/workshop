@@ -131,4 +131,4 @@ These apply to any service worker Workshop ships, in every mode:
 - Never cache any request to the agent's origin made from a hosted page.
 - Never touch `/api/events` (the event stream). Let the browser handle it.
 
-The check is in `tests/contract/service-worker.test.mjs`. It is marked to-do until WS4 replaces `sw.js`; WS4 removes the to-do mark.
+The check is in `tests/contract/service-worker.test.mjs`. It blocks merges.

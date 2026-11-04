@@ -2,7 +2,7 @@
 
 Version: **`work: 1`**, matching eng-agents at commit `e2d202a` (core 2.1.0, Dashboard 1.6.1).
 
-eng-agents writes these files; the opencode connector (WS3) and the Agents app (WS6) read them. This document is the contract between the two repos. It lives in Workshop for now because eng-agents is frozen until WS8. Any change to the wording below, in either repo, is a contract change ([README.md](README.md), Changing a contract).
+eng-agents (Tandem) writes these files; the opencode connector and Dispatch read them. This document is the contract between the two repos. Any change to the wording below, in either repo, is a contract change ([README.md](README.md), Changing a contract).
 
 The rules here describe what eng-agents' parser (`core/scripts/dashboard/New-Dashboard.ps1`) and its commands do today. Where the parser has a quirk, it is listed under Known quirks, not fixed. A JavaScript port (WS3, later) must produce the same results; the regexes below are written in JavaScript syntax for that port.
 
