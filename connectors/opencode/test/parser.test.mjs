@@ -44,3 +44,23 @@ test("a pr-<id> folder is a PR review: title, recommendation, and comments from 
     assert.equal(again.items.find((i) => i.folder === "pr-812").state, "Review is for an older commit");
   } finally { ws.remove(); }
 });
+
+// Windows PowerShell 5.1 reads a .ps1 with no BOM as Windows-1252, so a non-ASCII character can turn into
+// a quote and break the parse (an arrow in a regex did: "Missing closing '}'"). Keep every .ps1 ASCII.
+test("every .ps1 in the repo is ASCII, so Windows PowerShell 5.1 parses it", () => {
+  const bad = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "node_modules" || e.name === ".git") continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".ps1")) {
+        fs.readFileSync(p, "utf8").split(/\r?\n/).forEach((line, i) => {
+          if (/[^\x00-\x7F]/.test(line)) bad.push(`${path.relative(REPO, p)}:${i + 1}`);
+        });
+      }
+    }
+  };
+  walk(REPO);
+  assert.deepEqual(bad, [], "non-ASCII characters in .ps1 files (use a \\uXXXX regex escape or [char] instead)");
+});
