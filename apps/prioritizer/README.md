@@ -140,7 +140,9 @@ Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waitin
 
 **Docket's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings, so they stay the same whichever way Docket connects.
 
-With the connector, skip the helper steps below: turn the ADO connector on in Settings, add a connection, then click Connect in ADO Settings.
+With the connector, skip the helper steps below: turn the ADO connector on in Settings and add a connection. Docket starts syncing by itself the first time it sees the connector ready (no Connect click here); **Disconnect** in ADO Settings turns that off for this device until you click Connect again.
+
+The ADO button shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to run, usually `workshop pat`), and a PAT that expires within two weeks turns it amber while sync keeps working.
 
 **Setup on the work PC:**
 

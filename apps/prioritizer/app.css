@@ -159,6 +159,7 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 #adoBtn .mk-x{display:none}
 #adoBtn[data-ado=error]{color:var(--danger)}
 #adoBtn[data-ado=error] .mk-x{display:inline}
+#adoBtn[data-ado=warn]{color:var(--warn)}
 #adoBtn[data-ado=busy] svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .sheet.wide{width:min(48rem,100%)}

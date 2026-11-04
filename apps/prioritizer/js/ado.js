@@ -1,3 +1,4 @@
+import { connectorNote, shouldAutoConnect } from './ado-status.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, COLORS, VALUE } from './constants.js';
 import { flushText } from './drawer.js';
 import { hideTip, placeTip, tipFor } from './events.js';
@@ -27,7 +28,7 @@ const PR_GONE = {reviewed: 'You voted', covered: 'A teammate reviewed it', merge
 const prTip = p => `PR ${p.id} in ${p.repo}${p.author ? ' by ' + p.author : ''}${p.via.length && p.tier === 'pool' ? ', via ' + p.via.join(', ') : ''}${p.lastBlocker ? '. Everyone else required has approved' : ''}`;
 const adoShort = type => ({'User Story': 'Story', 'Product Backlog Item': 'PBI'})[type] || type || 'ADO';
 // Per-device ADO state. Called by main.js once every module has loaded (modules import each other in a cycle).
-function adoInit(){ ui.ado = Object.assign({on: false, port: ADO_DEFAULT_PORT, last: 0, error: ''}, ui.ado || {}); }
+function adoInit(){ ui.ado = Object.assign({on: false, offByUser: false, port: ADO_DEFAULT_PORT, last: 0, error: ''}, ui.ado || {}); }
 let adoBusy = false, adoTimer = null;
 
 function adoList(){
@@ -204,12 +205,25 @@ function prApply(prs, n){
 
 /* Where ADO data comes from: 'connector' or 'helper'. Decided at start and again when settings change. */
 let adoVia = 'helper';
+// The connector's own words ({error, warn}, js/ado-status.js), refreshed on every detect. Not saved.
+let adoNoteNow = {error: '', warn: ''};
 async function adoDetect(){
   const ws = await ready;
-  adoVia = 'helper';
+  adoVia = 'helper'; adoNoteNow = {error: '', warn: ''};
   if (ws && ws.backend === 'agent'){
-    try { const c = (await ws.connectors.list()).find(x => x.id === 'ado'); if (c && c.enabled) adoVia = 'connector'; } catch(e){ /* keep the helper */ }
+    try {
+      const c = (await ws.connectors.list()).find(x => x.id === 'ado');
+      if (c && c.enabled){
+        adoVia = 'connector'; adoNoteNow = connectorNote(c);
+        // Set up in Workshop Settings already: no second Connect here. Turning it off in Docket sticks.
+        if (shouldAutoConnect(c, ui.ado)){
+          ui.ado.on = true; ui.ado.error = ''; ui.ado.last = 0; saveUi(); adoSchedule();
+          toast('Azure DevOps is connected through Workshop. Syncing your work items and reviews now.');
+        }
+      }
+    } catch(e){ /* keep the helper */ }
   }
+  setAdo();
   return adoVia;
 }
 // One ADO request: name is sync, dataset or health. Same answers from either source.
@@ -241,6 +255,8 @@ const ADO_DOWN = "Can't reach the ADO helper. Is it running on this computer?";
 async function adoSync(manual){
   if (adoBusy || !ui.ado.on || isWaiting()) return;
   if (!manual && Date.now() - ui.ado.last < ADO_MIN_GAP) return;
+  // The connector already says why a sync would fail (no PAT, rejected PAT): show that, skip the request.
+  if (adoVia === 'connector' && adoNoteNow.error){ ui.ado.error = adoNoteNow.error; saveUi(); setAdo(); if (manual) toast(ui.ado.error); return; }
   adoBusy = true; setAdo();
   try {
     const known = state.tasks.filter(t => t.ado && !t.done).map(t => t.ado.id);
@@ -271,9 +287,10 @@ function setAdo(){
   const np = ui.ado.on ? state.ado.pending.length : 0;
   if (np) b.dataset.pending = np > 99 ? '99+' : np; else delete b.dataset.pending;
   const ago = ui.ado.last ? Math.round((Date.now() - ui.ado.last) / 60000) : null;
-  b.dataset.ado = adoBusy ? 'busy' : !ui.ado.on ? 'off' : ui.ado.error ? 'error' : 'on';
+  const warn = ui.ado.on && !ui.ado.error && adoVia === 'connector' ? adoNoteNow.warn : '';
+  b.dataset.ado = adoBusy ? 'busy' : !ui.ado.on ? 'off' : ui.ado.error ? 'error' : warn ? 'warn' : 'on';
   b.dataset.tip = !ui.ado.on ? 'Connect Azure DevOps' : adoBusy ? 'Syncing with ADO' : ui.ado.error ? `ADO: ${ui.ado.error}`
-    : ago == null ? 'ADO sync on' : `ADO synced ${ago < 1 ? 'just now' : plural(ago, 'minute') + ' ago'}`;
+    : warn ? `ADO: ${warn}` : ago == null ? 'ADO sync on' : `ADO synced ${ago < 1 ? 'just now' : plural(ago, 'minute') + ' ago'}`;
   if (tipFor === b) placeTip(b);
 }
 async function adoSetup(){
@@ -300,10 +317,10 @@ async function adoSetup(){
       <label><input type="radio" name="adoChoose" value="0"${state.ado.choose ? '' : ' checked'}> Add them automatically</label></div>
     <div class="fld"><label for="adoEvery">Sync every</label><input type="number" id="adoEvery" class="mono" min="${ADO_SYNC_MIN}" max="${ADO_SYNC_MAX}" value="${state.ado.syncMinutes}"> <span class="hint">minutes</span></div>
     <table class="tiers"><caption>New pull request reviews start at</caption><tbody>${tiers}</tbody></table>
-    <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${ui.ado.on && ui.ado.error ? esc(ui.ado.error) : ''}</p>
+    <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${ui.ado.on && ui.ado.error ? esc(ui.ado.error) : viaConnector && (adoNoteNow.error || adoNoteNow.warn) ? esc(adoNoteNow.error || adoNoteNow.warn) : ''}</p>
     <footer>${ui.ado.on ? '<button class="btn text-danger" data-ado-off>Disconnect</button>' : ''}<span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-ado-go>${ui.ado.on ? 'Save' : 'Connect'}</button></footer></div>`,
     sh => sh.addEventListener('click', async e => {
-      if (e.target.closest('[data-ado-off]')){ ui.ado.on = false; ui.ado.error = ''; saveUi(); adoSchedule(); setAdo(); closeModal(); toast('ADO disconnected. Synced tasks stay on your board.'); return; }
+      if (e.target.closest('[data-ado-off]')){ ui.ado.on = false; ui.ado.offByUser = true; ui.ado.error = ''; saveUi(); adoSchedule(); setAdo(); closeModal(); toast('ADO disconnected. Synced tasks stay on your board.'); return; }
       const go = e.target.closest('[data-ado-go]'); if (!go) return;
       const msg = sh.querySelector('#adoMsg');
       const portEl = sh.querySelector('#adoPort'), port = portEl ? Math.round(+portEl.value) : ui.ado.port;
@@ -321,7 +338,7 @@ async function adoSetup(){
       ui.ado.port = port; go.disabled = true; msg.textContent = viaConnector ? 'Checking the ADO connector...' : 'Checking the helper...';
       try {
         await adoCall('health');
-        ui.ado.on = true; ui.ado.error = ''; ui.ado.last = 0; saveUi();
+        ui.ado.on = true; ui.ado.offByUser = false; ui.ado.error = ''; ui.ado.last = 0; saveUi();
         closeModal(); adoSchedule(); adoSync(true);
       } catch(err){
         msg.textContent = adoUnreachable(err) ? `${ADO_DOWN} Expected it at 127.0.0.1:${port}.` : err.message;
@@ -334,6 +351,7 @@ function onAdoClick(btn){
   if (!ui.ado.on) return adoSetup();
   const ago = ui.ado.last ? fmtMD(new Date(ui.ado.last)) + ' ' + new Date(ui.ado.last).toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'}) : 'never';
   popMenu(`<div class="who"><b>Azure DevOps</b>${ui.ado.error ? esc(ui.ado.error) : `Last sync ${esc(ago)}`}</div>
+    ${!ui.ado.error && adoVia === 'connector' && adoNoteNow.warn ? `<div class="mnote warn">${esc(adoNoteNow.warn)}</div>` : ''}
     ${state.ado.pending.length ? `<button data-a="review">Review ${plural(state.ado.pending.length, 'new item')}</button>` : ''}
     <button data-a="now">Sync now</button><button data-a="show">Show ADO list</button><button data-a="reports">Team reports</button><button data-a="setup">Settings</button>`, btn)
     .addEventListener('click', e => {
