@@ -29,7 +29,7 @@ Settings keeps one collection named `people`, so its schema is `settings.people`
 | `id` | `p_` and then letters, digits, `_` or `-`. Stable forever: renaming a person never changes it, so apps key their own data by it. |
 | `name` | Display name. |
 | `relation` | `self`, `report`, `manager` or `peer`. Settings allows at most one active `self` and one active `manager`. |
-| `team` | Optional. On your team, for team views (Queue's Team view, Docket's Reports). When missing, readers treat it as `true` for `self` and `report` and `false` otherwise. |
+| `team` | Optional. On your team, for team views (Docket's Reports). When missing, readers treat it as `true` for `self` and `report` and `false` otherwise. |
 | `adoIdentity` | Optional. Email or exact Azure DevOps display name, compared without case. |
 | `role` | Optional. Job title. |
 | `since` | Optional. `YYYY-MM-DD`, when they joined the team or started reporting to you. Empty string means unknown. |
@@ -51,6 +51,5 @@ Settings keeps one collection named `people`, so its schema is `settings.people`
 | App | Uses | Fallback while missing |
 | --- | --- | --- |
 | `receipts` | `report` people for Reports, the `manager` for Upward. Receipts entries keep `about: 'me'` and `about: 'up'`; other `about` values are directory ids. | Its own `people` collection |
-| `queue` | People with `team` and an `adoIdentity` for the Team view and assign pickers. | `queue.settings` `meta.people` |
-| `oneonones` (1:1s) | People you have 1:1s with: name and the Docket, Receipts and Queue links. | Its own `people` collection |
+| `oneonones` (1:1s) | People you have 1:1s with: name and the Docket and Receipts links. | Its own `people` collection |
 | `prioritizer` (Docket) | Names as suggestions for its own people; a Docket person may store `personId`. Reports can fill its team profile from people with `team`. | None needed |

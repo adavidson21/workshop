@@ -17,7 +17,7 @@ Before anyone on a team tests Workshop with real work data (work items, repos, r
 2. **Open Workshop from your computer**, at the address `workshop start` or `workshop open` prints (`http://127.0.0.1:...`), not from the website. Settings should say "Work mode is on" and show the release tags.
 3. **Set the approved AI provider** (only if testing Dispatch). In Settings, turn on the opencode connector and set its **Workspace folder** first (the provider list cannot be saved without it), then set **Approved AI providers** to the provider from step 1. Add `"enabled_providers": ["<that provider>"]` to your global opencode config (`~/.config/opencode/opencode.json`), so opencode cannot use any other provider, even one with a key in an environment variable.
 4. **Keep the data folder on company storage**, for example a OneDrive folder your company manages (Settings, Data folder). It is your backup; Workshop never uploads it.
-5. **ADO:** the personal access token has only the scopes you need (Work Items Read & Write (Queue and Docket change items; use Read only if you will not), plus Code Read for pull requests) and a short expiry, and lives in an environment variable, never in a file.
+5. **ADO:** the personal access token has only the scopes you need (Work Items Read, plus Code Read for pull requests) and a short expiry, and lives in an environment variable, never in a file.
 6. **Keep work data off personal devices.** Do not use the Docket Android app or the website for work tasks.
 7. **Run `workshop doctor`** and continue only when it ends with `Result: all good.` It checks the pinned copy file by file and that opencode can use only the approved provider.
 

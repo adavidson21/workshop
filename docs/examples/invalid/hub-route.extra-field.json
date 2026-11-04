@@ -1,1 +1,1 @@
-{"version": 1, "intent": "go", "go": {"app": "queue"}, "run": "rm -rf /"}
+{"version": 1, "intent": "go", "go": {"app": "receipts"}, "run": "rm -rf /"}

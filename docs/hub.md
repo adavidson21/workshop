@@ -37,10 +37,6 @@ dont forget about the onboarding doc for person one
 
 - Inbox
 - This sprint
-
-## Queue areas
-
-- Project\Team
 ```
 
 | Section | Holds |
@@ -49,7 +45,6 @@ dont forget about the onboarding doc for person one
 | `Message` | What the person typed, up to 4000 characters. |
 | `People` | The people directory ([people.md](people.md)): id, name, relation, team. Archived people left out. |
 | `Docket lists` | Docket's list names, so a capture can name one. |
-| `Queue areas` | Queue's team area paths. |
 
 Sections with nothing in them say `None.` Nothing else goes in: no Receipts entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
 
