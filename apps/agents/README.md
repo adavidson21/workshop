@@ -16,14 +16,20 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 - **Repos:** *Add a repo* clones by URL into the workspace and lists it in the repo map (`repo.add`), then offers *Draft its guide* (`repo.guide`, `/onboard-repo`). The repos panel has both for every repo.
 - Spikes and repo guides started here show under **Investigations and repo guides**, with the agent's questions and a reply box, until dismissed.
 
-**PR reviews** (sidebar, `js/pr-reviews.js`): first-pass reviews of your team's pull requests by Tandem's pr-reviewer agent (eng-agents `/pr-review`, Core 2.6.0).
+**Pull requests** (sidebar group, `js/pr-reviews.js`): both kinds of PR in one place. **To review** is teammates' PRs; **My PRs** is the PRs of your own runs.
 
-- **Review a pull request:** paste an ADO PR link; the opencode connector's `pr.review` action runs `/pr-review <link>`. The repo must be cloned in the workspace. The agent reads the PR through git without checking it out.
-- **Waiting on you:** the ADO connector's `sync.prs` (read-only), checked when Dispatch connects, when the page opens (if older than five minutes) and from *Check again*. Each PR has *Review*, or *See review* once one exists. Without the ADO connector the page says how to turn it on; review by link still works.
+**To review:** first-pass reviews of your team's pull requests by Tandem's pr-reviewer agent (eng-agents `/pr-review`, Core 2.6.0). One column, no side panels.
+
+- **Review a link:** the button in the page header (and the palette's **Review a pull request**) shows a box for any ADO PR link; the opencode connector's `pr.review` action runs `/pr-review <link>`. The repo must be cloned in the workspace. The agent reads the PR through git without checking it out.
+- **Waiting on you:** the ADO connector's `sync.prs` (read-only), checked when Dispatch connects, when the page opens (if older than five minutes) and from *Check again*. One entry per PR: its review card in place once a review exists (with the PR's tier), else a row with *Review*. Reviews still starting (no `pr-<id>` folder yet) are at the top. Without the ADO connector the page says how to turn it on; review by link still works.
+- **Earlier reviews:** reviews of PRs no longer waiting on you, or reviewed by link. With no inbox (ADO off or failing) the list is called Reviews.
+- **Needs you** also lists reviews where the reviewer agent is asking you something, and counts them.
 - **Review all:** queues every PR waiting on you that needs a first pass (not Waiting for author, not already reviewed at its latest commit, which `sync.prs` now sends). The opencode connector runs them one at a time, even with Dispatch closed (`pr.reviewAll`). A panel above the inbox shows progress, the PR being reviewed, and which ones were reviewed, need you, or failed, with Stop, Resume and Dismiss.
 - **Nightly review:** set a time under opencode settings, PR reviews. Each check of the inbox hands the list to the connector (`pr.inbox.save`), and at that time it reviews the list, so drafts are ready when you sit down. The line under the inbox says when it runs. See the connector's README for the rules.
 - **Reviews:** one card per `.work/pr-<id>`: recommendation, risk, and the draft comments (file, line, severity, why) each with *Copy comment*. A review of an older commit says so and offers *Review the new commits*. **Nothing is posted**: you paste the comments you agree with into the PR yourself.
-- Reviews are not runs: they are left out of All runs, projects and the run counts. The sidebar count is PRs waiting on you with no review yet (gate colored when the reviewer is asking you something). `#/agents/pr-<id>` opens the page at that review. Palette: **Review a pull request**.
+- Reviews are not runs: they are left out of All runs, projects and the run counts. The To review count is PRs waiting on you with no review yet (gate colored when the reviewer is asking you something). `#/agents/pr-<id>` opens the page at that review.
+
+**My PRs:** every run at Ship with a `pr.md`, grouped by whose turn it is: **Your turn** (review before you push, a revision that needs you, a branch to push by hand, a repo or branch not found), **With the agent** (revising after your review) and **Ready for a PR** (approved, or pushed: create the PR). Each card is the run's Pull requests box (code review link, title and description to copy, Create PR) with **Open run**. The same box is still on the run card; this page only gathers them. The sidebar count is runs with a code review to do.
 
 **Sidebar** (Dispatch App Experience Plan, phase 1, P2):
 
@@ -57,7 +63,7 @@ Before the connector is ready, the page says what is wrong: browser mode, the co
 | `js/main.js` | SDK connection, fetching, painting, clicks, alerts, focus. |
 | `js/state.js` | The state the view reads. |
 | `js/sidebar.js` | The sidebar, the scope line above the list, the project chip on run cards, and the project, folder and move sheets. HTML strings, tested in Node. |
-| `js/pr-reviews.js` | The PR reviews page: paste box, reviews starting, the inbox, review cards. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
+| `js/pr-reviews.js` | The Pull requests pages. To review: link box, Review all, Waiting on you (review cards and rows), Earlier reviews. My PRs. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
 | `js/local.js` | Folders, pins and collapsed groups in this browser: clean, load, save, prune. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
 | `review.html`, `review.css` | The code review page and its styles. |

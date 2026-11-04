@@ -8,7 +8,7 @@
    - No update checks (the connector makes none). */
 import { S } from './state.js';
 import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
-import { reviewsHtml, isReviewSession } from './pr-reviews.js';
+import { reviewsHtml, isReviewSession, mineHtml, askingReviews, askingStarts, reviewCard } from './pr-reviews.js';
 import { isHubCommand } from './hub-model.js';
 
 // ---------------------------------------------------------------- helpers
@@ -20,7 +20,7 @@ export function md(s) {
   return h(s).replace(/^\s*[-*]\s+/gm, '• ').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 // Only http(s) links leave the app, in a new tab.
-function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : null; }
+export function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : null; }
 export function link(href, text, cls) {
   const u = safeUrl(href);
   if (!u) return cls ? `<span class="${cls}">${h(text)}</span>` : h(text);
@@ -439,7 +439,7 @@ function reviewRow(it, p) {
   return `<div class="pr-push"><span class="dim">Review before you push${r && r.started ? rev : ''}:</span><a class="btn primary" href="${href}" data-review title="Read the diff, comment on lines, then approve and push, or send the comments to the agent">Review</a></div>`;
 }
 
-function prHtml(it) {
+export function prHtml(it) {
   if (!it.pr || !it.pr.length) return '';
   const cards = it.pr.map(p => {
     const ps = p.push;
@@ -550,7 +550,7 @@ export function briefHtml(it) {
     `<div class="brief-body">${body}<p class="brief-foot">${fileBtn(it.folder, 'brief.md', 'plain', 'Open brief.md')}</p></div></details>`;
 }
 
-function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
+export function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
 
 // ------------------------------------------------------------- item card
 // noAgent: the item is also shown in "Pick up here", which carries its agent panel.
@@ -1114,7 +1114,9 @@ export function render() {
 
 // The page to the right of the sidebar: header, then the runs in scope (all, a project, or Needs review).
 function mainHtml() {
-  if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="grid"><main>${waitingHtml()}${reviewsHtml()}</main><aside>${reposPanel()}</aside></div>`;
+  // Pull requests: one column, no side panels (the repos and activity are about runs).
+  if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="solo">${waitingHtml()}${reviewsHtml()}</div>`;
+  if (scope().kind === 'mine') return headerHtml() + bannersHtml() + `<div class="solo">${mineHtml()}</div>`;
   const all = (S.D.items || []).filter(it => it.kind !== 'pr'); // PR reviews have their own page
   const items = all.filter(inScope);
   const by = {};
@@ -1132,7 +1134,15 @@ function mainHtml() {
   const pick = sc.kind === 'all' ? pickItem(items, by) : null;
   html += '<div class="grid"><main>' + scopeHeadHtml() + (sc.kind === 'all' ? setup + waitingHtml() + looseHtml() : '');
   if (pick) html += pickupHtml(pick);
-  if (!items.length) {
+  // Needs you also lists PR reviews where the reviewer agent is asking you something.
+  const prAsks = sc.kind === 'needs' ? askingReviews() : [];
+  const prStarts = sc.kind === 'needs' ? askingStarts() : [];
+  if (prAsks.length || prStarts.length) {
+    html += `<section class="group" id="g-prs" aria-labelledby="gh-prs"><h3 id="gh-prs">PR reviews <span class="n">${prAsks.length + prStarts.length}</span></h3>` +
+      `<p class="hint">The reviewer is asking you something. <button type="button" class="lnk" data-side-scope="reviews">Open To review</button></p>` +
+      `<div class="items">${prAsks.map(it => reviewCard(it)).join('')}${prStarts.map(o => `<article class="item rv" style="--state:var(--gate)"><div class="item-head"><h4 class="t">${h(o.command)}</h4></div>${sessionBox(o.s, L().permissions.filter(p => p.sessionID === o.session), L().questions.filter(q => q.sessionID === o.session), 'Reply to the agent. Ctrl+Enter sends.')}</article>`).join('')}</div></section>`;
+  }
+  if (!items.length && !(prAsks.length || prStarts.length)) {
     html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you.</p></div>'
       : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div></div>`;
   }

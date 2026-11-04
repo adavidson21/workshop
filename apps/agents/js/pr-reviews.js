@@ -9,9 +9,15 @@
    - Review a PR: paste a link (the opencode connector's `pr.review` action).
    - Review all: queues the inbox's PRs that need a first pass (`pr.reviewAll`); the connector runs them
      one at a time and keeps going with Dispatch closed. Its progress is liveMode.live.prQueue (S.L.prQueue),
-     shown above the inbox. The same queue runs the optional nightly review (opencode settings, PR reviews). */
+     shown above the inbox. The same queue runs the optional nightly review (opencode settings, PR reviews).
+   - One list: each PR waiting on you is one entry. A PR with a review shows the review card (with its
+     tier); a PR with none shows a row with Review. Reviews of PRs no longer waiting on you are listed
+     after it, under Earlier reviews.
+   - My PRs (scope "mine"): the pull requests of your own runs (pr.md, at Ship), with where each repo's
+     code review stands. Same data as the run cards; only gathered in one place. */
 import { S } from './state.js';
-import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking } from './view.js';
+import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar } from './view.js';
+import { projectChip } from './sidebar.js';
 
 const SEV = [['blocking', 'Blocking'], ['should-fix', 'Should fix'], ['optional', 'Optional']];
 const SEV_NAME = Object.fromEntries(SEV);
@@ -70,8 +76,10 @@ export function prArg(p) {
   return out;
 }
 
-/** Reviews where the agent waits for an answer. */
-export function reviewsAsking() { return reviewItems().filter(asking).length + startingReviews().filter(o => promptsFor(o.session).length).length; }
+/** Reviews where the agent waits for an answer (they also show under Needs you). */
+export function askingReviews() { return reviewItems().filter(asking); }
+export function askingStarts() { return startingReviews().filter(o => promptsFor(o.session).length); }
+export function reviewsAsking() { return askingReviews().length + askingStarts().length; }
 function promptsFor(sid) {
   const L = S.L;
   if (!L) return [];
@@ -130,12 +138,13 @@ function verdictHtml(pr) {
   return `<div class="rv-verdict">${parts.join('')}</div>`;
 }
 
-/** One review card. */
-export function reviewCard(it) {
+/** One review card. p: the PR's entry in Waiting on you, if it has one (adds its tier and flags). */
+export function reviewCard(it, p) {
   const pr = it.prReview || { id: it.folder.replace(/^pr-/, ''), counts: {}, comments: [], questions: [] };
   const s = itemSession(it);
   const perms = itemPerms(it), qs = itemQs(it);
-  const meta = ['<span class="tag">PR review</span>'];
+  const meta = [p ? tierHtml(p) : '<span class="tag">PR review</span>'];
+  if (p) meta.push(...inboxFlags(p));
   if (pr.repo) meta.push(`<span class="mono">${h(pr.repo)}</span>`);
   if (pr.author) meta.push(`<span>by ${h(pr.author)}</span>`);
   meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">${pr.reviewed ? 'Reviewed' : 'Touched'} ${ago(it.modifiedMs)}</span>`);
@@ -176,46 +185,51 @@ function openKey(key, dflt) {
   return ` data-key="${h(key)}"` + (v ? ' open' : '');
 }
 
-function startingHtml() {
-  const list = startingReviews();
-  if (!list.length) return '';
-  return '<section class="group" aria-labelledby="gh-rvs"><h3 id="gh-rvs">Starting <span class="n">' + list.length + '</span></h3><div class="items">' +
-    list.map(o => {
-      const s = o.s;
-      const perms = S.L.permissions.filter(p => p.sessionID === o.session), qs = S.L.questions.filter(q => q.sessionID === o.session);
-      const id = linkPrId(o.command);
-      const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
-      return `<article class="item rv" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${id ? `<span class="num">!${h(id)}</span>` : ''}Fetching the pull request</h4>` +
-        `<div class="meta"><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
-        sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
-    }).join('') + '</div></section>';
+const tierHtml = p => `<span class="tier" data-tier="${h(p.tier)}" title="${h(TIER_TIP[p.tier] || '')}">${h(TIER[p.tier] || p.tier || '')}</span>`;
+function inboxFlags(p) {
+  const out = [];
+  if (p.waiting) out.push('<span class="flag info" title="You voted Waiting for author">Waiting for author</span>');
+  if (p.lastBlocker) out.push('<span class="flag warn" title="Every other required reviewer approved">Last one holding it</span>');
+  return out;
 }
-
-function inboxRow(p) {
-  const it = reviewFolder(p.id);
+// A PR waiting on you that has no review yet: one row with Review (or where its review stands).
+function todoRow(p) {
   const running = reviewRunning(p.id) || S.ui.busy['rv:' + p.id];
   const bits = [p.repo ? `<span class="mono">${h(p.repo)}</span>` : '', p.author ? `by ${h(p.author)}` : '', p.created ? `opened ${h(p.created)}` : '', (p.via || []).length ? `via ${h(p.via.join(', '))}` : ''].filter(Boolean);
   let act;
-  const inQueue = queueItem(p.id);
   if (running) act = '<span class="rv-busy"><span class="spin" aria-hidden="true"></span>Reviewing</span>';
-  else if (inQueue) act = '<span class="rv-busy" title="Review all will get to it">Queued</span>';
-  else if (it && it.prReview && it.prReview.reviewed) act = `<a class="btn" href="#item-${h(it.folder)}" data-jump="item-${h(it.folder)}">See review</a>`;
+  else if (queueItem(p.id)) act = '<span class="rv-busy" title="Review all will get to it">Queued</span>';
   else act = `<button type="button" class="btn primary" data-rv-url="${h(p.url)}">Review</button>`;
-  return `<li class="rv-row">` +
-    `<span class="tier" data-tier="${h(p.tier)}" title="${h(TIER_TIP[p.tier] || '')}">${h(TIER[p.tier] || p.tier || '')}</span>` +
+  return `<article class="item rv rv-todo" id="rvp-${h(p.id)}" style="--state:var(--${running ? 'go' : 'hold'})"><div class="rv-row">` + tierHtml(p) +
     `<div class="rv-main"><span class="rv-t">${link(p.url, '!' + p.id + ' ' + p.title)}</span><span class="dim">${bits.join(' · ')}</span></div>` +
-    `<div class="rv-act">${p.waiting ? '<span class="flag info" title="You voted Waiting for author">Waiting for author</span>' : ''}${p.lastBlocker ? '<span class="flag warn" title="Every other required reviewer approved">Last one holding it</span>' : ''}${act}</div></li>`;
+    `<div class="rv-act">${inboxFlags(p).join('')}${act}</div></div></article>`;
 }
 
+// A /pr-review session started here with no pr-<id> folder yet.
+function startingCard(o) {
+  const s = o.s;
+  const perms = S.L.permissions.filter(p => p.sessionID === o.session), qs = S.L.questions.filter(q => q.sessionID === o.session);
+  const id = linkPrId(o.command);
+  const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
+  return `<article class="item rv" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${id ? `<span class="num">!${h(id)}</span>` : ''}Fetching the pull request</h4>` +
+    `<div class="meta"><span class="tag">Starting</span><span title="${h(new Date(o.at).toLocaleString())}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+    sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
+}
+
+const ORDER = { blocking: 0, asked: 1, pool: 2 };
+const inboxOrder = (a, b) => (Number(!!a.waiting) - Number(!!b.waiting)) || ((ORDER[a.tier] ?? 3) - (ORDER[b.tier] ?? 3)) || String(a.created || '').localeCompare(String(b.created || ''));
+
+// Waiting on you: one entry per PR. Reviewed (or being reviewed) PRs show their review card; the rest a row.
 function inboxHtml() {
   const inbox = S.inbox || { state: 'idle' };
   const refresh = `<button type="button" class="lnk plain" data-rv-inbox="1"${inbox.state === 'loading' ? ' disabled' : ''}>${inbox.state === 'loading' ? 'Checking' : 'Check again'}</button>`;
   const todo = reviewAllList();
   const all = todo.length ? `<button type="button" class="btn primary sm" data-rv-all="1"${S.ui.busy['rv:all'] ? ' disabled' : ''} title="First-pass review each one, one at a time. Keeps going with Dispatch closed.">Review all ${todo.length}</button>` : '';
   const head = `<h3 id="gh-rvin">Waiting on you${inbox.state === 'ok' ? ` <span class="n">${(inbox.items || []).length}</span>` : ''}<span class="sh-r">${all}${inbox.state === 'off' ? '' : refresh}</span></h3>`;
+  const starts = startingReviews().map(startingCard).join('');
   let body;
   if (inbox.state === 'off') {
-    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source to list PRs waiting on you. Or paste any PR link above.</p>' +
+    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source to list PRs waiting on you. Or review one by its link.</p>' +
       (S.mode === 'local' ? '<button type="button" class="btn" data-settings="1">Open Settings</button>' : '') + '</div>';
   } else if (inbox.state === 'error') {
     body = `<p class="err">${h(inbox.error || 'Could not check Azure DevOps.')}</p>`;
@@ -224,12 +238,12 @@ function inboxHtml() {
   } else if (!(inbox.items || []).length) {
     body = `<p class="dim">Nothing is waiting on you${inbox.at ? ` (checked ${ago(inbox.at)})` : ''}.</p>`;
   } else {
-    const order = { blocking: 0, asked: 1, pool: 2 };
-    const list = inbox.items.slice().sort((a, b) => (Number(!!a.waiting) - Number(!!b.waiting)) || ((order[a.tier] ?? 3) - (order[b.tier] ?? 3)) || String(a.created || '').localeCompare(String(b.created || '')));
-    body = `<ul class="rv-rows">${list.map(inboxRow).join('')}</ul>`;
+    body = '';
   }
+  const list = inbox.state === 'ok' ? (inbox.items || []).slice().sort(inboxOrder).map(p => { const it = reviewFolder(p.id); return it ? reviewCard(it, p) : todoRow(p); }).join('') : '';
+  const items = starts + list ? `<div class="items">${starts}${list}</div>` : '';
   const notes = (inbox.notes || []).map(n => `<p class="note">${h(n)}</p>`).join('');
-  return `<section class="group rv-inbox" aria-labelledby="gh-rvin">${head}${body}${notes}${inbox.state === 'off' ? '' : nightlyHtml()}</section>`;
+  return `<section class="group rv-inbox" aria-labelledby="gh-rvin">${head}${body}${items}${notes}${inbox.state === 'off' ? '' : nightlyHtml()}</section>`;
 }
 
 const Q_STATE = { queued: 'Queued', running: 'Reviewing', done: 'Reviewed', asking: 'Needs you', failed: 'Failed', skipped: 'Skipped' };
@@ -283,26 +297,96 @@ function nightlyHtml() {
   return `<p class="hint rv-night">Nightly review at <strong>${h(n.at)}</strong> on the PRs listed here.${last} <button type="button" class="lnk" data-cfg-open="1">Change</button></p>`;
 }
 
+// Review a pull request by its link. Hidden behind "Review a link" unless open, typed in, or showing an error.
 function pasteHtml() {
   const st = S.ui.prReview || {};
   const val = S.ui.drafts['rv:url'] || '';
+  if (!st.open && !st.busy && !st.error && !val) return '';
   const busy = !!st.busy;
   return '<div class="rv-new">' +
-    '<label class="rv-new-l" for="rv-url">Review a pull request</label>' +
+    '<label class="rv-new-l" for="rv-url">Review a pull request by its link</label>' +
     `<div class="rv-new-row"><input id="rv-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://…/_git/<repo>/pullrequest/<number>" data-draft="rv:url" value="${h(val)}">` +
     `<button type="button" class="btn primary" data-rv-go="1"${busy ? ' disabled' : ''}>${busy ? 'Starting' : 'Review'}</button></div>` +
-    (st.error ? `<p class="err">${h(st.error)}</p>` : '<p class="hint">The repo must be cloned in your workspace.</p>') +
+    (st.error ? `<p class="err">${h(st.error)}</p>` : '<p class="hint">Any PR, not only the ones waiting on you. The repo must be cloned in your workspace.</p>') +
     '</div>';
 }
 
-/** The PR reviews page (scope "reviews"). */
+/** The To review page (scope "reviews"): teammates' PRs and their first-pass reviews. */
 export function reviewsHtml() {
-  const items = reviewItems();
-  let html = '<div class="scope-head"><h2>PR reviews</h2><span class="dim">Drafts only. Nothing is posted to Azure DevOps.</span>' +
-    '<button type="button" class="lnk plain" data-side-scope="all">Show all runs</button></div>';
-  html += pasteHtml() + queueHtml() + startingHtml() + inboxHtml();
-  html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">Reviews${items.length ? ` <span class="n">${items.length}</span>` : ''}</h3>`;
-  html += items.length ? `<div class="items">${items.map(reviewCard).join('')}</div>`
-    : '<div class="empty small"><p>No reviews yet. Pick a PR above, or paste its link.</p></div>';
-  return html + '</section>';
+  const inbox = S.inbox || {};
+  const listed = new Set(inbox.state === 'ok' ? (inbox.items || []).map(p => String(p.id)) : []);
+  const earlier = reviewItems().filter(it => !listed.has(String((it.prReview && it.prReview.id) || it.folder.replace(/^pr-/, ''))));
+  const st = S.ui.prReview || {};
+  const linkBtn = st.open ? '' : '<button type="button" class="btn" data-rv-open="1">Review a link</button>';
+  let html = `<div class="scope-head"><h2>To review</h2><span class="dim">Teammates' PRs. Drafts only: nothing is posted to Azure DevOps.</span>${linkBtn}</div>`;
+  html += pasteHtml() + queueHtml() + inboxHtml();
+  if (earlier.length) {
+    const name = inbox.state === 'ok' ? 'Earlier reviews' : 'Reviews';
+    html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">${name} <span class="n">${earlier.length}</span></h3>` +
+      (inbox.state === 'ok' ? '<p class="hint">No longer waiting on you, or reviewed by link.</p>' : '') +
+      `<div class="items">${earlier.map(it => reviewCard(it)).join('')}</div></section>`;
+  } else if (inbox.state !== 'ok' && !startingReviews().length) {
+    html += '<div class="empty small"><p>No reviews yet. Review a PR by its link.</p></div>';
+  }
+  return html;
+}
+
+// ------------------------------------------------------------------ My PRs
+// Where one repo's PR of a run stands. Connected, a branch is pushed only from the code review (review.html).
+export const MINE_STATE = {
+  review: 'Review before you push', fix: 'The revision needs you', revising: 'The agent is revising',
+  approved: 'Approved, push from the review', push: 'Not pushed yet', pushed: 'Pushed, create the PR', missing: 'Repo or branch not found'
+};
+const MINE_RANK = ['fix', 'review', 'push', 'missing', 'revising', 'approved', 'pushed'];
+export function minePrState(it, p) {
+  const ps = p.push;
+  if (!ps || (!ps.local && !ps.remote)) return 'missing';
+  if (ps.remote && !ps.unpushed) return 'pushed';
+  if (S.conn !== 'on') return 'push';
+  const r = (((S.D && S.D.reviews) || {})[it.folder] || {})[p.repo];
+  if (r && r.status === 'approved') return 'approved';
+  if (r && r.status === 'revising') return r.run && r.run.status === 'failed' ? 'fix' : 'revising';
+  return 'review';
+}
+/** The state of a run's PRs as a whole: the one that most needs you. */
+export function mineState(it) {
+  const st = (it.pr || []).map(p => minePrState(it, p));
+  return MINE_RANK.find(k => st.includes(k)) || 'pushed';
+}
+/** Your runs that have PRs (pr.md, at Ship), newest first. */
+export function mineItems() {
+  return ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && it.stage === 'ship' && (it.pr || []).length)
+    .sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
+}
+/** Runs whose PR is waiting on you (a code review to do, or a revision that needs you). The sidebar count. */
+export function mineNeedsCount() { return mineItems().filter(it => ['fix', 'review'].includes(mineState(it))).length; }
+
+const MINE_GROUPS = [
+  ['you', 'Your turn', 'Read the diff, comment, then approve and push, or send the comments to the agent.', ['fix', 'review', 'push', 'missing']],
+  ['agent', 'With the agent', '', ['revising']],
+  ['ready', 'Ready for a PR', 'Push from the review, create the PR, then Remove the run once it merges.', ['approved', 'pushed']]
+];
+function mineCard(it) {
+  const st = mineState(it);
+  const meta = [`<span class="flag ${['fix', 'missing'].includes(st) ? 'bad' : ['review', 'push'].includes(st) ? 'warn' : 'ok'}">${h(MINE_STATE[st])}</span>`];
+  meta.push(`<span title="${h(new Date(it.modifiedMs).toLocaleString())}">Touched ${ago(it.modifiedMs)}</span>`);
+  meta.push(projectChip(it));
+  meta.push(`<button type="button" class="lnk plain" data-side-run="${h(it.folder)}">Open run</button>`);
+  const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
+  return `<article class="item mine" id="mine-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+    `<div class="item-head"><h4 class="t">${it.id ? idLink(it) : ''}${title}</h4><div class="meta">${meta.join('')}</div></div>` + prHtml(it) + '</article>';
+}
+
+/** The My PRs page (scope "mine"). */
+export function mineHtml() {
+  const list = mineItems();
+  let html = '<div class="scope-head"><h2>My PRs</h2><span class="dim">Pull requests from your runs, from code review to merge.</span></div>';
+  if (!list.length) return html + '<div class="empty small"><p>No PRs yet. When a run reaches Ship, its pull requests show here.</p></div>';
+  for (const [key, name, hint, states] of MINE_GROUPS) {
+    const g = list.filter(it => states.includes(mineState(it)));
+    if (!g.length) continue;
+    html += `<section class="group" aria-labelledby="gh-mine-${key}"><h3 id="gh-mine-${key}">${h(name)} <span class="n">${g.length}</span></h3>` +
+      (hint ? `<p class="hint">${h(hint)}</p>` : '') + `<div class="items">${g.map(mineCard).join('')}</div></section>`;
+  }
+  return html;
 }
