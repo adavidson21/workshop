@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "home",
   "name": "Home",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -21,12 +21,14 @@
   ],
   "data": [
     "profile",
-    "setup"
+    "setup",
+    "handoffs"
   ],
   "files": [
     "home.css",
     "js/data.js",
     "js/main.js",
+    "js/capture.js",
     "js/setup.js",
     "js/view.js"
   ]

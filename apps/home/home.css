@@ -4,6 +4,8 @@
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .wrap{max-width:1040px;margin:0 auto;padding:2.75rem 1.75rem 4rem;display:flex;flex-direction:column;gap:2.25rem}
+#app{display:contents}
+#capture{animation:rise .6s ease-out both}
 .soft{color:var(--muted);font-size:.9rem;margin:.2rem 0}
 
 /* greeting */

@@ -104,3 +104,15 @@ test('with the agent, an unavailable error is not a folder wait', async () => {
   assert.equal(home.waiting, false);
   assert.match(render(home.v), /read your board right now/);
 });
+
+import { captureContext } from '../js/capture.js';
+test('captureContext: directory people and Docket list names, both optional', () => {
+  const people = { schema: 'settings.people', version: 1, items: [{ id: 'p_1', name: 'Person One', relation: 'report' }, { id: 'p_2', name: 'Gone', relation: 'peer', archived: true }] };
+  const lists = { schema: 'prioritizer.lists', version: 1, items: [{ id: 'l1', name: 'Inbox' }, { id: 'l2', name: 'Old', archived: true }] };
+  const c = captureContext({ people, lists }, new Date('2026-11-03T12:00:00'));
+  assert.equal(c.today, '2026-11-03');
+  assert.deepEqual(c.people, [{ id: 'p_1', name: 'Person One', relation: 'report' }]);
+  assert.deepEqual(c.lists, ['Inbox']);
+  assert.deepEqual(captureContext({ people: { schema: 'settings.people', version: 2, items: [{ id: 'p', name: 'x' }] } }).people, [], 'an unknown version reads as none');
+  assert.deepEqual(captureContext().lists, []);
+});
