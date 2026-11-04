@@ -1,14 +1,13 @@
 # 1:1s
 
-Prep 1:1s with your direct reports. For one person and the time since your last 1:1, it gathers what Docket, Receipts and Queue already know, keeps the 1:1 note, and after the meeting hands follow-ups to Docket and wins to Receipts. No AI is needed; drafting talking points with your opencode agents is an optional extra.
+Prep 1:1s with your direct reports. For one person and the time since your last 1:1, it gathers what Docket and Receipts already know, keeps the 1:1 note, and after the meeting hands follow-ups to Docket and wins to Receipts. No AI is needed; drafting talking points with your opencode agents is an optional extra.
 
 - **People:** the people you meet with, each with a cadence (default every 7 days). The list puts whoever is due first: no note yet, or the last note is as old as their cadence.
-- **Links (settings, gear icon):** match each person to their name in Docket, their report in Receipts and their entry in Queue settings. The pickers list what those apps already have. A person with no links still gets notes.
-- **People from Workshop:** when Workshop's people directory exists (People in Workshop's Settings, `docs/people.md`), the Receipts picker lists its direct reports and the Queue picker everyone on your team, the same people Receipts and Queue show. Direct reports with no 1:1s person yet are offered as one-click buttons on the empty list and in settings; the new person comes linked to Receipts, Queue (if on your team) and Docket (a Docket person with the same name). Without the directory, the pickers read Receipts' and Queue's own lists as before.
+- **Links (settings, gear icon):** match each person to their name in Docket and their report in Receipts. The pickers list what those apps already have. A person with no links still gets notes.
+- **People from Workshop:** when Workshop's people directory exists (People in Workshop's Settings, `docs/people.md`), the Receipts picker lists its direct reports, the same people Receipts shows. Direct reports with no 1:1s person yet are offered as one-click buttons on the empty list and in settings; the new person comes linked to Receipts and Docket (a Docket person with the same name). Without the directory, the Receipts picker reads Receipts' own list as before.
 - **Prep:** since the last 1:1 note (or *cadence* days ago when there is none):
   - Docket: open tasks tagged with them, tasks waiting on them, and nudges due.
   - Receipts: wins, feedback, growth, concerns and notes about them in that period.
-  - Queue: their open items from the last refresh: in progress, stale, and changed since.
   - Last 1:1: the open follow-ups (`- [ ]` lines) from the previous note.
 - **Note:** *Start today's note* writes one from a template: the date, what changed, talking points, wins, follow-ups (open ones carry over) and notes. Edit or Preview (`Ctrl+E`); it saves a moment after you stop typing (`Ctrl+S` saves now). Earlier notes are in the picker.
 - **Log follow-ups:** after the meeting, tick which follow-ups become Docket tasks and which wins go to Receipts.
@@ -45,11 +44,11 @@ App id `oneonones`. All collections are version 1 and follow `docs/data-format.m
 
 | Collection | Holds |
 | --- | --- |
-| `oneonones.people` | `{id: 'p_...', name, links: {docket?, receipts?, queue?}, cadenceDays, archived}`. `docket` is the name as Docket stores it, `receipts` a Receipts person id, `queue` the email (or name) in Queue settings. |
+| `oneonones.people` | `{id: 'p_...', name, links: {docket?, receipts?, queue?}, cadenceDays, archived}`. `docket` is the name as Docket stores it, `receipts` a Receipts person id. `queue` is from before Queue was removed: kept as stored, never read. |
 | `oneonones.settings` | No items. `meta.aiDraft`: `false` turns the draft step off. |
 | `oneonones.handoffs` | Offers to Receipts ([docs/handoffs.md](../../docs/handoffs.md)): `to: 'receipts'`, `payload: {kind: 'win', about: <Receipts person id>}`. Kept 60 days. |
 
-Read only, with their schema and version checked (an unknown version shows as unreadable, never as empty): `prioritizer.tasks` v3 and `prioritizer.people` v1, `receipts.entries` v1 and `receipts.people` v1, `queue.settings` v1 and `queue.snapshot` v1. Queue's rules for in progress and stale are mirrored in `js/model.js`, not imported. A collection with a newer `version` of our own is read only: the app says so and changes nothing.
+Read only, with their schema and version checked (an unknown version shows as unreadable, never as empty): `prioritizer.tasks` v3 and `prioritizer.people` v1 and `receipts.entries` v1 and `receipts.people` v1. A collection with a newer `version` of our own is read only: the app says so and changes nothing.
 
 ## Security
 

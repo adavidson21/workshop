@@ -58,7 +58,7 @@ test('while waiting, nothing is saved, the profile included', async () => {
   assert.deepEqual(ws.puts, []);
 });
 
-test('on Allow (online turns true), profile, board, queue and agents load again, once', async () => {
+test('on Allow (online turns true), profile, board and agents load again, once', async () => {
   const ws = fakeWs();
   let paints = 0;
   const home = createHome(ws, { onChange: () => paints++, now: () => new Date(2026, 9, 28, 9) });
@@ -71,7 +71,7 @@ test('on Allow (online turns true), profile, board, queue and agents load again,
   ws.allow();
   await settle(); await settle();
   assert.equal(home.waiting, false);
-  assert.equal(ws.gets - before, 12, 'profile once; tasks, lists, people and the three day plan collections once; the queue settings, snapshot and seen once; and Docket\'s focus log and offers once (Wrap up)');
+  assert.equal(ws.gets - before, 9, 'profile once; tasks, lists, people and the three day plan collections once; and Docket\'s focus log and offers once (Wrap up)');
   assert.equal(home.v.board.open, 1);
   assert.deepEqual(home.v.profile, { name: 'Sam Rivera', role: 'EM' });
   assert.equal(home.v.agents.state, 'browser');

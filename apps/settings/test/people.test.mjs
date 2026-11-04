@@ -63,37 +63,25 @@ const receipts = {
   ] },
   config: { schema: 'receipts.config', version: 1, items: [], meta: { upLabel: 'Boss Person' } },
 };
-const queue = { schema: 'queue.settings', version: 1, items: [], meta: { people: [
-  { name: 'Person One', email: 'One@Example.com' }, { name: 'Peer Three', email: '' },
-] } };
-
-test('import keeps Receipts ids, adds the manager, and matches Queue by name', () => {
-  const plan = P.importPlan({ receipts, queue, existing: [], now: NOW });
+test('import keeps Receipts ids and adds the manager', () => {
+  const plan = P.importPlan({ receipts, existing: [], now: NOW });
   const byName = Object.fromEntries(plan.add.map(p => [p.name, p]));
   assert.equal(byName['Person One'].id, 'p_abc1');
   assert.equal(byName['Person One'].relation, 'report');
-  assert.equal(byName['Person One'].adoIdentity, 'one@example.com');
   assert.equal(byName['Person Two'].archived, true);
   assert.equal(byName['Boss Person'].relation, 'manager');
-  assert.equal(byName['Peer Three'].relation, 'peer');
-  assert.equal(byName['Peer Three'].team, true);
-  assert.equal(byName['Peer Three'].adoIdentity, 'Peer Three');
+  assert.equal(plan.add.length, 3);
   assert.equal(plan.update.length, 0);
   for (const p of plan.add) assert.deepEqual(schemas.validate('person', { ...p, updatedAt: NOW }), []);
 });
 
-test('import again adds nothing; an existing person gets their ADO identity as an update', () => {
-  const first = P.importPlan({ receipts, queue, existing: [], now: NOW });
-  const again = P.importPlan({ receipts, queue, existing: P.applyPlan([], first), now: NOW });
+test('import again adds nothing; Queue settings are no longer a source', () => {
+  const first = P.importPlan({ receipts, existing: [], now: NOW });
+  const again = P.importPlan({ receipts, existing: P.applyPlan([], first), now: NOW });
   assert.equal(again.add.length, 0);
   assert.equal(again.update.length, 0);
-
-  const existing = [P.cleanPerson({ id: 'p_x', name: 'person one', relation: 'report' })];
-  const plan = P.importPlan({ queue, existing, now: NOW });
-  assert.deepEqual(plan.update, [{ id: 'p_x', name: 'person one', adoIdentity: 'one@example.com' }]);
-  const items = P.applyPlan(existing, plan);
-  assert.equal(items[0].adoIdentity, 'one@example.com');
-  assert.equal(existing[0].adoIdentity, '');
+  const queue = { schema: 'queue.settings', version: 1, items: [], meta: { people: [{ name: 'Peer Three', email: '' }] } };
+  assert.deepEqual(P.importPlan({ queue, existing: [], now: NOW }), { add: [], update: [], notes: [] });
 });
 
 test('import skips an unknown Receipts version and does not change the sources', () => {

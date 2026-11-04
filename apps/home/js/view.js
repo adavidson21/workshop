@@ -30,9 +30,6 @@ export const ICON = {
   open: svg('<circle cx="10" cy="10" r="6"/>'),
   wait: svg('<path d="M5.5 3h9M5.5 17h9M6.5 3c0 3.5 3.5 4.5 3.5 7s-3.5 3.5-3.5 7M13.5 3c0 3.5-3.5 4.5-3.5 7s3.5 3.5 3.5 7"/>'),
   noest: svg('<circle cx="10" cy="10" r="6" stroke-dasharray="2.2 2.2"/>'),
-  unassigned: svg('<circle cx="8" cy="7" r="2.8"/><path d="M3 16c.8-2.6 2.7-4 5-4 1 0 1.9.3 2.7.8M14.5 11.5a1.8 1.8 0 1 1 1.8 2c-.5.2-.8.6-.8 1.2M15.5 17.2v.1"/>'),
-  stale: svg('<path d="M3.5 10a6.5 6.5 0 1 0 2-4.7"/><path d="M3.2 3.3v3.2h3.2"/><path d="M10 6.5V10l2.3 1.6"/>'),
-  changed: svg('<path d="M4 10a6 6 0 0 1 10.3-4.2M16 10a6 6 0 0 1-10.3 4.2"/><path d="M14.6 2.8v3.3h-3.3M5.4 17.2v-3.3h3.3"/>'),
   bell: svg('<path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.3 1.5H4.2z"/><path d="M8.3 17a1.8 1.8 0 0 0 3.4 0"/>'),
   play: svg('<path d="M6.5 4.3v11.4l9-5.7z"/>'),
   chev: svg('<path d="M5.5 8l4.5 4.5L14.5 8"/>', 1.6),
@@ -80,32 +77,6 @@ export function summarize({ tasks = [], lists = [], people = [] }, today) {
     dueWeek: open.filter(t => isDate(t.due) && t.due >= today && t.due <= weekEnd).length,
     upNext,
     team
-  };
-}
-
-/* From the Queue app's collections (queue.settings, queue.snapshot, queue.seen, all version 1; see
-   apps/queue/README.md): items nobody owns, stale items, and items assigned to you that changed in ADO since
-   you last opened them. null until the queue has area paths, so Home shows no card for an unused Queue.
-   Mirrors isMine and isStale in apps/queue/js/model.js. */
-export const QUEUE_VERSION = 1;
-export function queueSummary({ settings, snapshot, seen }, now) {
-  const ok = e => e && e.version === QUEUE_VERSION;
-  const m = ok(settings) && settings.meta || {};
-  if (!Array.isArray(m.areas) || !m.areas.length) return null;
-  const items = ok(snapshot) && Array.isArray(snapshot.items) ? snapshot.items : [];
-  const sm = ok(snapshot) && snapshot.meta || {};
-  const meEmail = String(m.meEmail || (sm.me && sm.me.email) || '').toLowerCase();
-  const meName = m.meEmail ? '' : String((sm.me && sm.me.name) || '');
-  const revs = new Map((ok(seen) && Array.isArray(seen.items) ? seen.items : []).map(x => [String(x.id), Number(x.rev) || 0]));
-  const staleDays = Number.isInteger(m.staleDays) && m.staleDays >= 1 && m.staleDays <= 90 ? m.staleDays : 7;
-  const mine = i => i.assignee && ((meEmail && String(i.assignee.email || '').toLowerCase() === meEmail) || (!meEmail && meName && i.assignee.name === meName));
-  const stale = i => { const t = Date.parse(i.changed || ''); return Number.isFinite(t) && Math.floor((now - t) / 864e5) >= staleDays; };
-  return {
-    fetchedAt: sm.fetchedAt || null,
-    total: items.length,
-    unassigned: items.filter(i => !i.assignee).length,
-    stale: items.filter(stale).length,
-    changedMine: items.filter(i => mine(i) && revs.has(String(i.id)) && revs.get(String(i.id)) < i.rev).length
   };
 }
 
@@ -262,11 +233,11 @@ export function render(v) {
   if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
-    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + queueCard(v.queue) + agentsCard(v.agents);
+    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
   }
   if (!b) {
     return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + queueCard(v.queue) + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
   }
 
   const allDone = b.focus.total && b.focus.done === b.focus.total;
@@ -298,7 +269,7 @@ export function render(v) {
       : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${queueCard(v.queue)}${agentsCard(v.agents)}</div></div>`;
+  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
@@ -310,15 +281,6 @@ export function waitingCard(embedded) {
 }
 
 const pill = (icon, n, label, tone, app) => `<button class="pill${n ? ' ' + tone : ' zero'}" data-open="${app}" aria-label="${n} ${esc(label)}" title="${esc(label)}">${icon}<b class="num">${n}</b></button>`;
-/* The Queue card: read-only counts from the queue's last refresh, as icon pills. Clicking opens the Queue. */
-export function queueCard(q) {
-  if (!q) return '';
-  const calm = q.fetchedAt && !q.unassigned && !q.stale && !q.changedMine;
-  const body = !q.fetchedAt ? '<p class="soft">Open the Queue to load your team\'s items.</p>'
-    : `<div class="pills">${pill(ICON.unassigned, q.unassigned, 'Unassigned', 'warn', 'queue')}${pill(ICON.stale, q.stale, 'Stale', 'quiet', 'queue')}${pill(ICON.changed, q.changedMine, 'Yours, changed', 'acc', 'queue')}${calm ? `<span class="calm" title="Nothing to act on">${ICON.check}</span>` : ''}</div>`;
-  return `<section class="card"><div class="ch"><h2>Queue</h2><button class="lnk" data-open="queue">Open</button></div>${body}</section>`;
-}
-
 /* Dispatch: only when it is connected. Its setup lives in Dispatch and Get started, not on Home. */
 function agentsCard(a) {
   if (!a || a.state !== 'ready') return '';

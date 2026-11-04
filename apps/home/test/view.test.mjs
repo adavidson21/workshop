@@ -76,32 +76,6 @@ test('a board note shows when the board cannot be read', () => {
   assert.match(html, /newer Prioritizer/);
 });
 
-// The Queue card, from the Queue app's collections (read-only).
-import { queueCard, queueSummary } from '../js/view.js';
-
-test('queueSummary: no card until the queue has area paths; counts unassigned, stale and mine changed', () => {
-  const now = Date.parse('2026-10-15T12:00:00Z');
-  const settings = { schema: 'queue.settings', version: 1, rev: 1, items: [], meta: { areas: ['Web App\\Team A'], staleDays: 7 } };
-  const snapshot = { schema: 'queue.snapshot', version: 1, rev: 1, meta: { fetchedAt: '2026-10-15T11:00:00Z', me: { name: 'Engineer A', email: 'engineer.a@example.com' } }, items: [
-    { id: '1', rev: 5, assignee: { name: 'Engineer A', email: 'Engineer.A@example.com' }, changed: '2026-10-14T00:00:00Z' },
-    { id: '2', rev: 2, assignee: null, changed: '2026-10-01T00:00:00Z' },
-    { id: '3', rev: 9, assignee: { name: 'Engineer A', email: 'engineer.a@example.com' }, changed: '2026-10-14T00:00:00Z' },
-    { id: '4', rev: 1, assignee: { name: 'Dev One', email: 'dev.one@example.com' }, changed: '2026-10-14T00:00:00Z' }
-  ] };
-  const seen = { schema: 'queue.seen', version: 1, rev: 1, items: [{ id: '1', rev: 3 }, { id: '4', rev: 0 }] };
-  assert.equal(queueSummary({ settings: null, snapshot, seen }, now), null);
-  assert.equal(queueSummary({ settings: { ...settings, meta: { areas: [] } }, snapshot, seen }, now), null);
-  assert.deepEqual(queueSummary({ settings, snapshot, seen }, now), { fetchedAt: '2026-10-15T11:00:00Z', total: 4, unassigned: 1, stale: 1, changedMine: 1 });
-  assert.equal(queueSummary({ settings: { ...settings, meta: { ...settings.meta, meEmail: 'dev.one@example.com' } }, snapshot, seen }, now).changedMine, 1);
-  assert.equal(queueSummary({ settings, snapshot: { ...snapshot, version: 2 }, seen }, now).total, 0, 'a newer snapshot is not read');
-  const html = queueCard(queueSummary({ settings, snapshot, seen }, now));
-  assert.match(html, /<h2>Queue<\/h2>/);
-  assert.match(html, /data-open="queue"/);
-  assert.match(html, /Yours, changed/);
-  assert.equal(queueCard(null), '');
-  assert.match(queueCard({ fetchedAt: null, total: 0, unassigned: 0, stale: 0, changedMine: 0 }), /Open the Queue to load/);
-});
-
 /* ---------- Now card (Docket's day plan) ---------- */
 const env = (col, extra) => Object.assign({ schema: 'prioritizer.' + col, version: 1, rev: 1, items: [] }, extra);
 // Tuesday 2026-11-03; a 2-week sprint starting Monday 2026-11-02, so today is sprint day 2.
@@ -164,7 +138,7 @@ test('Wrap up step: primary from an hour before day end on a working day; says D
   assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="hbtn done" data-open="prioritizer" data-path="shutdown" aria-label="Day wrapped"/);
 });
 
-test('symbols: tiles carry icons and tone, rows use signals, quiet people and Queue counts', () => {
+test('symbols: tiles carry icons and tone, rows use signals and quiet people', () => {
   const board = summarize({ tasks: [
     { id: 'a', title: 'Late', listId: 'l1', rank: 1, value: 3, effort: 'S', due: '2026-10-19', people: ['Dana Lee'] },
     { id: 'b', title: 'Raw', listId: 'l2', rank: 2 }
@@ -178,8 +152,6 @@ test('symbols: tiles carry icons and tone, rows use signals, quiet people and Qu
   assert.match(html, /aria-label="No estimate yet"/);
   assert.ok(!html.includes('>Idle<'), 'people with nothing open are left out');
   assert.ok(!html.includes('<h2>Dispatch</h2>'));
-  assert.match(queueCard({ fetchedAt: 'x', total: 3, unassigned: 0, stale: 0, changedMine: 0 }), /class="calm"/);
-  assert.match(queueCard({ fetchedAt: 'x', total: 3, unassigned: 2, stale: 0, changedMine: 0 }), /class="pill warn"[^>]*aria-label="2 Unassigned"/);
   assert.equal(initials('DevA'), 'DA');
   assert.equal(initials('Dana Lee'), 'DL');
 });

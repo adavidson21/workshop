@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as M from '../js/model.js';
-import { NOW, PERSON, TODAY, docketPeople, docketTasks, entry, item, queueSettings, queueSnapshot, receiptsEntries, receiptsPeopleEnv, task } from './fake.mjs';
+import { NOW, PERSON, TODAY, docketPeople, docketTasks, entry, receiptsEntries, receiptsPeopleEnv, task } from './fake.mjs';
 
 const notes = days => days.map(d => ({ day: d, path: M.notePath(PERSON.id, d), mtime: 1 }));
 
@@ -44,7 +44,6 @@ test('version checks: unknown versions and schemas are unreadable, never empty',
   assert.equal(M.readable({ ...docketTasks([]), schema: 'prioritizer.lists' }, M.SOURCES.docketTasks).state, 'unreadable');
   assert.equal(M.docketSection(docketTasks([task('t1', { people: ['DevA'] })], 2), 'DevA', TODAY).state, 'unreadable');
   assert.equal(M.receiptsSection(receiptsEntries([entry('r1')], 2), 'p_r1', '2026-10-27', TODAY).state, 'unreadable');
-  assert.equal(M.queueSection({ ...queueSnapshot([item(1)]), version: 2 }, queueSettings(), 'dev.one@example.com', '2026-10-27', NOW).state, 'unreadable');
   assert.deepEqual(M.docketNames({ ...docketPeople(['DevA']), version: 2 }), []);
   assert.equal(M.docketSection(null, 'DevA', TODAY).state, 'missing');
   assert.equal(M.docketSection(docketTasks([]), '', TODAY).state, 'unlinked');
@@ -81,27 +80,9 @@ test('Receipts: entries about them in the period, grouped by kind', () => {
   assert.deepEqual(s.groups.note.map(e => e.id), ['r3'], 'unknown kinds read as notes');
 });
 
-test("Queue: the person's items, with Queue's own rules for in progress, stale and changed", () => {
-  const snap = queueSnapshot([
-    item(1, { state: 'Active', changed: '2026-11-02T09:00:00Z' }),
-    item(2, { state: 'New', changed: '2026-10-01T09:00:00Z' }),
-    item(3, { assignee: { name: 'Engineer B', email: 'engineer.b@example.com' } }),
-    item(4, { assignee: null })
-  ]);
-  const s = M.queueSection(snap, queueSettings({ staleDays: 10 }), 'dev.one@example.com', '2026-10-27', NOW);
-  assert.deepEqual(s.open.map(i => i.id), ['1', '2']);
-  assert.deepEqual(s.inProgress.map(i => i.id), ['1']);
-  assert.deepEqual(s.stale.map(i => i.id), ['2']);
-  assert.deepEqual(s.changed.map(i => i.id), ['1']);
-  assert.equal(s.staleDays, 10);
-  const byName = M.queueSection(queueSnapshot([item(5, { assignee: { name: 'Dev One', email: '' } })]), queueSettings(), 'Dev One', '2026-10-27', NOW);
-  assert.deepEqual(byName.open.map(i => i.id), ['5'], 'no email: matched by name, as Queue does');
-});
-
 test('pickers read what each app keeps', () => {
   assert.deepEqual(M.docketNames(docketPeople(['DevB', 'DevA', 'deva'])), ['DevA', 'DevB']);
   assert.deepEqual(M.receiptsPeople(receiptsPeopleEnv([{ id: 'p_r1', updatedAt: 1, name: 'Engineer A' }, { id: 'p_r2', updatedAt: 1, name: 'Dev One', archived: true }])).map(p => [p.id, p.archived]), [['p_r2', true], ['p_r1', false]]);
-  assert.deepEqual(M.queuePeople(queueSettings()), [{ key: 'dev.one@example.com', name: 'Dev One' }]);
 });
 
 test('people: cleaned with defaults', () => {
@@ -116,9 +97,7 @@ function fullPacket() {
     lastText: '## Follow-ups\n\n- [ ] Send the design doc\n- [x] Book the demo\n',
     src: {
       docketTasks: docketTasks([task('t1', { people: ['DevA'] })]),
-      receiptsEntries: receiptsEntries([entry('r1'), entry('r2', { kind: 'concern', text: 'Missed two standups' })]),
-      queueSnapshot: queueSnapshot([item(1)]),
-      queueSettings: queueSettings()
+      receiptsEntries: receiptsEntries([entry('r1'), entry('r2', { kind: 'concern', text: 'Missed two standups' })])
     }
   });
 }
@@ -128,7 +107,7 @@ test('the packet: every section, and the last open follow-ups', () => {
   assert.equal(p.since, '2026-10-27');
   assert.equal(p.docket.open.length, 1);
   assert.equal(p.receipts.total, 2);
-  assert.equal(p.queue.open.length, 1);
+  assert.equal(p.queue, undefined, 'no Queue section');
   assert.deepEqual(p.last, { state: 'ok', day: '2026-10-27', open: ['Send the design doc'] });
   assert.deepEqual(M.lastSection(null), { state: 'none' });
   assert.equal(M.lastSection({ day: '2026-10-27' }, null).state, 'unreadable');

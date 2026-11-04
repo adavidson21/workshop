@@ -186,8 +186,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .pill.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
 .pill.acc{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .pill.zero{opacity:.55}
-.pills .calm{display:inline-grid;place-items:center;color:var(--accent);margin-left:.15rem}
-.pills .calm svg{width:18px;height:18px}
 /* Get started as one line, and the card's icon tools */
 .su-strip{display:flex;align-items:center;gap:.4rem;margin-top:-1rem;padding:.25rem .35rem .25rem .6rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);animation:rise .6s ease-out .04s both}
 .su-line{flex:1;min-width:0;display:flex;align-items:center;gap:.6rem;padding:.4rem .2rem;text-align:left;color:var(--ink)}

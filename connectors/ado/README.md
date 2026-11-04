@@ -2,7 +2,7 @@
 
 One Azure DevOps integration for every Workshop app. It replaces `apps/prioritizer/ado-helper/ado_helper.py` (removed in WS8) and gives eng-agents `/start` a way to fetch work items through the agent (WS9).
 
-Mostly read-only. The three actions that change ADO (`workitem.update`, `workitem.comment`, `workitem.create`, for the Queue app) have `write: true`, so the agent runs them only with `confirm: true` from a person's click; they need a PAT with **Work Items (Read & Write)**. Everything else needs only read scopes. Node standard library only. It calls only the server URLs in its settings.
+Mostly read-only. The three actions that change ADO (`workitem.update`, `workitem.comment`, `workitem.create`; built for the Queue app, which was removed, and kept for Runway) have `write: true`, so the agent runs them only with `confirm: true` from a person's click; they need a PAT with **Work Items (Read & Write)**. Everything else needs only read scopes. Node standard library only. It calls only the server URLs in its settings.
 
 ## Settings
 

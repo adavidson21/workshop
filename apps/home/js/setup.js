@@ -1,5 +1,5 @@
 /* Home: the Get started checklist. Each step ticks itself off from what Workshop can see (connected to
-   Workshop on this computer, your name, the ADO connector, a Docket task, Queue's area paths, a receipt),
+   Workshop on this computer, your name, the ADO connector, a Docket task, a receipt),
    so it works as an interactive guide for someone new. Any step can be skipped. Hiding the checklist and
    skipped steps are saved in Home's own collection `setup` (home.setup v1, no items; meta: {hidden,
    skipped: [step ids], updatedAt}); everything else is read live, read-only.
@@ -38,8 +38,7 @@ const count = env => (env && Array.isArray(env.items) ? env.items.length : 0);
 export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
-  const [queue, receipts, list, cfg, adoCfg] = await Promise.all([
-    quiet(ws.data.get('settings', { app: 'queue' })),
+  const [receipts, list, cfg, adoCfg] = await Promise.all([
     quiet(ws.data.get('entries', { app: 'receipts' })),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
@@ -51,7 +50,6 @@ export async function factsFor(ws) {
     connected: agent,
     mode: ws.mode,
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
-    queueAreas: queue && queue.meta && Array.isArray(queue.meta.areas) ? queue.meta.areas.length : 0,
     receipts: count(receipts),
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,
     startAtLogin: cfg && cfg.features ? cfg.features.startAtLogin === true : null,
@@ -67,7 +65,6 @@ export const STEPS = [
   { id: 'name', core: true, title: 'Add your name' },
   { id: 'ado', core: true, title: 'Connect Azure DevOps', needs: 'connect' },
   { id: 'task', core: true, title: 'Add your first task in Docket' },
-  { id: 'queue', core: true, title: "Pick your team's area paths in Queue", needs: 'ado' },
   { id: 'receipt', core: true, title: 'Log your first receipt' },
   { id: 'dispatch', core: false, title: 'Set up Dispatch for coding agents', needs: 'connect' },
   { id: 'login', core: false, title: 'Start Workshop when you log in', needs: 'connect' }
@@ -86,7 +83,6 @@ export function stepsFor(facts, skipped = []) {
     name: !!(f.name && String(f.name).trim()),
     ado: f.ado && f.ado.state === 'ready',
     task: Number(f.tasks) > 0,
-    queue: f.queueAreas > 0,
     receipt: f.receipts > 0,
     dispatch: f.dispatch === 'ready',
     login: f.startAtLogin === true
@@ -95,7 +91,7 @@ export function stepsFor(facts, skipped = []) {
   for (const s of STEPS) {
     if (done[s.id]) state[s.id] = 'done';
     else if (skip.has(s.id)) state[s.id] = 'skipped';
-    // A step whose prerequisite was skipped is skipped too (no ADO, no Queue).
+    // A step whose prerequisite was skipped is skipped too (no Workshop on this computer, no ADO).
     else if (s.needs && state[s.needs] === 'skipped') state[s.id] = 'skipped';
     else if (s.needs && state[s.needs] !== 'done') state[s.id] = 'blocked';
     else state[s.id] = 'todo';
@@ -155,8 +151,8 @@ function detail(s, ctx) {
         return `<p>Connected.${a.message ? ' ' + esc(a.message) : ''}</p>${a.noExpiry ? `<p class="su-fine">Tip: set <b>PAT expires</b> on the connection in ${settingsWhere} to get a warning two weeks before it stops working.</p>` : ''}`;
       }
       if (a.state === 'off' || a.state === 'missing') {
-        return `<p>Docket syncs your work items and Queue shows your team's, both through the Azure DevOps connector.</p>
-          <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read & Write)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date.</li>
+        return `<p>Docket syncs your work items and the pull requests waiting on your review through the Azure DevOps connector.</p>
+          <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date.</li>
           <li>Save it on this computer: ${copy('workshop pat ADO_PAT')}It asks for the token without showing it.</li>
           <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and add your connection, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>. Set <b>PAT expires</b>, Save, and try the Test field with a work item ID.</li></ol>
           <p>${settingsBtn()}</p>`;
@@ -173,8 +169,6 @@ function detail(s, ctx) {
     }
     case 'task':
       return `<p>Docket decides what you work on next. It opens with a short tour; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
-    case 'queue':
-      return `<p>Queue shows your team's ADO items so you can triage, assign and comment without opening ADO. Tell it which area paths are your team's, for example <code>Project\\Team</code>.</p><p>${btn('Open Queue settings', 'data-open="queue" data-path="settings"', true)}</p>`;
     case 'receipt':
       return `<p>Receipts keeps evidence of your and your team's work for reviews. Add one thing you did this week.</p><p>${btn('Open Receipts', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':

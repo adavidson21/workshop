@@ -29,7 +29,7 @@ export function homeHtml(rows, ui, fromDir = []) {
   const acts = `<button class="ibtn" data-route="settings" title="1:1s settings" aria-label="1:1s settings">${GEAR}</button>`;
   if (!rows.length) {
     return header('1:1s', 'People', acts) + `<section class="engcard"><h2>Who do you meet with?</h2>
-      <p>Add the people you have 1:1s with, and link each one to what Docket, Receipts and Queue already know about them. Prep then gathers it in one place.</p>
+      <p>Add the people you have 1:1s with, and link each one to what Docket and Receipts already know about them. Prep then gathers it in one place.</p>
       <p><button class="btn primary" data-route="settings">Add people</button></p>${fromDir.length ? fromDirectoryHtml(fromDir) : ''}</section>`;
   }
   return header('1:1s', 'People', acts) + `<p class="hint soft">Due means the last 1:1 note is as old as that person's cadence.</p>
@@ -63,12 +63,6 @@ export function packetHtml(p) {
   const receipts = p.receipts.state === 'ok'
     ? (p.receipts.total ? KINDS.filter(k => p.receipts.groups[k].length).map(k => rows(KIND_LABELS[k], p.receipts.groups[k], e => `<span class="soft num">${esc(e.date)}</span> ${esc(e.text)}`)).join('') : '<p class="soft">No receipts about them in this period.</p>')
     : unavailable(p.receipts, true);
-  const item = i => `<span class="num soft">#${esc(i.id)}</span> ${esc(i.title)} <span class="soft">${esc(i.state)}</span>`;
-  const queue = p.queue.state === 'ok'
-    ? rows('In progress', p.queue.inProgress, item) + rows(`Stale (${p.queue.staleDays} days)`, p.queue.stale, item)
-      + rows('Changed since', p.queue.changed, item) + rows('All open', p.queue.open, item)
-      + (p.queue.fetchedAt ? `<p class="soft small">From Queue's last refresh, ${esc(p.queue.fetchedAt.slice(0, 10))}.</p>` : '')
-    : unavailable(p.queue, true);
   const last = p.last.state === 'ok'
     ? rows(`Open follow-ups from ${p.last.day}`, p.last.open, t => esc(t))
     : `<p class="soft">${p.last.state === 'unreadable' ? "Couldn't read the last note." : 'No earlier 1:1 note.'}</p>`;
@@ -76,7 +70,6 @@ export function packetHtml(p) {
     <p class="since soft">Since ${esc(p.since)}${p.sinceFrom === 'note' ? ' (the last 1:1 note)' : ' (cadence, no earlier note)'}</p>
     <section><h3 class="section-label">Docket</h3>${docket}</section>
     <section><h3 class="section-label">Receipts</h3>${receipts}</section>
-    <section><h3 class="section-label">Queue</h3>${queue}</section>
     <section><h3 class="section-label">Last 1:1</h3>${last}</section>
   </section>`;
 }
@@ -157,14 +150,14 @@ export function logHtml({ followUps, wins, canOffer, docketLinked }) {
 /* ---------- settings ---------- */
 
 /**
- * pick: {docket: [name], receipts: [{id, name, archived}], queue: [{key, name}], states: {docket, receipts, queue}}
+ * pick: {docket: [name], receipts: [{id, name, archived}], states: {docket, receipts}}
  * edit: the person being edited ({} for a new one) or null.
  */
 export function settingsHtml(v, pick, edit) {
   const back = '<button type="button" class="btn" data-route="">Back</button>';
   const active = v.people.filter(p => !p.archived), archived = v.people.filter(p => p.archived);
   const row = p => `<li class="srow"><span class="pname">${esc(p.name)}</span>
-    <span class="links soft">${[p.links.docket && 'Docket', p.links.receipts && 'Receipts', p.links.queue && 'Queue'].filter(Boolean).join(', ') || 'No links'} · every ${esc(plural(p.cadenceDays, 'day'))}</span>
+    <span class="links soft">${[p.links.docket && 'Docket', p.links.receipts && 'Receipts'].filter(Boolean).join(', ') || 'No links'} · every ${esc(plural(p.cadenceDays, 'day'))}</span>
     <button class="lnk" data-edit-person="${esc(p.id)}">Edit</button></li>`;
   return header('Settings', '1:1s', back) + `
     ${edit ? personForm(edit, pick) : `<p><button class="btn primary" data-add-person>Add a person</button></p>`}
@@ -181,7 +174,7 @@ export function settingsHtml(v, pick, edit) {
 
 /** Direct reports in Workshop's People with no 1:1s person yet: one click adds them, linked. */
 export function fromDirectoryHtml(list) {
-  return `<div class="from-dir"><p class="soft small">From People in Workshop's Settings: add with Receipts, Queue and Docket already linked.</p>
+  return `<div class="from-dir"><p class="soft small">From People in Workshop's Settings: add with Receipts and Docket already linked.</p>
     ${list.map(p => `<button class="chip" data-add-dir="${esc(p.id)}">+ ${esc(p.name)}</button>`).join('')}</div>`;
 }
 
@@ -202,7 +195,6 @@ export function personForm(p, pick) {
     </div>
     ${picker('docket', 'Docket person', pick.docket.map(n => ({ value: n, label: n })), l.docket, pick.states.docket, 'No people in Docket yet. Tag a task with @name there.')}
     ${picker('receipts', 'Receipts report', pick.receipts.filter(r => !r.archived || r.id === l.receipts).map(r => ({ value: r.id, label: r.name })), l.receipts, pick.states.receipts, pick.directory ? 'No direct reports in People yet. Add them in Workshop\'s Settings.' : 'No reports in Receipts yet.')}
-    ${picker('queue', 'Queue person', pick.queue.map(q => ({ value: q.key, label: q.key.includes('@') ? `${q.name} (${q.key})` : q.name })), l.queue, pick.states.queue, pick.directory ? 'No one is on your team in People yet.' : 'No people in Queue settings yet.')}
     ${p.id ? `<label class="chk"><input type="checkbox" name="archived"${p.archived ? ' checked' : ''}> Archived (hidden from the list; notes are kept)</label>` : ''}
     <div class="acts"><button type="button" class="btn" data-cancel-person>Cancel</button><button class="btn primary">${p.id ? 'Save' : 'Add'}</button></div>
   </form>`;

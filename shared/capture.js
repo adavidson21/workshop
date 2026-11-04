@@ -25,7 +25,7 @@ const MAX_TEXT = 2000;
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
   home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'agents', agents: 'agents',
-  hub: 'agents', receipts: 'receipts', queue: 'queue', notes: 'notes', settings: 'settings', '1:1s': 'oneonones',
+  hub: 'agents', receipts: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'oneonones',
   '1:1': 'oneonones', oneonones: 'oneonones', 'one-on-ones': 'oneonones', runway: 'runway', roadmap: 'runway'
 };
 

@@ -5,17 +5,16 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, dateStr, dayNow, queueSummary, summarize, wrapState } from './view.js';
+import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, dateStr, dayNow, summarize, wrapState } from './view.js';
 
 const P = { app: 'prioritizer' };
-const Q = { app: 'queue' };
 const OC = 'opencode';
 
 /* Docket's day plan collections Home reads for the Now card. */
 export const dayCollections = year => ['dayplan/settings', 'dayplan/templates', `dayplan/days/${year}`, `focus/days/${year}`, 'handoffs'];
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, queue: null, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -51,17 +50,6 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     changed();
   }
 
-  // The Queue app's last copy of the team's ADO items, read-only. No card until the queue is set up.
-  async function loadQueue() {
-    try {
-      const [settings, snapshot, seen] = await Promise.all(['settings', 'snapshot', 'seen'].map(c => ws.data.get(c, Q)));
-      v.queue = queueSummary({ settings, snapshot, seen }, now().getTime());
-    } catch (e) {
-      if (!waitFor(e)) v.queue = null;
-    }
-    changed();
-  }
-
   async function loadAgents() {
     if (ws.backend !== 'agent') { v.agents = { state: 'browser' }; return changed(); }
     try {
@@ -90,7 +78,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   async function loadAll() {
     const was = v.waiting;
     v.waiting = false;
-    await Promise.all([loadProfile(), loadBoard(), loadAgents(), loadQueue()]);
+    await Promise.all([loadProfile(), loadBoard(), loadAgents()]);
     if (was && !v.waiting) changed();
   }
 
@@ -123,7 +111,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   ws.on('online', p => { if (p && p.online) loadAll(); });
 
   return {
-    v, loadAll, loadBoard, loadAgents, loadQueue, loadProfile, saveProfile,
+    v, loadAll, loadBoard, loadAgents, loadProfile, saveProfile,
     get waiting() { return v.waiting; }
   };
 }
