@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { httpError, log, opt, workRoot } from "./context.mjs";
+import { httpError, log, opt, repoFolder, workRoot } from "./context.mjs";
 import { model, refresh } from "./model.mjs";
 import { currentSession, folderForToken, linkFrom } from "./links.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
@@ -206,9 +206,10 @@ export function onboardRepo({ repo }) {
 
 // ------------------------------------------------------------------ repos
 
+// "repo" or "Category/repo" (repos one folder down are found too).
 function repoFolderName(name) {
-  const n = String(name || "").trim();
-  if (!/^[A-Za-z0-9._-]{1,100}$/.test(n) || n.startsWith(".") || n.startsWith("-")) throw httpError(400, `"${n}" is not a valid repo folder name.`);
+  const n = repoFolder(name);
+  if (!n) throw httpError(400, `"${String(name || "").trim()}" is not a valid repo folder name.`);
   return n;
 }
 

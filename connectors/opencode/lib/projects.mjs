@@ -13,7 +13,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { httpError, opt, stateDir } from "./context.mjs";
+import { httpError, opt, repoFolder, stateDir } from "./context.mjs";
 
 export const INBOX = "inbox";
 export const COLORS = ["slate", "blue", "teal", "green", "amber", "orange", "red", "rose", "violet"];
@@ -100,9 +100,10 @@ function text(v, label, max, { required = false } = {}) {
 }
 
 function repoName(v) {
-  const s = text(v, "repo folder", 100);
-  if (!s) return null;
-  if (!/^[A-Za-z0-9._-]{1,100}$/.test(s) || s.startsWith(".") || s.startsWith("-")) throw httpError(400, `"${s}" is not a valid repo folder name.`);
+  const raw = text(v, "repo folder", 201);
+  if (!raw) return null;
+  const s = repoFolder(raw);
+  if (!s) throw httpError(400, `"${raw}" is not a valid repo folder name.`);
   const ws = workspaceDir();
   if (ws && !fs.existsSync(path.join(ws, s))) throw httpError(404, `There is no ${s} folder in the workspace. Add the repo first.`);
   return s;

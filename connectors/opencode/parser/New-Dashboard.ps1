@@ -830,13 +830,26 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
 
 $itemIds = @($items | Where-Object { $_.kind -eq "item" } | ForEach-Object { $_.id })
 $repos = New-Object System.Collections.ArrayList
+# Repos at the top of the workspace, and one folder down (<workspace>/<Category>/<repo>). A repo's own
+# folders are never searched. The folder is "repo" or "Category/repo", always with "/".
+$repoDirs = New-Object System.Collections.ArrayList
 foreach ($d in @(Get-ChildItem -LiteralPath $workspace -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" } | Sort-Object Name)) {
-    if (-not (Test-Path -LiteralPath (Join-Path $d.FullName ".git"))) { continue }
-    $gs = Get-RepoState $d.FullName
+    if (Test-Path -LiteralPath (Join-Path $d.FullName ".git")) {
+        [void]$repoDirs.Add([ordered]@{ folder = $d.Name; path = $d.FullName })
+        continue
+    }
+    foreach ($c in @(Get-ChildItem -LiteralPath $d.FullName -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" } | Sort-Object Name)) {
+        if (Test-Path -LiteralPath (Join-Path $c.FullName ".git")) {
+            [void]$repoDirs.Add([ordered]@{ folder = "$($d.Name)/$($c.Name)"; path = $c.FullName })
+        }
+    }
+}
+foreach ($d in $repoDirs) {
+    $gs = Get-RepoState $d.path
     $owner = $null
     if ($gs.branch -and $gs.branch -match '^dev/[^/]+/(\d+|L\d+)-') { $owner = $Matches[1] }
     [void]$repos.Add([ordered]@{
-            folder = $d.Name
+            folder = $d.folder
             git = $gs
             owner = $owner
             ownerKnown = [bool]($owner -and ($itemIds -contains $owner))

@@ -187,15 +187,22 @@ export function createRevisionRunner({ codeReview, workspace, workRoot, launcher
     }
     for (const f of folders) {
       const base = path.join(workRoot, f.name, "code-review");
-      let repos = [];
-      try {
-        repos = fs.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory());
-      } catch {
-        continue;
+      // Repo folders are "repo" or "Category/repo", so a folder with no run.json may hold repos one down.
+      const dirs = (p) => {
+        try {
+          return fs.readdirSync(p, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+        } catch {
+          return [];
+        }
+      };
+      const repos = [];
+      for (const name of dirs(base)) {
+        if (fs.existsSync(runFile(f.name, name))) repos.push(name);
+        else for (const sub of dirs(path.join(base, name))) repos.push(`${name}/${sub}`);
       }
-      for (const r of repos) {
-        const run = readRun(f.name, r.name);
-        if (run && run.session && run.status !== "done") bySession.set(run.session, { folder: f.name, repo: r.name });
+      for (const repo of repos) {
+        const run = readRun(f.name, repo);
+        if (run && run.session && run.status !== "done") bySession.set(run.session, { folder: f.name, repo });
       }
     }
   }
