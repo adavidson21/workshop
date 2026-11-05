@@ -3,7 +3,7 @@
    rules, and sections headed by a mono label over a rule instead of boxed cards. */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-.wrap{max-width:1040px;margin:0 auto;padding:2.75rem 1.75rem 4rem;display:flex;flex-direction:column;gap:2.25rem}
+.wrap{max-width:1040px;margin:0 auto;padding:1.5rem 1.75rem 4rem;display:flex;flex-direction:column;gap:2.25rem}
 #app{display:contents}
 /* Quick capture is Home's front door: right under the greeting, before everything else (order moves it there,
    since #app is repainted and #capture never is), and drawn larger than the Dispatch hub's box. */
@@ -21,8 +21,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 /* greeting */
 .hello{display:flex;align-items:flex-end;gap:1rem;animation:rise .6s ease-out both}
 .hello .who{flex:1;min-width:0}
-.hello .meta{margin:0 0 .85rem;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.hello h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,56px);font-weight:600;font-variation-settings:"opsz" 144;letter-spacing:-.03em;line-height:1.04}
+.hello .meta{margin:0 0 .35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+/* kept small so Home works in a half-width laptop window */
+.hello h1{margin:0;font-family:var(--serif);font-size:clamp(22px,2.4vw,28px);font-weight:600;font-variation-settings:"opsz" 72;letter-spacing:-.02em;line-height:1.15}
 .hello h1::after{content:".";color:var(--eyebrow)}
 .hello .btn{margin-bottom:.35rem}
 
@@ -132,7 +133,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 @media (max-width:760px){
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
   .cols{grid-template-columns:minmax(0,1fr)}
-  .wrap{padding:1.75rem 1rem 3rem;gap:1.75rem}
+  .wrap{padding:1rem 1rem 3rem;gap:1.75rem}
   .hello{flex-wrap:wrap}
   .tile{padding:1rem .75rem 1.1rem}
   .su-top{flex-direction:column}
