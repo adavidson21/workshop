@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as M from '../js/oneonones/model.js';
-import { NOW, PERSON, TODAY, docketPeople, docketTasks, entry, receiptsEntries, receiptsPeopleEnv, task } from './oneonones-fake.mjs';
+import { NOW, PERSON, TODAY, docketSummary, entry, receiptsEntries, receiptsPeopleEnv, task } from './oneonones-fake.mjs';
 
 const notes = days => days.map(d => ({ day: d, path: M.notePath(PERSON.id, d), mtime: 1 }));
 
@@ -40,18 +40,18 @@ test('wins: bullet lines under the Wins heading only', () => {
 });
 
 test('version checks: unknown versions and schemas are unreadable, never empty', () => {
-  assert.equal(M.readable(null, M.SOURCES.docketTasks).state, 'missing');
-  assert.equal(M.readable(docketTasks([], 4), M.SOURCES.docketTasks).state, 'unreadable');
-  assert.equal(M.readable({ ...docketTasks([]), schema: 'prioritizer.lists' }, M.SOURCES.docketTasks).state, 'unreadable');
-  assert.equal(M.docketSection(docketTasks([task('t1', { people: ['DevA'] })], 2), 'DevA', TODAY).state, 'unreadable');
+  assert.equal(M.readable(null, M.SOURCES.docketSummary).state, 'missing');
+  assert.equal(M.readable(docketSummary([], null, 4), M.SOURCES.docketSummary).state, 'unreadable');
+  assert.equal(M.readable({ ...docketSummary([]), schema: 'prioritizer.lists' }, M.SOURCES.docketSummary).state, 'unreadable');
+  assert.equal(M.docketSection(docketSummary([task('t1', { people: ['DevA'] })], null, 2), 'DevA', TODAY).state, 'unreadable');
   assert.equal(M.receiptsSection(receiptsEntries([entry('r1')], 2), 'p_r1', '2026-10-27', TODAY).state, 'unreadable');
-  assert.deepEqual(M.docketNames({ ...docketPeople(['DevA']), version: 2 }), []);
+  assert.deepEqual(M.docketNames({ ...docketSummary([], ['DevA']), version: 2 }), []);
   assert.equal(M.docketSection(null, 'DevA', TODAY).state, 'missing');
-  assert.equal(M.docketSection(docketTasks([]), '', TODAY).state, 'unlinked');
+  assert.equal(M.docketSection(docketSummary([]), '', TODAY).state, 'unlinked');
 });
 
 test('Docket: open tasks tagged with the person, waiting on them, nudges due', () => {
-  const env = docketTasks([
+  const env = docketSummary([
     task('t1', { people: ['devA'], due: '2026-11-05' }),
     task('t2', { people: ['DevA', 'Engineer B'], waiting: true, nudgeOn: '2026-11-02' }),
     task('t3', { people: ['DevA'], waiting: true, nudgeOn: '2026-11-10' }),
@@ -82,7 +82,7 @@ test('Receipts: entries about them in the period, grouped by kind', () => {
 });
 
 test('pickers read what each app keeps', () => {
-  assert.deepEqual(M.docketNames(docketPeople(['DevB', 'DevA', 'deva'])), ['DevA', 'DevB']);
+  assert.deepEqual(M.docketNames(docketSummary([], ['DevB', 'DevA', 'deva'])), ['DevA', 'DevB']);
   assert.deepEqual(M.receiptsPeople(receiptsPeopleEnv([{ id: 'p_r1', updatedAt: 1, name: 'Engineer A' }, { id: 'p_r2', updatedAt: 1, name: 'Dev One', archived: true }])).map(p => [p.id, p.archived]), [['p_r2', true], ['p_r1', false]]);
 });
 
@@ -97,7 +97,7 @@ function fullPacket() {
     person: PERSON, today: TODAY, now: NOW, notes: notes(['2026-10-27']),
     lastText: '## Follow-ups\n\n- [ ] Send the design doc\n- [x] Book the demo\n',
     src: {
-      docketTasks: docketTasks([task('t1', { people: ['DevA'] })]),
+      docketSummary: docketSummary([task('t1', { people: ['DevA'] })]),
       receiptsEntries: receiptsEntries([entry('r1'), entry('r2', { kind: 'concern', text: 'Missed two standups' })])
     }
   });
@@ -168,20 +168,20 @@ test('the old 1:1s app: envelopes get the new schema and rev 0; note paths move 
   assert.equal(M.legacyNotePath('notes/../x/2026-11-03.md'), '');
 });
 
-test('Docket through its summary: names, sections and state; the raw collections only as the fallback', async () => {
-  const M = await import('../js/oneonones/model.js');
+test('Docket through its summary: names, sections and state', async () => {
   const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'people', kind: 'people', updatedAt: 1, rows: [
     { name: 'Person One', open: [{ id: 't1', title: 'Write the guide', due: '2026-11-06', nudgeOn: '' }], waiting: [{ id: 't2', title: 'Review', due: '', nudgeOn: '2026-11-03' }] },
     { name: 'person one', open: [], waiting: [] },
     { name: 'Person Two', open: [], waiting: [] }
   ] }] };
-  assert.deepEqual(M.docketNames(null, summary), ['Person One', 'Person Two']);
-  assert.equal(M.docketState(summary, null), 'ok');
-  assert.equal(M.docketState(null, null), 'missing');
-  const s = M.docketSection(null, 'PERSON ONE', '2026-11-04', summary);
+  assert.deepEqual(M.docketNames(summary), ['Person One', 'Person Two']);
+  assert.equal(M.docketState(summary), 'ok');
+  assert.equal(M.docketState(null), 'missing');
+  assert.equal(M.docketState({ ...summary, version: 2 }), 'unreadable');
+  const s = M.docketSection(summary, 'PERSON ONE', '2026-11-04');
   assert.deepEqual(s.open.map(t => t.id), ['t1']);
   assert.deepEqual(s.nudges.map(t => t.id), ['t2']);
-  assert.deepEqual(M.docketSection(null, 'Nobody', '2026-11-04', summary), { state: 'ok', open: [], waiting: [], nudges: [] });
+  assert.deepEqual(M.docketSection(summary, 'Nobody', '2026-11-04'), { state: 'ok', open: [], waiting: [], nudges: [] });
   const raw = { schema: 'prioritizer.tasks', version: 3, rev: 1, items: [{ id: 'r1', title: 'Raw task', people: ['Person One'] }] };
-  assert.deepEqual(M.docketSection(raw, 'Person One', '2026-11-04', null).open.map(t => t.id), ['r1'], 'no summary: the tasks collection');
+  assert.equal(M.docketSection(raw, 'Person One', '2026-11-04').state, 'unreadable', 'Docket\'s own tasks are not read');
 });

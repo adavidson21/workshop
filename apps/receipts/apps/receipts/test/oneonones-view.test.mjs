@@ -5,7 +5,7 @@ import test from 'node:test';
 import { inline, render } from '../js/markdown.js';
 import { buildPacket, notePath } from '../js/oneonones/model.js';
 import { aiHtml, homeHtml, logHtml, noteHtml, packetHtml, personForm, personHtml, settingsHtml, startPanelHtml } from '../js/oneonones/view.js';
-import { NOW, PERSON, TODAY, docketTasks, entry, receiptsEntries, task } from './oneonones-fake.mjs';
+import { NOW, PERSON, TODAY, docketSummary, entry, receiptsEntries, task } from './oneonones-fake.mjs';
 
 const BAD = '<img src=x onerror=alert(1)>"\'&';
 const noRaw = html => !html.includes('<img') && !html.includes('onerror=alert(1)>');
@@ -28,7 +28,7 @@ test('the packet escapes task titles and receipts', () => {
   const p = buildPacket({
     person: PERSON, today: TODAY, now: NOW, notes: [], lastText: null,
     src: {
-      docketTasks: docketTasks([task('t1', { people: ['DevA'], title: BAD })]),
+      docketSummary: docketSummary([task('t1', { people: ['DevA'], title: BAD })]),
       receiptsEntries: receiptsEntries([entry('r1', { text: BAD })])
     }
   });
@@ -38,10 +38,10 @@ test('the packet escapes task titles and receipts', () => {
 });
 
 test('unlinked and unreadable sources say so instead of showing nothing', () => {
-  const p = buildPacket({ person: { ...PERSON, links: {} }, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketTasks: docketTasks([], 9) } });
+  const p = buildPacket({ person: { ...PERSON, links: {} }, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketSummary: docketSummary([], null, 9) } });
   const html = packetHtml(p);
   assert.equal((html.match(/Not linked/g) || []).length, 2);
-  const p2 = buildPacket({ person: PERSON, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketTasks: docketTasks([], 9) } });
+  const p2 = buildPacket({ person: PERSON, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketSummary: docketSummary([], null, 9) } });
   assert.ok(packetHtml(p2).includes('version this app does not know'));
 });
 

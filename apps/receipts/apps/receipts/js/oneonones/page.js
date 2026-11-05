@@ -63,7 +63,7 @@ export function createOneOnOnesPage(ws, root, host) {
     return buildPacket({
       person, today: t, now: Date.now(), notes,
       lastText: last ? ui.lastText[last.path] ?? null : null,
-      src: { docketSummary: v.src.docketSummary, docketTasks: v.src.docketTasks, receiptsEntries: v.src.receiptsEntries }
+      src: { docketSummary: v.src.docketSummary, receiptsEntries: v.src.receiptsEntries }
     });
   }
 
@@ -71,12 +71,12 @@ export function createOneOnOnesPage(ws, root, host) {
   function pickers() {
     const dir = !!directoryPeople(v.src.directory);
     return {
-      docket: docketNames(v.src.docketPeople, v.src.docketSummary),
+      docket: docketNames(v.src.docketSummary),
       receipts: receiptsPeople(v.src.receiptsPeople, v.src.directory),
       fromDirectory: directorySuggestions(v.people, v.src.directory),
       directory: dir,
       states: {
-        docket: docketState(v.src.docketSummary, v.src.docketPeople),
+        docket: docketState(v.src.docketSummary),
         receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state
       }
     };
@@ -202,7 +202,7 @@ export function createOneOnOnesPage(ws, root, host) {
     const rid = ui.reportId;
     if (!rid || personForReport(rid)) return;
     const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === rid);
-    const base = dp ? personFromDirectory(dp, docketNames(v.src.docketPeople, v.src.docketSummary))
+    const base = dp ? personFromDirectory(dp, docketNames(v.src.docketSummary))
       : { name: host.reportName(rid) || 'Unnamed', links: { receipts: rid }, cadenceDays: DEFAULT_CADENCE, archived: false };
     try {
       const p = await d.savePerson(base);
@@ -360,7 +360,7 @@ export function createOneOnOnesPage(ws, root, host) {
     if ((x = el('[data-add-dir]'))) {
       const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === x.dataset.addDir);
       if (dp) {
-        try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketPeople, v.src.docketSummary))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
+        try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketSummary))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
         catch (err) { toastErr(err); }
       }
       return;
