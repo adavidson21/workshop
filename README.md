@@ -93,7 +93,7 @@ Other commands:
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
-- `node workshop.mjs update` lists the release tags; `update --tag <tag>` moves this checkout to one (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
+- `node workshop.mjs update` lists the release tags; `update --tag <tag>` moves this checkout to one, `update --latest` moves Workshop, Docket and Runway to their newest (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
 
 Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
 
@@ -127,7 +127,7 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 
 **With the one-line installer:** `/install-work.ps1` and `/install-work.sh` are the same installers with work mode on (At work, above). On a new install, work mode puts the data folder in your company OneDrive when there is one (`OneDriveCommercial` on Windows, `~/Library/CloudStorage/OneDrive-<Company>` on a Mac; never a personal OneDrive); set `WORKSHOP_DATA_DIR` to choose another folder. An existing data folder is never moved by the installer: `workshop data-folder <folder>` or `--onedrive` copies it and switches. To pin releases, set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'`, then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
 
-**Updating:** `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>]` moves to them and rebuilds the pinned copy. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
+**Updating:** `workshop update --latest` moves Workshop, Docket and Runway each to its newest release tag (skipping any already there), rebuilds the pinned copy, and prints the `update.ps1 -Tag` line for eng-agents when it is next to Workshop and behind. `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>]` moves to specific ones. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 
 Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
 

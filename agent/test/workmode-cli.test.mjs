@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { main, doctorReport, parseUpdateArgs, parsePinArgs, parseInstallArgs, validTag, checkoutTag, listTags, gitInfo, pin } from '../../workshop.mjs';
+import { main, doctorReport, parseUpdateArgs, parsePinArgs, parseInstallArgs, validTag, checkoutTag, listTags, gitInfo, pin, planLatest, latestTag } from '../../workshop.mjs';
 import { verifyPinned } from '../lib/pinned.mjs';
 import { REPO } from './helpers.mjs';
 
@@ -21,8 +21,11 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, pull: false });
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', pull: false });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, pull: false, latest: false });
+  assert.equal(parseUpdateArgs(['--latest']).opts.latest, true);
+  assert.ok(parseUpdateArgs(['--latest', '--tag', 'v1.0.0']).error);
+  assert.ok(parseUpdateArgs(['--latest', '--pull']).error);
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', pull: false, latest: false });
   assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
@@ -184,4 +187,34 @@ test('doctor checks opencode\'s providers against the connector\'s approved list
     d = await run();
     assert.equal(d.code, 0, d.lines.join('\n'));
   } finally { rm(home); rm(userHome); rm(path.dirname(defaultDir)); }
+});
+
+test('update --latest picks the newest release tag of each checkout found, and only says how to update eng-agents', { skip: !hasGit && 'git is not installed' }, () => {
+  const { root, origin, g } = repos();
+  try {
+    const clone = (name, at) => {
+      const dir = path.join(root, name);
+      const c = spawnSync('git', ['clone', '-q', origin, dir], { encoding: 'utf8' });
+      assert.equal(c.status, 0, c.stderr);
+      if (at) g(dir, 'checkout', '-q', '--detach', at);
+      return dir;
+    };
+    const ws = clone('workshop', 'v1.0.0');
+    const docket = clone('docket', 'v1.1.0');
+    fs.writeFileSync(path.join(docket, 'app.json'), '{}');
+    g(origin, 'tag', 'core-v9', 'v1.1.0');
+    g(origin, 'tag', 'core-v2.0.0', 'v1.0.0');
+    g(origin, 'tag', 'core-v2.1.0', 'v1.1.0');
+    const ea = clone('eng-agents', 'core-v2.0.0');
+    fs.writeFileSync(path.join(ea, 'update.ps1'), '');
+
+    assert.equal(latestTag(ws), 'v1.1.0', 'not docket-android, not a core- tag');
+    assert.equal(latestTag(ea, 'core-v'), 'core-v2.1.0', 'not an old short tag like core-v9');
+    const plan = planLatest(ws);
+    assert.deepEqual(plan.tags, { tag: 'v1.1.0' }, 'Docket is already newest; Runway has no clone');
+    assert.ok(plan.lines.some(l => /Docket: already at v1\.1\.0/.test(l)), plan.lines.join('\n'));
+    assert.ok(plan.lines.some(l => /Runway: no git clone found/.test(l)), plan.lines.join('\n'));
+    assert.match(plan.engAgents, /update\.ps1 -Tag core-v2\.1\.0/);
+    assert.equal(fs.readFileSync(path.join(ws, 'f.txt'), 'utf8'), 'one', 'planning changes nothing');
+  } finally { rm(root); }
 });
