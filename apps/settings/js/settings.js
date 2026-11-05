@@ -13,6 +13,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
 import * as P from './people.js';
+import * as T from './teams.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -648,6 +649,51 @@ async function peopleCard() {
   });
 }
 
+/* ---------- your team's area paths (docs/teams.md) ----------
+   Settings' own collection `teams`, read by Runway's ADO roadmaps and the Dispatch hub. Editable in every mode,
+   like People. */
+async function teamCard() {
+  const sec = card('Team area paths', 'The Azure DevOps area paths your team works in. Runway fills them in for an ADO roadmap, and the Dispatch hub knows them.', 'people');
+  sec.insertAdjacentHTML('beforeend', '<div class="team-body"><p class="sub">Loading...</p></div>');
+  let env = null;
+  const load = async () => { const e = await ws.data.get(T.COLLECTION); env = e || T.blank(); return T.readable(e); };
+  const paint = ok => {
+    const body = sec.querySelector('.team-body');
+    if (!ok) { body.innerHTML = `<p class="err">Your team was saved by a newer Workshop (version ${esc(env.version)}). Update Workshop to change it.</p>`; return; }
+    const t = T.mine(env);
+    body.innerHTML = `<form class="cfg" data-team-form>
+      <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(t.areas.join('\n'))}</textarea>
+        <p class="cfg-help">One per line. Includes everything under each.</p></div>
+      <div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(t.connection)}" placeholder="Default">
+        <p class="cfg-help">The Azure DevOps connection to use, by its name above. Empty uses the default.</p></div>
+      <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div></form>`;
+  };
+  try { paint(await load()); } catch (e) { sec.querySelector('.team-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
+  sec.addEventListener('submit', async e => {
+    const form = e.target.closest('[data-team-form]');
+    if (!form) return;
+    e.preventDefault();
+    const fd = new FormData(form);
+    const before = env, after = structuredClone(before);
+    after.items = T.withMine(after.items, { areas: fd.get('areas'), connection: fd.get('connection') });
+    ws.data.stamp(before, after);
+    try {
+      try { const r = await ws.data.put(T.COLLECTION, after); env = { ...after, rev: r.rev }; }
+      catch (err) {
+        if (err.code !== 'conflict' || !err.current) throw err;
+        const merged = ws.data.merge(after, err.current);
+        const r = await ws.data.put(T.COLLECTION, merged); env = { ...merged, rev: r.rev };
+      }
+      toast('Team area paths saved.', 'success');
+      paint(true);
+    } catch (err) { form.querySelector('.msg').textContent = errText(err); }
+  });
+  ws.data.subscribe(T.COLLECTION, async () => {
+    if (sec.contains(document.activeElement) && document.activeElement.matches('textarea, input')) return;
+    try { paint(await load()); } catch (e) { /* the next load shows it */ }
+  });
+}
+
 /* ---------- data: bundles ---------- */
 function dataCard() {
   const sec = card('Backups', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.', 'data');
@@ -730,6 +776,7 @@ async function start() {
     await folderCard(null);
   }
   await peopleCard();
+  await teamCard();
   dataCard();
 }
 await start();

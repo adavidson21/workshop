@@ -18,6 +18,9 @@
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
    "!" on its own, or "!!", marks a task urgent. */
 
+/* Where each capture kind goes, app names, and places for "> <name>". These are the built-in defaults; useApps()
+   replaces them in place from the manifests on this site (ws.apps.list(); docs/app-manifest.md capture and
+   aliases, docs/hub.md "Which app takes a capture"), so every function here follows the apps that are there. */
 export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway' };
 export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
@@ -32,6 +35,45 @@ export const PLACES = {
 };
 /* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
 export const PLACE_PATHS = { '1:1s': '1on1s', '1:1': '1on1s', oneonones: '1on1s', 'one-on-ones': '1on1s', goals: 'goals', okrs: 'goals' };
+
+const DEFAULTS = {
+  targets: { ...TARGETS }, names: { ...TARGET_NAMES }, places: { ...PLACES }, paths: { ...PLACE_PATHS }
+};
+const replace = (obj, next) => { for (const k of Object.keys(obj)) delete obj[k]; Object.assign(obj, next); };
+
+/* Routing from manifests: apps is ws.apps.list() ([{id, name, order, capture, aliases}], sorted by order).
+   Built-in defaults count only for apps that are there, so a removed app drops out with no edit here; what a
+   manifest declares is added on top, so a new app needs no edit either. A kind goes to the first app by order
+   that lists it in `capture`. Returns {targets, names, places, paths}; null or [] gives the defaults. */
+export function routingFrom(apps) {
+  if (!Array.isArray(apps) || !apps.length) return { targets: { ...DEFAULTS.targets }, names: { ...DEFAULTS.names }, places: { ...DEFAULTS.places }, paths: { ...DEFAULTS.paths } };
+  const ids = new Set(apps.map(a => a && a.id).filter(Boolean));
+  const keep = obj => Object.fromEntries(Object.entries(obj).filter(([, id]) => ids.has(id)));
+  const targets = {}, names = {}, places = keep(DEFAULTS.places), paths = {};
+  for (const [w, p] of Object.entries(DEFAULTS.paths)) if (places[w]) paths[w] = p;
+  for (const a of apps) {
+    if (!a || !a.id) continue;
+    names[a.id] = a.name || a.id;
+    for (const k of Array.isArray(a.capture) ? a.capture : []) if (KINDS.includes(k) && !targets[k]) targets[k] = a.id;
+    const add = (word, path) => {
+      const w = String(word || '').trim().toLowerCase();
+      if (!w || (places[w] && places[w] !== a.id)) return;
+      places[w] = a.id;
+      if (path) paths[w] = path; else delete paths[w];
+    };
+    add(a.id); add(a.name);
+    for (const al of Array.isArray(a.aliases) ? a.aliases : []) typeof al === 'string' ? add(al) : al && add(al.name, al.path);
+  }
+  for (const [k, id] of Object.entries(DEFAULTS.targets)) if (!targets[k] && ids.has(id)) targets[k] = id;
+  return { targets, names: { ...keep(DEFAULTS.names), ...names }, places, paths };
+}
+
+/* Use the apps on this site for every function in this module. useApps(null) goes back to the defaults. */
+export function useApps(apps) {
+  const r = routingFrom(apps);
+  replace(TARGETS, r.targets); replace(TARGET_NAMES, r.names); replace(PLACES, r.places); replace(PLACE_PATHS, r.paths);
+  return r;
+}
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const pad = n => String(n).padStart(2, '0');
@@ -141,6 +183,12 @@ export function parseCapture(line, ctx = {}) {
   }
   if (!kind && /\?$/.test(s)) return { kind: 'ask', text: s };
   if (!kind) kind = /^waiting\s+(?:on|for)\s+/i.test(s) ? 'waiting' : 'task';
+  // No app here takes this kind: its prefix means nothing, so the whole line is a task (or a question when no
+  // app takes tasks either).
+  if (!TARGETS[kind]) {
+    if (!TARGETS.task) return { kind: 'ask', text: String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT) };
+    kind = 'task'; s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
+  }
   if (!s.trim()) return null;
 
   if (kind === 'idea') {
@@ -237,7 +285,7 @@ export function toHandoff(p, { sender, id = captureId(), now = new Date() } = {}
 export function describe(p) {
   if (!p) return '';
   if (p.kind === 'ask') return 'Ask in Dispatch';
-  if (p.kind === 'go') return 'Go to ' + p.app;
+  if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
   if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];

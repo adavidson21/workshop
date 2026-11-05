@@ -184,3 +184,13 @@ test('Connect offers the work mode installer next to the usual one', () => {
   const mac = card(stepsFor(fresh), 'connect', { ...ctx, platform: 'mac', facts: fresh });
   assert.ok(mac.copies.includes('curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'));
 });
+
+test('receiptsCount: Rapport\'s summary first, its entries as the fallback', async () => {
+  const { receiptsCount } = await import('../js/setup.js');
+  const summary = { schema: 'receipts.summary', version: 1, rev: 1, items: [{ id: 'entries', kind: 'count', title: 'Receipts', count: 7, updatedAt: 1 }] };
+  const entries = { schema: 'receipts.entries', version: 1, rev: 1, items: [{ id: 'a' }, { id: 'b' }] };
+  assert.equal(receiptsCount(summary, entries), 7);
+  assert.equal(receiptsCount(null, entries), 2);
+  assert.equal(receiptsCount({ ...summary, version: 2 }, entries), 2);
+  assert.equal(receiptsCount(null, null), 0);
+});

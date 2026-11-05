@@ -146,3 +146,39 @@ test('p: a roadmap idea for Runway, to a named roadmap or Pending', () => {
   const h = toHandoff(w, { sender: 'home', id: 'c_x', now: new Date('2026-11-04T21:00:00Z') });
   assert.equal(h.to, 'runway'); assert.equal(h.accepted, true); assert.equal(h.payload.map, 'm-docs');
 });
+
+test('useApps: capture targets, names and places come from the manifests on this site', async () => {
+  const C = await import('../capture.js');
+  try {
+    const apps = [
+      { id: 'home', name: 'Home', order: 0, capture: [], aliases: [] },
+      { id: 'prioritizer', name: 'Docket', order: 10, capture: ['task', 'waiting'], aliases: ['tasks', { name: 'today', path: 'today' }] },
+      { id: 'receipts', name: 'Rapport', order: 30, capture: ['receipt'], aliases: [{ name: '1:1s', path: '1on1s' }] },
+      { id: 'notes', name: 'Notes', order: 40, capture: ['note'], aliases: [] },
+      { id: 'newapp', name: 'Ideas Box', order: 60, capture: ['idea'], aliases: ['box'] }
+    ];
+    C.useApps(apps);
+    const ctx = { today: '2026-11-04' };
+    assert.equal(C.parseCapture('p a new idea', ctx).to, 'newapp', 'a new app takes ideas from its manifest');
+    assert.deepEqual(C.parseCapture('> box', ctx), { kind: 'go', app: 'newapp', text: '> box' });
+    assert.deepEqual(C.parseCapture('> ideas box', ctx), { kind: 'go', app: 'newapp', text: '> ideas box' });
+    assert.deepEqual(C.parseCapture('> today', ctx), { kind: 'go', app: 'prioritizer', path: 'today', text: '> today' });
+    assert.equal(C.parseCapture('> runway', ctx).kind, 'ask', 'Runway is not on this site, so its place is gone');
+    assert.equal(C.TARGET_NAMES.newapp, 'Ideas Box');
+
+    C.useApps(apps.filter(a => a.id !== 'newapp'));
+    const p = C.parseCapture('p a new idea', ctx);
+    assert.equal(p.to, 'prioritizer', 'no app takes ideas: the line is a task');
+    assert.equal(p.title, 'P a new idea');
+
+    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }, { id: 'receipts', name: 'Rapport', order: 30 }]);
+    assert.equal(C.parseCapture('t write it', ctx).to, 'prioritizer', 'built-in targets count for apps that are there');
+    assert.equal(C.parseCapture('r shipped it', ctx).to, 'receipts');
+    assert.equal(C.parseCapture('> 1:1s', ctx).path, '1on1s', 'built-in places too');
+    assert.equal(C.parseCapture('n a note', ctx).to, 'prioritizer', 'Notes is not here');
+
+    C.useApps([{ id: 'home', name: 'Home', order: 0 }]);
+    assert.equal(C.parseCapture('write it', ctx).kind, 'ask', 'no app takes tasks: a question');
+  } finally { C.useApps(null); }
+  assert.equal(C.TARGETS.idea, 'runway', 'back to the defaults');
+});

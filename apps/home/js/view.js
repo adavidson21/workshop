@@ -171,6 +171,35 @@ export function dayNow(day, tasks, now) {
   return { current: current ? Object.assign(brief(current), { until: fromMin(end) }) : null, next: brief(next) };
 }
 
+/* ---------- from Docket's summary (docs/summaries.md) ----------
+   The board, the block on now and Wrap up from the `board` and `day` cards' entries for today. Same shapes as
+   summarize, dayNow and wrapState above, which stay as the fallback for a Docket that writes no summary. */
+export function boardFromSummary(card, today) {
+  const d = card && card.days && card.days[today];
+  if (!d) return null;
+  return {
+    total: d.total | 0, open: d.open | 0, focus: { total: (d.focus && d.focus.total) | 0, done: (d.focus && d.focus.done) | 0 },
+    triage: d.triage | 0, overdue: d.overdue | 0, dueWeek: d.dueWeek | 0,
+    upNext: Array.isArray(card.upNext) ? card.upNext.slice(0, 3) : [],
+    team: Array.isArray(card.team) ? card.team : []
+  };
+}
+export function nowFromDay(day, nowMin) {
+  const blocks = (day && Array.isArray(day.blocks) ? day.blocks : []).filter(b => b && isTime(b.at)).slice().sort((a, b) => toMin(a.at) - toMin(b.at));
+  let current = null, next = null;
+  for (let i = 0; i < blocks.length; i++) {
+    const at = toMin(blocks[i].at), until = isTime(blocks[i].until) ? toMin(blocks[i].until) : at + 60;
+    if (nowMin >= at && nowMin < until) { current = blocks[i]; next = blocks[i + 1] || null; break; }
+    if (nowMin < at) { next = blocks[i]; break; }
+  }
+  if (!current && !next) return null;
+  const brief = b => b ? { name: b.name || 'Untitled', at: b.at, tasks: Array.isArray(b.tasks) ? b.tasks : [] } : null;
+  return { current: current ? Object.assign(brief(current), { until: current.until }) : null, next: brief(next) };
+}
+export function wrapFromDay(day, nowMin) {
+  return { wrapped: !!(day && day.wrapped), due: !!(day && isTime(day.wrapAt) && nowMin >= toMin(day.wrapAt)), receipts: day && Number.isInteger(day.offered) ? day.offered : 0 };
+}
+
 function nowCard(n) {
   if (!n) return '';
   const rows = list => list.length ? `<ul class="blk">${list.slice(0, 5).map(t => `<li><button class="nrow${t.done ? ' done' : ''}" data-task="${esc(t.id)}"><span class="tt">${esc(t.title)}</span></button></li>`).join('')}</ul>` : '';

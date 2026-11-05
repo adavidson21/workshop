@@ -8,6 +8,7 @@
    saves. main.js puts the card under the greeting and repaints it when anything changes. */
 import { esc } from './view.js';
 import { SITE } from '../../../shared/site.js';
+import { readCards } from '../../../shared/summary.js';
 
 export const SETUP_VERSION = 1;
 
@@ -35,6 +36,14 @@ const count = env => (env && Array.isArray(env.items) ? env.items.length : 0);
 /** Active reports and manager in Settings' people directory (docs/people.md): the people Rapport works with. */
 export const teamCount = env => (env && Array.isArray(env.items) ? env.items.filter(p => p && !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
 
+/** Receipts logged: Rapport's summary (docs/summaries.md, the `entries` count card), else its entries collection
+    (a Rapport that writes no summary yet; removed after one release). */
+export function receiptsCount(summaryEnv, entriesEnv) {
+  const cards = readCards(summaryEnv, 'receipts');
+  const c = cards && cards.get('entries');
+  return c && c.kind === 'count' && Number.isInteger(c.count) ? c.count : count(entriesEnv);
+}
+
 /** Whether a data folder is inside OneDrive (any OneDrive: "OneDrive - Company" on Windows, OneDrive-Company on a Mac). */
 export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(String(dir || ''));
 
@@ -45,7 +54,8 @@ export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(St
 export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
-  const [receipts, people, list, cfg, adoCfg] = await Promise.all([
+  const [summary, receipts, people, list, cfg, adoCfg] = await Promise.all([
+    quiet(ws.data.get('summary', { app: 'receipts' })),
     quiet(ws.data.get('entries', { app: 'receipts' })),
     quiet(ws.data.get('people', { app: 'settings' })),
     agent ? quiet(ws.connectors.list()) : null,
@@ -58,7 +68,7 @@ export async function factsFor(ws) {
     connected: agent,
     mode: ws.mode,
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
-    receipts: count(receipts),
+    receipts: receiptsCount(summary, receipts),
     team: teamCount(people),
     dataDir: cfg && typeof cfg.dataDir === 'string' ? cfg.dataDir : null,
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,

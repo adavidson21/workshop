@@ -20,7 +20,7 @@
    connector). On a hosted page it cannot (connector settings are local only, docs/security.md), so a click shows
    why under the input for a few seconds. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
-import { describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
+import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, toProposal } from './hub-model.js';
 
 const OC = 'opencode';
@@ -29,7 +29,6 @@ const AI_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="tr
 const POLL_MS = 1500;
 const GIVE_UP_MS = 10 * 60 * 1000;
 const KEEP_CARDS = 12;
-const APP_NAMES = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', settings: 'Settings', home: 'Home' };
 
 export function startHub(ws, root) {
   const store = createCaptureStore(ws, { sender: 'agents' });
@@ -74,8 +73,9 @@ export function startHub(ws, root) {
   }
   async function readContext() {
     const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
-    const [people, lists, queue] = await Promise.all([get('people', 'settings'), get('lists', 'prioritizer'), get('settings', 'queue')]);
-    src = { people, lists, queue };
+    const [people, summary, teams, lists, queue] = await Promise.all([get('people', 'settings'), get('summary', 'prioritizer'), get('teams', 'settings'),
+      get('lists', 'prioritizer'), get('settings', 'queue')]);
+    src = { people, summary, teams, lists, queue };
   }
   const rulesCtx = () => {
     const c = hubContext(src), d = new Date();
@@ -204,7 +204,7 @@ export function startHub(ws, root) {
       if (card.state === 'done') body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
       if (card.state === 'noanswer') body += '<p class="hub-meta">The hub ended without an answer. Check its session below, or ask again.</p>';
     }
-    if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(APP_NAMES[route.go.app] || route.go.app)}.</p>`;
+    if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
     if (route && route.intent === 'act') {
       body += actAllowed(route.act)
         ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-act ${card.acted ? 'disabled' : ''}>${esc(route.act.label)}</button></p>`
@@ -306,6 +306,8 @@ export function startHub(ws, root) {
   ws.data.subscribe('people', readContext, { app: 'settings' });
   ws.data.subscribe('lists', readContext, { app: 'prioritizer' });
   ws.data.subscribe('settings', readContext, { app: 'queue' });
+  ws.data.subscribe('summary', readContext, { app: 'prioritizer' });
+  ws.data.subscribe('teams', readContext, { app: 'settings' });
   if (ws.backend === 'agent') { ws.connectors.onStatus(OC, check); ws.on('online', p => { if (p && p.online) check(); }); }
   store.load().catch(() => {});
   check();

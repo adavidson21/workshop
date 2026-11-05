@@ -187,3 +187,28 @@ test('accepted captures from Home and Dispatch are added with no click, once', (
   assert.deepEqual(R.acceptedOffers('agents', env, [], ['p_one'], [e.id]), [], 'already an entry, or deleted');
   assert.equal(R.acceptedOffers('agents', env, [], [])[0].about, 'me', 'an unknown person is you');
 });
+
+test('sendersFrom: manifests add to the built-in senders, and the retired 1:1s app is always read', () => {
+  const apps = [{ id: 'home', name: 'Home', handoffs: { sends: ['receipts', 'notes'] } }, { id: 'newapp', name: 'New app', handoffs: { sends: ['receipts'] } }, { id: 'receipts', name: 'Rapport', handoffs: { sends: ['receipts'] } }];
+  const s = R.sendersFrom(apps);
+  assert.equal(s.newapp, 'New app');
+  assert.equal(s.home, 'Home');
+  assert.equal(s.oneonones, '1:1s');
+  assert.equal(s.receipts, undefined, 'never itself');
+  assert.deepEqual(R.sendersFrom([]), R.SENDERS);
+});
+
+test('summaryCards: the receipts count for Home (Workshop docs/summaries.md)', () => {
+  assert.deepEqual(R.summaryCards({ items: [{ id: 'a' }, { id: 'b' }] }), [{ id: 'entries', kind: 'count', title: 'Receipts', count: 2, route: 'me' }]);
+  assert.equal(R.summaryCards(null)[0].count, 0);
+});
+
+test('summaryCards match the summary-card schema', async () => {
+  // The validator and schemas: copied into test/workshop/ in the receipts repo, at home in workshop (this test
+  // runs in both, since Workshop keeps a copy of this app).
+  const { existsSync } = await import('node:fs');
+  const here = existsSync(new URL('../../../test/workshop/schema.mjs', import.meta.url));
+  const { SchemaSet } = await import(here ? '../../../test/workshop/schema.mjs' : '../../../tests/lib/schema.mjs');
+  const schemas = SchemaSet.fromDir(new URL(here ? '../../../test/workshop/schemas/' : '../../../docs/schemas/', import.meta.url).pathname);
+  for (const c of R.summaryCards({ items: [{ id: 'a' }] })) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), []);
+});

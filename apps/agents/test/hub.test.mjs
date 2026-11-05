@@ -55,6 +55,12 @@ test('hubContext: names only, archived and unknown versions left out', () => {
   assert.deepEqual(hubContext({ people, lists, queue }), { people: [{ id: 'p_1', name: 'Person One', relation: 'report', team: true }], lists: ['Inbox'], areas: ['Project\\Team'] });
   assert.deepEqual(hubContext({ people: { ...people, version: 9 } }).people, []);
   assert.deepEqual(hubContext(), { people: [], lists: [], areas: [] });
+  // Docket's summary and Settings' teams come first (docs/summaries.md, docs/teams.md).
+  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'lists', kind: 'targets', capture: 'task', title: 'Lists', updatedAt: 1, rows: [{ id: 'l1', title: 'This sprint' }] }] };
+  const teams = { schema: 'settings.teams', version: 1, rev: 1, items: [{ id: 't_mine', name: 'Mine', areas: ['Project\\Mine'], updatedAt: 1 }] };
+  const c = hubContext({ people, lists, queue, summary, teams });
+  assert.deepEqual(c.lists, ['This sprint']);
+  assert.deepEqual(c.areas, ['Project\\Mine']);
 });
 
 test('answerHtml escapes everything and links only http(s)', () => {

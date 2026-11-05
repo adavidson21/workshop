@@ -167,3 +167,21 @@ test('the old 1:1s app: envelopes get the new schema and rev 0; note paths move 
   assert.equal(M.legacyNotePath('other/p-abc1/2026-11-03.md'), '');
   assert.equal(M.legacyNotePath('notes/../x/2026-11-03.md'), '');
 });
+
+test('Docket through its summary: names, sections and state; the raw collections only as the fallback', async () => {
+  const M = await import('../js/oneonones/model.js');
+  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'people', kind: 'people', updatedAt: 1, rows: [
+    { name: 'Person One', open: [{ id: 't1', title: 'Write the guide', due: '2026-11-06', nudgeOn: '' }], waiting: [{ id: 't2', title: 'Review', due: '', nudgeOn: '2026-11-03' }] },
+    { name: 'person one', open: [], waiting: [] },
+    { name: 'Person Two', open: [], waiting: [] }
+  ] }] };
+  assert.deepEqual(M.docketNames(null, summary), ['Person One', 'Person Two']);
+  assert.equal(M.docketState(summary, null), 'ok');
+  assert.equal(M.docketState(null, null), 'missing');
+  const s = M.docketSection(null, 'PERSON ONE', '2026-11-04', summary);
+  assert.deepEqual(s.open.map(t => t.id), ['t1']);
+  assert.deepEqual(s.nudges.map(t => t.id), ['t2']);
+  assert.deepEqual(M.docketSection(null, 'Nobody', '2026-11-04', summary), { state: 'ok', open: [], waiting: [], nudges: [] });
+  const raw = { schema: 'prioritizer.tasks', version: 3, rev: 1, items: [{ id: 'r1', title: 'Raw task', people: ['Person One'] }] };
+  assert.deepEqual(M.docketSection(raw, 'Person One', '2026-11-04', null).open.map(t => t.id), ['r1'], 'no summary: the tasks collection');
+});

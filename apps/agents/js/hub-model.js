@@ -5,6 +5,7 @@
    acted on. toProposal turns a route proposal into the capture shape shared/capture.js uses, so the review list
    and toHandoff work the same as Home's quick capture. answerHtml renders answer.md as escaped text with code,
    bold, lists and http(s) links only. */
+import { readCards, targetsFor } from '../../../shared/summary.js';
 
 export const TARGETS = ['prioritizer', 'receipts', 'notes'];
 export const PAYLOAD_KINDS = ['task', 'win', 'feedback', 'growth', 'concern', 'note'];
@@ -69,12 +70,19 @@ export function toProposal(p) {
 export const LOW = 0.5;
 export const isLow = p => typeof p.confidence === 'number' && p.confidence < LOW;
 
-/* What to send with a message (docs/hub.md, request.md): names only. people: directory envelope; lists: Docket's
-   lists envelope; queue: Queue's settings envelope. Each optional. */
-export function hubContext({ people, lists, queue } = {}) {
+/* What to send with a message (docs/hub.md, request.md): names only. people: directory envelope; summary: Docket's
+   summary envelope (its `lists` targets, docs/summaries.md); teams: Settings' teams envelope (docs/teams.md).
+   lists (Docket's lists envelope) and queue (Queue's old settings) are the fallbacks for one release. Each optional. */
+export function hubContext({ people, summary, teams, lists, queue } = {}) {
   const ppl = people && people.schema === 'settings.people' && people.version === 1 ? people.items || [] : [];
-  const ls = lists && lists.schema === 'prioritizer.lists' && Array.isArray(lists.items) ? lists.items : [];
-  const areas = queue && queue.schema === 'queue.settings' && queue.meta && Array.isArray(queue.meta.areas) ? queue.meta.areas : [];
+  const cards = readCards(summary, 'prioritizer');
+  const targets = cards && targetsFor([cards], 'task');
+  const ls = targets ? targets.map(r => ({ name: r.title }))
+    : lists && lists.schema === 'prioritizer.lists' && Array.isArray(lists.items) ? lists.items : [];
+  const team = teams && teams.schema === 'settings.teams' && teams.version === 1 && Array.isArray(teams.items)
+    ? teams.items.find(t => t && Array.isArray(t.areas) && t.areas.length) : null;
+  const areas = team ? team.areas
+    : queue && queue.schema === 'queue.settings' && queue.meta && Array.isArray(queue.meta.areas) ? queue.meta.areas : [];
   return {
     people: ppl.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name && !p.archived).slice(0, 200)
       .map(p => ({ id: p.id.slice(0, 110), name: p.name.slice(0, 200), ...(['self', 'report', 'manager', 'peer'].includes(p.relation) ? { relation: p.relation } : {}),

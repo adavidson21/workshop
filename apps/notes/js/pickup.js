@@ -14,6 +14,12 @@
 import { freePath, newNoteText, slugify } from './model.js';
 
 export const SENDERS = { home: 'Home', agents: 'Dispatch' };
+/* Who sends Notes captures, from the manifests on this site (ws.apps.list(); docs/handoffs.md, Senders): every app
+   whose handoffs.sends lists notes, added to the built-in list. Reading an app that is not there finds nothing. */
+export function sendersFrom(apps, self = 'notes', fallback = SENDERS) {
+  const found = (Array.isArray(apps) ? apps : []).filter(a => a && a.id !== self && a.handoffs && Array.isArray(a.handoffs.sends) && a.handoffs.sends.includes(self));
+  return { ...fallback, ...Object.fromEntries(found.map(a => [a.id, a.name || a.id])) };
+}
 export const INBOX = 'inbox';
 export const QUICK = 'quick-notes.md';
 export const QUICK_TITLE = 'Quick Notes';

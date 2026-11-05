@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Connectors, people, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -12,10 +12,22 @@
     "hosted",
     "browser"
   ],
+  "aliases": [
+    "settings",
+    "people",
+    {
+      "name": "teams",
+      "path": "people"
+    }
+  ],
   "files": [
-    "settings.css",
-    "js/settings.js",
     "js/forms.js",
-    "js/people.js"
+    "js/people.js",
+    "js/settings.js",
+    "js/teams.js",
+    "settings.css"
+  ],
+  "data": [
+    "teams"
   ]
 }
