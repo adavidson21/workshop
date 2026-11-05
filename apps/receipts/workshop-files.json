@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "80ad5af33e85399967b038114d6b8818b943287b",
+  "commit": "38642f659328affe6f5568579fd0bdcecfd5667d",
   "files": {
     "shared/device-fs.js": "shared/device-fs.js",
     "shared/fonts/OFL-Inter.txt": "shared/fonts/OFL-Inter.txt",
@@ -25,7 +25,7 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "1.0.0",
+  "bundle": "1.0.1",
   "sha256": {
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/OFL-Inter.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
