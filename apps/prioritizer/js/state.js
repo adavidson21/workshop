@@ -8,11 +8,12 @@ import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
 import { cleanCrumbs } from './focus-model.js';
 import { isRef } from '../shared/people.js';
+import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers()}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -55,7 +56,8 @@ function cleanAdo(a){
   if (a.pasted === true) o.pasted = true;   // pasted into Docket (js/paste.js), not from a sync: syncs leave it alone until ADO lists it as yours
   return o;
 }
-// PR review link on a task: {key, id, repo, project, url, author, tier, via, waiting, lastBlocker, gone}.
+// PR review link on a task: {key, id, repo, project, url, author, tier, via, waiting, lastBlocker, gone, commit, ai}.
+// ai is Tandem's first-pass review (js/pr-ai-model.js); commit is the PR's source commit when the sync gives it.
 // key is "<collection url>|<project>|<PR id>" so PRs from two collections never collide.
 const PR_GONES = ['reviewed','covered','merged','abandoned','unassigned','draft','own','missing'];
 function cleanPr(a){
@@ -67,6 +69,8 @@ function cleanPr(a){
     author: str(a.author), tier: ['blocking','asked','pool'].includes(a.tier) ? a.tier : 'pool',
     via: Array.isArray(a.via) ? a.via.filter(v => typeof v === 'string').slice(0, 10) : [], waiting: a.waiting === true, lastBlocker: a.lastBlocker === true};
   if (PR_GONES.includes(a.gone)) o.gone = a.gone;
+  if (typeof a.commit === 'string' && /^[0-9a-f]{7,40}$/i.test(a.commit)) o.commit = a.commit.toLowerCase();
+  const ai = cleanAi(a.ai); if (ai) o.ai = ai;
   return o;
 }
 // A new work item waiting for you to add or skip it.
@@ -125,6 +129,8 @@ function sanitize(s){
   s.ado.prTiers = cleanTiers(s.ado.prTiers);
   s.ado.pending = Array.isArray(s.ado.pending) ? s.ado.pending.map(cleanPending).filter(Boolean).slice(0, 300) : [];
   if (s.ado.prListId && !ids.has(s.ado.prListId)) delete s.ado.prListId;
+  s.ado.prHeld = cleanHeld(s.ado.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
+  s.ado.prHoldMinutes = cleanHoldMinutes(s.ado.prHoldMinutes);
   normalizeRanks(s);
   return s;
 }

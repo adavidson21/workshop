@@ -2,6 +2,7 @@ import { PR_TIER, prTip } from './ado.js';
 import { ICON, LENSES, NAV, NAV_OF, POINTS, TOUCH, VIEWS, initials, listColor } from './constants.js';
 import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
+import { prAiChip } from './pr-ai.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
 import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
@@ -148,6 +149,7 @@ function row(t, o = {}){
       if (t.pr.tier === 'blocking') meta += sig(ICON.block, tip, 'warn');
       else if (t.pr.tier === 'asked') meta += sig(ICON.eye, tip, 'acc');
     }
+    meta += prAiChip(t);
   }
   if (!t.done){
     if (nudgeDue(t)) meta += sig(ICON.bell, `Time to nudge. Follow-up date ${fmtLong(t.nudgeOn)}`, 'acc');
@@ -170,7 +172,7 @@ function row(t, o = {}){
     : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in Triage." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
   const act = !t.done && isActive(t.id), crumb = o.crumb ? rowCrumb(t) : '';
-  return `<article class="row${t.done ? ' done' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
+  return `<article class="row${t.done ? ' done' : ''}${!t.done && t.pr && t.pr.ai && t.pr.ai.state === 'pending' ? ' aipend' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
     + (o.rank != null ? `<span class="rank">${o.rank}</span>` : '')
     + `<button class="check" data-act="done" aria-label="${t.done ? 'Reopen' : 'Complete'}" title="${t.done ? 'Reopen' : 'Complete'}"><i>${ICON.check}</i></button>`
     // On Today, where you left off sits under the title, so the morning starts where yesterday stopped.

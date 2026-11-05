@@ -185,6 +185,16 @@ A Blocking PR where every other required reviewer has already approved shows **L
 - If a PR moves between tiers (for example, someone adds you as required), value and urgent follow unless you've changed them.
 - Drafts and your own PRs are skipped. Deleting a PR task keeps it from coming back.
 
+### Tandem reviews PRs first
+
+With Workshop's opencode connector on and its **Review new PRs as soon as they are found** setting on (Workshop Settings, opencode, PR reviews; on by default), every sync hands the PRs waiting on you to Tandem, which runs a first-pass `/pr-review` on the new ones and on PRs with a new commit. Drafts only: nothing is posted, voted or changed in ADO.
+
+- **Blocking** PRs become tasks right away with an **AI reviewing** chip (the row is dimmed a little).
+- **Asked** and **Team** PRs wait until their review ends, then show up already reviewed. They also show up when Tandem stops to ask something, when the review fails, or after the hold limit (60 minutes by default, set in ADO Settings).
+- The chip then shows the recommendation (**AI: Approve**, **AI: Changes**, **AI: Questions**), in the warning look for high risk or blocking comments. Hover for the risk and draft comment counts; click it, or **Open in Dispatch** in the drawer, to read the drafts. A failed or late review has **Review again**.
+- A new push starts the review over on the same task.
+- Connector off or not ready, opencode not connected, or the setting off: PRs land as they always did, and held ones land at once.
+
 **Setup:** run `py ado_helper.py --add-pr-source` and enter each collection URL and project to watch, optionally limited to some repos. This can be a different collection than your work items, and you can add more than one. Your PAT also needs **Code (Read)**, plus **Project and Team (Read)** for team PRs. `py ado_helper.py --test` lists the PRs it finds by tier and says which scope is missing if one is. In `ado-helper.json`, `pr_teams` limits which of your teams count (empty means all of them).
 
 ## Reports
@@ -219,6 +229,7 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `excel.js` | Excel export and import |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
 | `ado.js`, `eng.js` | ADO sync; eng-agents stages |
+| `pr-ai.js`, `pr-ai-model.js` | Tandem's first-pass PR reviews: held PRs, chips, drawer (the model is pure functions) |
 | `dayplan-model.js`, `dayplan-format.js` | The Day view's model: sprint math, templates, every change to a day, undo; and how it is stored (pure, tested in `test/dayplan.test.mjs`) |
 | `onboarding.js` | The first-run tour |
 | `focus-model.js`, `focus-format.js` | Focus: the active task, the day's activity log, breadcrumbs and switch counts; and how the log is stored (pure, tested in `test/focus.test.mjs`) |

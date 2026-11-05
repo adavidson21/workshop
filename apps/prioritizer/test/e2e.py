@@ -243,6 +243,39 @@ def main():
         check('the task keeps the ADO link', t and t.get('ado', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['ado']['type'] == 'Issue' and t['ado']['pasted'] is True)
         check('its row has a link that opens the item in ADO', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado[href*="_workitems/edit/12345"][target=_blank]').count() == 1)
         check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.ado && t.ado.id === 12345).done; }}"""))
+        # ---------- Tandem's first-pass PR reviews (js/pr-ai.js, js/pr-ai-model.js) ----------
+        pr = lambda i, tier, c: "{key: 'c|P|%d', id: %d, title: 'Change %d', repo: 'api', project: 'P', url: 'https://ado.example.test/c/P/_git/api/pullrequest/%d', author: 'Dev One', tier: '%s', via: [], commit: '%s'}" % (i, i, i, i, tier, c)
+        r = pg.evaluate(f"""() => {{ const P = {P}; const n = P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'aaaaaaa1')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
+          P.state.scope = 'all'; P.state.view = 'prioritize'; P.state.lens = 'rank'; P.commit();
+          return [n.prAdded, n.prHeld, P.state.ado.prHeld.map(h => h.item.id), P.state.tasks.filter(t => t.pr && t.pr.id > 700).map(t => [t.pr.id, t.pr.ai && t.pr.ai.state])]; }}""")
+        check('with Tandem on, a blocking PR lands at once as being reviewed; asked and team PRs are held', r == [1, 2, [702, 704], [[701, 'pending']]])
+        pg.wait_for_timeout(300)
+        id701 = pg.evaluate(f"() => {P}.state.tasks.find(t => t.pr && t.pr.id === 701).id")
+        check('its row shows the reviewing chip and is dimmed', pg.locator(f'main .row.aipend[data-id="{id701}"] .chip.ai').count() == 1 and 'AI reviewing' in pg.locator(f'main .row[data-id="{id701}"] .chip.ai').text_content())
+        r = pg.evaluate(f"""() => {{ const P = {P}, M = P.prAiModel;
+          const st = new Map([['701', {{id: '701', state: 'done', recommendation: 'Request changes', risk: 'high', counts: {{blocking: 1, shouldFix: 0, optional: 0}}}}],
+            ['702', {{id: '702', state: 'done', recommendation: 'Approve', risk: 'low', counts: {{blocking: 0, shouldFix: 0, optional: 1}}}}], ['704', {{id: '704', state: 'running'}}]]);
+          const out = M.applyStatuses({{tasks: P.state.tasks, held: P.state.ado.prHeld, statuses: st, now: new Date(), holdMs: 3600000}});
+          P.state.ado.prHeld = out.held; P.prRelease(out.release); P.commit();
+          const t = P.state.tasks.find(x => x.pr && x.pr.id === 702);
+          return [P.state.ado.prHeld.map(h => h.item.id), t && t.title, t && t.pr.ai.state, t && t.pr.ai.rec, t && t.value]; }}""")
+        check('a held PR lands once its review is done, already reviewed, with its tier value', r == [[704], 'Review: Change 702', 'done', 'Approve', 2])
+        pg.wait_for_timeout(300)
+        chip = pg.locator(f'main .row[data-id="{id701}"] .chip.ai')
+        check('a reviewed PR shows the recommendation, in the warning look for high risk', chip.count() == 1 and chip.text_content() == 'AI: Changes' and 'warn' in chip.get_attribute('class') and pg.locator(f'main .row.aipend[data-id="{id701}"]').count() == 0)
+        pg.evaluate(f"id => {P}.openDrawer(id)", id701); pg.wait_for_timeout(200)
+        check('the drawer says what Tandem found and opens it in Dispatch', 'Request changes, high risk. 1 blocking draft comments.' in pg.inner_text('.deng.prai') and pg.locator('.deng.prai [data-d=prai-open]').count() == 1)
+        pg.keyboard.press('Escape')
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
+          const s = id => P.state.tasks.find(t => t.pr && t.pr.id === id).pr.ai.state; return [s(701), s(702)]; }}""")
+        check('a new commit starts the review over; an unchanged PR keeps its result', r == ['pending', 'done'])
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}, {pr(705, 'pool', 'fffffff6')}]}}}}, {{ai: false}});
+          const t = id => P.state.tasks.find(x => x.pr && x.pr.id === id); return [P.state.ado.prHeld.length, !!t(704), !!t(705), !!(t(705) && t(705).pr.ai), !!t(701).pr.ai]; }}""")
+        check('with Tandem off, held and new PRs land as before and reviewing chips go away', r == [0, True, True, False, False])
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(706, 'pool', 'abcdef77')}]}}}}, {{ai: true}});
+          const held = P.state.ado.prHeld.length; P.adoApply({{items: [], prs: {{items: []}}}}, {{ai: true}}); return [held, P.state.ado.prHeld.length, P.state.tasks.some(t => t.pr && t.pr.id === 706)]; }}""")
+        check('a held PR that drops off ADO never becomes a task', r == [1, 0, False])
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.pr && t.pr.id > 700)); P.state.ado.prHeld = []; P.commit(); }}")
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.ado && t.ado.id === 12345)); P.state.view = 'day'; P.commit(); }}")
         # ---------- every-sprint offers from another app (Workshop docs/handoffs.md): inside Workshop only ----------
         # A sender (app id example-app) writes an offer to its own handoffs collection, in this browser's storage.

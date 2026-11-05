@@ -7,8 +7,10 @@ import { commit, state, setState, sanitize, migrateTask, triageQueue, ui } from 
 import { parseQuick } from './quick-add.js';
 import { render, capacityCut, setView } from './render.js';
 import { buildWorkbook, exportXlsx, parseWorkbook, doImport } from './excel.js';
-import { adoApply, adoDetect, adoInit, adoPick, adoReview, adoSync, adoSchedule, setAdo } from './ado.js';
+import { adoApply, adoDetect, adoInit, adoPick, adoReview, adoSync, adoSchedule, prRelease, setAdo } from './ado.js';
 import { eng, engCheck, engSchedule } from './eng.js';
+import { prAiInit, prAiRefresh } from './pr-ai.js';
+import * as prAiModel from './pr-ai-model.js';
 import { applySide } from './events.js';
 import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
@@ -77,7 +79,7 @@ window.__prioritizer = {
   adoApply, adoPick, adoReview, adoSync, ui, sanitize, migrateTask, urgency, score, tier, isStale,
   eKey, vKey, parseQuick, capacityCut, buildWorkbook,
   parseWorkbook, doImport, render, commit, triageQueue,
-  engCheck, get eng(){ return eng; }, exportXlsx, downloadBackup, importFile,
+  engCheck, get eng(){ return eng; }, prAiRefresh, prAiModel, prRelease, exportXlsx, downloadBackup, importFile,
   // Resolves after pending saves and updates from other windows have run.
   saved: () => Promise.all([store ? store.idle() : null, dstore ? dstore.idle() : null, fstore ? fstore.idle() : null]), get store(){ return store; },
   get dp(){ return dp; }, recurTick, openTour, get dstore(){ return dstore; }, dayModel, offers, watchSender,
@@ -93,4 +95,4 @@ render();
 startDirectory();
 maybeOnboard();
 setAdo(); adoSchedule(); adoDetect().then(() => adoSync(false));
-engSchedule(); engCheck();
+engSchedule(); engCheck(); prAiInit();

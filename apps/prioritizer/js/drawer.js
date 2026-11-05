@@ -2,6 +2,7 @@ import { deleteTask, moveTask, toggleDone, toggleFocus, wontDo } from './actions
 import { ADO_GONE, PR_GONE, PR_TIER } from './ado.js';
 import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
+import { prAiAgain, prAiDrawer, prAiOpen } from './pr-ai.js';
 import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
 import { app, drawer, main, render, sel, setSel } from './render.js';
 import { commit, findTask, isWaiting, orderedLists, save, scopeOpen } from './state.js';
@@ -77,6 +78,7 @@ function renderDrawer(){
       ${t.ado ? `<div class="dado"><a href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.ado.type || 'item')} #${t.ado.id} in ADO</a><span>${esc(t.ado.state)}${t.ado.project ? ' · ' + esc(t.ado.project) : ''}</span>${t.ado.gone ? `<span class="chip">${ADO_GONE[t.ado.gone]}</span>` : ''}</div>` : ''}
       ${t.ado ? engDrawer(t) : ''}
       ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR ${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
+      ${t.pr ? prAiDrawer(t) : ''}
       ${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
@@ -168,6 +170,8 @@ drawer.addEventListener('click', e => {
   if (a === 'done') return toggleDone(t.id);
   if (a === 'eng-open') return engOpen(t.ado.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
+  if (a === 'prai-open') return prAiOpen(t);
+  if (a === 'prai-again') return prAiAgain(t, b);
   if (focusDrawerClick(t, a)) return;
   if (planFieldClick(t, a)) return renderDrawer();
   if (repeatFieldClick(t, a)) return;

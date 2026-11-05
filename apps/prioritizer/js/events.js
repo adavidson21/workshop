@@ -5,10 +5,11 @@ import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
 import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
+import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
-import { commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
+import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
@@ -79,6 +80,7 @@ document.addEventListener('click', e => {
   const fb = t.closest('[data-act="today"]'); if (fb){ toggleFocus(fb.closest('[data-id]').dataset.id); return; }
   const su = t.closest('[data-act="still"]'); if (su){ downgradeUrgent(su.closest('[data-id]').dataset.id); return; }
   const ec = t.closest('[data-act="eng"]'); if (ec){ engOpen(ec.dataset.ado); return; }
+  const pa = t.closest('[data-act="prai"]'); if (pa){ const x = findTask(pa.closest('[data-id]').dataset.id); if (x && x.pr) prAiOpen(x); return; }
   const lo = t.closest('[data-left]');
   if (lo){
     const t0 = todayStr();

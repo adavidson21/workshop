@@ -8,6 +8,8 @@ import { PR_GONES, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById,
 import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
 import { ready } from './ws.js';
 import { assign } from './directory.js';
+import { PR_HOLD_MAX, PR_HOLD_MIN, commitOf, holdsNew } from './pr-ai-model.js';
+import { prAiActive, prAiAfterSync, prAiOnSync } from './pr-ai.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector or the local helper (ado-helper/ado_helper.py). */
 /* ---------- Azure DevOps ----------
    Where the data comes from: the ADO connector, when this page runs on Workshop's agent and the connector is
@@ -100,8 +102,8 @@ function adoReview(){
 function adoNote(t, line){ t.notes = (t.notes ? t.notes + '\n' : '') + line; }
 
 // Pure merge of a helper response into state; returns counts. Exposed on the test hook.
-function adoApply(res){
-  const n = {added: 0, updated: 0, closed: 0, removed: 0, reopened: 0, pending: 0, pendingChanged: false, prAdded: 0, prBlocking: 0, prBack: 0, prDone: 0};
+function adoApply(res, opts = {}){
+  const n = {added: 0, updated: 0, closed: 0, removed: 0, reopened: 0, pending: 0, pendingChanged: false, prAdded: 0, prBlocking: 0, prBack: 0, prDone: 0, prHeld: 0, heldChanged: false};
   const byId = new Map(state.tasks.filter(t => t.ado).map(t => [t.ado.id, t]));
   const skip = new Set(state.ado.skip);
   let maxRank = state.tasks.reduce((m, t) => Math.max(m, t.rank), 0);
@@ -133,7 +135,7 @@ function adoApply(res){
     if (before !== JSON.stringify([t.title, t.ado, t.due, t.done])) n.updated++;
   }
   if (Array.isArray(res.items)){ if (pending.length !== oldPending.size || pending.some(p => !oldPending.has(p.id))) n.pendingChanged = true; state.ado.pending = pending; }
-  if (res.prs) prApply(res.prs, n);
+  if (res.prs) prApply(res.prs, n, opts);
   for (const g of res.gone || []){
     const t = byId.get(g.id); if (!t || t.ado.pasted) continue;
     if (g.state) t.ado.state = g.state;
@@ -151,24 +153,41 @@ function adoApply(res){
 }
 
 // PRs: tier sets a starting value and urgent flag; later tier changes follow only if you haven't changed them here.
-function prApply(prs, n){
+// With Tandem's first-pass reviews on (opts.ai, js/pr-ai.js), asked and team-only PRs wait in state.ado.prHeld
+// until their review ends, and blocking ones land at once marked as being reviewed.
+function prNewTask(it, link, rank, ai){
+  const tier = tierOf(link.tier);
+  const nt = {id: uid(), title: `Review: ${it.title || 'PR ' + link.id}`, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank,
+    value: tier.value, effort: 'S', due: null, urgentFlag: tier.urgent, listId: prList().id,
+    done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: isDate(it.created) ? it.created : todayStr(),
+    waiting: link.waiting, nudgeOn: null, focusOn: null, who: []};
+  if (link.waiting && link.author) assign(nt, [link.author], {ado: true});
+  if (ai) link.ai = ai;
+  nt.pr = link;
+  state.tasks.push(nt);
+  return nt;
+}
+function prApply(prs, n, opts = {}){
+  const aiOn = !!opts.ai, now = new Date();
   const byKey = new Map(state.tasks.filter(t => t.pr).map(t => [t.pr.key, t]));
   const skip = new Set(state.ado.skipPr);
+  const heldBy = new Map(state.ado.prHeld.map(h => [h.key, h])), held = [];
   const on = fmtLong(todayStr());
   let maxRank = state.tasks.reduce((m, t) => Math.max(m, t.rank), 0);
   for (const it of prs.items || []){
-    const link = cleanPr(it); if (!link) continue;
+    const link = cleanPr({...it, commit: commitOf(it) || undefined}); if (!link) continue;
     const tier = tierOf(link.tier), title = `Review: ${it.title || 'PR ' + link.id}`;
     const t = byKey.get(link.key);
     if (!t){
       if (skip.has(link.key)) continue;
-      const nt = {id: uid(), title, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank: ++maxRank,
-        value: tier.value, effort: 'S', due: null, urgentFlag: tier.urgent, listId: prList().id,
-        done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: isDate(it.created) ? it.created : todayStr(),
-        waiting: link.waiting, nudgeOn: null, focusOn: null, who: []};
-      if (link.waiting && link.author) assign(nt, [link.author], {ado: true});
-      nt.pr = link;
-      state.tasks.push(nt); n.added++; n.prAdded++; if (link.tier === 'blocking' && !link.waiting) n.prBlocking++;
+      const h = heldBy.get(link.key);
+      if (holdsNew(aiOn, link)){                     // waits for Tandem's review (js/pr-ai.js lets it go)
+        held.push({key: link.key, since: h ? h.since : now.toISOString(), item: {...it, key: link.key}});
+        if (!h) n.prHeld++;
+        continue;
+      }
+      prNewTask(it, link, ++maxRank, aiOn && !link.waiting ? {state: 'pending', at: now.toISOString()} : null);
+      n.added++; n.prAdded++; if (link.tier === 'blocking' && !link.waiting) n.prBlocking++;
       continue;
     }
     const before = JSON.stringify([t.title, t.pr, t.value, t.urgentFlag, t.waiting, t.done]);
@@ -191,18 +210,41 @@ function prApply(prs, n){
       t.waiting = false; t.nudgeOn = null;
       adoNote(t, `Back to you for review on ${on}.`); n.prBack++;
     }
+    // Tandem's review: kept across syncs; a new commit starts it over (the connector queues it again).
+    if (t.pr.ai) link.ai = t.pr.ai;
+    // An open PR task with no review yet (from before Tandem was on) gets one too.
+    if (aiOn && !link.waiting && !t.done && (!t.pr.ai || (link.commit && t.pr.commit && link.commit !== t.pr.commit)))
+      link.ai = {state: 'pending', at: now.toISOString()};
+    else if (!aiOn && link.ai && link.ai.state === 'pending') delete link.ai;
     t.title = title;
     t.pr = link;
     if (before !== JSON.stringify([t.title, t.pr, t.value, t.urgentFlag, t.waiting, t.done])) n.updated++;
   }
+  // Held PRs no longer waiting on you (merged, abandoned, you voted, a teammate covered it) just drop off.
+  if (held.length !== state.ado.prHeld.length || held.some((h, i) => h.key !== state.ado.prHeld[i].key)) n.heldChanged = true;
+  state.ado.prHeld = held;
   for (const g of prs.gone || []){
     const t = byKey.get(g.key); if (!t) continue;
     t.pr.gone = PR_GONES.includes(g.reason) ? g.reason : 'missing';
     if (t.done) continue;
     t.done = true; t.doneAt = todayStr(); t.waiting = false; t.nudgeOn = null; n.prDone++;
     if (['unassigned', 'draft', 'own', 'missing'].includes(t.pr.gone)) t.wontDo = true;
+    if (t.pr.ai && t.pr.ai.state === 'pending') delete t.pr.ai;
     adoNote(t, `${PR_GONE[t.pr.gone]} on ${on}.`);
   }
+}
+
+/** Held PRs whose review ended (js/pr-ai.js): each becomes a task carrying Tandem's result. */
+function prRelease(list){
+  let maxRank = state.tasks.reduce((m, t) => Math.max(m, t.rank), 0);
+  const made = [];
+  for (const {entry, ai} of list){
+    const link = cleanPr(entry.item); if (!link) continue;
+    if (state.tasks.some(t => t.pr && t.pr.key === link.key)) continue;
+    made.push(prNewTask(entry.item, link, ++maxRank, ai));
+  }
+  if (made.length) normalizeRanks(state);
+  return made;
 }
 
 /* Where ADO data comes from: 'connector' or 'helper'. Decided at start and again when settings change. */
@@ -264,12 +306,14 @@ async function adoSync(manual){
     const known = state.tasks.filter(t => t.ado && !t.ado.pasted && !t.done).map(t => t.ado.id);
     const knownPrs = state.tasks.filter(t => t.pr && !t.done).map(t => t.pr.key);
     const res = await adoCall('sync', {known, knownPrs});
+    const ai = res.prs ? await prAiActive() : false;   // Tandem reviews new PRs first (js/pr-ai.js)
     flushText();
-    const n = adoApply(res);
+    const n = adoApply(res, {ai});
     ui.ado.last = Date.now(); ui.ado.error = res.prError ? `Pull requests: ${res.prError}` : ''; saveUi();
-    const changed = n.added + n.updated + n.closed + n.removed + n.reopened + n.prDone + (n.pendingChanged ? 1 : 0);
+    const changed = n.added + n.updated + n.closed + n.removed + n.reopened + n.prDone + (n.pendingChanged || n.heldChanged ? 1 : 0);
     if (changed){ normalizeRanks(state); commit(); }
-    const bits = [n.prBlocking && `${n.prBlocking} PR${n.prBlocking > 1 ? 's' : ''} blocked on you`, n.prBack && `${n.prBack} PR${n.prBack > 1 ? 's' : ''} back to you`,
+    if (ai) prAiAfterSync(res);
+    const bits = [n.prBlocking && `${n.prBlocking} PR${n.prBlocking > 1 ? 's' : ''} blocked on you`, n.prHeld && `${plural(n.prHeld, 'PR')} with Tandem for a first pass`, n.prBack && `${n.prBack} PR${n.prBack > 1 ? 's' : ''} back to you`,
       n.added && `${n.added} new`, n.closed && `${n.closed} closed`, n.removed && `${n.removed} reassigned or removed`, n.reopened && `${n.reopened} reopened`].filter(Boolean);
     if (n.pending) toast(`ADO: ${plural(n.pending, 'new work item')} to review${bits.length ? ', ' + bits.join(', ') : ''}`, 'Review', adoReview);
     else if (bits.length) toast(`ADO: ${bits.join(', ')}`, n.added ? 'Show' : null, () => setScope(n.prAdded && n.prAdded === n.added ? state.ado.prListId : state.ado.listId));
@@ -319,6 +363,8 @@ async function adoSetup(){
       <label><input type="radio" name="adoChoose" value="0"${state.ado.choose ? '' : ' checked'}> Add them automatically</label></div>
     <div class="fld"><label for="adoEvery">Sync every</label><input type="number" id="adoEvery" class="mono" min="${ADO_SYNC_MIN}" max="${ADO_SYNC_MAX}" value="${state.ado.syncMinutes}"> <span class="hint">minutes</span></div>
     <table class="tiers"><caption>New pull request reviews start at</caption><tbody>${tiers}</tbody></table>
+    ${prAiOnSync() == null ? '' : `<div class="fld"><label for="adoHold">Hold asked and team PRs for Tandem's review up to</label><input type="number" id="adoHold" class="mono" min="${PR_HOLD_MIN}" max="${PR_HOLD_MAX}" value="${state.ado.prHoldMinutes}"> <span class="hint">minutes</span></div>
+    <p class="hint">${prAiOnSync() ? 'Tandem reviews new PRs first: blocking ones show right away, the rest once reviewed. Drafts only, nothing is posted. Turn it off in Workshop <b>Settings</b>, opencode, PR reviews.' : 'Tandem is not reviewing new PRs as they are found. Turn it on in Workshop <b>Settings</b>, opencode, PR reviews.'}</p>`}
     <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${ui.ado.on && ui.ado.error ? esc(ui.ado.error) : viaConnector && (adoNoteNow.error || adoNoteNow.warn) ? esc(adoNoteNow.error || adoNoteNow.warn) : ''}</p>
     <footer>${ui.ado.on ? '<button class="btn text-danger" data-ado-off>Disconnect</button>' : ''}<span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-ado-go>${ui.ado.on ? 'Save' : 'Connect'}</button></footer></div>`,
     sh => sh.addEventListener('click', async e => {
@@ -332,8 +378,10 @@ async function adoSetup(){
       const prTiers = {};
       for (const k of Object.keys(PR_TIER)) prTiers[k] = {value: +sh.querySelector(`[data-tier-value=${k}]`).value, urgent: sh.querySelector(`[data-tier-urgent=${k}]`).checked};
       const choose = sh.querySelector('[name=adoChoose]:checked').value === '1';
-      if (choose !== state.ado.choose || every !== state.ado.syncMinutes || JSON.stringify(prTiers) !== JSON.stringify(state.ado.prTiers)){
-        state.ado.syncMinutes = every; state.ado.prTiers = prTiers;
+      const holdEl = sh.querySelector('#adoHold'), hold = holdEl ? Math.round(+holdEl.value) : state.ado.prHoldMinutes;
+      if (!(hold >= PR_HOLD_MIN && hold <= PR_HOLD_MAX)){ msg.textContent = `Hold PRs ${PR_HOLD_MIN} to ${PR_HOLD_MAX} minutes.`; return; }
+      if (choose !== state.ado.choose || every !== state.ado.syncMinutes || hold !== state.ado.prHoldMinutes || JSON.stringify(prTiers) !== JSON.stringify(state.ado.prTiers)){
+        state.ado.syncMinutes = every; state.ado.prTiers = prTiers; state.ado.prHoldMinutes = hold;
         if (choose !== state.ado.choose){ state.ado.choose = choose; if (!choose){ adoPick(state.ado.pending.map(p => p.id), []); normalizeRanks(state); } }
         commit();
       }
@@ -367,4 +415,4 @@ function onAdoClick(btn){
     });
 }
 
-export { ADO_DOWN, ADO_GONE, PR_GONE, PR_TIER, adoApply, adoCall, adoDetect, adoInit, adoPick, adoReview, adoSchedule, adoSetup, adoShort, adoSync, adoUnreachable, onAdoClick, prTip, setAdo };
+export { ADO_DOWN, ADO_GONE, PR_GONE, PR_TIER, adoApply, prRelease, tierOf, adoCall, adoDetect, adoInit, adoPick, adoReview, adoSchedule, adoSetup, adoShort, adoSync, adoUnreachable, onAdoClick, prTip, setAdo };

@@ -135,6 +135,13 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .chip.eng:hover{background:var(--accent-soft);color:var(--ink)}
 .chip.eng.gate{background:var(--warn-soft);color:var(--warn)}
 .chip.eng .live{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:engpulse 1.4s ease-in-out infinite}
+/* Tandem's first-pass PR review (js/pr-ai.js): muted while reviewing, accent when done, warn on high risk or blocking comments */
+.row.aipend .title{color:var(--muted)}
+.chip.ai{cursor:pointer;border:0;font-family:inherit}
+.chip.ai:hover{background:var(--accent-soft);color:var(--ink)}
+.chip.ai.ok{background:var(--accent-soft);color:var(--ink)}
+.chip.ai.gate{background:var(--warn-soft);color:var(--warn)}
+.chip.ai .live{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:engpulse 1.4s ease-in-out infinite}
 @keyframes engpulse{50%{opacity:.25}}
 .deng{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.1rem 0 .2rem;padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);font-size:.82rem;color:var(--muted)}
 .deng b{color:var(--ink);font-weight:600}
@@ -142,7 +149,7 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .deng .grow{flex:1}
 .deng.col{flex-direction:column;align-items:flex-start}
 .deng .acts{display:flex;gap:.4rem;flex-wrap:wrap}
-@media (prefers-reduced-motion:reduce){.chip.eng .live{animation:none}}
+@media (prefers-reduced-motion:reduce){.chip.eng .live,.chip.ai .live{animation:none}}
 #adoBtn{position:relative}
 #adoBtn[data-pending]::after{content:attr(data-pending);position:absolute;top:-2px;right:-3px;min-width:1rem;height:1rem;padding:0 .2rem;border-radius:999px;background:var(--accent);color:var(--on-accent);font:500 .66rem/1rem var(--mono);text-align:center}
 .pick{list-style:none;margin:.5rem 0 0;padding:0;max-height:50vh;overflow:auto;border-top:1px solid var(--rule);border-bottom:1px solid var(--line)}
