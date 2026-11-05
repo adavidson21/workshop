@@ -1,0 +1,50 @@
+# Release: creates a release tag and GitHub release from the Actions tab.
+# Actions > Release > Run workflow, then enter the tag and the commit (or leave main).
+# Work mode installs and updates only by these tags (Workshop README, Work mode).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v1.0.0"
+        required: true
+      ref:
+        description: "Commit SHA or branch to release (default: main)"
+        required: false
+        default: main
+      notes:
+        description: "Release notes (optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag must look like v1.0.0."
+            exit 1
+          fi
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REF: ${{ inputs.ref }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$REF" --jq .sha)
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists."
+            exit 1
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$sha" --title "$TAG" \
+            --notes "${NOTES:-Release $TAG ($sha).}"
+          echo "Released $TAG at $sha."
