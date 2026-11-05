@@ -1,0 +1,97 @@
+{
+  "manifestVersion": 1,
+  "id": "notes",
+  "name": "Notes",
+  "version": "2.0.0",
+  "description": "Markdown notes: folders, links and backlinks, tags, search, images, templates and a daily note.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 45,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "capture": [
+    "note"
+  ],
+  "routes": [
+    {
+      "path": ":note",
+      "title": "Open a note"
+    },
+    {
+      "path": "today",
+      "title": "Today's note"
+    }
+  ],
+  "commands": [
+    {
+      "id": "new",
+      "title": "New note"
+    },
+    {
+      "id": "search",
+      "title": "Search notes"
+    },
+    {
+      "id": "today",
+      "title": "Open today's note"
+    }
+  ],
+  "handoffs": {
+    "sends": [
+      "prioritizer",
+      "receipts"
+    ]
+  },
+  "data": [
+    "taken",
+    "handoffs",
+    "summary"
+  ],
+  "files": [
+    "notes.css",
+    "js/applinks.js",
+    "js/data.js",
+    "js/export.js",
+    "js/history.js",
+    "js/main.js",
+    "js/markdown.js",
+    "js/model.js",
+    "js/offers.js",
+    "js/pickup.js",
+    "js/summary-cards.js",
+    "js/templates.js",
+    "js/vault.js",
+    "js/view.js",
+    "icons/app-192.png",
+    "icons/app-512.png",
+    "icons/app-maskable-512.png",
+    "icons/app-touch-180.png",
+    "icons/favicon-32.png",
+    "icons/favicon.svg",
+    "shared/app-sw.js",
+    "shared/device-fs.js",
+    "shared/fonts/fonts.css",
+    "shared/fonts/inter-latin-ext-wght-normal.woff2",
+    "shared/fonts/inter-latin-wght-normal.woff2",
+    "shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2",
+    "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
+    "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
+    "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
+    "shared/handoffs.js",
+    "shared/pair.js",
+    "shared/people.js",
+    "shared/save-file.js",
+    "shared/site.js",
+    "shared/standalone-bar.js",
+    "shared/summary.js",
+    "shared/sw-register.js",
+    "shared/teams.js",
+    "shared/theme.js",
+    "shared/themes.css",
+    "shared/ui.css",
+    "shared/workshop-sdk.js"
+  ]
+}

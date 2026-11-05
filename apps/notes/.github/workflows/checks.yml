@@ -1,0 +1,16 @@
+name: checks
+# Pull requests, and pushes to main (the merge). Pushes to a PR branch are covered by pull_request.
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # The files copied from Workshop must match the pinned commit exactly (scripts/sync-workshop.mjs).
+      - run: node scripts/sync-workshop.mjs --check
+      - run: node --test "test/*.test.mjs"

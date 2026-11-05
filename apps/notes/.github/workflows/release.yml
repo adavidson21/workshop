@@ -1,0 +1,62 @@
+# Release: creates a release tag and GitHub release from the Actions tab.
+# Actions > Release > Run workflow. Leave Tag blank: it becomes v<version> from app.json at the
+# commit you release. Work mode installs and updates only by these tags (Workshop README, Work mode).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or branch to release (default: main)"
+        required: false
+        default: main
+      tag:
+        description: "Leave blank to use the version in app.json (v<version>). If set, it must match."
+        required: false
+        default: ""
+      notes:
+        description: "Release notes (optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Pick the tag
+        id: tag
+        env:
+          GIVEN: ${{ inputs.tag }}
+        run: |
+          version=$(node -p "require('./app.json').version")
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Could not read a version like 1.2.3 from app.json (got '$version')."
+            exit 1
+          fi
+          tag="v$version"
+          if [ -n "$GIVEN" ] && [ "$GIVEN" != "$tag" ]; then
+            echo "::error::Tag $GIVEN does not match the version in app.json ($tag). Leave Tag blank, or bump the version first."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag."
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG is already released. Bump the version in app.json, then run this again."
+            exit 1
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$sha" --title "$TAG" \
+            --notes "${NOTES:-Release $TAG ($sha).}"
+          echo "Released $TAG at $sha."

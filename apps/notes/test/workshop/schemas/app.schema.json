@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "app.json",
+  "description": "See docs/app-manifest.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "version",
+    "icon",
+    "entry"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "icon": {
+      "$ref": "#/$defs/relPath"
+    },
+    "entry": {
+      "$ref": "#/$defs/relPath"
+    },
+    "order": {
+      "type": "number"
+    },
+    "home": {
+      "type": "boolean",
+      "description": "The home page: opened by the Workshop logo and the plain address, and not shown as a rail button. The first app with home: true wins."
+    },
+    "background": {
+      "type": "boolean",
+      "description": "Load this app when Workshop opens, hidden, instead of on first visit, so it can keep a status in the top bar (ws.status) from the start."
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/runMode"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "routes": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_:.~-]+(/[A-Za-z0-9_:.~-]+)*$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "connectors": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "required"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/name"
+      },
+      "uniqueItems": true,
+      "maxItems": 50
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/commandId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "route": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "shortcuts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "keys",
+          "command",
+          "scope"
+        ],
+        "properties": {
+          "keys": {
+            "$ref": "#/$defs/keys"
+          },
+          "command": {
+            "$ref": "#/$defs/commandId"
+          },
+          "scope": {
+            "enum": [
+              "app",
+              "global"
+            ]
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relPath"
+      },
+      "uniqueItems": true,
+      "maxItems": 500
+    },
+    "privateFiles": {
+      "description": "Files other apps may not list, read or watch: true for every file of this app, or a list of top folders (app-manifest.md, Private files).",
+      "oneOf": [
+        {
+          "const": true
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        }
+      ]
+    },
+    "handoffs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sends": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/name"
+          }
+        }
+      },
+      "description": "Handoffs this app writes (handoffs.md). sends: receiver app ids."
+    },
+    "capture": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "task",
+          "waiting",
+          "receipt",
+          "note",
+          "idea"
+        ]
+      },
+      "description": "Capture kinds this app takes from quick capture and the hub (hub.md)."
+    },
+    "aliases": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/alias"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/alias"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.~-]+(/[A-Za-z0-9_.~-]+)*$",
+                "maxLength": 200
+              }
+            }
+          }
+        ]
+      },
+      "description": "Other words for this app in > <place>. A word, or {name, path} to open part of the app."
+    }
+  },
+  "$defs": {
+    "relPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9_.@-]+(/[A-Za-z0-9_.@-]+)*$",
+      "maxLength": 200,
+      "description": "Relative to the app folder. No leading slash, no . or .. segments."
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$"
+    },
+    "keys": {
+      "type": "string",
+      "pattern": "^(Ctrl\\+)?(Alt\\+)?(Shift\\+)?(Meta\\+)?([A-Z0-9]|F[1-9]|F1[0-2]|Enter|Escape|Space|Tab|Backspace|Delete|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown|Slash|Period|Comma)$",
+      "not": {
+        "pattern": "^(Alt\\+[1-9]|Ctrl\\+K)$"
+      },
+      "description": "Modifiers in the order Ctrl, Alt, Shift, Meta. Alt+1 to Alt+9 and Ctrl+K are reserved for the shell."
+    },
+    "alias": {
+      "type": "string",
+      "pattern": "^[a-z0-9:][a-z0-9: -]{0,39}$"
+    }
+  }
+}
