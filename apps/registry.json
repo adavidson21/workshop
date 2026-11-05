@@ -52,7 +52,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "4.19.0",
+        "version": "4.20.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -103,6 +103,28 @@
             "required": false
           }
         ],
+        "handoffs": {
+          "sends": [
+            "receipts"
+          ]
+        },
+        "capture": [
+          "task",
+          "waiting"
+        ],
+        "aliases": [
+          "docket",
+          "tasks",
+          "board",
+          {
+            "name": "today",
+            "path": "today"
+          },
+          {
+            "name": "triage",
+            "path": "triage"
+          }
+        ],
         "commands": [
           {
             "id": "add-task",
@@ -151,9 +173,9 @@
           "icons/favicon-32.png",
           "icons/favicon.svg",
           "js/actions.js",
-          "js/ado.js",
           "js/ado-link.js",
           "js/ado-status.js",
+          "js/ado.js",
           "js/app-banner.js",
           "js/command-bar.js",
           "js/connect.js",
@@ -187,6 +209,7 @@
           "js/storage.js",
           "js/store-format.js",
           "js/store.js",
+          "js/summary.js",
           "js/util.js",
           "js/views.js",
           "js/ws.js",
@@ -200,7 +223,9 @@
           "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
           "shared/pair.js",
           "shared/save-file.js",
+          "shared/site.js",
           "shared/standalone-bar.js",
+          "shared/summary.js",
           "shared/sw-register.js",
           "shared/theme.js",
           "shared/themes.css",
