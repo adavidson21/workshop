@@ -421,6 +421,15 @@
         },
         "default": {
           "type": "array"
+        },
+        "x-workshop-hosted": {
+          "type": "boolean"
+        },
+        "x-workshop-tab": {
+          "type": "string",
+          "enum": [
+            "repos"
+          ]
         }
       }
     },

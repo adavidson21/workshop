@@ -132,7 +132,7 @@ async function runTest(o, io) {
   const r = await sync({ cfg, env }, cleanKnown((o.known || '').split(',')), []);
   io.out(`\nConnected. ${r.items.length} open work items assigned to you:`);
   for (const it of r.items.slice(0, 15)) io.out(`  #${it.id}  ${String(it.type).padEnd(11)} ${String(it.state).padEnd(10)} ${it.title}`);
-  if (!cfg.prSources.length) io.out('\nNo PR sources set. Add one in Settings (Pull request sources).');
+  if (!cfg.prSources.length) io.out('\nNo PR sources set. Add one in Settings, on the Repos tab.');
   else if (r.prError) { io.out('\nPull requests failed: ' + r.prError); failed = true; }
   else {
     const prs = r.prs.items;

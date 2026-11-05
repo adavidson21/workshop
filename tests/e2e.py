@@ -550,7 +550,7 @@ def agent_checks(b, watch):
         ado = sf.locator('.conn[data-connector=ado]')
         ado.locator('summary').click(); sf.wait_for_timeout(800)
         legends = [t.strip() for t in ado.locator('legend').all_text_contents()]  # labels are uppercased by CSS
-        check('the ADO form has connections and repo and path mapping', 'Connections' in legends and 'Repo and path mapping' in legends)
+        check('the ADO form has connections, and repos are on the Repos tab', 'Connections' in legends and 'Repo and path mapping' not in legends and sf.locator('#tab-repos').count() == 1)
         conn = ado.locator('fieldset', has=sf.locator('legend', has_text='Connections')).first
         conn.locator('> .cfg-add').click(); sf.wait_for_timeout(200)
         item = conn.locator('.cfg-item').first

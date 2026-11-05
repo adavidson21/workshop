@@ -15,6 +15,7 @@ import { render as renderForm, readValue } from './forms.js';
 import * as PF from './people.js';
 import * as D from '../../../shared/people.js';
 import * as T from './teams.js';
+import * as R from './repos.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,12 +41,12 @@ const content = $('#content');
 function toast(text, kind) { return ws.toast(text, { kind }); }
 
 /* ---------- tabs ----------
-   General, one tab per connector (from the connector list, so a new connector gets its own tab), People,
-   Data. Each tab is a panel in #content; cards go into the panel named when they are made. The last tab
+   General, Repos (when the ADO or opencode connector is installed), one tab per connector (from the connector
+   list, so a new connector gets its own tab), People, Data. #/settings/<tab> opens a tab (repos, people, data). Each tab is a panel in #content; cards go into the panel named when they are made. The last tab
    opened is remembered in this browser. */
 const tabsEl = $('#tabs');
 const TAB_KEY = 'workshop.settings.tab';
-const TAB_ORDER = { general: 0, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
+const TAB_ORDER = { general: 0, repos: 5, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
 let wantTab = 'general';
 try { wantTab = localStorage.getItem(TAB_KEY) || 'general'; } catch (e) { /* storage blocked: start on General */ }
 
@@ -84,7 +85,7 @@ function panel(id, label, order) {
   else { p.hidden = true; btn.setAttribute('aria-selected', 'false'); btn.tabIndex = -1; }
   return p;
 }
-const TAB_LABEL = { general: 'General', connectors: 'Connectors', people: 'People', data: 'Data' };
+const TAB_LABEL = { general: 'General', repos: 'Repos', connectors: 'Connectors', people: 'People', data: 'Data' };
 tabsEl.addEventListener('click', e => { const b = e.target.closest('[role=tab]'); if (b) selectTab(b.dataset.tab, true); });
 tabsEl.addEventListener('keydown', e => {
   const tabs = [...tabsEl.querySelectorAll('[role=tab]')];
@@ -96,6 +97,14 @@ tabsEl.addEventListener('keydown', e => {
   const t = tabs[(j + tabs.length) % tabs.length];
   t.focus(); selectTab(t.dataset.tab, true);
 });
+// #/settings/repos and the like: open that tab now, or as soon as it exists.
+const ROUTE_TAB = { repos: 'repos', people: 'people', data: 'data', general: 'general' };
+ws.on('route', ({ path } = {}) => {
+  const id = ROUTE_TAB[String(path || '').split('/')[0]];
+  if (!id) return;
+  wantTab = id;
+  if ($(`#panel-${id}`)) selectTab(id);
+});
 
 // A card in a tab (General unless named). A card with no title starts with its own heading.
 function card(title, sub, tab = 'general') {
@@ -106,6 +115,14 @@ function card(title, sub, tab = 'general') {
   return sec;
 }
 const errText = e => (e && e.message) || 'Something went wrong.';
+// A link or button with data-goto-tab="<tab>" switches tabs, for example from a connector's note to Repos.
+content.addEventListener('click', e => {
+  const g = e.target.closest('[data-goto-tab]');
+  if (!g || !$(`#panel-${g.dataset.gotoTab}`)) return;
+  e.preventDefault();
+  selectTab(g.dataset.gotoTab, true);
+  tabsEl.querySelector(`[data-tab="${g.dataset.gotoTab}"]`).focus();
+});
 
 /* ---------- header ---------- */
 // The agent's address, from this site's pairing (hosted mode), for the "change them on this computer" link.
@@ -282,13 +299,13 @@ async function workshopCard(cfg) {
 /* ---------- connectors ---------- */
 // One tab per connector, in list order, with its status as a dot on the tab.
 const NOTE = {
-  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in Set up.'
+  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in Set up. Repos and pull request sources are on the <a href="#" class="lnk" data-goto-tab="repos">Repos</a> tab.'
 };
 async function connectorsCard(cfg) {
   let list;
   try { list = await ws.connectors.list(); }
   catch (e) { card('Connectors', '', 'connectors').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); return; }
-  if (!list.length) { card('Connectors', 'No connectors are installed.', 'connectors'); return; }
+  if (!list.length) { card('Connectors', 'No connectors are installed.', 'connectors'); return list; }
   list.forEach((info, i) => {
     const tab = `c-${info.id}`;
     panel(tab, info.name, 10 + i);
@@ -302,6 +319,7 @@ async function connectorsCard(cfg) {
     }));
     if (NOTE[info.id]) sec.insertAdjacentHTML('beforeend', `<p class="sub conn-note">${NOTE[info.id]}</p>`);
   });
+  return list;
 }
 
 function connectorBlock(info, cfg, onState) {
@@ -450,7 +468,18 @@ async function buildForm(info, holder, draft) {
     const msg = form.querySelector('.msg');
     msg.textContent = 'Saving...';
     try {
-      const saved = await ws.connectors.putConfig(info.id, readValue(node));
+      const value = readValue(node);
+      // Fields edited on another tab (Repos) may have changed since this form opened: save what is there now,
+      // unless it is empty and this form has a value (a link or import filled it in).
+      const away = Object.keys(cc.schema.properties || {}).filter(k => cc.schema.properties[k]['x-workshop-tab']);
+      if (away.length) {
+        const now = (await ws.connectors.getConfig(info.id)).config || {};
+        for (const k of away) {
+          const has = Array.isArray(now[k]) ? now[k].length > 0 : now[k] != null;
+          if (has || value[k] === undefined) { if (now[k] === undefined) delete value[k]; else value[k] = now[k]; }
+        }
+      }
+      const saved = await ws.connectors.putConfig(info.id, value);
       // Rebuild with what the agent stored (defaults filled in) and fresh environment variable status.
       const next = renderForm(saved.schema, saved.config, saved.env, { readOnly });
       node.replaceWith(next); node = next;
@@ -486,6 +515,258 @@ function summarize(result) {
     .filter(([k, v]) => k !== 'title' && v !== null && typeof v !== 'object')
     .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
   return head + (rows ? `<dl>${rows}</dl>` : '');
+}
+
+/* ---------- repos (repos.js) ----------
+   One tab for everything about a repo: the repos in your workspace (opencode's state), the Azure DevOps
+   project each one uses (ADO `paths`), whether Docket shows its pull requests (ADO `prSources`), and adding
+   one (clone, map, watch, then draft its guide). Those two ADO fields are marked x-workshop-tab and
+   x-workshop-hosted, so they are left out of the ADO tab's form and can be saved from a paired site too. */
+const NEW_CAT = '\u0000new';
+async function reposTab(list) {
+  const adoInfo = list.find(c => c.id === 'ado');
+  const ocInfo = list.find(c => c.id === 'opencode');
+  if (!adoInfo && !ocInfo) return;
+  const st = { ado: null, oc: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false };
+  const main = card('Repos', 'The repos in your workspace, the Azure DevOps project each one uses, and whether Docket shows its pull requests.', 'repos');
+  const body = document.createElement('div'); main.appendChild(body);
+  const prSec = adoInfo ? card('Pull requests', 'Where Docket looks for pull requests waiting on you.', 'repos') : null;
+  const prBody = prSec ? prSec.appendChild(document.createElement('div')) : null;
+  const mapSec = adoInfo ? card('Other folders', 'Folders outside your workspace, or patterns, and the connection they use. <code>*</code> matches any characters.', 'repos') : null;
+  const mapBody = mapSec ? mapSec.appendChild(document.createElement('div')) : null;
+
+  const cfg = () => (st.ado && st.ado.config) || {};
+  const conns = () => (Array.isArray(cfg().connections) ? cfg().connections : []);
+  const canMap = () => !!st.ado && conns().length > 0;
+  const ocReady = () => !!st.oc;
+  const connOptions = (cur, blank) => (blank ? `<option value=""${!cur ? ' selected' : ''}>${esc(blank)}</option>` : '')
+    + conns().map(c => `<option value="${esc(c.name)}"${c.name === cur ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  const projectOf = name => { const c = conns().find(x => x.name === name); return (c && c.project) || ''; };
+
+  async function load() {
+    st.ado = null; st.oc = null; st.ocError = '';
+    if (adoInfo) { try { st.ado = await ws.connectors.getConfig('ado'); } catch (e) { st.ado = null; } }
+    const fresh = ocInfo ? ((await ws.connectors.list().catch(() => list)).find(c => c.id === 'opencode') || ocInfo) : null;
+    if (fresh && fresh.enabled && fresh.status && fresh.status.state === 'ready') {
+      try { st.oc = await ws.connectors.call('opencode', 'state'); } catch (e) { st.ocError = errText(e); }
+    } else if (fresh) st.ocError = fresh.enabled ? (fresh.status && fresh.status.message) || 'opencode is not ready yet.' : '';
+    st.rows = R.rows(st.oc || {}, cfg());
+  }
+
+  async function saveAdo(next, okText, msgEl) {
+    if (msgEl) msgEl.textContent = 'Saving...';
+    try {
+      st.ado = await ws.connectors.putConfig('ado', next);
+      st.rows = R.rows(st.oc || {}, cfg());
+      toast(okText, 'success');
+      return true;
+    } catch (err) { if (msgEl) msgEl.textContent = errText(err); else toast(errText(err), 'error'); return false; }
+  }
+
+  function adoLine(r) {
+    if (!st.ado) return '';
+    if (!r.ado) {
+      if (r.remote && !r.remote.connection) return `<p class="repo-meta">Its remote is on <span class="mono">${esc(r.remote.base)}</span>, which is not one of your connections.</p>`;
+      return '<p class="repo-meta">No Azure DevOps project.</p>';
+    }
+    const watch = r.watch === 'project' ? 'PRs shown (whole project)' : r.watch === 'repo' ? 'PRs shown' : 'PRs not shown';
+    const found = r.ado.from === 'remote' ? ' <span class="repo-tag">from its remote, not saved</span>' : '';
+    return `<p class="repo-meta">${esc(r.ado.connection)} · ${esc(r.ado.project || 'no project')} · ${esc(r.ado.repo)} · ${watch}${found}</p>`;
+  }
+
+  function repoForm(r) {
+    const a = r.ado || { connection: (r.remote && r.remote.connection) || cfg().defaultConnection || (conns()[0] && conns()[0].name) || '', project: (r.remote && r.remote.project) || '', repo: r.name };
+    const whole = R.watchOf(cfg(), a.connection, a.project || projectOf(a.connection), a.repo) === 'project';
+    return `<form class="cfg repo-form" data-repo-form="${esc(r.folder)}">
+      <div class="cfg-row"><label for="rConn">Connection</label><select id="rConn" name="connection" class="cfg-input">${connOptions(a.connection, 'None')}</select></div>
+      <div class="cfg-row"><label for="rProj">Project</label><input id="rProj" name="project" class="cfg-input" maxlength="200" value="${esc(a.project)}" placeholder="${esc(projectOf(a.connection))}"></div>
+      <div class="cfg-row"><label for="rName">Repo name in Azure DevOps</label><input id="rName" name="repo" class="cfg-input mono" maxlength="200" value="${esc(a.repo || r.name)}" required></div>
+      <div class="cfg-row cfg-check"><input id="rWatch" name="watch" type="checkbox"${r.watch !== 'no' || !r.ado ? ' checked' : ''}${whole ? ' disabled' : ''}><label for="rWatch">Show its pull requests in Docket</label>
+        ${whole ? '<p class="cfg-help">Every repo in this project is shown. Change that under Pull requests below.</p>' : ''}</div>
+      <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn" data-repo-cancel>Cancel</button><button class="btn primary">Save</button></div></form>`;
+  }
+
+  function addForm() {
+    const cats = (st.oc && st.oc.repoCategories) || [];
+    return `<form class="cfg repo-add" data-repo-add>
+      <div class="cfg-row"><label for="raUrl">Clone URL</label><input id="raUrl" name="url" class="cfg-input mono" required spellcheck="false" autocomplete="off" placeholder="https://ado.example.com/Collection/Project/_git/repo"></div>
+      <div class="cfg-row"><label for="raCat">Category</label><select id="raCat" name="category" class="cfg-input">
+        <option value="">None (top of the workspace)</option>${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}<option value="${NEW_CAT}">New category</option></select>
+        <p class="cfg-help">The folder in your workspace it goes in.</p></div>
+      <div class="cfg-row" data-newcat hidden><label for="raNew">New category folder</label><input id="raNew" name="newcat" class="cfg-input mono" maxlength="100" placeholder="Platform" spellcheck="false"></div>
+      <div class="cfg-row"><label for="raAbout">What it is, in one line</label><input id="raAbout" name="about" class="cfg-input" maxlength="200" placeholder="The web app customers use"><p class="cfg-help">Optional. Helps agents pick the right repo for a task.</p></div>
+      ${canMap() ? '<div class="cfg-row cfg-check"><input id="raWatch" name="watch" type="checkbox" checked><label for="raWatch">Show its pull requests in Docket</label><p class="cfg-help">For Azure DevOps repos. The connection and project come from the URL.</p></div>' : ''}
+      <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn" data-add-cancel>Cancel</button><button class="btn primary"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning...' : 'Clone into workspace'}</button></div></form>`;
+  }
+
+  function paint() {
+    const notes = [];
+    if (!ocInfo) notes.push('The opencode connector is not installed, so workspace repos are not listed here.');
+    else if (!st.oc) notes.push(st.ocError ? `Workspace repos need opencode: ${esc(st.ocError)}` : 'Turn on opencode on its <a href="#" class="lnk" data-goto-tab="c-opencode">tab</a> to list and add your workspace repos.');
+    if (adoInfo && st.ado && !conns().length) notes.push('Add an Azure DevOps connection first: paste any ADO link on the <a href="#" class="lnk" data-goto-tab="c-ado">Azure DevOps</a> tab.');
+    const todo = canMap() ? R.unmapped(st.rows) : [];
+    const items = st.rows.map(r => st.editing === r.folder
+      ? `<li class="repo editing"><p class="repo-name mono">${esc(r.folder)}</p>${repoForm(r)}</li>`
+      : `<li class="repo"><div><p class="repo-name"><span class="mono">${esc(r.folder)}</span>${r.web ? ` <a class="lnk repo-web" href="${esc(r.web)}" target="_blank" rel="noopener" aria-label="Open ${esc(r.folder)}">${ARROW}</a>` : ''}</p>${adoLine(r)}</div>
+          ${canMap() ? `<button type="button" class="btn" data-repo-edit="${esc(r.folder)}">${r.ado && r.ado.from === 'mapping' ? 'Edit' : 'Set up'}</button>` : ''}</li>`).join('');
+    const added = st.added ? `<div class="moved" role="status"><p><b>${esc(st.added.folder)}</b> is in your workspace.${st.added.notes.map(n => ' ' + esc(n)).join('')}</p>
+        <p>Next, draft its guide: an agent writes how to build, test and navigate it, for you to review. Follow it in Dispatch.</p>
+        <div class="acts left"><button type="button" class="btn primary" data-guide="${esc(st.added.folder)}">Draft its guide</button><button type="button" class="btn" data-added-close>Later</button></div></div>` : '';
+    body.innerHTML = (notes.length ? `<ul class="import-notes">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : '')
+      + added
+      + (todo.length ? `<div class="repo-todo"><p>${plural(todo.length, 'repo points', 'repos point')} at Azure DevOps but ${todo.length === 1 ? 'is' : 'are'} not saved yet, so agents may pick the wrong project.</p><button type="button" class="btn primary" data-map-all>Save ${todo.length === 1 ? 'it' : 'them'}</button></div>` : '')
+      + (st.oc ? (st.rows.length ? `<ul class="people repos">${items}</ul>` : `<p class="sub">No repos in your workspace (<code>${esc(st.oc.workspace || '')}</code>) yet.</p>`) : '')
+      + (st.oc ? (st.adding ? addForm() : '<div class="acts left"><button type="button" class="btn primary" data-add-open>Add a repo</button></div>') : '');
+    if (st.adding) body.querySelector('#raUrl').focus();
+    const first = body.querySelector('.repo.editing input');
+    if (first) first.focus();
+    paintSources(); paintMappings();
+  }
+
+  function paintSources() {
+    if (!prBody) return;
+    if (!canMap()) { prBody.innerHTML = '<p class="sub">Add an Azure DevOps connection first.</p>'; return; }
+    const srcs = Array.isArray(cfg().prSources) ? cfg().prSources : [];
+    const li = srcs.map((s, i) => {
+      const all = !(s.repos || []).length;
+      return `<li class="person"><div><b>${esc(s.project)}</b> <span class="handle">${esc(s.connection)}</span>
+          <p class="person-meta">${all ? 'Every repo in the project' : `Only ${s.repos.map(esc).join(', ')}`}</p></div>
+        <select class="cfg-input src-scope" data-src-scope="${i}" aria-label="Which repos in ${esc(s.project)}"><option value="all"${all ? ' selected' : ''}>Every repo</option><option value="some"${all ? '' : ' selected'}>Only repos set to show</option></select>
+        <button type="button" class="btn ghost" data-src-remove="${i}">Remove</button></li>`;
+    }).join('');
+    prBody.innerHTML = (srcs.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None yet, so Docket shows no pull requests. Set a repo to show its PRs above, or add a whole project.</p>')
+      + `<form class="cfg src-add" data-src-add><div class="from-url-row"><select name="connection" class="cfg-input" aria-label="Connection">${connOptions(cfg().defaultConnection || (conns()[0] && conns()[0].name))}</select>
+        <input name="project" class="cfg-input" maxlength="200" placeholder="Project" aria-label="Project" required><button class="btn">Add whole project</button></div><span class="msg" aria-live="polite"></span></form>`;
+  }
+
+  function paintMappings() {
+    if (!mapBody) return;
+    if (!canMap()) { mapBody.innerHTML = '<p class="sub">Add an Azure DevOps connection first.</p>'; return; }
+    const others = R.otherMappings(cfg(), st.rows);
+    const form = (m, key) => `<form class="cfg map-form" data-map-form="${key}">
+        <div class="cfg-row"><label for="m${key}p">Folder or pattern</label><input id="m${key}p" name="path" class="cfg-input mono" required value="${esc(m.path || '')}" placeholder="C:/src/team/*" spellcheck="false"></div>
+        <div class="cfg-row"><label for="m${key}c">Connection</label><select id="m${key}c" name="connection" class="cfg-input">${connOptions(m.connection || cfg().defaultConnection)}</select></div>
+        <div class="cfg-row"><label for="m${key}j">Project</label><input id="m${key}j" name="project" class="cfg-input" value="${esc(m.project || '')}" placeholder="The connection's project"></div>
+        <div class="acts"><span class="msg" aria-live="polite"></span>${key !== 'new' ? `<button type="button" class="btn" data-map-remove="${key}">Remove</button>` : ''}<button type="button" class="btn" data-map-cancel>Cancel</button><button class="btn primary">Save</button></div></form>`;
+    const li = others.map(m => String(st.editingMap) === String(m.index)
+      ? `<li class="person editing">${form(m, m.index)}</li>`
+      : `<li class="person"><div><span class="mono">${esc(m.path)}</span><p class="person-meta">${esc(m.connection)}${m.project ? ` · ${esc(m.project)}` : ''}</p></div><button type="button" class="btn" data-map-edit="${m.index}">Edit</button></li>`).join('');
+    mapBody.innerHTML = (others.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None. Repos in your workspace are set up above.</p>')
+      + (st.editingMap === 'new' ? `<div class="person editing">${form({}, 'new')}</div>` : '<div class="acts left"><button type="button" class="btn" data-map-new>Add a folder</button></div>');
+  }
+
+  async function addRepo(form) {
+    const fd = new FormData(form);
+    const msg = form.querySelector('.msg');
+    const url = String(fd.get('url') || '').trim();
+    let category = String(fd.get('category') || '');
+    if (category === NEW_CAT) category = String(fd.get('newcat') || '').trim();
+    if (fd.get('category') === NEW_CAT && !category) { msg.textContent = 'Name the new category folder.'; return; }
+    const about = String(fd.get('about') || '').trim();
+    st.busy = true; msg.textContent = 'Cloning with the git sign-in on this computer...';
+    form.querySelector('button.primary').disabled = true;
+    let res;
+    try { res = await ws.connectors.call('opencode', 'repo.add', { url, ...(category ? { category } : {}), ...(about ? { about } : {}) }, { confirm: true }); }
+    catch (err) { st.busy = false; msg.textContent = errText(err); form.querySelector('button.primary').disabled = false; return; }
+    st.busy = false;
+    const notes = [];
+    const hit = canMap() ? R.fromCloneUrl(cfg(), url) : null;
+    try { st.oc = await ws.connectors.call('opencode', 'state'); } catch (e) { /* the list refreshes on the next load */ }
+    st.rows = R.rows(st.oc || {}, cfg());
+    if (hit && hit.connection) {
+      const path = R.folderPath(st.oc && st.oc.workspace, res.folder);
+      const ok = await saveAdo(R.saveRepo(cfg(), { path, connection: hit.connection, project: hit.project, repo: hit.repo, watch: fd.get('watch') === 'on' }), `${res.folder} added`);
+      notes.push(ok ? `It uses ${hit.connection} · ${hit.project}${fd.get('watch') === 'on' ? ', and Docket shows its pull requests' : ''}.` : 'Its Azure DevOps project could not be saved; use Set up on its row.');
+    } else if (hit) notes.push(`Its server (${hit.base}) is not one of your Azure DevOps connections, so it is not set up for ADO.`);
+    else toast(`${res.folder} added`, 'success');
+    st.added = { folder: res.folder, notes };
+    st.adding = false;
+    paint();
+  }
+
+  main.addEventListener('change', e => {
+    if (e.target.name === 'category') main.querySelector('[data-newcat]').hidden = e.target.value !== NEW_CAT;
+    if (e.target.name === 'connection' && e.target.closest('[data-repo-form]')) e.target.form.project.placeholder = projectOf(e.target.value);
+  });
+  main.addEventListener('click', async e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.matches('[data-repo-edit]')) { st.editing = t.dataset.repoEdit; return paint(); }
+    if (t.matches('[data-repo-cancel]')) { st.editing = null; return paint(); }
+    if (t.matches('[data-add-open]')) { st.adding = true; st.added = null; return paint(); }
+    if (t.matches('[data-add-cancel]')) { st.adding = false; return paint(); }
+    if (t.matches('[data-added-close]')) { st.added = null; return paint(); }
+    if (t.matches('[data-map-all]')) { t.disabled = true; if (await saveAdo(R.mapAll(cfg(), st.rows), 'Repos saved')) paint(); else t.disabled = false; return; }
+    if (t.matches('[data-guide]')) {
+      t.disabled = true;
+      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Dispatch.`, 'success'); st.added = null; paint(); }
+      catch (err) { t.disabled = false; toast(errText(err), 'error'); }
+    }
+  });
+  main.addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.target;
+    if (form.matches('[data-repo-add]')) return addRepo(form);
+    if (!form.matches('[data-repo-form]')) return;
+    const r = st.rows.find(x => x.folder === form.dataset.repoForm);
+    if (!r) return;
+    const fd = new FormData(form);
+    const was = r.ado ? { connection: r.ado.connection, project: r.ado.project, repo: r.ado.repo } : null;
+    const watchBox = form.querySelector('[name=watch]');
+    const next = R.saveRepo(cfg(), { path: r.path, connection: fd.get('connection'), project: fd.get('project'), repo: fd.get('repo'),
+      watch: watchBox.disabled ? true : watchBox.checked, was });
+    if (await saveAdo(next, `${r.folder} saved`, form.querySelector('.msg'))) { st.editing = null; paint(); }
+  });
+
+  if (prSec) {
+    prSec.addEventListener('change', async e => {
+      const sel = e.target.closest('[data-src-scope]');
+      if (!sel) return;
+      const i = Number(sel.dataset.srcScope);
+      const s = cfg().prSources[i];
+      const all = sel.value === 'all';
+      const some = all ? [] : R.reposIn(st.rows, s.connection, s.project).filter(n => R.watchOf(cfg(), s.connection, s.project, n) !== 'no');
+      if (!all && !some.length && !confirm(`No repos in ${s.project} are set to show yet, so this removes ${s.project} from pull requests. Continue?`)) { sel.value = 'all'; return; }
+      if (await saveAdo(R.setSourceScope(cfg(), i, all, some), 'Pull requests saved')) paint();
+    });
+    prSec.addEventListener('click', async e => {
+      const t = e.target.closest('[data-src-remove]');
+      if (t && await saveAdo(R.removeSource(cfg(), Number(t.dataset.srcRemove)), 'Pull requests saved')) paint();
+    });
+    prSec.addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      if (await saveAdo(R.addSource(cfg(), fd.get('connection'), fd.get('project')), 'Pull requests saved', e.target.querySelector('.msg'))) paint();
+    });
+  }
+  if (mapSec) {
+    mapSec.addEventListener('click', async e => {
+      const t = e.target.closest('button');
+      if (!t) return;
+      if (t.matches('[data-map-new]')) { st.editingMap = 'new'; return paintMappings(); }
+      if (t.matches('[data-map-edit]')) { st.editingMap = Number(t.dataset.mapEdit); return paintMappings(); }
+      if (t.matches('[data-map-cancel]')) { st.editingMap = null; return paintMappings(); }
+      if (t.matches('[data-map-remove]')) {
+        const i = Number(t.dataset.mapRemove);
+        if (await saveAdo(R.saveMapping(cfg(), { index: i, path: '', connection: '' }), 'Folder removed')) { st.editingMap = null; paint(); }
+      }
+    });
+    mapSec.addEventListener('submit', async e => {
+      e.preventDefault();
+      const form = e.target.closest('[data-map-form]');
+      if (!form) return;
+      const fd = new FormData(form);
+      const key = form.dataset.mapForm;
+      const next = R.saveMapping(cfg(), { index: key === 'new' ? null : Number(key), path: fd.get('path'), connection: fd.get('connection'), project: fd.get('project') });
+      if (await saveAdo(next, 'Folder saved', form.querySelector('.msg'))) { st.editingMap = null; paint(); }
+    });
+  }
+
+  body.innerHTML = '<p class="sub">Loading...</p>';
+  await load();
+  paint();
+  // Another tab (or the ADO form) changed the settings: read them again, unless a form is open here.
+  ws.on('visible', async ({ visible } = {}) => { if (visible && !st.editing && st.editingMap == null && !st.adding && !st.busy) { await load(); paint(); } });
 }
 
 /* ---------- people directory (docs/people.md) ----------
@@ -737,7 +1018,8 @@ async function start() {
       if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       await folderCard(cfg);
       await workshopCard(cfg);
-      await connectorsCard(cfg);
+      const list = await connectorsCard(cfg);
+      if (list) await reposTab(list);
     } catch (e) {
       card('Workshop').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`);
     }
