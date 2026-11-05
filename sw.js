@@ -15,7 +15,7 @@ const CORE = [
   './', './index.html', './manifest.webmanifest',
   './shell/shell.css', './shell/shell.js',
   './shared/themes.css', './shared/ui.css', './shared/theme.js', './shared/sw-register.js',
-  './shared/workshop-sdk.js', './shared/pair.js', './shared/device-fs.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js',
+  './shared/workshop-sdk.js', './shared/pair.js', './shared/device-fs.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/summary.js',
   './shared/capture.js', './shared/capture-box.js', './shared/capture.css',
   './shared/fonts/fonts.css', './shared/fonts/inter-latin-wght-normal.woff2', './shared/fonts/inter-latin-ext-wght-normal.woff2',
   './shared/fonts/jetbrains-mono-latin-wght-normal.woff2', './shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2',

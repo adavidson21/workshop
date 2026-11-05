@@ -64,6 +64,7 @@
     "shared/save-file.js": "e22fe1a7bbb3b2eb5a4711c4eaf60064c59f8b631b4c015918a7eddc20042d9e",
     "shared/site.js": "d67595014cf360af437083d3ad781b70234745b2f7e4003327fb4b8c9887b6e9",
     "shared/standalone-bar.js": "1d3a4f8c8b1989b8b5bfcc0a8d0bc973ea4af9fe4ad41f48980962ce55814daa",
+    "shared/summary.js": "1cece731121622f7b167b5963e17eaa29e6a642370832f5a666d520944e34414",
     "shared/sw-register.js": "3c3e0149634530891476e8bca0a384ee2282a589ee0463a7637161cdb7dc960d",
     "shared/theme.js": "cd42d3632943f5d3c67ff855b3bf81af2af0c86c903c3e03a874e7f579e8be2a",
     "shared/themes.css": "f2b421240643ba09c4f971ca192dbcdceb27922be39fada5e262736c034f5af5",
