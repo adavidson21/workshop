@@ -73,6 +73,7 @@ export function prArg(p) {
   if (p.title) out.title = String(p.title).slice(0, 500);
   if (typeof p.commit === 'string' && p.commit) out.commit = p.commit.slice(0, 40);
   if (p.waiting) out.waiting = true;
+  if (['blocking', 'asked', 'pool'].includes(p.tier)) out.tier = p.tier;
   return out;
 }
 

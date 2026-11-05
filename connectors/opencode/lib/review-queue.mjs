@@ -13,6 +13,11 @@
 //     session, startedAt, endedAt }], inbox: { at, prs }, nightly: { at, last } }
 //   status: "idle" (nothing queued) | "running" | "paused" (Workshop restarted mid-run) | "stopped" | "done"
 //   item state: "queued" | "running" | "done" | "asking" (the reviewer asked you something) | "failed" | "skipped"
+//   auto: { <pr id>: <commit or ""> } the commit each PR was last queued at by onSync, so a failed
+//   review is not retried on every check (a new commit is)
+//
+// onSync (prReviews.onSync): each time an app saves the inbox (pr.inbox.save), new PRs and PRs with a
+// new commit are queued at once, blocking tier first. Docket uses this to show PRs already reviewed.
 
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
@@ -25,6 +30,7 @@ const POLL_MS = 10_000;
 const NIGHTLY_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const NIGHTLY_12_RE = /^(1[0-2]|0?[1-9]):([0-5]\d)\s*([ap])\.?m?\.?$/i;
 const KEEP_DONE = 50;
+export const TIERS = ["blocking", "asked", "pool"]; // how much a PR waits on you, from the ADO sync
 
 function writeJsonAtomic(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -42,7 +48,9 @@ export function cleanPr(p, prFromUrl) {
   const pr = prFromUrl(p.url);
   if (!pr) return null;
   const commit = typeof p.commit === "string" && /^[0-9a-f]{7,40}$/i.test(p.commit) ? p.commit.toLowerCase() : null;
-  return { id: pr.id, url: pr.url, title: clip(typeof p.title === "string" ? p.title : "", 200) || null, commit, waiting: p.waiting === true };
+  const out = { id: pr.id, url: pr.url, title: clip(typeof p.title === "string" ? p.title : "", 200) || null, commit, waiting: p.waiting === true };
+  if (TIERS.includes(p.tier)) out.tier = p.tier;
+  return out;
 }
 
 /** "HH:MM" (24-hour) or "h:MM AM/PM", as {h, m, text} with text always "HH:MM"; or null. */
@@ -77,8 +85,9 @@ export function upToDate(review, commit) {
 //   asking(sid)    true when the session waits on a permission prompt or a question
 //   sessionEvents  EventEmitter with "idle" (sessionId, error)
 //   nightlyAt      "HH:MM" from the connector config, or empty for off
+//   onSync         true: saveInbox queues new PRs and new commits right away
 //   log, now, timers ({ later, every, cancel }), finishDelayMs, pollMs: tests and the connector
-export function createReviewQueue({ file, start, review, session, ready = () => null, asking = () => false, sessionEvents, nightlyAt = "", log = () => {}, now = () => new Date(), timers, finishDelayMs = FINISH_DELAY_MS, pollMs = POLL_MS }) {
+export function createReviewQueue({ file, start, review, session, ready = () => null, asking = () => false, sessionEvents, nightlyAt = "", onSync = false, log = () => {}, now = () => new Date(), timers, finishDelayMs = FINISH_DELAY_MS, pollMs = POLL_MS }) {
   const events = new EventEmitter();
   const T = timers || {
     later: (fn, ms) => setTimeout(fn, ms),
@@ -92,7 +101,7 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
   const night = nightlyTime(nightlyAt);
 
   function blank() {
-    return { status: "idle", source: null, message: null, started: null, finished: null, items: [], inbox: null, nightly: { at: null, last: null } };
+    return { status: "idle", source: null, message: null, started: null, finished: null, items: [], inbox: null, nightly: { at: null, last: null }, auto: {} };
   }
 
   function save() {
@@ -111,7 +120,8 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
   function load() {
     try {
       const raw = JSON.parse(fs.readFileSync(file, "utf8"));
-      q = { ...blank(), ...raw, items: Array.isArray(raw.items) ? raw.items : [], nightly: { ...blank().nightly, ...(raw.nightly || {}) } };
+      q = { ...blank(), ...raw, items: Array.isArray(raw.items) ? raw.items : [], nightly: { ...blank().nightly, ...(raw.nightly || {}) },
+        auto: raw.auto && typeof raw.auto === "object" && !Array.isArray(raw.auto) ? raw.auto : {} };
     } catch {
       q = blank();
     }
@@ -151,8 +161,9 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
     const skipped = [];
     const finished = !["running", "paused"].includes(q.status);
     if (finished) {
-      // A new run: earlier results stay visible only until it starts.
-      q.items = [];
+      // A new run: earlier results stay visible only until it starts. Runs started by a check (onSync)
+      // keep them, so apps can still read how earlier reviews ended (status()).
+      if (source !== "sync") q.items = [];
       q.started = now().toISOString();
       q.finished = null;
       q.source = source;
@@ -308,11 +319,66 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
     add(inbox.prs, "nightly");
   }
 
-  /** The PRs waiting on you, as Dispatch last got them from the ADO connector. For the nightly run. */
+  /**
+   * The PRs waiting on you, as an app last got them from the ADO connector. For the nightly run, and
+   * with onSync, queues new PRs and new commits right away (blocking first).
+   */
   function saveInbox(prs) {
     q.inbox = { at: now().toISOString(), prs: prs.filter(Boolean).slice(0, 200) };
-    save();
-    return { ok: true, count: q.inbox.prs.length };
+    if (!onSync) {
+      save();
+      return { ok: true, count: q.inbox.prs.length, queued: [] };
+    }
+    const rank = (p) => (p.tier ? TIERS.indexOf(p.tier) : TIERS.length);
+    const fresh = [];
+    const auto = {};
+    for (const p of q.inbox.prs) {
+      const key = p.commit || "";
+      if (p.waiting) { if (q.auto[p.id] != null) auto[p.id] = q.auto[p.id]; continue; }
+      if (q.auto[p.id] === key || upToDate(review(p.id), p.commit)) { auto[p.id] = key; continue; }
+      auto[p.id] = key;
+      fresh.push(p);
+    }
+    q.auto = auto; // only PRs still in the inbox
+    fresh.sort((a, b) => rank(a) - rank(b));
+    if (!fresh.length) {
+      save();
+      return { ok: true, count: q.inbox.prs.length, queued: [] };
+    }
+    const { added } = add(fresh, "sync");
+    return { ok: true, count: q.inbox.prs.length, queued: added };
+  }
+
+  /**
+   * Where each PR's first-pass review stands, for apps that show PRs (Docket):
+   * state "queued" | "running" | "done" | "asking" | "failed" | "skipped" | "none".
+   */
+  function status(ids) {
+    const out = [];
+    for (const raw of ids) {
+      const id = String(raw);
+      let it = null;
+      for (const i of q.items) if (i.id === id) it = i; // the latest
+      const r = review(id);
+      let state = "none";
+      let message = null;
+      if (it && (it.state === "queued" || it.state === "running")) state = it.state;
+      else if (it && (it.state === "asking" || it.state === "failed") && !upToDate(r, it.commit)) { state = it.state; message = it.message; }
+      else if (r && r.reviewed) state = "done";
+      else if (it) { state = it.state; message = it.message; }
+      const done = state === "done";
+      out.push({
+        id,
+        state,
+        message,
+        session: it ? it.session : null,
+        reviewedCommit: done ? r.reviewedCommit || null : null,
+        recommendation: done ? clip(r.recommendation, 60) : null,
+        risk: done ? clip(r.risk, 20) : null,
+        counts: done && r.counts ? { blocking: Number(r.counts.blocking) || 0, shouldFix: Number(r.counts["should-fix"]) || 0, optional: Number(r.counts.optional) || 0 } : null,
+      });
+    }
+    return out;
   }
 
   /** Stop after the review that is running; the rest are skipped. */
@@ -385,5 +451,5 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
     };
   }
 
-  return { load, stop, add, saveInbox, stopRun, resume, clear, data, tick, events };
+  return { load, stop, add, saveInbox, status, stopRun, resume, clear, data, tick, events, onSync: !!onSync };
 }

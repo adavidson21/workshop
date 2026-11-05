@@ -296,4 +296,74 @@ describe("PR review queue", () => {
     await flush();
     assert.deepEqual(started, [LINK(1)]);
   });
+
+  test("onSync off: saving the inbox queues nothing", () => {
+    make();
+    const r = q.saveInbox([pr(1)]);
+    assert.deepEqual(r.queued, []);
+    assert.deepEqual(started, []);
+  });
+
+  test("onSync: new PRs are queued right away, blocking tier first, skipping waiting ones", async () => {
+    make({ onSync: true });
+    const r = q.saveInbox([pr(1, { tier: "pool" }), pr(2, { tier: "blocking" }), pr(3, { tier: "asked", waiting: true }), pr(4, { tier: "asked" })]);
+    assert.deepEqual(r.queued, ["2", "4", "1"]);
+    await flush();
+    assert.deepEqual(started, [LINK(2)]);
+    assert.equal(q.data().source, "sync");
+  });
+
+  test("onSync: a failed review is not retried on every check, but a new commit is", async () => {
+    make({ onSync: true });
+    startError = "Repo not cloned.";
+    q.saveInbox([pr(1)]);
+    await flush();
+    assert.equal(item(1).state, "failed");
+    startError = null;
+    assert.deepEqual(q.saveInbox([pr(1)]).queued, [], "same commit: not again");
+    assert.deepEqual(q.saveInbox([pr(1, { commit: SHA(9) })]).queued, ["1"], "new commit: again");
+  });
+
+  test("onSync: a PR reviewed at its commit is not queued, and a sync run keeps earlier results", async () => {
+    make({ onSync: true });
+    q.saveInbox([pr(1)]);
+    await flush();
+    await agentDone("ses_1", "1");
+    assert.equal(item(1).state, "done");
+    reviews.set("2", { reviewed: true, commit: SHA(2), reviewedCommit: SHA(2).slice(0, 7) });
+    assert.deepEqual(q.saveInbox([pr(1), pr(2), pr(3)]).queued, ["3"]);
+    assert.equal(item(1).state, "done", "earlier result kept");
+  });
+
+  test("status: where each PR's review stands", async () => {
+    make({ onSync: true });
+    q.saveInbox([pr(1, { tier: "blocking" }), pr(2)]);
+    await flush();
+    let [a, b, c] = q.status(["1", "2", "3"]);
+    assert.equal(a.state, "running");
+    assert.equal(b.state, "queued");
+    assert.equal(c.state, "none");
+    reviews.set("1", { reviewed: true, commit: SHA(1), reviewedCommit: SHA(1).slice(0, 7), recommendation: "Request changes", risk: "high", counts: { blocking: 1, "should-fix": 2, optional: 0 } });
+    sessions.set("ses_1", { status: "idle", error: null });
+    events.emit("idle", "ses_1");
+    await flush();
+    [a] = q.status([1]);
+    assert.equal(a.state, "done");
+    assert.equal(a.recommendation, "Request changes");
+    assert.equal(a.risk, "high");
+    assert.deepEqual(a.counts, { blocking: 1, shouldFix: 2, optional: 0 });
+    waitingOn.add("ses_2");
+    sessions.set("ses_2", { status: "idle", error: null });
+    q.tick();
+    await flush();
+    assert.equal(q.status(["2"])[0].state, "running", "asking session stays running until it ends");
+    waitingOn.delete("ses_2");
+    await agentDone("ses_2", "2", { reviewed: false });
+    assert.equal(q.status(["2"])[0].state, "asking");
+  });
+
+  test("cleanPr keeps a known tier only", () => {
+    assert.equal(pr(1, { tier: "blocking" }).tier, "blocking");
+    assert.equal(pr(1, { tier: "nope" }).tier, undefined);
+  });
 });

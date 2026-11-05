@@ -201,8 +201,9 @@ test('Review all lists inbox PRs not waiting on the author, not reviewed at thei
 });
 
 test('prArg sends only the fields pr.reviewAll accepts', () => {
-  assert.deepEqual(prArg({ ...INBOX_OK.items[2], commit: null }), { url: INBOX_OK.items[2].url, title: 'Old one', waiting: true });
-  assert.deepEqual(prArg({ url: LINK, title: 'T', commit: 'abc1234', tier: 'pool', via: ['x'] }), { url: LINK, title: 'T', commit: 'abc1234' });
+  assert.deepEqual(prArg({ ...INBOX_OK.items[2], commit: null }), { url: INBOX_OK.items[2].url, title: 'Old one', waiting: true, tier: 'asked' });
+  assert.deepEqual(prArg({ url: LINK, title: 'T', commit: 'abc1234', tier: 'pool', via: ['x'] }), { url: LINK, title: 'T', commit: 'abc1234', tier: 'pool' });
+  assert.deepEqual(prArg({ url: LINK, tier: 'other' }), { url: LINK }, 'unknown tier left out');
 });
 
 test('the queue panel: progress, current PR, Stop, and escaped titles; finished runs offer Dismiss', () => {
