@@ -19,6 +19,7 @@ import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults,
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
+import { useApps } from '../../../shared/capture.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
 const OC = 'opencode';
@@ -32,6 +33,8 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 if (!ws.embedded) mountBar('Dispatch');
 
 /* ---------- the hub (hub.js): one input for asks and captures, drawn once above the page ---------- */
+// Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
+ws.apps.list().then(useApps).catch(() => {});
 const hub = startHub(ws, document.getElementById('hub'));
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------

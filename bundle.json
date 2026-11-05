@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "files": {
     "docs/schemas/app.schema.json": "783c203f4836a5e8cd2fc09c6b1fc08dfa915f53fb7301f4dcf21fc0388040b5",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
@@ -48,7 +48,7 @@
     "icons/favicon.svg": "3f9a71f623a8b998e151ea12b9a5f04008b0e4760d3ff9b2a46f9830c09b6539",
     "shared/capture-box.js": "cbd555315bf0cf6e771daeb86c3aba2c97b13e7850199b29201c03062251279a",
     "shared/capture.css": "94b5b58ebd659a03f1f5cfbd99077c884053a3eaa5cc602d3d37b607e2c75ea4",
-    "shared/capture.js": "f47a270458db7b4433cc8ce313b5c22522102aa0708fcae82b81728ab8c6e08e",
+    "shared/capture.js": "2fa3687384213de55cb70b9f19f4f5175d49b5225d53ecae8b672ef9bcfaee03",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/OFL-Inter.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
     "shared/fonts/OFL-JetBrainsMono.txt": "403581b69dac5cff4079205e01c6b467e56af449ecbd7247693ddb1baafa005b",

@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -23,6 +23,14 @@
             "required": false
           }
         ],
+        "handoffs": {
+          "sends": [
+            "prioritizer",
+            "receipts",
+            "notes",
+            "runway"
+          ]
+        },
         "data": [
           "profile",
           "setup",
@@ -208,7 +216,7 @@
         "manifestVersion": 1,
         "id": "agents",
         "name": "Dispatch",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -240,6 +248,19 @@
             "id": "ado",
             "required": false
           }
+        ],
+        "handoffs": {
+          "sends": [
+            "prioritizer",
+            "receipts",
+            "notes",
+            "runway"
+          ]
+        },
+        "aliases": [
+          "dispatch",
+          "agents",
+          "hub"
         ],
         "commands": [
           {
@@ -407,7 +428,7 @@
         "manifestVersion": 1,
         "id": "receipts",
         "name": "Rapport",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -473,10 +494,42 @@
             "required": false
           }
         ],
+        "capture": [
+          "receipt"
+        ],
+        "aliases": [
+          "rapport",
+          "receipts",
+          {
+            "name": "1:1s",
+            "path": "1on1s"
+          },
+          {
+            "name": "1:1",
+            "path": "1on1s"
+          },
+          {
+            "name": "oneonones",
+            "path": "1on1s"
+          },
+          {
+            "name": "one-on-ones",
+            "path": "1on1s"
+          },
+          {
+            "name": "goals",
+            "path": "goals"
+          },
+          {
+            "name": "okrs",
+            "path": "goals"
+          }
+        ],
         "data": [
+          "config",
           "entries",
           "people",
-          "config"
+          "summary"
         ],
         "commands": [
           {
@@ -521,7 +574,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "description": "Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -530,6 +583,9 @@
           "local",
           "hosted",
           "browser"
+        ],
+        "capture": [
+          "note"
         ],
         "routes": [
           {
@@ -568,7 +624,7 @@
         "manifestVersion": 1,
         "id": "runway",
         "name": "Runway",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -582,6 +638,17 @@
           {
             "id": "ado",
             "required": false
+          }
+        ],
+        "capture": [
+          "idea"
+        ],
+        "aliases": [
+          "roadmap",
+          "roadmaps",
+          {
+            "name": "reports",
+            "path": "reports"
           }
         ],
         "routes": [
@@ -635,6 +702,7 @@
           "js/outline.js",
           "js/pending.js",
           "js/store.js",
+          "js/summary.js",
           "js/timeline.js",
           "js/view.js",
           "shared/device-fs.js",
@@ -647,7 +715,9 @@
           "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
           "shared/pair.js",
           "shared/save-file.js",
+          "shared/site.js",
           "shared/standalone-bar.js",
+          "shared/summary.js",
           "shared/sw-register.js",
           "shared/theme.js",
           "shared/themes.css",
@@ -663,7 +733,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "description": "Connectors, people, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -673,11 +743,23 @@
           "hosted",
           "browser"
         ],
+        "aliases": [
+          "settings",
+          "people",
+          {
+            "name": "teams",
+            "path": "people"
+          }
+        ],
         "files": [
-          "settings.css",
-          "js/settings.js",
           "js/forms.js",
-          "js/people.js"
+          "js/people.js",
+          "js/settings.js",
+          "js/teams.js",
+          "settings.css"
+        ],
+        "data": [
+          "teams"
         ]
       }
     }

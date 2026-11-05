@@ -5,7 +5,8 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, dateStr, dayNow, summarize, wrapState } from './view.js';
+import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, boardFromSummary, dateStr, dayNow, nowFromDay, summarize, wrapFromDay, wrapState } from './view.js';
+import { cardDay, readCards } from '../../../shared/summary.js';
 
 const P = { app: 'prioritizer' };
 const OC = 'opencode';
@@ -26,6 +27,22 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   }
 
   async function loadBoard() {
+    // Docket's summary first (docs/summaries.md). A missing or stale one falls back to Docket's own collections
+    // below, for a Docket that writes no summary yet; that fallback goes after one release.
+    try {
+      const cards = readCards(await ws.data.get('summary', P), 'prioritizer');
+      const d = now(), today = dateStr(d), nowMin = d.getHours() * 60 + d.getMinutes();
+      const board = cards && boardFromSummary(cards.get('board'), today);
+      const day = cards && cardDay(cards.get('day'), today);
+      if (board && day) {
+        v.board = board; v.boardNote = ''; v.dayNow = nowFromDay(day, nowMin); v.wrap = wrapFromDay(day, nowMin); v.source = 'summary';
+        changed();
+        return;
+      }
+    } catch (e) {
+      if (waitFor(e)) { v.board = null; v.boardNote = ''; changed(); return; }
+    }
+    v.source = 'collections';
     try {
       const year = now().getFullYear();
       const [tasks, lists, people, settings, templates, days, focus, offers] = await Promise.all(['tasks', 'lists', 'people', ...dayCollections(year)].map(c => ws.data.get(c, P)));

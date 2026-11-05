@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "home",
   "name": "Home",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -19,6 +19,14 @@
       "required": false
     }
   ],
+  "handoffs": {
+    "sends": [
+      "prioritizer",
+      "receipts",
+      "notes",
+      "runway"
+    ]
+  },
   "data": [
     "profile",
     "setup",
