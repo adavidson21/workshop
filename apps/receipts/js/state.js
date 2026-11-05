@@ -168,7 +168,7 @@ export function groupByMonth(list) {
 /* ---------- Workshop's people directory ----------
    Your reports and your manager are in the people directory (ws.people; docs/people.md in the workshop repo).
    Entries keep `about: 'me'`, `'up'` or a directory person id. */
-export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/settings';
+export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/people';
 /* Rapport 2.x kept your reports in its own `people` collection (receipts.people v1: {id, name, role, since,
    archived}) when Workshop had no directory yet. 3.0.0 reads only the directory, so those reports, and the
    receipts about them (`about` is their id), are copied into it once, keeping their ids (main.js). */

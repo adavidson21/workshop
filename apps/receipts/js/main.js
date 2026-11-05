@@ -621,7 +621,7 @@ app.addEventListener('click', async ev => {
     case 'draft-star': { const f = el.closest('form'); syncDraft(f); const d = draftFor(f.dataset.about); d.star = !d.star; paint(); break; }
     case 'star': { const e = entries().find(x => x.id === entryId); if (e) await safely(() => upsertEntry({ ...e, star: !e.star })); break; }
     case 'edit': { const e = entries().find(x => x.id === entryId); if (e) openEdit(e); break; }
-    case 'people-settings': if (ws.embedded) ws.open({ app: 'settings' }); else window.open(R.WORKSHOP_PEOPLE_URL, '_blank', 'noopener'); break;
+    case 'people-settings': if (ws.embedded) ws.open({ app: 'people' }); else window.open(R.WORKSHOP_PEOPLE_URL, '_blank', 'noopener'); break;
     case 'add-person': S.addingPerson = true; paint(); document.querySelector('.pform input')?.focus(); break;
     case 'edit-person': S.addingPerson = S.route.id; paint(); break;
     case 'cancel-person': S.addingPerson = false; paint(); break;

@@ -215,7 +215,7 @@ export function personForm(p, pick) {
     <h3 class="section-label">${p.id ? 'Edit person' : 'New person'}</h3>
     <div class="two">
       <label>Person<select name="personId" required>${opt('', 'Pick someone from People', !cur)}${options}${cur && !known ? opt(cur, `${p.name || cur} (not in People)`, true) : ''}</select>
-        ${pick.choices.length ? '' : `<span class="soft">No one in People yet. Add them in ${pick.embedded ? 'Settings, People' : 'Workshop\'s Settings, People'}.</span>`}</label>
+        ${pick.choices.length ? '' : `<span class="soft">No one in People yet. Add them in ${pick.embedded ? 'People' : 'Workshop\'s People app'}.</span>`}</label>
       <label>Cadence (days between 1:1s)<input name="cadenceDays" type="number" min="1" max="90" value="${esc(p.cadenceDays || 7)}"></label>
     </div>
     <p class="soft small">Their Docket tasks (and tasks on groups they are in) and, for a report or your manager, their receipts show in prep.</p>
