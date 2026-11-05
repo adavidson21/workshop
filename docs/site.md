@@ -34,5 +34,5 @@ export const SITE = {
 ## Rules
 
 1. **No site address anywhere else** in code that runs: the agent, shell, shared files, apps, Worker and installers read this file. Comments, docs and tests may name sites.
-2. **Two exceptions, checked:** `wrangler.jsonc` (Cloudflare reads it directly) and the one-line installers (`scripts/bootstrap.*`), which run before anything is downloaded. `tests/check-site.mjs` fails when an address there is not one in this file, or when any other runtime file names one.
+2. **Exceptions, checked:** `wrangler.jsonc` (Cloudflare reads it directly) and the installer scripts (`scripts/bootstrap.*`, which run before anything is downloaded, and `scripts/install.*`, plain shell). `tests/check-site.mjs` fails when an address there is not one in this file, or when any other runtime file names one.
 3. **Android app ids** (`org.alexisdavidson.docket`) are not addresses and never change: a new id is a different app on the device.
