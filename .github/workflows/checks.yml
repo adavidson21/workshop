@@ -17,6 +17,9 @@ jobs:
       # Runway (adavidson21/runway) is served under /apps/runway/ the same way, and checked the same way.
       - uses: actions/checkout@v4
         with: { repository: adavidson21/runway, path: .remote/runway }
+      # Rapport (adavidson21/receipts) is served under /apps/receipts/ the same way, and checked the same way.
+      - uses: actions/checkout@v4
+        with: { repository: adavidson21/receipts, path: .remote/receipts }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/setup-python@v5

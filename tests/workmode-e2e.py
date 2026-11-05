@@ -18,6 +18,7 @@ from playwright.sync_api import sync_playwright
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCKET = os.path.join(ROOT, '.remote', 'prioritizer')
 RUNWAY = os.path.join(ROOT, '.remote', 'runway')
+RECEIPTS = os.path.join(ROOT, '.remote', 'receipts')
 HOSTED = 'https://workshop.example.org'
 failures = 0
 
@@ -40,8 +41,10 @@ def main():
     env = {**os.environ, 'WORKSHOP_HOME': home}
     with_docket = os.path.exists(os.path.join(DOCKET, 'app.json'))
     with_runway = os.path.exists(os.path.join(RUNWAY, 'app.json'))
+    with_receipts = os.path.exists(os.path.join(RECEIPTS, 'app.json'))
     pin = subprocess.run(['node', os.path.join(ROOT, 'workshop.mjs'), 'pin'] + (['--docket', DOCKET] if with_docket else ['--no-docket'])
-                         + (['--runway', RUNWAY] if with_runway else ['--no-runway']),
+                         + (['--runway', RUNWAY] if with_runway else ['--no-runway'])
+                         + (['--receipts', RECEIPTS] if with_receipts else ['--no-receipts']),
                          env=env, capture_output=True, text=True)
     check(pin.returncode == 0, 'workshop pin builds the pinned copy')
     if pin.returncode != 0:
@@ -71,7 +74,7 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Dispatch', 'Rapport', 'Settings'] + (['Docket'] if with_docket else []) + (['Runway'] if with_runway else []):
+            for name in ['Dispatch', 'Settings'] + (['Docket'] if with_docket else []) + (['Runway'] if with_runway else []) + (['Rapport'] if with_receipts else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')

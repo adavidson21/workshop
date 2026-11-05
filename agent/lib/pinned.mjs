@@ -1,5 +1,5 @@
 // Work mode's pinned copy (docs/run-modes.md, Work mode). `workshop pin` builds a frozen copy of the site
-// (Workshop, its apps and optionally Docket and Runway) into <home>/ui/ with build.json, which lists every file and its
+// (Workshop, its apps and optionally Docket, Runway and Rapport) into <home>/ui/ with build.json, which lists every file and its
 // SHA-256. With features.workMode on, the agent serves the hub and every app from that copy only: a file
 // that is not listed is 404, and a file whose bytes no longer match build.json is refused (500), so nothing
 // changed after the build ever reaches the browser. Code changes only when the user runs `workshop pin`

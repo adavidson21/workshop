@@ -1,4 +1,4 @@
-// opencode connector: the optional draft step of Rapport's 1:1s (apps/receipts/js/oneonones). Not in the eng-agents live
+// opencode connector: the optional draft step of Rapport's 1:1s (js/oneonones in adavidson21/receipts). Not in the eng-agents live
 // server; Workshop only.
 //
 // oneonone.draft saves the app's packet (Markdown, people data) as packet.md in this connector's own storage
