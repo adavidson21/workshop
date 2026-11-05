@@ -32,12 +32,13 @@ const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0,
 
 // Rapport's summary for other apps (R.summaryCards): written after loading and after each save of entries.
 const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries) : null });
-// Senders of offers come from the manifests (ws.apps.list); R.SENDERS is updated in place.
-{
-  const found = R.sendersFrom(ws.apps && ws.apps.list ? await ws.apps.list().catch(() => []) : []);
+// Senders of offers come from the manifests (ws.apps.list); R.SENDERS is updated in place. Not awaited here, so
+// the page's route and command handlers are in place before the first event; loadOffers waits for it.
+const sendersReady = (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
+  const found = R.sendersFrom(apps);
   for (const k of Object.keys(R.SENDERS)) delete R.SENDERS[k];
   Object.assign(R.SENDERS, found);
-}
+});
 async function loadAll() {
   for (const n of NAMES) store[n] = (await ws.data.get(n)) || blank(n);
   await loadDirectory();
@@ -52,6 +53,7 @@ async function loadDirectory() {
 // Offers other apps left for Receipts in their own handoffs collection (read only; docs/handoffs.md in workshop).
 const offerEnvs = {};
 async function loadOffers() {
+  await sendersReady;
   for (const app of Object.keys(R.SENDERS)) {
     try { offerEnvs[app] = await ws.data.get('handoffs', { app }); } catch (e) { offerEnvs[app] = null; }
   }
@@ -739,7 +741,7 @@ ws.on('command', async ({ id }) => {
 // Another window (or a change to the folder outside the browser) wrote: re-read and repaint.
 for (const n of NAMES) ws.data.subscribe(n, async () => { store[n] = (await ws.data.get(n)) || blank(n); paint(); });
 ws.data.subscribe('people', async () => { await loadDirectory(); paint(); }, { app: 'settings' });
-for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); await pickUp(); paint(); }, { app });
+sendersReady.then(() => { for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); await pickUp(); paint(); }, { app }); });
 ws.on('online', async () => { await loadAll(); await pickUp(); paint(); });
 
 /* ---------- start ---------- */

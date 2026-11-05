@@ -204,7 +204,11 @@ test('summaryCards: the receipts count for Home (Workshop docs/summaries.md)', (
 });
 
 test('summaryCards match the summary-card schema', async () => {
-  const { SchemaSet } = await import('../../../test/workshop/schema.mjs');
-  const schemas = SchemaSet.fromDir(new URL('../../../test/workshop/schemas/', import.meta.url).pathname);
+  // The validator and schemas: copied into test/workshop/ in the receipts repo, at home in workshop (this test
+  // runs in both, since Workshop keeps a copy of this app).
+  const { existsSync } = await import('node:fs');
+  const here = existsSync(new URL('../../../test/workshop/schema.mjs', import.meta.url));
+  const { SchemaSet } = await import(here ? '../../../test/workshop/schema.mjs' : '../../../tests/lib/schema.mjs');
+  const schemas = SchemaSet.fromDir(new URL(here ? '../../../test/workshop/schemas/' : '../../../docs/schemas/', import.meta.url).pathname);
   for (const c of R.summaryCards({ items: [{ id: 'a' }] })) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), []);
 });
