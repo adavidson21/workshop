@@ -2,7 +2,7 @@
 // many of those are done. Read-only. Built like queue.list: WIQL for ids, then batch GETs.
 import { clientFor } from './client.mjs';
 import { checkAreas, itemUrl, queueConnection } from './queue.mjs';
-import { asInt, day, get, wiqlList } from './util.mjs';
+import { asInt, day, get, who, wiqlList } from './util.mjs';
 
 export const MAX_ITEMS = 2000;
 export const MAX_CHILDREN = 5000;
@@ -10,7 +10,8 @@ export const ROADMAP_TYPES = ['Epic', 'Feature'];
 export const CHILD_TYPES = ['User Story', 'Issue'];
 const CHUNK = 200;
 
-/** One Epic or Feature in the shape the Roadmap app keeps. */
+/** One Epic or Feature in the shape the Roadmap app keeps. `assignee` is {name, email} (email lower case, '' when
+    ADO gives none) or null when unassigned. */
 export function roadmapItem(ado, w) {
   const f = w.fields || {};
   const project = get(f, 'System.TeamProject') || '';
@@ -23,6 +24,7 @@ export function roadmapItem(ado, w) {
     area: get(f, 'System.AreaPath', '') || '',
     iteration: get(f, 'System.IterationPath', '') || '',
     parentId: asInt(get(f, 'System.Parent')),
+    assignee: who(get(f, 'System.AssignedTo')),
     targetDate: day(get(f, 'Microsoft.VSTS.Scheduling.TargetDate')),
     startDate: day(get(f, 'Microsoft.VSTS.Scheduling.StartDate')),
     changed: get(f, 'System.ChangedDate') || null,
