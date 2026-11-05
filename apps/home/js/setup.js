@@ -7,6 +7,7 @@
    factsFor() reads, stepsFor() decides (pure), card() builds the HTML (pure), createSetup() loads and
    saves. main.js puts the card under the greeting and repaints it when anything changes. */
 import { esc } from './view.js';
+import { SITE } from '../../../shared/site.js';
 
 export const SETUP_VERSION = 1;
 
@@ -148,7 +149,7 @@ function detail(s, ctx) {
   switch (s.id) {
     case 'connect': {
       if (f.workMode) return `<p>Work mode is on: Workshop runs from the pinned copy on this computer, so there is nothing to connect. Open it with <code>workshop open</code> and check it with <code>workshop doctor</code>.</p>`;
-      const site = /^https:\/\//.test(ctx.origin || '') ? ctx.origin : 'https://workshop.alexisdavidson.org';
+      const site = /^https:\/\//.test(ctx.origin || '') ? ctx.origin : SITE.workshop;
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { SITE } from '../../shared/site.js';
 import { writeJsonAtomic, writeFileAtomic } from './fsutil.mjs';
 
 export const DEFAULT_PORT = 4380;
@@ -26,7 +27,7 @@ export function homePaths(home) {
 
 // Workshop's own sites. The hub and its apps come from these (the agent serves only Workshop on this
 // computer), so a new install lets them pair: each still needs the user's click in a pairing window.
-export const DEFAULT_SITES = ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'];
+export const DEFAULT_SITES = [...SITE.allowedSites];
 
 export const defaultConfig = () => ({
   configVersion: 1,

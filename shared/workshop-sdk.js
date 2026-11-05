@@ -1358,6 +1358,11 @@ export async function connect(options) {
     },
     on(event, handler) { return shell.on(event, handler); },
 
+    /* apps on this Workshop site (docs/sdk.md, Apps) */
+    apps: {
+      list() { return appsOnSite(); }
+    },
+
     /* data */
     data: {
       async get(collection, opts) { return data.get((opts && opts.app) || app, collection); },
@@ -1514,6 +1519,35 @@ async function putWithRetry(data, app, collection, envelope) {
     }
     throw e;
   }
+}
+
+// The apps on this Workshop site, from its apps/registry.json (docs/sdk.md, Apps): what each manifest says
+// about finding it (handoffs, capture, aliases). [] outside Workshop's site, where there is no registry. Read
+// once per page.
+let appsPromise = null;
+export function appsFromRegistry(reg) {
+  const list = reg && Array.isArray(reg.apps) ? reg.apps : [];
+  return list.map(a => a && a.manifest).filter(m => m && typeof m.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(m.id))
+    .map(m => ({
+      id: m.id, name: typeof m.name === 'string' ? m.name : m.id, version: m.version || '', order: typeof m.order === 'number' ? m.order : null,
+      handoffs: m.handoffs && Array.isArray(m.handoffs.sends) ? { sends: m.handoffs.sends.filter(s => typeof s === 'string') } : { sends: [] },
+      capture: Array.isArray(m.capture) ? m.capture.filter(s => typeof s === 'string') : [],
+      aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : []
+    }))
+    .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
+}
+function appsOnSite() {
+  if (!appsPromise) {
+    appsPromise = (async () => {
+      try {
+        if (typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return [];
+        const res = await fetch(new URL('/apps/registry.json', location.origin), { cache: 'no-cache' });
+        if (!res.ok || !/json/.test(res.headers.get('content-type') || 'json')) return [];
+        return appsFromRegistry(await res.json());
+      } catch (e) { return []; }
+    })();
+  }
+  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases] })));
 }
 
 async function agentAppIds(ctx) {

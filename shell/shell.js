@@ -11,6 +11,7 @@
    toast, badge, notify, status.set, status.clear, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
+import { SITE, onCrumbsDomain } from '../shared/site.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 
 const $ = s => document.querySelector(s);
@@ -110,11 +111,9 @@ async function loadIcon(app) {
 }
 
 /* ---------- top bar: crumbs on the left, the light/dark toggle in the top right corner ---------- */
-// On alexisdavidson.org the crumbs lead back up to LifeKit (tools.alexisdavidson.org), like every
-// other tool there. Anywhere else (the agent on 127.0.0.1, another company's domain) they start at Workshop.
-const LIFEKIT = /(^|\.)alexisdavidson\.org$/.test(location.hostname)
-  ? [{ title: 'LifeKit', href: 'https://tools.alexisdavidson.org/' }, { title: 'Office', href: 'https://tools.alexisdavidson.org/office/' }]
-  : [];
+// On the owner's domain (shared/site.js, crumbs) the crumbs lead back up to the owner's site, like every other
+// tool there. Anywhere else (the agent on 127.0.0.1, another company's domain) they start at Workshop.
+const LIFEKIT = onCrumbsDomain(location.hostname) ? SITE.crumbs.links : [];
 function renderTopbar() {
   const bar = $('#topbar');
   if (!bar) return;

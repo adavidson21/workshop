@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { fail } from './http.mjs';
 import { SECURITY_HEADERS, contentType } from './static.mjs';
 
@@ -18,12 +19,16 @@ export const BUILD_FORMAT = 1;
 // Workshop's files that make up the site (the same set `workshop publish` copies).
 export const SITE_DIRS = ['shell', 'shared', 'icons', 'apps'];
 export const SITE_FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
-// Apps that live in their own repos (apps/remote.json): the id each uses inside Workshop, the name people see,
-// and the key that build.json, the `workshop pin` options (--docket, --runway) and the checkout folder use.
-export const REMOTE_APPS = [
-  { key: 'docket', id: 'prioritizer', name: 'Docket' },
-  { key: 'runway', id: 'runway', name: 'Runway' }
-];
+// Apps that live in their own repos, read from apps/remote.json: the id each uses inside Workshop, the name
+// people see, and the key (its repo's name) that build.json, the `workshop pin` options (--docket, --runway)
+// and the checkout folder use. A new entry in remote.json joins the pinned copy with no change here.
+export function remoteAppsOf(repo) {
+  let list = [];
+  try { list = JSON.parse(fs.readFileSync(path.join(repo, 'apps', 'remote.json'), 'utf8')).apps || []; } catch (e) { list = []; }
+  return list.filter(a => a && /^[a-z][a-z0-9-]{0,39}$/.test(a.id) && typeof a.repo === 'string' && /^[A-Za-z0-9_.-]+\/[a-z][a-z0-9-]{0,39}$/.test(a.repo))
+    .map(a => ({ key: a.repo.split('/')[1], id: a.id, name: (a.manifest && typeof a.manifest.name === 'string' && a.manifest.name) || a.id }));
+}
+export const REMOTE_APPS = remoteAppsOf(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..'));
 export const DOCKET_ID = 'prioritizer';
 // Folders inside an app that are never part of the site.
 const SKIP_DIRS = new Set(['test', 'node_modules']);

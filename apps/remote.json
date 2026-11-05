@@ -9,7 +9,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "4.14.1",
+        "version": "4.19.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -109,6 +109,8 @@
           "icons/favicon.svg",
           "js/actions.js",
           "js/ado.js",
+          "js/ado-link.js",
+          "js/ado-status.js",
           "js/app-banner.js",
           "js/command-bar.js",
           "js/connect.js",
@@ -127,7 +129,6 @@
           "js/focus-format.js",
           "js/focus-model.js",
           "js/focus.js",
-          "js/kv.js",
           "js/main.js",
           "js/model.js",
           "js/native.js",
@@ -135,10 +136,10 @@
           "js/offers.js",
           "js/onboarding.js",
           "js/overlays.js",
+          "js/paste.js",
           "js/people.js",
           "js/quick-add.js",
           "js/render.js",
-          "js/reports.js",
           "js/state.js",
           "js/storage.js",
           "js/store-format.js",
@@ -175,8 +176,8 @@
         "manifestVersion": 1,
         "id": "runway",
         "name": "Runway",
-        "version": "1.1.0",
-        "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps.",
+        "version": "1.4.0",
+        "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 50,
@@ -192,6 +193,10 @@
           }
         ],
         "routes": [
+          {
+            "path": "reports",
+            "title": "Team reports"
+          },
           {
             "path": ":id",
             "title": "Open a roadmap"
@@ -210,6 +215,11 @@
           {
             "id": "export",
             "title": "Export roadmap"
+          },
+          {
+            "id": "team-reports",
+            "title": "Team reports",
+            "route": "reports"
           }
         ],
         "files": [
@@ -222,12 +232,16 @@
           "icons/favicon.svg",
           "js/ado/index.js",
           "js/ado/model.js",
+          "js/ado/reports/index.js",
+          "js/ado/reports/model.js",
+          "js/ado/reports/view.js",
           "js/dates.js",
           "js/example.js",
           "js/export.js",
           "js/main.js",
           "js/model.js",
           "js/outline.js",
+          "js/pending.js",
           "js/store.js",
           "js/timeline.js",
           "js/view.js",
@@ -246,6 +260,7 @@
           "shared/theme.js",
           "shared/themes.css",
           "shared/ui.css",
+          "shared/vendor/xlsx.full.min.js",
           "shared/workshop-sdk.js"
         ]
       }
