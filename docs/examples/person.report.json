@@ -1,7 +1,9 @@
 {
   "id": "p_lq3k9a1b2c",
+  "kind": "person",
   "updatedAt": 1793736000000,
   "name": "Person One",
+  "handle": "person",
   "relation": "report",
   "team": true,
   "adoIdentity": "person.one@example.com",

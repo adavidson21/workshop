@@ -12,7 +12,8 @@
    Every mode: the people directory (people.js, docs/people.md). */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
-import * as P from './people.js';
+import * as PF from './people.js';
+import * as D from '../../../shared/people.js';
 import * as T from './teams.js';
 
 const $ = s => document.querySelector(s);
@@ -488,125 +489,107 @@ function summarize(result) {
 }
 
 /* ---------- people directory (docs/people.md) ----------
-   Settings' own collection `people`, read by Rapport (and its 1:1s) and Docket. Data writes work in every mode
-   (only config is read-only from a hosted site), so this card is always editable. */
-let peopleEnv = null;     // the stored envelope, or blank() before the first save
-let peopleUnreadable = false;
+   People and groups, changed through ws.people like every other app. Data writes work in every mode (only
+   config is read-only from a hosted site), so this card is always editable. */
+let dir = D.EMPTY;
 let peopleSec = null;
-let peopleEditing = null; // id of the person being edited, 'new', or null
+let peopleEditing = null; // id of the person or group being edited, 'new-person', 'new-group', or null
 
-async function loadPeople() {
-  const e = await ws.data.get(P.COLLECTION);
-  peopleUnreadable = !P.readable(e);
-  peopleEnv = e || P.blank();
-}
-const peopleList = () => (peopleEnv.items || []).map(p => P.cleanPerson(p));
-
-async function savePeople(mutate) {
-  const before = peopleEnv;
-  const after = structuredClone(before);
-  mutate(after);
-  ws.data.stamp(before, after);
-  try {
-    const r = await ws.data.put(P.COLLECTION, after);
-    peopleEnv = { ...after, rev: r.rev, updatedAt: r.updatedAt };
-  } catch (err) {
-    if (err.code !== 'conflict' || !err.current) throw err;
-    const merged = ws.data.merge(after, err.current);
-    const r = await ws.data.put(P.COLLECTION, merged);
-    peopleEnv = { ...merged, rev: r.rev, updatedAt: r.updatedAt };
-  }
-}
+const relOptions = cur => D.RELATIONS.map(r => `<option value="${r}"${cur === r ? ' selected' : ''}>${esc(D.RELATION_LABEL[r])}</option>`).join('');
 
 function personForm(p) {
-  const rel = P.RELATIONS.map(r => `<option value="${r}"${p.relation === r ? ' selected' : ''}>${esc(P.RELATION_LABEL[r])}</option>`).join('');
+  const isNew = !p.id;
   return `<form class="cfg person-form" data-person-form="${esc(p.id || 'new')}">
-    <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name)}" required></div>
-    <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${rel}</select></div>
-    <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${P.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
+    <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name || '')}" required></div>
+    <div class="cfg-row"><label for="pHandle">Handle</label><input id="pHandle" name="handle" class="cfg-input mono" maxlength="41" value="${esc(p.handle || '')}" placeholder="${isNew ? 'first name, filled in for you' : ''}">
+      <p class="cfg-help">What you type after @ in Docket and quick capture.</p></div>
+    <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${relOptions(p.relation)}</select>
+      <p class="cfg-help">Contact is anyone outside your working circle: another team, a vendor.</p></div>
+    <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${D.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
       <p class="cfg-help">Shows in Docket's Reports.</p></div>
-    <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity)}" placeholder="name@example.com or display name"></div>
-    <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role)}"></div>
-    <div class="cfg-row"><label for="pSince">Since</label><input id="pSince" name="since" type="date" class="cfg-input" value="${esc(p.since)}"></div>
-    <div class="acts"><span class="msg" aria-live="polite"></span>
-      ${p.id && p.id !== 'new' ? `<button type="button" class="btn" data-person-archive="${esc(p.id)}">${p.archived ? 'Restore' : 'Archive'}</button>` : ''}
-      <button type="button" class="btn" data-person-cancel>Cancel</button><button class="btn primary">Save</button></div>
+    <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity || '')}" placeholder="name@example.com or display name"></div>
+    <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
+    <div class="cfg-row"><label for="pSince">Since</label><input id="pSince" name="since" type="date" class="cfg-input" value="${esc(p.since || '')}"></div>
+    ${formActs(p)}
   </form>`;
 }
 
-function personRow(p) {
-  if (peopleEditing === p.id) return `<li class="person editing">${personForm(p)}</li>`;
-  const bits = [esc(P.RELATION_LABEL[p.relation]), P.onTeam(p) ? 'on my team' : '', p.role ? esc(p.role) : '', p.adoIdentity ? `<span class="mono">${esc(p.adoIdentity)}</span>` : ''].filter(Boolean);
-  return `<li class="person${p.archived ? ' archived' : ''}"><div><b>${esc(p.name)}</b>${p.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
-    <button class="btn" data-person-edit="${esc(p.id)}">Edit</button></li>`;
+function groupForm(g) {
+  const members = new Set(g.members || []);
+  const people = D.active(dir, { kind: 'person' });
+  // Archived members stay listed (checked) so saving the form does not drop them by surprise.
+  const shown = [...people, ...(g.members || []).map(id => dir.byId.get(id)).filter(p => p && p.archived)];
+  const boxes = shown.map(p => `<label class="member"><input type="checkbox" name="member" value="${esc(p.id)}"${members.has(p.id) ? ' checked' : ''}> ${esc(p.name)}${p.archived ? ' <span class="state">Archived</span>' : ''}</label>`).join('');
+  return `<form class="cfg person-form" data-group-form="${esc(g.id || 'new')}">
+    <div class="cfg-row"><label for="gName">Name</label><input id="gName" name="name" class="cfg-input" maxlength="200" value="${esc(g.name || '')}" required></div>
+    <div class="cfg-row"><label for="gHandle">Handle</label><input id="gHandle" name="handle" class="cfg-input mono" maxlength="41" value="${esc(g.handle || '')}" placeholder="${g.id ? '' : 'from the name, filled in for you'}"></div>
+    <fieldset class="cfg-row members"><legend>Members</legend>${boxes || '<p class="cfg-help">Add people first. A group can also stay empty, for a team whose people you do not track.</p>'}</fieldset>
+    ${formActs(g)}
+  </form>`;
 }
 
-async function importSources() {
-  const get = async (app, c) => { try { return await ws.data.get(c, { app }); } catch (e) { return null; } };
-  const [people, config] = await Promise.all([get('receipts', 'people'), get('receipts', 'config')]);
-  return { receipts: { people, config } };
+function formActs(it) {
+  return `<div class="acts"><span class="msg" aria-live="polite"></span>
+      ${it.id ? `<button type="button" class="btn" data-item-archive="${esc(it.id)}">${it.archived ? 'Restore' : 'Archive'}</button>` : ''}
+      <button type="button" class="btn" data-item-cancel>Cancel</button><button class="btn primary">Save</button></div>`;
 }
 
-async function paintPeople() {
-  const sec = peopleSec;
-  if (peopleUnreadable) {
-    sec.querySelector('.people-body').innerHTML = `<p class="err">The people list was saved by a newer Workshop (version ${esc(peopleEnv.version)}). Update Workshop to change it.</p>`;
+function itemRow(it) {
+  if (peopleEditing === it.id) return `<li class="person editing">${it.kind === 'group' ? groupForm(it) : personForm(it)}</li>`;
+  const bits = it.kind === 'group'
+    ? [D.membersOf(dir, it.id).map(p => esc(p.name)).join(', ') || 'No members']
+    : [esc(D.RELATION_LABEL[it.relation]), D.onTeam(it) ? 'on my team' : '', it.role ? esc(it.role) : '', it.adoIdentity ? `<span class="mono">${esc(it.adoIdentity)}</span>` : '',
+       D.groupsOf(dir, it.id).map(g => `@${esc(g.handle)}`).join(' ')].filter(Boolean);
+  return `<li class="person${it.archived ? ' archived' : ''}"><div><b>${esc(it.name)}</b> <span class="mono handle">@${esc(it.handle)}</span>${it.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
+    <button class="btn" data-item-edit="${esc(it.id)}">Edit</button></li>`;
+}
+
+function paintPeople() {
+  const body = peopleSec.querySelector('.people-body');
+  if (dir.unreadable) {
+    body.innerHTML = `<p class="err">The people list was saved by another Workshop version (version ${esc(dir.version)}). Update Workshop to change it.</p>`;
     return;
   }
-  const list = P.sorted(peopleList());
-  const active = list.filter(p => !p.archived), archived = list.filter(p => p.archived);
-  const plan = P.importPlan({ ...(await importSources()), existing: list });
-  const canImport = plan.add.length || plan.update.length;
-  sec.querySelector('.people-body').innerHTML = `
-    ${active.length ? `<ul class="people">${active.map(personRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
-    ${peopleEditing === 'new' ? `<div class="person editing">${personForm(P.cleanPerson({ id: 'new', relation: active.some(p => p.relation === 'self') ? 'report' : 'self' }))}</div>` : ''}
-    <div class="acts left">${peopleEditing === 'new' ? '' : '<button class="btn primary" data-person-new>Add a person</button>'}
-      ${canImport ? `<button class="btn" data-people-import>Import from Rapport</button>` : ''}<span class="msg" aria-live="polite"></span></div>
-    ${canImport ? `<details class="import-preview"><summary>What the import adds (${plan.add.length + plan.update.length})</summary>
-      <ul>${plan.add.map(p => `<li>Add <b>${esc(p.name)}</b> as ${esc(P.RELATION_LABEL[p.relation].toLowerCase())}${p.adoIdentity ? ` (<span class="mono">${esc(p.adoIdentity)}</span>)` : ''}${p.archived ? ', archived' : ''}</li>`).join('')}
-      ${plan.update.map(u => `<li>Set ${esc(u.name)}'s Azure DevOps to <span class="mono">${esc(u.adoIdentity)}</span></li>`).join('')}</ul>
-      ${plan.notes.length ? `<ul class="import-notes">${plan.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      <p class="cfg-help">Rapport keeps its own list unchanged.</p></details>` : ''}
-    ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(personRow).join('')}</ul></details>` : ''}`;
-  if (peopleEditing && sec.querySelector('#pName')) sec.querySelector('#pName').focus();
+  const people = D.sorted(dir.people.filter(p => !p.archived));
+  const groups = D.sorted(dir.groups.filter(g => !g.archived));
+  const archived = D.sorted(dir.items.filter(it => it.archived));
+  const hasSelf = !!D.self(dir);
+  body.innerHTML = `
+    ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
+    ${peopleEditing === 'new-person' ? `<div class="person editing">${personForm({ relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
+    <h3 class="people-sub">Groups</h3>
+    ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.</p>'}
+    ${peopleEditing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
+    <div class="acts left">${peopleEditing && peopleEditing.startsWith('new') ? '' : '<button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button>'}
+      <span class="msg" aria-live="polite"></span></div>
+    ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(itemRow).join('')}</ul></details>` : ''}`;
+  const first = body.querySelector('.editing input[name=name]');
+  if (first) first.focus();
 }
 
 async function peopleCard() {
-  peopleSec = card('People', 'You, your manager, your reports and peers. Rapport (with its 1:1s) and Docket use this list, so you add someone once.', 'people');
+  peopleSec = card('People', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Docket, Rapport and Home all use this list.', 'people');
   peopleSec.dataset.people = '';
   peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
-  try { await loadPeople(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
-  await paintPeople();
+  try { dir = await ws.people.get(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
+  paintPeople();
+
+  const done = (text) => { peopleEditing = null; toast(text, 'success'); paintPeople(); };
 
   peopleSec.addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t) return;
-    const msg = peopleSec.querySelector('.acts .msg');
-    if (t.matches('[data-person-new]')) { peopleEditing = 'new'; return paintPeople(); }
-    if (t.matches('[data-person-edit]')) { peopleEditing = t.dataset.personEdit; return paintPeople(); }
-    if (t.matches('[data-person-cancel]')) { peopleEditing = null; return paintPeople(); }
-    if (t.matches('[data-person-archive]')) {
-      const p = peopleList().find(x => x.id === t.dataset.personArchive);
-      if (!p) return;
-      const next = { ...p, archived: !p.archived };
-      const why = P.problem(next, peopleList());
-      if (why) { t.closest('form').querySelector('.msg').textContent = why; return; }
+    if (t.matches('[data-person-new]')) { peopleEditing = 'new-person'; return paintPeople(); }
+    if (t.matches('[data-group-new]')) { peopleEditing = 'new-group'; return paintPeople(); }
+    if (t.matches('[data-item-edit]')) { peopleEditing = t.dataset.itemEdit; return paintPeople(); }
+    if (t.matches('[data-item-cancel]')) { peopleEditing = null; return paintPeople(); }
+    if (t.matches('[data-item-archive]')) {
+      const it = dir.byId.get(t.dataset.itemArchive);
+      if (!it) return;
       try {
-        await savePeople(env => { env.items = env.items.map(x => (x.id === p.id ? next : x)); });
-        peopleEditing = null;
-        toast(next.archived ? `${p.name} archived. Records about them are kept.` : `${p.name} restored.`, 'success');
-        await paintPeople();
+        if (it.archived) await ws.people.restore(it.id); else await ws.people.archive(it.id);
+        done(it.archived ? `${it.name} restored.` : `${it.name} archived. Records about them are kept.`);
       } catch (err) { t.closest('form').querySelector('.msg').textContent = errText(err); }
-      return;
-    }
-    if (t.matches('[data-people-import]')) {
-      const list = peopleList();
-      const plan = P.importPlan({ ...(await importSources()), existing: list });
-      try {
-        await savePeople(env => { env.items = P.applyPlan(env.items.map(x => P.cleanPerson(x)), plan); });
-        toast(`Imported ${plan.add.length} ${plan.add.length === 1 ? 'person' : 'people'}.`, 'success');
-        await paintPeople();
-      } catch (err) { if (msg) msg.textContent = errText(err); }
     }
   });
 
@@ -615,37 +598,27 @@ async function peopleCard() {
     const form = e.target.closest('[data-person-form]');
     if (!form) return;
     if (e.target.name === 'team') form.dataset.teamTouched = '1';
-    if (e.target.name === 'relation' && !form.dataset.teamTouched) form.querySelector('[name=team]').checked = P.onTeam({ relation: e.target.value });
+    if (e.target.name === 'relation' && !form.dataset.teamTouched) form.querySelector('[name=team]').checked = D.onTeam({ relation: e.target.value });
   });
 
   peopleSec.addEventListener('submit', async e => {
-    const form = e.target.closest('[data-person-form]');
+    const form = e.target.closest('[data-person-form], [data-group-form]');
     if (!form) return;
     e.preventDefault();
-    const fd = new FormData(form);
-    const id = form.dataset.personForm;
-    const old = peopleList().find(x => x.id === id);
-    const person = P.cleanPerson({
-      ...(old || {}), id: old ? old.id : '',
-      name: fd.get('name'), relation: fd.get('relation'), team: fd.get('team') === 'on',
-      adoIdentity: fd.get('adoIdentity'), role: fd.get('role'), since: fd.get('since'),
-    });
-    const why = P.problem(person, peopleList());
-    if (why) { form.querySelector('.msg').textContent = why; return; }
+    const isGroup = form.hasAttribute('data-group-form');
+    const id = isGroup ? form.dataset.groupForm : form.dataset.personForm;
+    const fields = isGroup ? PF.groupFields(new FormData(form)) : PF.personFields(new FormData(form));
+    const old = dir.byId.get(id);
+    if (old && !fields.handle) fields.handle = old.handle; // an emptied handle keeps the old one
     try {
-      await savePeople(env => {
-        const at = env.items.findIndex(x => x.id === person.id);
-        if (at >= 0) env.items[at] = person; else env.items.push(person);
-      });
-      peopleEditing = null;
-      toast(`${person.name} saved.`, 'success');
-      await paintPeople();
+      const saved = old ? await ws.people.update(old.id, fields) : await ws.people.add({ ...fields, kind: isGroup ? 'group' : 'person' });
+      done(`${saved.name} saved as @${saved.handle}.`);
     } catch (err) { form.querySelector('.msg').textContent = errText(err); }
   });
 
-  ws.data.subscribe(P.COLLECTION, async () => {
-    if (peopleEditing) return; // don't redraw under an open form; the next save merges
-    try { await loadPeople(); await paintPeople(); } catch (e) { /* the next load shows it */ }
+  ws.people.subscribe(next => {
+    dir = next;
+    if (!peopleEditing) paintPeople(); // don't redraw under an open form; the next save merges
   });
 }
 

@@ -14,6 +14,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as R from './state.js';
+import * as D from '../../../shared/people.js';
 import { createSummaryWriter } from '../../../shared/summary.js';
 import { createOneOnOnesPage } from './oneonones/page.js';
 import { createGoalsPage } from './goals/page.js';
@@ -26,7 +27,7 @@ if (!ws.embedded) mountBar('Rapport');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 /* ---------- data ---------- */
-const NAMES = ['entries', 'people', 'config'];
+const NAMES = ['entries', 'config'];
 const store = {};
 const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0, items: [], deleted: {}, ...(name === 'config' ? { meta: { ...R.DEFAULT_CONFIG, updatedAt: 0 } } : {}) });
 
@@ -45,10 +46,11 @@ async function loadAll() {
   await loadOffers();
   summary.schedule();
 }
-// Workshop's people directory (read only; docs/people.md in workshop). null: use our own people.
-let dir = null;
+// Workshop's people directory (ws.people; docs/people.md in workshop): your reports and your manager. Rapport
+// adds and edits reports there too, so a report is the same person in Docket, Home and Settings.
+let dir = D.EMPTY;
 async function loadDirectory() {
-  try { dir = R.readDirectory(await ws.data.get('people', { app: 'settings' })); } catch (e) { dir = null; }
+  try { dir = await ws.people.get(); } catch (e) { /* keep what we had */ }
 }
 // Offers other apps left for Receipts in their own handoffs collection (read only; docs/handoffs.md in workshop).
 const offerEnvs = {};
@@ -80,8 +82,8 @@ const offers = () => {
   return Object.keys(R.SENDERS).flatMap(app => R.pendingOffers(app, offerEnvs[app], cfg().handled, known));
 };
 const entries = () => store.entries.items.map(R.cleanEntry);
-const ownPeople = () => store.people.items.map(R.cleanPerson);
-const people = () => (dir ? dir.reports : ownPeople());
+// Reports, archived ones included (the Reports page lists those under Archived).
+const people = () => R.reportsFrom(dir);
 const cfg = () => ({ ...R.DEFAULT_CONFIG, ...(store.config.meta || {}) });
 
 // The write loop from the data format: stamp, put, and on a conflict merge with what is stored and put again.
@@ -112,10 +114,13 @@ const upsertEntry = e => save('entries', env => {
   if (i >= 0) env.items[i] = e; else env.items.push(e);
 });
 const removeEntry = id => save('entries', env => { env.items = env.items.filter(x => x.id !== id); });
-const upsertPerson = p => save('people', env => {
-  const i = env.items.findIndex(x => x.id === p.id);
-  if (i >= 0) env.items[i] = p; else env.items.push(p);
-});
+// A report in the people directory: changed if it is there, else added as a direct report. Resolves its id.
+async function upsertPerson(p) {
+  const fields = { name: p.name, role: p.role, since: p.since, archived: !!p.archived };
+  const it = dir.byId.get(p.id) ? await ws.people.update(p.id, fields) : await ws.people.add({ ...fields, relation: 'report' });
+  await loadDirectory();
+  return it.id;
+}
 const saveConfig = patch => save('config', env => { env.meta = { ...(env.meta || {}), ...patch }; });
 
 /* ---------- view state ---------- */
@@ -130,9 +135,9 @@ const S = {
 };
 const filterFor = key => (S.filters[key] ||= { period: cfg().cycleStart ? 'cycle' : 'quarter', section: '', kind: '', star: false, q: '' });
 const draftFor = about => (S.draft[about] ||= R.blankEntry(about, cfg()));
-const upName = () => (dir && dir.manager) || cfg().upLabel || 'My manager';
+const upName = () => (D.manager(dir) || {}).name || cfg().upLabel || 'My manager';
 const nameOf = about => about === 'me' ? 'Me' : about === 'up' ? upName()
-  : ((dir && dir.all.find(p => p.id === about)) || ownPeople().find(p => p.id === about))?.name || 'Former report';
+  : D.label(dir, about, 'Former report');
 const peopleLink = label => `<button class="btn" data-act="people-settings">${esc(label)}</button>`;
 
 /* ---------- routing ----------
@@ -319,7 +324,7 @@ function teamView() {
   return `<div class="bar">
       <select name="period" data-key="team" aria-label="Period" class="solo">${R.periods(cfg()).map(p => opt(p.key, p.label, f.period)).join('')}</select>
       <span class="grow"></span>
-      ${dir ? peopleLink('Edit people in Workshop') : rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}
+      ${rows.length ? '<button class="btn" data-act="add-person">Add a report</button>' : ''}${ws.embedded ? peopleLink('All people') : ''}
     </div>
     ${S.addingPerson ? personForm({ id: '', name: '', role: '', since: '' }) : ''}
     ${rows.length ? `<ul class="roster">${rows.map(r => `<li class="rrow"><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
@@ -328,7 +333,6 @@ function teamView() {
         <span class="plast${r.stale ? ' stale' : ''}">${r.lastDate ? (r.daysSince === 0 ? 'Today' : `${r.daysSince}d ago`) : 'No receipts'}</span>
       </button><button class="btn log" data-act="log-for" data-about="${esc(r.person.id)}" aria-label="Add a receipt for ${esc(r.person.name || 'this report')}">Add</button></li>`).join('')}</ul>
       <p class="legend mono">W wins &middot; F feedback given &middot; G growth areas &middot; C concerns &middot; Highlighted: nothing in ${cfg().staleDays} days</p>`
-    : dir ? `<div class="engcard"><h2>No reports yet</h2><p>Your people come from Workshop's Settings. Add your direct reports there, as Direct report.</p><div class="acts">${peopleLink('Open People in Workshop')}</div></div>`
     : (S.addingPerson ? '' : `<div class="engcard"><h2>No reports yet</h2><p>Add a direct report to log their wins, feedback, growth areas and concerns.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul>${archived.map(p => `<li><button class="lnk" data-act="go" data-path="team/${esc(p.id)}">${esc(p.name)}</button></li>`).join('')}</ul></details>` : ''}`;
 }
@@ -354,9 +358,9 @@ function personView(id) {
   const n = k => inP.filter(e => e.kind === k).length;
   return `<div class="bar"><button class="btn ghost" data-act="go" data-path="team">${I.back} Reports</button><span class="grow"></span>
       <button class="btn" data-act="go" data-path="review" data-about="${esc(id)}">Build review</button>
-      ${dir ? '<button class="btn ghost" data-act="people-settings">Edit in Workshop</button>' : `<button class="btn ghost" data-act="edit-person">Edit</button>
-      <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button>`}</div>
-    ${S.addingPerson === id && !dir ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
+      <button class="btn ghost" data-act="edit-person">Edit</button>
+      <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button></div>
+    ${S.addingPerson === id ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
     ${p.archived ? '' : oo.panel(id, p.name)}
     <h3 class="section-label rhead">Receipts</h3>
     <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
@@ -373,7 +377,7 @@ function upView() {
   const period = R.findPeriod(c, f.period);
   const all = entries();
   const list = R.filterEntries(all, { about: 'up', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
-  const mgr = oo.findByName(upName());
+  const mgr = D.manager(dir) ? oo.findByPerson(D.manager(dir).id) : null;
   return `${mgr ? `<div class="bar"><span class="grow"></span><button class="btn" data-act="go" data-path="1on1s/${esc(mgr.id)}">1:1s with ${esc(mgr.name)}</button></div>` : ''}
     ${composerHtml('up', 'Support you got, an ask, or feedback to share')}
     ${filtersHtml('up')}
@@ -456,8 +460,8 @@ function settingsView(fs) {
         <label>Flag a report after<span class="inl"><input type="number" name="staleDays" min="1" max="365" value="${esc(c.staleDays)}"> days with no receipts</span></label>
       </div>
       <label class="tog"><input type="checkbox" name="upward"${c.upward ? ' checked' : ''}> Show the Upward tracker</label>
-      ${dir && dir.manager ? `<p class="fine">Upward is about ${esc(dir.manager)}, your manager in Workshop's People.</p>` : `<label>Upward label<input name="upLabel" value="${esc(c.upLabel || '')}" placeholder="My manager"></label>`}
-      ${dir ? `<p class="fine">Your reports and manager come from People in Workshop's Settings. ${peopleLink('Open People')}</p>` : ''}
+      ${D.manager(dir) ? `<p class="fine">Upward is about ${esc(D.manager(dir).name)}, your manager in People.</p>` : `<label>Upward label<input name="upLabel" value="${esc(c.upLabel || '')}" placeholder="My manager"></label>`}
+      ${ws.embedded ? `<p class="fine">Your reports and manager are in People, shared with Docket and Home. ${peopleLink('Open People')}</p>` : ''}
       <div class="acts"><button class="btn primary" type="submit">Save</button></div>
     </form>`;
 }
@@ -475,7 +479,7 @@ function paint() {
   // Keep focus and caret across repaints (search boxes repaint as you type).
   const a = document.activeElement;
   const keep = a && a.id ? { id: a.id, s: a.selectionStart, e: a.selectionEnd, top: a.scrollTop } : null;
-  oo.setOwn(store.entries, store.people);
+  oo.setOwn(store.entries, dir);
   const title = view === 'team' && id ? 'Reports' : TITLES[view];
   let body;
   if (view === 'team') body = id ? personView(id) : teamView();
@@ -684,12 +688,13 @@ app.addEventListener('submit', async ev => {
   const fd = new FormData(form);
   if (form.classList.contains('pform')) {
     const old = people().find(p => p.id === form.dataset.id);
-    const p = R.cleanPerson({ ...(old || {}), id: form.dataset.id || R.newId('p'), name: fd.get('name'), role: fd.get('role'), since: fd.get('since') });
+    const p = { ...(old || {}), id: form.dataset.id || '', name: String(fd.get('name') || '').trim(), role: String(fd.get('role') || '').trim(), since: String(fd.get('since') || '') };
     if (!p.name) return;
     S.addingPerson = false;
     if (old) return safely(() => upsertPerson(p), 'Saved.');
-    await safely(() => upsertPerson(p), `Added ${p.name}.`);
-    if (people().some(x => x.id === p.id)) { go(`team/${p.id}`); focusComposer(); }
+    let id = '';
+    await safely(async () => { id = await upsertPerson(p); }, `Added ${p.name}.`);
+    if (id && people().some(x => x.id === id)) { go(`team/${id}`); focusComposer(); }
     return;
   }
   switch (form.dataset.form) {
@@ -740,7 +745,7 @@ ws.on('command', async ({ id }) => {
 });
 // Another window (or a change to the folder outside the browser) wrote: re-read and repaint.
 for (const n of NAMES) ws.data.subscribe(n, async () => { store[n] = (await ws.data.get(n)) || blank(n); paint(); });
-ws.data.subscribe('people', async () => { await loadDirectory(); paint(); }, { app: 'settings' });
+ws.people.subscribe(next => { dir = next; paint(); });
 sendersReady.then(() => { for (const app of Object.keys(R.SENDERS)) ws.data.subscribe('handoffs', async () => { await loadOffers(); await pickUp(); paint(); }, { app }); });
 ws.on('online', async () => { await loadAll(); await pickUp(); paint(); });
 

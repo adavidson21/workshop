@@ -6,6 +6,7 @@
    and toHandoff work the same as Home's quick capture. answerHtml renders answer.md as escaped text with code,
    bold, lists and http(s) links only. */
 import { readCards, targetsFor } from '../../../shared/summary.js';
+import { EMPTY, find, label, membersOf } from '../../../shared/people.js';
 
 export const TARGETS = ['prioritizer', 'receipts', 'notes'];
 export const PAYLOAD_KINDS = ['task', 'win', 'feedback', 'growth', 'concern', 'note'];
@@ -61,20 +62,30 @@ export function checkRoute(r) {
 /* Whether Dispatch offers this act as a button at all (ACTS). Other suggestions show as text only. */
 export const actAllowed = a => !!(a && ACTS[a.connector] && ACTS[a.connector].includes(a.action));
 
-/* A route proposal in the shape of shared/capture.js (kind, to, text, title, payload). */
-export function toProposal(p) {
-  const q = p.payload || {};
+/* A route proposal in the shape of shared/capture.js (kind, to, text, title, payload, names). Tasks name people
+   and groups by directory id (`who`); names Tandem wrote in `people` are matched in the directory (find()) and
+   dropped when nothing matches, so a task only ever carries ids. */
+export function toProposal(p, dir = EMPTY) {
+  const q = { ...(p.payload || {}) };
   const kind = p.to === 'prioritizer' ? (q.waiting ? 'waiting' : 'task') : p.to === 'receipts' ? 'receipt' : 'note';
-  return { kind, to: p.to, text: p.text, title: q.title || p.text, payload: { ...q }, confidence: p.confidence, reason: p.reason };
+  const ids = [
+    ...(Array.isArray(q.who) ? q.who.filter(id => dir.byId.has(id)) : []),
+    ...(Array.isArray(q.people) ? q.people.map(n => find(dir, n)).filter(Boolean).map(it => it.id) : [])
+  ];
+  delete q.people; delete q.who;
+  const who = [...new Set(ids)].slice(0, 10);
+  if (who.length) q.who = who;
+  return { kind, to: p.to, text: p.text, title: q.title || p.text, payload: q, ...(who.length ? { names: who.map(id => label(dir, id)) } : {}), confidence: p.confidence, reason: p.reason };
 }
 export const LOW = 0.5;
 export const isLow = p => typeof p.confidence === 'number' && p.confidence < LOW;
 
-/* What to send with a message (docs/hub.md, request.md): names only. people: directory envelope; summary: Docket's
-   summary envelope (its `lists` targets, docs/summaries.md); teams: Settings' teams envelope (docs/teams.md).
-   Each optional. */
-export function hubContext({ people, summary, teams } = {}) {
-  const ppl = people && people.schema === 'settings.people' && people.version === 1 ? people.items || [] : [];
+/* What to send with a message (docs/hub.md, request.md): names only. dir: the people directory (ws.people);
+   summary: Docket's summary envelope (its `lists` targets, docs/summaries.md); teams: Settings' teams envelope
+   (docs/teams.md). Each optional. `items` is the directory's active items, for the rules on this page
+   (parseCapture). */
+export function hubContext({ dir, summary, teams } = {}) {
+  const live = dir ? dir.items.filter(it => !it.archived) : [];
   const cards = readCards(summary, 'prioritizer');
   const targets = cards && targetsFor([cards], 'task');
   const ls = targets ? targets.map(r => ({ name: r.title })) : [];
@@ -82,9 +93,13 @@ export function hubContext({ people, summary, teams } = {}) {
     ? teams.items.find(t => t && Array.isArray(t.areas) && t.areas.length) : null;
   const areas = team ? team.areas : [];
   return {
-    people: ppl.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name && !p.archived).slice(0, 200)
-      .map(p => ({ id: p.id.slice(0, 110), name: p.name.slice(0, 200), ...(['self', 'report', 'manager', 'peer'].includes(p.relation) ? { relation: p.relation } : {}),
-        ...(typeof p.team === 'boolean' ? { team: p.team } : p.relation === 'self' || p.relation === 'report' ? { team: true } : {}) })),
+    people: live.slice(0, 200).map(it => ({
+      id: it.id.slice(0, 110), name: it.name.slice(0, 200), ...(it.handle ? { handle: it.handle } : {}),
+      ...(it.kind === 'group'
+        ? { kind: 'group', members: membersOf(dir, it.id).map(m => m.id.slice(0, 110)).slice(0, 200) }
+        : { relation: it.relation, ...(it.team ? { team: true } : {}) })
+    })),
+    items: live,
     lists: ls.filter(l => l && typeof l.name === 'string' && l.name).map(l => l.name.slice(0, 120)).slice(0, 200),
     areas: areas.filter(a => typeof a === 'string' && a).map(a => a.slice(0, 300)).slice(0, 200)
   };

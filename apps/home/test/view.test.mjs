@@ -2,7 +2,8 @@
 // numbers, the day plan and Wrap up are tested in Docket (test/summary.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentCounts, boardFromSummary, fmt12, greeting, initials, nowFromDay, profileForm, render, wrapFromDay } from '../js/view.js';
+import { agentCounts, boardFromSummary, fmt12, greeting, initials, nowFromDay, profileForm, render, withNames, wrapFromDay } from '../js/view.js';
+import { directory } from '../../../shared/people.js';
 
 const TODAY = '2026-10-21';
 // A board as Home builds it from Docket's `board` card.
@@ -11,12 +12,12 @@ const row = (id, o) => Object.assign({ id, title: 'Task ' + id, list: '', listId
 
 test('boardFromSummary: today\'s counts with Up next and the team; null when the card has no today', () => {
   const card = { id: 'board', kind: 'board', updatedAt: 1, days: { [TODAY]: { total: 9, open: 7, focus: { total: 2, done: 1 }, triage: 2, overdue: 1, dueWeek: 1 } },
-    upNext: [row('c'), row('a'), row('d'), row('x')], team: [{ name: 'DevA', open: 2, waiting: 0 }] };
+    upNext: [row('c'), row('a'), row('d'), row('x')], team: [{ id: 'p_a', name: 'DevA', open: 2, waiting: 0 }] };
   const b = boardFromSummary(card, TODAY);
   assert.deepEqual(b.focus, { total: 2, done: 1 });
   assert.equal(b.open, 7);
   assert.deepEqual(b.upNext.map(x => x.id), ['c', 'a', 'd'], 'at most 3');
-  assert.deepEqual(b.team, [{ name: 'DevA', open: 2, waiting: 0 }]);
+  assert.deepEqual(b.team, [{ id: 'p_a', name: 'DevA', open: 2, waiting: 0 }]);
   assert.equal(boardFromSummary(card, '2026-10-30'), null, 'stale');
   assert.equal(boardFromSummary(null, TODAY), null);
 });
@@ -104,9 +105,9 @@ test('Wrap up step: primary when due, says Day wrapped once done', () => {
 });
 
 test('symbols: tiles carry icons and tone, rows use signals and quiet people', () => {
-  const b = board({ total: 2, open: 2, triage: 1, overdue: 1,
-    upNext: [row('a', { title: 'Late', list: 'Main', listId: 'l1', due: '2026-10-19', people: ['Dana Lee'] }), row('b', { title: 'Raw', list: 'Side', listId: 'l2', triaged: false })],
-    team: [{ name: 'Dana Lee', open: 1, waiting: 0 }, { name: 'Idle', open: 0, waiting: 0 }] });
+  const b = board({ total: 2, open: 2, triage: 1, overdue: 1, upNext: [
+    row('a', { title: 'Late', list: 'Main', listId: 'l1', due: '2026-10-19', people: ['Dana Lee'] }),
+    row('b', { title: 'Raw', list: 'Side', listId: 'l2', triaged: false })], team: [{ id: 'p_d', name: 'Dana Lee', open: 1, waiting: 0 }, { id: 'p_i', name: 'Idle', open: 0, waiting: 0 }] });
   const html = render({ now: new Date(2026, 9, 20, 9), profile: { name: 'A' }, board: b, agents: { state: 'off' } });
   assert.match(html, /class="tile danger"/);
   assert.match(html, /class="tile warn"/);
@@ -118,4 +119,14 @@ test('symbols: tiles carry icons and tone, rows use signals and quiet people', (
   assert.ok(!html.includes('<h2>Dispatch</h2>'));
   assert.equal(initials('DevA'), 'DA');
   assert.equal(initials('Dana Lee'), 'DL');
+});
+
+test('withNames: names for Up next and team ids come from the directory, groups included', () => {
+  const dir = directory({ schema: 'settings.people', version: 2, items: [
+    { id: 'p_a', kind: 'person', name: 'Dana Lee', handle: 'dana', relation: 'peer' },
+    { id: 'g_l', kind: 'group', name: 'Leadership', handle: 'leadership', members: ['p_a'] }] });
+  const b = withNames(board({ upNext: [row('t', { who: ['p_a', 'g_l', 'p_gone'] })], team: [{ id: 'p_a', name: 'Old', open: 1, waiting: 0 }, { name: 'no id', open: 1, waiting: 0 }] }), dir);
+  assert.deepEqual(b.upNext[0].people, ['Dana Lee', 'Leadership', 'Unknown']);
+  assert.deepEqual(b.team.map(m => m.name), ['Dana Lee']);
+  assert.equal(withNames(null, dir), null);
 });

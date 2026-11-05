@@ -5,7 +5,7 @@
     {
       "to": "prioritizer",
       "text": "Onboarding doc for Person One",
-      "payload": {"kind": "task", "title": "Onboarding doc for Person One", "people": ["Person One"], "value": 3},
+      "payload": {"kind": "task", "title": "Onboarding doc for Person One", "who": ["p_one"], "value": 3},
       "confidence": 0.8,
       "reason": "A reminder about a report, no date given"
     },

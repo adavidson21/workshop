@@ -1,6 +1,8 @@
 /* Home: the numbers and the HTML. Pure functions with no DOM or SDK, so Node tests can import them.
    Home reads other apps only through their summaries (docs/summaries.md) and never their own collections
-   or code, so Docket's rules for counts, the day plan and Wrap up stay in Docket. */
+   or code, so Docket's rules for counts, the day plan and Wrap up stay in Docket. Names come from the people
+   directory (shared/people.js). */
+import { label } from '../../../shared/people.js';
 
 const pad = n => String(n).padStart(2, '0');
 export const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -56,7 +58,8 @@ const toMin = s => isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
 export const fmt12 = s => isTime(s) ? `${+s.slice(0, 2) % 12 || 12}:${s.slice(3)} ${+s.slice(0, 2) < 12 ? 'AM' : 'PM'}` : (s || '');
 
 /* ---------- from Docket's summary (docs/summaries.md) ----------
-   The board, the block on now and Wrap up, from the `board` and `day` cards' entries for today. */
+   The board, the block on now and Wrap up from the `board` and `day` cards' entries for today. Names for the
+   ids in `upNext.who` and `team` come from the people directory (withNames). */
 export function boardFromSummary(card, today) {
   const d = card && card.days && card.days[today];
   if (!d) return null;
@@ -65,6 +68,16 @@ export function boardFromSummary(card, today) {
     triage: d.triage | 0, overdue: d.overdue | 0, dueWeek: d.dueWeek | 0,
     upNext: Array.isArray(card.upNext) ? card.upNext.slice(0, 3) : [],
     team: Array.isArray(card.team) ? card.team : []
+  };
+}
+/** The board with names from the people directory (shared/people.js): `people` (names) on each Up next row
+    from its `who` ids, and `name` on each team row from its id. */
+export function withNames(board, dir) {
+  if (!board) return board;
+  return {
+    ...board,
+    upNext: board.upNext.map(t => ({ ...t, people: (Array.isArray(t.who) ? t.who : []).map(id => label(dir, id)) })),
+    team: board.team.filter(m => m && m.id).map(m => ({ ...m, name: label(dir, m.id, m.name || 'Unknown') }))
   };
 }
 export function nowFromDay(day, nowMin) {
@@ -121,7 +134,7 @@ const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="t
   <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
 /* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
-   profile {name, role}; board = boardFromSummary() or null; boardNote = why there is no board (string) or '';
+   profile {name, role}; board = withNames(boardFromSummary()) or null; boardNote = why there is no board (string) or '';
    agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message};
    waiting = true while the browser's folder store needs Allow (data.js); embedded = inside the shell. */
 export function render(v) {

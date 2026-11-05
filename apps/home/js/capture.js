@@ -3,9 +3,9 @@
    accepted: true (docs/handoffs.md); Docket, Rapport and Notes add them when they next load. A question, or
    Ctrl+Enter, opens the hub in Dispatch with the text filled in.
 
-   Names come from the people directory (Settings' `people`, docs/people.md). List and roadmap names come from the
-   `targets` cards in the summaries of the apps that take tasks and ideas (docs/summaries.md; "p <roadmap>: ...").
-   All read only. */
+   Names and @handles come from the people directory (ws.people, docs/people.md). List and roadmap names come from
+   the `targets` cards in the summaries of the apps that take tasks and ideas (docs/summaries.md;
+   "p <roadmap>: ..."). All read only. */
 import { mountCapture } from '../../../shared/capture-box.js';
 import { TARGETS, useApps } from '../../../shared/capture.js';
 import { readCards, targetsFor } from '../../../shared/summary.js';
@@ -13,11 +13,10 @@ import { readCards, targetsFor } from '../../../shared/summary.js';
 const localDay = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 /* What the rules need, from the directory and Docket. Both are optional: missing means no names or lists. */
-export function captureContext({ people, summaries = [] } = {}, now = new Date()) {
-  const ppl = people && people.schema === 'settings.people' && people.version === 1 ? (people.items || []) : [];
+export function captureContext({ dir, summaries = [] } = {}, now = new Date()) {
   return {
     today: localDay(now),
-    people: ppl.filter(p => p && p.id && p.name && !p.archived).map(p => ({ id: p.id, name: p.name, relation: p.relation })),
+    people: dir ? dir.items.filter(it => !it.archived) : [],
     lists: (targetsFor(summaries, 'task') || []).map(r => r.title),
     maps: (targetsFor(summaries, 'idea') || []).map(r => ({ id: r.id, title: r.title }))
   };
@@ -29,11 +28,11 @@ export function startCapture(ws, root) {
   const takers = () => [...new Set([TARGETS.task, TARGETS.idea].filter(Boolean))];
   const read = async () => {
     const apps = takers();
-    const [people, ...sums] = await Promise.all([
-      ws.data.get('people', { app: 'settings' }).catch(() => null),
+    const [dir, ...sums] = await Promise.all([
+      ws.people.get().catch(() => null),
       ...apps.map(a => ws.data.get('summary', { app: a }).catch(() => null))
     ]);
-    src = { people, summaries: sums.map((env, i) => readCards(env, apps[i])) };
+    src = { dir, summaries: sums.map((env, i) => readCards(env, apps[i])) };
   };
   const box = mountCapture(root, {
     ws, sender: 'home',
@@ -51,7 +50,7 @@ export function startCapture(ws, root) {
     for (const a of takers()) if (!watched.has(a)) { watched.add(a); ws.data.subscribe('summary', read, { app: a }); }
     read();
   }).catch(() => {});
-  ws.data.subscribe('people', read, { app: 'settings' });
+  ws.people.subscribe(read);
   for (const a of watched) ws.data.subscribe('summary', read, { app: a });
   ws.on('online', p => { if (p && p.online) read(); });
   return box;

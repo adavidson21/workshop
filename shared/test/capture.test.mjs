@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { describe, findMap, findPeople, isCapture, nextKind, parseCapture, parseDay, parseLines, retarget, toHandoff } from '../capture.js';
 
 const people = [
-  { id: 'p_me', name: 'Sam Self', relation: 'self' },
-  { id: 'p_one', name: 'Person One', relation: 'report' },
-  { id: 'p_two', name: 'Jordan Two', relation: 'manager' },
-  { id: 'p_old', name: 'Old Report', relation: 'report', archived: true },
-  { id: 'p_a', name: 'Alex Aaa', relation: 'peer' },
-  { id: 'p_b', name: 'Alex Bbb', relation: 'peer' }
+  { id: 'p_me', kind: 'person', name: 'Sam Self', handle: 'sam', relation: 'self' },
+  { id: 'p_one', kind: 'person', name: 'Person One', handle: 'person', relation: 'report' },
+  { id: 'p_two', kind: 'person', name: 'Jordan Two', handle: 'jordan', relation: 'manager' },
+  { id: 'p_old', kind: 'person', name: 'Old Report', handle: 'old', relation: 'report', archived: true },
+  { id: 'p_a', kind: 'person', name: 'Alex Aaa', handle: 'alex', relation: 'peer' },
+  { id: 'p_b', kind: 'person', name: 'Alex Bbb', handle: 'alex-bbb', relation: 'peer' },
+  { id: 'g_lead', kind: 'group', name: 'Leadership', handle: 'leadership', members: ['p_two', 'p_a'] }
 ];
 const ctx = { today: '2026-11-03', people, lists: ['Inbox', 'This sprint'] }; // a Tuesday
 
@@ -31,6 +32,8 @@ test('findPeople: full and unique first names, never self or archived', () => {
   assert.deepEqual(findPeople('ask alex', people), [], 'two Alexes: neither');
   assert.deepEqual(findPeople('ask alex bbb', people).map(p => p.id), ['p_b']);
   assert.deepEqual(findPeople('sam and old report', people), []);
+  assert.deepEqual(findPeople('ask @leadership and @alex.', people).map(p => p.id), ['p_a', 'g_lead'], 'handles, groups included');
+  assert.deepEqual(findPeople('leadership offsite', people), [], 'a group needs its handle');
 });
 
 test('plain text is a Docket task with filler removed and names cased', () => {
@@ -38,7 +41,7 @@ test('plain text is a Docket task with filler removed and names cased', () => {
   assert.equal(p.kind, 'task');
   assert.equal(p.to, 'prioritizer');
   assert.equal(p.title, 'The onboarding doc for Person');
-  assert.deepEqual(p.payload, { kind: 'task', title: 'The onboarding doc for Person', people: ['Person One'] });
+  assert.deepEqual(p.payload, { kind: 'task', title: 'The onboarding doc for Person', who: ['p_one'] });
 });
 
 test('task dates, urgency and lists', () => {
@@ -53,7 +56,7 @@ test('waiting on', () => {
   assert.equal(p.kind, 'waiting');
   assert.equal(p.payload.waiting, true);
   assert.equal(p.payload.title, 'Waiting on Jordan for the API keys');
-  assert.deepEqual(p.payload.people, ['Jordan Two']);
+  assert.deepEqual(p.payload.who, ['p_two']);
   assert.equal(parseCapture('w keys from IT', ctx).payload.waiting, true);
 });
 

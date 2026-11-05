@@ -1,19 +1,18 @@
 /* Rapport's 1:1s: the rules, with no DOM or SDK, so Node tests can import them.
 
    1:1s was its own Workshop app (id `oneonones`) until Rapport 2.0.0 folded it in. It keeps its own
-   `oneonones/people` link table inside Rapport (app id `receipts`) and reads (never writes) what Docket publishes
-   about the same people, in its summary. Rapport's own entries and people are handed in by main.js. Each read checks the envelope's schema and version: an unknown version is
+   `oneonones/people` link table inside Rapport (app id `receipts`) and reads (never writes) what Docket keeps
+   about the same people. Rapport's own entries and people are handed in by main.js. Each read checks the envelope's schema and version: an unknown version is
    unreadable, not empty (docs/data-format.md, Migrations, rule 6).
 
-   Shapes read from other apps (copied here, not imported: apps never import other app folders):
-     prioritizer.summary v1  Docket's summary (docs/summaries.md): the `people` card, rows {name, open, waiting},
-                             each task {id, title, due, nudgeOn}
-     receipts.entries v1     items: {id, about: 'me' | 'up' | person id, kind, date, text, ...}
-     receipts.people v1      items: {id, name, role, since, archived}
-     settings.people v1      Workshop's people directory (docs/people.md): {id, name, relation, team?, adoIdentity?,
-                             archived?}. When it exists it is the list for the Receipts picker, the way Receipts
-                             itself uses it; while it is missing the picker reads Receipts' own list.
-   Queue was removed (Nov 4): a stored `links.queue` is kept as is but no longer read. */
+   Everyone you meet with is a person in Workshop's people directory (ws.people, docs/people.md): a 1:1s person
+   keeps that id as `personId`, plus its own cadence. The same id finds their tasks in Docket's summary (the
+   `people` card, docs/summaries.md, by id and through their groups) and, for a report, their receipts.
+
+   Shapes read:
+     prioritizer.summary v1  Docket's summary: the `people` card's rows {id, open, waiting}, tasks {id, title, due,
+                             nudgeOn, via}
+     receipts.entries v1     items: {id, about: 'me' | 'up' | person id, kind, date, text, ...} */
 
 export const APP = 'receipts';
 export const VERSION = 1;
@@ -30,11 +29,8 @@ export const LEGACY = { app: 'oneonones', people: 'people', settings: 'settings'
 /** Collections read, with the schema and version this app understands. `own: true` are Rapport's own,
     handed in by main.js instead of read here. */
 export const SOURCES = {
-  // Docket's summary (Workshop docs/summaries.md): its `people` card, never Docket's own collections.
   docketSummary: { app: 'prioritizer', collection: 'summary', schema: 'prioritizer.summary', version: 1 },
-  receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1, own: true },
-  receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1, own: true },
-  directory: { app: 'settings', collection: 'people', schema: 'settings.people', version: 1 }
+  receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1, own: true }
 };
 
 /** Receipts kinds, in the order the packet shows them. */
@@ -78,46 +74,22 @@ export function readable(env, src) {
   return { state: 'ok', env };
 }
 
-/** Docket's summary as {state, rows}: rows are the `people` card's [{name, open, waiting}]. state is 'missing'
-    (no summary yet), 'unreadable' (another schema or version) or 'ok' (rows [] when it has no people card). */
-function docketPeopleCard(summaryEnv) {
+/** The `people` card of Docket's summary: [{id, open, waiting}], or null when Docket wrote none. */
+export function docketPeopleCard(summaryEnv) {
   const r = readable(summaryEnv, SOURCES.docketSummary);
-  if (r.state !== 'ok') return { state: r.state, rows: [] };
-  const card = r.env.items.find(c => c && c.id === 'people' && c.kind === 'people' && Array.isArray(c.rows));
-  return { state: 'ok', rows: card ? card.rows.filter(p => p && str(p.name, 200)) : [] };
-}
-
-/** How Docket's data reads: 'ok', 'missing' or 'unreadable'. */
-export const docketState = summaryEnv => docketPeopleCard(summaryEnv).state;
-
-/** Names Docket knows, for the link picker, from its summary. */
-export function docketNames(summaryEnv) {
-  const out = [];
-  for (const p of docketPeopleCard(summaryEnv).rows) { const name = str(p.name, 200); if (!out.some(x => lower(x) === lower(name))) out.push(name); }
-  return out.sort((a, b) => a.localeCompare(b));
-}
-
-/** Workshop's people directory, cleaned, or null when it is missing or unreadable (then apps use their own lists). */
-export function directoryPeople(dirEnv) {
-  const r = readable(dirEnv, SOURCES.directory);
   if (r.state !== 'ok') return null;
-  return r.env.items.filter(p => p && typeof p.id === 'string' && p.id && str(p.name, 200)).map(p => ({
-    id: p.id, name: str(p.name, 200), relation: p.relation,
-    team: typeof p.team === 'boolean' ? p.team : p.relation === 'self' || p.relation === 'report',
-    adoIdentity: str(p.adoIdentity, 200), archived: !!p.archived
-  }));
+  const card = r.env.items.find(c => c && c.id === 'people' && c.kind === 'people' && Array.isArray(c.rows));
+  return card ? card.rows.filter(p => p && typeof p.id === 'string' && p.id) : null;
 }
 
-/** Receipts reports for the link picker: [{id, name, archived}]. From the directory's reports when it exists
-    (Receipts lists the same people, with the same ids), else from receipts.people. */
-export function receiptsPeople(peopleEnv, dirEnv = null) {
-  const dir = directoryPeople(dirEnv);
-  if (dir) return dir.filter(p => p.relation === 'report').map(p => ({ id: p.id, name: p.name, archived: p.archived })).sort((a, b) => a.name.localeCompare(b.name));
-  const r = readable(peopleEnv, SOURCES.receiptsPeople);
-  if (r.state !== 'ok') return [];
-  return r.env.items.filter(p => p && typeof p.id === 'string' && p.id)
-    .map(p => ({ id: p.id, name: str(p.name, 200) || 'Unnamed', archived: !!p.archived }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+/** People and their relation for pickers, from the directory: active people (not you) by relation then name,
+    plus `keep` (an id already chosen) even when archived. [{id, name, relation, archived}] */
+export function directoryChoices(dir, keep = '') {
+  const people = dir && Array.isArray(dir.people) ? dir.people : [];
+  const order = { report: 0, manager: 1, peer: 2, contact: 3 };
+  return people.filter(p => p.relation !== 'self' && (!p.archived || p.id === keep))
+    .map(p => ({ id: p.id, name: p.name, relation: p.relation, archived: !!p.archived }))
+    .sort((a, b) => (order[a.relation] ?? 4) - (order[b.relation] ?? 4) || a.name.localeCompare(b.name));
 }
 
 /* ---------- people (this app's link table) ---------- */
@@ -126,43 +98,41 @@ export function newPersonId(now = Date.now(), rnd = Math.random) {
   return `p_${now.toString(36)}${Math.floor(rnd() * 36 ** 4).toString(36).padStart(4, '0')}`;
 }
 
-/** A person from the stored item: known fields cleaned, defaults filled in. */
+const PERSON_ID = /^p_[A-Za-z0-9_-]{1,100}$/;
+
+/** A 1:1s person from the stored item: {id, personId, name, cadenceDays, archived}. `id` is this table's own
+    (it names the notes folder); `personId` is the person in the directory. `name` is what was typed or last
+    known, shown only when the directory does not have them. A record from before personId takes its old
+    report link (`links.receipts`). */
 export function cleanPerson(p) {
   const x = p && typeof p === 'object' ? p : {};
-  const l = x.links && typeof x.links === 'object' ? x.links : {};
-  const links = {};
-  // links.queue is from before Queue was removed: kept as it was stored (an email lowercased), never read.
-  const docket = str(l.docket, 200), receipts = str(l.receipts, 100), q = str(l.queue, 200), queue = q.includes('@') ? lower(q) : q;
-  if (docket) links.docket = docket;
-  if (receipts) links.receipts = receipts;
-  if (queue) links.queue = queue;
+  const old = x.links && typeof x.links === 'object' ? str(x.links.receipts, 110) : '';
+  const pid = PERSON_ID.test(x.personId) ? x.personId : PERSON_ID.test(old) ? old : '';
   const c = Number(x.cadenceDays);
   return {
     id: str(x.id, 100),
+    personId: pid,
     name: str(x.name, 120) || 'Unnamed',
-    links,
     cadenceDays: Number.isInteger(c) && c >= 1 && c <= 90 ? c : DEFAULT_CADENCE,
     archived: x.archived === true
   };
 }
 
-/** Directory reports with no 1:1s person yet (none linked to them in Receipts, none with the same name). */
-export function directorySuggestions(people, dirEnv) {
-  const dir = directoryPeople(dirEnv);
-  if (!dir) return [];
-  return dir.filter(d => d.relation === 'report' && !d.archived
-    && !people.some(p => p.links.receipts === d.id || lower(p.name) === lower(d.name)))
-    .sort((a, b) => a.name.localeCompare(b.name));
+/** A 1:1s person as shown: the directory's name and relation when linked. */
+export function withDirectory(p, dir) {
+  const d = p.personId && dir && dir.byId ? dir.byId.get(p.personId) : null;
+  return { ...p, name: d ? d.name : p.name, relation: d ? d.relation : '', handle: d ? d.handle : '', linked: !!d };
 }
 
-/** A new 1:1s person for a directory person, linked to Receipts (same id) and Docket (a Docket person with
-    the same name, ignoring case). */
-export function personFromDirectory(d, docket = []) {
-  const links = {};
-  if (d.relation === 'report') links.receipts = d.id;
-  const dn = docket.find(n => lower(n) === lower(d.name));
-  if (dn) links.docket = dn;
-  return { name: d.name, links, cadenceDays: DEFAULT_CADENCE, archived: false };
+/** Reports and your manager in the directory with no 1:1s person yet: one click adds them. */
+export function directorySuggestions(people, dir) {
+  const have = new Set(people.map(p => p.personId).filter(Boolean));
+  return directoryChoices(dir).filter(d => !d.archived && (d.relation === 'report' || d.relation === 'manager') && !have.has(d.id));
+}
+
+/** A new 1:1s person for a directory person. */
+export function personFromDirectory(d) {
+  return { name: d.name, personId: d.id, cadenceDays: DEFAULT_CADENCE, archived: false };
 }
 
 export function sortPeople(list) {
@@ -249,15 +219,15 @@ export function parseWins(md) {
 
 /* ---------- the packet ---------- */
 
-const taskRow = t => ({ id: String(t.id || ''), title: oneLine(t.title).slice(0, 300) || 'Untitled task', due: isDay(t.due) ? t.due : '', nudgeOn: isDay(t.nudgeOn) ? t.nudgeOn : '' });
+const taskRow = t => ({ id: String(t.id || ''), title: oneLine(t.title).slice(0, 300) || 'Untitled task', due: isDay(t.due) ? t.due : '', nudgeOn: isDay(t.nudgeOn) ? t.nudgeOn : '', via: typeof t.via === 'string' ? t.via : '' });
 
-/** Docket: open tasks tagged with the person, tasks waiting on them, and nudges due (Docket's nudgeDue rule), from
-    the `people` card of Docket's summary. */
-export function docketSection(summaryEnv, name, today) {
-  if (!name) return { state: 'unlinked' };
+/** Docket: open tasks for the person, tasks waiting on them, and nudges due, from Docket's summary. Docket counts
+    tasks on a group they are in too; those rows carry `via` (the group's id). */
+export function docketSection(personId, today, summaryEnv = null) {
+  if (!personId) return { state: 'unlinked' };
   const card = docketPeopleCard(summaryEnv);
-  if (card.state !== 'ok') return { state: card.state };
-  const p = card.rows.find(x => lower(x.name) === lower(name));
+  if (!card) return { state: readable(summaryEnv, SOURCES.docketSummary).state === 'unreadable' ? 'unreadable' : 'missing' };
+  const p = card.find(x => x.id === personId);
   const rows = list => (Array.isArray(list) ? list : []).filter(t => t && t.id).map(taskRow);
   const open = p ? rows(p.open) : [], waiting = p ? rows(p.waiting) : [];
   return { state: 'ok', open, waiting, nudges: waiting.filter(t => isDay(t.nudgeOn) && t.nudgeOn <= today) };
@@ -287,19 +257,20 @@ export function lastSection(last, text) {
 
 /**
  * Everything for one person's prep, with no AI.
- * src: {docketSummary, receiptsEntries} envelopes (or null).
+ * person: a 1:1s person with `relation` (withDirectory). src: {docketSummary, receiptsEntries} envelopes (or null).
  * lastText: the previous note's Markdown (or null when it could not be read).
  */
 export function buildPacket({ person, today, now, notes, lastText, src }) {
   const s = sinceDate({ notes, today, cadenceDays: person.cadenceDays });
-  const l = person.links || {};
+  // Receipts are about reports (their id) and your manager ('up').
+  const about = person.relation === 'report' ? person.personId : person.relation === 'manager' ? 'up' : '';
   return {
     personId: person.id,
     today,
     since: s.since,
     sinceFrom: s.from,
-    docket: docketSection(src.docketSummary, l.docket, today),
-    receipts: receiptsSection(src.receiptsEntries, l.receipts, s.since, today),
+    docket: docketSection(person.personId, today, src.docketSummary),
+    receipts: receiptsSection(src.receiptsEntries, about, s.since, today),
     last: lastSection(s.last, lastText)
   };
 }
@@ -382,15 +353,9 @@ export function packetMarkdown(p, { includeConcerns = false } = {}) {
 
 /* ---------- after the meeting ---------- */
 
-const DOCKET_NAME = /^[\p{L}\p{N}_'-]+(?:\.[\p{L}\p{N}_'-]+)*$/u;
-
-/**
- * Docket quick-add lines for follow-ups. Docket's quick add reads `@name` only for a one-word name; other
- * names are written in brackets so nothing is misread.
- */
-export function quickAddLines(followUps, docketName) {
-  const who = str(docketName, 200);
-  const tag = !who ? '' : DOCKET_NAME.test(who) ? ` @${who}` : ` (${who})`;
+/** Docket quick-add lines for follow-ups, with the person's @handle so Docket files them under them. */
+export function quickAddLines(followUps, handle) {
+  const tag = /^[a-z0-9][a-z0-9._-]{0,39}$/.test(String(handle || '')) ? ` @${handle}` : '';
   return followUps.map(oneLine).filter(Boolean).map(t => `Follow up: ${t}${tag}`);
 }
 
@@ -402,11 +367,12 @@ export function hashText(s) {
 }
 
 /**
- * Receipts for the ticked wins: entries of receipts.entries, about the person's report id. The id is stable
- * per person, day and text, so logging the same win twice adds it once. [] when the person has no report link.
+ * Receipts for the ticked wins: entries of receipts.entries, about the person's directory id (Rapport keeps
+ * them only for a report). The id is stable per person, day and text, so logging the same win twice adds it
+ * once. [] when the person is not linked to the directory.
  */
 export function winEntries({ person, day, wins, nowIso }) {
-  const about = person.links && person.links.receipts;
+  const about = person.personId;
   if (!about) return [];
   const seg = noteFolder(person.id).split('/').pop();
   return wins.map(oneLine).filter(Boolean).map(text => ({

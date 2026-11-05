@@ -108,17 +108,24 @@ export function parseDay(word, today) {
   return null;
 }
 
-/* People from the directory (docs/people.md) that the text names, by full name or first name, without case.
-   people: [{id, name, relation, archived}]. A first name shared by two people matches neither. */
+/* People and groups from the directory (docs/people.md) that the text names: an @handle (people and groups),
+   or for people a full name or a first name only one person has, without case. Groups need their @handle, since
+   group names are often ordinary words. people: the directory's items (shared/people.js
+   `items`). You are left out. */
 export function findPeople(text, people = []) {
   const live = (people || []).filter(p => p && p.id && typeof p.name === 'string' && p.name.trim() && !p.archived && p.relation !== 'self');
-  const low = ' ' + String(text || '').toLowerCase().replace(/[^\p{L}\p{N}' -]+/gu, ' ') + ' ';
+  const raw = String(text || '');
+  const low = ' ' + raw.toLowerCase().replace(/[^\p{L}\p{N}' -]+/gu, ' ') + ' ';
   const firsts = new Map();
-  for (const p of live) { const f = p.name.trim().split(/\s+/)[0].toLowerCase(); firsts.set(f, (firsts.get(f) || 0) + 1); }
+  for (const p of live) if (p.kind !== 'group') { const f = p.name.trim().split(/\s+/)[0].toLowerCase(); firsts.set(f, (firsts.get(f) || 0) + 1); }
+  const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const out = [];
   for (const p of live) {
     const full = p.name.trim().toLowerCase(), first = full.split(/\s+/)[0];
-    if (low.includes(' ' + full + ' ') || low.includes(' ' + full + "'s ") || (firsts.get(first) === 1 && (low.includes(' ' + first + ' ') || low.includes(' ' + first + "'s ")))) out.push(p);
+    const byHandle = p.handle && new RegExp(`(^|\\s)@${esc(p.handle)}(?=$|[\\s,;:!?)]|\\.(\\s|$))`, 'i').test(raw);
+    const byName = p.kind !== 'group' && (low.includes(' ' + full + ' ') || low.includes(' ' + full + "'s "));
+    const byFirst = p.kind !== 'group' && firsts.get(first) === 1 && (low.includes(' ' + first + ' ') || low.includes(' ' + first + "'s "));
+    if (byHandle || byName || byFirst) out.push(p);
   }
   return out;
 }
@@ -152,7 +159,7 @@ export function findMap(text, maps = []) {
 }
 
 /* One line to one proposal, or null for an empty line.
-   ctx: {today: 'YYYY-MM-DD', people: directory items, lists: Docket list names, maps: Runway roadmaps [{id, title}]}.
+   ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Docket list names, maps: Runway roadmaps [{id, title}]}.
    Returns {kind, to, text, title, payload} for a capture, {kind: 'ask', text} or {kind: 'go', app, text}. */
 export function parseCapture(line, ctx = {}) {
   let s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
@@ -207,7 +214,7 @@ export function parseCapture(line, ctx = {}) {
   }
   if (kind === 'receipt') {
     const body = cap(tidy(nameCase(s, found)));
-    const report = found.find(p => p.relation === 'report');
+    const report = found.find(p => p.kind !== 'group' && p.relation === 'report');
     const payload = { kind: rkind, impact: 0 };
     if (report) payload.about = report.id;
     return { kind, to: TARGETS[kind], text: body, title: body, payload };
@@ -241,12 +248,12 @@ export function parseCapture(line, ctx = {}) {
   title = cap(tidy(nameCase(title, found))).slice(0, 300);
   if (!title) return null;
   const payload = { kind: 'task', title };
-  if (found.length) payload.people = found.slice(0, 10).map(p => p.name.trim());
+  if (found.length) payload.who = found.slice(0, 10).map(p => p.id);
   if (kind === 'waiting') payload.waiting = true;
   if (due) payload.due = due;
   if (urgent) payload.urgent = true;
   if (list) payload.list = list;
-  return { kind, to: TARGETS[kind], text: title, title, payload };
+  return { kind, to: TARGETS[kind], text: title, title, payload, ...(found.length ? { names: found.slice(0, 10).map(p => p.name.trim()) } : {}) };
 }
 
 /* Several pasted lines to proposals, one per non-empty line. */
@@ -289,7 +296,7 @@ export function describe(p) {
   const q = p.payload || {};
   if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
-  if (q.people && q.people.length) bits.push(q.people.join(', '));
+  if (p.names && p.names.length) bits.push(p.names.join(', '));
   if (q.list) bits.push('#' + q.list);
   if (q.due) bits.push('due ' + q.due);
   if (q.urgent) bits.push('urgent');

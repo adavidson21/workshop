@@ -24,7 +24,8 @@ const start = async (name, args) => {
 };
 beforeEach(() => { started = []; resetHub(); sessions.clear(); });
 const rejects = (p, code, re) => assert.rejects(p, (e) => e.code === code && (!re || re.test(e.message)));
-const CONTEXT = { people: [{ id: "p_one", name: "Person One", relation: "report", team: true }, { id: "p_two", name: "Person\nTwo ## x", relation: "manager" }], lists: ["Inbox"], areas: [] };
+const CONTEXT = { people: [{ id: "p_one", name: "Person One", handle: "person", relation: "report", team: true }, { id: "p_two", name: "Person\nTwo ## x", relation: "manager" },
+  { id: "g_lead", name: "Leadership", handle: "leadership", kind: "group", members: ["p_one", "p_two", "p_gone"] }], lists: ["Inbox"], areas: [] };
 
 test("the request goes to the connector's own folder, never the workspace", () => {
   assert.equal(root, path.join(home, "data", "_connectors", "opencode", "hub"));
@@ -42,7 +43,8 @@ test("everything is refused while the hub setting is off", async () => {
 test("request.md: the message and one-line names, in the docs/hub.md layout", () => {
   const t = requestText({ text: "dont forget the doc for person", context: CONTEXT }, "2026-11-03");
   assert.match(t, /^# Hub request\n\nDate: 2026-11-03\n\n## Message\n\ndont forget the doc for person\n/);
-  assert.match(t, /- p_one: Person One \(report, on my team\)\n/);
+  assert.match(t, /- p_one: Person One @person \(report, on my team\)\n/);
+  assert.match(t, /- g_lead: Leadership @leadership \(group: Person One, Person Two ## x\)\n/);
   assert.match(t, /- p_two: Person Two ## x \(manager\)\n/, "a name never adds Markdown structure");
   assert.match(t, /## Docket lists\n\n- Inbox\n/);
   assert.match(t, /## Queue areas\n\nNone\.\n/);

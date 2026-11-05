@@ -3,17 +3,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHome } from '../js/data.js';
 import { render } from '../js/view.js';
+import { directory } from '../../../shared/people.js';
 
 const unavailable = () => Object.assign(new Error('Allow Workshop to use the folder.'), { code: 'unavailable' });
-// Docket's summary with one open task for 2026-10-28.
-const plainSummary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [
+// Docket's summary with today's board (2026-10-28): one open task.
+const boardEnv = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [
   { id: 'board', kind: 'board', updatedAt: 1, days: { '2026-10-28': { total: 1, open: 1, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0 } },
-    upNext: [{ id: 't1', title: 'Write the plan', list: '', listId: 'l1', due: null, people: [], triaged: true }], team: [] }
-] };
+    upNext: [{ id: 't1', title: 'Write the plan', list: '', listId: 'l1', due: null, who: [], triaged: true }], team: [] }] };
+const dirEnv = { schema: 'settings.people', version: 2, rev: 1, items: [
+  { id: 'p_j', kind: 'person', name: 'John Smith', handle: 'john', relation: 'peer' },
+  { id: 'g_l', kind: 'group', name: 'Leadership', handle: 'leadership', members: ['p_j'] }] };
 const profileEnv = { schema: 'home.profile', version: 1, rev: 2, items: [], deleted: {}, meta: { name: 'Sam Rivera', role: 'EM' } };
 
 // A browser-backend SDK whose folder needs Allow until allow() is called.
-function fakeWs({ backend = 'browser', embedded = true, summary = plainSummary } = {}) {
+function fakeWs({ backend = 'browser', embedded = true, summary = boardEnv } = {}) {
   const handlers = {};
   const ws = {
     backend, embedded, allowed: false, gets: 0, puts: [], read: [],
@@ -27,6 +30,10 @@ function fakeWs({ backend = 'browser', embedded = true, summary = plainSummary }
         return c === 'profile' ? profileEnv : null;
       },
       async put(c, env) { if (!ws.allowed) throw unavailable(); ws.puts.push([c, structuredClone(env)]); return { rev: env.rev + 1 }; }
+    },
+    people: {
+      async get() { if (!ws.allowed) throw unavailable(); return directory(dirEnv); },
+      subscribe() { return () => {}; }
     },
     connectors: { async list() { return []; } },
     allow() { ws.allowed = true; ws.emit('online', { online: true }); }
@@ -109,20 +116,20 @@ test('with the agent, an unavailable error is not a folder wait', async () => {
 });
 
 import { captureContext } from '../js/capture.js';
-test('captureContext: directory people, optional', () => {
-  const people = { schema: 'settings.people', version: 1, items: [{ id: 'p_1', name: 'Person One', relation: 'report' }, { id: 'p_2', name: 'Gone', relation: 'peer', archived: true }] };
-  const c = captureContext({ people }, new Date('2026-11-03T12:00:00'));
+test('captureContext: directory people and groups, and list names from summaries, all optional', () => {
+  const dir = directory({ ...dirEnv, items: [...dirEnv.items, { id: 'p_2', kind: 'person', name: 'Gone', handle: 'gone', relation: 'peer', archived: true }] });
+  const c = captureContext({ dir }, new Date('2026-11-03T12:00:00'));
   assert.equal(c.today, '2026-11-03');
-  assert.deepEqual(c.people, [{ id: 'p_1', name: 'Person One', relation: 'report' }]);
+  assert.deepEqual(c.people.map(p => p.id), ['p_j', 'g_l']);
   assert.deepEqual(c.lists, []);
-  assert.deepEqual(captureContext({ people: { schema: 'settings.people', version: 2, items: [{ id: 'p', name: 'x' }] } }).people, [], 'an unknown version reads as none');
+  assert.deepEqual(captureContext().people, []);
   assert.deepEqual(captureContext().lists, []);
 });
 
 // Docket's summary (docs/summaries.md) for 2026-10-28, a Wednesday.
 const summaryEnv = { schema: 'prioritizer.summary', version: 1, rev: 4, items: [
   { id: 'board', kind: 'board', updatedAt: 1, days: { '2026-10-28': { total: 5, open: 4, focus: { total: 2, done: 1 }, triage: 1, overdue: 0, dueWeek: 2 } },
-    upNext: [{ id: 't9', title: 'From the summary', list: '', listId: 'l1', due: null, people: [], triaged: true }], team: [] },
+    upNext: [{ id: 't9', title: 'From the summary', list: '', listId: 'l1', due: null, who: ['g_l'], triaged: true }], team: [{ id: 'p_j', name: 'Old name', open: 2, waiting: 1 }] },
   { id: 'day', kind: 'day', updatedAt: 1, days: { '2026-10-28': { blocks: [
     { name: 'Deep work', at: '09:00', until: '11:00', tasks: [{ id: 't9', title: 'From the summary', done: false }] },
     { name: 'Meetings', at: '13:00', until: '14:00', tasks: [] }], wrapAt: '16:00', wrapped: false, offered: 2 } } }
@@ -133,6 +140,8 @@ test('Docket\'s summary: the board, Now and Wrap up come from it, with no reads 
   const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9, 30) });
   await home.loadBoard();
   assert.deepEqual(ws.read, ['summary']);
+  assert.deepEqual(home.v.board.upNext[0].people, ['Leadership'], 'names for ids from the directory');
+  assert.equal(home.v.board.team[0].name, 'John Smith');
   assert.equal(home.v.board.open, 4);
   assert.equal(home.v.board.upNext[0].title, 'From the summary');
   assert.equal(home.v.dayNow.current.name, 'Deep work');
@@ -169,4 +178,12 @@ test('nowFromDay and wrapFromDay: between blocks, after the last one, and Wrap u
   assert.equal(nowFromDay({ blocks: [] }, 600), null);
   assert.deepEqual(wrapFromDay(day, 16 * 60), { wrapped: false, due: true, receipts: 2 });
   assert.deepEqual(wrapFromDay(Object.assign({}, day, { wrapAt: null }), 23 * 60), { wrapped: false, due: false, receipts: 2 }, 'a day off');
+});
+
+test('no Docket summary yet reads as an empty board ("No tasks yet"), not an error', async () => {
+  const ws = fakeWs({ summary: null }); ws.allowed = true;
+  const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9) });
+  await home.loadBoard();
+  assert.equal(home.v.board.total, 0);
+  assert.match(render(home.v), /No tasks yet/);
 });

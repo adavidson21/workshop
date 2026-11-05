@@ -13,7 +13,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Data folder and data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle`, `data-moved` | `tests/contract/data.test.mjs`, `tests/contract/folder.test.mjs`, `tests/contract/merge.test.mjs` |
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
 | Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
-| People directory | [people.md](people.md) | `settings.people` v1 | `person` | `tests/check-contracts.mjs` (examples) |
+| People directory | [people.md](people.md) | `settings.people` v2 | `person`, `person-group` | `tests/check-contracts.mjs` (examples) |
 | Summaries for other apps | [summaries.md](summaries.md) | `summary` collections v1 | `summary-card` | `tests/check-contracts.mjs` (examples) |
 | Teams | [teams.md](teams.md) | `settings.teams` v1 | `team` | `tests/check-contracts.mjs` (examples) |
 | Site config | [site.md](site.md) | `site: 1` | none | `tests/check-site.mjs` |

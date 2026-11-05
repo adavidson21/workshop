@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A group: one item of settings.people v2",
+  "description": "A named set of people in the people directory, assignable like a person (@leadership). See people.md.",
+  "type": "object",
+  "required": ["id", "kind", "updatedAt", "name", "handle", "members"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^g_[A-Za-z0-9_-]{1,100}$", "description": "Stable forever."},
+    "kind": {"const": "group"},
+    "updatedAt": {"$ref": "common.schema.json#/$defs/msTime"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "handle": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,39}$"},
+    "members": {"type": "array", "maxItems": 200, "uniqueItems": true, "items": {"type": "string", "pattern": "^p_[A-Za-z0-9_-]{1,100}$"}, "description": "Person ids. Groups do not contain groups."},
+    "archived": {"type": "boolean"}
+  }
+}

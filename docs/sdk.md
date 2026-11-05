@@ -65,9 +65,24 @@ Apps use it to find each other instead of naming app ids in code: handoff sender
 | `ws.data.export({apps?})` | A bundle of every collection (or those of the listed apps). |
 | `ws.data.import(bundle)` | Merges a bundle in. Collections that do not exist are created; existing ones are merged and put. Resolves `{created, merged}` (counts). |
 
-The people directory every app reads is Settings' `people` collection: `ws.data.get('people', {app: 'settings'})` ([people.md](people.md)). Team area paths are Settings' `teams` collection ([teams.md](teams.md)). What another app publishes for others to show is its `summary` collection ([summaries.md](summaries.md)); read that, not the app's own collections.
+The people directory is read and changed with `ws.people` (below), never `ws.data`. Team area paths are Settings' `teams` collection ([teams.md](teams.md)). What another app publishes for others to show is its `summary` collection ([summaries.md](summaries.md)); read that, not the app's own collections.
 
 Bad names reject with `bad_request` before any request is made. The SDK sends `X-Workshop-Client` on every write and the token header on every agent request.
+
+### People
+
+The people directory ([people.md](people.md)): people and groups, kept in Settings' `people` collection and changed by any app through these calls. Directory objects come from `shared/people.js`, which also has the query helpers (`find`, `label`, `mention`, `reach`, `involves`, `expand`, `membersOf`, `groupsOf`, `self`, `manager`, `withRelation`, `team`, `active`); import it from the bundle.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.people.get()` | The directory: `{items, people, groups, byId, unreadable}`. Empty when it was never written; empty with `unreadable: true` when another version wrote it. |
+| `ws.people.subscribe(handler)` | Calls `handler(directory)` after every change, from this page or anywhere else. Returns an unsubscribe function. |
+| `ws.people.add(input)` | Adds a person (`{name, relation?, handle?, team?, adoIdentity?, role?, since?}`; relation defaults to `contact`) or a group (`{kind: 'group', name, handle?, members?}`). Fills in the id and a free handle. Resolves the new item. |
+| `ws.people.update(id, fields)` | Changes fields of one item; `id` and `kind` never change. Resolves the item. |
+| `ws.people.setMembers(groupId, ids)` | Replaces a group's members. |
+| `ws.people.archive(id)`, `ws.people.restore(id)` | Archives or restores one item. Nothing is ever deleted. |
+
+Every change is checked by the rules in [people.md](people.md) and rejects with code `bad_request` and a message to show (a handle in use, a second manager, a member who is not in the directory). A directory of another version rejects changes with `unsupported`. Concurrent changes merge item by item, as for any collection.
 
 ### Files
 

@@ -294,14 +294,22 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/settings/'); rp.wait_for_timeout(500)
         stored = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
-          const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.relation, p.team, p.adoIdentity])]; }""")
-        check('Settings People: saved as settings.people v1, readable by other apps', stored == ['settings.people', 1, [['self', True, ''], ['report', True, 'dev.one@example.com'], ['manager', False, '']]])
+          const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.kind, p.handle, p.relation, p.team, p.adoIdentity])]; }""")
+        check('Settings People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, 'dev.one@example.com'], ['person', 'boss', 'manager', False, '']]])
+        # A group, assigned like a person: Leadership with the report and the manager.
+        sf.click('[data-group-new]'); sf.fill('#gName', 'Leadership')
+        sf.check('[data-group-form] input[name=member] >> nth=1'); sf.check('[data-group-form] input[name=member] >> nth=2')
+        sf.click('[data-group-form] button.primary'); sf.wait_for_timeout(500)
+        group = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const P = await import('/shared/people.js'); const ws = await connect({app: 'notes'});
+          const d = await ws.people.get(); const g = P.find(d, '@leadership'); const boss = d.people.find(p => p.relation === 'manager');
+          return g && [g.kind, P.membersOf(d, g.id).map(p => p.relation), [...P.reach(d, boss.id)].includes(g.id)]; }""")
+        check('Settings People: a group by @handle, its members, and reach() through it', group == ['group', ['manager', 'report'], True])
         rp.close()
         # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
         pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
         rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
         check('Rapport lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
-              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
+              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 1)
         if rf2:
             # A report's page: start 1:1s, write today's note, log a win twice: one receipt.
             rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-report]', timeout=5000)
@@ -641,7 +649,8 @@ def storage_checks(b, watch):
     stored = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
       const q = r.result.transaction('data').objectStore('data').get('prioritizer/tasks'); q.onsuccess = () => res(q.result); }; })""")
     check('browser mode saves the board as a prioritizer.tasks envelope', stored and stored['schema'] == 'prioritizer.tasks' and len(stored['items']) == len(want))
-    check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t1'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't1'))
+    # t2 has no names on it; t1's names become directory ids once the directory loads, which is a change.
+    check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t2'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't2'))
     check('the old copy is kept, and marked as moved', pg.evaluate("localStorage.getItem('prioritizer.v1') !== null && localStorage.getItem('prioritizer.v1.moved') !== null"))
     pg.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
     pg.reload(); pg.wait_for_timeout(1200)
@@ -655,7 +664,7 @@ def storage_checks(b, watch):
     bundle_path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(bundle_path)
     with open(bundle_path) as f: bundle = json.load(f)
     check('a backup is a Workshop bundle named workshop-<date>.json', bundle['schema'] == 'workshop.bundle' and dl.value.suggested_filename.startswith('workshop-')
-          and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'people', 'settings', 'tasks'])
+          and {'lists', 'settings', 'tasks'} <= {c['collection'] for c in bundle['collections']})
     ctx.close()
 
     tmp = tempfile.mkdtemp()
@@ -674,7 +683,7 @@ def storage_checks(b, watch):
         p1.evaluate('window.__prioritizer.saved()')
         with open(os.path.join(data, 'tasks.json')) as f: on_disk = json.load(f)
         check('with Workshop running, the board is a file in the data folder', on_disk['schema'] == 'prioritizer.tasks' and sorted(t['title'] for t in on_disk['items']) == want)
-        check('lists, people and settings are files too', all(os.path.exists(os.path.join(data, c + '.json')) for c in ('lists', 'people', 'settings')))
+        check('lists and settings are files too', all(os.path.exists(os.path.join(data, c + '.json')) for c in ('lists', 'settings')))
         p1.reload(); p1.wait_for_timeout(1200)
         with p1.expect_download() as dl: p1.evaluate('window.__prioritizer.exportXlsx()')
         again = os.path.join(tempfile.mkdtemp(), 'again.xlsx'); dl.value.save_as(again)

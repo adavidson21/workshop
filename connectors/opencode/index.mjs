@@ -403,8 +403,10 @@ const actions = {
         additionalProperties: false,
         properties: {
           people: { type: "array", maxItems: 200, items: { type: "object", additionalProperties: false, required: ["id", "name"], properties: {
-            id: str("Person id", { minLength: 1, maxLength: 110 }), name: str("Name", { minLength: 1, maxLength: 200 }),
-            relation: { type: "string", title: "Relation", enum: ["self", "report", "manager", "peer"] }, team: { type: "boolean", title: "On my team" } } } },
+            id: str("Person or group id", { minLength: 1, maxLength: 110 }), name: str("Name", { minLength: 1, maxLength: 200 }),
+            handle: str("Handle", { maxLength: 40 }), kind: { type: "string", title: "Kind", enum: ["person", "group"] },
+            relation: { type: "string", title: "Relation", enum: ["self", "report", "manager", "peer", "contact"] }, team: { type: "boolean", title: "On my team" },
+            members: { type: "array", title: "Group members", maxItems: 200, items: str("Person id", { maxLength: 110 }) } } } },
           lists: { type: "array", maxItems: 200, items: str("Docket list", { maxLength: 120 }) },
           areas: { type: "array", maxItems: 200, items: str("Queue area", { maxLength: 300 }) },
         },

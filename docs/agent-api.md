@@ -174,7 +174,7 @@ Response `200` ([data-put-response](schemas/data-put-response.schema.json)):
 {"rev": 15, "updatedAt": "2026-10-18T13:05:00.000Z"}
 ```
 
-Apps write only their own collections. Any app may read another app's collections (for example the People app reading Prioritizer tasks). The agent cannot tell apps apart, so this is a rule for app code, enforced in review and by the SDK (`data.put` has no `app` option).
+Apps write only their own collections. The one shared collection is the people directory (`settings/people`), which every app changes through the SDK's `ws.people` ([people.md](people.md)). Any app may read another app's collections (for example the People app reading Prioritizer tasks). The agent cannot tell apps apart, so this is a rule for app code, enforced in review and by the SDK (`data.put` has no `app` option).
 
 ## Files
 

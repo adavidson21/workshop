@@ -153,3 +153,10 @@ label.btn{cursor:pointer}
 .from-url-row{display:flex;gap:.5rem}
 .from-url-row .cfg-input{flex:1;min-width:0}
 .from-url .cfg-help{margin-top:.4rem}
+
+/* People card: handles, groups and the member checklist */
+.person .handle { font-size: 0.85em; color: var(--muted); }
+.people-sub { margin: 1.25rem 0 0.25rem; font-size: 1rem; }
+.person-form fieldset.members { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.person-form fieldset.members legend { padding: 0; margin-bottom: 0.25rem; }
+.person-form .member { display: inline-flex; align-items: center; gap: 0.35rem; }
