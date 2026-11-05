@@ -13,6 +13,7 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 - **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. Items with no dates wait in the Unscheduled tray; drag one onto the timeline.
 - **Keys** (timeline focused): `N` new item, `Up`/`Down` select, `Left`/`Right` move, `Shift`+`Left`/`Right` change the end, `Alt`+`Up`/`Down` change lane, `Enter` edit, `Delete` remove, `Esc` deselect.
 - **Goals:** the row under the dates has one cell per sprint (or month, quarter, week). Click one to say what that period delivers.
+- **Owners:** an item's Owners (its panel, or `who: @sam, @leadership` in the outline) are people and groups from Workshop's people directory, the same ones Docket and Rapport use. **Owner** above the timeline fades everything that is not theirs; a person owns what is assigned to them or to a group they are in.
 - **Descriptions:** an item's Description (its panel, or indented lines under it in the outline) says what it delivers. Goals and descriptions in the dates shown are listed under the timeline.
 - **Dates and sprints** (calendar button): where S1 and W1 count from, and when sprints start.
 - **Export:** PNG or SVG of the dates and lanes on screen (folded lanes left out), with or without the title, today line, and the goals and descriptions listed under the chart, light or dark. Markdown as a download, on the clipboard, or saved to your Workshop folder (`runway/exports/<id>.md`), optionally with a table (descriptions included).
@@ -56,7 +57,7 @@ goal: S4 | Search on the new index
 - Content migration | S1-S3
 - Search cutover | S4 | after: Content migration
 - * Launch | S5
-- Alerting rework | 3 sprints | after: Search cutover | status: at risk | color: amber
+- Alerting rework | 3 sprints | after: Search cutover | status: at risk | color: amber | who: @sam
   Indented lines under an item are its description.
   - Pager routing | S5
     An indented "- " line is a child item.
@@ -67,6 +68,7 @@ goal: S4 | Search on the new index
 - When: `2027-03-01..2027-03-20`, `2027-03`, `Jan-Mar 2027`, `Nov 2026..Feb 2027`, `Q2`, `Q1-Q2 2027`, `S3-S4` (sprints), `W1-W2` (weeks), or a length like `3 sprints`, `2 months`, `10 days`. A length starts the day after its `after:` items end, or at the first period on or after `start`.
 - `after:` items it depends on, by title, comma separated. An item that starts before something it depends on ends shows `!` and a dashed red arrow. It is a warning, never a block.
 - `status:` planned (default), active, done, at risk, cut. `color:` slate, teal, green, amber, red, purple, gray (default: the lane's).
+- `who:` owners, comma separated: `@handles` of people and groups in Workshop's people directory (Settings, People; workshop `docs/people.md`). A name People does not have is added there as a contact when you leave the outline. Items keep ids (`who`), so renaming someone changes every roadmap.
 - S1 is the first sprint that starts on or after `start`; W1 the first week (weeks start Monday).
 - A line Runway cannot read stays where it is, as text, with a warning. Nothing is dropped.
 - A `|` inside a title is written `\|`.

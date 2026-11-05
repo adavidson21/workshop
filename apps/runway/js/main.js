@@ -17,6 +17,7 @@ import { createStore } from './store.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
 import { createSummaryWriter } from '../shared/summary.js';
+import { mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
   settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
@@ -79,6 +80,7 @@ const ui = {
   range: null,
   pendingRoute: null,
   opened: null,
+  owner: (() => { try { return localStorage.getItem('runway.owner') || ''; } catch (e) { return ''; } })(),
   detailsOpen: (() => { try { return localStorage.getItem('runway.details') !== 'closed'; } catch (e) { return true; } })()
 };
 let unsubMap = null;
@@ -191,11 +193,11 @@ function paintMap() {
   else { const s = tbar.querySelector('.save'); if (s) { s.dataset.save = v.save; s.textContent = { saved: 'Saved', saving: 'Saving', unsaved: 'Not saved yet' }[v.save]; } }
   app.querySelector('.body').dataset.mode = ui.mode;
   const rbar = app.querySelector('[data-r="rbar"]');
-  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked()));
+  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked(), ui.owner));
   setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
-  tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true });
+  tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner) });
   tl.scrollLeft = scroll;
   setHtml(app.querySelector('[data-r="tray"]'), trayHtml(doc, sched));
   setHtml(app.querySelector('[data-r="details"]'), detailsHtml(doc, range, ui.detailsOpen));
@@ -215,8 +217,40 @@ function syncOutline(force = false) {
   const ta = app.querySelector('[data-outline]');
   if (!force && ta && document.activeElement === ta) return;
   if (!v.doc) return;
-  ui.outline = serialize(v.doc);
+  ui.outline = serialize(v.doc, { mention: id => mentionOf(id) });
   ui.warnings = parse(ui.outline, { today: today(), defaults: v.doc.meta }).warnings;
+}
+
+/* ---------- owners: Workshop's people directory (ws.people, docs/people.md) ---------- */
+async function loadPeople() {
+  try { setDirectory(await ws.people.get()); } catch (e) { /* none yet; owners show as ids */ }
+  syncOutline();
+  requestPaint();
+}
+ws.people.subscribe(dir => { setDirectory(dir); syncOutline(); requestPaint(); });
+loadPeople();
+
+/** Adds people the directory does not have as contacts, one at a time. Resolves name (lower case) -> id. */
+async function addContacts(names) {
+  const out = new Map();
+  for (const name of [...new Set(names)]) {
+    const known = resolve([name]).ids[0];
+    if (known) { out.set(name.toLowerCase(), known); continue; }
+    try {
+      const it = await ws.people.add({ name, relation: 'contact' });
+      out.set(name.toLowerCase(), it.id);
+      setDirectory(await ws.people.get());
+    } catch (e) { toast(`Couldn't add ${name} to People: ${e.message || e}`, 'warn'); }
+  }
+  return out;
+}
+
+/** Owner tokens to ids, adding a contact for each new name. */
+async function ownersFrom(tokens) {
+  const { ids, missing } = resolve(tokens);
+  if (!missing.length) return ids;
+  const added = await addContacts(missing);
+  return [...new Set([...ids, ...missing.map(n => added.get(n.toLowerCase())).filter(Boolean)])];
 }
 
 /** Change the roadmap from the timeline, panel or a dialog, and refresh the outline. */
@@ -305,9 +339,12 @@ async function newRoadmap(doc) {
   } catch (e) { toastErr(e); }
 }
 
-function docFromText(text) {
+// Owners named in the text that People does not have yet are added as contacts first.
+async function docFromText(text) {
   const parsed = parse(text, { today: today() });
-  const r = reconcile(blankDoc(), parsed);
+  const missing = resolve(parsed.entries.flatMap(e => e.who || [])).missing;
+  if (missing.length) await addContacts(missing);
+  const r = reconcile(blankDoc(), parsed, { resolve: t => resolve(t) });
   if (!parsed.meta.title) r.doc.meta.title = 'Imported roadmap';
   return r.doc;
 }
@@ -324,7 +361,7 @@ async function importMarkdown() {
   if (!f) return;
   const text = f.querySelector('textarea').value;
   if (!text.trim()) return;
-  newRoadmap(docFromText(text));
+  newRoadmap(await docFromText(text));
 }
 
 async function settings() {
@@ -351,7 +388,7 @@ async function exportFlow() {
           else await saveFile(fileName(doc.meta.title, 'png'), await toPng(text, 2), 'image/png');
           return;
         }
-        const md = markdown(doc, { table: form.table.checked });
+        const md = markdown(doc, { table: form.table.checked, mention: id => mentionOf(id), names: who => namesOf(who) });
         if (kind === 'md') await saveFile(fileName(doc.meta.title, 'md'), md, 'text/markdown');
         if (kind === 'copy') { await navigator.clipboard.writeText(md); toast('Copied as Markdown.', 'success'); }
         if (kind === 'folder') { const p = await store.saveMarkdown(v.mapId, md); toast(`Saved runway/${p} in your Workshop folder.`, 'success'); }
@@ -429,7 +466,7 @@ app.addEventListener('click', async e => {
     if ('reports' in t.dataset) { e.preventDefault(); go('reports'); return; }
     if (t.dataset.open) { e.preventDefault(); go(t.dataset.open); }
     else if ('new' in t.dataset) newRoadmap();
-    else if ('example' in t.dataset) newRoadmap(docFromText(exampleOutline()));
+    else if ('example' in t.dataset) docFromText(exampleOutline()).then(newRoadmap);
     else if ('import' in t.dataset) importMarkdown();
     else if ('fromado' in t.dataset) fromAdo();
     else if (t.dataset.dup) {
@@ -598,14 +635,38 @@ app.addEventListener('input', e => {
 function applyOutline() {
   if (!v.doc || locked()) return;
   const parsed = parse(ui.outline, { today: today(), defaults: v.doc.meta });
-  const r = reconcile(v.doc, parsed);
-  ui.warnings = r.warnings;
+  const r = reconcile(v.doc, parsed, { resolve: t => resolve(t) });
+  // A name People does not have stays in the text while you type; it is added as a contact when you leave the
+  // outline (the change event below), so half-typed names never become people.
+  ui.warnings = [...r.warnings, ...r.newPeople.flatMap(n => n.names).filter((x, i, a) => a.indexOf(x) === i)
+    .map(name => ({ line: 0, message: `${name} isn't in People yet. It is added as a contact when you leave the outline.` }))];
   store.edit(d => { d.meta = r.doc.meta; d.lanes = r.doc.lanes; d.items = r.doc.items; });
   requestPaint();
 }
 
 app.addEventListener('change', e => {
   const t = e.target;
+  if (t.matches('[data-owner]')) {
+    ui.owner = t.value;
+    try { localStorage.setItem('runway.owner', ui.owner); } catch (err) { /* per window only */ }
+    requestPaint();
+    return;
+  }
+  if (t.matches('[data-outline]')) {
+    if (!v.doc || locked()) return;
+    const parsed = parse(ui.outline, { today: today(), defaults: v.doc.meta });
+    const missing = resolve(parsed.entries.flatMap(x => x.who || [])).missing;
+    // Keep the text as typed: the directory changing while contacts are added rewrites the outline.
+    const typed = ui.outline;
+    if (missing.length) addContacts(missing).then(() => { ui.outline = typed; applyOutline(); syncOutline(true); requestPaint(); });
+    return;
+  }
+  if (t.matches('[data-f="who"]') && t.closest('[data-panel]')) {
+    if (locked()) return;
+    const id = t.closest('[data-panel]').dataset.panel;
+    ownersFrom(t.value.split(',')).then(ids => edit(d => { const it = d.items.find(i => i.id === id); if (it) it.who = ids; }));
+    return;
+  }
   if (app.dataset.view === 'reports') { if (reports) reports.change(t); return; }
   if (t.matches('[data-scale]')) return edit(d => { d.meta.scale = t.value; d.meta.range = null; });
   if (t.matches('[data-from], [data-to]')) {

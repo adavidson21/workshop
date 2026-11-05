@@ -4,6 +4,7 @@ import { SCALES, fmt } from './dates.js';
 import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
 import { summary } from './export.js';
+import { choices, mentionOf, namesOf } from './people.js';
 
 const relTime = (ms, now = Date.now()) => {
   if (!ms) return '';
@@ -108,7 +109,17 @@ export function toolbarHtml(v, ui) {
   </div>`;
 }
 
-export function rangeHtml(v, range, locked = false) {
+/* The owner filter: anyone, or a person or group from the people directory. Items not theirs (directly or
+   through a group) are drawn faint. */
+function ownerFilter(owner) {
+  const list = choices();
+  if (!list.length && !owner) return '';
+  return `<label class="fld"><span class="sr">Owner</span><select data-owner aria-label="Owner">
+    <option value=""${owner ? '' : ' selected'}>Anyone</option>
+    ${list.map(it => `<option value="${esc(it.id)}"${owner === it.id ? ' selected' : ''}>${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}</option>`).join('')}</select></label>`;
+}
+
+export function rangeHtml(v, range, locked = false, owner = '') {
   const auto = !v.doc.meta.range;
   return `<div class="rbar">
     <span class="eyebrow">Showing</span>
@@ -116,6 +127,7 @@ export function rangeHtml(v, range, locked = false) {
     <span class="muted">to</span>
     <label class="fld"><span class="sr">To</span><input type="date" data-to value="${esc(range.to)}" aria-label="To"></label>
     <button class="btn ghost" data-fit${auto ? ' disabled' : ''}>Fit to items</button>
+    ${ownerFilter(owner)}
     <span class="grow"></span>
     ${locked ? '' : `<button class="btn ghost" data-addlane>${ICON.plus}Lane</button>
     <button class="btn ghost" data-additem>${ICON.plus}Item <kbd>N</kbd></button>`}
@@ -147,6 +159,7 @@ goal: S1 | What this sprint delivers   (a month or Q2 on other scales)
 ## Lane
 - Item | Jan-Mar 2027
 - Item | Q2 | after: Other item | status: at risk | color: teal
+- Item | Q3 | who: @sam, @leadership   owners, from People
 - Item | S3-S4         sprints, W1-W2 for weeks
 - Item | 2027-03-01..2027-03-20
 - Item | 3 sprints     a length: starts after its "after" items
@@ -157,6 +170,8 @@ goal: S1 | What this sprint delivers   (a month or Q2 on other scales)
 
 /* ---------- under the timeline: goals and what each item delivers ---------- */
 
+const ownersOf = (doc, id) => ((doc.items.find(x => x.id === id) || {}).who || []);
+
 export function detailsHtml(doc, range, open = true) {
   const { goals, items } = summary(doc, range);
   const goalWord = doc.meta.scale === 'sprint' ? 'Sprint goals' : 'Goals';
@@ -166,7 +181,7 @@ export function detailsHtml(doc, range, open = true) {
         : `<p class="hint">No goals in these dates. Click a cell in the goals row above the lanes, or write <code>goal: ${doc.meta.scale === 'sprint' ? 'S1' : doc.meta.scale === 'quarter' ? 'Q1' : 'Jan'} | ...</code> in the outline.</p>`}
     </div>
     <div class="dcol"><h4 class="section-label">What's getting done</h4>
-      ${items.length ? `<ul class="dlist">${items.map(it => `<li><button class="dname" data-pick="${esc(it.id)}">${esc(it.title)}</button><span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : ''].filter(Boolean).join(' · '))}</span><p>${esc(it.notes)}</p></li>`).join('')}</ul>`
+      ${items.length ? `<ul class="dlist">${items.map(it => `<li><button class="dname" data-pick="${esc(it.id)}">${esc(it.title)}</button><span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : '', namesOf(ownersOf(doc, it.id)).join(', ')].filter(Boolean).join(' · '))}</span><p>${esc(it.notes)}</p></li>`).join('')}</ul>`
         : '<p class="hint">Add a description to an item (its panel, or indented lines under it in the outline) to say what it delivers.</p>'}
     </div>`;
   return `<details class="details" data-details${open ? ' open' : ''}><summary>Goals and descriptions <span class="hint">${goals.length} goal${goals.length === 1 ? '' : 's'}, ${items.length} described</span></summary><div class="dgrid">${body}</div></details>`;
@@ -208,6 +223,9 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
     </div>
     ${it.start || sized ? `<button type="button" class="lnk" data-unschedule${ro}>Unschedule</button>` : ''}
     <label class="pf"><span>Status</span><select data-f="status"${ro}>${STATUSES.map(x => `<option value="${x}"${it.status === x ? ' selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>
+    <label class="pf"><span>Owners</span><input data-f="who" list="ownerList" value="${esc((it.who || []).map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off"${ro}>
+      <datalist id="ownerList">${choices().map(o => `<option value="@${esc(o.handle)}" label="${esc(o.name)}${o.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist>
+      <small class="hint">People and groups from People in Workshop. A new name is added there as a contact.</small></label>
     <fieldset class="pf"><legend>Color</legend><div class="swatches">
       <label class="swl" title="${LEVELS[level]} color"><input type="radio" name="color" data-f="color" value=""${!it.color ? ' checked' : ''}${ro}><span class="swc auto" style="--c:${PALETTE.light[LEVEL_COLORS[level]]};--cd:${PALETTE.dark[LEVEL_COLORS[level]]}">A</span></label>
       ${COLORS.map(c => `<label class="swl" title="${c}"><input type="radio" name="color" data-f="color" value="${c}"${it.color === c ? ' checked' : ''}${ro}><span class="swc" style="--c:${PALETTE.light[c]};--cd:${PALETTE.dark[c]}"></span></label>`).join('')}

@@ -9,20 +9,21 @@
      - Content migration | S1-S3
      - Search cutover | S4 | after: Content migration
      - * Launch | S5
-     - Alerting rework | 3 sprints | status: at risk | color: amber
+     - Alerting rework | 3 sprints | status: at risk | color: amber | who: @sam, @leadership
        Notes are the indented lines under an item.
        - Pager routing | S5
          An indented "- " line is a child item (epic > feature > story > task).
 
    `goal: S3 | text` is a goal for a period (a sprint, month or quarter, in the map's scale).
    `#` is the title, `##` a lane, `-` an item, `- *` a milestone. After the title, `|` separates the parts
-   of an item: when it happens (a date range, a period or a size), `after:` (items it depends on), `status:`
-   and `color:`. A line that cannot be read stays as text with a warning; nothing is dropped. A note line that
+   of an item: when it happens (a date range, a period or a size), `after:` (items it depends on), `status:`,
+   `color:` and `who:` (owners: @handles of people and groups in Workshop's people directory). A line that cannot be read stays as text with a warning; nothing is dropped. A note line that
    starts with "- " is written "\- " so it stays a note.
 
-   parse(text) reads it; serialize(doc) writes a roadmap back in the same format, so text, timeline and
-   Markdown are one thing. reconcile(doc, parsed) applies an edited outline to a roadmap and keeps the ids,
-   so other windows merge item by item. */
+   parse(text) reads it; serialize(doc, {mention}) writes a roadmap back in the same format, so text, timeline
+   and Markdown are one thing. reconcile(doc, parsed, {resolve}) applies an edited outline to a roadmap and
+   keeps the ids, so other windows merge item by item. `mention` (id to @handle) and `resolve` (tokens to
+   {ids, missing}) come from js/people.js; without them owners are written and read as ids. */
 import {
   MONTHS, SCALES, addDays, firstPeriod, isDate, monthEnd, monthStart, parts, periodAdd, periodEnd, periodStart,
   quarterOf, quarterStart, sprintNumber, sprintOf, ymd
@@ -236,14 +237,15 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
     const segs = splitBars(body);
     const title = segs.shift().slice(0, 200);
     if (!title) { asText(i, raw, `Line ${i + 1} has no title.`); continue; }
-    const it = { kind: 'item', lane, parent: parentFor, title, milestone, status: 'planned', color: '', after: [], notes: '' };
+    const it = { kind: 'item', lane, parent: parentFor, title, milestone, status: 'planned', color: '', after: [], who: [], notes: '' };
     let problem = '';
     for (const seg of segs) {
       if (!seg) continue;
-      const kv = /^(after|status|color|colour)\s*:\s*(.*)$/i.exec(seg);
+      const kv = /^(after|status|color|colour|who)\s*:\s*(.*)$/i.exec(seg);
       if (kv) {
         const k = kv[1].toLowerCase(), v = kv[2].trim();
         if (k === 'after') it.after.push(...v.split(',').map(s => s.trim()).filter(Boolean));
+        else if (k === 'who') it.who.push(...v.split(',').map(s => s.trim()).filter(Boolean));
         else if (k === 'status') { const s = norm(v).replace(/-/g, ' '); if (STATUSES.includes(s)) it.status = s; else { problem = `Status is planned, active, done, at risk or cut, not "${v}".`; break; } }
         else { const c = norm(v); if (COLORS.includes(c)) it.color = c; else { problem = `Color is one of ${COLORS.join(', ')}, not "${v}".`; break; } }
         continue;
@@ -268,7 +270,7 @@ export function parse(text, { today: todayStr = '2026-01-01', defaults = {} } = 
 
 /* ---------- serialize ---------- */
 
-function itemLine(it, doc, byId, depth = 0) {
+function itemLine(it, doc, byId, depth = 0, mention = id => id) {
   const segs = [escTitle(it.title)];
   if (it.milestone && it.start) segs.push(it.start);
   else if (it.start && it.end) segs.push(formatWhen(it.start, it.end, doc.meta));
@@ -277,13 +279,14 @@ function itemLine(it, doc, byId, depth = 0) {
   if (after.length) segs.push('after: ' + after.map(escTitle).join(', '));
   if (it.status && it.status !== 'planned') segs.push('status: ' + it.status);
   if (it.color) segs.push('color: ' + it.color);
+  if (it.who && it.who.length) segs.push('who: ' + it.who.map(mention).join(', '));
   const pad = '  '.repeat(depth);
   const notes = (it.notes || '').split('\n').filter(l => l.trim()).map(l => pad + '  ' + l.trim().replace(/^([-*+]\s)/, '\\$1'));
   return [`${pad}- ${it.milestone ? '* ' : ''}${segs.join(' | ')}`, ...notes].join('\n');
 }
 
-/** A roadmap as outline text. */
-export function serialize(doc) {
+/** A roadmap as outline text. mention: an owner id as written (an @handle); ids as they are by default. */
+export function serialize(doc, { mention = id => id } = {}) {
   const m = doc.meta;
   const out = [`# ${m.title || 'Untitled roadmap'}`, `scale: ${m.scale || 'month'}`];
   if (m.origin) out.push(`start: ${m.origin}`);
@@ -299,7 +302,7 @@ export function serialize(doc) {
     const here = new Set(list.map(x => x.id));
     const out = [];
     const add = (x, depth) => {
-      out.push(x.kind === 'text' ? x.raw : itemLine(x, doc, byId, depth));
+      out.push(x.kind === 'text' ? x.raw : itemLine(x, doc, byId, depth, mention));
       if (x.kind === 'item') for (const c of list.filter(c => c.kind === 'item' && c.parent === x.id)) add(c, depth + 1);
     };
     for (const x of list) if (x.kind === 'text' || !x.parent || !here.has(x.parent)) add(x, 0);
@@ -317,8 +320,11 @@ export function serialize(doc) {
 
 /* ---------- reconcile ---------- */
 
-/** Apply a parsed outline to a roadmap, keeping ids, colors and links of items it can match by title. */
-export function reconcile(doc, parsed) {
+/** Apply a parsed outline to a roadmap, keeping ids, colors and links of items it can match by title.
+    resolve: owner tokens to {ids, missing}; by default only ids are kept. Returns {doc, warnings, newPeople}:
+    newPeople is [{id, names}], owners the directory does not have yet, for the caller to add and assign. */
+export function reconcile(doc, parsed, { resolve = toks => ({ ids: toks.filter(t => /^[pg]_[A-Za-z0-9_-]+$/.test(t)), missing: [] }) } = {}) {
+  const newPeople = [];
   const meta = { ...doc.meta, ...parsed.meta };
   const freeLanes = [...doc.lanes];
   const lanes = parsed.lanes.map((l, i) => {
@@ -348,6 +354,9 @@ export function reconcile(doc, parsed) {
       start: e.start || null, end: e.end || null, size: e.size || null, milestone: !!e.milestone,
       status: e.status, color: e.color, notes: e.notes || '', dependsOn: [], afterMissing: [], _after: e.after, _parent: e.parent
     };
+    const owners = resolve(e.who || []);
+    it.who = owners.ids;
+    if (owners.missing.length) newPeople.push({ id: it.id, names: owners.missing });
     return it;
   });
   for (const it of items) {
@@ -366,5 +375,5 @@ export function reconcile(doc, parsed) {
     }
     delete it._after;
   }
-  return { doc: { meta, lanes, items }, warnings };
+  return { doc: { meta, lanes, items }, warnings, newPeople };
 }

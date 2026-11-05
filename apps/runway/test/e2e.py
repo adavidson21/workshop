@@ -183,6 +183,32 @@ def main():
           const q = r.result.transaction('files').objectStore('files').getAllKeys(); q.onsuccess = () => res(q.result); }; })""")
         check('Save to folder wrote exports/<id>.md', any(f'runway/exports/{rid}.md' in str(k) for k in files))
 
+        # Owners from the people directory: who: in the outline, a new name added on leaving the outline, the
+        # owner filter fading what is not theirs (counting groups).
+        pg.evaluate(f"""async () => {{ const ws = {R}.ws; const sam = await ws.people.add({{name: 'Sam Lee', relation: 'report'}});
+          const jo = await ws.people.add({{name: 'Jo Park', relation: 'peer'}}); await ws.people.add({{kind: 'group', name: 'Leadership', members: [jo.id]}}); }}""")
+        pg.wait_for_timeout(400)
+        text = pg.input_value('[data-outline]')
+        lines = text.split('\n')
+        k = next(i for i, l in enumerate(lines) if l.startswith('- Index rebuild'))
+        lines[k] += ' | who: @sam, @leadership, @newperson'
+        pg.fill('[data-outline]', '\n'.join(lines))
+        pg.wait_for_timeout(600)
+        check('an owner People does not have waits, with a note, until you leave the outline', 'Newperson' in pg.inner_text('.warns'))
+        pg.focus('[data-tl]')
+        pg.wait_for_timeout(900)
+        owners = pg.evaluate(f"""async () => {{ const d = await {R}.ws.people.get(); const it = {R}.store.v.doc.items.find(i => i.title === 'Index rebuild');
+          return [it.who.map(id => d.byId.get(id).name), d.people.find(p => p.name === 'Newperson').relation]; }}""")
+        check("who: assigns people and groups by id; a new name became a contact", owners == [['Sam Lee', 'Leadership', 'Newperson'], 'contact'])
+        check('the outline shows owners as @handles', 'who: @sam, @leadership, @newperson' in pg.input_value('[data-outline]'))
+        jo = pg.evaluate(f"async () => (await {R}.ws.people.get()).people.find(p => p.name === 'Jo Park').id")
+        pg.select_option('[data-owner]', jo)
+        pg.wait_for_timeout(300)
+        faint = pg.evaluate("""() => [...document.querySelectorAll('[data-tl] g.bar')].map(g => [g.textContent, +g.getAttribute('opacity')])""")
+        check('the owner filter fades items that are not theirs, and keeps theirs through a group',
+              any('Index rebuild' in t and o == 1 for t, o in faint) and any(o < 0.5 for t, o in faint))
+        pg.select_option('[data-owner]', '')
+
         # Back to the list, the example, and remove.
         pg.click('[data-home]')
         pg.wait_for_selector('.rlist')

@@ -4,7 +4,8 @@
      meta   {title, scale, origin, sprint: {anchor, weeks} | null, range: {from, to} | null, hidden: [laneId]}
      lanes  [{id, kind: 'lane', title, order}]
      items  [{id, kind: 'item', lane, order, parent, title, start, end, size, milestone, status, color, notes,
-              dependsOn, afterMissing, ado?}]
+              dependsOn, afterMissing, who, ado?}]
+            who is the item's owners: people (p_) and group (g_) ids from Workshop's people directory (js/people.js).
             parent is the id of the item it sits under (same lane), or null. Depth is its level: 0 epic,
             1 feature, 2 story, 3 task; each level has its own color unless the item sets one.
             and [{id, kind: 'text', lane, order, raw}] for outline lines that are not items (kept, never dropped)
@@ -16,6 +17,7 @@ export const VERSION = 1;
 export const STATUSES = ['planned', 'active', 'done', 'at risk', 'cut'];
 export const COLORS = ['slate', 'teal', 'green', 'amber', 'red', 'purple', 'gray'];
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+const REF = /^[pg]_[A-Za-z0-9_-]{1,100}$/;           // a person or group in the people directory
 export const MAX_DEPTH = 3;                                   // levels 0 to 3
 export const LEVELS = ['Epic', 'Feature', 'Story', 'Task'];
 export const LEVEL_COLORS = ['purple', 'teal', 'slate', 'gray'];
@@ -166,7 +168,8 @@ export function cleanItem(x) {
     color: COLORS.includes(x.color) ? x.color : '',
     notes: clip(x.notes, 4000),
     dependsOn: Array.isArray(x.dependsOn) ? x.dependsOn.filter(d => typeof d === 'string' && d !== x.id) : [],
-    afterMissing: Array.isArray(x.afterMissing) ? x.afterMissing.map(s => clip(s, 200)) : []
+    afterMissing: Array.isArray(x.afterMissing) ? x.afterMissing.map(s => clip(s, 200)) : [],
+    who: Array.isArray(x.who) ? [...new Set(x.who.filter(w => typeof w === 'string' && REF.test(w)))].slice(0, 20) : []
   };
 }
 

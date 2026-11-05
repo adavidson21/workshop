@@ -7,22 +7,26 @@ import { FONTS, THEME, esc, layout, svg } from './timeline.js';
 
 const cell = (s) => String(s == null ? '' : s).replace(/\|/g, '\\|').replace(/\n+/g, ' ');
 
-/** The roadmap as Markdown: the outline, and with `table` a table after it (ignored on import). */
-export function markdown(doc, { table = false } = {}) {
-  let out = serialize(doc);
+/** The roadmap as Markdown: the outline, and with `table` a table after it (ignored on import). mention: an
+    owner id as written in the outline (an @handle); names: owner ids to display names, for the table. */
+export function markdown(doc, { table = false, mention = id => id, names = who => who } = {}) {
+  let out = serialize(doc, { mention });
   if (!table) return out;
   const sched = schedule(doc);
   const byId = new Map(doc.items.map(i => [i.id, i]));
   const lanes = [{ id: null, title: '' }, ...[...doc.lanes].sort((a, b) => a.order - b.order)];
   const rows = [];
+  const owners = doc.items.some(x => x.kind === 'item' && x.who && x.who.length);
   for (const l of lanes) {
     for (const it of doc.items.filter(x => x.kind === 'item' && (x.lane || null) === l.id).sort((a, b) => a.order - b.order)) {
       const s = sched.get(it.id);
       const after = it.dependsOn.map(d => byId.get(d)).filter(Boolean).map(d => d.title);
-      rows.push(`| ${cell(l.title)} | ${cell((it.milestone ? 'Milestone: ' : '') + it.title)} | ${s ? fmt(s.start) : ''} | ${s && !it.milestone ? fmt(s.end) : ''} | ${cell(it.status)} | ${cell(after.join(', '))} | ${cell(it.notes.trim())} |`);
+      rows.push(`| ${cell(l.title)} | ${cell((it.milestone ? 'Milestone: ' : '') + it.title)} | ${s ? fmt(s.start) : ''} | ${s && !it.milestone ? fmt(s.end) : ''} | ${cell(it.status)} | ${cell(after.join(', '))}${owners ? ` | ${cell(names(it.who || []).join(', '))}` : ''} | ${cell(it.notes.trim())} |`);
     }
   }
-  out += `\n${TABLE_MARK}\n\n| Lane | Item | Start | End | Status | After | Description |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join('\n')}\n`;
+  // Owners get a column only when some item has one, so roadmaps without owners export as before.
+  const head = owners ? '| Lane | Item | Start | End | Status | After | Owners | Description |\n| --- | --- | --- | --- | --- | --- | --- | --- |' : '| Lane | Item | Start | End | Status | After | Description |\n| --- | --- | --- | --- | --- | --- | --- |';
+  out += `\n${TABLE_MARK}\n\n${head}\n${rows.join('\n')}\n`;
   return out;
 }
 

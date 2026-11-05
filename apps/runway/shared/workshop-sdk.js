@@ -18,6 +18,7 @@
    postMessage. Data and connector calls go straight to the agent or the browser backend, so an
    app also works when opened on its own (ws.embedded === false). */
 import { deviceAvailable, openDeviceRoot } from './device-fs.js';
+import * as People from './people.js';
 
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
@@ -1407,6 +1408,9 @@ export async function connect(options) {
       }
     },
 
+    /* the people directory (docs/people.md): every app reads and changes it here, never with data.* */
+    people: peopleService(data),
+
     /* files (docs/sdk.md, Files): this app writes only its own files; any app's files can be read */
     files: {
       list(folder, opts) { return data.files.list((opts && opts.app) || app, folder); },
@@ -1508,6 +1512,58 @@ async function agentCall(ctx, method, pathname, body) {
   return out;
 }
 
+/* ws.people (docs/sdk.md, People): the directory as a parsed object (shared/people.js), and the only writer
+   of Settings' `people` collection. Any app may add or change people and groups; every change is checked by
+   the same rules, stamped and merged like any other write. */
+function peopleService(data) {
+  const { APP, COLLECTION } = People;
+  const local = new Set(); // handlers in this page, told about this page's own writes (the agent filters them)
+  const read = async () => People.directory(await data.get(APP, COLLECTION));
+  const tell = (dir) => { for (const h of local) { try { h(dir); } catch (e) { console.error(e); } } };
+
+  // change(dir) returns {upsert: [items], result}. Items the parser could not read are kept as they were.
+  async function save(change) {
+    for (let attempt = 0; ; attempt++) {
+      const stored = await data.get(APP, COLLECTION);
+      if (!People.readable(stored)) throw new WorkshopError('unsupported', `The people directory was saved by a newer Workshop (version ${stored.version}). Update Workshop to change it.`);
+      const before = stored || People.blank();
+      const { upsert, result } = change(People.directory(before));
+      const byId = new Map(upsert.map(it => [it.id, it]));
+      const items = (before.items || []).map(it => (it && byId.has(it.id) ? byId.get(it.id) : it));
+      for (const it of upsert) if (!(before.items || []).some(x => x && x.id === it.id)) items.push(it);
+      const after = stampEnvelope(before, { ...clone(before), schema: People.SCHEMA, version: People.VERSION, items: clone(items) });
+      try {
+        await data.put(APP, COLLECTION, after);
+        tell(People.directory(after));
+        return result;
+      } catch (e) {
+        if (!(e instanceof WorkshopError && e.code === 'conflict') || attempt >= 4) throw e;
+      }
+    }
+  }
+  const one = (dir, id) => {
+    const it = dir.byId.get(id);
+    if (!it) throw new WorkshopError('not_found', 'That person or group is not in the directory.');
+    return it;
+  };
+  const patch = (id, fields) => save(dir => { const it = People.edit(one(dir, id), fields, dir.items); return { upsert: [it], result: it }; });
+
+  return {
+    get: read,
+    subscribe(handler) {
+      const h = (dir) => handler(dir);
+      local.add(h);
+      const off = data.subscribe(APP, COLLECTION, async () => { try { handler(await read()); } catch (e) { console.error(e); } });
+      return () => { local.delete(h); off(); };
+    },
+    add(input) { return save(dir => { const it = People.create(input, dir.items); return { upsert: [it], result: it }; }); },
+    update(id, fields) { return patch(id, fields); },
+    archive(id) { return patch(id, { archived: true }); },
+    restore(id) { return patch(id, { archived: false }); },
+    setMembers(groupId, members) { return patch(groupId, { members }); }
+  };
+}
+
 async function putWithRetry(data, app, collection, envelope) {
   try {
     return await data.put(app, collection, envelope);
@@ -1563,6 +1619,6 @@ export const data = { merge: mergeEnvelopes, stamp: stampEnvelope };
 export { pickBackend as detectBackend };
 
 // Internals for tests (shared/test/): the stores against any directory handle, and the move from IndexedDB.
-export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore };
+export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService };
 
 export default { connect, WorkshopError, data, detectBackend: pickBackend, folderState, allowFolder };

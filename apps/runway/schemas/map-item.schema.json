@@ -23,6 +23,7 @@
     "notes": {"type": "string", "maxLength": 4000, "description": "The description: what the item delivers. Shown under the timeline and in exports."},
     "dependsOn": {"type": "array", "items": {"type": "string"}},
     "afterMissing": {"type": "array", "items": {"type": "string"}, "description": "Names in the outline's after: that match no item, kept so the text round trips."},
+    "who": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "pattern": "^[pg]_[A-Za-z0-9_-]{1,100}$"}, "description": "Owners: people (p_) and group (g_) ids from Workshop's people directory (workshop docs/people.md). Optional; missing means none."},
     "ado": {"type": "object", "required": ["id"], "description": "The linked Azure DevOps work item (optional).", "properties": {
       "id": {"type": "integer"}, "connection": {"type": "string"}, "rev": {"type": "integer"},
       "type": {"type": "string"}, "state": {"type": "string"}, "url": {"type": "string", "description": "http(s) only, else empty."},

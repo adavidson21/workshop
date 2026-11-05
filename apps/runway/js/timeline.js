@@ -143,6 +143,7 @@ function headerTiers(L) {
 /**
  * Draw a layout as an SVG string.
  * opts: theme ('light' | 'dark'), title, subtitle (export header), selected (id), today (YYYY-MM-DD),
+ * dim (a Set of item ids drawn faint: the owner filter),
  *       interactive (adds data attributes and handles for the page), showToday.
  */
 export function svg(L, opts = {}) {
@@ -235,7 +236,7 @@ export function svg(L, opts = {}) {
     const it = b.item;
     const fill = P[b.color] || P.slate;
     const sel = opts.selected === b.id;
-    const op = it.status === 'done' ? .6 : it.status === 'cut' ? .35 : 1;
+    const op = (it.status === 'done' ? .6 : it.status === 'cut' ? .35 : 1) * (opts.dim && opts.dim.has(b.id) ? .2 : 1);
     const label = (warn.has(b.id) ? '! ' : '') + it.title + (opts.showIds && it.ado ? ` #${it.ado.id}` : '');
     const deco = it.status === 'cut' ? ' text-decoration="line-through"' : '';
     const data = opts.interactive ? ` data-id="${esc(b.id)}" class="bar${sel ? ' sel' : ''}" tabindex="-1"` : '';
