@@ -13,7 +13,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 | Setting | Recommended | Why |
 | --- | --- | --- |
 | Install method | By hand from a release tag (README.md, Work mode), not the one-line installer | No `irm \| iex` or `curl \| bash`, and a fixed, reviewable version |
-| Work mode | On (`workshop install --work-mode`, then `workshop pin`) | The UI runs from a pinned copy on disk, checked file by file against SHA-256 hashes on every request. No website can use the agent. Code changes only when the user runs `workshop update --tag <tag>` |
+| Work mode | On (`workshop install --work-mode`, then `workshop pin`) | The UI runs from a pinned copy on disk, checked file by file against SHA-256 hashes on every request. No website can use the agent. Code changes only when the user runs `workshop update` (newest release tags) or `workshop update --tag <tag>` |
 | Dispatch (coding agents) | Off, unless your company approves a coding agent and an AI provider | It is the only part that sends work content to a third party (the AI provider) |
 | Approved AI providers | Set to your approved provider if Dispatch is on | `workshop doctor` then fails if opencode can use any other provider |
 | Start at login | Off (the default) | Nothing runs until the user starts it |

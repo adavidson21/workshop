@@ -46,7 +46,7 @@ function toast(text, kind) { return ws.toast(text, { kind }); }
    opened is remembered in this browser. */
 const tabsEl = $('#tabs');
 const TAB_KEY = 'workshop.settings.tab';
-const TAB_ORDER = { general: 0, repos: 5, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
+const TAB_ORDER = { general: 0, apps: 4, repos: 5, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
 let wantTab = 'general';
 try { wantTab = localStorage.getItem(TAB_KEY) || 'general'; } catch (e) { /* storage blocked: start on General */ }
 
@@ -85,7 +85,7 @@ function panel(id, label, order) {
   else { p.hidden = true; btn.setAttribute('aria-selected', 'false'); btn.tabIndex = -1; }
   return p;
 }
-const TAB_LABEL = { general: 'General', repos: 'Repos', connectors: 'Connectors', people: 'People', data: 'Data' };
+const TAB_LABEL = { general: 'General', apps: 'Apps', repos: 'Repos', connectors: 'Connectors', people: 'People', data: 'Data' };
 tabsEl.addEventListener('click', e => { const b = e.target.closest('[role=tab]'); if (b) selectTab(b.dataset.tab, true); });
 tabsEl.addEventListener('keydown', e => {
   const tabs = [...tabsEl.querySelectorAll('[role=tab]')];
@@ -294,6 +294,116 @@ async function workshopCard(cfg) {
       toast('Settings saved', 'success');
     } catch (err) { msg.textContent = errText(err); }
   });
+}
+
+/* ---------- apps: one switch each (docs/apps.md) ----------
+   Agent: GET /api/app-switches; changed from Workshop on this computer only (PUT). In work mode turning one
+   on or off rebuilds the pinned copy from what is on this computer. An app in its own repo that is not
+   downloaded yet needs one command on this computer (the agent never downloads anything itself).
+   Browser mode: the switches are kept in this browser and only change the rail. */
+const OFF_KEY = 'workshop.appsOff';
+async function agentCall(method, pathname, body) {
+  let base = '', token = null;
+  if (ws.mode === 'local') {
+    const s = await fetch('/api/session', { cache: 'no-store' });
+    if (s.ok) token = (await s.json()).token;
+  } else {
+    try { const p = JSON.parse(localStorage.getItem('workshop.agent') || 'null'); if (p) { base = p.url; token = p.token; } } catch (e) { /* not paired */ }
+  }
+  const headers = { ...(token ? { 'X-Workshop-Token': token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) };
+  const r = await fetch(base + pathname, { method, headers, cache: 'no-store', targetAddressSpace: 'loopback', body: body ? JSON.stringify(body) : undefined });
+  const out = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(out.error || `Workshop answered ${r.status}.`);
+  return out;
+}
+const browserOff = () => { try { const v = JSON.parse(localStorage.getItem(OFF_KEY) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); } };
+
+function copyBtn(text) {
+  return `<button type="button" class="btn ghost app-copy" data-copy="${esc(text)}">Copy</button>`;
+}
+
+async function appsCard() {
+  const intro = ws.backend !== 'agent' ? 'Turn an app off to take it out of the rail in this browser.'
+    : 'Turn an app off to take it out of Workshop\'s rail. In work mode the pinned copy is rebuilt for you.';
+  const sec = card('Apps', intro, 'apps');
+  const box = document.createElement('div');
+  sec.appendChild(box);
+  const reload = document.createElement('div');
+  reload.className = 'acts left app-reload';
+  reload.hidden = true;
+  reload.innerHTML = '<button type="button" class="btn primary">Reload Workshop</button><span class="msg">to see the change.</span>';
+  reload.querySelector('button').addEventListener('click', () => { try { window.top.location.reload(); } catch (e) { location.reload(); } });
+  sec.appendChild(reload);
+
+  let view;
+  if (ws.backend === 'agent') {
+    try { view = await agentCall('GET', '/api/app-switches'); }
+    catch (e) { box.innerHTML = `<p class="err">${esc(errText(e))} If Workshop on this computer was just updated, run <code>workshop restart</code>.</p>`; return; }
+  } else {
+    let reg = null;
+    try { const r = await fetch('../registry.json', { cache: 'no-store' }); if (r.ok) reg = await r.json(); } catch (e) { /* none */ }
+    const off = browserOff();
+    view = { workMode: false, apps: ((reg && reg.apps) || []).map(a => a.manifest).sort((x, y) => (x.order ?? Infinity) - (y.order ?? Infinity))
+      .map(m => ({ id: m.id, name: m.name, description: m.description || '', on: !off.has(m.id), canTurnOff: m.home !== true && m.id !== 'settings', inWorkshop: !off.has(m.id) })) };
+  }
+  if (view.workMode && view.pinned === false) box.insertAdjacentHTML('beforeend', `<p class="sub">There is no pinned copy yet. Run this on your computer: <code>workshop pin</code> ${copyBtn('workshop pin')}</p>`);
+
+  const status = a => {
+    if (!a.canTurnOff) return 'Always on.';
+    if (!a.on) return 'Off. Not in the rail.';
+    if (view.workMode && a.separate && !a.downloaded) return `Not downloaded yet, so it is not in Workshop. Run this on your computer, then reload: <code>${esc(a.command)}</code> ${copyBtn(a.command)}`;
+    if (view.workMode && !a.inWorkshop) return `Not in the pinned copy yet. Run <code>workshop pin</code> ${copyBtn('workshop pin')}`;
+    if (view.workMode && a.separate) return `In Workshop${a.ref ? `, ${esc(a.ref)}` : ''}.`;
+    return 'In the rail.';
+  };
+  const render = () => {
+    box.querySelectorAll('.conn').forEach(el => el.remove());
+    for (const a of view.apps) {
+      const row = document.createElement('div');
+      row.className = 'conn app-row';
+      row.dataset.app = a.id;
+      const locked = readOnly || !a.canTurnOff;
+      row.innerHTML = `<div class="conn-head">
+          <div><h3>${esc(a.name)}</h3>${a.description ? `<p class="conn-about">${esc(a.description)}</p>` : ''}</div>
+          <input type="checkbox" class="toggle" role="switch" aria-label="${esc(a.name)} on"${a.on ? ' checked' : ''}${locked ? ' disabled' : ''}>
+        </div>
+        <p class="conn-status app-status">${status(a)}</p>`;
+      row.querySelector('.toggle').addEventListener('change', e => flip(a, e.target));
+      box.appendChild(row);
+    }
+  };
+  async function flip(a, input) {
+    const on = input.checked;
+    input.disabled = true;
+    const st = input.closest('.conn').querySelector('.app-status');
+    st.textContent = view.workMode ? 'Rebuilding the pinned copy...' : 'Saving...';
+    try {
+      if (ws.backend === 'agent') view = await agentCall('PUT', `/api/app-switches/${encodeURIComponent(a.id)}`, { on });
+      else {
+        const off = browserOff();
+        if (on) off.delete(a.id); else off.add(a.id);
+        try { localStorage.setItem(OFF_KEY, JSON.stringify([...off])); } catch (e) { throw new Error('This browser could not save it.'); }
+        view.apps = view.apps.map(x => x.id === a.id ? { ...x, on, inWorkshop: on } : x);
+      }
+      render();
+      const now = view.apps.find(x => x.id === a.id);
+      toast(view.download ? `${a.name} is on. Download it to finish.` : `${a.name} is ${on ? 'on' : 'off'}`, 'success');
+      reload.hidden = Boolean(view.download) && now && now.on;
+    } catch (err) {
+      input.checked = !on;
+      input.disabled = false;
+      st.innerHTML = status(a);
+      toast(errText(err), 'error');
+    }
+  }
+  box.addEventListener('click', async e => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); }
+    catch (err) { toast('Could not copy. Select the command and copy it instead.', 'error'); }
+  });
+  render();
+  if (readOnly) sec.insertAdjacentHTML('beforeend', '<p class="sub">Change these from Workshop on this computer.</p>');
 }
 
 /* ---------- connectors ---------- */
@@ -991,8 +1101,9 @@ async function workCard() {
   const b = await pinnedBuild();
   if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off below.'); return; }
   const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
-  const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update --tag</code>.');
-  sec.insertAdjacentHTML('beforeend', `<p class="sub">${one('Workshop', b.workshop)} · ${one('Docket', b.docket)} · built ${esc(new Date(b.builtAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }))}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
+  const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update</code>. Turn apps on and off under Apps.');
+  const parts = [one('Workshop', b.workshop), one('Docket', b.docket), one('Runway', b.runway), one('Rapport', b.receipts)];
+  sec.insertAdjacentHTML('beforeend', `<p class="sub">${parts.join(' · ')} · built ${esc(new Date(b.builtAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }))}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
 }
 
 // One button to Workshop's own site. Docket and Dispatch open inside Workshop, so their sites are not listed
@@ -1018,6 +1129,7 @@ async function start() {
       if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       await folderCard(cfg);
       await workshopCard(cfg);
+      await appsCard();
       const list = await connectorsCard(cfg);
       if (list) await reposTab(list);
     } catch (e) {
@@ -1029,6 +1141,7 @@ async function start() {
     card('Workshop on this computer', 'Not connected, so connectors are off. If Workshop is not running, run <code>workshop start</code>. Then '
       + (location.protocol === 'https:' ? 'click <b>Connect</b>.' : 'open Workshop from its site and click <b>Connect</b>.'));
     await folderCard(null);
+    await appsCard();
   }
   await peopleCard();
   await teamCard();

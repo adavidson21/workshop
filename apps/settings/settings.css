@@ -179,3 +179,8 @@ label.btn{cursor:pointer}
 .src-add .from-url-row{flex-wrap:wrap}
 .src-add .from-url-row .cfg-input{min-width:9rem}
 @media (max-width:560px){.repos .repo,.person:has(.src-scope){flex-wrap:wrap}}
+/* Apps tab: one switch per app, and the command to download one in work mode */
+.app-status{display:block;color:var(--muted)}
+.app-status code{font-size:.8rem;white-space:nowrap}
+.app-copy{margin-left:.3rem;padding:.1rem .55rem;font-size:.78rem}
+.app-reload{margin-top:.6rem}

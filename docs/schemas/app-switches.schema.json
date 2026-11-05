@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GET /api/app-switches, and the answer to PUT /api/app-switches/<id>",
+  "description": "Which apps are on (docs/apps.md). PUT adds changed and download.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workMode",
+    "pinned",
+    "apps"
+  ],
+  "properties": {
+    "workMode": {
+      "type": "boolean"
+    },
+    "pinned": {
+      "description": "Work mode: whether a pinned copy exists. Null outside work mode.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "changed": {
+      "description": "PUT only: the app that was turned on or off.",
+      "$ref": "common.schema.json#/$defs/name"
+    },
+    "download": {
+      "description": "PUT only: the command to run on this computer when an app turned on in work mode is not downloaded yet, else null.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "apps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "on",
+          "canTurnOff",
+          "separate",
+          "inWorkshop"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "common.schema.json#/$defs/name"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "canTurnOff": {
+            "description": "False for Home and Settings, which are always on.",
+            "type": "boolean"
+          },
+          "separate": {
+            "description": "True for an app in its own repo (apps/remote.json).",
+            "type": "boolean"
+          },
+          "inWorkshop": {
+            "description": "Work mode: whether the pinned copy has it. Otherwise the same as on.",
+            "type": "boolean"
+          },
+          "key": {
+            "description": "Separate apps: the repo name, used by workshop apps on <key>.",
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "downloaded": {
+            "type": "boolean"
+          },
+          "folder": {
+            "description": "Separate apps: the checkout in use, or where workshop apps on puts a new one.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Separate apps: the release tag or branch of the checkout, or null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "command": {
+            "description": "Separate apps not downloaded yet: the command that downloads one. Otherwise null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

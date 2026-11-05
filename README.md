@@ -23,7 +23,7 @@ On a work computer, use work mode. Workshop runs only from a copy on your comput
 3. **Follow Get started on Home.** It ticks itself off as you go: your name, backup, Azure DevOps (`workshop pat` saves your token; Settings imports your `ado-helper.json`), your team, a Docket task and a receipt. Docket starts syncing ADO by itself once the connector is ready.
 4. **Every day:** Home's quick capture for anything that comes up, Docket for what to do next, Rapport for 1:1s and receipts.
 
-Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart`, `workshop update` (see Work mode).
+Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart`, `workshop update` (see Work mode), `workshop apps` (turn apps on and off; also in Settings, Apps).
 
 Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
 
@@ -93,7 +93,7 @@ Other commands:
 - `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
 - `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
 - `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
-- `node workshop.mjs update` lists the release tags; `update --tag <tag>` moves this checkout to one, `update --latest` moves Workshop, Docket, Runway and Rapport to their newest (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
+- `node workshop.mjs update` moves Workshop, Docket, Runway and Rapport to their newest release tags; `update --check` lists the tags and changes nothing, `update --tag <tag>` moves this checkout to one (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
 
 Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
 
@@ -123,11 +123,11 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
 4. Run `workshop doctor` again. It checks that opencode can use only the approved provider.
 5. Update Tandem only to a tag: `.\update.ps1 -Tag <core tag>` in the eng-agents folder.
 
-**Runway in work mode:** Runway's repo is private, so the one-line installer can only download it when GitHub lets it; otherwise it says so and builds the copy without Runway. To add it, clone it next to Workshop while signed in to GitHub (`git clone https://github.com/adavidson21/runway`), then run `workshop pin`: the copy picks up a `runway` folder next to Workshop (or pass `--runway <folder>`). Everything else is in the pinned copy, including Docket.
+**Adding or removing an app in work mode:** run `workshop apps on runway` (or `docket`, `rapport`). It downloads the app next to Workshop at its newest release if it is not there yet, then rebuilds the pinned copy; reload Workshop. `workshop apps off <app>` takes one out. Settings, Apps has the same switches, and shows the command when an app still needs downloading. See [docs/apps.md](docs/apps.md).
 
 **With the one-line installer:** `/install-work.ps1` and `/install-work.sh` are the same installers with work mode on (At work, above). On a new install, work mode puts the data folder in your company OneDrive when there is one (`OneDriveCommercial` on Windows, `~/Library/CloudStorage/OneDrive-<Company>` on a Mac; never a personal OneDrive); set `WORKSHOP_DATA_DIR` to choose another folder. An existing data folder is never moved by the installer: `workshop data-folder <folder>` or `--onedrive` copies it and switches. To pin releases, set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'` (and `RUNWAY_TAG`, `RECEIPTS_TAG`), then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
 
-**Updating:** `workshop update --latest` moves Workshop, Docket, Runway and Rapport each to its newest release tag (skipping any already there), rebuilds the pinned copy, and prints the `update.ps1 -Tag` line for eng-agents when it is next to Workshop and behind. `workshop update` lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>] [--receipts-tag <tag>]` moves to specific ones. Restart Workshop afterwards. Building again keeps the last copy in `~/.workshop/ui.previous/`.
+**Updating:** `workshop update` moves Workshop, Docket, Runway and Rapport each to its newest release tag (skipping any already there), rebuilds the pinned copy (always, so an app added since the last build shows up), and prints the `update.ps1 -Tag` line for eng-agents when it is next to Workshop and behind. `workshop update --check` only lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>] [--receipts-tag <tag>]` moves to specific ones. Restart Workshop afterwards if Workshop itself moved; otherwise reloading is enough. Building again keeps the last copy in `~/.workshop/ui.previous/`.
 
 Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
 

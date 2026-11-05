@@ -15,10 +15,12 @@
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
-//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--receipts-tag <tag>] [--latest] [--pull]
-//                                          Move this checkout to a release tag (no options: list the tags, change
-//                                          nothing). --latest moves Workshop, Docket, Runway and Rapport to their newest
-//                                          tags. --pull is the old git pull. Other installs: how to update.
+//   workshop apps [on|off <app>]           List the apps, or turn one on or off (work mode: downloads a separate
+//                                          app if needed and rebuilds the pinned copy). See docs/apps.md.
+//   workshop update [--check] [--tag <tag>] [--<app>-tag <tag>] [--pull]
+//                                          No options: move Workshop, Docket, Runway and Rapport to their newest
+//                                          release tags and rebuild the pinned copy. --check lists the tags and
+//                                          changes nothing. --tag moves to one tag. --pull is the old git pull.
 //   workshop version                       Print the agent version.
 //   workshop help                          This help.
 //
@@ -37,7 +39,8 @@ import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
-import { pinInto, verifyPinned, describeBuild, uiDirOf, REMOTE_APPS } from './agent/lib/pinned.mjs';
+import { verifyPinned, describeBuild, uiDirOf, REMOTE_APPS } from './agent/lib/pinned.mjs';
+import { buildRegistry as registryOf, findRemote as findRemoteIn, findApp, downloadDir, pinApps, readOff, writeOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
 
@@ -81,15 +84,20 @@ const USAGE = `Usage: workshop <command> [options]
       [--runway <folder>]        checked file by file. Docket, Runway and Rapport come from a docket, runway
       [--no-runway]              and receipts folder next to Workshop (or .remote/<id>) unless a folder is
       [--receipts <folder>]      given.
-      [--no-receipts]
-  update                         List the release tags and say which one this is. Changes nothing.
+      [--no-receipts]            Apps turned off (workshop apps off) are left out.
+  apps                           List the apps and whether each is on.
+  apps on <app>                  Turn an app on. In work mode, an app in its own repo (Docket, Runway, Rapport)
+                                 is downloaded next to Workshop first, at its newest release, and the pinned
+                                 copy is rebuilt. Settings (Apps) has the same switches.
+  apps off <app>                 Turn an app off: it leaves the rail (and the pinned copy in work mode).
+  update                         Update Workshop, Docket, Runway and Rapport each to its newest release tag
+                                 (skipping any already there), then rebuild the pinned copy if work mode is on.
+                                 Says how to update eng-agents when it is next to Workshop and behind.
+  update --check                 List the release tags and say which one this is. Changes nothing.
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
          [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
          [--runway-tag <tag>]    the pinned copy is built from. --receipts-tag does the same for Rapport.
          [--receipts-tag <tag>]
-  update --latest                Move Workshop, Docket, Runway and Rapport each to its newest release tag
-                                 (skipping any already there), then rebuild the pinned copy. Says how to update eng-agents
-                                 when it is next to Workshop and behind.
   update --pull                  Update to the newest code on the current branch (git pull), not a release.
   version                        Print the agent version.
   help                           Show this.
@@ -273,21 +281,7 @@ export async function doctorReport({ home = resolveHome(), env = process.env, pl
 // --------------------------------------------------------------- publish
 
 /** The apps/registry.json contents (same shape as GET /api/apps), built from appsDir. Empty if there is none. */
-export function buildRegistry(appsDir, schemas) {
-  let dirs = [];
-  try { dirs = fs.readdirSync(appsDir, { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('.')).map(d => d.name); } catch { return { apps: [] }; }
-  const apps = [];
-  for (const dir of dirs) {
-    const file = path.join(appsDir, dir, 'app.json');
-    if (!fs.existsSync(file)) continue;
-    let manifest;
-    try { manifest = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, '')); } catch { continue; }
-    if (schemas.validate('app', manifest).length || manifest.id !== dir) continue;
-    apps.push({ base: `/apps/${dir}/`, manifest });
-  }
-  apps.sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
-  return { apps };
-}
+export const buildRegistry = (appsDir, schemas) => registryOf(appsDir, schemas);
 
 /**
  * Copy the files the agent serves into `outDir` and write apps/registry.json, so a static host (hosted or
@@ -533,15 +527,16 @@ export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes
 /** True when update's options name any tag (Workshop's or a remote app's). */
 const anyTag = opts => !!opts.tag || REMOTE_APPS.some(a => opts[`${a.key}Tag`]);
 
-/** Read update's options. Returns {opts} or {error}. */
+/** Read update's options. Returns {opts} or {error}. With no options, update means --latest. */
 export function parseUpdateArgs(rest) {
   // --<key>-tag for each app from another repo (apps/remote.json): --docket-tag, --runway-tag, --receipts-tag.
-  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), pull: false, latest: false };
+  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), pull: false, latest: false, check: false };
   const keys = { '--tag': 'tag', ...Object.fromEntries(REMOTE_APPS.map(a => [`--${a.key}-tag`, `${a.key}Tag`])) };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pull') { opts.pull = true; continue; }
     if (a === '--latest') { opts.latest = true; continue; }
+    if (a === '--check') { opts.check = true; continue; }
     if (keys[a]) {
       const v = rest[++i];
       if (!validTag(v)) return { error: `${a} needs a release tag like v1.2.0.` };
@@ -552,6 +547,8 @@ export function parseUpdateArgs(rest) {
   }
   if (opts.pull && anyTag(opts)) return { error: '--pull and --tag do not go together.' };
   if (opts.latest && (opts.pull || anyTag(opts))) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
+  if (opts.check && (opts.pull || opts.latest || anyTag(opts))) return { error: '--check only lists the release tags, so it goes on its own.' };
+  if (!opts.pull && !opts.check && !anyTag(opts)) opts.latest = true;
   return { opts };
 }
 
@@ -619,15 +616,8 @@ export function findEngAgents(repo = REPO) {
 }
 
 /** A remote app's checkout the pinned copy is built from: <repo>/.remote/<id>, else a <key> folder next to the repo
- *  (docket, runway). `key` is a REMOTE_APPS key. */
-export function findRemote(key, repo = REPO) {
-  const a = REMOTE_APPS.find(x => x.key === key);
-  if (!a) return null;
-  for (const dir of [path.join(repo, '.remote', a.id), path.join(path.dirname(repo), a.key)]) {
-    if (fs.existsSync(path.join(dir, 'app.json'))) return dir;
-  }
-  return null;
-}
+ *  (docket, runway, receipts). `key` is a REMOTE_APPS key. */
+export const findRemote = (key, repo = REPO) => findRemoteIn(key, repo);
 export const findDocket = (repo = REPO) => findRemote('docket', repo);
 
 /** Read pin's options: --<key> <folder> and --no-<key> for each remote app. Returns {opts} or {error}. */
@@ -651,20 +641,14 @@ export function parsePinArgs(rest) {
 
 /** Build the pinned copy for a home. Returns {build, docketDir, dirs: {docket, runway}} or throws with plain words. */
 export function pin({ home, repo = REPO, opts = {}, schemas = loadSchemas(), uiDir = uiDirOf(home) }) {
-  const dirs = {}, info = { workshop: { version: VERSION, ...(gitInfo(repo) || {}) } };
+  // Apps turned off (workshop apps off, or Settings) stay out; --no-<key> leaves one out for this build only.
+  const remotes = {};
   for (const a of REMOTE_APPS) {
-    const given = opts[a.key];
-    if (given && !fs.existsSync(path.join(given, 'app.json'))) throw new Error(`${given} is not a ${a.name} checkout (no app.json).`);
-    const dir = opts[`no${a.name}`] ? null : (given ?? findRemote(a.key, repo));
-    dirs[a.key] = dir;
-    if (!dir) continue;
-    let version;
-    try { version = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8')).version; } catch { /* checked by buildPinned */ }
-    info[a.key] = { version, ...(gitInfo(dir) || {}) };
+    if (opts[`no${a.name}`]) remotes[a.key] = null;
+    else if (opts[a.key]) remotes[a.key] = opts[a.key];
   }
-  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-  const build = pinInto(uiDir, { repo, remotes: dirs, registry: dir => buildRegistry(dir, schemas), info });
-  return { build, docketDir: dirs.docket, dirs };
+  const r = pinApps({ home, repo, schemas, uiDir, remotes, gitInfo: dir => gitInfo(dir) });
+  return { build: r.build, docketDir: r.dirs.docket, dirs: r.dirs, off: r.off };
 }
 
 async function runPin(rest, io) {
@@ -675,10 +659,13 @@ async function runPin(rest, io) {
   try { r = pin({ home, opts: parsed.opts }); } catch (e) { io.out(`Could not build the pinned copy: ${e.message}`); return 1; }
   io.out(`Built the pinned copy in ${uiDirOf(home)}: ${describeBuild(r.build)}; ${Object.keys(r.build.files).length} files.`);
   for (const a of REMOTE_APPS) {
-    if (!r.dirs[a.key] && !parsed.opts[`no${a.name}`]) io.out(`${a.name} is not included: no ${a.name} checkout was found. Pass --${a.key} <folder> (a clone of ${a.name}, at a release tag when it has one) to include it.`);
+    if (r.off.has(a.id)) io.out(`${a.name} is turned off, so it is not included. Turn it on with: workshop apps on ${a.key}`);
+    else if (!r.dirs[a.key] && !parsed.opts[`no${a.name}`]) io.out(`${a.name} is not included: it is not downloaded. Download it with: workshop apps on ${a.key}`);
   }
+  const offBuiltIn = [...r.off].filter(id => !REMOTE_APPS.some(a => a.id === id));
+  if (offBuiltIn.length) io.out(`Turned off, so not included: ${offBuiltIn.join(', ')}. See "workshop apps".`);
   for (const [name, x] of [['Workshop', r.build.workshop], ...REMOTE_APPS.map(a => [a.name, r.build[a.key]])]) {
-    if (x && !(x.ref && !/not a release tag/.test(x.ref))) io.out(`Note: ${name} is not at a release tag. For work, use "workshop update --tag <tag>" first.`);
+    if (x && !(x.ref && !/not a release tag/.test(x.ref))) io.out(`Note: ${name} is not at a release tag. For work, run "workshop update" first.`);
   }
   const info = inspectConfig(homePaths(home).config, loadSchemas());
   const port = info.config?.port ?? DEFAULT_PORT;
@@ -704,18 +691,7 @@ async function runUpdate(rest, io) {
     });
   }
   let engAgentsLine = null;
-  if (opts.latest) {
-    const plan = planLatest(REPO, io.out);
-    for (const l of plan.lines) io.out(l);
-    Object.assign(opts, plan.tags);
-    engAgentsLine = plan.engAgents;
-    if (!anyTag(opts)) {
-      io.out('Nothing to move. Nothing was changed.');
-      if (engAgentsLine) io.out(engAgentsLine);
-      return 0;
-    }
-  }
-  if (!anyTag(opts)) {
+  if (opts.check) {
     const f = git(REPO, ['fetch', '--tags', '--quiet', 'origin']);
     if (f.code !== 0) io.out(`Could not fetch tags${f.err ? `: ${f.err.split('\n')[0]}` : ''}. Showing the tags already here.`);
     const now = gitInfo(REPO);
@@ -723,27 +699,37 @@ async function runUpdate(rest, io) {
     const tags = listTags(REPO);
     if (!tags.length) { io.out('There are no release tags yet. Nothing was changed.'); return 0; }
     io.out(`Release tags, newest first: ${tags.join(', ')}.`);
-    io.out(`Nothing was changed. To move to one: workshop update --tag ${tags[0]}`);
+    io.out('Nothing was changed. To update everything to the newest release: workshop update');
     return 0;
+  }
+  if (opts.latest) {
+    const plan = planLatest(REPO, io.out);
+    for (const l of plan.lines) io.out(l);
+    Object.assign(opts, plan.tags);
+    engAgentsLine = plan.engAgents;
   }
   const home = resolveHome(io.env);
   const info = inspectConfig(homePaths(home).config, loadSchemas());
   const running = await agentHealth(info.config?.port ?? DEFAULT_PORT);
+  const moved = anyTag(opts);
   if (opts.tag && !checkoutTag(REPO, opts.tag, io.out)) return 1;
   for (const a of REMOTE_APPS) {
     const t = opts[`${a.key}Tag`];
     if (!t) continue;
     const d = findRemote(a.key, REPO);
-    if (!d || !isCheckout(d)) { io.out(`--${a.key}-tag needs a git clone of ${a.name} (in .remote/${a.id}, or a ${a.key} folder next to Workshop).`); return 1; }
+    if (!d || !isCheckout(d)) { io.out(`--${a.key}-tag needs a download of ${a.name}. Get it with: workshop apps on ${a.key}`); return 1; }
     if (!checkoutTag(d, t, io.out)) return 1;
   }
+  if (!moved) io.out('Everything is already at its newest release.');
   if (info.config?.features?.workMode === true) {
+    // Rebuilt even when nothing moved, so an app downloaded or turned on since the last build shows up.
     // The new code builds the copy, so run it in a fresh process.
-    io.out('Work mode is on, so the pinned copy is rebuilt from this release.');
+    io.out('Work mode is on, so the pinned copy is rebuilt.');
     const r = spawnSync(process.execPath, [path.join(REPO, 'workshop.mjs'), 'pin'], { stdio: 'inherit', env: io.env });
     if (r.status !== 0) { io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
-  }
-  if (running) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
+  } else if (!moved) io.out('Nothing was changed.');
+  if (running && opts.tag) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
+  else if (running && moved) io.out('Reload Workshop in your browser to use the new version.');
   if (engAgentsLine) io.out(engAgentsLine);
   return 0;
 }
@@ -767,7 +753,7 @@ export function planLatest(repo = REPO, out = () => {}) {
   for (const a of REMOTE_APPS) {
     const d = findRemote(a.key, repo);
     if (d && isCheckout(d)) consider(a.name, d, `${a.key}Tag`);
-    else lines.push(`${a.name}: no git clone found next to Workshop. Skipped.`);
+    else lines.push(`${a.name}: not downloaded, so skipped. To add it: workshop apps on ${a.key}`);
   }
   let engAgents = null;
   const ea = findEngAgents(repo);
@@ -778,6 +764,79 @@ export function planLatest(repo = REPO, out = () => {}) {
     else if (latest) lines.push(`eng-agents: already at ${latest}.`);
   }
   return { tags, lines, engAgents };
+}
+
+// --------------------------------------------------------------- apps
+
+/** Clone a separate app next to Workshop and move it to its newest release tag (or leave it on its default
+ *  branch when it has none). Returns the folder, or null after saying why it could not. */
+export function downloadApp(app, { repo = REPO, out }) {
+  const dir = downloadDir(app.key, repo);
+  if (fs.existsSync(dir) && fs.readdirSync(dir).length) {
+    out(`${dir} already exists but is not a ${app.name} download (no app.json). Move it aside, then run this again.`);
+    return null;
+  }
+  out(`Downloading ${app.name} into ${dir} ...`);
+  const r = spawnSync('git', ['clone', '--quiet', `https://github.com/${app.repo}.git`, dir], { encoding: 'utf8', windowsHide: true });
+  if (r.error) { out(r.error.code === 'ENOENT' ? 'git is not installed, so it cannot be downloaded.' : `Could not run git: ${r.error.message}`); return null; }
+  if (r.status !== 0) { out(`Could not download ${app.name}: ${(r.stderr || '').trim().split('\n')[0] || `git exited with ${r.status}`}`); return null; }
+  const tag = latestTag(dir, 'v', out);
+  if (tag) { if (!checkoutTag(dir, tag, out)) return null; } else out(`${app.name} has no release tags yet, so it stays on the newest code.`);
+  return dir;
+}
+
+function switchLines(list) {
+  const lines = [];
+  const noCopy = list.workMode && !list.pinned;
+  if (noCopy) lines.push('  There is no pinned copy yet. Build it with: workshop pin');
+  for (const a of list.apps) {
+    let state = a.on ? 'on' : 'off';
+    if (!a.canTurnOff) state = 'always on';
+    let note = '';
+    if (a.separate && a.on && list.workMode) {
+      if (!a.downloaded) note = `not downloaded: run "workshop apps on ${a.key}"`;
+      else if (!a.inWorkshop && !noCopy) note = `downloaded (${a.ref || 'unknown version'}), not in the pinned copy yet: run "workshop pin"`;
+      else note = a.ref || '';
+    } else if (list.workMode && !noCopy && a.on && !a.inWorkshop) note = 'not in the pinned copy yet: run "workshop pin"';
+    lines.push(`  ${a.name.padEnd(12)} ${state.padEnd(10)}${note ? ` ${note}` : ''}`);
+  }
+  return lines;
+}
+
+async function runApps(rest, io) {
+  const home = resolveHome(io.env);
+  const schemas = loadSchemas();
+  const info = inspectConfig(homePaths(home).config, schemas);
+  const workMode = info.config?.features?.workMode === true;
+  const list = () => appSwitches({ home, repo: REPO, schemas, workMode });
+  const [action, word, ...extra] = rest;
+  if (!action) {
+    io.out(`Apps${workMode ? ' (work mode: the rail shows what is in the pinned copy)' : ''}:`);
+    for (const l of switchLines(list())) io.out(l);
+    io.out('Turn one on or off: workshop apps on <app>, workshop apps off <app>. Or use Settings, Apps.');
+    return 0;
+  }
+  if ((action !== 'on' && action !== 'off') || extra.length) { io.out('Use: workshop apps, workshop apps on <app>, or workshop apps off <app>.'); return 1; }
+  const all = list();
+  const app = findApp(word, all.apps.map(a => ({ ...a, key: a.key || a.id })));
+  if (!app) { io.out(`There is no app called "${word || ''}". Apps: ${all.apps.map(a => a.key || a.id).join(', ')}.`); return 1; }
+  if (!app.canTurnOff) { io.out(`${app.name} is always on.`); return action === 'on' ? 0 : 1; }
+  const off = readOff(home);
+  if (action === 'on') {
+    if (app.separate && workMode && !app.downloaded && !downloadApp(app, { out: io.out })) return 1;
+    off.delete(app.id);
+  } else off.add(app.id);
+  await writeOff(home, off);
+  io.out(`${app.name} is ${action}.`);
+  if (!workMode) {
+    io.out(action === 'on' ? `It shows in Workshop's rail. Reload Workshop if it is open.` : `It no longer shows in Workshop's rail. Reload Workshop if it is open.`);
+    return 0;
+  }
+  let r;
+  try { r = pin({ home }); } catch (e) { io.out(`Could not rebuild the pinned copy: ${e.message}`); return 1; }
+  io.out(`Rebuilt the pinned copy: ${describeBuild(r.build)}.`);
+  io.out(await agentHealth(info.config?.port ?? DEFAULT_PORT) ? 'Reload Workshop in your browser to see the change.' : 'Start Workshop with: workshop up');
+  return 0;
 }
 
 // --------------------------------------------------------------- open
@@ -1017,6 +1076,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
 
   if (cmd === 'update') return runUpdate(rest, io);
   if (cmd === 'pin') return runPin(rest, io);
+  if (cmd === 'apps') return runApps(rest, io);
 
   io.out(`Unknown command "${cmd}". Run "workshop help".`);
   return 1;

@@ -45,13 +45,24 @@ async function fetchAppList() {
   return [];
 }
 
+// Apps turned off in Settings, Apps (docs/apps.md): the agent's switches, or this browser's without one. Home
+// and Settings always stay. An older agent without switches turns nothing off.
+async function appsOff() {
+  if (env.backend === 'agent') {
+    try { return new Set(((await agentGet('/api/app-switches')).apps || []).filter(a => !a.on).map(a => a.id)); } catch (e) { return new Set(); }
+  }
+  try { const v = JSON.parse(localStorage.getItem('workshop.appsOff') || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); }
+}
+
 async function loadApps() {
   const list = await fetchAppList();
   if (env.backend === 'agent') {
     try { connectors = (await agentGet('/api/connectors')).connectors || []; } catch (e) { connectors = []; }
   }
+  const off = await appsOff();
   apps = list.map(a => ({ id: a.manifest.id, manifest: a.manifest, base: String(a.base).replace(/^\//, '') }))
     .filter(a => !a.manifest.modes || a.manifest.modes.includes(env.mode))
+    .filter(a => a.manifest.home === true || a.id === 'settings' || !off.has(a.id))
     .sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
   homeApp = apps.find(a => a.manifest.home === true) || null;
