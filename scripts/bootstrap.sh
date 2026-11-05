@@ -149,10 +149,10 @@ main() {
       continue
     fi
     local ref="refs/heads/main"; [ -n "$tag" ] && ref="refs/tags/$tag"
-    # Runway and Rapport are optional: if a repo cannot be downloaded (private, or no such tag), skip it, and the
+    # Runway and Rapport are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
     # pinned copy is built without it until there is a clone of it here.
     if { [ "$name" = runway ] || [ "$name" = receipts ]; } && ! curl -fsSLI "$url/archive/$ref.tar.gz" >/dev/null 2>&1; then
-      say "$name could not be downloaded (a private repo, or no such tag), so the pinned copy leaves it out."
+      say "$name could not be downloaded (no such tag, or GitHub could not be reached), so the pinned copy leaves it out."
       say "To add it: git clone $url \"$dir\" (signed in to GitHub), then run: workshop pin"
       continue
     fi

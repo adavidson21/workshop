@@ -158,14 +158,14 @@ foreach ($name in $names) {
     continue
   }
   $ref = if ($tag) { "refs/tags/$tag" } else { 'refs/heads/main' }
-  # Runway and Rapport are optional: if a repo cannot be downloaded (private, or no such tag), skip it, and the
+  # Runway and Rapport are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
   # pinned copy is built without it until there is a clone of it here.
   if ($name -eq 'runway' -or $name -eq 'receipts') {
     $label = if ($name -eq 'runway') { 'Runway' } else { 'Rapport' }
     $reachable = $true
     try { Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$($Repos[$name])/archive/$ref.zip" | Out-Null } catch { $reachable = $false }
     if (-not $reachable) {
-      Say "$label could not be downloaded (a private repo, or no such tag), so the pinned copy leaves it out."
+      Say "$label could not be downloaded (no such tag, or GitHub could not be reached), so the pinned copy leaves it out."
       Say "To add it: git clone $($Repos[$name]) `"$dir`" (signed in to GitHub), then run: workshop pin"
       continue
     }
