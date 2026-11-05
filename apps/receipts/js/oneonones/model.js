@@ -1,13 +1,13 @@
 /* Rapport's 1:1s: the rules, with no DOM or SDK, so Node tests can import them.
 
    1:1s was its own Workshop app (id `oneonones`) until Rapport 2.0.0 folded it in. It keeps its own
-   `oneonones/people` link table inside Rapport (app id `receipts`) and reads (never writes) what Docket keeps
-   about the same people. Rapport's own entries and people are handed in by main.js. Each read checks the envelope's schema and version: an unknown version is
+   `oneonones/people` link table inside Rapport (app id `receipts`) and reads (never writes) what Docket publishes
+   about the same people, in its summary. Rapport's own entries and people are handed in by main.js. Each read checks the envelope's schema and version: an unknown version is
    unreadable, not empty (docs/data-format.md, Migrations, rule 6).
 
    Shapes read from other apps (copied here, not imported: apps never import other app folders):
-     prioritizer.tasks v3    items: {id, title, people: [name], done, waiting, nudgeOn, due, ...}
-     prioritizer.people v1   items: {id: lower-case name, name}
+     prioritizer.summary v1  Docket's summary (docs/summaries.md): the `people` card, rows {name, open, waiting},
+                             each task {id, title, due, nudgeOn}
      receipts.entries v1     items: {id, about: 'me' | 'up' | person id, kind, date, text, ...}
      receipts.people v1      items: {id, name, role, since, archived}
      settings.people v1      Workshop's people directory (docs/people.md): {id, name, relation, team?, adoIdentity?,
@@ -30,11 +30,8 @@ export const LEGACY = { app: 'oneonones', people: 'people', settings: 'settings'
 /** Collections read, with the schema and version this app understands. `own: true` are Rapport's own,
     handed in by main.js instead of read here. */
 export const SOURCES = {
-  // Docket's summary (Workshop docs/summaries.md, `people` card) is read first; its tasks and people below are the
-  // fallback for one release, for a Docket from before 4.20.0 that writes no summary.
+  // Docket's summary (Workshop docs/summaries.md): its `people` card, never Docket's own collections.
   docketSummary: { app: 'prioritizer', collection: 'summary', schema: 'prioritizer.summary', version: 1 },
-  docketTasks: { app: 'prioritizer', collection: 'tasks', schema: 'prioritizer.tasks', version: 3 },
-  docketPeople: { app: 'prioritizer', collection: 'people', schema: 'prioritizer.people', version: 1 },
   receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1, own: true },
   receiptsPeople: { app: 'receipts', collection: 'people', schema: 'receipts.people', version: 1, own: true },
   directory: { app: 'settings', collection: 'people', schema: 'settings.people', version: 1 }
@@ -81,32 +78,22 @@ export function readable(env, src) {
   return { state: 'ok', env };
 }
 
-/** The `people` card of Docket's summary: [{name, open, waiting}], or null when Docket wrote none. */
-export function docketPeopleCard(summaryEnv) {
+/** Docket's summary as {state, rows}: rows are the `people` card's [{name, open, waiting}]. state is 'missing'
+    (no summary yet), 'unreadable' (another schema or version) or 'ok' (rows [] when it has no people card). */
+function docketPeopleCard(summaryEnv) {
   const r = readable(summaryEnv, SOURCES.docketSummary);
-  if (r.state !== 'ok') return null;
+  if (r.state !== 'ok') return { state: r.state, rows: [] };
   const card = r.env.items.find(c => c && c.id === 'people' && c.kind === 'people' && Array.isArray(c.rows));
-  return card ? card.rows.filter(p => p && str(p.name, 200)) : null;
+  return { state: 'ok', rows: card ? card.rows.filter(p => p && str(p.name, 200)) : [] };
 }
 
-/** How Docket's data reads: 'ok' from its summary, else the state of its people collection. */
-export const docketState = (summaryEnv, peopleEnv) => docketPeopleCard(summaryEnv) ? 'ok' : readable(peopleEnv, SOURCES.docketPeople).state;
+/** How Docket's data reads: 'ok', 'missing' or 'unreadable'. */
+export const docketState = summaryEnv => docketPeopleCard(summaryEnv).state;
 
-/** Names Docket knows, for the link picker: from its summary, else prioritizer.people. */
-export function docketNames(peopleEnv, summaryEnv = null) {
-  const card = docketPeopleCard(summaryEnv);
-  if (card) {
-    const out = [];
-    for (const p of card) { const name = str(p.name, 200); if (!out.some(x => lower(x) === lower(name))) out.push(name); }
-    return out.sort((a, b) => a.localeCompare(b));
-  }
-  const r = readable(peopleEnv, SOURCES.docketPeople);
-  if (r.state !== 'ok') return [];
+/** Names Docket knows, for the link picker, from its summary. */
+export function docketNames(summaryEnv) {
   const out = [];
-  for (const p of r.env.items) {
-    const name = str(p && p.name, 200);
-    if (name && !out.some(x => lower(x) === lower(name))) out.push(name);
-  }
+  for (const p of docketPeopleCard(summaryEnv).rows) { const name = str(p.name, 200); if (!out.some(x => lower(x) === lower(name))) out.push(name); }
   return out.sort((a, b) => a.localeCompare(b));
 }
 
@@ -264,28 +251,16 @@ export function parseWins(md) {
 
 const taskRow = t => ({ id: String(t.id || ''), title: oneLine(t.title).slice(0, 300) || 'Untitled task', due: isDay(t.due) ? t.due : '', nudgeOn: isDay(t.nudgeOn) ? t.nudgeOn : '' });
 
-/** Docket: open tasks tagged with the person, tasks waiting on them, and nudges due (Docket's nudgeDue rule).
-    From Docket's summary when it has one, else from prioritizer.tasks. */
-export function docketSection(tasksEnv, name, today, summaryEnv = null) {
+/** Docket: open tasks tagged with the person, tasks waiting on them, and nudges due (Docket's nudgeDue rule), from
+    the `people` card of Docket's summary. */
+export function docketSection(summaryEnv, name, today) {
   if (!name) return { state: 'unlinked' };
   const card = docketPeopleCard(summaryEnv);
-  if (card) {
-    const p = card.find(x => lower(x.name) === lower(name));
-    const rows = list => (Array.isArray(list) ? list : []).filter(t => t && t.id).map(taskRow);
-    const open = p ? rows(p.open) : [], waiting = p ? rows(p.waiting) : [];
-    return { state: 'ok', open, waiting, nudges: waiting.filter(t => isDay(t.nudgeOn) && t.nudgeOn <= today) };
-  }
-  const r = readable(tasksEnv, SOURCES.docketTasks);
-  if (r.state !== 'ok') return { state: r.state };
-  const who = lower(name);
-  const mine = r.env.items.filter(t => t && !t.done && Array.isArray(t.people) && t.people.some(p => lower(p) === who));
-  const waiting = mine.filter(t => t.waiting === true);
-  return {
-    state: 'ok',
-    open: mine.filter(t => t.waiting !== true).map(taskRow),
-    waiting: waiting.map(taskRow),
-    nudges: waiting.filter(t => isDay(t.nudgeOn) && t.nudgeOn <= today).map(taskRow)
-  };
+  if (card.state !== 'ok') return { state: card.state };
+  const p = card.rows.find(x => lower(x.name) === lower(name));
+  const rows = list => (Array.isArray(list) ? list : []).filter(t => t && t.id).map(taskRow);
+  const open = p ? rows(p.open) : [], waiting = p ? rows(p.waiting) : [];
+  return { state: 'ok', open, waiting, nudges: waiting.filter(t => isDay(t.nudgeOn) && t.nudgeOn <= today) };
 }
 
 /** Receipts: entries about the person from `since` to `today`, grouped by kind. */
@@ -312,7 +287,7 @@ export function lastSection(last, text) {
 
 /**
  * Everything for one person's prep, with no AI.
- * src: {docketSummary, docketTasks, receiptsEntries} envelopes (or null).
+ * src: {docketSummary, receiptsEntries} envelopes (or null).
  * lastText: the previous note's Markdown (or null when it could not be read).
  */
 export function buildPacket({ person, today, now, notes, lastText, src }) {
@@ -323,7 +298,7 @@ export function buildPacket({ person, today, now, notes, lastText, src }) {
     today,
     since: s.since,
     sinceFrom: s.from,
-    docket: docketSection(src.docketTasks, l.docket, today, src.docketSummary),
+    docket: docketSection(src.docketSummary, l.docket, today),
     receipts: receiptsSection(src.receiptsEntries, l.receipts, s.since, today),
     last: lastSection(s.last, lastText)
   };

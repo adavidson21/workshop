@@ -4,7 +4,7 @@
    collection of its own: profile (home.profile v1, no items; meta: {name, role}). data.js loads and saves,
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
-import { createHome, dayCollections } from './data.js';
+import { createHome } from './data.js';
 import { ICON, hbtn, profileForm, render } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
 import { startCapture } from './capture.js';
@@ -65,7 +65,7 @@ function paint() {
 // Changes from other windows. Nothing to read while Home waits for the folder; Allow reloads everything.
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
-for (const c of ['summary', 'tasks', 'lists', 'people', ...dayCollections(new Date().getFullYear())]) ws.data.subscribe(c, boardLater, { app: 'prioritizer' });
+ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
@@ -74,7 +74,6 @@ ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
 const setupLater = later(setup.load, 300);
 ws.data.subscribe('setup', setupLater);
 ws.data.subscribe('summary', setupLater, { app: 'receipts' });
-ws.data.subscribe('entries', setupLater, { app: 'receipts' });
 if (ws.backend === 'agent') for (const id of ['ado', 'opencode']) ws.connectors.onStatus(id, setupLater);
 ws.on('online', p => { if (p && p.online) setup.load(); });
 

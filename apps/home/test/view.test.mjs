@@ -1,47 +1,24 @@
-// Home: the numbers from a synthetic Prioritizer board, and the page states.
+// Home: the page from Docket's summary (docs/summaries.md) and the page states. Docket's own rules for these
+// numbers, the day plan and Wrap up are tested in Docket (test/summary.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentCounts, render, summarize, greeting, profileForm } from '../js/view.js';
-import { dayNow, fmt12, initials } from '../js/view.js';
+import { agentCounts, boardFromSummary, fmt12, greeting, initials, nowFromDay, profileForm, render, wrapFromDay } from '../js/view.js';
 
 const TODAY = '2026-10-21';
-const lists = [{ id: 'l_main', name: 'Main', parentId: null }, { id: 'l2', name: 'Side', parentId: null }];
-const people = [{ id: 'deva', name: 'DevA' }, { id: 'devb', name: 'DevB' }, { id: 'devc', name: 'DevC' }];
-const t = (id, o) => Object.assign({ id, title: 'Task ' + id, listId: 'l_main', done: false, rank: 0, value: 3, effort: 'M', ageFrom: TODAY, people: [] }, o);
-const tasks = [
-  t('a', { rank: 3, focusOn: TODAY }),
-  t('b', { rank: 1, focusOn: TODAY, done: true, doneAt: TODAY }),
-  t('c', { rank: 2, value: null, effort: null, people: ['DevA'] }),           // untriaged
-  t('d', { rank: 4, due: '2026-10-20', people: ['deva'] }),                     // overdue
-  t('e', { rank: 5, due: '2026-10-28', listId: 'l2' }),                        // due in 7 days
-  t('f', { rank: 6, due: '2026-10-29' }),                                      // due in 8 days
-  t('g', { rank: 0, waiting: true, people: ['DevB'] }),                         // waiting: not up next
-  t('h', { rank: 7, value: 4, ageFrom: '2026-10-15' }),                        // stale (value 4 window 2, 6 days)
-  t('i', { rank: 8, focusOn: TODAY, done: true, wontDo: true, doneAt: TODAY }), // won't do: not on Today
-  t('z', { listId: 'gone' })                                                    // list not on the board
-];
+// A board as Home builds it from Docket's `board` card.
+const board = (o = {}) => Object.assign({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] }, o);
+const row = (id, o) => Object.assign({ id, title: 'Task ' + id, list: '', listId: 'l_main', due: null, people: [], triaged: true }, o);
 
-test('counts Today, triage, overdue and due this week like Prioritizer', () => {
-  const s = summarize({ tasks, lists, people }, TODAY);
-  assert.deepEqual(s.focus, { total: 2, done: 1 });
-  assert.equal(s.triage, 2);
-  assert.equal(s.overdue, 1);
-  assert.equal(s.dueWeek, 1);
-  assert.equal(s.open, 7);
-  assert.equal(s.total, 9);
-});
-
-test('up next is the top 3 open by rank, without waiting tasks', () => {
-  const s = summarize({ tasks, lists, people }, TODAY);
-  assert.deepEqual(s.upNext.map(x => x.id), ['c', 'a', 'd']);
-  assert.equal(s.upNext[2].due, '2026-10-20');
-  assert.equal(s.upNext[0].list, 'Main');
-  assert.equal(summarize({ tasks, lists: lists.slice(0, 1), people }, TODAY).upNext[0].list, '');
-});
-
-test('people: open and waiting per person, case-insensitive, busiest first', () => {
-  const s = summarize({ tasks, lists, people }, TODAY);
-  assert.deepEqual(s.team, [{ name: 'DevA', open: 2, waiting: 0 }, { name: 'DevB', open: 1, waiting: 1 }, { name: 'DevC', open: 0, waiting: 0 }]);
+test('boardFromSummary: today\'s counts with Up next and the team; null when the card has no today', () => {
+  const card = { id: 'board', kind: 'board', updatedAt: 1, days: { [TODAY]: { total: 9, open: 7, focus: { total: 2, done: 1 }, triage: 2, overdue: 1, dueWeek: 1 } },
+    upNext: [row('c'), row('a'), row('d'), row('x')], team: [{ name: 'DevA', open: 2, waiting: 0 }] };
+  const b = boardFromSummary(card, TODAY);
+  assert.deepEqual(b.focus, { total: 2, done: 1 });
+  assert.equal(b.open, 7);
+  assert.deepEqual(b.upNext.map(x => x.id), ['c', 'a', 'd'], 'at most 3');
+  assert.deepEqual(b.team, [{ name: 'DevA', open: 2, waiting: 0 }]);
+  assert.equal(boardFromSummary(card, '2026-10-30'), null, 'stale');
+  assert.equal(boardFromSummary(null, TODAY), null);
 });
 
 test('agent counts from the connector state', () => {
@@ -58,13 +35,12 @@ test('greeting by time of day', () => {
 
 test('the page: profile, empty board, and escaping', () => {
   const now = new Date(2026, 9, 21, 9);
-  const empty = render({ now, profile: {}, board: summarize({}, TODAY), agents: { state: 'browser' } });
+  const empty = render({ now, profile: {}, board: board(), agents: { state: 'browser' } });
   assert.match(empty, /Good morning</);
   assert.match(empty, /Add your name/);
   assert.match(empty, /No tasks yet/);
   assert.ok(!empty.includes('<h2>Dispatch</h2>'), 'no Dispatch card until it is connected');
-  const bad = [t('x', { title: '<img src=x onerror=alert(1)>' })];
-  const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: summarize({ tasks: bad, lists, people: [] }, TODAY), agents: { state: 'ready', needYou: 2, working: 1 } });
+  const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: board({ total: 1, open: 1, upNext: [row('x', { title: '<img src=x onerror=alert(1)>' })] }), agents: { state: 'ready', needYou: 2, working: 1 } });
   assert.match(html, /Good morning, Test</);
   assert.ok(!html.includes('<img') && !html.includes('<b>'));
   assert.match(html, /Need you/);
@@ -72,74 +48,53 @@ test('the page: profile, empty board, and escaping', () => {
 });
 
 test('a board note shows when the board cannot be read', () => {
-  const html = render({ now: new Date(), profile: {}, board: null, boardNote: 'Your board was saved by a newer Prioritizer.', agents: { state: 'loading' } });
-  assert.match(html, /newer Prioritizer/);
+  const html = render({ now: new Date(), profile: {}, board: null, boardNote: 'Your board was saved by a newer Docket.', agents: { state: 'loading' } });
+  assert.match(html, /newer Docket/);
 });
 
-/* ---------- Now card (Docket's day plan) ---------- */
-const env = (col, extra) => Object.assign({ schema: 'prioritizer.' + col, version: 1, rev: 1, items: [] }, extra);
-// Tuesday 2026-11-03; a 2-week sprint starting Monday 2026-11-02, so today is sprint day 2.
-const sprint = { anchor: '2026-11-02', lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [] };
-const blocks = [
-  { id: 's1', name: 'Deep focus', around: '09:00', minutes: 120 },
-  { id: 's2', name: 'Meetings', around: '13:00' },
-  { id: 's3', name: 'Admin', around: '15:00', minutes: 60 }
-];
-const plan = (days = []) => ({
-  settings: env('dayplan/settings', { meta: { sprint } }),
-  templates: env('dayplan/templates', { items: [{ id: 'tp', name: 'Sprint day', days: [2, 3, 4, 5, 6, 7, 8, 9], sections: blocks }] }),
-  days: env('dayplan/days/2026', { items: days })
-});
-const nowTasks = [{ id: 't1', title: 'Write the plan', rank: 1 }, { id: 't2', title: 'Review PR 77', rank: 0, done: true }];
+/* ---------- Now card and Wrap up (Docket's `day` card) ---------- */
+const day = { blocks: [
+  { name: 'Deep focus', at: '09:00', until: '11:00', tasks: [] },
+  { name: 'Meetings', at: '13:00', until: '15:00', tasks: [{ id: 't2', title: 'Review PR 77', done: true }, { id: 't1', title: 'Write the plan', done: false }] },
+  { name: 'Admin', at: '15:00', until: '16:00', tasks: [] }
+], wrapAt: '16:30', wrapped: false, offered: 2 };
 
-test('Now shows the template block on now, with when it ends and what is next', () => {
-  const n = dayNow(plan(), nowTasks, new Date(2026, 10, 3, 10, 15));
+test('Now: the block on now, when it ends and what is next', () => {
+  const n = nowFromDay(day, 10 * 60 + 15);
   assert.equal(n.current.name, 'Deep focus');
   assert.equal(n.current.until, '11:00');
   assert.equal(n.next.name, 'Meetings');
-  assert.deepEqual(n.current.tasks, []);
+  const m = nowFromDay(day, 13 * 60 + 30);
+  assert.deepEqual(m.current.tasks.map(t => [t.title, t.done]), [['Review PR 77', true], ['Write the plan', false]]);
+  const gap = nowFromDay(day, 12 * 60);
+  assert.equal(gap.current, null);
+  assert.equal(gap.next.name, 'Meetings');
+});
+
+test('no Now card on a day with no blocks or after the last one', () => {
+  assert.equal(nowFromDay({ blocks: [] }, 600), null);
+  assert.equal(nowFromDay(null, 600), null);
+  assert.equal(nowFromDay(day, 16 * 60 + 30), null);
 });
 
 test('the Now card shows times on a 12-hour clock', () => {
   const now = new Date(2026, 10, 3, 10, 15);
-  const n = dayNow(plan(), nowTasks, now);
-  const html = render({ now, profile: {}, board: summarize({ tasks: [{ id: 'a', title: 'A', rank: 1, listId: 'l', value: 3 }], lists: [{ id: 'l', name: 'Main' }], people: [] }, TODAY), agents: { state: 'browser' }, dayNow: n });
+  const html = render({ now, profile: {}, board: board({ total: 1, open: 1, upNext: [row('a')] }), agents: { state: 'browser' }, dayNow: nowFromDay(day, 10 * 60 + 15) });
   assert.match(html, /until 11:00 AM/);
   assert.match(html, /at 1:00 PM/);
   assert.ok(!/\b1[3-9]:\d\d\b/.test(html), 'no 24-hour times');
   assert.equal(fmt12('00:05'), '12:05 AM'); assert.equal(fmt12('12:30'), '12:30 PM');
 });
 
-test('Now uses the saved day: its blocks, lost ones skipped, and the tasks slotted in rank order', () => {
-  const rec = { id: '2026-11-03', sections: [Object.assign({}, blocks[0], { lost: true }), blocks[1], blocks[2]], slots: [{ taskId: 't1', sectionId: 's2' }, { taskId: 't2', sectionId: 's2' }, { taskId: 'gone', sectionId: 's2' }] };
-  const n = dayNow(plan([rec]), nowTasks, new Date(2026, 10, 3, 13, 30));
-  assert.equal(n.current.name, 'Meetings');
-  assert.equal(n.current.until, '15:00', 'a block with no length runs until the next one');
-  assert.deepEqual(n.current.tasks.map(t => [t.title, t.done]), [['Review PR 77', true], ['Write the plan', false]]);
-  const early = dayNow(plan([rec]), nowTasks, new Date(2026, 10, 3, 9, 30));
-  assert.equal(early.current, null, 'the lost block is not on now');
-  assert.equal(early.next.name, 'Meetings');
+test('Wrap up from the day card: due from its time, wrapped, and receipts offered', () => {
+  assert.deepEqual(wrapFromDay(day, 16 * 60 + 29), { wrapped: false, due: false, receipts: 2 });
+  assert.equal(wrapFromDay(day, 16 * 60 + 30).due, true);
+  assert.equal(wrapFromDay({ ...day, wrapAt: null }, 23 * 60).due, false, 'a day off');
+  assert.equal(wrapFromDay({ ...day, wrapped: true }, 9 * 60).wrapped, true);
+  assert.deepEqual(wrapFromDay(null, 9 * 60), { wrapped: false, due: false, receipts: 0 });
 });
 
-test('no Now card without a sprint, on a day off, or after the last block', () => {
-  assert.equal(dayNow(null, nowTasks, new Date(2026, 10, 3, 10)), null);
-  assert.equal(dayNow(Object.assign(plan(), { settings: null }), nowTasks, new Date(2026, 10, 3, 10)), null);
-  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 7, 10)), null, 'Saturday');
-  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 3, 16, 30)), null, 'after Admin ends');
-  assert.equal(dayNow(plan(), nowTasks, new Date(2026, 10, 2, 10)), null, 'sprint day 1 has no template here');
-});
-
-test('Wrap up step: primary from an hour before day end on a working day; says Day wrapped once done', async () => {
-  const { wrapState } = await import('../js/view.js');
-  const settings = { schema: 'prioritizer.dayplan/settings', version: 1, items: [], meta: { sprint: { anchor: '2026-11-04', lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [], dayEnd: '17:30' } } };
-  const today = '2026-11-04'; // a Wednesday
-  assert.equal(wrapState({ settings }, today, 16 * 60 + 29).due, false);
-  assert.equal(wrapState({ settings }, today, 16 * 60 + 30).due, true);
-  assert.equal(wrapState({ settings }, '2026-11-07', 18 * 60).due, false, 'Saturday');
-  assert.equal(wrapState({}, today, 15 * 60).due, true, 'no sprint: 15:00 as before');
-  const offers = { items: [{ to: 'receipts', date: today }, { to: 'receipts', date: '2026-11-03' }, { to: 'other', date: today }] };
-  const day = { id: today, events: [{ at: 'x', type: 'shutdown' }] };
-  assert.deepEqual(wrapState({ settings, offers, day }, today, 9 * 60), { wrapped: true, due: false, receipts: 1 });
+test('Wrap up step: primary when due, says Day wrapped once done', () => {
   const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
   const due = render({ ...v, wrap: { wrapped: false, due: true, receipts: 2 } });
   assert.match(due, /class="hbtn primary" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day" title="[^"]*2 receipts offered to Rapport today\."/);
@@ -149,11 +104,10 @@ test('Wrap up step: primary from an hour before day end on a working day; says D
 });
 
 test('symbols: tiles carry icons and tone, rows use signals and quiet people', () => {
-  const board = summarize({ tasks: [
-    { id: 'a', title: 'Late', listId: 'l1', rank: 1, value: 3, effort: 'S', due: '2026-10-19', people: ['Dana Lee'] },
-    { id: 'b', title: 'Raw', listId: 'l2', rank: 2 }
-  ], lists: [{ id: 'l1', name: 'Main' }, { id: 'l2', name: 'Side' }], people: [{ name: 'Dana Lee' }, { name: 'Idle' }] }, '2026-10-20');
-  const html = render({ now: new Date(2026, 9, 20, 9), profile: { name: 'A' }, board, agents: { state: 'off' } });
+  const b = board({ total: 2, open: 2, triage: 1, overdue: 1,
+    upNext: [row('a', { title: 'Late', list: 'Main', listId: 'l1', due: '2026-10-19', people: ['Dana Lee'] }), row('b', { title: 'Raw', list: 'Side', listId: 'l2', triaged: false })],
+    team: [{ name: 'Dana Lee', open: 1, waiting: 0 }, { name: 'Idle', open: 0, waiting: 0 }] });
+  const html = render({ now: new Date(2026, 9, 20, 9), profile: { name: 'A' }, board: b, agents: { state: 'off' } });
   assert.match(html, /class="tile danger"/);
   assert.match(html, /class="tile warn"/);
   assert.match(html, /class="sig danger txt"[^>]*aria-label="Overdue\. Due yesterday"/);

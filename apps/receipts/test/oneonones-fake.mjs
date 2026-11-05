@@ -6,8 +6,19 @@ export const NOW = new Date(2026, 10, 3, 15, 0, 0).getTime();
 
 const envOf = (schema, version, items, meta) => ({ schema, version, rev: 1, items, deleted: {}, ...(meta ? { meta: { updatedAt: 1, ...meta } } : {}) });
 
-export const docketTasks = (items, version = 3) => envOf('prioritizer.tasks', version, items, { capacity: 20 });
-export const docketPeople = names => envOf('prioritizer.people', 1, names.map(n => ({ id: n.toLowerCase(), updatedAt: 1, name: n })));
+/** Docket's summary (Workshop docs/summaries.md) with a `people` card built from tasks the way Docket builds it:
+    one row per name (from `names`, else every name on the tasks), open and waiting tasks not done. */
+export function docketSummary(tasks = [], names = null, version = 1) {
+  const low = s => String(s).toLowerCase();
+  const all = [];
+  for (const n of names || tasks.flatMap(t => t.people || [])) if (!all.some(x => low(x) === low(n))) all.push(n);
+  const row = t => ({ id: t.id, title: t.title, due: t.due || '', nudgeOn: t.nudgeOn || '' });
+  const rows = all.map(name => {
+    const mine = tasks.filter(t => !t.done && (t.people || []).some(p => low(p) === low(name)));
+    return { name, open: mine.filter(t => t.waiting !== true).map(row), waiting: mine.filter(t => t.waiting === true).map(row) };
+  });
+  return envOf('prioritizer.summary', version, [{ id: 'people', kind: 'people', updatedAt: 1, rows }]);
+}
 export const receiptsEntries = (items, version = 1) => envOf('receipts.entries', version, items);
 export const receiptsPeopleEnv = items => envOf('receipts.people', 1, items);
 

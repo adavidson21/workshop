@@ -5,14 +5,13 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { DAYPLAN_VERSION, TASKS_VERSION, agentCounts, boardFromSummary, dateStr, dayNow, nowFromDay, summarize, wrapFromDay, wrapState } from './view.js';
+import { agentCounts, boardFromSummary, dateStr, nowFromDay, wrapFromDay } from './view.js';
 import { cardDay, readCards } from '../../../shared/summary.js';
 
 const P = { app: 'prioritizer' };
 const OC = 'opencode';
 
-/* Docket's day plan collections Home reads for the Now card. */
-export const dayCollections = year => ['dayplan/settings', 'dayplan/templates', `dayplan/days/${year}`, `focus/days/${year}`, 'handoffs'];
+const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
   const v = { now: now(), profile: {}, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
@@ -26,39 +25,24 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     return true;
   }
 
+  /* Docket's numbers, the block on now and Wrap up, from Docket's summary (docs/summaries.md): its `board` and
+     `day` cards for today. No summary yet means Docket has not saved one (a new board): an empty board. A summary
+     with no entry for today is stale: Home says to open Docket rather than show another day's numbers. */
   async function loadBoard() {
-    // Docket's summary first (docs/summaries.md). A missing or stale one falls back to Docket's own collections
-    // below, for a Docket that writes no summary yet; that fallback goes after one release.
     try {
-      const cards = readCards(await ws.data.get('summary', P), 'prioritizer');
+      const env = await ws.data.get('summary', P);
+      const cards = readCards(env, 'prioritizer');
       const d = now(), today = dateStr(d), nowMin = d.getHours() * 60 + d.getMinutes();
-      const board = cards && boardFromSummary(cards.get('board'), today);
-      const day = cards && cardDay(cards.get('day'), today);
-      if (board && day) {
-        v.board = board; v.boardNote = ''; v.dayNow = nowFromDay(day, nowMin); v.wrap = wrapFromDay(day, nowMin); v.source = 'summary';
-        changed();
-        return;
-      }
-    } catch (e) {
-      if (waitFor(e)) { v.board = null; v.boardNote = ''; changed(); return; }
-    }
-    v.source = 'collections';
-    try {
-      const year = now().getFullYear();
-      const [tasks, lists, people, settings, templates, days, focus, offers] = await Promise.all(['tasks', 'lists', 'people', ...dayCollections(year)].map(c => ws.data.get(c, P)));
-      // The day plan is optional: an unknown version or a missing sprint just means no Now card.
-      const ok = (env, col) => env && env.schema === 'prioritizer.' + col && env.version === DAYPLAN_VERSION ? env : null;
-      v.dayNow = dayNow({ settings: ok(settings, 'dayplan/settings'), templates: ok(templates, 'dayplan/templates'), days: ok(days, `dayplan/days/${year}`) },
-        tasks && tasks.version === TASKS_VERSION ? tasks.items : [], now());
-      // Docket's focus log and offers (Wrap up), also optional and read only at version 1.
-      const d = now(), today = dateStr(d), log = ok(focus, `focus/days/${year}`);
-      v.wrap = wrapState({ day: log && log.items.find(i => i.id === today) || null, settings: ok(settings, 'dayplan/settings'), offers: ok(offers, 'handoffs') },
-        today, d.getHours() * 60 + d.getMinutes());
-      if (tasks && (tasks.schema !== 'prioritizer.tasks' || tasks.version !== TASKS_VERSION)) {
-        v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.';
-      } else {
-        v.board = summarize({ tasks: tasks ? tasks.items : [], lists: lists ? lists.items : [], people: people ? people.items : [] }, dateStr(now()));
-        v.boardNote = '';
+      v.dayNow = null; v.wrap = null;
+      if (!env) { v.board = EMPTY_BOARD(); v.boardNote = ''; }
+      else if (!cards) { v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.'; }
+      else {
+        const board = boardFromSummary(cards.get('board'), today), day = cardDay(cards.get('day'), today);
+        if (!board) { v.board = null; v.boardNote = 'Open Docket to bring your board up to date here.'; }
+        else {
+          v.board = board; v.boardNote = '';
+          if (day) { v.dayNow = nowFromDay(day, nowMin); v.wrap = wrapFromDay(day, nowMin); }
+        }
       }
     } catch (e) {
       v.board = null;

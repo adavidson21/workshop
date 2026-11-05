@@ -3,14 +3,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createOneOnOnes } from '../js/oneonones/data.js';
-import { NOW, PERSON, TODAY, docketPeople, docketTasks, fakeWs, receiptsEntries } from './oneonones-fake.mjs';
+import { NOW, PERSON, TODAY, docketSummary, fakeWs, receiptsEntries } from './oneonones-fake.mjs';
 
 test('loads its own collections and reads other apps without writing them', async () => {
-  const ws = fakeWs({ others: { 'prioritizer.tasks': docketTasks([]), 'prioritizer.people': docketPeople(['DevA']) } });
+  const ws = fakeWs({ others: { 'prioritizer.summary': docketSummary([], ['DevA']) } });
   const d = createOneOnOnes(ws, { now: () => NOW });
   await d.loadAll();
   assert.equal(d.v.loaded, true);
-  assert.equal(d.v.src.docketPeople.schema, 'prioritizer.people');
+  assert.equal(d.v.src.docketSummary.schema, 'prioritizer.summary');
+  assert.ok(!('docketTasks' in d.v.src) && !('docketPeople' in d.v.src), 'Docket\'s own collections are never read');
   assert.ok(!('queueSnapshot' in d.v.src), 'Queue is no longer read');
   assert.equal(d.v.src.receiptsEntries, null, "Rapport's own entries are handed in, not read here");
   d.setOwn(receiptsEntries([]), null);
