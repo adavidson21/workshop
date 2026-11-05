@@ -170,6 +170,21 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .adodiff{margin:0;padding-left:1.1rem;font-size:.86rem}
 .hint.warn{color:var(--warn)}
 @media (max-width:600px){.adobar{padding:.45rem .9rem}}
+.pubsheet a{color:var(--accent)}
+.publist{list-style:none;margin:0;padding:0;display:grid;gap:.9rem;max-height:55vh;overflow:auto}
+.pubrow{display:grid;gap:.35rem;padding-bottom:.8rem;border-bottom:1px solid var(--line)}
+.pubrow:last-child{border-bottom:0}
+.pubhead{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
+.pubtitle{flex:1;min-width:0;overflow-wrap:anywhere}
+.pubtag{font:500 11.5px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pubtag[data-tag=send],.pubtag[data-tag=updated]{color:var(--accent)}
+.pubtag[data-tag=conflict]{color:var(--warn)}
+.pubtag[data-tag=failed]{color:var(--danger)}
+.pubtable{width:100%;border-collapse:collapse;font-size:.84rem;table-layout:fixed}
+.pubtable th{text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--line);font:500 11px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pubtable th:first-child{width:7rem}
+.pubtable td{padding:.35rem .5rem;vertical-align:top;overflow-wrap:anywhere}
+@media (max-width:600px){.pubtable th:first-child{width:5rem}}
 
 /* ---------- team reports (moved from Docket) ---------- */
 .rpage{max-width:66rem}

@@ -1,8 +1,10 @@
 /* Runway's link to Azure DevOps, through Workshop's ADO connector. The only module in Runway that calls a
    connector. main.js loads it with a dynamic import() only when Runway uses Workshop on this computer; with no
    Workshop, no connector or the connector off, Runway works the same without it and shows no ADO controls.
-   Read only: it uses the connector's `roadmap` and `iterations.list` actions and never writes to ADO. */
+   Reads with the connector's `roadmap` and `iterations.list` actions. The one write is Publish (publish.js):
+   `workitem.update`, sent with `confirm: true` only after a person clicks Publish and confirms its preview. */
 import { applyLive, cleanSource, mergeLinked, projectsOf, pulled, roadmapArgs } from './model.js';
+import { sendPlan } from './publish.js';
 
 /** {areas, connection} from Workshop's settings.teams v1 (docs/teams.md): the first team with area paths, or null. */
 export function teamDefaults(env) {
@@ -46,7 +48,7 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
     catch (e) { return { areas: [], connection: '' }; }
   }
 
-  /** Read from ADO for a source: {result, data}. Sprint dates that fail to load are left out. `dir` is Workshop's
+  /** Read from ADO for a source: {src, result, data, iterations}. Sprint dates that fail to load are left out. `dir` is Workshop's
       people directory, for owners from Assigned To (model.js ownersOf); null leaves owners as they are. */
   async function pull(source, { dir = null } = {}) {
     const src = cleanSource(source);
@@ -57,7 +59,7 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
     await Promise.all(projectsOf(result.items || [], src.areas).map(async project => {
       try { iterations[project] = (await call('iterations.list', { project })).iterations; } catch (e) { /* placed by own dates only */ }
     }));
-    return { src, result, data: pulled(result, iterations, src, { dir }) };
+    return { src, result, data: pulled(result, iterations, src, { dir }), iterations };
   }
 
   /** Refresh a doc from ADO by its meta.ado. Resolves {doc, added, updated, differs, missing}. */
@@ -67,5 +69,11 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
     return mergeLinked(doc, data, src, result);
   }
 
-  return { state, check, defaults, pull, refresh, close: unsub };
+  /** Publish a plan (publish.js planPublish) the person confirmed: one workitem.update per item, each with
+      confirm: true. Resolves the per-item results (publish.js sendPlan). */
+  function publish(plan, opts) {
+    return sendPlan((action, args) => ws.connectors.call(ADO, action, args, { confirm: true }), plan, opts);
+  }
+
+  return { state, check, defaults, pull, refresh, publish, close: unsub };
 }

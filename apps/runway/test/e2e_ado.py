@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Runway with Azure DevOps, in headless Chrome: this repo served together with a small mock Workshop agent whose
 ADO connector answers `roadmap`, `iterations.list` and `dataset` from synthetic data. Checks a live ADO roadmap (read only,
-refresh rebuilds it, owners from Assigned To), team reports, a linked one (your edit is kept and shows as differing), mixing in an ad hoc item, and that
-with the connector off Runway shows no ADO controls and still opens every roadmap.
+refresh rebuilds it, owners from Assigned To), team reports (area paths filled in from Settings' team), a linked one (your edit is kept and shows
+as differing), mixing in an ad hoc item, Publish (preview, confirm, workitem.update with confirm: true, conflicts skipped), and that with the
+connector off Runway shows no ADO controls and still opens every roadmap.
 
   pip install playwright && python -m playwright install chromium
   python test/e2e_ado.py
@@ -19,7 +20,11 @@ STATE = {
     'connector': 'ready',
     'calls': [],
     'data': {'settings/people': {'schema': 'settings.people', 'version': 2, 'rev': 1, 'updatedAt': '2026-11-03T12:00:00.000Z', 'deleted': {}, 'items': [
-        {'id': 'p_one', 'kind': 'person', 'updatedAt': 1, 'name': 'Dev One', 'handle': 'one', 'relation': 'report', 'adoIdentity': 'dev.one@example.test'}]}},
+        {'id': 'p_one', 'kind': 'person', 'updatedAt': 1, 'name': 'Dev One', 'handle': 'one', 'relation': 'report', 'adoIdentity': 'dev.one@example.test'},
+        {'id': 'p_two', 'kind': 'person', 'updatedAt': 1, 'name': 'Dev Two', 'handle': 'two', 'relation': 'report', 'adoIdentity': 'dev.two@example.test'}]},
+        'settings/teams': {'schema': 'settings.teams', 'version': 1, 'rev': 1, 'updatedAt': '2026-11-03T12:00:00.000Z', 'deleted': {}, 'items': [
+            {'id': 't_mine', 'updatedAt': 1, 'name': 'My team', 'areas': ['Platform\\Wiki'], 'connection': ''}]}},
+    'race': set(),  # work item ids someone changes in ADO between Runway's refresh and its Publish
     'items': [
         {'id': 101, 'rev': 1, 'type': 'Epic', 'title': 'Docs Portal', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': '', 'parentId': None,
          'startDate': '2027-01-04', 'targetDate': '2027-03-31', 'url': 'https://ado.example.test/_workitems/edit/101'},
@@ -44,7 +49,8 @@ DATASET = {
     ],
     'events': [{'id': 501, 'kind': 'priority', 'date': '2026-10-21T10:00:00Z', 'by': 'Exec A', 'from': 3, 'to': 1}]
 }
-ITER = {'Platform': [{'path': 'Platform\\Sprint 1', 'name': 'Sprint 1', 'start': '2027-01-06', 'finish': '2027-01-19', 'current': False}]}
+ITER = {'Platform': [{'path': 'Platform\\Sprint 1', 'name': 'Sprint 1', 'start': '2027-01-06', 'finish': '2027-01-19', 'current': False},
+                     {'path': 'Platform\\Sprint 2', 'name': 'Sprint 2', 'start': '2027-01-20', 'finish': '2027-02-02', 'current': False}]}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -108,8 +114,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         p = self.path.split('?')[0]
         m = re.match(r'^/api/connectors/ado/(.+)$', p)
         if not m: return self.send_json(404, {'code': 'not_found', 'error': 'Not found'})
-        action, args = m.group(1), self.body().get('args', {})
-        STATE['calls'].append([action, args])
+        body = self.body()
+        action, args = m.group(1), body.get('args', {})
+        STATE['calls'].append([action, args, bool(body.get('confirm'))])
         if STATE['connector'] != 'ready': return self.send_json(503, {'code': 'unavailable', 'error': 'The ADO connector is off.'})
         if action == 'roadmap':
             items = [i for i in STATE['items'] if any(i['area'].lower().startswith(a.lower()) for a in args.get('areas', []))]
@@ -118,6 +125,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(200, {'result': DATASET})
         if action == 'iterations.list':
             return self.send_json(200, {'result': {'connection': 'work', 'project': args.get('project'), 'iterations': ITER.get(args.get('project'), [])}})
+        if action == 'workitem.update':
+            # Like the agent and the connector: a write needs confirm: true, and a stale rev changes nothing.
+            if not body.get('confirm'): return self.send_json(403, {'code': 'forbidden', 'error': 'This action changes ADO and needs confirm.'})
+            item = next((i for i in STATE['items'] if i['id'] == args.get('id')), None)
+            if not item: return self.send_json(404, {'code': 'not_found', 'error': f"Work item {args.get('id')} was not found."})
+            if item['id'] in STATE['race']:
+                STATE['race'].discard(item['id']); item['rev'] += 1
+            if item['rev'] != args.get('rev'):
+                return self.send_json(409, {'code': 'conflict', 'error': f"Work item {item['id']} changed in ADO since you loaded it. Review the change and try again."})
+            ch = args.get('changes', {})
+            if 'assignedTo' in ch:
+                who = ch['assignedTo']
+                ppl = STATE['data']['settings/people']['items']
+                name = next((x['name'] for x in ppl if x.get('adoIdentity') == who), who)
+                item['assignee'] = {'name': name, 'email': who} if who else None
+            if 'iteration' in ch: item['iteration'] = ch['iteration']
+            item['rev'] += 1
+            return self.send_json(200, {'result': {'id': item['id'], 'rev': item['rev'], 'iteration': item['iteration'], 'connection': 'work'}})
         return self.send_json(400, {'code': 'bad_request', 'error': 'Unknown action'})
 
 
@@ -240,6 +265,53 @@ def main():
         pg.click('[data-ado-use]')
         pg.wait_for_function(f'() => {R}.store.v.doc.items.find(i => i.id === "{cut}").end === "2027-02-27"', timeout=3000)
         check('Use ADO\'s applies it', True)
+        pg.keyboard.press('Escape')
+
+        # Publish: only owners (Assigned To) and sprint moves go to ADO, after a preview, with confirm: true.
+        check('no Publish button without changes ADO can take', pg.query_selector('[data-adopublish]') is None)
+        ids = pg.evaluate(f'() => Object.fromEntries({R}.store.v.doc.items.filter(i => i.ado).map(i => [i.ado.id, i.id]))')
+        pg.evaluate(f'() => {R}.edit(d => {{ const it = d.items.find(i => i.id === "{ids["103"]}"); it.title = "Renamed here"; }})')
+        pg.wait_for_timeout(200)
+        check('a title change alone does not offer Publish', pg.query_selector('[data-adopublish]') is None)
+        pg.evaluate(f'''() => {R}.edit(d => {{
+            const mig = d.items.find(i => i.id === "{ids["102"]}"); mig.who = ["p_two"]; mig.start = "2027-01-20"; mig.end = "2027-02-02";
+            d.items.find(i => i.id === "{ids["101"]}").who = ["p_two"];
+            d.items.find(i => i.id === "{ids["103"]}").who = ["p_one"];
+        }})''')
+        pg.wait_for_selector('[data-adopublish]', timeout=3000)
+        check('Publish shows with changes ADO can take', 'Publish (3)' in pg.inner_text('[data-adopublish]'))
+        # Meanwhile in ADO: someone reassigns 103 (it will differ), and someone edits 101 right before Publish sends.
+        STATE['items'][2]['assignee'] = {'name': 'Dev Two', 'email': 'dev.two@example.test'}; STATE['items'][2]['rev'] += 1
+        STATE['race'].add(101)
+        before = len(STATE['calls'])
+        pg.click('[data-adopublish]')
+        pg.wait_for_selector('dialog .pubsheet', timeout=8000)
+        rows = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('dialog [data-pub-row]')].map(r => [r.dataset.adoId, r.dataset.pubRow]))")
+        check('the preview lists each item: sends, and a conflict for one ADO changed too', rows == {'101': 'send', '102': 'send', '103': 'conflict'})
+        mig_rows = pg.evaluate("() => [...document.querySelectorAll('dialog [data-ado-id=\"102\"] tbody tr')].map(r => [r.cells[0].textContent, r.cells[1].textContent, r.hasAttribute('data-sent')])")
+        check('the preview shows old and new values per field', ['Assigned To', 'Dev One (dev.one@example.test)', True] in [list(x) for x in mig_rows]
+              and any(x[0] == 'Sprint' and x[1] == 'Platform\\Sprint 1' and x[2] for x in mig_rows))
+        check('the title change is listed as not sent', 'The ADO connector can' in pg.inner_text('dialog [data-ado-id="103"]'))
+        check('nothing is written before you confirm', not any(c[0].startswith('workitem.') for c in STATE['calls'][before:]))
+        check('confirm says how many', pg.inner_text('dialog [data-pub-confirm]').strip() == 'Publish 2')
+        pg.click('dialog [data-pub-confirm]')
+        pg.wait_for_selector('dialog [data-pub-result]', timeout=8000)
+        res = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('dialog [data-pub-result]')].map(r => [r.dataset.adoId, r.dataset.pubResult]))")
+        check('results: updated, and conflicts skipped', res == {'102': 'updated', '101': 'conflict', '103': 'conflict'})
+        check('the connector\'s conflict message is shown', 'changed in ADO since you loaded it' in pg.inner_text('dialog [data-ado-id="101"]'))
+        writes = [c for c in STATE['calls'][before:] if c[0].startswith('workitem.')]
+        check('only workitem.update, each with confirm: true, and none for the conflict found before sending',
+              [c[0] for c in writes] == ['workitem.update', 'workitem.update'] and all(c[2] for c in writes) and sorted(c[1]['id'] for c in writes) == [101, 102])
+        mig_call = next(c for c in writes if c[1]['id'] == 102)
+        check('Publish sends Assigned To and the sprint, with the revision Runway read',
+              mig_call[1]['changes'] == {'assignedTo': 'dev.two@example.test', 'iteration': 'Platform\\Sprint 2'} and mig_call[1]['rev'] == 1 and mig_call[1].get('connection') == 'work')
+        check('ADO now has them', STATE['items'][1]['iteration'] == 'Platform\\Sprint 2' and STATE['items'][1]['assignee']['email'] == 'dev.two@example.test')
+        pg.click('dialog button[value="ok"]')
+        pg.wait_for_function(f'() => {{ const it = {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 102); return it.ado.rev === 2 && it.ado.iteration === "Platform\\\\Sprint 2"; }}', timeout=8000)
+        mig = pg.evaluate(f'() => {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 102)')
+        check('the refresh after Publish leaves the published item with no local changes',
+              mig['ado']['base']['who'] == ['p_two'] and mig['ado']['base']['start'] == '2027-01-20' and mig['ado']['base']['end'] == '2027-02-02' and 'remote' not in mig['ado'])
+        check('no work item was created or commented on', not any(c[0] in ('workitem.create', 'workitem.comment') for c in STATE['calls']))
         pg.evaluate(f'() => {R}.flush()')
         linked_id = pg.evaluate(f'() => {R}.store.v.mapId')
 
@@ -250,6 +322,9 @@ def main():
         pg.wait_for_selector('.rpage .engcard', timeout=8000)
         check('Team reports opens from the list and asks for a team profile', 'Set up your team profile' in pg.inner_text('.rpage'))
         pg.click('.rpage [data-rp="profile"]')
+        pg.wait_for_selector('dialog textarea[name="areas"]', timeout=3000)
+        check('the team profile fills area paths from your team in Settings', pg.input_value('dialog textarea[name="areas"]') == 'Platform\\Wiki'
+              and 'Filled in from your team' in pg.inner_text('dialog'))
         pg.fill('dialog textarea[name="areas"]', 'Platform\\Wiki')
         pg.fill('dialog textarea[name="people"]', 'dev.one@example.test')
         pg.click('dialog button[value="ok"]')

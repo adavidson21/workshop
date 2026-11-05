@@ -20,7 +20,7 @@ import { createSummaryWriter } from '../shared/summary.js';
 import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
-  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
+  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog, publishDialog, publishResultsDialog
 } from './view.js';
 
 const app = document.getElementById('app');
@@ -89,13 +89,17 @@ let unsubMap = null;
    js/ado/ is loaded only when Runway uses Workshop on this computer. Without it (Runway on its own, browser mode,
    connector off) nothing below shows and every roadmap works the same. */
 let ado = null;
+let pub = null;              // js/ado/publish.js, once the ADO module has loaded
 ui.adoRefreshing = false;
+ui.adoPublishing = false;
+ui.adoIterations = null;     // {mapId, iterations}: the sprint lists the last refresh read, for Publish
 ui.adoRefreshed = null;      // the roadmap id refreshed since it was opened
 const adoReady = () => !!(ado && ado.state.ready);
 const adoMod = () => import('./ado/model.js');
 if (ws.backend === 'agent') {
   import('./ado/index.js').then(m => {
     ado = m.createAdo(ws, { onChange: () => { requestPaint(); autoRefresh(); } });
+    import('./ado/publish.js').then(p => { pub = p; requestPaint(); }).catch(() => {});
     return ado.check();
   }).catch(() => { ado = null; });
 }
@@ -194,7 +198,7 @@ function paintMap() {
   app.querySelector('.body').dataset.mode = ui.mode;
   const rbar = app.querySelector('[data-r="rbar"]');
   if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked(), ui.owner));
-  setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly }));
+  setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly, publish: pub ? pub.publishCount(doc) : 0, publishing: ui.adoPublishing }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
   tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner) });
@@ -505,6 +509,7 @@ app.addEventListener('click', async e => {
   else if ('close' in t.dataset) select(null);
   else if ('delete' in t.dataset) deleteItem(ui.selected);
   else if ('adorefresh' in t.dataset) adoRefresh(true);
+  else if ('adopublish' in t.dataset) adoPublish();
   else if ('addado' in t.dataset || 'adoedit' in t.dataset) adoSource();
   else if ('adostop' in t.dataset) adoStop();
   else if ('adodiff' in t.dataset) { const it = v.doc.items.find(i => i.ado && i.ado.remote); if (it) select(it.id); }
@@ -560,15 +565,17 @@ async function adoSource() {
   adoRefresh(true);
 }
 
-/** Refresh from ADO. Applied to the roadmap as it is when the answer comes, so edits made meanwhile are kept. */
+/** Refresh from ADO. Applied to the roadmap as it is when the answer comes, so edits made meanwhile are kept.
+    Resolves true when it refreshed. */
 async function adoRefresh(manual = false) {
-  if (!v.doc || !v.doc.meta.ado || !adoReady() || ui.adoRefreshing || v.readOnly) return;
+  if (!v.doc || !v.doc.meta.ado || !adoReady() || ui.adoRefreshing || v.readOnly) return false;
   const id = v.mapId;
   ui.adoRefreshing = true; ui.adoRefreshed = id; requestPaint();
   try {
     const m = await adoMod();
-    const { src, result, data } = await ado.pull(v.doc.meta.ado, { dir: await adoDir() });
-    if (v.mapId !== id || !v.doc) return;
+    const { src, result, data, iterations } = await ado.pull(v.doc.meta.ado, { dir: await adoDir() });
+    if (v.mapId !== id || !v.doc) return false;
+    ui.adoIterations = { mapId: id, iterations };
     let counts = null;
     edit(d => {
       const r = src.mode === 'live' ? { doc: m.applyLive(d, data, src, result) } : m.mergeLinked(d, data, src, result);
@@ -579,8 +586,36 @@ async function adoRefresh(manual = false) {
       const bits = counts && src.mode !== 'live' ? [counts.added && `${counts.added} added`, counts.updated && `${counts.updated} updated`, counts.differs && `${counts.differs} differ from ADO`, counts.missing && `${counts.missing} not found`].filter(Boolean) : [];
       toast(bits.length ? `From ADO: ${bits.join(', ')}.` : 'Up to date with ADO.', 'success');
     }
-  } catch (e) { toastErr(e); }
+    return true;
+  } catch (e) { toastErr(e); return false; }
   finally { ui.adoRefreshing = false; requestPaint(); }
+}
+
+/** Publish: refresh first (so ADO's newest revisions and any conflicts show), preview every change, and only
+    after the person confirms send them with workitem.update (js/ado/publish.js). Then show what happened and
+    refresh again. The only place Runway writes to ADO. */
+async function adoPublish() {
+  if (!pub || !v.doc || live() || v.readOnly || ui.adoPublishing || !adoReady()) return;
+  const id = v.mapId;
+  let sent = false;
+  ui.adoPublishing = true; requestPaint();
+  try {
+    if (!(await adoRefresh(false)) || v.mapId !== id) return;
+    const iterations = ui.adoIterations && ui.adoIterations.mapId === id ? ui.adoIterations.iterations : {};
+    const plan = pub.planPublish(v.doc, { dir: await adoDir(), iterations });
+    const f = await showDialog(publishDialog(plan));
+    if (!f || !plan.send || v.mapId !== id) return;
+    await store.flush();
+    sent = true;
+    const results = await ado.publish(plan, { onProgress: () => requestPaint() });
+    showDialog(publishResultsDialog(results));
+    const n = results.filter(r => r.outcome === 'updated').length;
+    toast(`Published ${n} work item${n === 1 ? '' : 's'} to ADO.`, n === plan.send ? 'success' : 'warn');
+  } catch (e) { toastErr(e); }
+  finally {
+    ui.adoPublishing = false; requestPaint();
+    if (sent && v.mapId === id) adoRefresh(false);
+  }
 }
 
 /** Refresh once when a roadmap that follows ADO is opened (or when the connector becomes ready). */

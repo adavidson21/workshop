@@ -3,11 +3,13 @@
    Workshop's ADO connector `dataset` action only, and never writes to ADO.
 
    The team profile (area paths, people, window) is kept in this browser (localStorage "runway.reports"). The
-   first time, it is taken from Docket's old Reports profile when Docket ran in this browser. The last pull is
+   first time, it is taken from Docket's old Reports profile when Docket ran in this browser. A profile with no
+   area paths gets them (and the connection) filled in from your team in Workshop's Settings (settings.teams). The last pull is
    cached in IndexedDB ("runway-cache"), since it can always be pulled again. */
 import { esc } from '../../timeline.js';
 import { TABS, WINDOWS, buildWorkbook, compute, fmtMD, lines, teamLines, usable } from './model.js';
 import { RENDER, rpCard } from './view.js';
+import { teamDefaults } from '../index.js';
 
 const KEY = 'runway.reports';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -124,13 +126,20 @@ export function createReports(o) {
   }
 
   async function profile() {
-    const p = st.profile;
+    let p = st.profile;
     let team = [];
     try { team = teamLines(await o.ws.data.get('people', { app: 'settings' })); } catch (e) { team = []; }
+    // No area paths yet: fill them in from your team in Workshop's Settings (docs/teams.md). Saved only on Save.
+    let fromTeam = false;
+    if (!lines(p.areas).length) {
+      let t = null;
+      try { t = teamDefaults(await o.ws.data.get('teams', { app: 'settings' })); } catch (e) { t = null; }
+      if (t && t.areas.length) { p = { ...p, areas: t.areas.join('\n'), connection: p.connection || t.connection }; fromTeam = true; }
+    }
     const f = await o.showDialog(`<form method="dialog" class="sheet wide">
       <h3>Team profile</h3>
       <p class="hint">Area paths are the work your team owns. People are your team members. Add both to see work your people do for other teams. Read only: nothing changes in ADO.</p>
-      <label class="pf"><span>Area paths, one per line</span><textarea name="areas" rows="4" class="mono" placeholder="Project\\Team" spellcheck="false">${esc(p.areas)}</textarea><small class="hint">Includes everything under each.</small></label>
+      <label class="pf"><span>Area paths, one per line</span><textarea name="areas" rows="4" class="mono" placeholder="Project\\Team" spellcheck="false">${esc(p.areas)}</textarea><small class="hint">Includes everything under each.${fromTeam ? ' Filled in from your team in Workshop Settings.' : ''}</small></label>
       <label class="pf"><span>People, one per line</span><textarea name="people" rows="4" class="mono" placeholder="name@company.com" spellcheck="false">${esc(p.people)}</textarea>
         <small class="hint">Email or exact ADO display name.${team.length ? ` <button type="button" class="lnk" data-team>Use my team from Workshop (${team.length})</button>` : ''}</small></label>
       <div class="prow"><label class="pf inline"><span>Default window</span><select name="days">${WINDOWS.map(n => `<option value="${n}"${n === p.days ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select></label>

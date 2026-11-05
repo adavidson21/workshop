@@ -326,7 +326,7 @@ export function adoPanel(it, readOnly = false, { addPerson = !readOnly } = {}) {
 }
 
 /** The strip above the timeline for a roadmap that follows ADO, or the offer to add items from it. */
-export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false } = {}) {
+export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false, publish = 0, publishing = false } = {}) {
   const src = doc.meta.ado;
   if (!src) return ready && !readOnly ? `<div class="adobar"><span class="grow"></span><button class="btn ghost" data-addado>Add items from Azure DevOps</button></div>` : '';
   const live = src.mode === 'live';
@@ -340,6 +340,7 @@ export function adoBarHtml(doc, { ready = false, message = '', refreshing = fals
     ${missing ? `<span class="muted">${missing} not found</span>` : ''}
     ${!ready ? `<span class="muted">${esc(message || 'Connect Workshop on this computer to refresh.')} Showing the last copy.</span>` : ''}
     <span class="grow"></span>
+    ${ready && !readOnly && !live && publish > 0 ? `<button class="btn primary" data-adopublish${refreshing || publishing ? ' disabled' : ''} title="Send your changes to ADO, after a preview">${publishing ? 'Publishing' : `Publish (${esc(publish)})`}</button>` : ''}
     ${ready && !readOnly ? `<button class="btn ghost" data-adorefresh${refreshing ? ' disabled' : ''}>${refreshing ? 'Refreshing' : 'Refresh'}</button><button class="btn ghost" data-adoedit>Change</button>` : ''}
     ${readOnly ? '' : `<button class="btn ghost" data-adostop>${live ? 'Make editable' : 'Stop following'}</button>`}
   </div>`;
@@ -359,7 +360,50 @@ export function adoDialog({ title = '', areas = [], connection = '', types = ['E
     <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic', 'Epics')}${t('Feature', 'Features')}${t('User Story', 'User Stories, named Feature &gt; Story')}</fieldset>
       <label class="pf inline"><span>Lanes by</span><select name="lanes"><option value="area"${lanes !== 'epic' ? ' selected' : ''}>Area path</option><option value="epic"${lanes === 'epic' ? ' selected' : ''}>Epic</option></select></label></div>
     <label class="pc"><input type="checkbox" name="closed"${includeClosed ? ' checked' : ''}> Include closed work items</label>
-    <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Read only. Nothing is written to ADO.</small></label>
+    <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Reading changes nothing in ADO. Only Publish writes, after a preview.</small></label>
     <footer><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${chooseMode ? 'Create' : 'Add'}</button></footer>
+  </form>`;
+}
+
+/* ---------- Publish to ADO (js/ado/publish.js makes the plan; every ADO text is escaped here) ---------- */
+
+const PUB_STATUS = { send: 'Will update', conflict: 'Conflict, skipped', skip: 'Not sent' };
+const RESULT = { updated: 'Updated', conflict: 'Conflict, skipped', failed: 'Failed', skipped: 'Skipped' };
+const workItem = (type, id, url) => {
+  const name = `${esc(type || 'Work item')} #${esc(id)}`;
+  const u = httpOnly(url);
+  return u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name;
+};
+
+/** The preview: every linked item with changes, each field from what ADO has to what Publish sends, and why a
+    field or an item is not sent. Confirming returns the form. */
+export function publishDialog(plan) {
+  const rows = plan.rows.map(r => `<li class="pubrow" data-pub-row="${esc(r.status)}" data-ado-id="${esc(r.adoId)}">
+      <p class="pubhead"><span class="pubtitle">${workItem(r.type, r.adoId, r.url)} <span class="ptitle">${esc(r.title)}</span></span><span class="pubtag" data-tag="${esc(r.status)}">${esc(PUB_STATUS[r.status])}</span></p>
+      ${r.why ? `<p class="hint${r.status === 'conflict' ? ' warn' : ''}">${esc(r.why)}</p>` : ''}
+      <table class="pubtable"><thead><tr><th>Field</th><th>In ADO now</th><th>After publish</th></tr></thead><tbody>
+      ${r.fields.map(f => `<tr${f.sent ? ' data-sent' : ''}><td>${esc(f.label)}</td><td>${esc(f.from)}</td><td>${f.sent ? `<strong>${esc(f.to)}</strong>` : `${esc(f.to)}<br><small class="hint">Not sent.${f.why ? ` ${esc(f.why)}` : ''}</small>`}</td></tr>`).join('')}
+      </tbody></table></li>`).join('');
+  const n = plan.send;
+  return `<form method="dialog" class="sheet wide pubsheet">
+    <h3>Publish to Azure DevOps</h3>
+    <p class="hint">Runway sends only what is in bold, through Workshop's ADO connector: Assigned To, and the sprint of an item whose dates come from its sprint. It never creates work items, adds comments or changes states. An item someone changed in ADO since Runway read it is skipped, not overwritten.</p>
+    ${plan.rows.length ? `<ul class="publist">${rows}</ul>` : '<p>No changes to publish.</p>'}
+    <footer><span class="hint">${esc(n)} work item${n === 1 ? '' : 's'} to update${plan.conflicts ? `, ${esc(plan.conflicts)} conflict${plan.conflicts === 1 ? '' : 's'}` : ''}</span><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok" data-pub-confirm${n ? '' : ' disabled'}>Publish ${esc(n)}</button></footer>
+  </form>`;
+}
+
+/** What happened to each work item. */
+export function publishResultsDialog(results) {
+  const count = k => results.filter(r => r.outcome === k).length;
+  const SUM = { updated: 'updated', conflict: 'skipped for a conflict', failed: 'failed', skipped: 'not sent' };
+  const sum = ['updated', 'conflict', 'failed', 'skipped'].map(k => count(k) && `${count(k)} ${SUM[k]}`).filter(Boolean).join(', ');
+  return `<form method="dialog" class="sheet wide pubsheet">
+    <h3>Published to Azure DevOps</h3>
+    <p class="hint">${esc(sum || 'Nothing was sent.')}. Runway refreshes from ADO now.</p>
+    <ul class="publist">${results.map(r => `<li class="pubrow" data-pub-result="${esc(r.outcome)}" data-ado-id="${esc(r.adoId)}">
+      <p class="pubhead"><span class="pubtitle">#${esc(r.adoId)} <span class="ptitle">${esc(r.title)}</span></span><span class="pubtag" data-tag="${esc(r.outcome)}">${esc(RESULT[r.outcome] || r.outcome)}</span></p>
+      ${r.message ? `<p class="hint">${esc(r.message)}</p>` : ''}</li>`).join('')}</ul>
+    <footer><span class="grow"></span><button class="btn primary" value="ok">Done</button></footer>
   </form>`;
 }

@@ -22,7 +22,7 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 
 Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or imported from Markdown. It works on its own site, inside Workshop, and in browser-only mode.
 
-When Runway uses Workshop on this computer and the ADO connector is on, it can also read Epics and Features from ADO (read only, nothing is written to ADO):
+When Runway uses Workshop on this computer and the ADO connector is on, it can also read Epics and Features from ADO. Reading and refreshing never change ADO; the only write is **Publish** (below), from a button, after a preview you confirm:
 
 - **From Azure DevOps** (roadmap list): pick area paths (filled in from your team in Workshop's Settings, `settings.teams`), Epics, Features and/or User Stories, lanes by area path or by Epic, and a kind:
   - **User Stories** are named "Feature > Story" and sit in their Feature's lane; a Feature whose stories are shown is not drawn again. Needs Workshop's ADO connector with the `roadmap` `stories` option.
@@ -31,17 +31,21 @@ When Runway uses Workshop on this computer and the ADO connector is on, it can a
   - **Live view:** rebuilt from ADO on every refresh. Items can't be edited; title, scale, dates shown and goals can. **Make editable** turns it into an ordinary roadmap.
 - **Add items from Azure DevOps** (any roadmap): link an ad hoc roadmap to ADO, so imported and ad hoc items mix.
 - Placement: a work item's own start and target dates, else its sprint's dates (`iterations.list`), else the Unscheduled tray.
-- **Team reports** (roadmap list, moved from Docket): sprint health for your team from one read-only ADO pull through the connector's `dataset` action. Six tabs: Priority churn, Other teams' work, Sprint carryover, Sprint scope churn, Load by person, Aging and throughput. **Team profile** sets area paths, people (or "Use my team from Workshop") and the window; it is kept in this browser, and the first time it is taken from Docket's old profile when Docket ran in this browser. **Export to Excel** writes the workload tracker with every report and Summary formulas. The last pull is cached in this browser, so the page opens without asking ADO again.
+- **Publish** (linked roadmaps, shown when you changed something ADO can take): sends your changes back to ADO through the connector's `workitem.update`. It refreshes first, then shows a preview of every linked item you changed, field by field (what ADO has now, what it gets), with what is not sent and why. Nothing is written until you click **Publish** in the preview; then each work item is updated on its own (with `confirm: true`), the results say updated, skipped for a conflict, or failed (with the connector's message), and Runway refreshes again.
+  - **What it sends:** Owners as **Assigned To** (one person whose ADO identity is in People; no owner unassigns), and the **sprint** (Iteration Path) of an item whose dates come from its sprint, when you move its bar to exactly another sprint's dates in the same project (when teams share sprint dates, the sprint beside its current one).
+  - **What it does not:** create work items, comment, change states, titles, area paths or order, or change the dates of an item that has its own start or target date in ADO (the connector can't change those fields yet). Several owners, a group, or a person without an ADO identity are not sent either. These show in the preview as not sent.
+  - **Conflicts:** an item ADO changed too ("differs from ADO") is listed as a conflict and skipped; settle it in its panel first. Every update carries the revision Runway read, so an item someone changes in ADO between the refresh and the click is refused by the connector and shown as a conflict. Nothing is overwritten.
+- **Team reports** (roadmap list, moved from Docket): sprint health for your team from one read-only ADO pull through the connector's `dataset` action. Six tabs: Priority churn, Other teams' work, Sprint carryover, Sprint scope churn, Load by person, Aging and throughput. **Team profile** sets area paths (filled in from your team in Workshop's Settings, `settings.teams`, when the profile has none), people (or "Use my team from Workshop") and the window; it is kept in this browser, and the first time it is taken from Docket's old profile when Docket ran in this browser. **Export to Excel** writes the workload tracker with every report and Summary formulas. The last pull is cached in this browser, so the page opens without asking ADO again.
 - Roadmaps that follow ADO refresh once when opened. Without the connector they show the last copy and stay editable (live ones stay read only).
 - Export: an **ADO ids** option adds `#<id>` to linked bars.
 
 Rules, checked by `test/app-files.test.mjs`:
 
 - `app.json` lists the ADO connector with `required: false`, and never as required.
-- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector. Team reports are in `js/ado/reports/` (`model.js` computes every report and the workbook, `view.js` is the HTML, `index.js` the page) and load the first time the page opens.
+- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector. Publish is `js/ado/publish.js` (the diff, the plan and the calls); `js/ado/index.js` is the only place that calls the connector, and its one write action (`workitem.update`) goes out only from Publish. Team reports are in `js/ado/reports/` (`model.js` computes every report and the workbook, `view.js` is the HTML, `index.js` the page) and load the first time the page opens.
 - With the connector off or missing, ADO controls are hidden.
 
-`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, assignee, base, remote?, missing?}`, where `assignee` is ADO's Assigned To (`{name, email}` or null), `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours.
+`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, assignee, iteration, project, ownDates, base, remote?, missing?}`, where `assignee` is ADO's Assigned To (`{name, email}` or null), `iteration` its sprint, `project` its project, `ownDates` true when ADO has its own start or target date, `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours. A change is a field that differs from `base`; that is what Publish looks at.
 
 Owners from ADO: Assigned To becomes the item's owner (`who`) when Workshop's people directory has someone whose ADO identity (`adoIdentity` in Settings, People) is that email or display name. Someone it does not have leaves the item without an owner, and the item's panel offers **Add to People**, which adds them as a contact with that identity and refreshes. In a linked roadmap owners work like the title and dates: an owner you set yourself is kept and shows as differing when ADO's changes. If People has not loaded, a refresh leaves owners as they are. Lanes made from ADO carry `adoKey`.
 
@@ -131,7 +135,7 @@ pip install playwright && python -m playwright install chromium
 python test/e2e.py
 ```
 
-`test/e2e_ado.py` runs Runway against a mock Workshop agent with a fake ADO connector: a live roadmap, a linked one with an edit that differs, an ad hoc item mixed in, and the connector turned off.
+`test/e2e_ado.py` runs Runway against a mock Workshop agent with a fake ADO connector: a live roadmap, a linked one with an edit that differs, an ad hoc item mixed in, Publish (preview, confirm, `workitem.update` with `confirm: true`, conflicts skipped), the team profile filled from Settings, and the connector turned off. `test/publish.test.mjs` covers the diff, conflicts and the calls with a fake connector.
 
 `test/e2e.py` serves this repo the way runway.alexisdavidson.org does and drives it in headless Chrome: outline, drag, keys, tray, export PNG, SVG and Markdown, reload, escaping, phone width.
 
@@ -143,7 +147,7 @@ Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reloa
 
 ## Later
 
-- Publish date and status changes back to ADO, only from a button, with a before and after list to tick.
+- Publish start and target dates and titles, once the ADO connector's `workitem.update` takes them.
 - Now / Next / Later board, slides export, a Home card.
 
 ## License
