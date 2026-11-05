@@ -10,6 +10,8 @@
    A handled key is `<app>:<offer id>:<fingerprint of its text and payload>`, so an offer the sender changes after
    you handled it shows again (to update the item), while one sent again unchanged does not. */
 
+import { sendersFrom as sharedSendersFrom } from '../shared/handoffs.js';
+
 /* The apps Docket reads offers from: app id to the name shown for it. An app read but not named here shows by its
    id. A new sender follows Workshop docs/handoffs.md (Receivers) and is added here by its app id. Home's quick
    capture and the Dispatch hub send accepted tasks (kind 'task', accepted: true; Workshop docs/hub.md). */
@@ -17,9 +19,8 @@ const SENDERS = { home: 'Home', agents: 'Dispatch' };
 /* Who sends Docket offers, from the manifests on this Workshop site (ws.apps.list(); Workshop docs/handoffs.md,
    Senders): every app whose handoffs.sends lists prioritizer, as {id: name}, added to the built-in list. Reading
    an app that is not there finds no offers, so the built-in list only keeps senders whose manifest does not say. */
-function sendersFrom(apps, self = 'prioritizer', fallback = SENDERS){
-  const found = (Array.isArray(apps) ? apps : []).filter(a => a && a.id !== self && a.handoffs && Array.isArray(a.handoffs.sends) && a.handoffs.sends.includes(self));
-  return Object.assign({}, fallback, Object.fromEntries(found.map(a => [a.id, a.name || a.id])));
+function sendersFrom(apps, self = 'prioritizer', fallback = SENDERS) {
+  return sharedSendersFrom(apps, self, fallback);
 }
 const HANDLED_MAX = 200;
 const HANDOFF_VERSION = 1;
