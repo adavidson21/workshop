@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "853c2445287d4405ab1d2afb437fe4cd6ec75b7d",
+  "commit": "5b81d781c7c604fb8668ff6b4fbc27c3272548ba",
   "files": {
     "scripts/sync-workshop.mjs": "scripts/sync-workshop.mjs",
     "shared/app-sw.js": "shared/app-sw.js",
@@ -30,9 +30,9 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "2.3.0",
+  "bundle": "2.3.1",
   "sha256": {
-    "scripts/sync-workshop.mjs": "3a5b2ecb54549c4813c254c7c440f8721066d36208d3f84a4c99621e935c1df2",
+    "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/OFL-Inter.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
