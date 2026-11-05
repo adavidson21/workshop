@@ -12,7 +12,7 @@ test('ws.apps.list(): manifests from the registry, sorted by order, with only th
   ] };
   const list = appsFromRegistry(reg);
   assert.deepEqual(list.map(a => a.id), ['home', 'prioritizer', 'notes']);
-  assert.deepEqual(list[0], { id: 'home', name: 'Home', version: '1.5.0', order: 0, handoffs: { sends: ['prioritizer', 'notes'] }, capture: [], aliases: [] });
+  assert.deepEqual(list[0], { id: 'home', name: 'Home', version: '1.5.0', order: 0, handoffs: { sends: ['prioritizer', 'notes'] }, capture: [], aliases: [], privateFiles: null });
   assert.deepEqual(list[1].aliases, ['docket', { name: 'today', path: 'today' }]);
   assert.deepEqual(appsFromRegistry(null), []);
   assert.deepEqual(appsFromRegistry({ apps: 'no' }), []);

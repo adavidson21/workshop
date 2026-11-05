@@ -18,7 +18,6 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
   let index = buildIndex([]);
   let loaded = false;
   let error = '';
-  const others = [];           // [{app, path}] .md files of other apps, read only
 
   function rebuild() {
     index = buildIndex([...texts].map(([path, t]) => ({ path, content: t.content, mtime: t.mtime, size: files.get(path)?.size || 0 })));
@@ -69,17 +68,6 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
     rebuild(); onExternal({ path, gone: false });
   });
 
-  async function loadOthers(apps) {
-    others.length = 0;
-    for (const app of apps) {
-      if (app === APP) continue;
-      try {
-        for (const f of await ws.files.list(undefined, { app })) if (isNote(f.path)) others.push({ app, path: f.path });
-      } catch { /* that app has no files, or cannot be read */ }
-    }
-    onChange();
-  }
-
   /* -- notes -- */
 
   async function create(path, content) {
@@ -110,8 +98,6 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
   /** Read one note again after a write made here outside the editor (Quick Notes pickup), and rebuild. */
   async function refresh(path) { const f = await readNote(path); rebuild(); return f; }
 
-  /** Read another app's note (read only). */
-  async function readOther(app, path) { return ws.files.read(path, { app }); }
 
   /* -- images -- */
 
@@ -149,11 +135,11 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
   }
 
   return {
-    load, loadOthers, readNote, refresh, create, save, trash, readOther, imageUrl, addImage,
+    load, readNote, refresh, create, save, trash, imageUrl, addImage,
     get index() { return index; },
     get loaded() { return loaded; },
     get error() { return error; },
-    files, texts, others,
+    files, texts,
     contents() { return new Map([...texts].map(([p, t]) => [p, t.content])); }
   };
 }

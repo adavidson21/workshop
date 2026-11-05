@@ -97,12 +97,18 @@ test('trash moves the note to the trash and out of the index', async () => {
   assert.equal(fs.exists('notes/old.md'), false);
 });
 
-test('other apps: their notes are listed read only', async () => {
+test('other apps: Notes never lists or reads their files (Rapport 1:1 notes stay in Rapport)', async () => {
   const fs = new FakeFolder();
-  fs.write('receipts/summaries/one/2026-h2.md', '# Summary');
-  fs.write('receipts/config.json', '{"schema":"receipts.config","version":1,"rev":1,"items":[]}');
-  const n = createNotes(wsOver(fs));
-  await n.loadOthers(['notes', 'receipts']);
-  assert.deepEqual(n.others, [{ app: 'receipts', path: 'summaries/one/2026-h2.md' }]);
-  assert.equal((await n.readOther('receipts', 'summaries/one/2026-h2.md')).content, '# Summary');
+  fs.write('notes/a.md', '# A');
+  fs.write('receipts/oneonones/notes/person-one.md', '# 1:1 with a report');
+  const ws = wsOver(fs);
+  const asked = [];
+  const { list, read } = ws.files;
+  ws.files.list = (folder, o) => { asked.push(['list', o && o.app]); return list(folder, o); };
+  ws.files.read = (path, o) => { asked.push(['read', o && o.app]); return read(path, o); };
+  const n = createNotes(ws);
+  await n.load();
+  assert.deepEqual([...n.texts.keys()], ['a.md']);
+  assert.equal(asked.some(([, app]) => app && app !== 'notes'), false);
+  assert.equal('loadOthers' in n || 'readOther' in n || 'others' in n, false);
 });
