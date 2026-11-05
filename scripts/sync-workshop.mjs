@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,19 +84,55 @@ export async function update({ root = ROOT, from, ref = 'main' } = {}) {
   const get = source({ from, repo: list.repo, commit });
   const bundle = JSON.parse((await get('bundle.json')).toString('utf8'));
   const hashes = {};
-  for (const [local, upstream] of Object.entries(list.files)) {
+  const added = [];
+  const queue = Object.entries(list.files);
+  while (queue.length) {
+    const [local, upstream] = queue.shift();
     const file = join(root, local);
     const buf = await get(upstream);
     if (bundle.files[upstream] && bundle.files[upstream] !== sha(buf)) throw new Error(`${upstream} at ${commit.slice(0, 7)} does not match workshop's bundle.json`);
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, buf);
     hashes[local] = sha(buf);
+    // A copied module that imports another bundle file this app does not list yet: copy that one too.
+    for (const dep of importsOf(upstream, buf)) {
+      if (!bundle.files[dep] || Object.values(list.files).includes(dep)) continue;
+      const depLocal = join(dirname(local), relative(dirname(upstream), dep)).replace(/\\/g, '/');
+      list.files[depLocal] = dep;
+      queue.push([depLocal, dep]);
+      added.push(depLocal);
+    }
   }
+  if (added.length) addToAppJson(root, added);
+  list.files = Object.fromEntries(Object.entries(list.files).sort(([a], [b]) => a.localeCompare(b)));
+  list.added = added;
   list.commit = commit;
   list.bundle = bundle.version;
   list.sha256 = hashes;
+  delete list.added;
   writeFileSync(join(root, 'workshop-files.json'), JSON.stringify(list, null, 2) + '\n');
-  return commit;
+  return { commit, added };
+}
+
+/** Bundle paths a JS module imports by relative path (static and dynamic imports). */
+export function importsOf(path, buf) {
+  if (!/\.m?js$/.test(path)) return [];
+  const out = new Set();
+  const re = /(?:\bimport\s*\(\s*|\bfrom\s*|^\s*import\s*)['"](\.{1,2}\/[^'"]+)['"]/gm;
+  for (const m of buf.toString('utf8').matchAll(re)) out.add(posix.normalize(posix.join(posix.dirname(path), m[1])));
+  return [...out];
+}
+
+// Files the sync added are app files too, so the service worker caches them: add them to app.json's files list.
+function addToAppJson(root, paths) {
+  const file = join(root, 'app.json');
+  if (!existsSync(file)) return;
+  const app = JSON.parse(readFileSync(file, 'utf8'));
+  if (!Array.isArray(app.files)) return;
+  const more = paths.filter(p => !app.files.includes(p));
+  if (!more.length) return;
+  app.files = [...app.files, ...more].sort();
+  writeFileSync(file, JSON.stringify(app, null, 2) + '\n');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -106,8 +142,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (args.includes('--update')) {
     const i = args.indexOf('--update');
     const ref = args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : 'main';
-    const commit = await update({ from, ref });
+    const { commit, added } = await update({ from, ref });
     console.log(`Copied ${Object.keys(readList().files).length} files from workshop at ${commit.slice(0, 7)} (bundle ${readList().bundle}). Run the tests, then commit.`);
+    if (added.length) console.log(`Added because a copied file imports them (also listed in app.json): ${added.join(', ')}`);
   } else if (args.includes('--check')) {
     const bad = await check({ from });
     const list = readList();
