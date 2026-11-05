@@ -37,12 +37,14 @@ test('roadmap returns open Epics and Features in the roadmap shape, with story c
   assert.deepEqual(out.items.map(i => i.id), [701, 711, 712, 702]);
   assert.deepEqual(out.items[0], {
     id: 701, rev: 5, type: 'Epic', title: 'Synthetic version 1', state: 'Active', area: TEAM_A, iteration: 'Web App\\Sprint 12',
-    parentId: null, targetDate: '2026-12-15', startDate: '2026-10-01', changed: '2026-10-14T15:30:00Z',
+    parentId: null, assignee: { name: 'Dev One', email: 'dev.one@example.com' }, targetDate: '2026-12-15', startDate: '2026-10-01', changed: '2026-10-14T15:30:00Z',
     url: `${srv.url}/Main/Web%20App/_workitems/edit/701`
   });
   const f711 = out.items.find(i => i.id === 711);
   assert.equal(f711.parentId, 701);
   assert.equal(f711.startDate, null);
+  assert.equal(f711.assignee, null, 'unassigned');
+  assert.deepEqual(out.items.find(i => i.id === 712).assignee, { name: 'Dev Two', email: 'dev.two@example.com' }, 'identity objects too');
   // 801 Closed and 803 Resolved count as done; 802 Active does not. 803 is in another area but still counts.
   assert.deepEqual([f711.storiesTotal, f711.storiesDone], [3, 2]);
   const f712 = out.items.find(i => i.id === 712);

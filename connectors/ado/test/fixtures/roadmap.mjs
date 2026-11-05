@@ -38,10 +38,10 @@ export function roadmapScenario() {
           { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'"], ids: [701, 711, 712, 702, 713] }
         ],
         workItems: {
-          701: wi(701, 5, f('Epic', 'Active', 'Synthetic version 1', { 'Microsoft.VSTS.Scheduling.StartDate': '2026-10-01T00:00:00Z', 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-15T00:00:00Z' })),
+          701: wi(701, 5, f('Epic', 'Active', 'Synthetic version 1', { 'System.AssignedTo': 'Dev One <Dev.One@example.com>', 'Microsoft.VSTS.Scheduling.StartDate': '2026-10-01T00:00:00Z', 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-15T00:00:00Z' })),
           702: wi(702, 2, f('Epic', 'New', 'Synthetic version 2', { 'System.IterationPath': 'Web App' })),
           711: wi(711, 9, f('Feature', 'Active', 'Synthetic feature 711', { 'System.Parent': 701, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-20T00:00:00Z' })),
-          712: wi(712, 3, f('Feature', 'New', 'Synthetic feature 712', { 'System.Parent': 701, 'System.AreaPath': 'Web App\\Team A\\Sub' })),
+          712: wi(712, 3, f('Feature', 'New', 'Synthetic feature 712', { 'System.AssignedTo': { displayName: 'Dev Two', uniqueName: 'dev.two@example.com' }, 'System.Parent': 701, 'System.AreaPath': 'Web App\\Team A\\Sub' })),
           713: wi(713, 4, f('Feature', 'Closed', 'Synthetic closed feature 713', { 'System.Parent': 702 })),
           801: wi(801, 1, f('User Story', 'Closed', 'Synthetic story 801', { 'System.Parent': 711 })),
           802: wi(802, 1, f('User Story', 'Active', 'Synthetic story 802', { 'System.Parent': 711 })),
