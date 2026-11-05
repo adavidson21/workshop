@@ -43,12 +43,6 @@ const store = createStore(ws, { onChange: () => {
   if (!painting) requestPaint();
 } });
 const v = store.v;
-// Senders of captured ideas come from the manifests (ws.apps.list); SENDERS is updated in place.
-{
-  const found = sendersFrom(ws.apps && ws.apps.list ? await ws.apps.list().catch(() => []) : []);
-  for (const k of Object.keys(SENDERS)) delete SENDERS[k];
-  Object.assign(SENDERS, found);
-}
 
 /* Pending assignment (js/pending.js): ideas captured on Home. The open roadmap takes them through the store,
    so its unsaved edits are kept; other roadmaps get them straight in their collection. */
@@ -63,6 +57,15 @@ const pending = createPending(ws, {
     }
     await writeToMap(ws, mapId, fromEnvelope, idea, opts);
   }
+});
+// Senders of captured ideas come from the manifests (ws.apps.list); SENDERS is updated in place. Not awaited, so
+// the route handler is in place before the shell's first route event; pickup runs again once they are known.
+(ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
+  const found = sendersFrom(apps);
+  const before = Object.keys(SENDERS).join();
+  for (const k of Object.keys(SENDERS)) delete SENDERS[k];
+  Object.assign(SENDERS, found);
+  if (Object.keys(SENDERS).join() !== before && pending.pickup) pending.pickup();
 });
 const prefMode = (() => { try { return localStorage.getItem('runway.mode'); } catch (e) { return null; } })();
 const ui = {
