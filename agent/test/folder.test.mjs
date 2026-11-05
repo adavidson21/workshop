@@ -63,7 +63,7 @@ test('old app data is copied byte for byte, the old files are kept unchanged, an
     fs.rmSync(data, { recursive: true, force: true });
     agent = await start(home);
     try {
-      assert.equal((await get(agent, '/api/data/notes/pages')).status, 404);
+      assert.equal((await get(agent, '/api/data/notes/pages')).json, null);
       assert.equal(sha(pages), before.pages, 'old file still there');
     } finally { await agent.stop(); }
   } finally { rmHome(home); }
@@ -161,7 +161,7 @@ test('dataDir from config.json is used, and a saved change applies only after a 
     agent = await createAgent({ home, port: 0 });
     try {
       assert.equal(agent.dataDir, second);
-      assert.equal((await get(agent, '/api/data/notes/pages')).status, 404, 'nothing is copied between data folders');
+      assert.equal((await get(agent, '/api/data/notes/pages')).json, null, 'nothing is copied between data folders');
       assert.ok(fs.existsSync(path.join(first, 'notes', 'pages.json')), 'the old folder is left as it was');
     } finally { await agent.stop(); }
   } finally { rmHome(home); }

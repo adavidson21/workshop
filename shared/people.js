@@ -60,7 +60,7 @@ export const onTeam = p => (typeof p.team === 'boolean' ? p.team : p.relation ==
     that is neither a person nor a group. */
 export function cleanItem(it) {
   if (!it || typeof it !== 'object') return null;
-  const base = { ...it, updatedAt: Number(it.updatedAt) || 0, name: str(it.name), handle: HANDLE.test(it.handle) ? it.handle : '', archived: !!it.archived };
+  const base = { ...it, updatedAt: Number(it.updatedAt) || 0, name: str(it.name), handle: typeof it.handle === 'string' && HANDLE.test(it.handle) ? it.handle : '', archived: !!it.archived };
   if (it.kind === 'group' || isGroupId(it.id)) {
     if (!isGroupId(it.id)) return null;
     const members = Array.isArray(it.members) ? [...new Set(it.members.filter(isPersonId))].slice(0, MAX_MEMBERS) : [];
@@ -77,9 +77,26 @@ export function cleanItem(it) {
 
 /* ---------- the directory object ---------- */
 
+/** A version 1 directory (people only, no handles; Settings wrote it before groups) as version 2: the same
+    ids, fields, rev and tombstones, each item a person, and each person a handle no active person before it
+    has. Any other envelope comes back as it is, so this is safe to call on whatever was stored. */
+export function upgrade(env) {
+  if (!env || env.schema !== SCHEMA || env.version !== 1 || !Array.isArray(env.items)) return env;
+  const taken = new Set();
+  const items = env.items.map(it => {
+    if (!it || typeof it !== 'object') return it;
+    const handle = typeof it.handle === 'string' && HANDLE.test(it.handle) && !taken.has(it.handle) ? it.handle : makeHandle(str(it.name), taken);
+    if (!it.archived) taken.add(handle);
+    return { ...it, kind: 'person', handle };
+  });
+  return { ...env, version: VERSION, items };
+}
+
 /** The directory from an envelope: {items, people, groups, byId, unreadable}. A missing envelope is an empty
-    directory; one written by another version is empty with `unreadable: true` (never guessed at). */
+    directory; a version 1 one reads as upgraded (upgrade); one of any other version is empty with
+    `unreadable: true` (never guessed at). */
 export function directory(env) {
+  env = upgrade(env);
   const unreadable = !readable(env);
   const items = unreadable ? [] : (Array.isArray(env && env.items) ? env.items : []).map(cleanItem).filter(it => it && it.name);
   const byId = new Map(items.map(it => [it.id, it]));
@@ -209,6 +226,26 @@ export function create(input, items, now = Date.now()) {
   const why = problem(item, items);
   if (why) throw Object.assign(new Error(why), { code: 'bad_request' });
   return item;
+}
+
+/** People that other data already points to, as new items that keep their ids: for a one-time move from an
+    app's own list (Rapport 2.x kept its reports itself). Skips anything that is not a person with a `p_` id
+    or a name, ids already in `items`, and ids in `deleted` (removed from the directory on purpose). A
+    relation that would clash with an active you or manager becomes `contact`. Returns the new items. */
+export function adopt(list, items, deleted = {}, now = Date.now()) {
+  const out = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (!raw || !isPersonId(raw.id) || !str(raw.name)) continue;
+    const all = [...items, ...out];
+    if (all.some(it => it && it.id === raw.id) || Object.prototype.hasOwnProperty.call(deleted || {}, raw.id)) continue;
+    const draft = cleanItem({ ...raw, kind: 'person', updatedAt: now, handle: '' });
+    draft.handle = makeHandle(draft.name, takenHandles(all));
+    if (!draft.archived && (draft.relation === 'self' || draft.relation === 'manager')
+      && all.some(it => it && it.kind === 'person' && !it.archived && it.relation === draft.relation)) draft.relation = 'contact';
+    if (problem(draft, all)) continue;
+    out.push(draft);
+  }
+  return out;
 }
 
 /** The item with `patch` applied. Throws with the problem. Kind and id never change. */

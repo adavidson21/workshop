@@ -188,7 +188,7 @@ test('no copy when the data folder already has app data', async () => {
         fs.writeFileSync(path.join(dataDir, 'other', 'readme.md'), 'already here');
       }
     });
-    expectError(await get(a, '/api/data/notes/pages'), 404, 'not_found');
+    assert.equal((await get(a, '/api/data/notes/pages')).json, null);
     assert.ok(!fs.existsSync(path.join(a.home, 'data', 'moved.json')));
   } finally { await a?.stop(); }
 });
@@ -202,7 +202,7 @@ test('no copy once moved.json exists', async () => {
         fs.writeFileSync(path.join(home, 'data', 'moved.json'), JSON.stringify({ movedTo: '/somewhere/else', movedAt: '2026-10-20T10:00:00.000Z', collections: 1 }));
       }
     });
-    expectError(await get(a, '/api/data/notes/pages'), 404, 'not_found');
+    assert.equal((await get(a, '/api/data/notes/pages')).json, null);
   } finally { await a?.stop(); }
 });
 

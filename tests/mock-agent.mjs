@@ -656,8 +656,7 @@ document.getElementById('allow').addEventListener('click', function () {
       const file = inside(rel);
       if (m === 'GET') {
         const stored = readCollection(rel, file);
-        if (!stored) fail('not_found', `${app} has no ${collection} data yet.`);
-        return ok(stored);
+        return ok(stored || null); // never written: 200 with null (docs/agent-api.md)
       }
       only('GET', 'PUT');
       const body = await readBody(req, 10 * MB);
@@ -697,7 +696,7 @@ document.getElementById('allow').addEventListener('click', function () {
       const current = () => readFile(rel, file);
       if (m === 'GET') {
         const cur = current();
-        if (!cur) fail('not_found', `${app} has no file ${fpath}.`);
+        if (!cur) return ok(null); // missing: 200 with null (docs/agent-api.md)
         if (cur.size > FILE_MAX) fail('too_large', `${fpath} is larger than 10 MB.`);
         return ok(cur);
       }

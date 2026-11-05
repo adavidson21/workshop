@@ -133,7 +133,7 @@ const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + c
 const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}" title="${esc(tip)}">
   <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
-/* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
+/* The whole page. `v` is {now, profile, board, boardNote, noSummary, agents, waiting, embedded}:
    profile {name, role}; board = withNames(boardFromSummary()) or null; boardNote = why there is no board (string) or '';
    agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message};
    waiting = true while the browser's folder store needs Allow (data.js); embedded = inside the shell. */
@@ -161,6 +161,11 @@ export function render(v) {
 
   if (!v.board) {
     return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
+  }
+  if (!b && v.noSummary) {
+    // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
+    return head + `<section class="card note"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
   }
   if (!b) {
     return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>

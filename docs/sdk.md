@@ -81,6 +81,7 @@ The people directory ([people.md](people.md)): people and groups, kept in Settin
 | `ws.people.update(id, fields)` | Changes fields of one item; `id` and `kind` never change. Resolves the item. |
 | `ws.people.setMembers(groupId, ids)` | Replaces a group's members. |
 | `ws.people.archive(id)`, `ws.people.restore(id)` | Archives or restores one item. Nothing is ever deleted. |
+| `ws.people.adopt(list)` | Adds people that the app's own data already points to, keeping their `p_` ids: a one-time move from a list the app kept itself (Rapport 2.x's reports). Skips ids already in the directory or deleted from it; a second you or manager becomes a contact. Resolves the added items (none: nothing is written). Bundle 2.1.0. |
 
 Every change is checked by the rules in [people.md](people.md) and rejects with code `bad_request` and a message to show (a handle in use, a second manager, a member who is not in the directory). A directory of another version rejects changes with `unsupported`. Concurrent changes merge item by item, as for any collection.
 

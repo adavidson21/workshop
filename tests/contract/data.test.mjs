@@ -9,8 +9,10 @@ after(async () => { await agent?.stop(); });
 
 const page = (id, text, updatedAt = 1792330000000) => ({ id, updatedAt, text });
 
-test('a collection that was never written is not found', async () => {
-  expectError(await get(agent, '/api/data/notes/missing'), 404, 'not_found');
+test('a collection that was never written reads as null', async () => {
+  const res = await get(agent, '/api/data/notes/missing');
+  assert.equal(res.status, 200);
+  assert.equal(res.json, null);
 });
 
 test('an app with no data lists no collections', async () => {
@@ -78,7 +80,7 @@ test('the envelope is checked', async () => {
     expectError(res, 400, 'bad_request');
   }
   expectError(await request(agent, 'PUT', '/api/data/notes/checks', { rawBody: '{not json', headers: { 'Content-Type': 'application/json' } }), 400, 'bad_request');
-  expectError(await get(agent, '/api/data/notes/checks'), 404, 'not_found');
+  assert.equal((await get(agent, '/api/data/notes/checks')).json, null, 'nothing was written');
 });
 
 test('names in the path are checked', async () => {
