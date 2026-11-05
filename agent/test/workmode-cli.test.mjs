@@ -58,7 +58,7 @@ test('install --work-mode turns work mode on and hosted mode off, keeping the al
     assert.equal(c.features.workMode, true);
     assert.equal(c.features.hostedMode, false);
     assert.deepEqual(c.allowedOrigins, ['https://workshop.example.org']);
-    assert.match(out.join('\n'), /workshop pin/);
+    assert.match(out.join('\n'), /builds its pinned copy when it starts/);
   } finally { rm(home); rm(env.WORKSHOP_LOGIN_DIR); }
 });
 

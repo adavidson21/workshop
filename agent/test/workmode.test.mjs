@@ -104,16 +104,29 @@ test('work mode refuses hosted origins and pairing even though the origin is all
   assert.ok(!pair.text.includes('workshop-pair'));
 });
 
-test('without a usable pinned copy, "/" says why and Settings still opens so work mode can be turned off', async () => {
+test('with no pinned copy, work mode builds one from this install when it starts', async () => {
   const other = tempHome();
   fs.writeFileSync(path.join(other, 'config.json'), JSON.stringify({ configVersion: 1, features: { workMode: true } }));
   const a = await createAgent({ home: other, port: 0, dataDir: dataDirOf(other) });
   try {
+    assert.equal(fs.existsSync(path.join(other, 'ui', BUILD_FILE)), true, 'built at start');
+    assert.equal(verifyPinned(path.join(other, 'ui')).ok, true);
+    assert.equal((await get(a, '/', { auth: 'none' })).status, 200);
+  } finally { await a.stop(); rmHome(other); }
+});
+
+test('a pinned copy whose files changed is not rebuilt by itself: "/" says why and Settings still opens', async () => {
+  const other = tempHome();
+  fs.writeFileSync(path.join(other, 'config.json'), JSON.stringify({ configVersion: 1, features: { workMode: true } }));
+  const a = await createAgent({ home: other, port: 0, dataDir: dataDirOf(other) });
+  try {
+    fs.appendFileSync(path.join(other, 'ui', 'shell', 'shell.js'), '\n// changed');
     const res = await get(a, '/', { auth: 'none' });
     assert.equal(res.status, 503);
     assert.match(res.text, /workshop pin/);
     assert.equal((await get(a, '/apps/settings/', { auth: 'none' })).status, 200);
     assert.equal((await get(a, '/shell/shell.js', { auth: 'none' })).status, 404, 'no hub from the repo');
+    assert.match(fs.readFileSync(path.join(other, 'ui', 'shell', 'shell.js'), 'utf8'), /changed$/, 'left as it is');
   } finally { await a.stop(); rmHome(other); }
 });
 
