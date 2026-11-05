@@ -302,3 +302,32 @@ test('importing a backup into a board with data merges, and keeps both sides', a
   assert.deepEqual(be.files.tasks.items.map(t => t.title).sort(), want);
   assert.equal(w.board.lists.length, 1 + legacy().lists.length);
 });
+
+/* ---------- row fields (settings meta.rowFields) ---------- */
+
+test('row fields: hidden keys are saved in settings meta, and none hidden writes nothing', () => {
+  const board = newBoard();
+  board.rowFields = {hidden: []};
+  assert.equal(envelopeFromBoard('settings', board, null).meta.rowFields, undefined, 'all shown: the envelope is as before');
+  board.rowFields = {hidden: ['score', 'future-field']};
+  const env = envelopeFromBoard('settings', board, null);
+  assert.deepEqual(schemas.validate('data-envelope', env), []);
+  assert.deepEqual(env.meta.rowFields, {hidden: ['score', 'future-field']});
+  const back = newBoard();
+  applyEnvelope('settings', env, back);
+  assert.deepEqual(back.rowFields, {hidden: ['score', 'future-field']}, 'unknown keys come back too');
+  const old = newBoard();
+  applyEnvelope('settings', {items: [], meta: {updatedAt: 1, ado: {}}}, old);
+  assert.deepEqual(old.rowFields, {hidden: []}, 'a file from before row fields shows everything');
+});
+
+test('row fields: another window hears the change', async () => {
+  const be = fakeBackend();
+  const a = await openWindow(be, 'a'), b = await openWindow(be, 'b');
+  a.board.rowFields = {hidden: ['people']};
+  await a.store.flushAll(); await settle(); await b.store.idle();
+  assert.deepEqual(b.board.rowFields, {hidden: ['people']});
+  b.board.rowFields = {hidden: []};
+  await b.store.flushAll(); await settle(); await a.store.idle();
+  assert.deepEqual(a.board.rowFields, {hidden: []});
+});

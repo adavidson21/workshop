@@ -7,8 +7,9 @@
      lists     prioritizer.lists v1     items: {id, name, parentId}
      tasks     prioritizer.tasks v4     items: tasks as the board keeps them; meta: {capacity}. A task's `who` is
                                         people and group ids from Workshop's people directory (directory-model.js)
-     settings  prioritizer.settings v1  no items; meta: {ado, onboarded}, Prioritizer's own ADO behavior, and the
-                                        date the first-run tour was shown (absent until then)
+     settings  prioritizer.settings v1  no items; meta: {ado, onboarded, rowFields}, Prioritizer's own ADO behavior,
+                                        the date the first-run tour was shown (absent until then), and the optional
+                                        row fields that are hidden, {hidden: [keys]} (absent when none are)
 
    Which view, lens and scope a window shows is per window (saved with the other UI state), not data.
    tasks v4 replaced names in `people` with directory ids in `who`; a v3 file (or backup) is read, and its names
@@ -41,6 +42,7 @@ function envelopeFromBoard(col, board, shadow, held = []){
   if (col === 'settings'){
     env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
     if (board.onboarded) env.meta.onboarded = board.onboarded;
+    if (board.rowFields && Array.isArray(board.rowFields.hidden) && board.rowFields.hidden.length) env.meta.rowFields = clone(board.rowFields);
   }
   return env;
 }
@@ -60,6 +62,7 @@ function applyEnvelope(col, env, board){
   if (col === 'settings'){
     board.ado = clone(env && env.meta && env.meta.ado) || {};
     board.onboarded = env && env.meta && typeof env.meta.onboarded === 'string' ? env.meta.onboarded : null;
+    board.rowFields = clone(env && env.meta && env.meta.rowFields) || {hidden: []};
   }
   return [];
 }

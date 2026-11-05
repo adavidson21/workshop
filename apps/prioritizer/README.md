@@ -94,6 +94,10 @@ Rows and headers use small line icons instead of words; hover (or long-press) an
 - Header buttons are round icons: start the next task, plan the day, wrap up, suggest order, weekly capacity, and the solid + to add a task.
 - The bar under the header shows only while a task is running, with interrupted, pause and done, and today's switch and interruption counts.
 
+### Row fields
+
+The sliders button at the bottom of the sidebar picks which optional fields rows show: ADO item and PR numbers, AI review, agent status, due date, repeat, waiting, untouched a while, people, list color, where you left off, score, and the Start and Today buttons. A preview row shows the result as you go; changes apply on **Save**, and **Reset to defaults** shows everything again. It is one setting for every view, the Day view included, saved with the board so every window and Workshop follow it. It only hides: a view that already leaves a field out still does. Alerts that need you show either way (overdue, a blocking or asked PR, a nudge that is due, still urgent, and Pause on the task you are working on), and a task's details always show everything.
+
 ## Adding tasks
 
 Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; inside Workshop, `Ctrl+K` is Workshop's command palette, where **Add a task** is one of the commands. Optional inline tags:
@@ -225,6 +229,7 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `storage.js`, `store.js`, `store-format.js` | Saving through the SDK and keeping windows in step; the file menu; the board as four collections (pure, tested in `test/`) |
 | `quick-add.js`, `actions.js` | Quick add syntax; task actions |
 | `render.js`, `views.js` | Frame, sidebar, header, rows; each view |
+| `row-fields-model.js`, `display.js` | Which optional row fields show (pure, tested in Node); the Row fields sheet behind the sidebar sliders button |
 | `drawer.js`, `overlays.js`, `command-bar.js` | Task details; modal, menus, toast; the command bar |
 | `excel.js` | Excel export and import |
 | `drag-drop.js`, `people.js`, `events.js` | Drag and drop; people; global handlers and tooltips |
@@ -257,7 +262,7 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Storage format
 
-The board is three collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v4 (capacity in `meta`; a task's `who` is people and group ids from Workshop's people directory, [docs/people.md](https://github.com/adavidson21/workshop/blob/main/docs/people.md), read and added to with `ws.people`), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks v3 kept names in `people`; a v3 board or backup is read, and its names become contacts and ids once the directory has loaded. An old `prioritizer.people` file is left alone and not read. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is three collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v4 (capacity in `meta`; a task's `who` is people and group ids from Workshop's people directory, [docs/people.md](https://github.com/adavidson21/workshop/blob/main/docs/people.md), read and added to with `ws.people`), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, `meta.onboarded`, the date the first-run tour was shown, and `meta.rowFields`, `{hidden: [keys]}`, the optional row fields that are hidden, absent when none are; keys this version doesn't know are kept). Tasks v3 kept names in `people`; a v3 board or backup is read, and its names become contacts and ids once the directory has loaded. An old `prioritizer.people` file is left alone and not read. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
 

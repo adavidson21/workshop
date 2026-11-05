@@ -9,11 +9,12 @@ import { isDate, todayStr, uid } from './util.js';
 import { cleanCrumbs } from './focus-model.js';
 import { isRef } from '../shared/people.js';
 import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
+import { cleanRowFields } from './row-fields-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -131,6 +132,7 @@ function sanitize(s){
   if (s.ado.prListId && !ids.has(s.ado.prListId)) delete s.ado.prListId;
   s.ado.prHeld = cleanHeld(s.ado.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
   s.ado.prHoldMinutes = cleanHoldMinutes(s.ado.prHoldMinutes);
+  s.rowFields = cleanRowFields(s.rowFields);   // which optional row fields are hidden (row-fields-model.js)
   normalizeRanks(s);
   return s;
 }

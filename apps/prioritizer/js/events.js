@@ -8,6 +8,7 @@ import { engOpen } from './eng.js';
 import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
+import { openDisplay } from './display.js';
 import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
@@ -54,6 +55,7 @@ document.addEventListener('click', e => {
   if (t.closest('#addList')){ if (isWaiting()) return; askText('New list', '', name => { const n = {id: uid(), name, parentId: null}; state.lists.push(n); state.scope = n.id; commit(); }, 'Create'); return; }
   if (t.closest('#syncBtn')){ onSyncClick(t.closest('#syncBtn')); return; }
   if (t.closest('#adoBtn')){ onAdoClick(t.closest('#adoBtn')); return; }
+  if (t.closest('#displayBtn')){ openDisplay(); return; }
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }
   if (t.closest('[data-add]')){ openCmd(); return; }
   if (t.closest('[data-suggest]')){ suggestPreview(); return; }

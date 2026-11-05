@@ -406,6 +406,47 @@ def main():
         check('wrapping up lines the pick up for the next working day, saves the breadcrumb and stops the task',
               res['focusOn'] == res['next'] and res['crumb'] == 'pick up at the date edge case' and res['wrapped'] and res['active'] is None)
 
+        # ---------- row fields: hide optional fields on rows, alerts still show ----------
+        rf = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA');
+          const add = (n, x) => {{ const c = new Date(d + 'T12:00'); c.setDate(c.getDate() + n); return c.toLocaleDateString('en-CA'); }};
+          const base = {{done: false, value: 3, effort: 'M', ageFrom: d, who: [], listId: P.state.lists[0].id, rank: 0}};
+          const html = (t, o) => {{ const div = document.createElement('div'); div.innerHTML = P.row(Object.assign({{}}, base, t), o); return div.firstElementChild; }};
+          const all = ['ado','pr','prai','agent','due','repeat','waiting','stale','people','list','crumb','score','start','today'];
+          const soon = html({{id: 'x1', title: 'Soon', due: add(2), ado: {{id: 7}}}}, {{hidden: all}});
+          const late = html({{id: 'x2', title: 'Late', due: add(-2)}}, {{hidden: all}});
+          const pr = html({{id: 'x3', title: 'PR', pr: {{id: 9, repo: 'r', tier: 'blocking', via: []}}}}, {{hidden: all}});
+          const nudge = html({{id: 'x4', title: 'Nudge', waiting: true, nudgeOn: add(-1)}}, {{hidden: all}});
+          const shown = html({{id: 'x5', title: 'Shown', due: add(2), ado: {{id: 7}}}}, {{start: true, hidden: []}});
+          return {{
+            soonCal: !!soon.querySelector('.sig.soon'), soonAdo: !!soon.querySelector('.sig.ado'), soonScore: !!soon.querySelector('.score'), soonToday: !!soon.querySelector('.tday'),
+            lateCal: !!late.querySelector('.sig.warn'), prNum: !!pr.querySelector('.sig.ado'), prBlock: !!pr.querySelector('.sig.warn'),
+            nudge: !!nudge.querySelector('.sig.acc'), shownAll: !!(shown.querySelector('.sig.ado') && shown.querySelector('.sig.soon') && shown.querySelector('.score') && shown.querySelector('.tday') && shown.querySelector('.tstart'))
+          }}; }}""")
+        check('row fields hide optional fields', not rf['soonCal'] and not rf['soonAdo'] and not rf['soonScore'] and not rf['soonToday'])
+        check('row fields keep alerts: overdue, blocking PR (number hidden), nudge due', rf['lateCal'] and rf['prBlock'] and not rf['prNum'] and rf['nudge'])
+        check('with nothing hidden every field shows', rf['shownAll'])
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+        pg.evaluate(f"() => {{ {P}.state.view = 'today'; {P}.commit(); }}"); pg.wait_for_timeout(200)
+        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        check('the Display button opens Row fields with a preview row', pg.locator('.modal .rowfields').count() == 1 and pg.locator('.modal .rfprev .row').count() == 1
+              and pg.locator('.modal .rfprev .row .who').count() == 1 and pg.locator('.modal [data-rf]').count() == 14)
+        pg.uncheck('.modal [data-rf=score]'); pg.uncheck('.modal [data-rf=people]'); pg.wait_for_timeout(100)
+        check('the preview follows the checkboxes', pg.locator('.modal .rfprev .row .score').count() == 0 and pg.locator('.modal .rfprev .row .who').count() == 0)
+        pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-rowfields.png'))
+        pg.click('.modal [data-close].btn'); pg.wait_for_timeout(150)
+        check('Cancel changes nothing', pg.evaluate(f"{P}.state.rowFields.hidden") == [])
+        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        pg.uncheck('.modal [data-rf=score]'); pg.uncheck('.modal [data-rf=people]')
+        pg.click('.modal [data-rfsave]'); pg.wait_for_timeout(300)
+        check('Save hides the fields on the board', sorted(pg.evaluate(f"{P}.state.rowFields.hidden")) == ['people', 'score']
+              and pg.locator('main .row').count() > 0 and pg.locator('main .row .score').count() == 0 and pg.locator('main .row .who').count() == 0)
+        pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
+        pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
+        check('row fields survive a reload', sorted(pg.evaluate(f"{P}.state.rowFields.hidden")) == ['people', 'score'] and pg.locator('main .row .score').count() == 0)
+        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        pg.click('.modal [data-rfreset]'); pg.click('.modal [data-rfsave]'); pg.wait_for_timeout(300)
+        check('Reset to defaults shows everything again', pg.evaluate(f"{P}.state.rowFields.hidden") == [])
+
         pg.wait_for_function('navigator.serviceWorker.controller !== null || navigator.serviceWorker.getRegistration().then(r => !!r)', timeout=10000)
         scope = pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r && r.scope)")
         check('it registers its own service worker for the whole site', scope == SITE + '/')

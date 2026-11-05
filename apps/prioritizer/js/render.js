@@ -14,6 +14,7 @@ import { fmt12, repeatLabel } from './dayplan-model.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
+import { rowShown } from './row-fields-model.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
@@ -122,56 +123,61 @@ function renderHead(){
 }
 
 /* rows */
+/* One task row. Optional fields follow the Row fields setting (state.rowFields, or o.hidden for the settings
+   preview); alerts that need you show either way. o.preview: {names, list, agent} stand in for the directory,
+   the board's lists and the agent's status, so the preview row shows every field. */
 function row(t, o = {}){
-  const multi = scopeListIds().length > 1;
-  const L = listById(t.listId);
+  const on = rowShown(o.hidden || (state.rowFields && state.rowFields.hidden));
+  const pv = o.preview || null;
+  const multi = pv ? !!pv.list : scopeListIds().length > 1;
+  const L = pv ? pv.list : listById(t.listId);
   const tr = t.done ? null : tier(t);
   const s = score(t);
   let meta = '';
   // Signals are icons with a tooltip (data-tip and aria-label say the words). Color only when it needs you.
   const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" data-tip="${esc(tip)}" role="img" aria-label="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
-  if (t.ado){
+  if (t.ado && on('ado')){
     const tip = `${t.ado.url ? 'Open ' : ''}ADO ${t.ado.type || 'item'} #${t.ado.id}${t.ado.state ? ', ' + t.ado.state : ''}`;
     meta += t.ado.url
       ? `<a class="sig ado txt" href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${ICON.item}<b>${t.ado.id}</b></a>`
       : sig(ICON.item, tip, 'ado', String(t.ado.id));
   }
-  if (t.ado && !t.done) meta += engChip(t.ado.id);
-  if (t.recur){
+  if (t.ado && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.ado.id);
+  if (t.recur && on('repeat')){
     const item = dp.recurring.find(r => r.id === t.recur.id);
     const tip = item ? repeatLabel(item) + (t.recur.sprint ? `: sprint ${t.recur.sprint}` : '') : `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`;
     meta += sig(ICON.repeat, tip, 'recur', item && item.at ? fmt12(item.at) : '');
   }
   if (t.pr){
-    meta += sig(ICON.pr, prTip(t.pr), 'ado', String(t.pr.id));
+    if (on('pr')) meta += sig(ICON.pr, prTip(t.pr), 'ado', String(t.pr.id));
     if (!t.done && !t.pr.waiting){
       const tip = (t.pr.lastBlocker ? 'Last approval needed. ' : '') + PR_TIER[t.pr.tier].tip;
       if (t.pr.tier === 'blocking') meta += sig(ICON.block, tip, 'warn');
       else if (t.pr.tier === 'asked') meta += sig(ICON.eye, tip, 'acc');
     }
-    meta += prAiChip(t);
+    if (on('prai')) meta += prAiChip(t);
   }
   if (!t.done){
     if (nudgeDue(t)) meta += sig(ICON.bell, `Time to nudge. Follow-up date ${fmtLong(t.nudgeOn)}`, 'acc');
-    else if (t.waiting) meta += sig(ICON.wait, 'Waiting on someone');
-    if (t.due){
-      const d = daysBetween(today(), t.due);
+    else if (t.waiting && on('waiting')) meta += sig(ICON.wait, 'Waiting on someone');
+    const d = t.due ? daysBetween(today(), t.due) : 0;
+    if (t.due && (d < 0 || on('due'))){   // overdue shows even with due dates hidden
       meta += sig(ICON.cal, `${d < 0 ? 'Overdue. ' : ''}Due ${fmtLong(t.due)}`, d < 0 ? 'warn' : d <= 3 ? 'soon' : '', fmtDay(t.due));
     }
     if (stillUrgent(t)) meta += `<button class="sig warn" data-act="still" data-tip="Urgent for over a week. Click to make it not urgent." aria-label="Still urgent? Click to make it not urgent">${ICON.alert}</button>`;
-    else if (isStale(t)) meta += sig(ICON.stale, `Untouched for ${ageDays(t)} days. It's back in Triage.`, 'stale');
+    else if (isStale(t) && on('stale')) meta += sig(ICON.stale, `Untouched for ${ageDays(t)} days. It's back in Triage.`, 'stale');
   }
-  if (!o.compact){
-    const ppl = namesOf(t.who.filter(p => p !== o.skipPerson));
+  if (!o.compact && on('people')){
+    const ppl = pv ? pv.names : namesOf(t.who.filter(p => p !== o.skipPerson));
     if (ppl.length) meta += `<span class="who" data-tip="${esc(ppl.join(', '))}" role="img" aria-label="${esc(ppl.join(', '))}">${ppl.slice(0, 2).map(p => `<i class="av">${esc(initials(p))}</i>`).join('')}${ppl.length > 2 ? `<i class="av more">+${ppl.length - 2}</i>` : ''}</span>`;
   }
-  if ((!o.compact || o.showList) && multi && L) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
+  if ((!o.compact || o.showList) && multi && L && on('list')) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
   const fon = t.focusOn === todayStr();
   // The score is on hover; the priority bar on the left already shows the tier.
-  const scoreHtml = t.done || o.noScore ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
+  const scoreHtml = t.done || o.noScore || !on('score') ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
     : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in Triage." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
-  const act = !t.done && isActive(t.id), crumb = o.crumb ? rowCrumb(t) : '';
+  const act = !pv && !t.done && isActive(t.id), crumb = o.crumb && on('crumb') ? rowCrumb(t) : '';
   return `<article class="row${t.done ? ' done' : ''}${!t.done && t.pr && t.pr.ai && t.pr.ai.state === 'pending' ? ' aipend' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
     + (o.rank != null ? `<span class="rank">${o.rank}</span>` : '')
     + `<button class="check" data-act="done" aria-label="${t.done ? 'Reopen' : 'Complete'}" title="${t.done ? 'Reopen' : 'Complete'}"><i>${ICON.check}</i></button>`
@@ -179,8 +185,8 @@ function row(t, o = {}){
     + (crumb ? `<span class="tcol"><span class="title">${esc(t.title)}</span>${crumb}</span>` : `<span class="title">${esc(t.title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
     + scoreHtml
-    + (o.start && !t.done ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
-    + (t.done || o.noToday ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
+    + (o.start && !t.done && (on('start') || act) ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
+    + (t.done || o.noToday || !on('today') ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;
 }
 const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="donegrp" id="doneGrp"${doneOpen ? ' open' : ''}><summary>${ICON.tri}${label} <span class="num">${ts.length}</span></summary>
