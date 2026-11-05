@@ -1,5 +1,5 @@
-/* Receipts styles. Colors and fonts come from ../../shared/themes.css, buttons and type helpers from
-   ../../shared/ui.css. Editorial like the other tools: flat paper backgrounds, serif titles, mono labels,
+/* Receipts styles. Colors and fonts come from shared/themes.css, buttons and type helpers from
+   shared/ui.css. Editorial like the other tools: flat paper backgrounds, serif titles, mono labels,
    hairline rules. No gradients. */
 html{font-size:clamp(14px,.25vw + 12px,16px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}

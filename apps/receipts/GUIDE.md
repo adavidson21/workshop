@@ -1,6 +1,6 @@
 # Rapport
 
-Receipts, 1:1s and goals for you, your reports and your manager. Rapport was called Receipts until 2.0.0, when it took in the 1:1s app; its app id is still `receipts`, so its data, folder and links did not move. Full guide and source of truth: [adavidson21/receipts](https://github.com/adavidson21/receipts). This folder is a copy of that repo's `apps/receipts/`.
+Receipts, 1:1s and goals for you, your reports and your manager. Rapport was called Receipts until 2.0.0, when it took in the 1:1s app; its app id is still `receipts`, so its data, folder and links did not move. Full guide: [README.md](README.md).
 
 - **Me**: your own receipts for a self review. Star the ones that should lead your review.
 - **Reports**: one page per direct report. At the top, your 1:1 with them: prep from what Docket and Rapport know since your last 1:1, and today's note. Below, their receipts (wins, feedback given, growth areas, concerns). Anyone with nothing noted in 30 days is flagged.

@@ -1,6 +1,6 @@
 // A fake Workshop SDK and synthetic envelopes for Rapport's 1:1s tests. Everything here is made up.
-import { data as rules } from '../../../shared/workshop-sdk.js';
-import { directory } from '../../../shared/people.js';
+import { data as rules } from '../shared/workshop-sdk.js';
+import { directory } from '../shared/people.js';
 
 export const TODAY = '2026-11-03';
 export const NOW = new Date(2026, 10, 3, 15, 0, 0).getTime();

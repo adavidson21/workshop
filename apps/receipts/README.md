@@ -63,28 +63,29 @@ Browser storage is per site: receipts saved on receipts.alexisdavidson.org are n
 Plain HTML, CSS and JavaScript modules. No build step, no dependencies.
 
 ```
-apps/receipts/          the app (a Workshop app: app.json, index.html, app.css, js/)
-  js/state.js           pure logic: periods, filters, review builder, CSV, offers from other apps
-  js/main.js            the page: rendering, input, data through the SDK
-  js/markdown.js        the escaping Markdown renderer for 1:1 notes and goals
-  js/oneonones/         the 1:1s parts: model.js and view.js (pure), data.js (SDK, no DOM),
+app.json, index.html,   the app (a Workshop app), at the repo root like Docket and Runway
+  app.css, icon.svg
+js/state.js             pure logic: periods, filters, review builder, CSV, offers from other apps
+js/main.js              the page: rendering, input, data through the SDK
+js/markdown.js          the escaping Markdown renderer for 1:1 notes and goals
+js/oneonones/           the 1:1s parts: model.js and view.js (pure), data.js (SDK, no DOM),
                         page.js (the 1:1s tab and the section on a report's page)
-  js/goals/             the Goals tab: model.js and view.js (pure), page.js (the tree and a doc)
+js/goals/               the Goals tab: model.js and view.js (pure), page.js (the tree and a doc)
 shared/                 copied from the workshop repo: the SDK (storage), themes, fonts, top bar
-worker/index.js         Cloudflare Worker: serves apps/receipts/ at "/" and adds security headers
 sw.js                   service worker: install as an app, open offline
-apps/receipts/test/     node tests for state.js, the 1:1s and Goals modules (test/ has the Worker routing test)
+test/                   node tests for state.js, the 1:1s and Goals modules
+GUIDE.md                data reference (collections, files, moving from 1:1s)
 ```
 
-Data uses Workshop's envelope format (collections `entries`, `people`, `config`, `oneonones/people` and `oneonones/settings`, plus Workshop's people directory `settings.people`, read only; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other. 1:1 notes are Markdown files under `oneonones/notes/`, and goals under `goals/team/<yyyy-qN>.md` and `goals/<person>/<yyyy-qN>.md`. Details in [apps/receipts/README.md](apps/receipts/README.md).
+Data uses Workshop's envelope format (collections `entries`, `people`, `config`, `oneonones/people` and `oneonones/settings`, plus Workshop's people directory `settings.people`, read only; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other. 1:1 notes are Markdown files under `oneonones/notes/`, and goals under `goals/team/<yyyy-qN>.md` and `goals/<person>/<yyyy-qN>.md`. Details in [GUIDE.md](GUIDE.md).
 
-`shared/` is a copy of the workshop repo's `shared/` files that Rapport uses. When Workshop's SDK or themes change, copy them over again.
+`shared/` is a copy of the workshop repo's `shared/` files that Rapport uses, pinned in `workshop-files.json`. When Workshop's SDK or themes change, run `node scripts/sync-workshop.mjs --update`.
 
 ### Run it locally
 
 ```bash
 npm test          # node 22+
-npm run dev       # serves on http://localhost:8080, then open /apps/receipts/
+npm run dev       # serves on http://localhost:8080
 ```
 
 ### Deploy
@@ -93,8 +94,8 @@ npm run dev       # serves on http://localhost:8080, then open /apps/receipts/
 npx wrangler deploy
 ```
 
-The Worker is named `receipts` and serves the custom domain `receipts.alexisdavidson.org` (see `wrangler.jsonc`).
+The Worker is named `receipts` and serves the custom domain `receipts.alexisdavidson.org` (see `wrangler.jsonc`). Workshop shows Rapport by proxying `/apps/receipts/` to this Worker, so a deploy here updates both.
 
-### Updating the copy in Workshop
+### Releases and work mode
 
-Workshop carries a copy of `apps/receipts/`. After changing the app here, copy the folder into the workshop repo's `apps/receipts/` and run `node shell/registry.mjs` there.
+This repo is the only copy of Rapport. Workshop serves it from here (a service binding on its site, and a `receipts` clone next to Workshop in work mode), like Docket and Runway. Work mode installs and updates only by release tag: Actions > Release > Run workflow, with a tag like `v3.0.0`. Workshop's `workshop update --latest` picks up the newest one.

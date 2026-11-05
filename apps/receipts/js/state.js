@@ -7,7 +7,7 @@
      config   no items; meta holds settings: {sections, cycleStart, cycleEnd, upward, staleDays}.
    Nothing here talks to the network. */
 
-import { SITE } from '../../../shared/site.js';
+import { SITE } from '../shared/site.js';
 
 export const APP = 'receipts';
 export const VERSION = 1;

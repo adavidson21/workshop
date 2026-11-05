@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Keep the receipts for performance reviews. Stays on your device.",
   "scripts": {
-    "test": "node --test test/*.test.mjs apps/*/test/*.test.mjs",
+    "test": "node --test test/*.test.mjs",
     "dev": "npx --yes http-server -p 8080 -c-1 .",
     "deploy": "npx wrangler deploy"
   }

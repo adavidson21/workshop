@@ -11,11 +11,11 @@
    storage, or a folder on this computer once you pick one in Settings. Inside Workshop it is Workshop's
    storage. The page makes no other network requests (see the CSP in index.html). state.js is the logic;
    this file paints and handles input. */
-import { connect } from '../../../shared/workshop-sdk.js';
-import { mountBar } from '../../../shared/standalone-bar.js';
+import { connect } from '../shared/workshop-sdk.js';
+import { mountBar } from '../shared/standalone-bar.js';
 import * as R from './state.js';
-import * as D from '../../../shared/people.js';
-import { createSummaryWriter } from '../../../shared/summary.js';
+import * as D from '../shared/people.js';
+import { createSummaryWriter } from '../shared/summary.js';
 import { createOneOnOnesPage } from './oneonones/page.js';
 import { createGoalsPage } from './goals/page.js';
 
