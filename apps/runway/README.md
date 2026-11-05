@@ -148,4 +148,4 @@ Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reloa
 
 ## License
 
-MIT
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: `shared/fonts/OFL-*.txt`.
