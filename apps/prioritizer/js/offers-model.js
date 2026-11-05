@@ -95,6 +95,7 @@ const cleanHandled = h => Array.isArray(h) ? [...new Set(h.filter(k => typeof k 
    as Quick add syntax. A task keeps `from: {app, id}`, so the same capture is never added twice even after the
    handled list is trimmed. */
 const MAX_PEOPLE = 10;
+const REF = /^[pg]_[A-Za-z0-9_-]{1,100}$/;
 const taskKey = (app, h) => `${app}:${h.id}:task`;
 
 function cleanTaskOffer(app, h){
@@ -103,9 +104,9 @@ function cleanTaskOffer(app, h){
   if (!p || typeof p !== 'object' || p.kind !== 'task') return null;
   const title = str(p.title, 300) || str(h.text, 300);
   if (!title) return null;
-  const people = Array.isArray(p.people) ? [...new Set(p.people.map(n => str(n, 80)).filter(Boolean))].slice(0, MAX_PEOPLE) : [];
+  const who = Array.isArray(p.who) ? [...new Set(p.who.filter(id => typeof id === 'string' && REF.test(id)))].slice(0, MAX_PEOPLE) : [];
   return {
-    key: taskKey(app, h), app, from: SENDERS[app] || app, id: h.id, title, people,
+    key: taskKey(app, h), app, from: SENDERS[app] || app, id: h.id, title, who,
     list: str(p.list, 120), waiting: p.waiting === true, due: isDate(p.due) ? p.due : null, urgent: p.urgent === true,
     value: Number.isInteger(p.value) && p.value >= 1 && p.value <= 4 ? p.value : null,
     effort: EFFORTS.includes(p.effort) ? p.effort : null,
@@ -130,15 +131,15 @@ function listFor(o, lists, fallback){
   return hit ? hit.id : fallback;
 }
 
-/* A new task from an accepted offer. ctx: {id, listId, rank, color, today}. people are names; the caller
-   makes them Docket's canonical spellings. */
+/* A new task from an accepted offer. ctx: {id, listId, rank, color, today}. `who` are people directory ids
+   (Workshop docs/handoffs.md), kept as sent. */
 function taskFromOffer(o, ctx){
   return {
     id: ctx.id, title: o.title, notes: o.notes, color: ctx.color, rank: ctx.rank,
     value: o.value, effort: o.effort, due: o.due, urgentFlag: o.urgent,
     listId: ctx.listId, done: false, doneAt: null, wontDo: false,
     createdAt: ctx.today, ageFrom: ctx.today, waiting: o.waiting, nudgeOn: null, focusOn: null,
-    people: o.people.slice(), from: {app: o.app, id: o.id}
+    who: o.who.slice(), from: {app: o.app, id: o.id}
   };
 }
 

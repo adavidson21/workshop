@@ -5,13 +5,15 @@ import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
 import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
-import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, trapTab } from './overlays.js';
+import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
-import { canonPerson, commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
+import { commit, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
+import { addPerson } from './directory.js';
+import { nameOf } from './directory-model.js';
 import { copyText, exitTriage, fitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
@@ -84,8 +86,12 @@ document.addEventListener('click', e => {
     commit(); return;
   }
   if (t.closest('[data-pickall]')){ setShowAllPick(!showAllPick); render(); return; }
-  const dp = t.closest('[data-dir-person]'); if (dp){ canonPerson(dp.dataset.dirPerson); commit(); return; }
-  if (t.closest('[data-addperson]')){ askText('Add a person', '', n => { canonPerson(n); commit(); }, 'Add'); return; }
+  const dp = t.closest('[data-dir-person]');
+  if (dp){ const id = dp.dataset.dirPerson; askText(`Add a task for ${nameOf(id)}`, '', v => addTask(v, {who: [id]}), 'Add'); return; }
+  if (t.closest('[data-addperson]')){
+    askText('Add a person', '', n => addPerson(n).then(it => { if (it) toast(`${it.name} is @${it.handle}. Type that in any task.`); }), 'Add');
+    return;
+  }
   const wk = t.closest('[data-week]'); if (wk){ if (!wk.disabled){ setWeekOff(Math.min(0, weekOff + +wk.dataset.week)); render(); } return; }
   if (t.closest('[data-copy-recap]')){ copyText(recapText(recapData())); return; }
   const qa = t.closest('[data-qadd]'); if (qa){ setOpenQuad(openQuad === qa.dataset.qadd ? null : qa.dataset.qadd); render(); return; }
@@ -117,7 +123,7 @@ document.addEventListener('submit', e => {
   if (pf){
     e.preventDefault();
     const p = pf.dataset.person;
-    if (addTask(pf.querySelector('input').value, {people: [p], ado: takePasted(pf.querySelector('input'))})){
+    if (addTask(pf.querySelector('input').value, {who: [p], ado: takePasted(pf.querySelector('input'))})){
       const again = [...document.querySelectorAll('.pform')].find(x => x.dataset.person === p);
       if (again) again.querySelector('input').focus();
     }

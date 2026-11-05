@@ -3,15 +3,20 @@ import assert from 'node:assert/strict';
 import { buildSummary, horizon, wrapAt, HORIZON } from '../js/summary.js';
 import { freshDayplan, cleanDayplan } from '../js/dayplan-model.js';
 import { SchemaSet } from './workshop/schema.mjs';
+import { directory } from '../shared/people.js';
+
+const dir = directory({schema: 'settings.people', version: 2, rev: 1, items: [
+  {id: 'p_one', kind: 'person', name: 'Person One', handle: 'person', relation: 'report'},
+  {id: 'p_two', kind: 'person', name: 'Person Two', handle: 'two', relation: 'manager'},
+  {id: 'g_lead', kind: 'group', name: 'Leadership', handle: 'leadership', members: ['p_one', 'p_two']}]});
 
 const TODAY = '2026-11-04'; // a Wednesday
 const board = () => ({
   lists: [{id: 'l1', name: 'Inbox'}, {id: 'l2', name: 'Team'}],
-  people: ['Person One', 'Person Two'],
   tasks: [
-    {id: 't1', listId: 'l1', title: 'Write the guide', rank: 2, value: 3, effort: 'S', ageFrom: TODAY, due: '2026-11-03', people: ['Person One']},
-    {id: 't2', listId: 'l1', title: 'Wait for review', rank: 1, waiting: true, people: ['person one'], nudgeOn: '2026-11-05', ageFrom: TODAY},
-    {id: 't3', listId: 'l2', title: 'Plan the sprint', rank: 3, focusOn: TODAY, due: '2026-11-09', ageFrom: TODAY},
+    {id: 't1', listId: 'l1', title: 'Write the guide', rank: 2, value: 3, effort: 'S', ageFrom: TODAY, due: '2026-11-03', who: ['p_one']},
+    {id: 't2', listId: 'l1', title: 'Wait for review', rank: 1, waiting: true, who: ['p_one'], nudgeOn: '2026-11-05', ageFrom: TODAY},
+    {id: 't3', listId: 'l2', title: 'Plan the sprint', rank: 3, focusOn: TODAY, due: '2026-11-09', ageFrom: TODAY, who: ['g_lead']},
     {id: 't4', listId: 'l2', title: 'Done today', rank: 4, done: true, doneAt: TODAY, focusOn: TODAY, value: 2, effort: 'M', ageFrom: TODAY},
     {id: 't5', listId: 'gone', title: 'Orphan', rank: 5}
   ]
@@ -28,24 +33,25 @@ const log = {days: {[TODAY]: {id: TODAY, events: [{at: 'x', type: 'shutdown'}]}}
 
 test('summary: every card matches docs/summaries.md (summary-card schema)', () => {
   const schemas = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
-  for (const c of buildSummary({board: board(), dp: plan(), log, today: TODAY})){
+  for (const c of buildSummary({board: board(), dir, dp: plan(), log, today: TODAY})){
     assert.deepEqual(schemas.validate('summary-card', Object.assign({updatedAt: 1}, c)), [], c.id);
   }
 });
 
 test('summary: board counts per day, Up next and the team', () => {
-  const [b] = buildSummary({board: board(), dp: plan(), log, today: TODAY});
+  const [b] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
   assert.deepEqual(Object.keys(b.days), horizon(TODAY));
   assert.equal(Object.keys(b.days).length, HORIZON);
   assert.deepEqual(b.days[TODAY], {total: 4, open: 3, focus: {total: 2, done: 1}, triage: 2, overdue: 1, dueWeek: 1});
   assert.equal(b.days['2026-11-10'].overdue, 2, 'the 11-09 task is overdue by then');
   assert.deepEqual(b.upNext.map(t => t.id), ['t1', 't3'], 'waiting and done tasks are not up next');
   assert.equal(b.upNext[0].list, 'Inbox');
-  assert.deepEqual(b.team[0], {name: 'Person One', open: 2, waiting: 1});
+  assert.deepEqual(b.upNext[0].who, ['p_one']);
+  assert.deepEqual(b.team, [{id: 'p_one', name: 'Person One', open: 3, waiting: 1}, {id: 'p_two', name: 'Person Two', open: 1, waiting: 0}], 'people through their groups too; groups are not team rows');
 });
 
 test('summary: day blocks with tasks, Wrap up time, wrapped and offers', () => {
-  const [, d] = buildSummary({board: board(), dp: plan(), log, today: TODAY});
+  const [, d] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
   const today = d.days[TODAY];
   assert.deepEqual(today.blocks.map(b => [b.name, b.at, b.until]), [['Deep work', '09:00', '11:00'], ['Meetings', '13:00', '14:00']]);
   assert.deepEqual(today.blocks[0].tasks.map(t => t.id).sort(), ['t1', 't3']);
@@ -58,9 +64,11 @@ test('summary: day blocks with tasks, Wrap up time, wrapped and offers', () => {
 });
 
 test('summary: lists as capture targets, and people with open and waiting tasks', () => {
-  const [, , lists, people] = buildSummary({board: board(), dp: plan(), log, today: TODAY});
+  const [, , lists, people] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
   assert.deepEqual(lists, {id: 'lists', kind: 'targets', title: 'Lists', capture: 'task', rows: [{id: 'l1', title: 'Inbox'}, {id: 'l2', title: 'Team'}]});
-  const one = people.rows.find(r => r.name === 'Person One');
-  assert.deepEqual(one.open.map(t => t.id), ['t1']);
-  assert.deepEqual(one.waiting, [{id: 't2', title: 'Wait for review', due: '', nudgeOn: '2026-11-05'}]);
+  const one = people.rows.find(r => r.id === 'p_one');
+  assert.deepEqual(one.open.map(t => [t.id, t.via]), [['t1', ''], ['t3', 'g_lead']]);
+  assert.deepEqual(one.waiting, [{id: 't2', title: 'Wait for review', due: '', nudgeOn: '2026-11-05', via: ''}]);
+  assert.deepEqual(people.rows.find(r => r.id === 'g_lead').open.map(t => [t.id, t.via]), [['t3', '']]);
+  assert.deepEqual(people.rows.map(r => r.id).sort(), ['g_lead', 'p_one', 'p_two']);
 });

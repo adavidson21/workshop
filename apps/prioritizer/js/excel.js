@@ -4,6 +4,8 @@ import { closeModal, showModal, toast } from './overlays.js';
 import { commit, listById, migrateTask, orderedLists, sanitize, setState, state, topLists } from './state.js';
 import { dateStr, isDate, plural, todayStr, uid } from './util.js';
 import { saveFile } from '../shared/save-file.js';
+import { namesOf } from './directory-model.js';
+import { adoptNames } from './directory.js';
 /* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
 /* ---------- excel export / import ---------- */
 const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
@@ -38,7 +40,7 @@ function buildWorkbook(){
       'Status': t.wontDo ? "Won't do" : t.done ? 'Done' : 'Open', 'Completed On': t.doneAt || '',
       'Value': t.value ? VALUE[t.value] : '', 'Effort': t.effort || '', 'Due': t.due || '', 'Urgent': t.urgentFlag ? 'Yes' : '',
       'Score': score(t) == null ? '' : Math.round(score(t) * 10) / 10,
-      'Focus On': t.focusOn || '', 'Waiting': t.waiting ? 'Yes' : '', 'Nudge On': t.nudgeOn || '', 'People': t.people.join(', '),
+      'Focus On': t.focusOn || '', 'Waiting': t.waiting ? 'Yes' : '', 'Nudge On': t.nudgeOn || '', 'People': namesOf(t.who).join(', '),
       'Age From': t.ageFrom || '', 'Created': t.createdAt || '', 'ID': t.id,
       'ADO ID': t.ado ? t.ado.id : '', 'ADO Type': t.ado ? t.ado.type : '', 'ADO State': t.ado ? t.ado.state : '', 'ADO Link': t.ado ? t.ado.url : '',
       'PR Key': t.pr ? t.pr.key : '', 'PR Link': t.pr ? t.pr.url : ''
@@ -170,6 +172,7 @@ function doImport(p, mode){
   }
   setState(sanitize(state));
   commit();
+  adoptNames();
   toast(`Imported ${plural(p.tasks.length,'task')}`);
 }
 function importFile(file){

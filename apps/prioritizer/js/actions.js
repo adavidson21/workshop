@@ -3,9 +3,10 @@ import { closeDrawer, drawerId, openDrawer } from './drawer.js';
 import { urgency } from './model.js';
 import { toast } from './overlays.js';
 import { parseQuick } from './quick-add.js';
-import { canonPerson, cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state } from './state.js';
+import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state } from './state.js';
 import { fmtDay, todayStr, uid } from './util.js';
 import { focusTaskClosed } from './focus.js';
+import { assign } from './directory.js';
 /* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
 /* ---------- task actions ---------- */
 function addTask(text, attrs = {}){
@@ -16,7 +17,6 @@ function addTask(text, attrs = {}){
     const have = state.tasks.find(x => x.ado && x.ado.id === ado.id && !x.done);
     if (have){ toast(`${ado.type || 'Item'} ${ado.id} is already on your board`, 'Open', () => openDrawer(have.id)); return null; }
   }
-  const people = [...new Set([...(attrs.people || []), ...p.people].map(canonPerson).filter(Boolean))];
   const maxRank = state.tasks.reduce((m,t) => Math.max(m, t.rank), 0);
   const t = {
     id: uid(), title: p.title, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank: maxRank + 1,
@@ -26,7 +26,8 @@ function addTask(text, attrs = {}){
   };
   for (const k of ['focusOn','waiting']) if (k in attrs) t[k] = attrs[k];
   if (attrs.quad) applyDrop(t, attrs.quad.zone, attrs.quad.kind);
-  t.people = people;
+  t.who = [];
+  assign(t, [...(attrs.who || []), ...p.people]);
   if (ado) t.ado = ado;
   state.tasks.push(t);
   commit();

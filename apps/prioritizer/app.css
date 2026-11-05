@@ -234,6 +234,8 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .panel>header .n,.pcard>header .n{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
 .panel>header .lnk{margin-left:auto}
 .pempty{font-size:.86rem;color:var(--muted);padding:.7rem 0;border-top:1px solid var(--rule)}
+.pmembers{font-size:.8rem;color:var(--muted);margin:-.2rem 0 .3rem}
+.pcard .avatar svg{width:1.1em;height:1.1em}
 
 /* ---------- triage ---------- */
 .tri{max-width:42rem;margin:.6rem auto 0}

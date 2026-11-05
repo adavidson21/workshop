@@ -54,7 +54,7 @@ function recurTick(){
       value: item.value, effort: item.effort, due: dueOn, urgentFlag: false,
       listId: item.listId && listById(item.listId) ? item.listId : topLists()[0].id,
       done: false, doneAt: null, wontDo: false, createdAt: start, ageFrom: start,
-      waiting: false, nudgeOn: null, focusOn: day || null, people: [],
+      waiting: false, nudgeOn: null, focusOn: day || null, who: [],
       recur: day ? {id: item.id, day} : {id: item.id, sprint}
     });
     made++;

@@ -20,7 +20,7 @@ import { dp, recurTick } from './dayplan.js';
 import * as focusModel from './focus-model.js';
 import { focusCommand, focusLog, fstore, openShutdown } from './focus.js';
 import { toggleDone } from './actions.js';
-import { activeTask } from './focus.js';
+import { activeTask, startNext } from './focus.js';
 import * as dayModel from './dayplan-model.js';
 import { offers, watchSender } from './offers.js';
 import { boot, dstore } from './storage.js';

@@ -4,9 +4,10 @@ import { flushText } from './drawer.js';
 import { hideTip, placeTip, tipFor } from './events.js';
 import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
 import { setScope, setView } from './render.js';
-import { PR_GONES, canonPerson, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
+import { PR_GONES, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
 import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
 import { ready } from './ws.js';
+import { assign } from './directory.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector or the local helper (ado-helper/ado_helper.py). */
 /* ---------- Azure DevOps ----------
    Where the data comes from: the ADO connector, when this page runs on Workshop's agent and the connector is
@@ -50,7 +51,7 @@ function adoAddItem(it, rank){
   const link = {id: it.id, type: it.type, state: it.state, url: it.url, project: it.project, due: isDate(it.due) ? it.due : undefined};
   const nt = {id: uid(), title: it.title || `ADO #${it.id}`, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank,
     value: ADO_VALUE[it.priority] || null, effort: null, due: link.due || null, urgentFlag: false, listId: adoList().id,
-    done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: todayStr(), waiting: false, nudgeOn: null, focusOn: null, people: []};
+    done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: todayStr(), waiting: false, nudgeOn: null, focusOn: null, who: []};
   nt.ado = cleanAdo(link);
   state.tasks.push(nt);
   return nt;
@@ -164,7 +165,8 @@ function prApply(prs, n){
       const nt = {id: uid(), title, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank: ++maxRank,
         value: tier.value, effort: 'S', due: null, urgentFlag: tier.urgent, listId: prList().id,
         done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: isDate(it.created) ? it.created : todayStr(),
-        waiting: link.waiting, nudgeOn: null, focusOn: null, people: link.waiting && link.author ? [canonPerson(link.author)] : []};
+        waiting: link.waiting, nudgeOn: null, focusOn: null, who: []};
+      if (link.waiting && link.author) assign(nt, [link.author], {ado: true});
       nt.pr = link;
       state.tasks.push(nt); n.added++; n.prAdded++; if (link.tier === 'blocking' && !link.waiting) n.prBlocking++;
       continue;
@@ -183,7 +185,7 @@ function prApply(prs, n){
     }
     if (link.waiting && !t.pr.waiting){
       t.waiting = true;
-      if (link.author) t.people = [...new Set([...t.people, canonPerson(link.author)])];
+      if (link.author) assign(t, [link.author], {add: true, ado: true});
       adoNote(t, `You voted Waiting for author on ${on}.`);
     } else if (!link.waiting && t.pr.waiting && !t.done){
       t.waiting = false; t.nudgeOn = null;

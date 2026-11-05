@@ -5,7 +5,7 @@ import { toast } from './overlays.js';
 import { capacityCut, doneGroup, emptyHTML, main, openQuad, prevView, render, row, setView, showAllPick, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, initials, isDoneToday, isFocus, listById, orderedLists, scopeListIds, scopeOpen, state, triageQueue } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, parseD, plural, todayStr } from './util.js';
-import { suggestions } from './directory-model.js';
+import { D, cardsFor, getDirectory, mentionOf, namesOf, others } from './directory-model.js';
 /* Prioritizer: The views: Prioritize (list, matrices, and Done with the weekly recap), Today, Triage, People. */
 function renderRank(){
   const open = scopeOpen();
@@ -112,7 +112,7 @@ function renderTriage(){
       <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${ageDays(cur)}d old</span></div>
     <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
     <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
-    ${cur.people.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${cur.people.map(p => `<span class="chip">@${esc(p)}</span>`).join('')}</div>` : ''}
+    ${cur.who.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${cur.who.map(id => `<span class="chip">${esc(mentionOf(id))}</span>`).join('')}</div>` : ''}
     ${d.stale ? `<div class="stale">Stale: it's been ${ageDays(cur)} days. Do it, give it a due date, or mark it won't do.</div>` : ''}
     <div class="tri-fields">
       <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
@@ -172,32 +172,42 @@ function triageKey(e){
   return true;
 }
 
-// People in Workshop's people directory who have no card here yet: one click adds a card.
-function fromWorkshop(){
-  const more = suggestions(state.people);
-  return more.length ? `<div class="from-dir"><span class="sub">From Workshop's People</span>${more.map(n => `<button class="chip" data-dir-person="${esc(n)}">${ICON.plus}${esc(n)}</button>`).join('')}</div>` : '';
+// Everyone else in Workshop's people directory: one click adds a task for them.
+function fromWorkshop(tasks){
+  const more = others(tasks);
+  return more.length ? `<div class="from-dir"><span class="sub">Add a task for</span>${more.map(it => `<button class="chip" data-dir-person="${esc(it.id)}" data-tip="${esc(it.name)}">${ICON.plus}@${esc(it.handle)}</button>`).join('')}</div>` : '';
 }
+/* People view: a card per person or group with something open (and your team). A person's card also lists
+   what is assigned to a group they are in, under that group, so "what is waiting on Sam" includes @leadership. */
 function renderPeople(){
-  const ppl = state.people;
-  const tasksFor = n => state.tasks.filter(t => inScope(t) && t.people.includes(n) && (!t.done || isDoneToday(t))).sort((a,b) => a.rank - b.rank);
-  if (!ppl.length){
-    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @Teammate", or ${TOUCH ? 'tap' : 'click'} Person.</div>${fromWorkshop()}`;
+  const dir = getDirectory();
+  const live = state.tasks.filter(t => inScope(t) && (!t.done || isDoneToday(t)));
+  const cards = cardsFor(live);
+  if (!cards.length){
+    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @teammate", or ${TOUCH ? 'tap' : 'click'} Person. Groups like @leadership are set up in Workshop's Settings, People.</div>${fromWorkshop(live)}`;
     return;
   }
-  main.innerHTML = `<div class="people">${ppl.map(p => {
-    const ts = tasksFor(p);
-    const wait = ts.filter(t => t.waiting && !t.done), rest = ts.filter(t => !(t.waiting && !t.done));
-    const open = ts.filter(t => !t.done).length, nud = wait.filter(nudgeDue).length;
+  const byRank = (a, b) => a.rank - b.rank;
+  main.innerHTML = `<div class="people">${cards.map(it => {
+    const p = it.id;
+    const direct = live.filter(t => t.who.includes(p)).sort(byRank);
+    const viaGroups = it.kind === 'person' ? D.groupsOf(dir, p).map(g => [g, live.filter(t => !t.who.includes(p) && t.who.includes(g.id)).sort(byRank)]).filter(([, ts]) => ts.length) : [];
+    const all = [...direct, ...viaGroups.flatMap(([, ts]) => ts)];
+    const wait = direct.filter(t => t.waiting && !t.done), rest = direct.filter(t => !(t.waiting && !t.done));
+    const open = all.filter(t => !t.done).length, nud = all.filter(t => !t.done && t.waiting && nudgeDue(t)).length;
     const rows = list => `<div class="rows">${list.map(t => row(t, {compact: true, skipPerson: p, noScore: true})).join('')}</div>`;
+    const members = it.kind === 'group' ? D.membersOf(dir, p).map(m => esc(m.name)).join(', ') : '';
     return `<section class="pcard dropzone" data-zone="person" data-person="${esc(p)}">
-      <header><span class="avatar">${esc(initials(p))}</span><span class="pname" data-tip="Double-click to rename">${esc(p)}</span>${open ? `<span class="n">${open} open</span>` : ''}${nud ? `<span class="sig acc txt" role="img" aria-label="${plural(nud, 'nudge')} due" data-tip="${plural(nud, 'nudge')} due">${ICON.bell}<b>${nud}</b></span>` : ''}
-        <span class="ibtn" data-pmenu="${esc(p)}" role="button" tabindex="0" aria-label="Options for ${esc(p)}">${ICON.dots}</span></header>
+      <header><span class="avatar">${it.kind === 'group' ? ICON.people : esc(initials(it.name))}</span><span class="pname" data-tip="@${esc(it.handle)}. Double-click to rename">${esc(it.name)}</span>${open ? `<span class="n">${open} open</span>` : ''}${nud ? `<span class="sig acc txt" role="img" aria-label="${plural(nud, 'nudge')} due" data-tip="${plural(nud, 'nudge')} due">${ICON.bell}<b>${nud}</b></span>` : ''}
+        <span class="ibtn" data-pmenu="${esc(p)}" role="button" tabindex="0" aria-label="Options for ${esc(it.name)}">${ICON.dots}</span></header>
+      ${it.kind === 'group' ? `<div class="pmembers">${members || 'No members yet'}</div>` : ''}
       ${wait.length ? `<div class="sub">Waiting on them</div>${rows(wait)}` : ''}
       ${rest.length ? `<div class="sub">${wait.length ? 'To discuss or do' : 'Open'}</div>${rows(rest)}` : ''}
-      ${ts.length ? '' : `<div class="pempty">Nothing open here. Drag a task over or add one below.</div>`}
-      <form class="pform" data-person="${esc(p)}" autocomplete="off"><input placeholder="Add for ${esc(p)}" aria-label="Add a task for ${esc(p)}"></form>
+      ${viaGroups.map(([g, ts]) => `<div class="sub">Through @${esc(g.handle)}</div>${rows(ts)}`).join('')}
+      ${all.length ? '' : `<div class="pempty">Nothing open here. Drag a task over or add one below.</div>`}
+      <form class="pform" data-person="${esc(p)}" autocomplete="off"><input placeholder="Add for ${esc(it.name)}" aria-label="Add a task for ${esc(it.name)}"></form>
     </section>`;
-  }).join('')}</div>${fromWorkshop()}`;
+  }).join('')}</div>${fromWorkshop(live)}`;
 }
 
 /* archive + weekly recap */
@@ -228,7 +238,7 @@ function recapInsight(r){
   return '';
 }
 function recapText(r){
-  const withP = t => t.people.length ? ` (${t.people.join(', ')})` : '';
+  const withP = t => t.who.length ? ` (${namesOf(t.who).join(', ')})` : '';
   const out = [`Week of ${fmtMD(r.s)} to ${fmtMD(r.e)}: ${plural(r.done.length,'task')} done`];
   const split = r.quads.filter(x => x[1]).map(([k, c]) => `${k === 'none' ? 'Unsorted' : EQ[k].title} ${c}`).join(', ');
   if (split) out.push(`Split: ${split}`);

@@ -70,6 +70,21 @@ def main():
           const q = r.result.transaction('data').objectStore('data').get('prioritizer/tasks'); q.onsuccess = () => res(q.result); }; })""")
         check('the board is saved as a prioritizer.tasks envelope, the format Workshop reads', stored and stored['schema'] == 'prioritizer.tasks' and len(stored['items']) == len(want))
         check('the old copy is kept, and marked as moved', pg.evaluate("localStorage.getItem('prioritizer.v1') !== null && localStorage.getItem('prioritizer.v1.moved') !== null"))
+        # Names on the old board become contacts in this browser's people directory, and tasks keep their ids.
+        pg.wait_for_function("() => !window.__prioritizer.state.tasks.some(t => t.people)", timeout=10000)
+        who = pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'});
+          const d = await ws.people.get(); const P = window.__prioritizer;
+          return [d.people.map(p => [p.name, p.relation]).sort(), P.state.tasks.filter(t => t.who.length).every(t => t.who.every(id => d.byId.has(id)))]; }""")
+        check('names on old tasks become directory contacts, and tasks keep ids', who[0] == [['DevA', 'contact'], ['DevB', 'contact']] and who[1])
+        # Quick add: @group assigns the group; a new @name adds a contact.
+        pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'});
+          const d = await ws.people.get(); await ws.people.add({kind: 'group', name: 'Leadership', members: d.people.map(p => p.id)}); }""")
+        pg.wait_for_timeout(600)
+        added = pg.evaluate("""async () => { const m = await import('/js/actions.js'); const t1 = m.addTask('Ask about budget @leadership'); const t2 = m.addTask('Call @newperson');
+          await new Promise(r => setTimeout(r, 800)); const {getDirectory, namesOf} = await import('/js/directory-model.js');
+          const out = [namesOf(t1.who), namesOf(window.__prioritizer.state.tasks.find(t => t.id === t2.id).who)];
+          const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== t1.id && t.id !== t2.id); P.commit(); await P.saved(); return out; }""")
+        check('Quick add: @leadership assigns the group, @newperson adds a contact', added == [['Leadership'], ['Newperson']])
 
         pg.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
         pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
@@ -86,8 +101,8 @@ def main():
         with pg.expect_download() as dl: pg.evaluate('window.__prioritizer.downloadBackup()')
         path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(path)
         with open(path) as f: bundle = json.load(f)
-        check('a backup is a Workshop bundle with all four collections', bundle['schema'] == 'workshop.bundle'
-              and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'people', 'settings', 'tasks'])
+        check('a backup is a Workshop bundle with all three collections', bundle['schema'] == 'workshop.bundle'
+              and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'settings', 'tasks'])
 
         # ---------- Triage: title, notes and list edit in place; typing there never fires shortcuts ----------
         P = 'window.__prioritizer'
@@ -294,10 +309,10 @@ def main():
           const before = (await ws.data.get('handoffs')) || {schema: 'agents.handoffs', version: 1, rev: 0, items: [], deleted: {}};
           const after = structuredClone(before);
           after.items.push({id: 'c_hub1', to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:00:00.000Z', text: 'Keys <b>x</b>',
-            payload: {kind: 'task', title: 'Keys <b>x</b> @nobody', people: ['Person One'], waiting: true, urgent: true}, source: {app: 'agents', id: 'c_hub1'}, accepted: true});
+            payload: {kind: 'task', title: 'Keys <b>x</b> @nobody', who: ['p_one'], waiting: true, urgent: true}, source: {app: 'agents', id: 'c_hub1'}, accepted: true});
           ws.data.stamp(before, after); await ws.data.put('handoffs', after); }"""); host.wait_for_timeout(1500)
-        got = fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').map(t => [t.title, t.waiting, t.urgentFlag, t.people])")
-        check('an accepted capture from Dispatch becomes a Docket task, once, with its fields', got == [['Keys <b>x</b> @nobody', True, True, ['Person One']]])
+        got = fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').map(t => [t.title, t.waiting, t.urgentFlag, t.who])")
+        check('an accepted capture from Dispatch becomes a Docket task, once, with its fields', got == [['Keys <b>x</b> @nobody', True, True, ['p_one']]])
         fr.evaluate(f"() => {P}.watchSender('agents')"); host.wait_for_timeout(500)
         check('reading the sender again does not add it twice', fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').length") == 1)
         host.close()

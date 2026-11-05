@@ -112,7 +112,7 @@ import { SENDERS, acceptedTasks, cleanTaskOffer, listFor, taskFromOffer } from '
 // The shape of Workshop's docs/examples/handoff-item.task-accepted.json.
 const TASK = {
   id: 'hub_k3m9q2', updatedAt: 1793736000000, to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:15:00.000Z',
-  text: 'Onboarding doc for Person One', payload: {kind: 'task', title: 'Onboarding doc for Person One', people: ['Person One'], value: 3},
+  text: 'Onboarding doc for Person One', payload: {kind: 'task', title: 'Onboarding doc for Person One', who: ['p_one'], value: 3},
   source: {app: 'agents', id: 'hub_k3m9q2'}, accepted: true
 };
 const hubEnv = (items, app = 'agents') => ({schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {}});
@@ -145,9 +145,9 @@ test('handled keys and tasks already added are skipped', () => {
 });
 
 test('fields are cleaned', () => {
-  const o = cleanTaskOffer('home', {...TASK, payload: {kind: 'task', title: '  Keys  ', people: ['A', 'A', '', 3], waiting: true, due: '2026-11-06', urgent: true, value: 9, effort: 'XXL', list: 'This sprint', notes: ' n '}});
-  assert.deepEqual({title: o.title, people: o.people, waiting: o.waiting, due: o.due, urgent: o.urgent, value: o.value, effort: o.effort, list: o.list, notes: o.notes},
-    {title: 'Keys', people: ['A'], waiting: true, due: '2026-11-06', urgent: true, value: null, effort: null, list: 'This sprint', notes: 'n'});
+  const o = cleanTaskOffer('home', {...TASK, payload: {kind: 'task', title: '  Keys  ', who: ['p_a', 'p_a', 'Name', 3, 'g_t'], waiting: true, due: '2026-11-06', urgent: true, value: 9, effort: 'XXL', list: 'This sprint', notes: ' n '}});
+  assert.deepEqual({title: o.title, who: o.who, waiting: o.waiting, due: o.due, urgent: o.urgent, value: o.value, effort: o.effort, list: o.list, notes: o.notes},
+    {title: 'Keys', who: ['p_a', 'g_t'], waiting: true, due: '2026-11-06', urgent: true, value: null, effort: null, list: 'This sprint', notes: 'n'});
   assert.equal(cleanTaskOffer('home', {...TASK, payload: {kind: 'task', due: '11/6'}}).due, null);
 });
 
@@ -165,7 +165,7 @@ test('taskFromOffer builds a Docket task that remembers where it came from', () 
   assert.equal(t.value, 3);
   assert.equal(t.urgentFlag, false);
   assert.equal(t.waiting, false);
-  assert.deepEqual(t.people, ['Person One']);
+  assert.deepEqual(t.who, ['p_one']);
   assert.equal(t.createdAt, '2026-11-03');
 });
 

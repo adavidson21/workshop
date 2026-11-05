@@ -63,7 +63,7 @@ function manualTimers(){
   };
 }
 
-const newBoard = () => ({lists: [{id: MAIN_LIST, name: 'Main', parentId: null}], tasks: [], people: [], capacity: 20, ado: {}, view: 'today'});
+const newBoard = () => ({lists: [{id: MAIN_LIST, name: 'Main', parentId: null}], tasks: [], capacity: 20, ado: {}, view: 'today'});
 async function openWindow(backend, id, {timers = manualTimers()} = {}){
   const w = {board: newBoard(), statuses: [], timers};
   w.store = createStore({data: backend.client(id), board: () => w.board, applied: () => { w.applied = (w.applied || 0) + 1; }, status: s => w.statuses.push(s.state), timers});
@@ -76,10 +76,9 @@ const task = (id, title, extra = {}) => ({id, title, listId: MAIN_LIST, rank: 1,
 
 /* ---------- format ---------- */
 
-test('a board saved by the localStorage app becomes four valid envelopes, keeping stamps and tombstones', () => {
+test('a board saved by the localStorage app becomes three valid envelopes, keeping stamps and tombstones', () => {
   const raw = legacy();
   raw.dead = {tasks: {gone1: 1792000000000}, lists: {}, people: {}};
-  raw.peopleAt = {deva: 1791000000000};
   const envs = legacyToEnvelopes(raw, 1);
   assert.deepEqual(Object.keys(envs), COLLECTIONS);
   for (const col of COLLECTIONS){
@@ -91,8 +90,7 @@ test('a board saved by the localStorage app becomes four valid envelopes, keepin
   assert.equal(envs.tasks.items[0].updatedAt, raw.tasks[0].updatedAt);
   assert.deepEqual(envs.tasks.deleted, {gone1: 1792000000000});
   assert.equal(envs.tasks.meta.capacity, raw.capacity);
-  assert.deepEqual(envs.people.items.map(p => p.name).sort(), [...raw.people].sort());
-  assert.equal(envs.people.items.find(p => p.id === 'deva').updatedAt, 1791000000000);
+  assert.equal(envs.people, undefined, 'Docket keeps no people of its own; names on tasks become directory ids later');
   assert.deepEqual(envs.settings.meta.ado, raw.ado);
 });
 
@@ -104,7 +102,6 @@ test('envelopes put back into a board give the same board', () => {
   const strip = a => a.map(x => { const c = clone(x); delete c.updatedAt; return c; });
   assert.deepEqual(board.lists, strip(raw.lists));
   assert.deepEqual(board.tasks, strip(raw.tasks));
-  assert.deepEqual(board.people, raw.people);
   assert.equal(board.capacity, raw.capacity);
   assert.deepEqual(board.ado, raw.ado);
   assert.equal(board.view, 'today', 'which view a window shows is not data');
@@ -135,7 +132,14 @@ test('backups: Prioritizer collections are taken, bad files say what is wrong', 
   assert.throws(() => envelopesFromBundle({...bundle, version: 2}), /newer Workshop/);
   const newer = clone(bundle); newer.collections[1].envelope.version = 99;
   assert.throws(() => envelopesFromBundle(newer), /newer Workshop/);
-  assert.throws(() => envelopesFromBundle({...bundle, collections: bundle.collections.slice(4)}), /no Docket board/);
+  assert.throws(() => envelopesFromBundle({...bundle, collections: bundle.collections.slice(COLLECTIONS.length)}), /no Docket board/);
+  // A backup from before directory ids: tasks v3 reads as v4, names kept in `people` until the board adopts them.
+  const old = clone(bundle); old.collections[1].envelope.version = 3; old.collections[1].envelope.items[0].people = ['DevA'];
+  const got = envelopesFromBundle(old).tasks;
+  assert.equal(got.version, 4);
+  assert.deepEqual(got.items[0].people, ['DevA']);
+  const older = clone(bundle); older.collections[1].envelope.version = 2;
+  assert.throws(() => envelopesFromBundle(older), /can't read/);
 });
 
 /* ---------- saving and windows ---------- */
@@ -150,7 +154,6 @@ test('edits are saved as stamped envelopes, and nothing is written when nothing 
   assert.equal(be.files.lists.items[0].id, MAIN_LIST);
   assert.ok(be.files.tasks.items[0].updatedAt > 0);
   assert.equal(w.store.isNew, false);
-  assert.equal(be.files.people, undefined, 'an empty collection is not written');
   const written = ['lists', 'tasks', 'settings'], revs = written.map(c => be.files[c].rev);
   await w.store.flushAll();
   assert.deepEqual(written.map(c => be.files[c].rev), revs, 'no change, no write');

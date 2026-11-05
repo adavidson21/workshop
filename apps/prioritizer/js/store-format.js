@@ -1,27 +1,27 @@
 /* Prioritizer: how the board is stored. Pure functions with no DOM, so Node tests can import them.
 
-   The board is four collections in the Workshop data format (docs/data-format.md), stored by the SDK as
+   The board is three collections in the Workshop data format (docs/data-format.md), stored by the SDK as
    <data folder>/prioritizer/<collection>.json (the agent, or Chrome's folder store in browser mode), or in
    IndexedDB in browser mode before a folder is chosen:
 
      lists     prioritizer.lists v1     items: {id, name, parentId}
-     tasks     prioritizer.tasks v3     items: tasks as the board keeps them; meta: {capacity}
-     people    prioritizer.people v1    items: {id: lower-case name, name, personId?} (personId: the matching
-                                        person in Workshop's people directory, see directory-model.js)
+     tasks     prioritizer.tasks v4     items: tasks as the board keeps them; meta: {capacity}. A task's `who` is
+                                        people and group ids from Workshop's people directory (directory-model.js)
      settings  prioritizer.settings v1  no items; meta: {ado, onboarded}, Prioritizer's own ADO behavior, and the
                                         date the first-run tour was shown (absent until then)
 
    Which view, lens and scope a window shows is per window (saved with the other UI state), not data.
-   tasks is v3 because v1 and v2 were the localStorage board shapes this replaces. */
+   tasks v4 replaced names in `people` with directory ids in `who`; a v3 file (or backup) is read, and its names
+   become ids once the directory has loaded (directory.js adoptNames). Docket no longer keeps people of its own:
+   an old prioritizer.people file is left as it is and not read. */
 
-const COLLECTIONS = ['lists', 'tasks', 'people', 'settings']; // write order: a task's list is saved before the task
-const VERSIONS = {lists: 1, tasks: 3, people: 1, settings: 1};
+const COLLECTIONS = ['lists', 'tasks', 'settings']; // write order: a task's list is saved before the task
+const VERSIONS = {lists: 1, tasks: 4, settings: 1};
 const schemaOf = col => `prioritizer.${col}`;
 const MAIN_LIST = 'l_main'; // the first list of a new board, the same in every window so two new boards merge cleanly
 
 const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 const stamps = env => new Map((env && env.items || []).map(i => [i.id, i.updatedAt]));
-const personId = name => String(name).toLowerCase().slice(0, 200);
 
 /* The envelope for one collection as the board is now. Stamps and tombstones come from `shadow`, the
    envelope the board last matched, so unchanged items keep their stamps; ws.data.stamp then gives
@@ -37,12 +37,6 @@ function envelopeFromBoard(col, board, shadow, held = []){
     const here = new Set(board.tasks.map(t => t.id)), lists = new Set(board.lists.map(l => l.id));
     env.items = board.tasks.map(item).concat(held.filter(t => !here.has(t.id) && !lists.has(t.listId)).map(item));
     env.meta = {updatedAt: metaAt, capacity: board.capacity};
-  }
-  if (col === 'people'){
-    const seen = new Set();
-    const links = board.personLinks || {};
-    env.items = board.people.filter(n => { const k = personId(n); if (seen.has(k)) return false; seen.add(k); return true; })
-      .map(n => item({id: personId(n), name: n, ...(typeof links[personId(n)] === 'string' ? {personId: links[personId(n)]} : {})}));
   }
   if (col === 'settings'){
     env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
@@ -62,10 +56,6 @@ function applyEnvelope(col, env, board){
     board.tasks = items.filter(t => lists.has(t.listId));
     if (env && env.meta && env.meta.capacity !== undefined) board.capacity = env.meta.capacity;
     return items.filter(t => !lists.has(t.listId));
-  }
-  if (col === 'people'){
-    board.people = items.map(p => p.name).filter(n => typeof n === 'string');
-    board.personLinks = Object.fromEntries(items.filter(p => typeof p.name === 'string' && typeof p.personId === 'string').map(p => [personId(p.name), p.personId]));
   }
   if (col === 'settings'){
     board.ado = clone(env && env.meta && env.meta.ado) || {};
@@ -88,11 +78,6 @@ function legacyToEnvelopes(raw, now = Date.now()){
   out.tasks.items = (raw.tasks || []).map(t => Object.assign(clone(t), {updatedAt: at(t)}));
   out.tasks.deleted = tomb('tasks');
   out.tasks.meta = {updatedAt: Number.isFinite(raw.capacityAt) && raw.capacityAt ? raw.capacityAt : at(raw), capacity: raw.capacity ?? 20};
-  const peopleAt = raw.peopleAt && typeof raw.peopleAt === 'object' ? raw.peopleAt : {};
-  const seen = new Set();
-  out.people.items = (raw.people || []).map(String).filter(n => { const k = personId(n); if (!n.trim() || seen.has(k)) return false; seen.add(k); return true; })
-    .map(n => ({id: personId(n), updatedAt: Number.isFinite(peopleAt[n.toLowerCase()]) ? peopleAt[n.toLowerCase()] : at(raw), name: n}));
-  out.people.deleted = tomb('people');
   out.settings.meta = {updatedAt: at(raw), ado: clone(raw.ado) || {}};
   for (const col of COLLECTIONS){
     const ids = new Set(out[col].items.map(i => i.id));
@@ -112,8 +97,10 @@ function envelopesFromBundle(bundle){
     const env = row.envelope;
     if (!env || env.schema !== schemaOf(row.collection) || !Array.isArray(env.items)) throw new Error(`The ${row.collection} in that backup are damaged.`);
     if (env.version > VERSIONS[row.collection]) throw new Error('That backup was made by a newer Workshop. Update Workshop, then import it.');
-    if (env.version < VERSIONS[row.collection]) throw new Error(`That backup has ${row.collection} in a format this version can't read.`);
-    out[row.collection] = clone(env);
+    // tasks v3 (names in `people`) reads as v4: the names become ids once the board has them (directory.js).
+    const old = row.collection === 'tasks' && env.version === 3;
+    if (env.version < VERSIONS[row.collection] && !old) throw new Error(`That backup has ${row.collection} in a format this version can't read.`);
+    out[row.collection] = Object.assign(clone(env), old ? {version: VERSIONS.tasks} : {});
   }
   if (!Object.keys(out).length) throw new Error('That backup has no Docket board in it.');
   return out;

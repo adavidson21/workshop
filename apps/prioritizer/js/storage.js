@@ -18,6 +18,8 @@ import { render } from './render.js';
 import { isWaiting, sanitize, setState, setWaiting, state } from './state.js';
 import { createStore } from './store.js';
 import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
+import { adoptNames } from './directory.js';
+import { getDirectory } from './directory-model.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
 import { connectAction, connectItems } from './connect.js';
@@ -39,11 +41,14 @@ const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts
 let summary = null, summaryDay = null;
 function summaryBoot(){
   summary = createSummaryWriter({data: ws.data, app: 'prioritizer', build: () => (!store || isWaiting() || Object.values(parts).some(p => p.state === 'readonly'))
-    ? null : buildSummary({board: state, dp, log: focusLog, today: todayStr()})});
+    ? null : buildSummary({board: state, dir: getDirectory(), dp, log: focusLog, today: todayStr()})});
   summaryDay = todayStr();
   summary.flush();
   setInterval(() => { if (todayStr() !== summaryDay){ summaryDay = todayStr(); summary.schedule(); } }, 60000);
 }
+
+/** Rewrite the summary soon: the people directory changed (names, groups), which it counts by. */
+function refreshSummary(){ if (summary) summary.schedule(); }
 
 function where(){
   if (!ws) return 'nowhere';
@@ -88,7 +93,7 @@ async function boot(){
   store = createStore({
     data: ws.data,
     board: () => state,
-    applied: () => { setState(sanitize(state)); if (booted) render(); },
+    applied: () => { setState(sanitize(state)); if (booted){ render(); adoptNames(); } },
     status: statusFrom('board')
   });
   let empty;
@@ -210,4 +215,4 @@ async function importDay(bundle){
   try { await importFocus(bundle); } catch (e){ toast(e.message || 'Could not import the focus log.'); }
 }
 
-export { boot, downloadBackup, dstore, fstore, importFile, onSyncClick, scheduleSave, store };
+export { boot, downloadBackup, refreshSummary, dstore, fstore, importFile, onSyncClick, scheduleSave, store };

@@ -70,8 +70,8 @@ document.addEventListener('drop', e => {
   if (zone === 'person'){
     const p = z.dataset.person;
     if (from === p) return render();
-    if (from) t.people = t.people.filter(x => x !== from); // dragged between people: move it
-    if (!t.people.includes(p)) t.people.push(p);
+    if (from) t.who = t.who.filter(x => x !== from); // dragged between people: move it
+    if (!t.who.includes(p)) t.who.push(p);
     commit(); return;
   }
   if (state.view === 'eisen' || state.view === 've') return dropIntoQuadrant(t, zone, state.view);

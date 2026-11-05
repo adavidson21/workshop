@@ -4,8 +4,9 @@ import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
 import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
 import { app, drawer, main, render, sel, setSel } from './render.js';
-import { canonPerson, commit, findTask, isWaiting, orderedLists, save, scopeOpen, state } from './state.js';
-import { suggestions } from './directory-model.js';
+import { commit, findTask, isWaiting, orderedLists, save, scopeOpen } from './state.js';
+import { D, getDirectory, mentionOf } from './directory-model.js';
+import { assign } from './directory.js';
 import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
@@ -86,8 +87,8 @@ function renderDrawer(){
         <button data-d="today" data-fk="tday" aria-pressed="${fon}"${fon ? ' class="on"' : ''}${t.done ? ' disabled' : ''}>Today</button>
         <button data-d="waiting" data-fk="wait" aria-pressed="${t.waiting}"${t.waiting ? ' class="on"' : ''}>Waiting on someone</button></div></div>
       ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div></div>` : ''}
-      <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.people.join(', '))}" placeholder="Names, separated by commas" autocomplete="off">
-        <datalist id="dPeopleList">${[...state.people, ...suggestions(state.people)].map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">
+        <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
       ${repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
@@ -144,7 +145,7 @@ drawer.addEventListener('change', e => {
   const f = e.target.dataset.f, v = e.target.value;
   if (f === 'due') t.due = isDate(v) ? v : null;
   else if (f === 'nudge') t.nudgeOn = isDate(v) ? v : null;
-  else if (f === 'people') t.people = [...new Set(v.split(',').map(canonPerson).filter(Boolean))];
+  else if (f === 'people') assign(t, v.split(','));
   else if (f === 'list') t.listId = v;
   else { if (planFieldChange(t, f, v) || repeatFieldChange(t, f, v)) renderDrawer(); return; }
   commit();

@@ -167,7 +167,7 @@ def main():
 
             # Press and hold a task, then drag it: the new order is saved.
             pg.evaluate("""() => { const P = window.__prioritizer, L = P.state.lists[0].id;
-              for (const [id, title] of [['m2', 'Second'], ['m3', 'Third']]) { const t = {id, title, listId: L, rank: P.state.tasks.length + 1, people: []}; P.migrateTask(t); P.state.tasks.push(t); }
+              for (const [id, title] of [['m2', 'Second'], ['m3', 'Third']]) { const t = {id, title, listId: L, rank: P.state.tasks.length + 1, who: []}; P.migrateTask(t); P.state.tasks.push(t); }
               P.state.view = 'rank'; P.commit(); }""")
             pg.wait_for_timeout(400)
             order = lambda: pg.evaluate("[...document.querySelectorAll('.ranklist > .row[data-id]')].map(r => r.dataset.id)")

@@ -33,7 +33,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Today:** your short list for the day (3 to 5 works best), plus Up next by score and everything you're waiting on, with follow-up nudges.
 - **Triage:** one unsorted or stale task at a time. Title, notes and list can be edited in place. A task is stale at twice its implied window (4, 8, 14 or 28 days).
 - **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
-- **People:** one card per person, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda. Anyone can be a card: teammates, other teams, vendors. Inside Workshop, people from Workshop's People (in Settings) who have no card yet show under the cards to add in one click, and are suggested in a task's People field.
+- **People:** one card per person or group with something open, plus your team, split into "Waiting on them" and "To discuss or do". Handy as a 1:1 agenda. People and groups come from Workshop's people directory (Settings, People), so a name is typed once everywhere. A person's card also lists what is assigned to a group they are in, under "Through @leadership", so what is waiting on John includes what is waiting on @leadership. A new `@name` becomes a contact (another team, a vendor). Everyone else in the directory is one click away under the cards.
 - **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Day:** time blocks for today (or any day), built from your sprint. Slot tasks into blocks, and rearrange when the day goes sideways. See below.
 
@@ -100,7 +100,7 @@ Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; in
 
 | Tag | Sets | Example |
 | --- | --- | --- |
-| `@name` | Person | `@Teammate` |
+| `@name` | Person or group, by handle or name; a new name adds a contact | `@teammate`, `@leadership` |
 | `!1` to `!4` | Value | `!4` |
 | `!!` | Urgent | `!!` |
 | `~xs` to `~xl` | Effort | `~m` |
@@ -123,7 +123,7 @@ Themes live in `shared/themes.css`, copied from Workshop (see Files from Worksho
 
 ## Saving
 
-- Everything saves automatically. The board is a set of files in the `prioritizer` folder of your Workshop folder (`~/Workshop/prioritizer/` unless you changed it in Settings): `lists.json`, `tasks.json`, `people.json`, `settings.json`. Other apps can read them, and they stay if you remove Workshop. Nothing leaves your device: there are no accounts and no server.
+- Everything saves automatically. The board is a set of files in the `prioritizer` folder of your Workshop folder (`~/Workshop/prioritizer/` unless you changed it in Settings): `lists.json`, `tasks.json`, `settings.json`. People live in Workshop's people directory (`settings/people.json`). Other apps can read them, and they stay if you remove Workshop. Nothing leaves your device: there are no accounts and no server.
 - **Without Workshop running** (browser mode, like the github.io site) Chrome can use the same kind of folder: in **Settings**, **Choose folder**, and pick your Workshop folder. Until you choose one, the board is saved in that browser; choosing a folder copies it in and keeps the browser copy. After Chrome restarts it may ask again: click **Allow** in the bar at the top of Workshop. Until then your changes stay on screen and are saved once you allow it.
 - **Two windows stay in sync.** A change in one shows up in the other within a moment, and changes made in both at once are merged task by task: where both changed the same task, the later change wins. Nothing is overwritten wholesale.
 - **If a save fails** (for example the disk is full, Workshop stopped, or Chrome is waiting for you to allow the folder), the folder icon turns red and says "Not saved yet". Your changes stay on screen and are saved as soon as it works again. The file on disk is never left half written: the previous version stays until the new one is complete.
@@ -246,7 +246,7 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Storage format
 
-The board is four collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v3 (capacity in `meta`), `prioritizer.people` v1 (id is the lower-case name; optional `personId` links the person to Workshop's people directory, `settings.people`, which Docket reads but never writes), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks start at v3 because v1 and v2 were the localStorage board shapes. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is three collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v4 (capacity in `meta`; a task's `who` is people and group ids from Workshop's people directory, [docs/people.md](https://github.com/adavidson21/workshop/blob/main/docs/people.md), read and added to with `ws.people`), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, and `meta.onboarded`, the date the first-run tour was shown). Tasks v3 kept names in `people`; a v3 board or backup is read, and its names become contacts and ids once the directory has loaded. An old `prioritizer.people` file is left alone and not read. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
 
@@ -265,7 +265,7 @@ The focus log adds one more kind of collection, version 1, in the same format:
 | `summary` | Docket's summary for other apps (`prioritizer.summary` v1, Workshop's [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): cards `board`, `day`, `lists` (capture targets) and `people`, rewritten after every save (`js/summary.js`). Home, Rapport and the Dispatch hub read it instead of the collections above | Workshop's `summary-card` schema |
 | `focus/days/<yyyy>` | Items are days keyed by date: `{id: date, events: [...]}`. An event is `{at, type: 'start', taskId, switch}`, `{at, type: 'stop', taskId, why}` (`why`: pause, done or shutdown), `{at, type: 'interrupt'}` or `{at, type: 'shutdown'}`; `at` is an ISO time | `schemas/focus-day.schema.json` |
 
-Docket also reads, never writes, the `handoffs` collection of each app listed in `SENDERS` (`js/offers-model.js`; `home` and `agents`), as `<app id>.handoffs` at version 1 only: items addressed `to: 'prioritizer'` with `payload.kind: 'every-sprint'` (`title`, `dueDay` or `last: true`, `planKind`, `value`, `effort`, `notes`), or `payload.kind: 'task'` with `accepted: true` (`title`, `list`, `people`, `waiting`, `due`, `urgent`, `value`, `effort`, `notes`). Handled task captures are kept in `meta.handled` as `<app>:<offer id>:task`, and the task itself keeps `from: {app, id}`. Any other version reads as nothing offered.
+Docket also reads, never writes, the `handoffs` collection of each app listed in `SENDERS` (`js/offers-model.js`; `home` and `agents`), as `<app id>.handoffs` at version 1 only: items addressed `to: 'prioritizer'` with `payload.kind: 'every-sprint'` (`title`, `dueDay` or `last: true`, `planKind`, `value`, `effort`, `notes`), or `payload.kind: 'task'` with `accepted: true` (`title`, `list`, `who` (directory ids), `waiting`, `due`, `urgent`, `value`, `effort`, `notes`). Handled task captures are kept in `meta.handled` as `<app>:<offer id>:task`, and the task itself keeps `from: {app, id}`. Any other version reads as nothing offered.
 
 The active task is worked out from today's events, so two windows agree on it and it never carries over. Merging is per day, later change wins. A window loads this year and last year. Breadcrumbs are saved on the task as `crumbs: [{at, text}]` (newest ten, oldest first), an extra field older readers keep as is, so `prioritizer.tasks` stays at v3. Backups include the focus log, and importing one merges it.
 

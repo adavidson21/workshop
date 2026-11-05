@@ -7,12 +7,12 @@ import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
 import { cleanCrumbs } from './focus-model.js';
-import { linkPeople } from './directory-model.js';
+import { isRef } from '../shared/people.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], people: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers()}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers()}};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -94,14 +94,13 @@ function sanitize(s){
   if (!(s.lens in LENSES)) s.lens = (s.view in LENSES) ? s.view : 'rank';
   s.capacity = Number.isFinite(+s.capacity) && +s.capacity >= 1 ? Math.min(999, Math.round(+s.capacity)) : 20;
   s.capacityAt = Number.isFinite(s.capacityAt) ? s.capacityAt : 0;
-  // people: one canonical spelling per name, shared by every task
-  const known = new Map();
-  const note = n => { n = String(n ?? '').trim(); if (n && !known.has(n.toLowerCase())) known.set(n.toLowerCase(), n); };
-  (Array.isArray(s.people) ? s.people : []).forEach(note);
-  s.tasks.forEach(t => { (Array.isArray(t.people) ? t.people : []).forEach(note); });
-  s.people = [...known.values()];
+  // who: people and group ids from Workshop's people directory (directory-model.js). Names a task still has in
+  // `people` (saved before ids, or just imported) stay until directory.js adoptNames turns them into ids.
+  delete s.people; delete s.personLinks;
   s.tasks.forEach(t => {
-    t.people = [...new Set((Array.isArray(t.people) ? t.people : []).map(n => known.get(String(n).trim().toLowerCase())).filter(Boolean))];
+    t.who = [...new Set((Array.isArray(t.who) ? t.who : []).filter(isRef))].slice(0, 20);
+    if (Array.isArray(t.people)){ t.people = t.people.map(n => String(n ?? '').trim()).filter(Boolean); if (!t.people.length) delete t.people; }
+    else delete t.people;
     t.waiting = t.waiting === true;
     if (t.focusOn && !isDate(t.focusOn)) t.focusOn = null;
     migrateTask(t);
@@ -160,7 +159,7 @@ function save(){
   if (Object.keys(w).some(k => ui[k] !== w[k])){ Object.assign(ui, w); saveUi(); }
   scheduleSave();
 }
-function commit(){ linkPeople(state); save(); render(); }
+function commit(){ save(); render(); }
 
 const listById = id => state.lists.find(l => l.id === id);
 const childrenOf = id => state.lists.filter(l => l.parentId === id);
@@ -188,14 +187,4 @@ function triageQueue(){
   return state.tasks.filter(t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t)))
     .sort((a,b) => a.ageFrom.localeCompare(b.ageFrom) || a.rank - b.rank);
 }
-function canonPerson(n){
-  n = String(n ?? '').trim().replace(/^@/, '');
-  if (!n) return null;
-  const hit = state.people.find(p => p.toLowerCase() === n.toLowerCase());
-  if (hit) return hit;
-  n = n[0].toUpperCase() + n.slice(1);
-  state.people.push(n);
-  return n;
-}
-
-export { PR_GONES, isWaiting, setWaiting, canonPerson, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { PR_GONES, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

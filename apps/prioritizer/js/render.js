@@ -12,6 +12,7 @@ import { dp } from './dayplan.js';
 import { fmt12, repeatLabel } from './dayplan-model.js';
 import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
+import { namesOf } from './directory-model.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
@@ -159,7 +160,7 @@ function row(t, o = {}){
     else if (isStale(t)) meta += sig(ICON.stale, `Untouched for ${ageDays(t)} days. It's back in Triage.`, 'stale');
   }
   if (!o.compact){
-    const ppl = t.people.filter(p => p !== o.skipPerson);
+    const ppl = namesOf(t.who.filter(p => p !== o.skipPerson));
     if (ppl.length) meta += `<span class="who" data-tip="${esc(ppl.join(', '))}" role="img" aria-label="${esc(ppl.join(', '))}">${ppl.slice(0, 2).map(p => `<i class="av">${esc(initials(p))}</i>`).join('')}${ppl.length > 2 ? `<i class="av more">+${ppl.length - 2}</i>` : ''}</span>`;
   }
   if ((!o.compact || o.showList) && multi && L) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;

@@ -5,7 +5,7 @@
 import { SENDERS, sendersFrom, acceptedTasks, applyOffer, listFor, markHandled, pendingOffers, taskFromOffer } from './offers-model.js';
 import { dp, setHandled, setRecurring } from './dayplan.js';
 import { COLORS } from './constants.js';
-import { canonPerson, commit, isWaiting, state, topLists } from './state.js';
+import { commit, isWaiting, state, topLists } from './state.js';
 import { todayStr, uid } from './util.js';
 import { toast } from './overlays.js';
 import { embedded } from './ws.js';
@@ -34,7 +34,6 @@ function pickUp(app){
   for (const o of todo){
     const t = taskFromOffer(o, {id: uid(), listId: listFor(o, state.lists, fallback), rank: ++rank,
       color: COLORS[state.colorIdx++ % COLORS.length], today: todayStr()});
-    t.people = [...new Set(t.people.map(canonPerson).filter(Boolean))];
     state.tasks.push(t);
   }
   setHandled(markHandled(dp.handled, todo.map(o => o.key)));

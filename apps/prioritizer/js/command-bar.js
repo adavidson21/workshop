@@ -6,6 +6,7 @@ import { parseQuick } from './quick-add.js';
 import { takePasted } from './paste.js';
 import { defaultListId, isWaiting, listById, state } from './state.js';
 import { $, esc, fmtLong, todayStr } from './util.js';
+import { nameOf, refOf } from './directory-model.js';
 /* Prioritizer: The command bar (N or Ctrl+K) for adding tasks. */
 /* ---------- command bar ---------- */
 const cmd = $('#cmd'), cmdInput = $('#cmdInput'), cmdParsed = $('#cmdParsed');
@@ -32,7 +33,7 @@ function cmdPreview(){
   if (p.effort) bits.push(`<span class="chip acc">Effort ${p.effort}</span>`);
   if (p.due) bits.push(`<span class="chip acc">Due ${fmtLong(p.due)}</span>`);
   if (p.urgentFlag) bits.push(`<span class="chip acc">Urgent</span>`);
-  p.people.forEach(n => bits.push(`<span class="chip acc">@${esc(n)}</span>`));
+  p.people.forEach(n => { const id = refOf(n); bits.push(`<span class="chip acc">${id ? esc(nameOf(id)) : `@${esc(n)} (new contact)`}</span>`); });
   const where = `Adds to <b>${esc(L ? L.name : '')}</b>${state.view === 'today' ? ' and Today' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
     ? bits.join('') + `<span style="margin-left:auto">${where}</span>`

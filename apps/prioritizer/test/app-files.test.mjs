@@ -46,3 +46,11 @@ test('app.json passes the manifest schema Workshop validates against (Workshop s
   const schemas = SchemaSet.fromDir(join(ROOT, 'test', 'workshop', 'schemas'));
   assert.deepEqual(schemas.validate('app', manifest), []);
 });
+
+// Every name js/main.js uses in its command handler is imported (a missing one only fails when the command runs).
+test('main.js imports what its shell commands call', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  const imported = new Set([...src.matchAll(/import\s*\{([^}]+)\}/g)].flatMap(m => m[1].split(',').map(x => x.trim().split(/\s+as\s+/).pop())));
+  for (const [, fn] of src.matchAll(/loaded\.then\((\w+)\)/g)) assert.ok(imported.has(fn), `${fn} is imported`);
+});
