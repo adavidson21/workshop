@@ -274,7 +274,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
-    check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn').count() == 0)
+    check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
     if sf: stab(sf, 'data')
     check('Settings in browser mode shows the data folder: this browser, with Choose folder', sf is not None and sf.locator('[data-folder=indexeddb]').count() == 1
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
@@ -612,7 +612,7 @@ def agent_checks(b, watch):
         hs = next((f for f in hp.frames if '/apps/settings/' in f.url), None)
         check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
               and hs.locator(f'#modeNote a[href="{url}/"]').count() == 1
-              and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn').count() == 2)
+              and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn:not(.app-row)').count() == 2)
         put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
           try { await ws.config.put({features: {startAtLogin: true}}); return 'saved'; } catch (e) { return e.code; } }""") if hs else None
         check('the agent refuses config changes from a hosted page', put == 'local_only')
