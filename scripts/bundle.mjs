@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BUNDLE_FILE = 'bundle.json';
 const DIRS = ['shared', 'icons', 'docs/schemas'];
-const FILES = ['tests/lib/schema.mjs'];
+const FILES = ['tests/lib/schema.mjs', 'scripts/sync-workshop.mjs'];
 const SKIP = new Set(['shared/test', 'shared/screenshots']);
 
 const sha = buf => createHash('sha256').update(buf).digest('hex');

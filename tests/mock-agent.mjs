@@ -16,6 +16,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SchemaSet } from './lib/schema.mjs';
 import { checkConnectorModule } from './lib/connector-check.mjs';
+import { SITE } from '../shared/site.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -53,7 +54,7 @@ class HttpError extends Error {
 }
 const fail = (code, message, extra) => { throw new HttpError(code, message, extra); };
 
-const DEFAULT_SITES = ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'];
+const DEFAULT_SITES = [...SITE.allowedSites];
 const DEFAULT_CONFIG = () => ({ configVersion: 1, port: 4380, allowedOrigins: [...DEFAULT_SITES], features: { startAtLogin: false, hostedMode: true }, connectors: {} });
 
 /** True if child is parent or inside it. */

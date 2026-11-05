@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { start, tempHome, rmHome, readJson, get, put, post, envelope, dataDirOf } from './helpers.mjs';
 import { createAgent } from '../server.mjs';
+import { SITE } from '../../shared/site.js';
 
 const item = (id, text, updatedAt = 1792330000000) => ({ id, updatedAt, text });
 
@@ -14,7 +15,7 @@ test('first run creates config.json with Workshop\'s sites allowed to pair, ever
   const agent = await start(home);
   try {
     const cfg = readJson(path.join(home, 'config.json'));
-    assert.deepEqual(cfg, { configVersion: 1, port: 4380, allowedOrigins: ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org'], features: { startAtLogin: false, hostedMode: true }, connectors: {} });
+    assert.deepEqual(cfg, { configVersion: 1, port: 4380, allowedOrigins: [...SITE.allowedSites], features: { startAtLogin: false, hostedMode: true }, connectors: {} });
     const token = fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
     assert.equal(token, agent.token);
     assert.match(token, /^[0-9a-f]{64}$/);

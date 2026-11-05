@@ -6,7 +6,8 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { saveFile } from '../../../shared/save-file.js';
 import { createNotes } from './data.js';
-import { QUICK, SENDERS, sendersFrom, startPickup } from './pickup.js';
+import { QUICK, SENDERS, startPickup } from './pickup.js';
+import { useSenders } from '../../../shared/handoffs.js';
 import { dataUrl, inlineImages, wikiHtml } from './export.js';
 import { render, headingId } from './markdown.js';
 import {
@@ -702,7 +703,7 @@ ws.on('online', async (p) => {
   pickup.run();
 // Senders of captures come from the manifests (ws.apps.list), without holding up the page: SENDERS is updated in
 // place, then pickup runs again for any new sender.
-ws.apps.list().then(apps => { const before = Object.keys(SENDERS).length; Object.assign(SENDERS, sendersFrom(apps)); if (Object.keys(SENDERS).length > before) pickup.run(); }).catch(() => {});
+ws.apps.list().then(apps => { const before = Object.keys(SENDERS).length; useSenders(SENDERS, apps, 'notes'); if (Object.keys(SENDERS).length > before) pickup.run(); }).catch(() => {});
   if (!ui.path && !ui.other) await openLast();
 });
 ws.on('visible', (p) => { if (!p.visible && ui.status.kind === 'dirty') saveNow(); });

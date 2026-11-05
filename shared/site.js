@@ -18,7 +18,7 @@ export const SITE = Object.freeze({
     receipts: 'https://receipts.alexisdavidson.org'
   }),
   // Sites a new install allows to pair (config hosted.origins); each still needs a click in the pairing window.
-  allowedSites: Object.freeze([WORKSHOP, DISPATCH, DOCKET]),
+  allowedSites: Object.freeze([WORKSHOP, DISPATCH, DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org']),
   // Breadcrumbs back to the owner's site, on pages whose host is `domain` or a subdomain of it.
   crumbs: Object.freeze({
     domain: 'alexisdavidson.org',
