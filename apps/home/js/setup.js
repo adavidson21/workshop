@@ -175,7 +175,7 @@ function detail(s, ctx) {
         <p class="su-fine">Prefer another folder? <code>workshop data-folder &lt;folder&gt;</code>. Happy with local files? Skip this step.</p>`;
     }
     case 'team':
-      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John).</p><p>${btn('Add people in Settings', 'data-open="settings"', true)}</p>`;
+      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="people"', true)}</p>`;
     case 'name':
       return `<p>Used only for the greeting on this page.</p><p>${btn('Add your name', 'data-edit-profile', true)}</p>`;
     case 'ado': {

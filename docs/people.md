@@ -25,7 +25,6 @@ Schema: [schemas/person.schema.json](schemas/person.schema.json). Example: [exam
   "team": true,
   "adoIdentity": "person.one@example.com",
   "role": "Senior Engineer",
-  "since": "2025-03-01",
   "archived": false
 }
 ```
@@ -40,7 +39,7 @@ Schema: [schemas/person.schema.json](schemas/person.schema.json). Example: [exam
 | `team` | Optional. On your team, for team views. Missing means `true` for `self` and `report`, `false` otherwise. |
 | `adoIdentity` | Optional. Email or exact Azure DevOps display name, compared without case. |
 | `role` | Optional. Job title. |
-| `since` | Optional. `YYYY-MM-DD` when they joined the team or started reporting to you; empty means unknown. |
+| `since` | Optional, no longer edited. `YYYY-MM-DD`; older directories may have it. Apps keep it as they keep any field and do not show it. |
 | `archived` | Optional. Left. Kept so old records still show a name; hidden from pickers, team views and `@` matching. Its handle is free again. |
 
 ### Groups
@@ -70,20 +69,20 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 
 ## Rules
 
-1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Docket adds a contact when you type a new `@name`; Settings is the full editor). The SDK applies the same checks for every app and merges concurrent changes item by item.
+1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Docket adds a contact when you type a new `@name`; the People app is the full editor and imports spreadsheets). The SDK applies the same checks for every app and merges concurrent changes item by item.
 2. **Reference by id.** Apps store `p_` and `g_` ids, never names or handles. They show names with `label()` and mentions with `mention()` from the directory object, at render time.
 3. **Archive, never delete.** No app deletes an item. A tombstone (from a hand edit or an old copy) means it is gone: records pointing to it show "Unknown", never an error.
 4. **Someone is involved through their groups.** When an app asks "what involves John", it matches John's id and the ids of the active groups he is in (`reach()` and `involves()`). An archived group, or an archived member, does not count.
 5. **`@` matching.** `find()` takes a handle (with or without `@`), then an exact name without case, then a first name only one active person has. Anything else matches nothing; apps then offer to add a contact.
 6. **Same data folder only.** The directory is whatever the app's backend holds at `settings/people`: shared by every app in Workshop and every site using the same folder. An app on its own site with browser storage has its own directory in that store, which it can add to with `ws.people` like anywhere else.
-7. **Version 1 is upgraded; any other unknown version is read only.** Version 1 (people only, no handles, written by Settings before groups) reads as version 2 with `upgrade()`: every item becomes a person and gets a handle no active person before it has. The first `ws.people` read saves it as version 2, so apps that pin an older bundle read it too. A directory of any other version reads as empty with `unreadable: true`, and `ws.people` refuses to change it (code `unsupported`). Apps say so instead of acting as if no one is there.
+7. **Version 1 is upgraded; any other unknown version is read only.** Version 1 (people only, no handles, written by Settings before groups and before People was its own app) reads as version 2 with `upgrade()`: every item becomes a person and gets a handle no active person before it has. The first `ws.people` read saves it as version 2, so apps that pin an older bundle read it too. A directory of any other version reads as empty with `unreadable: true`, and `ws.people` refuses to change it (code `unsupported`). Apps say so instead of acting as if no one is there.
 8. **Escape names.** Names and handles are user text; apps escape them before putting them on a page.
 
 ## Who uses it
 
 | App | Uses |
 | --- | --- |
-| Settings | Edits everyone: people, groups and their members. |
+| `people` (People) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
 | `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
 | `receipts` (Rapport) | Reports are `report` people; Upward is the `manager`. Entries' `about` is `me`, `up` or a person id. 1:1s are keyed by person id. |
 | `runway` (Runway) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |

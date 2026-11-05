@@ -182,7 +182,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'people', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -271,7 +271,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # People is Alt+6
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -280,24 +280,29 @@ def browser_mode_checks(ctx, pg, frame, watch):
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
 
-    # People directory (docs/people.md): add yourself, then a report whose name is markup.
+    check('Settings has no People tab (People is its own app)', sf is not None and sf.locator('[role=tab][data-tab="people"]').count() == 0)
+
+    # People directory (docs/people.md), in the People app: add yourself, then a report whose name is markup.
+    pg.evaluate("location.hash = '#/people'"); pg.wait_for_timeout(1500)
+    sf = next((f for f in pg.frames if '/apps/people/' in f.url), None)
+    check('People opens from the rail as its own app', sf is not None and pg.locator('.app-btn[data-app=people]').count() == 1)
     if sf:
-        stab(sf, 'people')
+        sf.wait_for_selector('[data-person-new]', timeout=5000)
         sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         sf.click('[data-person-new]'); sf.fill('#pName', '<b>Dev</b> One')
         sf.select_option('#pRel', 'report'); sf.fill('#pAdo', 'dev.one@example.com')
         sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         names = sf.locator('.people .person b').all_inner_texts()
-        check('Settings People: add yourself and a report, you first', names == ['Engineer A', '<b>Dev</b> One'])
+        check('People: add yourself and a report, you first', names == ['Engineer A', '<b>Dev</b> One'])
         sf.click('[data-person-new]'); sf.fill('#pName', 'Someone Else'); sf.select_option('#pRel', 'self'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(300)
-        check('Settings People: a second "you" is refused', 'already you' in sf.inner_text('[data-person-form] .msg'))
+        check('People: a second "you" is refused', 'already you' in sf.inner_text('[data-person-form] .msg'))
         sf.select_option('#pRel', 'manager'); sf.fill('#pName', 'Boss Person')
-        check('Settings People: "On my team" follows the relation', not sf.is_checked('#pTeam'))
+        check('People: "On my team" follows the relation', not sf.is_checked('#pTeam'))
         sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
-        rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/settings/'); rp.wait_for_timeout(500)
+        rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/people/'); rp.wait_for_timeout(500)
         stored = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.kind, p.handle, p.relation, p.team, p.adoIdentity])]; }""")
-        check('Settings People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, 'dev.one@example.com'], ['person', 'boss', 'manager', False, '']]])
+        check('People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, 'dev.one@example.com'], ['person', 'boss', 'manager', False, '']]])
         # A group, assigned like a person: Leadership with the report and the manager.
         sf.click('[data-group-new]'); sf.fill('#gName', 'Leadership')
         sf.check('[data-group-form] input[name=member] >> nth=1'); sf.check('[data-group-form] input[name=member] >> nth=2')
@@ -305,12 +310,23 @@ def browser_mode_checks(ctx, pg, frame, watch):
         group = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const P = await import('/shared/people.js'); const ws = await connect({app: 'notes'});
           const d = await ws.people.get(); const g = P.find(d, '@leadership'); const boss = d.people.find(p => p.relation === 'manager');
           return g && [g.kind, P.membersOf(d, g.id).map(p => p.relation), [...P.reach(d, boss.id)].includes(g.id)]; }""")
-        check('Settings People: a group by @handle, its members, and reach() through it', group == ['group', ['manager', 'report'], True])
+        check('People: a group by @handle, its members, and reach() through it', group == ['group', ['manager', 'report'], True])
+        # Import from a spreadsheet: a preview first, then one save for the people and one for the groups.
+        csv = 'Name,Handle,Relation,Role,Groups\n<b>Dev</b> One,,,Senior engineer,@platform\nNew Peer,,Peer,,@platform\nBad Row,,Boss,,\n'
+        sf.set_input_files('[data-sheet]', files=[{'name': 'people.csv', 'mimeType': 'text/csv', 'buffer': csv.encode()}])
+        sf.wait_for_selector('.preview', timeout=5000)
+        acts = sf.locator('.rows tbody tr').evaluate_all('rs => rs.map(r => r.dataset.act)')
+        check('People import: preview shows update, add and a skipped row before saving', acts == ['update', 'new', 'skip'] and 'Boss' in sf.inner_text('.rows'))
+        sf.click('[data-import-go]'); sf.wait_for_timeout(800)
+        imported = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const P = await import('/shared/people.js'); const ws = await connect({app: 'notes'});
+          const d = await ws.people.get(); const g = P.find(d, '@platform'); const dev = d.people.find(p => p.relation === 'report');
+          return [d.people.length, dev.role, g && P.membersOf(d, g.id).map(p => p.name).sort()]; }""")
+        check('People import: updated, added and grouped', imported == [4, 'Senior engineer', ['<b>Dev</b> One', 'New Peer']] and sf.locator('.preview').count() == 0)
         rp.close()
         # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
         pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
         rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-        check('Rapport lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
+        check('Rapport lists reports from People, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
               and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 1)
         if rf2:
             # A report's page: start 1:1s, write today's note, log a win twice: one receipt.

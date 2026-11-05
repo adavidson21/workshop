@@ -77,13 +77,24 @@ The people directory ([people.md](people.md)): people and groups, kept in Settin
 | --- | --- |
 | `ws.people.get()` | The directory: `{items, people, groups, byId, unreadable}`. Empty when it was never written; empty with `unreadable: true` when another version wrote it. |
 | `ws.people.subscribe(handler)` | Calls `handler(directory)` after every change, from this page or anywhere else. Returns an unsubscribe function. |
-| `ws.people.add(input)` | Adds a person (`{name, relation?, handle?, team?, adoIdentity?, role?, since?}`; relation defaults to `contact`) or a group (`{kind: 'group', name, handle?, members?}`). Fills in the id and a free handle. Resolves the new item. |
+| `ws.people.add(input)` | Adds a person (`{name, relation?, handle?, team?, adoIdentity?, role?}`; relation defaults to `contact`) or a group (`{kind: 'group', name, handle?, members?}`). Fills in the id and a free handle. Resolves the new item. |
 | `ws.people.update(id, fields)` | Changes fields of one item; `id` and `kind` never change. Resolves the item. |
 | `ws.people.setMembers(groupId, ids)` | Replaces a group's members. |
 | `ws.people.archive(id)`, `ws.people.restore(id)` | Archives or restores one item. Nothing is ever deleted. |
 | `ws.people.adopt(list)` | Adds people that the app's own data already points to, keeping their `p_` ids: a one-time move from a list the app kept itself (Rapport 2.x's reports). Skips ids already in the directory or deleted from it; a second you or manager becomes a contact. Resolves the added items (none: nothing is written). Bundle 2.1.0. |
+| `ws.people.saveMany(list)` | Many adds and edits in one save, in order: an entry with `id` edits that item (like `update`), one without adds it (like `add`). Later entries are checked against earlier ones. Resolves the saved items in the same order. If any entry has a problem nothing is saved, and the error has `index`, the entry's position. For importing a list (People's spreadsheet import). Bundle 2.3.0. |
 
 Every change is checked by the rules in [people.md](people.md) and rejects with code `bad_request` and a message to show (a handle in use, a second manager, a member who is not in the directory). A directory of another version rejects changes with `unsupported`. Concurrent changes merge item by item, as for any collection.
+
+### Teams
+
+Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `teams` collection. The People app edits them here; other apps read the collection with `ws.data.get('teams', {app: 'settings'})`. Bundle 2.3.0.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.teams.get()` | Your team: `{name, areas, connection}`, with empty `areas` when not set up. Rejects with `unsupported` when another version wrote it. |
+| `ws.teams.subscribe(handler)` | Calls `handler(team)` after every change, from this page or anywhere else. Returns an unsubscribe function. |
+| `ws.teams.setMine({areas, connection})` | Saves your team's area paths (an array, or text with one per line; trimmed, no repeats, up to 20) and connection name. Resolves your team as saved. |
 
 ### Files
 

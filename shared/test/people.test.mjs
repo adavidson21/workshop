@@ -242,3 +242,37 @@ test('ws.people.adopt: writes once, then nothing when everyone is there', async 
   assert.equal(data.stored.rev, 1);
   assert.equal((await people.get()).byId.get('p_a').handle, 'ann');
 });
+
+test('ws.people.saveMany: adds and edits in one save, in order; any problem saves nothing', async () => {
+  const data = memoryData();
+  const people = _internals.peopleService(data);
+  const me = await people.add({ name: 'Person One', relation: 'self' });
+  const rev = data.stored.rev;
+  const out = await people.saveMany([{ id: me.id, role: 'Lead' }, { kind: 'person', name: 'Dev Two', relation: 'report' }, { kind: 'person', name: 'Dev Three' }]);
+  assert.deepEqual(out.map(p => p.name), ['Person One', 'Dev Two', 'Dev Three']);
+  assert.equal(data.stored.rev, rev + 1, 'one save');
+  const g = (await people.saveMany([{ kind: 'group', name: 'Devs', members: [out[1].id, out[2].id] }]))[0];
+  assert.deepEqual((await people.get()).byId.get(g.id).members, [out[1].id, out[2].id]);
+  const before = structuredClone(data.stored);
+  await assert.rejects(people.saveMany([{ kind: 'person', name: 'Ok Person' }, { kind: 'person', name: 'Another Me', relation: 'self' }]), e => e.index === 1 && /already you/.test(e.message));
+  assert.deepEqual(data.stored, before, 'nothing saved');
+});
+
+test('ws.teams: reads your team from Settings\' teams collection and saves area paths', async () => {
+  let stored = null;
+  const data = {
+    async get(app, col) { assert.equal(`${app}/${col}`, 'settings/teams'); return stored ? structuredClone(stored) : null; },
+    async put(app, col, e) { const rev = stored ? stored.rev : 0; if (e.rev !== rev) throw new WorkshopError('conflict'); stored = { ...structuredClone(e), rev: rev + 1 }; return { rev: stored.rev }; },
+    subscribe() { return () => {}; }
+  };
+  const teams = _internals.teamsService(data);
+  assert.deepEqual(await teams.get(), { name: 'My team', areas: [], connection: '' });
+  const heard = [];
+  teams.subscribe(t => heard.push(t.areas.length));
+  const t = await teams.setMine({ areas: 'Project\\Team\nProject\\Other', connection: 'work' });
+  assert.deepEqual(t, { name: 'My team', areas: ['Project\\Team', 'Project\\Other'], connection: 'work' });
+  assert.equal(stored.schema, 'settings.teams');
+  assert.deepEqual(heard, [2]);
+  stored = { ...stored, version: 2 };
+  await assert.rejects(teams.get(), e => e.code === 'unsupported');
+});
