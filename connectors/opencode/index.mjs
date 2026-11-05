@@ -111,7 +111,7 @@ export const configSchema = {
     hub: {
       type: "boolean",
       title: "Hub",
-      description: "Let the hub on Dispatch's page send your messages to Tandem's /hub (eng-agents Core 2.9.0), with your people, Docket list and Queue area names. Answers come from your AI provider. Off: Home's quick capture still works, with no AI.",
+      description: "Let the hub on Dispatch's page send your messages to Tandem's /hub (eng-agents Core 2.9.0), with your people, Docket list and team area names. Answers come from your AI provider. Off: Home's quick capture still works, with no AI.",
       default: false,
     },
     pollSeconds: {
@@ -425,7 +425,7 @@ const actions = {
             relation: { type: "string", title: "Relation", enum: ["self", "report", "manager", "peer", "contact"] }, team: { type: "boolean", title: "On my team" },
             members: { type: "array", title: "Group members", maxItems: 200, items: str("Person id", { maxLength: 110 }) } } } },
           lists: { type: "array", maxItems: 200, items: str("Docket list", { maxLength: 120 }) },
-          areas: { type: "array", maxItems: 200, items: str("Queue area", { maxLength: 300 }) },
+          areas: { type: "array", maxItems: 200, items: str("Team area path", { maxLength: 300 }) },
         },
       },
     }),

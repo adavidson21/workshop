@@ -47,7 +47,7 @@ test("request.md: the message and one-line names, in the docs/hub.md layout", ()
   assert.match(t, /- g_lead: Leadership @leadership \(group: Person One, Person Two ## x\)\n/);
   assert.match(t, /- p_two: Person Two ## x \(manager\)\n/, "a name never adds Markdown structure");
   assert.match(t, /## Docket lists\n\n- Inbox\n/);
-  assert.match(t, /## Queue areas\n\nNone\.\n/);
+  assert.match(t, /## Team areas\n\nNone\.\n/);
 });
 
 test("run saves request.md, clears old results, runs /hub <path>, and result follows the agent", async () => {

@@ -132,7 +132,7 @@ Rapport's 1:1s (`js/oneonones/` in [adavidson21/receipts](https://github.com/ada
 
 ## The hub
 
-Dispatch's hub (`apps/agents/js/hub.js`, Workshop `docs/hub.md`) sends each message to Tandem's `/hub` (agent **hub**). `lib/hub.mjs` keeps it away from your code: the message and the names it may use (people directory, Docket lists, Queue areas) are saved as `<Workshop home>/data/_connectors/opencode/hub/<id>/request.md`, never in the workspace or `.work`. The hub agent writes `route.json` and, for a question, `answer.md` next to it, and may edit nothing else; it runs only read-only commands and cannot fetch web pages.
+Dispatch's hub (`apps/agents/js/hub.js`, Workshop `docs/hub.md`) sends each message to Tandem's `/hub` (agent **hub**). `lib/hub.mjs` keeps it away from your code: the message and the names it may use (people directory, Docket lists, team area paths) are saved as `<Workshop home>/data/_connectors/opencode/hub/<id>/request.md`, never in the workspace or `.work`. The hub agent writes `route.json` and, for a question, `answer.md` next to it, and may edit nothing else; it runs only read-only commands and cannot fetch web pages.
 
 The **Hub** setting (`hub`, off by default) turns this on. It is not marked `x-workshop-hosted`, so only Workshop on this computer can turn it on; a paired site cannot. While it is off, both actions answer `unavailable` and Dispatch's hub captures with simple rules instead, like Home's quick capture. Hub sessions are listed in Dispatch only while they wait for you (a permission or a question).
 ## PR review queue

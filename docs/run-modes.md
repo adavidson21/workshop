@@ -13,7 +13,7 @@ Version 1. Data stays on the user's computer in every mode. No mode sends data t
 
 Unless work mode is on, the agent serves no hub and no other app. Workshop, Docket, Dispatch, Rapport and Home always come from the hosted site, so there is one copy of every app and it updates when the site deploys. The agent's own page exists for the few things a public site must never do by itself: sign the browser in, approve pairing, and change settings that could point a connector at another server, run another command, or move the data folder (see Trade-off below).
 
-`browser` mode exists for machines where a local server is blocked. Prioritizer works there with file export and import (see [data-format.md](data-format.md), Bundles).
+`browser` mode exists for machines where a local server is blocked. Docket works there with file export and import (see [data-format.md](data-format.md), Bundles).
 
 No origin, domain or port is hardcoded in code. The agent's port comes from `config.json` (`port`, default `4380`). Allowed origins come from `config.json` (`allowedOrigins`, empty by default). See [config.md](config.md).
 

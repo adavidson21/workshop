@@ -10,7 +10,7 @@ Adding an app to Workshop means adding a folder, `apps/<id>/`, with an `app.json
 {
   "manifestVersion": 1,
   "id": "prioritizer",
-  "name": "Prioritizer",
+  "name": "Docket",
   "version": "3.0.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",

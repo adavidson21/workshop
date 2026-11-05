@@ -1,8 +1,8 @@
-// Synthetic ADO data for the Queue actions (queue.list, workitem.update and friends). Every name, id and date
+// Synthetic ADO data for the work item actions (workitem.get, iterations.list, workitem.update). Every name, id and date
 // is made up. Shapes follow the public Azure DevOps REST API reference (WIQL, Work Items, Work Item Updates,
 // Comments, Work Item Type States, Classification Nodes, Connection Data). "{{ADO}}" is the fake server's URL.
 
-export const PAT = 'fake-pat-queue-0123456789';
+export const PAT = 'fake-pat-items-0123456789';
 
 const person = (displayName, uniqueName) => ({ displayName, uniqueName, id: `u-${displayName.toLowerCase().replace(/\s+/g, '-')}` });
 export const ME = person('Engineer A', 'engineer.a@example.com');
@@ -32,7 +32,7 @@ const f = (type, state, title, extra = {}) => ({
   ...extra
 });
 
-export function queueScenario() {
+export function itemsScenario() {
   return {
     pat: PAT,
     collections: {
