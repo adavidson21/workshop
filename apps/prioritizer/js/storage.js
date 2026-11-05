@@ -22,16 +22,28 @@ import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
 import { connectAction, connectItems } from './connect.js';
 import { saveFile } from '../shared/save-file.js';
-import { dayplanBoot, importDayplan } from './dayplan.js';
-import { focusBoot, importFocus } from './focus.js';
+import { dayplanBoot, dp, importDayplan } from './dayplan.js';
+import { focusBoot, focusLog, importFocus } from './focus.js';
 import { offersBoot } from './offers.js';
+import { buildSummary } from './summary.js';
+import { createSummaryWriter } from '../shared/summary.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, dstore = null, fstore = null, ws = null, booted = false, status = {state: 'saved'};
 // The board, the day plan and the focus log save separately; the folder icon shows the worst of them.
 const parts = {board: {state: 'saved'}, day: {state: 'saved'}, focus: {state: 'saved'}};
 const RANK = {error: 3, readonly: 2, saving: 1, saved: 0};
-const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts).reduce((w, p) => RANK[p.state] > RANK[w.state] ? p : w, parts.board)); };
+const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts).reduce((w, p) => RANK[p.state] > RANK[w.state] ? p : w, parts.board)); if (s.state === 'saved' && summary) summary.schedule(); };
+/* Docket's summary for other apps (summary.js, Workshop docs/summaries.md): rewritten after every save, once
+   loaded, and when the date changes. Not while the board is waiting, read-only or failed to load. */
+let summary = null, summaryDay = null;
+function summaryBoot(){
+  summary = createSummaryWriter({data: ws.data, app: 'prioritizer', build: () => (!store || isWaiting() || Object.values(parts).some(p => p.state === 'readonly'))
+    ? null : buildSummary({board: state, dp, log: focusLog, today: todayStr()})});
+  summaryDay = todayStr();
+  summary.flush();
+  setInterval(() => { if (todayStr() !== summaryDay){ summaryDay = todayStr(); summary.schedule(); } }, 60000);
+}
 
 function where(){
   if (!ws) return 'nowhere';
@@ -120,6 +132,7 @@ async function boot(){
   addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); if (dstore && dstore.unsaved) dstore.flushAll(); if (fstore && fstore.unsaved) fstore.flushAll(); });
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
+  summaryBoot();
   if (store.isNew && ws.backend === 'agent'){
     toast('Moving from the old Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
   }
@@ -158,6 +171,8 @@ async function downloadBackup(){
     if (dstore) await dstore.idle();
     if (fstore) await fstore.idle();
     const bundle = await ws.data.export({apps: ['prioritizer']});
+    // The summary is made from the rest (summary.js), so a backup leaves it out; it is written again on load.
+    bundle.collections = bundle.collections.filter(c => c.collection !== 'summary');
     const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
     if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
   } catch (e){ toast('Could not make a backup.'); }

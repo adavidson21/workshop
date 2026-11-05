@@ -2,7 +2,7 @@
    `handoffs` collection (read only), and on Accept or Dismiss changes only Docket's own day plan: the every-sprint
    items and dayplan/settings meta.handled. On its own site Docket shares no data folder with other apps
    (Workshop docs/handoffs.md, rule 5), so it shows nothing. */
-import { SENDERS, acceptedTasks, applyOffer, listFor, markHandled, pendingOffers, taskFromOffer } from './offers-model.js';
+import { SENDERS, sendersFrom, acceptedTasks, applyOffer, listFor, markHandled, pendingOffers, taskFromOffer } from './offers-model.js';
 import { dp, setHandled, setRecurring } from './dayplan.js';
 import { COLORS } from './constants.js';
 import { canonPerson, commit, isWaiting, state, topLists } from './state.js';
@@ -47,6 +47,10 @@ function pickUp(app){
 async function offersBoot(ws, {render}){
   if (!embedded) return;
   wsh = ws; onChange = render;
+  // Senders come from the manifests (ws.apps.list); SENDERS is kept in place so names show in the Day view too.
+  const found = sendersFrom(ws.apps && ws.apps.list ? await ws.apps.list().catch(() => []) : []);
+  for (const k of Object.keys(SENDERS)) delete SENDERS[k];
+  Object.assign(SENDERS, found);
   await Promise.all(Object.keys(SENDERS).map(watchSender));
   onChange();
 }

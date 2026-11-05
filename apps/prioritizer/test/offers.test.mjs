@@ -168,3 +168,18 @@ test('taskFromOffer builds a Docket task that remembers where it came from', () 
   assert.deepEqual(t.people, ['Person One']);
   assert.equal(t.createdAt, '2026-11-03');
 });
+
+test('sendersFrom: senders come from manifests, with the built-in list as the fallback', async () => {
+  const { sendersFrom, SENDERS } = await import('../js/offers-model.js');
+  const apps = [
+    { id: 'home', name: 'Home', handoffs: { sends: ['prioritizer', 'notes'] } },
+    { id: 'agents', name: 'Dispatch', handoffs: { sends: ['prioritizer'] } },
+    { id: 'notes', name: 'Notes', handoffs: { sends: [] } },
+    { id: 'prioritizer', name: 'Docket', handoffs: { sends: ['prioritizer'] } },
+    { id: 'newapp', name: 'New app', handoffs: { sends: ['prioritizer'] } }
+  ];
+  assert.deepEqual(sendersFrom(apps), { home: 'Home', agents: 'Dispatch', newapp: 'New app' });
+  assert.deepEqual(sendersFrom([{ id: 'other', name: 'Other', handoffs: { sends: ['prioritizer'] } }]), { home: 'Home', agents: 'Dispatch', other: 'Other' }, 'added to the built-in list');
+  assert.deepEqual(sendersFrom([]), SENDERS);
+  assert.deepEqual(sendersFrom(null), SENDERS);
+});
