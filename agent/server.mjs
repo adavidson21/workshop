@@ -25,7 +25,7 @@ import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
 import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
-import { appSwitches, readOff, writeOff, pinApps } from './lib/apps.mjs';
+import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 
@@ -120,6 +120,20 @@ export async function createAgent(o) {
   const pinned = new PinnedSite(path.resolve(o.uiDir || uiDirOf(home)), log.for('work'));
   const appsLock = new KeyedLock();
   const switches = () => appSwitches({ home, repo: root, schemas, workMode: workMode(), uiDir: pinned.uiDir });
+  // Work mode with no pinned copy yet (just installed, or work mode just turned on): build it from this
+  // install, as `workshop pin` would. Only when there is none at all: a copy whose files changed after it was
+  // built is a warning sign, so that still stops with a message until the user runs `workshop pin` again.
+  let autoPinTried = false;
+  const ensurePinned = () => {
+    if (!workMode() || readBuild(pinned.uiDir)) { autoPinTried = false; return; }
+    if (autoPinTried) return;
+    autoPinTried = true;
+    try {
+      pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir });
+      log.for('work').info('Work mode: there was no pinned copy, so it was built from this install.');
+    } catch (e) { log.for('work').error(`Work mode: could not build the pinned copy: ${e.message}`); }
+  };
+  ensurePinned();
   const events = new EventHub({ version: VERSION });
   const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
@@ -240,6 +254,7 @@ export async function createAgent(o) {
     if (workMode()) {
       // Work mode: everything comes from the pinned copy, checked file by file. Without a usable copy, "/"
       // says why and the Settings page is served as usual, so work mode can be turned off again.
+      ensurePinned();
       const s = pinned.current();
       if (s.ok) { pinned.serve(req, res, url.pathname === '/index.html' ? '/' : url.pathname); return; }
       if (url.pathname === '/' || url.pathname === '/index.html') {

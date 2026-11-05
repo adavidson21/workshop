@@ -1,18 +1,19 @@
 # Release: creates a release tag and GitHub release from the Actions tab.
-# Actions > Release > Run workflow, then enter the tag and the commit (or leave main).
-# Work mode installs and updates only by these tags (Workshop README, Work mode).
+# Actions > Release > Run workflow. Leave Tag blank: it becomes v<version> from agent/version.mjs at the
+# commit you release. Work mode installs and updates only by these tags (Workshop README, Work mode).
 name: Release
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag, for example v1.0.0"
-        required: true
       ref:
         description: "Commit SHA or branch to release (default: main)"
         required: false
         default: main
+      tag:
+        description: "Leave blank to use the version in agent/version.mjs (v<version>). If set, it must match."
+        required: false
+        default: ""
       notes:
         description: "Release notes (optional)"
         required: false
@@ -25,24 +26,35 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Check the tag
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Pick the tag
+        id: tag
         env:
-          TAG: ${{ inputs.tag }}
+          GIVEN: ${{ inputs.tag }}
         run: |
-          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Tag must look like v1.0.0."
+          version=$(sed -n "s/^export const VERSION = '\\([^']*\\)';.*/\\1/p" agent/version.mjs)
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Could not read a version like 1.2.3 from agent/version.mjs (got '$version')."
             exit 1
           fi
+          tag="v$version"
+          if [ -n "$GIVEN" ] && [ "$GIVEN" != "$tag" ]; then
+            echo "::error::Tag $GIVEN does not match the version in agent/version.mjs ($tag). Leave Tag blank, or bump the version first."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag."
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-          REF: ${{ inputs.ref }}
+          TAG: ${{ steps.tag.outputs.tag }}
           NOTES: ${{ inputs.notes }}
         run: |
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$REF" --jq .sha)
+          sha=$(git rev-parse HEAD)
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists."
+            echo "::error::$TAG is already released. Bump the version in agent/version.mjs, then run this again."
             exit 1
           fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$sha" --title "$TAG" \
