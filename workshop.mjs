@@ -15,9 +15,10 @@
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
-//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--pull]
+//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--latest] [--pull]
 //                                          Move this checkout to a release tag (no options: list the tags, change
-//                                          nothing). --pull is the old git pull. Other installs: how to update.
+//                                          nothing). --latest moves Workshop, Docket and Runway to their newest
+//                                          tags. --pull is the old git pull. Other installs: how to update.
 //   workshop version                       Print the agent version.
 //   workshop help                          This help.
 //
@@ -83,6 +84,9 @@ const USAGE = `Usage: workshop <command> [options]
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
          [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
          [--runway-tag <tag>]    the pinned copy is built from.
+  update --latest                Move Workshop, Docket and Runway each to its newest release tag (skipping any
+                                 already there), then rebuild the pinned copy. Says how to update eng-agents
+                                 when it is next to Workshop and behind.
   update --pull                  Update to the newest code on the current branch (git pull), not a release.
   version                        Print the agent version.
   help                           Show this.
@@ -525,11 +529,12 @@ export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes
 
 /** Read update's options. Returns {opts} or {error}. */
 export function parseUpdateArgs(rest) {
-  const opts = { tag: null, docketTag: null, runwayTag: null, pull: false };
+  const opts = { tag: null, docketTag: null, runwayTag: null, pull: false, latest: false };
   const keys = { '--tag': 'tag', '--docket-tag': 'docketTag', '--runway-tag': 'runwayTag' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pull') { opts.pull = true; continue; }
+    if (a === '--latest') { opts.latest = true; continue; }
     if (keys[a]) {
       const v = rest[++i];
       if (!validTag(v)) return { error: `${a} needs a release tag like v1.2.0.` };
@@ -539,6 +544,7 @@ export function parseUpdateArgs(rest) {
     return { error: `Unknown option ${a}. Run "workshop help".` };
   }
   if (opts.pull && (opts.tag || opts.docketTag || opts.runwayTag)) return { error: '--pull and --tag do not go together.' };
+  if (opts.latest && (opts.pull || opts.tag || opts.docketTag || opts.runwayTag)) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
   return { opts };
 }
 
@@ -586,6 +592,23 @@ export const isReleaseTag = t => validTag(t) && /^(core-)?v\d+(\.\d+)*$/.test(t)
 export function listTags(dir, max = 5) {
   const r = git(dir, ['tag', '--list', '--sort=-v:refname']);
   return r.code === 0 ? r.out.split('\n').filter(isReleaseTag).slice(0, max) : [];
+}
+
+/** The newest full release tag (<prefix>1.2.3) in a checkout with this prefix ('v' for Workshop, Docket and Runway, 'core-v' for
+ *  eng-agents), after fetching tags. Null when there is none. */
+export function latestTag(dir, prefix = 'v', out = () => {}) {
+  const f = git(dir, ['fetch', '--tags', '--quiet', 'origin']);
+  if (f.code !== 0) out(`Could not fetch tags in ${dir}${f.err ? `: ${f.err.split('\n')[0]}` : ''}. Using the tags already here.`);
+  return listTags(dir, Infinity).find(t => t.startsWith(prefix) && /^\d+\.\d+\.\d+$/.test(t.slice(prefix.length))) ?? null;
+}
+
+/** The release tags on a checkout's current commit (more than one tag can sit on a commit, like docket-android). */
+const tagsAtHead = dir => { const r = git(dir, ['tag', '--points-at', 'HEAD']); return r.code === 0 ? r.out.split('\n').filter(isReleaseTag) : []; };
+
+/** eng-agents next to Workshop (where the work mode setup clones it), or null. */
+export function findEngAgents(repo = REPO) {
+  const dir = path.join(path.dirname(repo), 'eng-agents');
+  return fs.existsSync(path.join(dir, 'update.ps1')) && isCheckout(dir) ? dir : null;
 }
 
 /** A remote app's checkout the pinned copy is built from: <repo>/.remote/<id>, else a <key> folder next to the repo
@@ -673,6 +696,18 @@ async function runUpdate(rest, io) {
       child.on('exit', code => { io.out(`Current version: ${VERSION}. This is the newest code, not a release: for work, use "workshop update --tag <tag>".`); resolve(code ?? 0); });
     });
   }
+  let engAgentsLine = null;
+  if (opts.latest) {
+    const plan = planLatest(REPO, io.out);
+    for (const l of plan.lines) io.out(l);
+    Object.assign(opts, plan.tags);
+    engAgentsLine = plan.engAgents;
+    if (!opts.tag && !opts.docketTag && !opts.runwayTag) {
+      io.out('Nothing to move. Nothing was changed.');
+      if (engAgentsLine) io.out(engAgentsLine);
+      return 0;
+    }
+  }
   if (!opts.tag && !opts.docketTag && !opts.runwayTag) {
     const f = git(REPO, ['fetch', '--tags', '--quiet', 'origin']);
     if (f.code !== 0) io.out(`Could not fetch tags${f.err ? `: ${f.err.split('\n')[0]}` : ''}. Showing the tags already here.`);
@@ -702,7 +737,40 @@ async function runUpdate(rest, io) {
     if (r.status !== 0) { io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
   }
   if (running) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
+  if (engAgentsLine) io.out(engAgentsLine);
   return 0;
+}
+
+/**
+ * What `workshop update --latest` moves to: the newest release tag of Workshop and of each Docket and Runway
+ * checkout found, skipping any that are already there or have no release yet. eng-agents is not moved (its own
+ * update.ps1 reinstalls the agents and asks first); when it sits next to Workshop and is behind, `engAgents` is
+ * the command to run. Returns {tags: {tag, docketTag, runwayTag}, lines, engAgents}.
+ */
+export function planLatest(repo = REPO, out = () => {}) {
+  const tags = {}, lines = [];
+  const consider = (name, dir, key) => {
+    const latest = latestTag(dir, 'v', out);
+    const at = tagsAtHead(dir), now = at[0] ?? null;
+    if (!latest) lines.push(`${name}: no release tags yet. Left as it is.`);
+    else if (at.includes(latest)) lines.push(`${name}: already at ${latest}.`);
+    else { tags[key] = latest; lines.push(`${name}: ${now ?? 'not at a release tag'} -> ${latest}.`); }
+  };
+  consider('Workshop', repo, 'tag');
+  for (const a of REMOTE_APPS) {
+    const d = findRemote(a.key, repo);
+    if (d && isCheckout(d)) consider(a.name, d, `${a.key}Tag`);
+    else lines.push(`${a.name}: no git clone found next to Workshop. Skipped.`);
+  }
+  let engAgents = null;
+  const ea = findEngAgents(repo);
+  if (ea) {
+    const latest = latestTag(ea, 'core-v', out);
+    const at = tagsAtHead(ea), now = at[0] ?? null;
+    if (latest && !at.includes(latest)) engAgents = `eng-agents is at ${now ?? 'no release tag'}; the newest is ${latest}. To update it (Dispatch): cd "${ea}" and run .\\update.ps1 -Tag ${latest}`;
+    else if (latest) lines.push(`eng-agents: already at ${latest}.`);
+  }
+  return { tags, lines, engAgents };
 }
 
 // --------------------------------------------------------------- open
