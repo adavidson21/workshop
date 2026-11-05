@@ -47,6 +47,7 @@ The app's `workshop-files.json` maps its copy to the path in workshop and pins a
 ```
 
 - `node scripts/sync-workshop.mjs --update [ref]` copies the files at `ref` (default `main`), records the commit, the bundle `version` and each file's hash from that commit's `bundle.json`.
+- `--update` also copies any bundle file a copied module imports that the app does not list yet (for example a new `shared/` module the SDK starts to import), adds it to `workshop-files.json` and to `app.json`'s `files`, and says so.
 - `--check` (CI) fails when a copy's hash differs from `sha256`, or `sha256` differs from `bundle.json` at the pinned commit. The first check needs no network.
 - Workshop's `tests/check-remote.mjs` warns when an app pins an older bundle than this branch.
 
