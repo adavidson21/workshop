@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A team: one item of settings.teams v1",
+  "description": "The ADO area paths a team works in, owned by Settings. See teams.md.",
+  "type": "object",
+  "required": [
+    "id",
+    "updatedAt",
+    "name",
+    "areas"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^t_[A-Za-z0-9_-]{1,100}$"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "areas": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+      }
+    },
+    "connection": {
+      "type": "string",
+      "maxLength": 120
+    }
+  }
+}

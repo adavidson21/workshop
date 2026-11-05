@@ -1,0 +1,17 @@
+{
+  "id": "lists",
+  "updatedAt": 1793736000000,
+  "kind": "targets",
+  "title": "Lists",
+  "capture": "task",
+  "rows": [
+    {
+      "id": "l_inbox",
+      "title": "Inbox"
+    },
+    {
+      "id": "l_team",
+      "title": "Team"
+    }
+  ]
+}

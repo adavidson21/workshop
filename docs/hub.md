@@ -44,7 +44,7 @@ dont forget about the onboarding doc for person one
 | `Date` | Today, `YYYY-MM-DD`. |
 | `Message` | What the person typed, up to 4000 characters. |
 | `People` | The people directory ([people.md](people.md)): id, name, relation, team. Archived people left out. |
-| `Docket lists` | Docket's list names, so a capture can name one. |
+| `Docket lists` | Docket's list names, so a capture can name one. From the `targets` card with `capture: "task"` in Docket's summary ([summaries.md](summaries.md)). |
 
 Sections with nothing in them say `None.` Nothing else goes in: no Rapport entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
 
@@ -87,6 +87,12 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
 
 Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
+
+### Which app takes a capture
+
+Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`) goes to the app whose manifest lists it in `capture` ([app-manifest.md](app-manifest.md)), first by `order`. Quick capture and the hub find them with `ws.apps.list()` ([sdk.md](sdk.md)). The parsing rules for each kind stay in `shared/capture.js`; an app takes a kind by accepting that payload as a handoff ([handoffs.md](handoffs.md), Receivers). When no app takes a kind, its prefix is not recognized and the line is a task. Outside Workshop's site (no app list) the built-in targets are used: `task` and `waiting` to Docket, `receipt` to Rapport, `note` to Notes, `idea` to Runway.
+
+`> <place>` matches an app's `id`, `name` or one of its `aliases`.
 
 ## Rules
 

@@ -45,6 +45,14 @@ Events:
 | `visible` | `{visible}` | The app was shown or hidden in the shell. |
 | `online` | `{online}` | The agent became reachable or unreachable. |
 
+### Apps
+
+| Method | Meaning |
+| --- | --- |
+| `ws.apps.list()` | The apps on this Workshop site: `[{id, name, version, order, handoffs, capture, aliases}]` from their manifests ([app-manifest.md](app-manifest.md)), sorted by `order`. Read once per page from the site's `apps/registry.json`. Resolves `[]` when the app is not running inside Workshop's site (Docket on its own site, for example); the app then uses its built-in fallback. |
+
+Apps use it to find each other instead of naming app ids in code: handoff senders, capture targets, places for `> <name>`.
+
 ### Data
 
 | Method | Meaning |
@@ -57,7 +65,7 @@ Events:
 | `ws.data.export({apps?})` | A bundle of every collection (or those of the listed apps). |
 | `ws.data.import(bundle)` | Merges a bundle in. Collections that do not exist are created; existing ones are merged and put. Resolves `{created, merged}` (counts). |
 
-The people directory every app reads is Settings' `people` collection: `ws.data.get('people', {app: 'settings'})` ([people.md](people.md)).
+The people directory every app reads is Settings' `people` collection: `ws.data.get('people', {app: 'settings'})` ([people.md](people.md)). Team area paths are Settings' `teams` collection ([teams.md](teams.md)). What another app publishes for others to show is its `summary` collection ([summaries.md](summaries.md)); read that, not the app's own collections.
 
 Bad names reject with `bad_request` before any request is made. The SDK sends `X-Workshop-Client` on every write and the token header on every agent request.
 

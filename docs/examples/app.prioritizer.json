@@ -54,5 +54,23 @@
     "app.css",
     "js/main.js",
     "js/state.js"
+  ],
+  "handoffs": {
+    "sends": [
+      "receipts"
+    ]
+  },
+  "capture": [
+    "task",
+    "waiting"
+  ],
+  "aliases": [
+    "docket",
+    "tasks",
+    "board",
+    {
+      "name": "today",
+      "path": "today"
+    }
   ]
 }

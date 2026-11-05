@@ -1,0 +1,20 @@
+{
+  "id": "people",
+  "updatedAt": 1793736000000,
+  "kind": "people",
+  "rows": [
+    {
+      "name": "Person One",
+      "personId": "p_lq3k9a1b2c",
+      "open": [
+        {
+          "id": "t_k2f9",
+          "title": "Review the onboarding guide",
+          "due": "2026-11-06",
+          "nudgeOn": ""
+        }
+      ],
+      "waiting": []
+    }
+  ]
+}

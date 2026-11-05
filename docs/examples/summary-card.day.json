@@ -1,0 +1,26 @@
+{
+  "id": "day",
+  "updatedAt": 1793736000000,
+  "kind": "day",
+  "days": {
+    "2026-11-04": {
+      "blocks": [
+        {
+          "name": "Deep work",
+          "at": "09:00",
+          "until": "11:00",
+          "tasks": [
+            {
+              "id": "t_k2f9",
+              "title": "Review the onboarding guide",
+              "done": false
+            }
+          ]
+        }
+      ],
+      "wrapAt": "16:00",
+      "wrapped": false,
+      "offered": 0
+    }
+  }
+}
