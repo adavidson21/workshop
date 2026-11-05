@@ -13,7 +13,8 @@ function urgency(t, on = today()){
   if (t.value && on > impliedDue(t)) return 1;
   return 0;
 }
-const isStale = t => !t.done && !t.due && !!t.value && daysBetween(t.ageFrom, today()) >= 2 * WINDOW[t.value];
+// PR reviews never go stale: their age already raises their urgency, and the fix is a review, not Triage.
+const isStale = t => !t.done && !t.pr && !t.due && !!t.value && daysBetween(t.ageFrom, today()) >= 2 * WINDOW[t.value];
 const score = t => isTriaged(t) ? (t.value + urgency(t)) / POINTS[t.effort] : null;
 function tier(t){
   const s = score(t);

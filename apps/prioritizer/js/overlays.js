@@ -119,9 +119,18 @@ function openListMenu(listId, anchor){
     });
 }
 function openScopeMenu(anchor){
+  // The PR filter sits under the lists, once there are open PR reviews to filter.
+  const prs = state.tasks.filter(t => t.pr && !t.done), mine = prs.filter(t => t.pr.tier !== 'pool').length;
+  const opt = (k, label, n) => `<button data-prs="${k}" role="menuitemradio" aria-checked="${state.prs === k}"${state.prs === k ? ' class="on"' : ''}>${label}${n != null ? `<span class="mut grow-l">${n}</span>` : ''}</button>`;
+  const prHtml = prs.length ? `<div class="sep"></div><div class="mhead">Pull requests</div>`
+    + opt('all', 'All', prs.length) + opt('mine', 'Only ones that need me', mine) + opt('none', 'None') : '';
   popMenu(`<button data-sc="all"${state.scope === 'all' ? ' class="on"' : ''}>All lists</button>` + orderedLists().map(l =>
-    `<button data-sc="${l.id}"${state.scope === l.id ? ' class="on"' : ''}>${l.parentId ? '   ↳ ' : ''}${esc(l.name)}</button>`).join(''), anchor)
-    .addEventListener('click', e => { const b = e.target.closest('[data-sc]'); if (!b) return; closeMenu(); setScope(b.dataset.sc); });
+    `<button data-sc="${l.id}"${state.scope === l.id ? ' class="on"' : ''}>${l.parentId ? '   ↳ ' : ''}${esc(l.name)}</button>`).join('') + prHtml, anchor)
+    .addEventListener('click', e => {
+      const p = e.target.closest('[data-prs]');
+      if (p){ closeMenu(true); state.prs = p.dataset.prs; commit(); return; }
+      const b = e.target.closest('[data-sc]'); if (!b) return; closeMenu(); setScope(b.dataset.sc);
+    });
 }
 function newSubList(parentId){
   askText(`New section in ${listById(parentId).name}`, '', v => {

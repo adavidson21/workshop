@@ -12,9 +12,10 @@ import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-m
 import { cleanRowFields } from './row-fields-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
+const PR_SHOW = ['all', 'mine', 'none'];   // the PR filter's values (see shown)
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -119,6 +120,7 @@ function sanitize(s){
   if (!s.lists.some(l => !l.parentId)) s.lists[0].parentId = null;
   s.tasks = s.tasks.filter(t => ids.has(t.listId));
   if (s.scope !== 'all' && !ids.has(s.scope)) s.scope = 'all';
+  if (!PR_SHOW.includes(s.prs)) s.prs = 'all';
   delete s.includeSub; delete s.activeListId;
   s.ado = s.ado && typeof s.ado === 'object' ? s.ado : {};
   if (s.ado.listId && !ids.has(s.ado.listId)) delete s.ado.listId;
@@ -137,7 +139,7 @@ function sanitize(s){
   return s;
 }
 /* per-window UI state, kept in this browser (not part of the saved board): sidebar, and which view,
-   lens and scope this window shows, so two windows can look at different things. */
+   lens, scope and PR filter this window shows, so two windows can look at different things. */
 let ui = {collapsed: false};
 try { ui = Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch(e) {}
 const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch(e) {} };
@@ -148,6 +150,7 @@ let state = Object.assign(fresh(), pickWindow(ui));
 function pickWindow(o){
   const w = {};
   for (const k of ['view','lens','scope']) if (typeof o[k] === 'string') w[k] = o[k];
+  if (PR_SHOW.includes(o.prs)) w.prs = o.prs;
   if (Number.isFinite(o.colorIdx)) w.colorIdx = o.colorIdx;
   return w;
 }
@@ -187,7 +190,18 @@ function scopeName(){
   return L.parentId ? `${listById(L.parentId).name} › ${L.name}` : L.name;
 }
 const defaultListId = () => state.scope !== 'all' && listById(state.scope) ? state.scope : topLists()[0].id;
-const inScope = t => scopeListIds().includes(t.listId);
+/* Which PR review tasks this window shows: 'all', 'mine' (hides Team PRs, the ones any teammate can take) or
+   'none'. Per window, like scope. Picking the Pull requests list itself always shows its PRs, so 'none' never
+   leaves you looking at an empty list you chose. Work items, your own tasks and done tasks are never hidden. */
+function shown(t){
+  if (!t.pr || t.done) return true;
+  if (state.prs === 'mine') return t.pr.tier !== 'pool';
+  if (state.prs === 'none') return state.scope === state.ado.prListId;
+  return true;
+}
+// How many open tasks the PR filter hides in the current scope.
+const hiddenCount = () => state.tasks.filter(t => !t.done && scopeListIds().includes(t.listId) && !shown(t)).length;
+const inScope = t => scopeListIds().includes(t.listId) && shown(t);
 const isDoneToday = t => t.done && !t.wontDo && t.doneAt === todayStr();
 const scopeOpen = () => state.tasks.filter(t => !t.done && inScope(t)).sort((a,b) => a.rank - b.rank);
 const isFocus = t => t.focusOn === todayStr() && (!t.done || isDoneToday(t));
@@ -195,4 +209,4 @@ function triageQueue(){
   return state.tasks.filter(t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t)))
     .sort((a,b) => a.ageFrom.localeCompare(b.ageFrom) || a.rank - b.rank);
 }
-export { PR_GONES, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

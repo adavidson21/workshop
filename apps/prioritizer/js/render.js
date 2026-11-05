@@ -5,7 +5,7 @@ import { engChip } from './eng.js';
 import { prAiChip } from './pr-ai.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
-import { childrenOf, commit, isWaiting, listById, scopeListIds, scopeName, scopeOpen, state, topLists, triageQueue } from './state.js';
+import { childrenOf, commit, hiddenCount, inScope, isWaiting, listById, scopeListIds, scopeName, scopeOpen, shown, state, topLists, triageQueue } from './state.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, plural, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
@@ -69,17 +69,19 @@ function renderWaiting(){
 /* sidebar */
 function renderSide(){
   const nav = NAV_OF(state.view);
-  const ids = scopeListIds();
   const counts = {
-    today: state.tasks.filter(t => !t.done && ids.includes(t.listId) && t.focusOn === todayStr()).length,
+    today: state.tasks.filter(t => !t.done && inScope(t) && t.focusOn === todayStr()).length,
     triage: triageQueue().length
   };
   $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${label}. Shortcut: ${key}">${ic}<span class="lbl">${label}</span>${
     k === 'triage' && counts.triage ? `<span class="badge" aria-label="${counts.triage} to triage">${counts.triage}</span>`
     : k === 'today' && counts.today ? `<span class="n">${counts.today}</span>` : ''}</button>`).join('');
-  const open = id => state.tasks.filter(t => !t.done && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
+  // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of
+  // its PRs when "No PRs" is on, since picking it shows them.
+  const vis = (t, id) => !t.done && (shown(t) || state.prs === 'none' && id === state.ado.prListId);
+  const open = id => state.tasks.filter(t => vis(t, id) && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
   const item = (l, sub) => {
-    const n = sub ? state.tasks.filter(t => !t.done && t.listId === l.id).length : open(l.id);
+    const n = sub ? state.tasks.filter(t => vis(t, l.id) && t.listId === l.id).length : open(l.id);
     const on = state.scope === l.id || (state.lists.length === 1 && state.scope === 'all');
     return `<div class="sitem${sub ? ' child' : ''}${on ? ' on' : ''}" data-scope="${l.id}" data-droplist="${l.id}" role="button" tabindex="0" aria-pressed="${on}">
       <i class="dot lc${listColor(l.id)}"></i><span class="lbl">${esc(l.name)}</span>${n ? `<span class="n">${n}</span>` : ''}
@@ -87,11 +89,16 @@ function renderSide(){
   };
   // "All lists" only means something once there are two lists to pick between.
   const one = state.lists.length === 1;
-  $('#slists').innerHTML = (one ? '' : `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done).length || ''}</span></div>`)
+  $('#slists').innerHTML = (one ? '' : `<div class="sitem${state.scope === 'all' ? ' on' : ''}" data-scope="all" role="button" tabindex="0" aria-pressed="${state.scope === 'all'}"><i class="dot"></i><span class="lbl">All lists</span><span class="n">${state.tasks.filter(t => !t.done && shown(t)).length || ''}</span></div>`)
     + topLists().map(l => item(l, false) + childrenOf(l.id).map(c => item(c, true)).join('')).join('');
 }
 
 /* header */
+// The scope, plus what the PR filter hides here, so a filtered view never looks like the whole board.
+function scopeLabel(){
+  const n = hiddenCount();
+  return scopeName() + (n ? ` · ${n} ${state.prs === 'mine' ? 'team ' : ''}PR${n === 1 ? '' : 's'} hidden` : '');
+}
 // Header actions are round icon buttons; the tooltip and aria-label carry the words.
 const hbtn = (icon, tip, attrs, cls = '') => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(tip.split('.')[0])}" data-tip="${esc(tip)}">${icon}</button>`;
 const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'primary addbtn');
@@ -99,7 +106,7 @@ function renderHead(){
   const v = state.view, nav = NAV_OF(v);
   const title = {today: 'Today', triage: 'Triage', prio: 'Prioritize', people: 'People'}[nav];
   if (v === 'day') return dayHead();
-  let sub = esc(scopeName()), tools = '';
+  let sub = esc(scopeLabel()), tools = '';
   if (v === 'today'){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
     const nx = !activeTask() && nextTask();
@@ -178,11 +185,13 @@ function row(t, o = {}){
     : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in Triage." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
   const act = !pv && !t.done && isActive(t.id), crumb = o.crumb && on('crumb') ? rowCrumb(t) : '';
+  // A PR's chip already says it's a review, so the row drops the "Review: " its title starts with.
+  const title = t.pr ? t.title.replace(/^Review:\s*/, '') : t.title;
   return `<article class="row${t.done ? ' done' : ''}${!t.done && t.pr && t.pr.ai && t.pr.ai.state === 'pending' ? ' aipend' : ''}${act ? ' active' : ''}${o.top ? ' top' : ''}${o.compact ? ' compact' : ''}" data-id="${t.id}"${tr ? ` data-tier="${tr}"` : ''} draggable="true" tabindex="0" aria-label="${esc(t.title)}">`
     + (o.rank != null ? `<span class="rank">${o.rank}</span>` : '')
     + `<button class="check" data-act="done" aria-label="${t.done ? 'Reopen' : 'Complete'}" title="${t.done ? 'Reopen' : 'Complete'}"><i>${ICON.check}</i></button>`
     // On Today, where you left off sits under the title, so the morning starts where yesterday stopped.
-    + (crumb ? `<span class="tcol"><span class="title">${esc(t.title)}</span>${crumb}</span>` : `<span class="title">${esc(t.title)}</span>`)
+    + (crumb ? `<span class="tcol"><span class="title">${esc(title)}</span>${crumb}</span>` : `<span class="title">${esc(title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
     + scoreHtml
     + (o.start && !t.done && (on('start') || act) ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
@@ -205,4 +214,4 @@ function capacityCut(open){
   return {cut, sum};
 }
 
-export { app, capacityCut, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, prevView, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff };
+export { app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, prevView, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff };

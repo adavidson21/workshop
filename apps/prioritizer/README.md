@@ -37,7 +37,7 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 - **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Day:** time blocks for today (or any day), built from your sprint. Slot tasks into blocks, and rearrange when the day goes sideways. See below.
 
-The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one.
+The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one. The same choice is in the menu under each view's title, which also has the **Pull requests** filter once PR reviews sync (see [Pull requests to review](#pull-requests-to-review)).
 
 ## Day: time blocks by sprint day
 
@@ -171,7 +171,7 @@ Work item types and which states count as closed are in `ado-helper.json` (`type
 
 ### Pull requests to review
 
-Active PRs where you or one of your teams is a reviewer become tasks in **ADO > Pull requests**, titled `Review: <PR title>`. Each gets a tier based on how much it's waiting on you:
+Active PRs where you or one of your teams is a reviewer become tasks in **ADO > Pull requests**, titled `Review: <PR title>` (rows show just the PR title next to the PR chip). Each gets a tier based on how much it's waiting on you:
 
 | Tier | When | Starting value | Urgent |
 | --- | --- | --- | --- |
@@ -181,7 +181,7 @@ Active PRs where you or one of your teams is a reviewer become tasks in **ADO > 
 
 The starting value and urgent flag are defaults; change them per tier in ADO Settings.
 
-A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in Triage.
+A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in the list. PRs never go stale or back to Triage: what they need is a review.
 
 - **Your vote decides when it's done.** Approve, Approve with suggestions or Reject completes the task. Waiting for author moves it to Waiting with the author attached, so it shows on their People card. If your vote resets after a new push, it comes back to you.
 - **Team PRs** complete when a teammate votes for the team.
@@ -198,6 +198,8 @@ With Workshop's opencode connector on and its **Review new PRs as soon as they a
 - The chip then shows the recommendation (**AI: Approve**, **AI: Changes**, **AI: Questions**), in the warning look for high risk or blocking comments. Hover for the risk and draft comment counts; click it, or **Open in Dispatch** in the drawer, to read the drafts. A failed or late review has **Review again**.
 - A new push starts the review over on the same task.
 - Connector off or not ready, opencode not connected, or the setting off: PRs land as they always did, and held ones land at once.
+
+**Filtering PRs:** the menu under each view's title (the scope, like "All lists") has a **Pull requests** filter: **All**, **Only ones that need me** (hides Team PRs, the ones any teammate can take) or **None**. It applies to every view and to the sidebar counts, and the title line says how many it hides (for example "4 team PRs hidden"). It is per window, like the scope, so a second window can still show everything. Picking the Pull requests list itself always shows its PRs, even with None. Home and other apps still see every PR.
 
 **Setup:** run `py ado_helper.py --add-pr-source` and enter each collection URL and project to watch, optionally limited to some repos. This can be a different collection than your work items, and you can add more than one. Your PAT also needs **Code (Read)**, plus **Project and Team (Read)** for team PRs. `py ado_helper.py --test` lists the PRs it finds by tier and says which scope is missing if one is. In `ado-helper.json`, `pr_teams` limits which of your teams count (empty means all of them).
 
@@ -262,7 +264,7 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Storage format
 
-The board is three collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v4 (capacity in `meta`; a task's `who` is people and group ids from Workshop's people directory, [docs/people.md](https://github.com/adavidson21/workshop/blob/main/docs/people.md), read and added to with `ws.people`), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, `meta.onboarded`, the date the first-run tour was shown, and `meta.rowFields`, `{hidden: [keys]}`, the optional row fields that are hidden, absent when none are; keys this version doesn't know are kept). Tasks v3 kept names in `people`; a v3 board or backup is read, and its names become contacts and ids once the directory has loaded. An old `prioritizer.people` file is left alone and not read. Which view, lens and scope a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
+The board is three collections in the Workshop data format ([docs/data-format.md](https://github.com/adavidson21/workshop/blob/main/docs/data-format.md)): `prioritizer.lists` v1, `prioritizer.tasks` v4 (capacity in `meta`; a task's `who` is people and group ids from Workshop's people directory, [docs/people.md](https://github.com/adavidson21/workshop/blob/main/docs/people.md), read and added to with `ws.people`), and `prioritizer.settings` v1 (no items; Docket's own ADO behavior in `meta.ado`, `meta.onboarded`, the date the first-run tour was shown, and `meta.rowFields`, `{hidden: [keys]}`, the optional row fields that are hidden, absent when none are; keys this version doesn't know are kept). Tasks v3 kept names in `people`; a v3 board or backup is read, and its names become contacts and ids once the directory has loaded. An old `prioritizer.people` file is left alone and not read. Which view, lens, scope and PR filter (`prs`) a window shows is per window, kept with the sidebar state in `localStorage` (`prioritizer.ui`), not in the data. Other apps reading these files should check `schema` and `version` and treat an unknown version as unreadable.
 
 The Day view adds these collections, all version 1, in the same format (change stamps, tombstones, unknown fields kept, read only when the version is not newer):
 

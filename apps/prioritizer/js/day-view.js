@@ -13,8 +13,8 @@ import { cmdOpen } from './command-bar.js';
 import { acceptOffer, dismissOffer, offers } from './offers.js';
 import { SENDERS, applyOffer, matchFor } from './offers-model.js';
 import { closeMenu, closeModal, confirmBox, menuEl, modal, popMenu, showModal, toast } from './overlays.js';
-import { main, render, row, sel, setSel } from './render.js';
-import { commit, findTask, isWaiting, orderedLists, scopeName, scopeOpen, state } from './state.js';
+import { main, render, row, scopeLabel, sel, setSel } from './render.js';
+import { commit, findTask, isWaiting, orderedLists, scopeOpen, state } from './state.js';
 import { EFFORTS, VALUE } from './constants.js';
 import { $, esc, fmtLong, plural, todayStr } from './util.js';
 
@@ -43,7 +43,7 @@ function setDate(d){
 function dayHead(){
   const d = curDate(), info = sprintInfo(dp.sprint, d);
   const where = info ? (info.off ? `Sprint ${info.id} · ${info.holiday ? 'Holiday' : 'Day off'}` : `Sprint ${info.id}, day ${info.day} of ${info.total}`) : 'No sprint set';
-  const sub = `${esc(where)} · ${esc(fmtLong(d))} · ${esc(scopeName())}`;
+  const sub = `${esc(where)} · ${esc(fmtLong(d))} · ${esc(scopeLabel())}`;
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
     <div class="ptitle"><h1>Day</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
     <div class="htools">

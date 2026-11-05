@@ -276,6 +276,27 @@ def main():
           const held = P.state.ado.prHeld.length; P.adoApply({{items: [], prs: {{items: []}}}}, {{ai: true}}); return [held, P.state.ado.prHeld.length, P.state.tasks.some(t => t.pr && t.pr.id === 706)]; }}""")
         check('a held PR that drops off ADO never becomes a task', r == [1, 0, False])
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.pr && t.pr.id > 700)); P.state.ado.prHeld = []; P.commit(); }}")
+        # ---------- PR filter: per window, in the scope menu; Team PRs hide with "Only ones that need me" ----------
+        pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'rank'; P.adoApply({{prs: {{items: [
+          {{key: 'c|p|r|801', id: 801, repo: 'web', title: 'Mine', tier: 'blocking', created: '2026-01-01'}},
+          {{key: 'c|p|r|802', id: 802, repo: 'web', title: 'Team one', tier: 'pool', via: ['Team'], created: '2026-01-01'}}]}}}}); P.commit(); }}""")
+        pg.wait_for_timeout(200)
+        titles_shown = "() => [...document.querySelectorAll('main .row .title')].map(e => e.textContent)"
+        shown_now = pg.evaluate(titles_shown)
+        check('PR rows drop the "Review: " prefix (the PR chip says it)', 'Mine' in shown_now and 'Team one' in shown_now and not any(x.startswith('Review:') for x in shown_now))
+        check('an old PR never goes stale or back to Triage', pg.evaluate(f"() => {P}.triageQueue().every(t => !t.pr)"))
+        pg.click('.phead [data-scopemenu]'); pg.wait_for_timeout(150)
+        check('the scope menu has the PR filter', pg.locator('.menu [data-prs]').count() == 3)
+        pg.click('.menu [data-prs="mine"]'); pg.wait_for_timeout(200)
+        shown_now = pg.evaluate(titles_shown)
+        check('Only ones that need me hides Team PRs and keeps yours', 'Mine' in shown_now and 'Team one' not in shown_now)
+        check('the header says what the filter hides', '1 team pr hidden' in pg.inner_text('.phead .scopebtn').lower())
+        check('the filter is per window, kept with the UI state', pg.evaluate("JSON.parse(localStorage.getItem('prioritizer.ui')).prs") == 'mine')
+        pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'none'; P.state.scope = P.state.ado.prListId; P.commit(); }}"); pg.wait_for_timeout(200)
+        check('None still shows PRs when you pick the Pull requests list', len(pg.evaluate(titles_shown)) == 2)
+        pg.evaluate(f"() => {{ const P = {P}; P.state.scope = 'all'; P.commit(); }}"); pg.wait_for_timeout(200)
+        check('None hides every PR elsewhere', not any(x in ('Mine', 'Team one') for x in pg.evaluate(titles_shown)))
+        pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'all'; P.state.tasks = P.state.tasks.filter(t => !t.pr); P.commit(); }}")
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.ado && t.ado.id === 12345)); P.state.view = 'day'; P.commit(); }}")
         # ---------- every-sprint offers from another app (Workshop docs/handoffs.md): inside Workshop only ----------
         # A sender (app id example-app) writes an offer to its own handoffs collection, in this browser's storage.

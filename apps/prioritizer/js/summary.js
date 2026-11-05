@@ -22,7 +22,7 @@ const WRAP_NO_SPRINT = '15:00';          // Wrap up with no sprint set: from 3 P
 const WRAP_BEFORE_END = 60;              // otherwise an hour before the Day view's day end, on working days
 
 const str = (s, n) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n);
-const isStaleOn = (t, date) => !t.done && !t.due && !!t.value && isDate(t.ageFrom) && daysBetween(t.ageFrom, date) >= 2 * WINDOW[t.value];
+const isStaleOn = (t, date) => !t.done && !t.pr && !t.due && !!t.value && isDate(t.ageFrom) && daysBetween(t.ageFrom, date) >= 2 * WINDOW[t.value];
 
 /* ---------- board ---------- */
 export function boardDay(board, date){

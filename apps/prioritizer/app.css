@@ -408,6 +408,8 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .menu{z-index:48}
 .menu .mnote{padding:.45rem .65rem .4rem;font-size:.8rem;color:var(--muted);border-bottom:1px solid var(--line);margin-bottom:.25rem;max-width:17rem}
 .menu .mnote.warn{color:var(--danger)}
+.menu .mhead{padding:.35rem .65rem .2rem;font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.menu .grow-l{margin-left:auto;font-family:var(--mono)}
 
 /* ---------- breakpoints ---------- */
 @media (max-width:1099px){

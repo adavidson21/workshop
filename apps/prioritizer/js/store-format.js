@@ -11,7 +11,7 @@
                                         the date the first-run tour was shown (absent until then), and the optional
                                         row fields that are hidden, {hidden: [keys]} (absent when none are)
 
-   Which view, lens and scope a window shows is per window (saved with the other UI state), not data.
+   Which view, lens, scope and PR filter a window shows is per window (saved with the other UI state), not data.
    tasks v4 replaced names in `people` with directory ids in `who`; a v3 file (or backup) is read, and its names
    become ids once the directory has loaded (directory.js adoptNames). Docket no longer keeps people of its own:
    an old prioritizer.people file is left as it is and not read. */

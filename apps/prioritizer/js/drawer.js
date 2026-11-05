@@ -77,7 +77,7 @@ function renderDrawer(){
       <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
       ${t.ado ? `<div class="dado"><a href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.ado.type || 'item')} #${t.ado.id} in ADO</a><span>${esc(t.ado.state)}${t.ado.project ? ' · ' + esc(t.ado.project) : ''}</span>${t.ado.gone ? `<span class="chip">${ADO_GONE[t.ado.gone]}</span>` : ''}</div>` : ''}
       ${t.ado ? engDrawer(t) : ''}
-      ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR ${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
+      ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
       ${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
@@ -92,7 +92,7 @@ function renderDrawer(){
       <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">
         <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
-      ${repeatFieldHtml(t)}
+      ${t.pr || (t.ado && !t.ado.pasted) ? '' : repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
         ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
