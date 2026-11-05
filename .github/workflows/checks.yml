@@ -56,7 +56,8 @@ jobs:
       # Keep LF line endings on Windows: the contract tests read docs/*.md with \n-based patterns.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
-      # The ADO connector's parity tests run Docket's ado-helper/ado_helper.py.
+      # The ADO connector's parity tests ran Docket's ado_helper.py; Docket 5.4.0 retired it, so they skip unless a
+      # checkout still has it.
       - uses: actions/checkout@v4
         with: { repository: adavidson21/docket, path: .remote/prioritizer }
       - uses: actions/setup-node@v4

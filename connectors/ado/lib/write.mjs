@@ -1,4 +1,4 @@
-// Write actions for the Queue app: change fields, comment, create. Every one is `write: true` in index.mjs,
+// Write actions: change fields (Runway's Publish), comment, create. Every one is `write: true` in index.mjs,
 // so the agent requires `confirm: true` from the caller (a person's click). Updates carry the revision the
 // caller read: if the item changed in ADO since, the write is refused with `conflict` and the item as it is now,
 // instead of overwriting someone else's change.
@@ -55,6 +55,25 @@ export function patchOps(changes, currentFields = {}) {
   }
   if (changes.assignedTo !== undefined) set('System.AssignedTo', String(changes.assignedTo || ''));
   if (changes.priority !== undefined) set('Microsoft.VSTS.Common.Priority', changes.priority);
+  if (changes.title !== undefined) {
+    const title = String(changes.title).replace(/\s+/g, ' ').trim();
+    if (!title) throw new SettingsError('Title cannot be empty.');
+    set('System.Title', title.slice(0, 255));
+  }
+  // Dates are YYYY-MM-DD; an empty string clears the field (only sent when the item has it, since ADO refuses
+  // to remove a field that is not there).
+  const day = (field, value, label) => {
+    if (value === undefined) return;
+    if (value === '' || value === null) { if (get(currentFields, field) != null) ops.push({ op: 'remove', path: `/fields/${field}` }); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) throw new SettingsError(`${label} must be a date like 2026-11-05.`);
+    set(field, `${value}T00:00:00Z`);
+  };
+  day('Microsoft.VSTS.Scheduling.StartDate', changes.startDate, 'Start date');
+  day('Microsoft.VSTS.Scheduling.TargetDate', changes.targetDate, 'Target date');
+  if (changes.area !== undefined) {
+    if (!String(changes.area).trim()) throw new SettingsError('Area cannot be empty.');
+    set('System.AreaPath', String(changes.area));
+  }
   if (changes.iteration !== undefined) {
     if (!String(changes.iteration).trim()) throw new SettingsError('Sprint cannot be empty.');
     set('System.IterationPath', String(changes.iteration));
@@ -66,7 +85,8 @@ export function patchOps(changes, currentFields = {}) {
 }
 
 /**
- * "workitem.update". args: {id, rev, connection?, changes: {state?, assignedTo?, priority?, iteration?, tagsAdd?, tagsRemove?}}
+ * "workitem.update". args: {id, rev, connection?, changes: {title?, state?, assignedTo?, priority?, iteration?, area?,
+ * startDate?, targetDate?, tagsAdd?, tagsRemove?}}
  * Returns the item as ADO now has it, in the queue shape.
  */
 export async function updateWorkItem(d, args) {

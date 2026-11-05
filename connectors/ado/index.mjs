@@ -138,7 +138,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.4.0',
+  version: '1.5.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -279,7 +279,7 @@ export default {
       }
     },
     'workitem.update': {
-      title: 'Change a work item (state, assignee, priority, sprint, tags)',
+      title: 'Change a work item (title, state, assignee, priority, sprint, area, dates, tags)',
       write: true,
       argsSchema: {
         type: 'object',
@@ -292,7 +292,11 @@ export default {
             type: 'object',
             additionalProperties: false,
             properties: {
+              title: { type: 'string', minLength: 1, maxLength: 255 },
               state: { type: 'string', minLength: 1, maxLength: 100 },
+              area: { type: 'string', minLength: 1, maxLength: 400 },
+              startDate: { type: 'string', pattern: '^(\\d{4}-\\d{2}-\\d{2})?$', description: 'YYYY-MM-DD; empty string clears it.' },
+              targetDate: { type: 'string', pattern: '^(\\d{4}-\\d{2}-\\d{2})?$', description: 'YYYY-MM-DD; empty string clears it.' },
               assignedTo: { type: 'string', maxLength: 300, description: 'Email or "Name <email>". Empty string unassigns.' },
               priority: { type: 'integer', minimum: 1, maximum: 4 },
               iteration: { type: 'string', minLength: 1, maxLength: 400 },

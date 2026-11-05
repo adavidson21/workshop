@@ -101,6 +101,19 @@ test('workitem.states and iterations.list', () => withAdo(async ({ d }) => {
   assert.equal(it.iterations[2].start, '2026-10-07');
 }));
 
+test('patchOps: title, area and dates for Runway\'s Publish', () => {
+  assert.deepEqual(patchOps({ title: '  New   name ', area: 'P\\Team', startDate: '2026-11-05', targetDate: '' }, { 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-01T00:00:00Z' }), [
+    { op: 'add', path: '/fields/System.Title', value: 'New name' },
+    { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.StartDate', value: '2026-11-05T00:00:00Z' },
+    { op: 'remove', path: '/fields/Microsoft.VSTS.Scheduling.TargetDate' },
+    { op: 'add', path: '/fields/System.AreaPath', value: 'P\\Team' }
+  ]);
+  assert.deepEqual(patchOps({ targetDate: '' }, {}), [], 'clearing a date the item does not have sends nothing');
+  assert.throws(() => patchOps({ title: ' ' }), /Title/);
+  assert.throws(() => patchOps({ startDate: 'soon' }), /Start date/);
+  assert.throws(() => patchOps({ area: '' }), /Area/);
+});
+
 test('patchOps and mergeTags', () => {
   assert.equal(mergeTags('api; urgent', ['UI', 'API'], ['Urgent']), 'api; UI');
   assert.equal(mergeTags('', ['a;b']), 'a b');
