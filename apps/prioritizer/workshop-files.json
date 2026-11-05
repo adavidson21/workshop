@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "80ad5af33e85399967b038114d6b8818b943287b",
+  "commit": "38642f659328affe6f5568579fd0bdcecfd5667d",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -40,7 +40,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "1.0.0",
+  "bundle": "1.0.1",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
