@@ -21,8 +21,8 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, pull: false, latest: true, check: false }, 'plain update means the newest releases');
-  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, pull: false, latest: false, check: true });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, engAgentsTag: null, pull: false, latest: true, check: false }, 'plain update means the newest releases');
+  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, engAgentsTag: null, pull: false, latest: false, check: true });
   assert.ok(parseUpdateArgs(['--check', '--tag', 'v1.0.0']).error);
   assert.equal(parseUpdateArgs(['--pull']).opts.latest, false);
   assert.equal(parseUpdateArgs(['--latest']).opts.latest, true);
@@ -30,7 +30,7 @@ test('update, pin and install read their options', () => {
   assert.ok(parseUpdateArgs(['--pull', '--receipts-tag', 'v3.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--tag', 'v1.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--pull']).error);
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, pull: false, latest: false, check: false });
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, engAgentsTag: null, pull: false, latest: false, check: false });
   assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
@@ -194,7 +194,7 @@ test('doctor checks opencode\'s providers against the connector\'s approved list
   } finally { rm(home); rm(userHome); rm(path.dirname(defaultDir)); }
 });
 
-test('update --latest picks the newest release tag of each checkout found, and only says how to update eng-agents', { skip: !hasGit && 'git is not installed' }, () => {
+test('update --latest picks the newest release tag of each checkout found, Tandem included', { skip: !hasGit && 'git is not installed' }, () => {
   const { root, origin, g } = repos();
   try {
     const clone = (name, at) => {
@@ -215,11 +215,13 @@ test('update --latest picks the newest release tag of each checkout found, and o
 
     assert.equal(latestTag(ws), 'v1.1.0', 'not docket-android, not a core- tag');
     assert.equal(latestTag(ea, 'core-v'), 'core-v2.1.0', 'not an old short tag like core-v9');
-    const plan = planLatest(ws);
-    assert.deepEqual(plan.tags, { tag: 'v1.1.0' }, 'Docket is already newest; Runway and Rapport have no clone');
+    const userHome = path.join(root, 'home');
+    const plan = planLatest(ws, () => {}, { userHome });
+    assert.deepEqual(plan.tags, { tag: 'v1.1.0', engAgentsTag: 'core-v2.1.0' }, 'Docket is already newest; Runway and Rapport have no clone; Tandem is behind');
     assert.ok(plan.lines.some(l => /Docket: already at v1\.1\.0/.test(l)), plan.lines.join('\n'));
     assert.ok(plan.lines.some(l => /Runway: not downloaded, so skipped\. To add it: workshop apps on runway/.test(l)), plan.lines.join('\n'));
-    assert.match(plan.engAgents, /update\.ps1 -Tag core-v2\.1\.0/);
+    assert.ok(plan.lines.some(l => /Tandem \(eng-agents\): not installed in opencode -> core-v2\.1\.0/.test(l)), plan.lines.join('\n'));
+    assert.ok(parseUpdateArgs(['--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag === 'core-v2.1.0');
     assert.equal(fs.readFileSync(path.join(ws, 'f.txt'), 'utf8'), 'one', 'planning changes nothing');
   } finally { rm(root); }
 });
