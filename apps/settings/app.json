@@ -3,7 +3,7 @@
   "id": "settings",
   "name": "Settings",
   "version": "2.0.0",
-  "description": "Connectors, people, the data folder, and backups.",
+  "description": "Connectors, repos, people, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -16,6 +16,10 @@
     "settings",
     "people",
     {
+      "name": "repos",
+      "path": "repos"
+    },
+    {
       "name": "teams",
       "path": "people"
     }
@@ -23,6 +27,7 @@
   "files": [
     "js/forms.js",
     "js/people.js",
+    "js/repos.js",
     "js/settings.js",
     "js/teams.js",
     "settings.css"

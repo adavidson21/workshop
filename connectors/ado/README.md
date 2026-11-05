@@ -6,7 +6,7 @@ Mostly read-only. The three actions that change ADO (`workitem.update`, `workite
 
 ## Settings
 
-`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`).
+`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`). `paths` and `prSources` are edited on Settings' **Repos** tab, one row per workspace repo, and a paired site may change them (`x-workshop-hosted`).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

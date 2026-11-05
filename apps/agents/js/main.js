@@ -412,6 +412,9 @@ async function startGo() {
 /* ---------- repos (view.js repoSheetHtml) ---------- */
 function openRepo() {
   closeOverlays();
+  // Inside Workshop, Settings > Repos adds a repo and sets up its Azure DevOps project and PRs in one go.
+  // On its own page (no Settings next to it), this sheet clones it.
+  if (ws.embedded) { ws.open({ app: 'settings', path: 'repos' }).catch(() => {}); return; }
   ui().repo = { busy: false, error: null, added: null };
   paint();
   focusFirst('.repo-url');

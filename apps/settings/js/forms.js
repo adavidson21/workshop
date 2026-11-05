@@ -10,6 +10,7 @@
      array of strings            list of text fields with add and remove
      array of objects            repeating group with add and remove
      object                      fieldset (nesting up to 3 levels)
+     top level + x-workshop-tab  not shown; edited on that Settings tab, value kept as it was
 
    render(schema, value, env, opts) returns a DOM element whose `readValue()` gives the current config
    back as a plain object. Each control carries its own reader, so reading never re-parses the DOM.
@@ -54,7 +55,11 @@ function objectField(schema, value, env, o) {
   const readers = {};
   // At the top level, optional fields that come with a working default fold under "More options", so the
   // form opens on what has to be filled in (for ADO: connections and mapping). Only when something stays out.
-  const keys = Object.keys(props);
+  // A top-level field marked x-workshop-tab is edited on that Settings tab (for ADO: repos and PR sources on
+  // Repos), so the form leaves it out and hands its current value back unchanged.
+  const elsewhere = top ? Object.keys(props).filter(k => props[k]['x-workshop-tab']) : [];
+  for (const k of elsewhere) readers[k] = () => value[k];
+  const keys = Object.keys(props).filter(k => !elsewhere.includes(k));
   const fold = top ? keys.filter(k => !required.has(k) && hasDefault(props[k])) : [];
   const more = fold.length && fold.length < keys.length ? document.createElement('details') : null;
   if (more) { more.className = 'cfg-more'; more.innerHTML = '<summary>More options</summary>'; }

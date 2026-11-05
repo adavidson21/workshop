@@ -49,6 +49,8 @@ export const configSchema = {
       type: 'array',
       title: 'Repo and path mapping',
       description: 'Which connection and project a repo or folder uses. * matches any characters.',
+      'x-workshop-tab': 'repos',
+      'x-workshop-hosted': true,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -67,6 +69,8 @@ export const configSchema = {
       type: 'array',
       title: 'Pull request sources',
       description: 'Where to look for pull requests waiting on you. Empty skips PRs.',
+      'x-workshop-tab': 'repos',
+      'x-workshop-hosted': true,
       items: {
         type: 'object',
         additionalProperties: false,

@@ -1,11 +1,11 @@
 {
   "bundle": 1,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "files": {
     "docs/schemas/app.schema.json": "783c203f4836a5e8cd2fc09c6b1fc08dfa915f53fb7301f4dcf21fc0388040b5",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
-    "docs/schemas/config-form.schema.json": "30efa72f57a04f337cb89a6c2b7ec4094428de83f9f631d350e6ab99c24426b7",
+    "docs/schemas/config-form.schema.json": "f5105b915dd8635440ee551a339d5bed2ce23669b1be1650a1ae1dd84f0a33e6",
     "docs/schemas/config-patch.schema.json": "41ced723bd9fc3ab157fb22da3606dc37eaad46773d88fdd25cf6ec32499b01a",
     "docs/schemas/config-public.schema.json": "57b5809396ebde73ef98943d8d819e5b5917883e38e0e822c32e5892e1b57b7d",
     "docs/schemas/config-put-response.schema.json": "d0c3c4457ffe4a7bb9042bc22bc88c7a8dbb9ab6bc0a35f8c3c2eb7bb3031590",
