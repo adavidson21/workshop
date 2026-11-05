@@ -1,7 +1,7 @@
 // The roadmap: Epics and Features in a set of area paths, with how many child stories each Feature has and how
-// many of those are done. Read-only. Built like queue.list: WIQL for ids, then batch GETs.
+// many of those are done. Read-only. WIQL for ids, then batch GETs.
 import { clientFor } from './client.mjs';
-import { checkAreas, itemUrl, queueConnection } from './queue.mjs';
+import { checkAreas, itemUrl, itemConnection } from './items.mjs';
 import { asInt, day, get, who, wiqlList } from './util.mjs';
 
 export const MAX_ITEMS = 2000;
@@ -57,7 +57,7 @@ async function parentsAndStates(ado, ids) {
  * @param {object} d {cfg, env, signal}
  */
 export async function roadmapList(d, args = {}) {
-  const conn = queueConnection(d.cfg, args);
+  const conn = itemConnection(d.cfg, args);
   const ado = clientFor(conn, d.env, d.signal);
   const areas = checkAreas(args.areas, 'the Roadmap settings');
   const where = [

@@ -208,7 +208,7 @@ async function runCompare(o, io) {
   return allOk ? 0 : 1;
 }
 
-// ---------------------------------------------------------------- write check (Queue app)
+// ---------------------------------------------------------------- write check (Runway's Publish)
 
 async function runWriteCheck(o, io) {
   const { config: cfg, problems } = normalize(connectorConfig(o, io.env));

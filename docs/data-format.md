@@ -102,7 +102,7 @@ put   -> ok (rev n+1)                                  done
 
 ## Bundles
 
-Export and import, including moving data between the browser and agent backends and the one-time import from the github.io site (WS5). Schema: [schemas/data-bundle.schema.json](schemas/data-bundle.schema.json). Example: [examples/data-bundle.export.json](examples/data-bundle.export.json).
+Export and import, including moving data between the browser and agent backends and moving a board from a browser site into Workshop. Schema: [schemas/data-bundle.schema.json](schemas/data-bundle.schema.json). Example: [examples/data-bundle.export.json](examples/data-bundle.export.json).
 
 ```json
 {

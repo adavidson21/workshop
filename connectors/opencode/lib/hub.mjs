@@ -68,7 +68,7 @@ export function requestText({ text, context = {} }, today) {
     String(text).slice(0, MAX_MESSAGE).trim() + "\n",
     section("People", people.map((p) => `${line(p.id, 110)}: ${line(p.name)}${handle(p)}${rel(p) ? ` (${rel(p)})` : ""}`)),
     section("Docket lists", lists.map((l) => line(l, 120))),
-    section("Queue areas", areas.map((a) => line(a, 300))),
+    section("Team areas", areas.map((a) => line(a, 300))),
   ].join("\n");
 }
 

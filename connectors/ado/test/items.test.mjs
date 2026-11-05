@@ -1,5 +1,5 @@
-// Queue actions: queue.list, workitem.get additions, workitem.states, iterations.list, and the write actions
-// workitem.update, workitem.comment and workitem.create, against the fake ADO server.
+// Work item actions: workitem.get additions, iterations.list and the write action workitem.update (Runway's
+// Publish), against the fake ADO server.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,11 +9,11 @@ import { createMockAgent } from '../../../tests/mock-agent.mjs';
 import { post } from '../../../tests/contract/helpers.mjs';
 import ado from '../index.mjs';
 import { normalize } from '../lib/config.mjs';
-import { iterationsList, queueList, workitemStates } from '../lib/queue.mjs';
+import { iterationsList } from '../lib/items.mjs';
 import { getWorkItem } from '../lib/workitem.mjs';
-import { commentWorkItem, createWorkItem, mergeTags, patchOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
+import { mergeTags, patchOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
 import { startFakeAdo } from './fake-ado.mjs';
-import { PAT, queueScenario } from './fixtures/queue.mjs';
+import { PAT, itemsScenario } from './fixtures/items.mjs';
 import { REPO } from './harness.mjs';
 
 const configFor = url => ({
@@ -25,7 +25,7 @@ const configFor = url => ({
 });
 
 async function withAdo(fn) {
-  const srv = await startFakeAdo(queueScenario());
+  const srv = await startFakeAdo(itemsScenario());
   const { config } = normalize(configFor(srv.url));
   const d = { cfg: config, env: name => (name === 'TEST_ADO_PAT' ? PAT : undefined) };
   try {
@@ -36,40 +36,6 @@ async function withAdo(fn) {
 }
 
 const TEAM_A = 'Web App\\Team A';
-
-test('queue.list returns open items in the areas, in the queue shape, with who I am', () => withAdo(async ({ d, srv }) => {
-  const out = await queueList(d, { areas: [TEAM_A] });
-  assert.equal(out.connection, 'main');
-  assert.deepEqual(out.items.map(i => i.id), [501, 502, 503]);
-  assert.deepEqual(out.me, { name: 'Engineer A', email: 'engineer.a@example.com' });
-  assert.equal(out.truncated, false);
-  const bug = out.items[0];
-  assert.deepEqual(bug, {
-    id: 501, rev: 4, type: 'Bug', title: 'Synthetic bug 501', state: 'Active', reason: '',
-    assignee: { name: 'Engineer A', email: 'engineer.a@example.com' }, priority: 1,
-    iteration: 'Web App\\Sprint 12', area: TEAM_A, project: 'Web App', tags: ['api', 'urgent'],
-    created: '2026-10-01T09:00:00Z', changed: '2026-10-14T15:30:00Z', stateChanged: '2026-10-05T10:00:00Z',
-    connection: 'main', url: `${srv.url}/Main/Web%20App/_workitems/edit/501`
-  });
-  assert.equal(out.items[1].assignee, null);
-  const wiql = srv.requests.find(r => r.includes('wit/wiql'));
-  assert.match(wiql, /\[System\.WorkItemType\] IN \('Issue', 'Bug', 'User Story'\)/);
-  assert.match(wiql, /\[System\.State\] NOT IN \('Resolved', 'Closed', 'Done', 'Removed'\)/);
-}));
-
-test('queue.list: several areas, closed items, changedSince, types', () => withAdo(async ({ d, srv }) => {
-  assert.deepEqual((await queueList(d, { areas: [TEAM_A, 'Web App\\Team B'] })).items.map(i => i.id), [501, 502, 503, 504]);
-  assert.deepEqual((await queueList(d, { areas: [TEAM_A], includeClosed: true })).items.map(i => i.id), [501, 502, 503, 510]);
-  assert.deepEqual((await queueList(d, { areas: [TEAM_A], changedSince: '2026-10-10' })).items.map(i => i.id), [501]);
-  await queueList(d, { areas: [TEAM_A], types: ['Bug'] });
-  assert.match(srv.requests.filter(r => r.includes('wit/wiql')).pop(), /IN \('Bug'\)/);
-}));
-
-test('queue.list refuses missing or unsafe area paths and bad dates', () => withAdo(async ({ d }) => {
-  await assert.rejects(queueList(d, { areas: [] }), /area path/);
-  await assert.rejects(queueList(d, { areas: ["Web App' OR 1=1"] }), e => e.code === 'bad_request');
-  await assert.rejects(queueList(d, { areas: [TEAM_A], changedSince: "2026' OR" }), e => e.code === 'bad_request');
-}));
 
 test('workitem.get keeps its old shape and adds comments, history, PRs and raw HTML only when asked', () => withAdo(async ({ d }) => {
   const plain = await getWorkItem(d, { id: 501, details: true });
@@ -90,10 +56,7 @@ test('comments use the preview API version of the connection', () => withAdo(asy
   assert.ok(srv.requests.some(r => /Web%20App\/_apis\/wit\/workItems\/501\/comments\?\$top=200&api-version=6\.0-preview\.3/.test(r)));
 }));
 
-test('workitem.states and iterations.list', () => withAdo(async ({ d }) => {
-  const s = await workitemStates(d, { type: 'User Story' });
-  assert.deepEqual(s.states.map(x => x.name), ['New', 'Active', 'Closed']);
-  assert.equal(s.project, 'Web App');
+test('iterations.list', () => withAdo(async ({ d }) => {
   const it = await iterationsList(d, {}, new Date('2026-10-15T12:00:00Z'));
   assert.deepEqual(it.iterations.map(i => [i.path, i.current]), [
     ['Web App', false], ['Web App\\Sprint 11', false], ['Web App\\Sprint 12', true], ['Web App\\Backlog', false]
@@ -163,29 +126,6 @@ test('workitem.update: a rev test that fails at ADO (changed between read and wr
 
 test('a read-only PAT gets a message naming the write scope', () => withAdo(async ({ d }) => {
   await assert.rejects(updateWorkItem(d, { connection: 'ro', id: 601, rev: 1, changes: { state: 'Active' } }), /Work Items \(Read & Write\)/);
-  await assert.rejects(commentWorkItem(d, { connection: 'ro', id: 601, text: 'hi' }), /Work Items \(Read & Write\)/);
-}));
-
-test('workitem.comment escapes plain text and posts it to the comments API', () => withAdo(async ({ d, srv }) => {
-  const out = await commentWorkItem(d, { id: 501, text: 'Looks good <script>x</script>\nthanks' });
-  assert.equal(out.comment.text, 'Looks good <script>x</script>\nthanks');
-  const req = srv.requests.find(r => r.startsWith('POST') && r.includes('/comments'));
-  assert.match(req, /Web%20App\/_apis\/wit\/workItems\/501\/comments\?api-version=6\.0-preview\.3 \{"text":"Looks good &lt;script&gt;x&lt;\/script&gt;<br>thanks"\}/);
-  await assert.rejects(commentWorkItem(d, { id: 501, text: '   ' }), /Write a comment/);
-}));
-
-test('workitem.create builds the item, puts a bug description in repro steps', () => withAdo(async ({ d, srv }) => {
-  const out = await createWorkItem(d, { type: 'Bug', title: 'New synthetic bug', description: 'a < b', area: TEAM_A, iteration: 'Web App\\Sprint 12', priority: 2, assignedTo: 'dev.one@example.com' });
-  assert.equal(out.id, 9000);
-  assert.equal(out.title, 'New synthetic bug');
-  assert.equal(out.state, 'New');
-  assert.equal(out.area, TEAM_A);
-  const req = srv.requests.find(r => r.startsWith('POST') && r.includes('$Bug'));
-  assert.match(req, /Microsoft\.VSTS\.TCM\.ReproSteps","value":"a &lt; b"/);
-  const story = await createWorkItem(d, { type: 'User Story', title: 'Story', description: 'x' });
-  assert.equal(story.type, 'User Story');
-  assert.ok(srv.requests.some(r => r.includes('System.Description')));
-  await assert.rejects(createWorkItem(d, { type: 'Bug', title: ' ' }), /title/);
 }));
 
 test('writeCheck proves writes and the server revision check, then removes its tag', () => withAdo(async ({ d }) => {
@@ -202,18 +142,17 @@ test('writeCheck proves writes and the server revision check, then removes its t
 
 test('module: write actions are marked write, reads are not', () => {
   const writes = Object.entries(ado.actions).filter(([, a]) => a.write).map(([k]) => k).sort();
-  assert.deepEqual(writes, ['workitem.comment', 'workitem.create', 'workitem.update']);
+  assert.deepEqual(writes, ['workitem.update']);
 });
 
 test('through the agent: write actions need confirm, and a conflict comes back as 409 conflict', async () => {
-  const srv = await startFakeAdo(queueScenario());
+  const srv = await startFakeAdo(itemsScenario());
   const cfg = { configVersion: 1, connectors: { ado: { enabled: true, config: configFor(srv.url) } } };
   const agent = await createMockAgent({ connectorsDir: path.join(REPO, 'connectors'), appsDir: path.join(REPO, 'tests', 'fixtures', 'apps'), env: { TEST_ADO_PAT: PAT }, config: cfg, log: () => {} });
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-queue-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-items-'));
   try {
-    const list = await post(agent, '/api/connectors/ado/queue.list', { args: { areas: [TEAM_A] } });
-    assert.equal(list.status, 200);
-    assert.equal(list.json.result.items.length, 3);
+    const gone = await post(agent, '/api/connectors/ado/queue.list', { args: { areas: [TEAM_A] } });
+    assert.equal(gone.status, 404);
     const noConfirm = await post(agent, '/api/connectors/ado/workitem.update', { args: { id: 501, rev: 4, changes: { state: 'Closed' } } });
     assert.equal(noConfirm.status, 400);
     assert.equal(noConfirm.json.code, 'confirm_required');
@@ -235,7 +174,7 @@ test('through the agent: write actions need confirm, and a conflict comes back a
 
 test('doctor --write-check prints plain-word steps and no titles', async () => {
   const { main } = await import('../doctor.mjs');
-  const srv = await startFakeAdo(queueScenario());
+  const srv = await startFakeAdo(itemsScenario());
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-wc-'));
   const file = path.join(dir, 'ado.json');
   fs.writeFileSync(file, JSON.stringify(configFor(srv.url)));

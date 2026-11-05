@@ -1,14 +1,13 @@
-// The team queue: open work items in a set of area paths, plus the lookups the Queue app needs to
-// offer only values ADO accepts (states per type, sprints). All read-only.
+// Shared helpers for work item actions (roadmap, iterations.list, workitem.update): which connection a call
+// uses, the item shape they return, area path checks. Plus iterations.list itself. All read-only.
 import { AdoError, SettingsError, clientFor } from './client.mjs';
 import { resolveConnection, syncConnection } from './config.mjs';
 import { asInt, cleanList, day, get, or, pyQuote, truthy, who, wiqlList } from './util.mjs';
 
-export const MAX_ITEMS = 2000;
 const PATH_RE = /^[^\n\r\t'"]{1,400}$/;
 
-/** The connection a queue call uses: `connection` by name, else the connection for my work items. */
-export function queueConnection(cfg, args) {
+/** The connection a work item call uses: `connection` by name, else the connection for my work items. */
+export function itemConnection(cfg, args) {
   return args && args.connection ? resolveConnection(cfg, { connection: args.connection }).connection : syncConnection(cfg);
 }
 
@@ -24,8 +23,8 @@ export function tagList(v) {
   return String(v || '').split(';').map(t => t.trim()).filter(Boolean);
 }
 
-/** One work item in the shape the Queue app keeps. */
-export function queueItem(ado, w, connection) {
+/** One work item in the shape roadmap and workitem.update return. */
+export function itemShape(ado, w, connection) {
   const f = w.fields || {};
   const project = get(f, 'System.TeamProject') || '';
   return {
@@ -65,60 +64,18 @@ export async function whoAmI(ado) {
 }
 
 /** Trimmed area paths, at most 50. Refuses none, or one with a character ADO does not allow. `where` names the app settings to fix. */
-export function checkAreas(areas, where = 'the Queue settings') {
+export function checkAreas(areas, where = 'Settings, Team area paths') {
   const list = cleanList(areas, 50, 400);
   if (!list.length) throw new SettingsError(`Add at least one area path for your team in ${where}.`);
   for (const a of list) if (!PATH_RE.test(a)) throw new SettingsError(`An area path has a character ADO does not allow. Check ${where}.`);
   return list;
 }
 
-/**
- * "queue.list": open items in the team's areas.
- * args: {connection?, areas[], types?, includeClosed?, changedSince? (yyyy-mm-dd)}
- * @param {object} d {cfg, env, signal}
- */
-export async function queueList(d, args = {}) {
-  const conn = queueConnection(d.cfg, args);
-  const ado = clientFor(conn, d.env, d.signal);
-  const areas = checkAreas(args.areas);
-  const types = cleanList(args.types, 20, 100);
-  const typeList = types.length ? types : d.cfg.types;
-  const where = [
-    `[System.WorkItemType] IN (${wiqlList(typeList)})`,
-    `(${areas.map(a => `[System.AreaPath] UNDER ${wiqlList([a])}`).join(' OR ')})`
-  ];
-  if (!args.includeClosed) where.push(`[System.State] NOT IN (${wiqlList([...d.cfg.closedStates, ...d.cfg.removedStates])})`);
-  if (args.changedSince) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(args.changedSince))) throw new SettingsError('changedSince must be a date like 2026-11-02.');
-    where.push(`[System.ChangedDate] >= '${args.changedSince}'`);
-  }
-  const ids = await ado.wiql(where.join(' AND '));
-  const truncated = ids.length > MAX_ITEMS;
-  const wanted = ids.slice(0, MAX_ITEMS);
-  const details = await ado.details(wanted);
-  const items = [];
-  for (const id of wanted) {
-    const w = details.get(id);
-    if (w) items.push(queueItem(ado, w, conn.name));
-  }
-  const me = await whoAmI(ado);
-  return { connection: conn.name, me, items, total: ids.length, truncated, fetchedAt: new Date().toISOString() };
-}
 
-/** "workitem.states": the states a work item type allows, with their category. */
-export async function workitemStates(d, args) {
-  const conn = queueConnection(d.cfg, args);
-  const ado = clientFor(conn, d.env, d.signal);
-  const project = args.project || conn.project;
-  if (!project) throw new SettingsError('Say which project, or set one on the connection.');
-  const res = await ado.call('GET', `wit/workitemtypes/${pyQuote(args.type)}/states`, { project });
-  const states = (res.value || []).map(s => ({ name: String(s.name || ''), category: String(s.category || ''), color: s.color ? String(s.color) : null })).filter(s => s.name);
-  return { connection: conn.name, project, type: args.type, states };
-}
 
 /** "iterations.list": sprints of a project as the paths work items use, with dates and which one is current. */
 export async function iterationsList(d, args, now = new Date()) {
-  const conn = queueConnection(d.cfg, args);
+  const conn = itemConnection(d.cfg, args);
   const ado = clientFor(conn, d.env, d.signal);
   const project = args.project || conn.project;
   if (!project) throw new SettingsError('Say which project, or set one on the connection.');
