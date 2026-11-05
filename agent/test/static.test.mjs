@@ -37,6 +37,12 @@ test('"/" goes to the Settings page; the hub and other apps are the hosted site\
   }
 });
 
+test('/favicon.ico is the Workshop icon', async () => {
+  const res = await get(agent, '/favicon.ico', { auth: 'none' });
+  assert.equal(res.status, 200);
+  assert.match(res.headers['content-type'], /^image\/png/);
+});
+
 test('HEAD answers without a body', async () => {
   const res = await request(agent, 'HEAD', '/apps/settings/index.html', { auth: 'none' });
   assert.equal(res.status, 200);

@@ -162,7 +162,7 @@ test('Docket\'s summary: a stale one (no entry for today) says to open Docket; n
   const h2 = createHome(fresh, { now: () => new Date(2026, 10, 9, 9) });
   await h2.loadBoard();
   assert.equal(h2.v.board.total, 0);
-  assert.match(render(h2.v), /No tasks yet/);
+  assert.match(render(h2.v), /Nothing from Docket yet/);
   const newer = fakeWs({ summary: { ...summaryEnv, version: 2 } }); newer.allowed = true;
   const h3 = createHome(newer, { now: () => new Date(2026, 9, 28, 9) });
   await h3.loadBoard();
@@ -180,10 +180,14 @@ test('nowFromDay and wrapFromDay: between blocks, after the last one, and Wrap u
   assert.deepEqual(wrapFromDay(Object.assign({}, day, { wrapAt: null }), 23 * 60), { wrapped: false, due: false, receipts: 2 }, 'a day off');
 });
 
-test('no Docket summary yet reads as an empty board ("No tasks yet"), not an error', async () => {
+test('no Docket summary yet says to open Docket once, not "No tasks yet" or an error', async () => {
   const ws = fakeWs({ summary: null }); ws.allowed = true;
   const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9) });
   await home.loadBoard();
   assert.equal(home.v.board.total, 0);
-  assert.match(render(home.v), /No tasks yet/);
+  assert.equal(home.v.noSummary, true);
+  const html = render(home.v);
+  assert.match(html, /Nothing from Docket yet/);
+  assert.match(html, /Open Docket once/);
+  assert.ok(!html.includes('No tasks yet'));
 });

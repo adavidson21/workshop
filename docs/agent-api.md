@@ -29,7 +29,7 @@ Every error is a 4xx or 5xx status with this body ([schemas/error.schema.json](s
 | `unauthorized` | 401 | Missing or wrong token, or a write without the token header. |
 | `forbidden` | 403 | Foreign `Host` or `Origin`, or hosted mode is off. |
 | `local_only` | 403 | Only the agent's own origin may do this. |
-| `not_found` | 404 | No such collection, connector, action or route. |
+| `not_found` | 404 | No such connector, action or route, or a delete of a missing file. Reading a collection or file that does not exist is not an error (`200` with `null`). |
 | `method_not_allowed` | 405 | Wrong method for the route. |
 | `conflict` | 409 | The data `rev` or file `mtime` is stale, or a file to create already exists. The body also has `current`. |
 | `too_large` | 413 | The body is over the limit. |
@@ -154,7 +154,7 @@ An app with no data returns an empty list, not `404`.
 
 ### `GET /api/data/<app>/<collection>`
 
-Returns the envelope ([data-format.md](data-format.md), schema [data-envelope](schemas/data-envelope.schema.json)). A collection that was never written gets `404 not_found`.
+Returns the envelope ([data-format.md](data-format.md), schema [data-envelope](schemas/data-envelope.schema.json)). A collection that was never written gets `200` with the body `null`: not written yet is a normal answer for a feature no one has used, so it is not reported as a failed request. (Before agent 1.1.0 it was `404 not_found`; the SDK reads both as `null`.)
 
 ### `PUT /api/data/<app>/<collection>`
 
@@ -198,7 +198,7 @@ Lists the app's files, or the files under one folder, at every depth, sorted by 
 
 ### `GET /api/files/<app>/<path>`
 
-Schema [file](schemas/file.schema.json), examples [file.summary.json](examples/file.summary.json) and [file.image.json](examples/file.image.json). A missing file gets `404 not_found`. `size` is the file's size in bytes.
+Schema [file](schemas/file.schema.json), examples [file.summary.json](examples/file.summary.json) and [file.image.json](examples/file.image.json). A missing file gets `200` with the body `null` (before agent 1.1.0, `404 not_found`; the SDK reads both as `null`). Deleting a missing file is still `404 not_found`. `size` is the file's size in bytes.
 
 ```json
 {"app": "receipts", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61, "content": "# Person One, 2026 H2\n"}
@@ -354,7 +354,7 @@ A removed `.json` file is reported as whichever it was last known to be. Rules:
 
 ## Static files
 
-The agent serves one page, Workshop on this computer: the Settings app (`apps/settings/`) and the `shared/` and `icons/` files it loads. `/` redirects to `/apps/settings/`. It does not serve the hub (`index.html`, `shell/`, `sw.js`, the web app manifest) or any other app: those come from the hosted site ([run-modes.md](run-modes.md)). `GET /api/apps` still lists the app folders the agent knows. It never serves `~/.workshop/`, the data folder, `connectors/`, `agent/`, `tests/` or dot files. Data and files are reachable only through `/api/data` and `/api/files`. Requests that try to leave those folders (`..`, encoded or not) get `404`.
+The agent serves one page, Workshop on this computer: the Settings app (`apps/settings/`) and the `shared/` and `icons/` files it loads. `/` redirects to `/apps/settings/`. `/favicon.ico` is the Workshop icon (`icons/favicon-32.png`), for pages with no icon link such as the pair page. It does not serve the hub (`index.html`, `shell/`, `sw.js`, the web app manifest) or any other app: those come from the hosted site ([run-modes.md](run-modes.md)). `GET /api/apps` still lists the app folders the agent knows. It never serves `~/.workshop/`, the data folder, `connectors/`, `agent/`, `tests/` or dot files. Data and files are reachable only through `/api/data` and `/api/files`. Requests that try to leave those folders (`..`, encoded or not) get `404`.
 
 **Work mode** (`features.workMode`, [run-modes.md](run-modes.md), Work mode): the agent serves the pinned copy in `<home>/ui/` instead. `/` and `/index.html` are the hub; every path is looked up in the copy's `build.json`, and only listed files are served (`404` otherwise), after checking their SHA-256 (`500` if a file changed after the build). `/build.json` itself is served so Settings can show the build. Without a usable copy, `/` is a `503` page saying why, and the Settings page above is served as usual.
 

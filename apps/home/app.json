@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "home",
   "name": "Home",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
   "icon": "icon.svg",
   "entry": "index.html",

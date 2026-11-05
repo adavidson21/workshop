@@ -37,6 +37,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
       const cards = readCards(env, 'prioritizer');
       const d = now(), today = dateStr(d), nowMin = d.getHours() * 60 + d.getMinutes();
       v.dayNow = null; v.wrap = null;
+      v.noSummary = !env;   // Docket has not written one: a new board, or Docket not opened since an update
       if (!env) { v.board = EMPTY_BOARD(); v.boardNote = ''; }
       else if (!cards) { v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.'; }
       else {

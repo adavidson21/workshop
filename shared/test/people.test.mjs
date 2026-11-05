@@ -21,9 +21,35 @@ const sample = () => P.directory(env([
 test('directory: missing is empty, another version is unreadable and empty', () => {
   assert.equal(P.directory(null).items.length, 0);
   assert.equal(P.directory(null).unreadable, false);
-  const d = P.directory({ schema: P.SCHEMA, version: 1, items: [{ id: 'p_a', name: 'A', relation: 'peer' }] });
+  const d = P.directory({ schema: P.SCHEMA, version: 3, items: [{ id: 'p_a', name: 'A', relation: 'peer' }] });
   assert.equal(d.unreadable, true);
   assert.equal(d.items.length, 0);
+});
+
+test('upgrade: a version 1 directory reads as version 2 with handles; others are left alone', () => {
+  const v1 = { schema: P.SCHEMA, version: 1, rev: 4, deleted: { p_x: 5 }, items: [
+    { id: 'p_me', name: 'Alex Kim', relation: 'self', updatedAt: 1 },
+    { id: 'p_a', name: 'Alex Lee', relation: 'report', role: 'Engineer', since: '2025-03-01', updatedAt: 1 },
+    { id: 'p_old', name: 'Alex Kim', relation: 'peer', archived: true, updatedAt: 1 },
+    { id: 'p_b', name: 'Sam', relation: 'manager', team: false, adoIdentity: 'sam@example.com', updatedAt: 1 }
+  ] };
+  const up = P.upgrade(v1);
+  assert.equal(up.version, P.VERSION);
+  assert.equal(up.rev, 4);
+  assert.deepEqual(up.deleted, { p_x: 5 });
+  assert.deepEqual(up.items.map(it => it.handle), ['alex', 'alex-lee', 'alex-kim', 'sam']);
+  assert.ok(up.items.every(it => it.kind === 'person'));
+  assert.equal(v1.version, 1, 'the stored envelope is not changed');
+  const d = P.directory(v1);
+  assert.equal(d.unreadable, false);
+  assert.equal(d.people.length, 4);
+  assert.equal(P.self(d).id, 'p_me');
+  assert.equal(P.manager(d).adoIdentity, 'sam@example.com');
+  assert.equal(P.find(d, '@alex-lee').id, 'p_a');
+  for (const it of up.items) assert.equal(P.problem(P.cleanItem(it), up.items.map(P.cleanItem)), '', it.id);
+  const v2 = { schema: P.SCHEMA, version: 2, items: [] };
+  assert.equal(P.upgrade(v2), v2);
+  assert.equal(P.upgrade(null), null);
 });
 
 test('directory: cleans items, splits people and groups, drops unknown ids', () => {
@@ -160,4 +186,59 @@ test('ws.people: retries after a conflict with a fresh read', async () => {
   const people = _internals.peopleService(data);
   await people.add({ name: 'Cara' });
   assert.deepEqual((await people.get()).people.map(p => p.name).sort(), ['Ana', 'Ben', 'Cara']);
+});
+
+test('ws.people: a version 1 directory is read as version 2 and saved that way once', async () => {
+  const data = memoryData({ schema: P.SCHEMA, version: 1, rev: 2, items: [
+    { id: 'p_me', name: 'Pat Doe', relation: 'self', updatedAt: 1 },
+    { id: 'p_r', name: 'Robin Roe', relation: 'report', updatedAt: 1 }
+  ] });
+  const people = _internals.peopleService(data);
+  const d = await people.get();
+  assert.equal(d.unreadable, false);
+  assert.deepEqual(d.people.map(p => p.handle).sort(), ['pat', 'robin']);
+  assert.equal(data.stored.version, 2);
+  assert.equal(data.stored.rev, 3);
+  await people.get();
+  assert.equal(data.stored.rev, 3, 'nothing is written once it is version 2');
+  await people.update('p_r', { role: 'Engineer' });
+  assert.equal(data.stored.items.find(it => it.id === 'p_r').role, 'Engineer');
+});
+
+test('ws.people: a version 1 directory can be changed before anything read it', async () => {
+  const data = memoryData({ schema: P.SCHEMA, version: 1, rev: 1, items: [{ id: 'p_a', name: 'Ann', relation: 'peer', updatedAt: 1 }] });
+  const people = _internals.peopleService(data);
+  await people.add({ name: 'Bo', relation: 'report' });
+  assert.equal(data.stored.version, 2);
+  assert.deepEqual(data.stored.items.map(it => it.handle), ['ann', 'bo']);
+});
+
+test('adopt: keeps ids, skips known, deleted and invalid ones, never a second you or manager', () => {
+  const items = [P.cleanItem({ id: 'p_me', name: 'Pat Doe', relation: 'self', handle: 'pat' }), P.cleanItem({ id: 'p_m', name: 'Max', relation: 'manager', handle: 'max' })];
+  const added = P.adopt([
+    { id: 'p_r1', name: 'Robin Roe', relation: 'report', role: 'Engineer', since: '2025-01-02' },
+    { id: 'p_me', name: 'Pat Again', relation: 'report' },
+    { id: 'p_gone', name: 'Gone', relation: 'report' },
+    { id: 'x_bad', name: 'Bad id', relation: 'report' },
+    { id: 'p_noname', name: '  ', relation: 'report' },
+    { id: 'p_m2', name: 'Other Boss', relation: 'manager' },
+    { id: 'p_r2', name: 'Pat Roe', relation: 'report', archived: true }
+  ], items, { p_gone: 5 }, 9);
+  assert.deepEqual(added.map(it => it.id), ['p_r1', 'p_m2', 'p_r2']);
+  assert.equal(added[0].role, 'Engineer');
+  assert.equal(added[0].updatedAt, 9);
+  assert.equal(added[1].relation, 'contact');
+  assert.equal(added[2].archived, true);
+  assert.deepEqual(added.map(it => it.handle), ['robin', 'other', 'pat-roe']);
+});
+
+test('ws.people.adopt: writes once, then nothing when everyone is there', async () => {
+  const data = memoryData();
+  const people = _internals.peopleService(data);
+  const added = await people.adopt([{ id: 'p_a', name: 'Ann Lee', relation: 'report' }]);
+  assert.deepEqual(added.map(it => it.id), ['p_a']);
+  assert.equal(data.stored.rev, 1);
+  assert.deepEqual(await people.adopt([{ id: 'p_a', name: 'Ann Lee', relation: 'report' }]), []);
+  assert.equal(data.stored.rev, 1);
+  assert.equal((await people.get()).byId.get('p_a').handle, 'ann');
 });

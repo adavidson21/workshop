@@ -232,6 +232,8 @@ export async function createAgent(o) {
       return;
     }
     if (url.pathname === '/pair') { pairPage(res, url, cookieOk); return; }
+    // Browsers ask for /favicon.ico on pages with no icon link (the pair page, a JSON answer): send the icon.
+    if (url.pathname === '/favicon.ico') { serveStatic(req, res, '/icons/favicon-32.png', { root, appsDir }); return; }
     if (workMode()) {
       // Work mode: everything comes from the pinned copy, checked file by file. Without a usable copy, "/"
       // says why and the Settings page is served as usual, so work mode can be turned off again.
@@ -397,6 +399,9 @@ document.getElementById('allow').addEventListener('click', function () {
     fail('not_found', 'Not found.');
   }
 
+  /** The value, or null when it is a not_found error (a collection or file that was never written). */
+  const orNull = p => p.catch(e => { if (e instanceof HttpError && e.code === 'not_found') return null; throw e; });
+
   const clientOf = req => { const c = req.headers['x-workshop-client']; return typeof c === 'string' && CLIENT.test(c) ? c : null; };
 
   /** /api/data/<app>[/<collection>]. `segs` are decoded segments after "data". */
@@ -404,7 +409,9 @@ document.getElementById('allow').addEventListener('click', function () {
     const app = appId(segs[0]);
     if (segs.length === 1) { only('GET'); ok({ app, collections: await store.list(app) }); return; }
     const collection = collectionName(segs.slice(1));
-    if (req.method === 'GET') { ok(await store.get(app, collection)); return; }
+    // Not written yet is an answer, not an error (docs/agent-api.md): 200 with null, so a browser console
+    // does not show a failed request for every feature someone has not used.
+    if (req.method === 'GET') { ok(await orNull(store.get(app, collection))); return; }
     only('GET', 'PUT');
     const body = await readJsonBody(req, 10 * MB);
     const saved = await store.put(app, collection, body);
@@ -423,7 +430,7 @@ document.getElementById('allow').addEventListener('click', function () {
       return;
     }
     const fpath = filePath(rest);
-    if (req.method === 'GET') { ok(await files.read(app, fpath)); return; }
+    if (req.method === 'GET') { ok(await orNull(files.read(app, fpath))); return; }
     if (req.method === 'PUT') {
       const body = await readJsonBody(req, 64 * MB);
       const saved = await files.put(app, fpath, body);

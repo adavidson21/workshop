@@ -43,7 +43,9 @@ test('create, read, list and replace a file', async () => {
 test('empty lists and missing files', async () => {
   assert.deepEqual(expectJson(await get(agent, '/api/files/empty-app'), 200, 'file-list'), { app: 'empty-app', files: [] });
   assert.deepEqual(expectJson(await get(agent, `${P}/no/such`), 200, 'file-list').files, []);
-  expectError(await get(agent, `${P}/missing.md`), 404, 'not_found');
+  const missing = await get(agent, `${P}/missing.md`);
+  assert.equal(missing.status, 200);
+  assert.equal(missing.json, null);
   expectError(await del(agent, `${P}/missing.md`), 404, 'not_found');
 });
 
@@ -151,7 +153,7 @@ test('delete moves the file to the trash and never removes it', async () => {
   const res = expectJson(await del(agent, `${P}/drafts/old.md`), 200, 'file-delete-response');
   assert.match(res.trash, /^\.trash\/notes\/drafts\/old\.\d{8}T\d{9}Z(-\d+)?\.md$/);
   assert.equal(fs.readFileSync(path.join(agent.dataDir, ...res.trash.split('/')), 'utf8'), 'keep me');
-  expectError(await get(agent, `${P}/drafts/old.md`), 404, 'not_found');
+  assert.equal((await get(agent, `${P}/drafts/old.md`)).json, null);
   assert.ok(!expectJson(await get(agent, P), 200, 'file-list').files.some(f => f.path === 'drafts/old.md'), 'the trash is not listed');
 
   // the same name again gets its own trash file
