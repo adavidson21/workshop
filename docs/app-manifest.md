@@ -32,7 +32,10 @@ Adding an app to Workshop means adding a folder, `apps/<id>/`, with an `app.json
   "shortcuts": [
     {"keys": "Ctrl+Shift+A", "command": "add-task", "scope": "global"}
   ],
-  "files": ["app.css", "js/main.js", "js/state.js"]
+  "files": ["app.css", "js/main.js", "js/state.js"],
+  "handoffs": {"sends": ["receipts"]},
+  "capture": ["task", "waiting"],
+  "aliases": ["docket", "tasks", {"name": "today", "path": "today"}]
 }
 ```
 
@@ -58,6 +61,9 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `data` | no | Collection names the app owns. Informational: Settings lists them, and export includes them. |
 | `commands` | no | Commands shown in the palette before the app has loaded: `{id, title, route?}`. Choosing one opens the app (at `route` if given) and then sends it the SDK `command` event. Apps can add more at runtime with `commands.register`. |
 | `shortcuts` | no | `{keys, command, scope}`. `keys` is like `Ctrl+Shift+A` or `Alt+N`: modifiers `Ctrl`, `Alt`, `Shift`, `Meta` (in that order), then one key name. `scope: "app"` works only while the app is shown; `"global"` works anywhere in the shell. `Alt+1` to `Alt+9` and `Ctrl+K` are reserved for the shell. |
+| `handoffs` | no | `{sends}`. `sends`: app ids this app writes handoff offers to ([handoffs.md](handoffs.md)). A receiver finds its senders from this (`ws.apps.list()`, [sdk.md](sdk.md)) instead of a list of app ids in its code. |
+| `capture` | no | Capture kinds this app takes from quick capture and the Dispatch hub: any of `task`, `waiting`, `receipt`, `note`, `idea` ([hub.md](hub.md), Captures). Each kind goes to the first app by `order` that lists it. The app must accept that kind as a handoff ([handoffs.md](handoffs.md), Receivers). |
+| `aliases` | no | Other words for this app in `> <place>` (quick capture and the hub). Up to 20, each a lowercase word (`"tasks"`) or `{name, path}` to open a part of the app (`{"name": "1:1s", "path": "1on1s"}`). The app's `id` and `name` always work. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
 
 ## Apps from another site
@@ -71,4 +77,5 @@ The agent's own app list (`GET /api/apps`) lists app folders only. The shell nev
 - An app folder holds everything the app needs except what is in `shared/`. Apps do not import from other app folders.
 - Apps talk to the shell, data and connectors only through the SDK ([sdk.md](sdk.md)). No ad hoc `postMessage`, no direct `fetch` to `/api/`.
 - An `app.json` that fails the schema, or whose `id` does not match its folder, is skipped and logged; the agent keeps running.
+- No shared code names an app id to find it. Apps and shared code find each other through manifests (`ws.apps.list()`): handoff senders by `handoffs.sends`, capture targets by `capture`, places by `aliases`. Built-in lists are only a fallback for an app that runs outside Workshop's site.
 - `tests/check-contracts.mjs` validates every `apps/*/app.json` in the repo.

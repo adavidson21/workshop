@@ -1,0 +1,49 @@
+{
+  "id": "board",
+  "updatedAt": 1793736000000,
+  "kind": "board",
+  "days": {
+    "2026-11-04": {
+      "total": 12,
+      "open": 9,
+      "focus": {
+        "total": 3,
+        "done": 1
+      },
+      "triage": 2,
+      "overdue": 1,
+      "dueWeek": 3
+    },
+    "2026-11-05": {
+      "total": 12,
+      "open": 9,
+      "focus": {
+        "total": 0,
+        "done": 0
+      },
+      "triage": 2,
+      "overdue": 1,
+      "dueWeek": 3
+    }
+  },
+  "upNext": [
+    {
+      "id": "t_k2f9",
+      "title": "Review the onboarding guide",
+      "list": "",
+      "listId": "l_inbox",
+      "due": "2026-11-06",
+      "people": [
+        "Person One"
+      ],
+      "triaged": true
+    }
+  ],
+  "team": [
+    {
+      "name": "Person One",
+      "open": 2,
+      "waiting": 1
+    }
+  ]
+}

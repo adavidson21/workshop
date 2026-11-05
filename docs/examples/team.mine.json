@@ -1,0 +1,9 @@
+{
+  "id": "t_mine",
+  "updatedAt": 1793736000000,
+  "name": "My team",
+  "areas": [
+    "Project\\Team"
+  ],
+  "connection": ""
+}

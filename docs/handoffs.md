@@ -57,6 +57,8 @@ The sender keeps one collection named `handoffs`, so its schema is `<sender app 
 
 ## Senders
 
+A receiver finds its senders from the manifests: every app whose `handoffs.sends` lists the receiver's id ([app-manifest.md](app-manifest.md), `ws.apps.list()` in [sdk.md](sdk.md)). A receiver may add retired senders it still reads (Rapport reads `oneonones`). Outside Workshop's site there is no app list and no shared data folder, so there are no offers (rule 5).
+
 | Sender | Offers |
 | --- | --- |
 | `prioritizer` (Docket) | Receipts from Wrap up. |
