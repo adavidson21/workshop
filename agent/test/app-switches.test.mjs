@@ -31,9 +31,9 @@ test('apps.json keeps the apps turned off, and never Home or Settings', async ()
 
 test('the registry leaves out apps turned off', () => {
   const all = ids(buildRegistry(path.join(REPO, 'apps'), schemas));
-  assert.ok(all.includes('notes') && all.includes('home'));
-  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['notes'])));
-  assert.deepEqual(some, all.filter(id => id !== 'notes'));
+  assert.ok(all.includes('people') && all.includes('home'));
+  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['people'])));
+  assert.deepEqual(some, all.filter(id => id !== 'people'));
 });
 
 test('gitHead reads the commit and release tag from .git files, without running git', { skip: !hasGit && 'git is not installed' }, () => {

@@ -66,6 +66,7 @@ function paint() {
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
 ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
+ws.data.subscribe('summary', later(home.loadNotes, 300), { app: 'notes' });
 ws.people.subscribe(() => { boardLater(); setupLater(); });
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);

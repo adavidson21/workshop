@@ -222,3 +222,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
   .su-strip{margin-top:-.75rem}
   .nrow .tm{grid-column:2;grid-row:2;margin-top:.15rem}
 }
+/* Recent notes (Notes' summary) */
+.notes-recent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--rule)}
+.notes-recent li{border-bottom:1px solid var(--rule)}
+.notes-recent .lnk{display:block;width:100%;text-align:left;padding:.55rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}

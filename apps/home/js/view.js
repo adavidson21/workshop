@@ -201,7 +201,7 @@ export function render(v) {
       : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${agentsCard(v.agents)}</div></div>`;
+  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
@@ -218,6 +218,13 @@ function agentsCard(a) {
   if (!a || a.state !== 'ready') return '';
   return `<section class="card"><div class="ch"><h2>Dispatch</h2><button class="lnk" data-open="agents">Open</button></div>
     <div class="pills">${pill(ICON.bell, a.needYou, 'Need you', 'warn', 'agents')}${pill(ICON.play, a.working, 'Working', 'acc', 'agents')}</div></section>`;
+}
+
+/* Recent notes from Notes' summary: only when there are some. */
+export function notesCard(rows) {
+  if (!Array.isArray(rows) || !rows.length) return '';
+  return `<section class="card"><div class="ch"><h2>Recent notes</h2><button class="lnk" data-open="notes">All notes</button></div>
+    <ul class="notes-recent">${rows.map(r => `<li><button class="lnk" data-open="notes" data-path="${esc(r.route)}">${esc(r.title)}</button></li>`).join('')}</ul></section>`;
 }
 
 export function profileForm(p) {
