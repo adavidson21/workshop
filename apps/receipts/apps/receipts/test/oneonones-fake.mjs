@@ -1,31 +1,29 @@
 // A fake Workshop SDK and synthetic envelopes for Rapport's 1:1s tests. Everything here is made up.
 import { data as rules } from '../../../shared/workshop-sdk.js';
+import { directory } from '../../../shared/people.js';
 
 export const TODAY = '2026-11-03';
 export const NOW = new Date(2026, 10, 3, 15, 0, 0).getTime();
 
 const envOf = (schema, version, items, meta) => ({ schema, version, rev: 1, items, deleted: {}, ...(meta ? { meta: { updatedAt: 1, ...meta } } : {}) });
 
-/** Docket's summary (Workshop docs/summaries.md) with a `people` card built from tasks the way Docket builds it:
-    one row per name (from `names`, else every name on the tasks), open and waiting tasks not done. */
-export function docketSummary(tasks = [], names = null, version = 1) {
-  const low = s => String(s).toLowerCase();
-  const all = [];
-  for (const n of names || tasks.flatMap(t => t.people || [])) if (!all.some(x => low(x) === low(n))) all.push(n);
-  const row = t => ({ id: t.id, title: t.title, due: t.due || '', nudgeOn: t.nudgeOn || '' });
-  const rows = all.map(name => {
-    const mine = tasks.filter(t => !t.done && (t.people || []).some(p => low(p) === low(name)));
-    return { name, open: mine.filter(t => t.waiting !== true).map(row), waiting: mine.filter(t => t.waiting === true).map(row) };
-  });
-  return envOf('prioritizer.summary', version, [{ id: 'people', kind: 'people', updatedAt: 1, rows }]);
-}
+// Docket's summary with a `people` card: rows {id, open, waiting} (Workshop docs/summaries.md).
+export const docketSummary = (rows, version = 1) => envOf('prioritizer.summary', version, [{ id: 'people', kind: 'people', updatedAt: 1, rows }]);
 export const receiptsEntries = (items, version = 1) => envOf('receipts.entries', version, items);
-export const receiptsPeopleEnv = items => envOf('receipts.people', 1, items);
+// The people directory (shared/people.js): a report, the manager, a peer and a group.
+export const DIR = directory(envOf('settings.people', 2, [
+  { id: 'p_r1', kind: 'person', updatedAt: 1, name: 'Dev One', handle: 'dev', relation: 'report' },
+  { id: 'p_r2', kind: 'person', updatedAt: 1, name: 'Dev Two', handle: 'two', relation: 'report', archived: true },
+  { id: 'p_mgr', kind: 'person', updatedAt: 1, name: 'Boss Person', handle: 'boss', relation: 'manager' },
+  { id: 'p_peer', kind: 'person', updatedAt: 1, name: 'Peer Three', handle: 'peer', relation: 'peer' },
+  { id: 'g_lead', kind: 'group', updatedAt: 1, name: 'Leadership', handle: 'leadership', members: ['p_r1', 'p_mgr'] }
+]));
 
-export const task = (id, extra = {}) => ({ id, updatedAt: 1, title: `Synthetic task ${id}`, listId: 'l_main', people: [], done: false, waiting: false, nudgeOn: null, due: null, ...extra });
+export const task = (id, extra = {}) => ({ id, title: `Synthetic task ${id}`, due: '', nudgeOn: '', via: '', ...extra });
 export const entry = (id, extra = {}) => ({ id, updatedAt: 1, about: 'p_r1', kind: 'win', date: '2026-10-30', text: `Synthetic entry ${id}`, ...extra });
 
-export const PERSON = { id: 'p_abc1', name: 'Dev One', links: { docket: 'DevA', receipts: 'p_r1', queue: 'dev.one@example.com' }, cadenceDays: 7, archived: false };
+// A 1:1s person as page.js hands it to the model: linked to the report p_r1 (withDirectory).
+export const PERSON = { id: 'p_abc1', personId: 'p_r1', name: 'Dev One', cadenceDays: 7, archived: false, relation: 'report', handle: 'dev', linked: true };
 
 /** In-memory data and files, with revisions and conflicts like the agent, and a scripted opencode connector.
     The app is Rapport (`receipts`). `others` holds other apps' collections by `<app>.<name>`, the old 1:1s app

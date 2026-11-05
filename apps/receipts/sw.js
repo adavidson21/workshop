@@ -2,7 +2,7 @@
    It caches this site's own files only. It never touches requests to another origin (such as Workshop on
    127.0.0.1 if you pair it), and your receipts and 1:1 notes are never in this cache: they live in browser storage or
    your folder. Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '2.3.0';
+const VERSION = '3.0.0';
 const CACHE = 'receipts-' + VERSION;
 const CORE = [
   './', './manifest.webmanifest',
@@ -12,7 +12,7 @@ const CORE = [
   './apps/receipts/js/oneonones/page.js', './apps/receipts/js/oneonones/view.js',
   './apps/receipts/js/goals/model.js', './apps/receipts/js/goals/page.js', './apps/receipts/js/goals/view.js',
   './shared/themes.css', './shared/ui.css', './shared/theme.js', './shared/sw-register.js',
-  './shared/workshop-sdk.js', './shared/standalone-bar.js', './shared/device-fs.js', './shared/site.js', './shared/summary.js',
+  './shared/workshop-sdk.js', './shared/standalone-bar.js', './shared/device-fs.js', './shared/site.js', './shared/summary.js', './shared/people.js',
   './shared/fonts/fonts.css', './shared/fonts/inter-latin-wght-normal.woff2', './shared/fonts/inter-latin-ext-wght-normal.woff2',
   './shared/fonts/jetbrains-mono-latin-wght-normal.woff2', './shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2',
   './shared/fonts/source-serif-4-latin-opsz-normal.woff2', './shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2',

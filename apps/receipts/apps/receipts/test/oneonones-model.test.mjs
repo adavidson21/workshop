@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as M from '../js/oneonones/model.js';
-import { NOW, PERSON, TODAY, docketSummary, entry, receiptsEntries, receiptsPeopleEnv, task } from './oneonones-fake.mjs';
+import { DIR, NOW, PERSON, TODAY, docketSummary, entry, receiptsEntries, task } from './oneonones-fake.mjs';
 
 const notes = days => days.map(d => ({ day: d, path: M.notePath(PERSON.id, d), mtime: 1 }));
 
@@ -41,28 +41,24 @@ test('wins: bullet lines under the Wins heading only', () => {
 
 test('version checks: unknown versions and schemas are unreadable, never empty', () => {
   assert.equal(M.readable(null, M.SOURCES.docketSummary).state, 'missing');
-  assert.equal(M.readable(docketSummary([], null, 4), M.SOURCES.docketSummary).state, 'unreadable');
-  assert.equal(M.readable({ ...docketSummary([]), schema: 'prioritizer.lists' }, M.SOURCES.docketSummary).state, 'unreadable');
-  assert.equal(M.docketSection(docketSummary([task('t1', { people: ['DevA'] })], null, 2), 'DevA', TODAY).state, 'unreadable');
+  assert.equal(M.readable(docketSummary([], 2), M.SOURCES.docketSummary).state, 'unreadable');
+  assert.equal(M.docketSection('p_r1', TODAY, docketSummary([], 2)).state, 'unreadable');
   assert.equal(M.receiptsSection(receiptsEntries([entry('r1')], 2), 'p_r1', '2026-10-27', TODAY).state, 'unreadable');
-  assert.deepEqual(M.docketNames({ ...docketSummary([], ['DevA']), version: 2 }), []);
-  assert.equal(M.docketSection(null, 'DevA', TODAY).state, 'missing');
-  assert.equal(M.docketSection(docketSummary([]), '', TODAY).state, 'unlinked');
+  assert.equal(M.docketSection('p_r1', TODAY, null).state, 'missing');
+  assert.equal(M.docketSection('', TODAY, docketSummary([])).state, 'unlinked');
 });
 
-test('Docket: open tasks tagged with the person, waiting on them, nudges due', () => {
+test('Docket: from its summary by person id, with tasks that reach them through a group', () => {
   const env = docketSummary([
-    task('t1', { people: ['devA'], due: '2026-11-05' }),
-    task('t2', { people: ['DevA', 'Engineer B'], waiting: true, nudgeOn: '2026-11-02' }),
-    task('t3', { people: ['DevA'], waiting: true, nudgeOn: '2026-11-10' }),
-    task('t4', { people: ['DevA'], done: true }),
-    task('t5', { people: ['Engineer B'] })
+    { id: 'p_r1', open: [task('t1', { due: '2026-11-05' }), task('t6', { via: 'g_lead' })], waiting: [task('t2', { nudgeOn: '2026-11-02' }), task('t3', { nudgeOn: '2026-11-10' })] },
+    { id: 'p_peer', open: [task('t5')], waiting: [] }
   ]);
-  const s = M.docketSection(env, 'DevA', TODAY);
-  assert.deepEqual(s.open.map(t => t.id), ['t1']);
+  const s = M.docketSection('p_r1', TODAY, env);
+  assert.deepEqual(s.open.map(t => [t.id, t.via]), [['t1', ''], ['t6', 'g_lead']]);
   assert.equal(s.open[0].due, '2026-11-05');
   assert.deepEqual(s.waiting.map(t => t.id), ['t2', 't3']);
   assert.deepEqual(s.nudges.map(t => t.id), ['t2']);
+  assert.deepEqual(M.docketSection('p_nobody', TODAY, env), { state: 'ok', open: [], waiting: [], nudges: [] });
 });
 
 test('Receipts: entries about them in the period, grouped by kind', () => {
@@ -81,15 +77,21 @@ test('Receipts: entries about them in the period, grouped by kind', () => {
   assert.deepEqual(s.groups.note.map(e => e.id), ['r3'], 'unknown kinds read as notes');
 });
 
-test('pickers read what each app keeps', () => {
-  assert.deepEqual(M.docketNames(docketSummary([], ['DevB', 'DevA', 'deva'])), ['DevA', 'DevB']);
-  assert.deepEqual(M.receiptsPeople(receiptsPeopleEnv([{ id: 'p_r1', updatedAt: 1, name: 'Engineer A' }, { id: 'p_r2', updatedAt: 1, name: 'Dev One', archived: true }])).map(p => [p.id, p.archived]), [['p_r2', true], ['p_r1', false]]);
+test('pickers: anyone in People but you, reports first; an archived one only when already chosen', () => {
+  assert.deepEqual(M.directoryChoices(DIR).map(p => p.id), ['p_r1', 'p_mgr', 'p_peer']);
+  assert.deepEqual(M.directoryChoices(DIR, 'p_r2').map(p => p.id), ['p_r1', 'p_r2', 'p_mgr', 'p_peer']);
+  assert.deepEqual(M.directoryChoices(null), []);
 });
 
-test('people: cleaned with defaults', () => {
-  const p = M.cleanPerson({ id: 'p_x', name: '  Engineer A ', links: { docket: 'DevA', queue: 'Dev.One@Example.com', receipts: '' }, cadenceDays: 500 });
-  assert.deepEqual(p, { id: 'p_x', name: 'Engineer A', links: { docket: 'DevA', queue: 'dev.one@example.com' }, cadenceDays: 7, archived: false });
+test('people: cleaned with defaults; an old report link becomes personId', () => {
+  const p = M.cleanPerson({ id: 'p_x', name: '  Engineer A ', links: { docket: 'DevA', receipts: 'p_r1' }, cadenceDays: 500 });
+  assert.deepEqual(p, { id: 'p_x', personId: 'p_r1', name: 'Engineer A', cadenceDays: 7, archived: false });
+  assert.equal(M.cleanPerson({ id: 'p_y', personId: 'p_peer', links: { receipts: 'p_r1' } }).personId, 'p_peer');
+  assert.equal(M.cleanPerson({ id: 'p_z', personId: 'nope' }).personId, '');
   assert.match(M.newPersonId(NOW, () => 0.5), /^p_[a-z0-9]+$/);
+  const shown = M.withDirectory({ ...p, name: 'Old name' }, DIR);
+  assert.deepEqual([shown.name, shown.relation, shown.handle, shown.linked], ['Dev One', 'report', 'dev', true]);
+  assert.equal(M.withDirectory({ ...p, personId: '' }, DIR).linked, false);
 });
 
 function fullPacket() {
@@ -97,7 +99,7 @@ function fullPacket() {
     person: PERSON, today: TODAY, now: NOW, notes: notes(['2026-10-27']),
     lastText: '## Follow-ups\n\n- [ ] Send the design doc\n- [x] Book the demo\n',
     src: {
-      docketSummary: docketSummary([task('t1', { people: ['DevA'] })]),
+      docketSummary: docketSummary([{ id: 'p_r1', open: [task('t1')], waiting: [] }]),
       receiptsEntries: receiptsEntries([entry('r1'), entry('r2', { kind: 'concern', text: 'Missed two standups' })])
     }
   });
@@ -136,9 +138,9 @@ test('the draft packet leaves out the name, and concerns unless asked for this r
   assert.ok(M.packetMarkdown(big).length <= M.MAX_PACKET);
 });
 
-test('quick-add lines for Docket: @name only for a one-word name', () => {
-  assert.deepEqual(M.quickAddLines(['Send  the doc', ''], 'DevA'), ['Follow up: Send the doc @DevA']);
-  assert.deepEqual(M.quickAddLines(['Send the doc'], 'Dev One'), ['Follow up: Send the doc (Dev One)']);
+test('quick-add lines for Docket carry the person\'s @handle', () => {
+  assert.deepEqual(M.quickAddLines(['Send  the doc', ''], 'dev'), ['Follow up: Send the doc @dev']);
+  assert.deepEqual(M.quickAddLines(['Send the doc'], 'Bad Handle'), ['Follow up: Send the doc']);
   assert.deepEqual(M.quickAddLines(['Send the doc'], ''), ['Follow up: Send the doc']);
 });
 
@@ -149,7 +151,7 @@ test('wins become receipts about the linked report, with stable ids', () => {
   assert.match(a[0].id, /^o-p-abc1-2026-11-03-[a-z0-9]+$/);
   const b = M.winEntries({ person: PERSON, day: TODAY, wins: ['Shipped  the import fix'], nowIso: 'later' });
   assert.equal(a[0].id, b[0].id, 'the same win reuses its id');
-  assert.deepEqual(M.winEntries({ person: { ...PERSON, links: {} }, day: TODAY, wins: ['x'], nowIso: '' }), []);
+  assert.deepEqual(M.winEntries({ person: { ...PERSON, personId: '' }, day: TODAY, wins: ['x'], nowIso: '' }), []);
 });
 
 test('the old 1:1s app: envelopes get the new schema and rev 0; note paths move under oneonones/', () => {
@@ -168,20 +170,10 @@ test('the old 1:1s app: envelopes get the new schema and rev 0; note paths move 
   assert.equal(M.legacyNotePath('notes/../x/2026-11-03.md'), '');
 });
 
-test('Docket through its summary: names, sections and state', async () => {
-  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'people', kind: 'people', updatedAt: 1, rows: [
-    { name: 'Person One', open: [{ id: 't1', title: 'Write the guide', due: '2026-11-06', nudgeOn: '' }], waiting: [{ id: 't2', title: 'Review', due: '', nudgeOn: '2026-11-03' }] },
-    { name: 'person one', open: [], waiting: [] },
-    { name: 'Person Two', open: [], waiting: [] }
-  ] }] };
-  assert.deepEqual(M.docketNames(summary), ['Person One', 'Person Two']);
-  assert.equal(M.docketState(summary), 'ok');
-  assert.equal(M.docketState(null), 'missing');
-  assert.equal(M.docketState({ ...summary, version: 2 }), 'unreadable');
-  const s = M.docketSection(summary, 'PERSON ONE', '2026-11-04');
-  assert.deepEqual(s.open.map(t => t.id), ['t1']);
-  assert.deepEqual(s.nudges.map(t => t.id), ['t2']);
-  assert.deepEqual(M.docketSection(summary, 'Nobody', '2026-11-04'), { state: 'ok', open: [], waiting: [], nudges: [] });
-  const raw = { schema: 'prioritizer.tasks', version: 3, rev: 1, items: [{ id: 'r1', title: 'Raw task', people: ['Person One'] }] };
-  assert.equal(M.docketSection(raw, 'Person One', '2026-11-04').state, 'unreadable', 'Docket\'s own tasks are not read');
+test('the packet: receipts are about a report by id and about your manager as up; others have none', () => {
+  const env = receiptsEntries([entry('r1'), entry('u1', { about: 'up' })]);
+  const pk = person => M.buildPacket({ person, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketSummary: null, receiptsEntries: env } });
+  assert.deepEqual(pk(PERSON).receipts.groups.win.map(e => e.id), ['r1']);
+  assert.deepEqual(pk({ ...PERSON, personId: 'p_mgr', relation: 'manager' }).receipts.groups.win.map(e => e.id), ['u1']);
+  assert.equal(pk({ ...PERSON, personId: 'p_peer', relation: 'peer' }).receipts.state, 'unlinked');
 });

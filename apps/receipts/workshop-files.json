@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "38642f659328affe6f5568579fd0bdcecfd5667d",
+  "commit": "e44321ec6c00cfbd6418f2dae7d147330d7e1dc5",
   "files": {
     "shared/device-fs.js": "shared/device-fs.js",
     "shared/fonts/OFL-Inter.txt": "shared/fonts/OFL-Inter.txt",
@@ -13,6 +13,7 @@
     "shared/fonts/jetbrains-mono-latin-wght-normal.woff2": "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
     "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
     "shared/fonts/source-serif-4-latin-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
+    "shared/people.js": "shared/people.js",
     "shared/site.js": "shared/site.js",
     "shared/standalone-bar.js": "shared/standalone-bar.js",
     "shared/summary.js": "shared/summary.js",
@@ -25,7 +26,7 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "1.0.1",
+  "bundle": "2.0.0",
   "sha256": {
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/OFL-Inter.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
@@ -38,6 +39,7 @@
     "shared/fonts/jetbrains-mono-latin-wght-normal.woff2": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
     "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2": "155f6e701097cc269cf8d5d7ac86795f263f1afbeb47c14d1d747108c9335389",
     "shared/fonts/source-serif-4-latin-opsz-normal.woff2": "f2ea9c12d2fe9bd3a9589b02ad2c0909da88f30938c91adc838c4f4098f9f9e0",
+    "shared/people.js": "24d2bd04ca368340a021061aed2595fac20de46999df39f3127585b8a48813d4",
     "shared/site.js": "d67595014cf360af437083d3ad781b70234745b2f7e4003327fb4b8c9887b6e9",
     "shared/standalone-bar.js": "1d3a4f8c8b1989b8b5bfcc0a8d0bc973ea4af9fe4ad41f48980962ce55814daa",
     "shared/summary.js": "1cece731121622f7b167b5963e17eaa29e6a642370832f5a666d520944e34414",
@@ -45,7 +47,7 @@
     "shared/theme.js": "cd42d3632943f5d3c67ff855b3bf81af2af0c86c903c3e03a874e7f579e8be2a",
     "shared/themes.css": "f2b421240643ba09c4f971ca192dbcdceb27922be39fada5e262736c034f5af5",
     "shared/ui.css": "f5f714bc512fd5f16855b73e6f08f96d23de206be0f6523b140527647ead846d",
-    "shared/workshop-sdk.js": "a477cc2385bb792647e7b16f2c15ddc24b316347894c592e4ff2fbf1959a9360",
+    "shared/workshop-sdk.js": "8458a361ed29384f34ce8c8b2fb46dccb453a796e9b9c5472a60404573daadda",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e"

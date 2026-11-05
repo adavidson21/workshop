@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../js/state.js';
+import { directory } from '../../../shared/people.js';
 
 const NOW = new Date(2026, 9, 31); // Oct 31 2026
 const e = (o) => R.cleanEntry({ id: o.id || R.newId('r'), about: 'me', kind: 'win', text: 'x', date: '2026-10-01', ...o });
@@ -66,7 +67,7 @@ test('bullet adds the metric once', () => {
 });
 
 test('rosterRows: counts, staleness, archived hidden', () => {
-  const ppl = [R.cleanPerson({ id: 'p_a', name: 'Person A' }), R.cleanPerson({ id: 'p_b', name: 'Person B' }), R.cleanPerson({ id: 'p_c', name: 'Person C', archived: true })];
+  const ppl = [{ id: 'p_a', name: 'Person A' }, { id: 'p_b', name: 'Person B' }, { id: 'p_c', name: 'Person C', archived: true }];
   const list = [e({ about: 'p_a', date: '2026-10-25', kind: 'feedback' }), e({ about: 'p_b', date: '2026-08-01' })];
   const rows = R.rosterRows(ppl, list, R.findPeriod({}, 'quarter', NOW), { staleDays: 30 }, NOW);
   assert.deepEqual(rows.map(r => r.person.id), ['p_a', 'p_b']);
@@ -146,29 +147,17 @@ test('offers from 1:1s: about a report in your list becomes a receipt about them
 });
 
 /* ---------- Workshop's people directory (docs/people.md in workshop) ---------- */
-const dirEnv = items => ({ schema: 'settings.people', version: 1, rev: 2, items, deleted: {} });
-
-test('readDirectory: missing, other schema or unknown version means use our own people', () => {
-  assert.equal(R.readDirectory(null), null);
-  assert.equal(R.readDirectory({ ...dirEnv([]), version: 2 }), null);
-  assert.equal(R.readDirectory({ ...dirEnv([]), schema: 'receipts.people' }), null);
-  assert.deepEqual(R.readDirectory(dirEnv([])), { all: [], reports: [], manager: '' });
-});
-
-test('readDirectory: reports keep their ids, the active manager names Upward', () => {
-  const d = R.readDirectory(dirEnv([
-    { id: 'p_me', updatedAt: 1, name: 'Me', relation: 'self' },
-    { id: 'p_r1', updatedAt: 1, name: 'Person One', relation: 'report', role: 'Engineer', since: '2025-03-01', adoIdentity: 'x@example.com' },
-    { id: 'p_r2', updatedAt: 1, name: 'Person Two', relation: 'report', archived: true },
-    { id: 'p_old', updatedAt: 1, name: 'Old Boss', relation: 'manager', archived: true },
-    { id: 'p_boss', updatedAt: 1, name: 'Boss Person', relation: 'manager' },
-    { id: 'p_peer', updatedAt: 1, name: 'Peer', relation: 'peer' },
-  ]));
-  assert.deepEqual(d.reports.map(p => [p.id, p.name, p.role, p.since, p.archived]), [['p_r1', 'Person One', 'Engineer', '2025-03-01', false], ['p_r2', 'Person Two', '', '', true]]);
-  assert.equal(d.manager, 'Boss Person');
-  assert.equal(d.all.length, 6);
-  // The roster works on directory reports exactly as on Receipts' own people.
-  const rows = R.rosterRows(d.reports, [{ ...R.blankEntry('p_r1', R.DEFAULT_CONFIG), id: 'e1', text: 'x', date: R.today() }], { key: 'all' }, R.DEFAULT_CONFIG);
+test('reportsFrom: the directory\'s reports with role and since, archived included, by name', () => {
+  const d = directory({ schema: 'settings.people', version: 2, rev: 2, items: [
+    { id: 'p_me', kind: 'person', updatedAt: 1, name: 'Me', handle: 'me', relation: 'self' },
+    { id: 'p_r2', kind: 'person', updatedAt: 1, name: 'Person Two', handle: 'two', relation: 'report', archived: true },
+    { id: 'p_r1', kind: 'person', updatedAt: 1, name: 'Person One', handle: 'one', relation: 'report', role: 'Engineer', since: '2025-03-01' },
+    { id: 'p_boss', kind: 'person', updatedAt: 1, name: 'Boss Person', handle: 'boss', relation: 'manager' },
+    { id: 'g_l', kind: 'group', updatedAt: 1, name: 'Leads', handle: 'leads', members: ['p_r1'] }
+  ] });
+  assert.deepEqual(R.reportsFrom(d).map(p => [p.id, p.name, p.role, p.since, p.archived]), [['p_r1', 'Person One', 'Engineer', '2025-03-01', false], ['p_r2', 'Person Two', '', '', true]]);
+  assert.deepEqual(R.reportsFrom(null), []);
+  const rows = R.rosterRows(R.reportsFrom(d), [{ ...R.blankEntry('p_r1', R.DEFAULT_CONFIG), id: 'e1', text: 'x', date: R.today() }], { key: 'all' }, R.DEFAULT_CONFIG);
   assert.deepEqual(rows.map(r => r.person.id), ['p_r1']);
 });
 

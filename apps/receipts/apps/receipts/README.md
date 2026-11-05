@@ -9,7 +9,7 @@ Receipts, 1:1s and goals for you, your reports and your manager. Rapport was cal
 - **Upward**: optional, turned on in Settings. Support received, asks, and feedback for your manager, with a link to your 1:1s with them when a 1:1s person has their name.
 - **From Docket**: finished tasks ticked in Docket's Wrap up wait at the top of Me to accept or dismiss.
 - **After a 1:1**: **Log follow-ups** copies open follow-ups as Docket quick-add lines and turns the wins you tick into receipts about that report (evidence "From a 1:1"). Logging the same win twice adds it once.
-- **People**: inside Workshop, reports and your manager come from People in Workshop's Settings (`settings.people`, workshop `docs/people.md`). Rapport's own `people` is used only where that directory does not exist.
+- **People**: reports and your manager are people in Workshop's people directory (workshop `docs/people.md`), shared with Docket, Home and Settings. Adding or editing a report here changes it there.
 - **Review**: coverage per review section, gaps called out, and a plain-text draft to copy, plus CSV.
 
 `N` focuses the new-receipt box, `Ctrl+Enter` saves. On the 1:1s tab `j`/`k` move, `Enter` opens, `Esc` goes back; with a note or goals doc open `Ctrl+S` saves and `Ctrl+E` switches Edit and Preview. In the goals tree, arrow keys move, open and close, `Enter` opens. Palette commands: Add a receipt, Prep a 1:1, Build a review, Open goals.
@@ -18,13 +18,13 @@ Data, all under the `receipts` app through the SDK like every other app:
 
 | Collection or file | Holds |
 | --- | --- |
-| `entries`, `people`, `config` | Receipts, your own list of reports (used only without the directory), settings. |
-| `oneonones/people` | People you have 1:1s with: `{id, name, links: {docket?, receipts?}, cadenceDays, archived}`. |
+| `entries`, `config` | Receipts and settings. Reports are in the people directory, not here. |
+| `oneonones/people` | People you have 1:1s with: `{id, personId, name, cadenceDays, archived}`. `personId` is the person in the people directory; `id` names their notes folder. |
 | `oneonones/settings` | No items. `meta.aiDraft` (`false` turns the draft step off), `meta.moved` (the copy from the old 1:1s app). |
 | `oneonones/notes/<person>/<yyyy-mm-dd>.md` | 1:1 notes, plain Markdown files (`ws.files`). |
 | `goals/team/<yyyy-qN>.md`, `goals/<person>/<yyyy-qN>.md` | Goals for the team and each report, one plain Markdown file per quarter (`ws.files`). `<person>` is the person id as a folder (`p_mh3k9x2a` is `p-mh3k9x2a`). |
 
-Reads (never writes) Workshop's `settings.people` directory, Docket's summary (`prioritizer.summary`, its `people` card; workshop `docs/summaries.md`) for 1:1 prep (never Docket's own collections), and the `handoffs` offers of every app whose manifest lists `receipts` in `handoffs.sends` (`ws.apps.list()`), plus Docket, Home and Dispatch and, until they are handled, the old 1:1s app (`oneonones.handoffs`) (workshop `docs/handoffs.md`). Writes its own summary (`receipts.summary`: the receipts count) for Home's Get started. Offers with `accepted: true` (captures from Home and the Dispatch hub) are added with no click, as an entry with id `h-<app>-<offer id>`, so each is added once. An offer's `payload.about` may name one of your reports (`p_...`); otherwise it is about you.
+Reads and changes Workshop's people directory through `ws.people` (workshop `docs/people.md`): your reports are its `report` people (Rapport adds and edits them there) and Upward is its manager. Each 1:1s person is a directory person (`personId`). Reads Docket's summary (`prioritizer.summary`, its `people` card by person id, including tasks on groups they are in; workshop `docs/summaries.md`) for 1:1 prep (never Docket's own collections), and the `handoffs` offers of every app whose manifest lists `receipts` in `handoffs.sends` (`ws.apps.list()`), plus Docket, Home and Dispatch and, until they are handled, the old 1:1s app (`oneonones.handoffs`) (workshop `docs/handoffs.md`). Writes its own summary (`receipts.summary`: the receipts count) for Home's Get started. Offers with `accepted: true` (captures from Home and the Dispatch hub) are added with no click, as an entry with id `h-<app>-<offer id>`, so each is added once. An offer's `payload.about` may name one of your reports (`p_...`); otherwise it is about you.
 
 **Moving from 1:1s.** On first open, Rapport copies the old 1:1s app's people and settings (only if Rapport has none yet) and its notes (any not already here) into the paths above, and says so once. The old files in `<Workshop folder>/oneonones/` are never changed or removed. For 30 days after that first copy, notes still in the old folder and missing here are copied on each open; after that a note removed by hand stays removed.
 

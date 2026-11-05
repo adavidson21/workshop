@@ -3,19 +3,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createOneOnOnes } from '../js/oneonones/data.js';
-import { NOW, PERSON, TODAY, docketSummary, fakeWs, receiptsEntries } from './oneonones-fake.mjs';
+import { DIR, NOW, PERSON, TODAY, docketSummary, fakeWs, receiptsEntries } from './oneonones-fake.mjs';
 
 test('loads its own collections and reads other apps without writing them', async () => {
-  const ws = fakeWs({ others: { 'prioritizer.summary': docketSummary([], ['DevA']) } });
+  const ws = fakeWs({ others: { 'prioritizer.summary': docketSummary([]) } });
   const d = createOneOnOnes(ws, { now: () => NOW });
   await d.loadAll();
   assert.equal(d.v.loaded, true);
   assert.equal(d.v.src.docketSummary.schema, 'prioritizer.summary');
-  assert.ok(!('docketTasks' in d.v.src) && !('docketPeople' in d.v.src), 'Docket\'s own collections are never read');
+  assert.deepEqual(Object.keys(d.v.src).sort(), ['docketSummary', 'receiptsEntries'], 'only Docket\'s summary is read from other apps');
   assert.ok(!('queueSnapshot' in d.v.src), 'Queue is no longer read');
   assert.equal(d.v.src.receiptsEntries, null, "Rapport's own entries are handed in, not read here");
-  d.setOwn(receiptsEntries([]), null);
+  d.setOwn(receiptsEntries([]), DIR);
   assert.equal(d.v.src.receiptsEntries.schema, 'receipts.entries');
+  assert.equal(d.v.dir, DIR);
   assert.equal(d.v.oc, true);
   assert.deepEqual(ws.puts, [], 'loading writes nothing');
 });
@@ -24,8 +25,9 @@ test('people: added with a generated id, edited in place, unknown fields kept', 
   const ws = fakeWs({ stored: { 'oneonones/people': { schema: 'receipts.oneonones/people', version: 1, rev: 1, deleted: {}, items: [{ ...PERSON, updatedAt: 1, extra: 'kept' }] } } });
   const d = createOneOnOnes(ws, { now: () => NOW });
   await d.loadAll();
-  const added = await d.savePerson({ name: 'Engineer A', links: { docket: 'EngA' }, cadenceDays: 14 });
+  const added = await d.savePerson({ name: 'Peer Three', personId: 'p_peer', cadenceDays: 14 });
   assert.match(added.id, /^p_/);
+  assert.equal(added.personId, 'p_peer');
   await d.savePerson({ ...PERSON, cadenceDays: 10 });
   const items = ws.store['oneonones/people'].items;
   assert.equal(items.length, 2);

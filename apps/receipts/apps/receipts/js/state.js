@@ -1,10 +1,9 @@
 /* Receipts: pure logic, no DOM. Tested by test/state.test.mjs.
 
-   Data lives in three collections of this app, in the Workshop envelope format (shared/workshop-sdk.js,
+   Data lives in two collections of this app, in the Workshop envelope format (shared/workshop-sdk.js,
    docs in the workshop repo: data-format.md):
-     entries  every receipt. `about` says whose: 'me', 'up' (your manager), or a person id ('p_...').
-     people   your direct reports: {id, name, role, since, archived}. Not used once Workshop's people
-              directory exists (readDirectory below).
+     entries  every receipt. `about` says whose: 'me', 'up' (your manager), or a person id ('p_...') from the
+              people directory. Reports themselves are kept there (reportsFrom below), not here.
      config   no items; meta holds settings: {sections, cycleStart, cycleEnd, upward, staleDays}.
    Nothing here talks to the network. */
 
@@ -167,22 +166,14 @@ export function groupByMonth(list) {
 }
 
 /* ---------- Workshop's people directory ----------
-   Settings' `people` collection in Workshop (docs/people.md in the workshop repo), read only. When it exists,
-   it is the list: reports are its `report` people and the manager its `manager`. Directory ids are the same
-   `p_...` ids Receipts uses, so entries keep pointing at the right person. When it is missing (Receipts on its
-   own site with browser storage, or never set up), Receipts uses its own `people` collection as before. */
+   Your reports and your manager are in the people directory (ws.people; docs/people.md in the workshop repo).
+   Entries keep `about: 'me'`, `'up'` or a directory person id. */
 export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/settings';
-export function readDirectory(env) {
-  if (!env || env.schema !== 'settings.people' || env.version !== 1) return null;
-  const all = (Array.isArray(env.items) ? env.items : []).filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').map(p => ({ ...cleanPerson(p), relation: p.relation }));
-  const manager = all.find(p => p.relation === 'manager' && !p.archived);
-  return { all, reports: all.filter(p => p.relation === 'report'), manager: manager ? manager.name : '' };
-}
-
-/* ---------- people ---------- */
-export function cleanPerson(p) {
-  const s = v => (typeof v === 'string' ? v.trim() : '');
-  return { id: s(p.id) || newId('p'), updatedAt: Number(p.updatedAt) || 0, name: s(p.name), role: s(p.role), since: s(p.since), archived: !!p.archived };
+/** Reports from the directory, archived ones included: [{id, name, role, since, archived}], by name. */
+export function reportsFrom(dir) {
+  return (dir && Array.isArray(dir.people) ? dir.people : []).filter(p => p.relation === 'report')
+    .map(p => ({ id: p.id, name: p.name, role: p.role || '', since: p.since || '', archived: !!p.archived }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Roster rows for the Reports page: counts in the period and how long since the last receipt.

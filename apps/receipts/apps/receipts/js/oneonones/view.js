@@ -45,7 +45,7 @@ export function homeHtml(rows, ui, fromDir = []) {
 /* ---------- the packet ---------- */
 
 const UNAVAILABLE = {
-  unlinked: 'Not linked. Pick a match in People and links.',
+  unlinked: 'Not in People. Pick who this is in People and links.',
   missing: 'Nothing saved there yet.',
   unreadable: 'Saved by a version this app does not know. Update Workshop to read it.'
 };
@@ -56,10 +56,13 @@ function rows(title, list, fmt, empty = 'None') {
     ? `<ul>${list.map(x => `<li>${fmt(x)}</li>`).join('')}</ul>` : `<p class="soft">${esc(empty)}</p>`}</div>`;
 }
 
+// A task that reaches them through a group: "via @leadership" (viaName is filled in by page.js).
+const viaHtml = t => (t.via ? ` <span class="soft">via ${esc(t.viaName ? '@' + t.viaName : 'a group')}</span>` : '');
+
 export function packetHtml(p) {
   const docket = p.docket.state === 'ok'
-    ? rows('Open, tagged with them', p.docket.open, t => `${esc(t.title)}${t.due ? ` <span class="soft">due ${esc(t.due)}</span>` : ''}`)
-      + rows('Waiting on them', p.docket.waiting, t => `${esc(t.title)}${t.nudgeOn ? ` <span class="soft">nudge ${esc(t.nudgeOn)}</span>` : ''}`)
+    ? rows('Open, tagged with them', p.docket.open, t => `${esc(t.title)}${viaHtml(t)}${t.due ? ` <span class="soft">due ${esc(t.due)}</span>` : ''}`)
+      + rows('Waiting on them', p.docket.waiting, t => `${esc(t.title)}${viaHtml(t)}${t.nudgeOn ? ` <span class="soft">nudge ${esc(t.nudgeOn)}</span>` : ''}`)
       + rows('Nudges due', p.docket.nudges, t => esc(t.title))
     : unavailable(p.docket, true);
   const receipts = p.receipts.state === 'ok'
@@ -172,14 +175,15 @@ export function logHtml({ followUps, wins, canOffer, docketLinked }) {
 /* ---------- settings ---------- */
 
 /**
- * pick: {docket: [name], receipts: [{id, name, archived}], states: {docket, receipts}}
+ * v.people: 1:1s people with the directory's name and relation (withDirectory).
+ * pick: {choices: [{id, name, relation, archived}], fromDirectory: [{id, name}], embedded}
  * edit: the person being edited ({} for a new one) or null.
  */
 export function settingsHtml(v, pick, edit) {
   const back = '<button type="button" class="btn" data-route="">All 1:1s</button>';
   const active = v.people.filter(p => !p.archived), archived = v.people.filter(p => p.archived);
   const row = p => `<li class="srow"><span class="oo-name">${esc(p.name)}</span>
-    <span class="links soft">${[p.links.docket && 'Docket', p.links.receipts && 'Report'].filter(Boolean).join(', ') || 'No links'} · every ${esc(plural(p.cadenceDays, 'day'))}</span>
+    <span class="links soft">${p.linked ? esc(RELATION[p.relation] || 'In People') + (p.handle ? ` · @${esc(p.handle)}` : '') : 'Not in People'} · every ${esc(plural(p.cadenceDays, 'day'))}</span>
     <button class="lnk" data-edit-person="${esc(p.id)}">Edit</button></li>`;
   return header('People and links', '1:1s', back) + `
     ${edit ? personForm(edit, pick) : `<p><button class="btn primary" data-add-person>Add a person</button></p>`}
@@ -194,29 +198,26 @@ export function settingsHtml(v, pick, edit) {
     </form>`;
 }
 
-/** Direct reports in Workshop's People with no 1:1s person yet: one click adds them, linked. */
+/** Reports and your manager in People with no 1:1s person yet: one click adds them. */
 export function fromDirectoryHtml(list) {
-  return `<div class="from-dir"><p class="soft small">From People in Workshop's Settings: add with their report and Docket already linked.</p>
+  return `<div class="from-dir"><p class="soft small">From People: add in one click. Their Docket tasks and receipts come along.</p>
     ${list.map(p => `<button class="oo-chip" data-add-dir="${esc(p.id)}">+ ${esc(p.name)}</button>`).join('')}</div>`;
 }
 
-function picker(name, label, list, cur, state, hint) {
-  const known = list.some(x => x.value === cur);
-  const note = state === 'unreadable' ? 'Saved by a version this app does not know.' : !list.length ? hint : '';
-  return `<label>${esc(label)}<select name="${name}">${opt('', 'Not linked', !cur)}${list.map(x => opt(x.value, x.label, x.value === cur)).join('')}${cur && !known ? opt(cur, `${cur} (not found)`, true) : ''}</select>
-    ${note ? `<span class="soft">${esc(note)}</span>` : ''}</label>`;
-}
+const RELATION = { report: 'Direct report', manager: 'Manager', peer: 'Peer', contact: 'Contact' };
 
 export function personForm(p, pick) {
-  const l = p.links || {};
+  const cur = p.personId || '';
+  const known = pick.choices.some(c => c.id === cur);
+  const options = pick.choices.map(c => opt(c.id, `${c.name} (${RELATION[c.relation] || c.relation}${c.archived ? ', archived' : ''})`, c.id === cur)).join('');
   return `<form class="oo-pform" data-person-form data-id="${esc(p.id || '')}" autocomplete="off">
     <h3 class="section-label">${p.id ? 'Edit person' : 'New person'}</h3>
     <div class="two">
-      <label>Name<input name="name" value="${esc(p.name || '')}" maxlength="120" required placeholder="Engineer A"></label>
+      <label>Person<select name="personId" required>${opt('', 'Pick someone from People', !cur)}${options}${cur && !known ? opt(cur, `${p.name || cur} (not in People)`, true) : ''}</select>
+        ${pick.choices.length ? '' : `<span class="soft">No one in People yet. Add them in ${pick.embedded ? 'Settings, People' : 'Workshop\'s Settings, People'}.</span>`}</label>
       <label>Cadence (days between 1:1s)<input name="cadenceDays" type="number" min="1" max="90" value="${esc(p.cadenceDays || 7)}"></label>
     </div>
-    ${picker('docket', 'Docket person', pick.docket.map(n => ({ value: n, label: n })), l.docket, pick.states.docket, 'No people in Docket yet. Tag a task with @name there.')}
-    ${picker('receipts', 'Report (for their receipts)', pick.receipts.filter(r => !r.archived || r.id === l.receipts).map(r => ({ value: r.id, label: r.name })), l.receipts, pick.states.receipts, pick.directory ? 'No direct reports in People yet. Add them in Workshop\'s Settings.' : 'No reports in Reports yet.')}
+    <p class="soft small">Their Docket tasks (and tasks on groups they are in) and, for a report or your manager, their receipts show in prep.</p>
     ${p.id ? `<label class="chk"><input type="checkbox" name="archived"${p.archived ? ' checked' : ''}> Archived (hidden from the list; notes are kept)</label>` : ''}
     <div class="acts"><button type="button" class="btn" data-cancel-person>Cancel</button><button class="btn primary">${p.id ? 'Save' : 'Add'}</button></div>
   </form>`;
