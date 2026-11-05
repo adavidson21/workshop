@@ -8,7 +8,7 @@ You will get an answer within a week. Fixes are released as a new release tag, a
 
 ## Supported versions
 
-The newest release tag, and `main`. Work mode users update with `workshop update --tag <tag>`.
+The newest release tag, and `main`. Work mode users update with `workshop update` (newest release tags) or `workshop update --tag <tag>`.
 
 ## Scope
 

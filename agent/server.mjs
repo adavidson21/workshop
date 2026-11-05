@@ -25,6 +25,7 @@ import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
 import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
+import { appSwitches, readOff, writeOff, pinApps } from './lib/apps.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 
@@ -117,6 +118,8 @@ export async function createAgent(o) {
   // and no hosted site can pair or use the agent, whatever allowedOrigins says.
   const workMode = () => config.features.workMode === true;
   const pinned = new PinnedSite(path.resolve(o.uiDir || uiDirOf(home)), log.for('work'));
+  const appsLock = new KeyedLock();
+  const switches = () => appSwitches({ home, repo: root, schemas, workMode: workMode(), uiDir: pinned.uiDir });
   const events = new EventHub({ version: VERSION });
   const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
@@ -302,6 +305,36 @@ document.getElementById('allow').addEventListener('click', function () {
     const ok = body => sendJson(res, 200, body, cors);
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); ok(listApps()); return; }
+
+    // Turning apps on and off (docs/apps.md). Saved in <home>/apps.json; in work mode the pinned copy is rebuilt
+    // from what is already on this computer. Downloading an app is `workshop apps on <app>`: the agent runs no git.
+    if (parts[0] === 'app-switches') {
+      if (parts.length === 1) { only('GET'); ok(switches()); return; }
+      if (parts.length !== 2) fail('not_found', 'Not found.');
+      only('PUT');
+      if (!own) fail('local_only', 'Turn apps on and off from Workshop on this computer.');
+      const id = name(parts[1], 'app');
+      const body = await readJsonBody(req, 64 * 1024);
+      if (!body || typeof body !== 'object' || typeof body.on !== 'boolean' || Object.keys(body).length !== 1) fail('bad_request', 'Send {"on": true} or {"on": false}.');
+      const app = switches().apps.find(a => a.id === id);
+      if (!app) fail('not_found', `There is no ${id} app.`);
+      if (!app.canTurnOff) fail('bad_request', `${app.name} is always on.`);
+      await appsLock.run('apps', async () => {
+        const off = readOff(home);
+        if (body.on) off.delete(id); else off.add(id);
+        await writeOff(home, off);
+        log.for('apps').info(`${app.name} turned ${body.on ? 'on' : 'off'}.`);
+        if (!workMode()) return;
+        try { pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir }); } catch (e) {
+          log.for('work').error(`Could not rebuild the pinned copy: ${e.message}`);
+          fail('internal', `${app.name} is ${body.on ? 'on' : 'off'}, but the pinned copy could not be rebuilt: ${e.message} Run "workshop pin" to see why.`);
+        }
+      });
+      const view = switches();
+      const now = view.apps.find(a => a.id === id);
+      ok({ ...view, changed: id, download: view.workMode && now.on && now.separate && !now.downloaded ? now.command : null });
+      return;
+    }
 
     // Data and files paths are checked as the client sent them, segment by segment, before any normalization
     // (docs/agent-api.md, Endpoints). The URL parser would turn "notes/../pages" into "pages"; this never does.

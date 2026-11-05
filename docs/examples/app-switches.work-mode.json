@@ -1,0 +1,10 @@
+{
+  "workMode": true,
+  "pinned": true,
+  "apps": [
+    { "id": "home", "name": "Home", "description": "Today, triage, up next, your people and Dispatch.", "on": true, "canTurnOff": false, "separate": false, "inWorkshop": true },
+    { "id": "prioritizer", "name": "Docket", "description": "Decide what to work on next.", "on": true, "canTurnOff": true, "separate": true, "inWorkshop": true, "key": "docket", "repo": "adavidson21/docket", "downloaded": true, "folder": "C:\\source\\repos\\Workshop\\docket", "ref": "v5.0.0", "command": null },
+    { "id": "notes", "name": "Notes", "description": "Notes.", "on": false, "canTurnOff": true, "separate": false, "inWorkshop": false },
+    { "id": "runway", "name": "Runway", "description": "Team and project roadmaps.", "on": true, "canTurnOff": true, "separate": true, "inWorkshop": false, "key": "runway", "repo": "adavidson21/runway", "downloaded": false, "folder": "C:\\source\\repos\\Workshop\\runway", "ref": null, "command": "workshop apps on runway" }
+  ]
+}

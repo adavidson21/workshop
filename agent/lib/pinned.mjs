@@ -3,7 +3,7 @@
 // SHA-256. With features.workMode on, the agent serves the hub and every app from that copy only: a file
 // that is not listed is 404, and a file whose bytes no longer match build.json is refused (500), so nothing
 // changed after the build ever reaches the browser. Code changes only when the user runs `workshop pin`
-// again, normally after `workshop update --tag <tag>`.
+// again, normally through `workshop update` or an app switch (lib/apps.mjs).
 //
 // Pure file system work: no network, no child processes. Git details (tag, commit) are passed in by the
 // `workshop` command.
@@ -78,8 +78,10 @@ function copyInto(srcRoot, rel, outRoot, outRel, files) {
  * is recorded as is: {workshop: {version, ref, commit}, docket: {...}, runway: {...}}. Returns the build.json
  * object, with null for each remote app left out.
  */
-export function buildPinned({ repo, docketDir = null, remotes = {}, outDir, registry, info = {}, now = new Date() }) {
+export function buildPinned({ repo, docketDir = null, remotes = {}, outDir, registry, info = {}, skip = [], now = new Date() }) {
   const dirs = { docket: docketDir, ...remotes };
+  // Apps turned off (lib/apps.mjs): their folders stay out of the copy, so they are not served at all.
+  const skipped = new Set(skip);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
   const files = {};
@@ -93,6 +95,7 @@ export function buildPinned({ repo, docketDir = null, remotes = {}, outDir, regi
       if (rel === 'apps/registry.json' || rel === 'apps/remote.json') continue;
       // A remote app's folder comes from its own checkout, never from a stray copy in this repo.
       if (REMOTE_APPS.some(a => rel.startsWith(`apps/${a.id}/`))) continue;
+      if (rel.startsWith('apps/') && skipped.has(rel.split('/')[1])) continue;
       copyInto(repo, rel, outDir, rel, files);
     }
   }
@@ -100,7 +103,7 @@ export function buildPinned({ repo, docketDir = null, remotes = {}, outDir, regi
   for (const a of REMOTE_APPS) {
     const dir = dirs[a.key];
     included[a.key] = null;
-    if (!dir) continue;
+    if (!dir || skipped.has(a.id)) continue;
     if (!fs.existsSync(path.join(dir, 'app.json'))) throw new Error(`${dir} is not a ${a.name} checkout (no app.json).`);
     const ignore = readIgnore(dir);
     for (const rel of walk(dir)) {

@@ -2,6 +2,7 @@
   "bundle": 1,
   "version": "2.1.0",
   "files": {
+    "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
     "docs/schemas/app.schema.json": "783c203f4836a5e8cd2fc09c6b1fc08dfa915f53fb7301f4dcf21fc0388040b5",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",

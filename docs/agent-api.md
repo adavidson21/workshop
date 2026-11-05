@@ -142,6 +142,14 @@ Apps found in `apps/*/app.json`, ordered by `order` then `name`. Schema [apps-re
 
 For hosted and browser modes, the static site carries `apps/registry.json` with the same shape, written when the site is published (WS7). The agent never reads it.
 
+### `GET /api/app-switches`
+
+Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/app-switches.schema.json), example [app-switches.work-mode.json](examples/app-switches.work-mode.json). Built-in apps come from `apps/`, apps in their own repos from `apps/remote.json`; for those it also says whether they are downloaded on this computer and, when not, the command that downloads them. In work mode, `inWorkshop` says whether the pinned copy has the app.
+
+### `PUT /api/app-switches/<id>`
+
+Body `{"on": true}` or `{"on": false}`. Workshop on this computer only (`403 local_only` from a paired site). Saves the switch in `<home>/apps.json` and, in work mode, rebuilds the pinned copy from what is on this computer. Answers like `GET`, plus `changed` (the id) and `download`: the command to run when an app turned on in work mode is not downloaded yet, else `null`. The agent never downloads anything itself. `400` for Home and Settings (always on) or a bad body, `404` for an unknown app.
+
 ### `GET /api/data/<app>`
 
 Lists every collection of the app, nested ones included, sorted by name. Only collection files are listed ([data-format.md](data-format.md), What is a collection); other files, damaged files and names that break the rules are left out (damaged files are logged). Schema [data-list](schemas/data-list.schema.json), example [data-list.prioritizer.json](examples/data-list.prioritizer.json).

@@ -5,6 +5,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Contract | Doc | Version | Schemas | Tested by |
 | --- | --- | --- | --- | --- |
 | Run modes and backends | [run-modes.md](run-modes.md) | 1 | none | `tests/contract/security.test.mjs` |
+| App switches | [apps.md](apps.md) | 1 | `app-switches` | `agent/test/app-switches.test.mjs` |
 | Config file | [config.md](config.md) | `configVersion: 1` | `config`, `config-public`, `config-patch`, `config-put-response` | `tests/contract/config.test.mjs` |
 | Agent HTTP API | [agent-api.md](agent-api.md) | `api: 1` | `health`, `session`, `error`, `apps-response`, `data-*`, `file-*`, `connector-*`, `event` | `tests/contract/*.test.mjs` |
 | Connector module | [connector.md](connector.md) | `api: 1` | `config-form` | `tests/contract/connectors.test.mjs`, `tests/check-contracts.mjs` |
