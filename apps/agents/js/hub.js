@@ -73,9 +73,8 @@ export function startHub(ws, root) {
   }
   async function readContext() {
     const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
-    const [people, summary, teams, lists, queue] = await Promise.all([get('people', 'settings'), get('summary', 'prioritizer'), get('teams', 'settings'),
-      get('lists', 'prioritizer'), get('settings', 'queue')]);
-    src = { people, summary, teams, lists, queue };
+    const [people, summary, teams] = await Promise.all([get('people', 'settings'), get('summary', 'prioritizer'), get('teams', 'settings')]);
+    src = { people, summary, teams };
   }
   const rulesCtx = () => {
     const c = hubContext(src), d = new Date();
@@ -304,8 +303,6 @@ export function startHub(ws, root) {
 
   readContext();
   ws.data.subscribe('people', readContext, { app: 'settings' });
-  ws.data.subscribe('lists', readContext, { app: 'prioritizer' });
-  ws.data.subscribe('settings', readContext, { app: 'queue' });
   ws.data.subscribe('summary', readContext, { app: 'prioritizer' });
   ws.data.subscribe('teams', readContext, { app: 'settings' });
   if (ws.backend === 'agent') { ws.connectors.onStatus(OC, check); ws.on('online', p => { if (p && p.online) check(); }); }

@@ -1,17 +1,11 @@
 /* Home: the numbers and the HTML. Pure functions with no DOM or SDK, so Node tests can import them.
-   Home reads other apps' data read-only (docs/sdk.md, ws.data.get with {app}). It does not import
-   their code (docs/app-manifest.md, Rules), so the few Prioritizer rules it needs are repeated here
-   and named after the function they mirror in Docket's js/model.js (adavidson21/docket). */
-
-export const TASKS_VERSION = 3; // prioritizer.tasks: the version Home knows how to read
-const WINDOW = { 4: 2, 3: 4, 2: 7, 1: 14 }; // implied due window in days, by value (Prioritizer's WINDOW)
+   Home reads other apps only through their summaries (docs/summaries.md) and never their own collections
+   or code, so Docket's rules for counts, the day plan and Wrap up stay in Docket. */
 
 const pad = n => String(n).padStart(2, '0');
 export const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return dateStr(d); };
 const daysBetween = (a, b) => Math.round((parseD(b) - parseD(a)) / 864e5);
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -47,39 +41,6 @@ export function initials(name) {
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
 
-// Prioritizer's isTriaged and isStale
-const isTriaged = t => t.value != null && t.effort != null;
-const isStale = (t, today) => !t.done && !t.due && !!t.value && isDate(t.ageFrom) && daysBetween(t.ageFrom, today) >= 2 * WINDOW[t.value];
-
-/* Everything the page shows from Prioritizer's board. `tasks`, `lists` and `people` are the envelopes'
-   items (or empty arrays). */
-export function summarize({ tasks = [], lists = [], people = [] }, today) {
-  const listName = new Map(lists.map(l => [l.id, l.name]));
-  const known = new Set(lists.map(l => l.id));
-  const all = tasks.filter(t => t && known.has(t.listId));
-  const open = all.filter(t => !t.done);
-  const weekEnd = addDays(today, 7);
-  // Prioritizer's isFocus: on Today, and open or finished today
-  const focus = all.filter(t => t.focusOn === today && (!t.done || (!t.wontDo && t.doneAt === today)));
-  const upNext = open.filter(t => !t.waiting).sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).slice(0, 3)
-    .map(t => ({ id: t.id, title: t.title, list: lists.length > 1 ? listName.get(t.listId) : '', listId: t.listId, due: isDate(t.due) ? t.due : null, people: Array.isArray(t.people) ? t.people : [], triaged: isTriaged(t) }));
-  const names = people.map(p => p.name).filter(n => typeof n === 'string' && n.trim());
-  const team = names.map(name => {
-    const mine = open.filter(t => Array.isArray(t.people) && t.people.some(p => String(p).toLowerCase() === name.toLowerCase()));
-    return { name, open: mine.length, waiting: mine.filter(t => t.waiting).length };
-  }).sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
-  return {
-    total: all.length,
-    open: open.length,
-    focus: { total: focus.length, done: focus.filter(t => t.done).length },
-    triage: open.filter(t => !isTriaged(t) || isStale(t, today)).length,
-    overdue: open.filter(t => isDate(t.due) && t.due < today).length,
-    dueWeek: open.filter(t => isDate(t.due) && t.due >= today && t.due <= weekEnd).length,
-    upNext,
-    team
-  };
-}
-
 /* From the opencode connector's `state` result: prompts waiting for you, and sessions working. */
 export function agentCounts(state) {
   const live = state && state.liveMode && state.liveMode.live;
@@ -89,91 +50,13 @@ export function agentCounts(state) {
   return { needYou, working };
 }
 
-/* ---------- Day plan: the block on now ----------
-   Docket's Day view rules, repeated here (Home does not import Docket's code). Each mirrors the function of the
-   same name in Docket's js/dayplan-model.js. dayplan collections are read only at version 1. */
-export const DAYPLAN_VERSION = 1;
+/* Times are "HH:MM"; Workshop shows them on a 12-hour clock ("9:30 AM"). */
 const isTime = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const toMin = s => isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
-const pad2 = n => String(n).padStart(2, '0');
-const fromMin = m => { m = ((Math.round(m) % 1440) + 1440) % 1440; return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
-/* "HH:MM" on a 12-hour clock: "9:30 AM". Workshop shows every time this way. */
 export const fmt12 = s => isTime(s) ? `${+s.slice(0, 2) % 12 || 12}:${s.slice(3)} ${+s.slice(0, 2) < 12 ? 'AM' : 'PM'}` : (s || '');
-function cleanSprint(sp) {
-  const o = Object.assign({}, sp);
-  if (!isDate(o.anchor)) return null;
-  o.lengthWeeks = Number.isInteger(+o.lengthWeeks) && +o.lengthWeeks >= 1 && +o.lengthWeeks <= 8 ? +o.lengthWeeks : 2;
-  o.workdays = Array.isArray(o.workdays) && o.workdays.length ? o.workdays.map(Number) : [1, 2, 3, 4, 5];
-  o.holidays = Array.isArray(o.holidays) ? o.holidays.filter(isDate) : [];
-  return o;
-}
-const isWorkday = (sp, d) => sp.workdays.includes(parseD(d).getDay()) && !sp.holidays.includes(d);
-function sprintInfo(sp, date) {
-  const len = sp.lengthWeeks * 7, idx = Math.floor(daysBetween(sp.anchor, date) / len), start = addDays(sp.anchor, idx * len);
-  let total = 0, day = null;
-  for (let d = start, end = addDays(start, len - 1); d <= end; d = addDays(d, 1)) { if (!isWorkday(sp, d)) continue; total++; if (d === date) day = total; }
-  return { day, total, last: day != null && day === total };
-}
-function templateFor(templates, info) {
-  if (info.day == null) return null;
-  const lasts = info.last ? templates.filter(t => t && t.last) : [];
-  const pool = lasts.length ? lasts : templates.filter(t => t && Array.isArray(t.days) && t.days.includes(info.day));
-  return pool[0] || null;
-}
-function currentSection(sections, nowMin) {
-  const timed = sections.filter(s => s && !s.lost && isTime(s.around)).map(s => ({ s, at: toMin(s.around) })).sort((a, b) => a.at - b.at);
-  let cur = null, next = null, curEnd = null;
-  for (let i = 0; i < timed.length; i++) {
-    const end = timed[i].s.minutes ? timed[i].at + timed[i].s.minutes : (timed[i + 1] ? timed[i + 1].at : timed[i].at + 60);
-    if (nowMin >= timed[i].at && nowMin < end) { cur = timed[i].s; curEnd = end; next = timed[i + 1] ? timed[i + 1].s : null; break; }
-    if (nowMin < timed[i].at) { next = timed[i].s; break; }
-  }
-  return { current: cur, next, end: curEnd };
-}
-
-/* Wrap up, from Docket's focus log (js/focus-model.js) and Day view settings: whether the day is wrapped, whether
-   it is time (an hour before the Day view's day end on a working day; 15:00 with no sprint set), and how many
-   receipts were offered today (prioritizer.handoffs). day: today's focus/days record or null; settings and offers:
-   envelopes at version 1, or null. */
-export function wrapState({ day = null, settings = null, offers = null }, today, nowMin) {
-  const sp = cleanSprint(settings && settings.meta && settings.meta.sprint);
-  const end = sp ? toMin(settings.meta.sprint.dayEnd) ?? 17 * 60 : null;
-  const events = day && Array.isArray(day.events) ? day.events : [];
-  return {
-    wrapped: events.some(e => e && e.type === 'shutdown'),
-    due: sp ? isWorkday(sp, today) && nowMin >= end - 60 : nowMin >= 15 * 60,
-    receipts: (offers && Array.isArray(offers.items) ? offers.items : []).filter(h => h && h.to === 'receipts' && h.date === today).length
-  };
-}
-
-/* The block on now and the next one, from Docket's day plan. `day` is {settings, templates, days} (envelopes or
-   null). Returns null when there is nothing to show: no sprint set, a day off, or the day's blocks are over. */
-export function dayNow(day, tasks, now) {
-  if (!day) return null;
-  const sp = cleanSprint(day.settings && day.settings.meta && day.settings.meta.sprint);
-  if (!sp) return null;
-  const today = dateStr(now);
-  const rec = (day.days && day.days.items || []).find(r => r && r.id === today);
-  let sections;
-  if (rec) sections = Array.isArray(rec.sections) ? rec.sections : [];
-  else {
-    const info = sprintInfo(sp, today);
-    const t = templateFor(day.templates && day.templates.items || [], info);
-    sections = t && Array.isArray(t.sections) ? t.sections.map(s => Object.assign({}, s, { lost: false })) : [];
-  }
-  const { current, next, end } = currentSection(sections, now.getHours() * 60 + now.getMinutes());
-  if (!current && !next) return null;
-  const byId = new Map(tasks.map(t => [t.id, t]));
-  const slots = rec && Array.isArray(rec.slots) ? rec.slots : [];
-  const inBlock = sec => sec ? slots.filter(s => s.sectionId === sec.id && byId.has(s.taskId)).map(s => byId.get(s.taskId))
-    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).map(t => ({ id: t.id, title: t.title, done: !!t.done })) : [];
-  const brief = sec => sec ? { name: sec.name || 'Untitled', at: sec.around, tasks: inBlock(sec) } : null;
-  return { current: current ? Object.assign(brief(current), { until: fromMin(end) }) : null, next: brief(next) };
-}
 
 /* ---------- from Docket's summary (docs/summaries.md) ----------
-   The board, the block on now and Wrap up from the `board` and `day` cards' entries for today. Same shapes as
-   summarize, dayNow and wrapState above, which stay as the fallback for a Docket that writes no summary. */
+   The board, the block on now and Wrap up, from the `board` and `day` cards' entries for today. */
 export function boardFromSummary(card, today) {
   const d = card && card.days && card.days[today];
   if (!d) return null;
@@ -238,7 +121,7 @@ const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="t
   <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
 /* The whole page. `v` is {now, profile, board, boardNote, agents, waiting, embedded}:
-   profile {name, role}; board = summarize() or null; boardNote = why there is no board (string) or '';
+   profile {name, role}; board = boardFromSummary() or null; boardNote = why there is no board (string) or '';
    agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message};
    waiting = true while the browser's folder store needs Allow (data.js); embedded = inside the shell. */
 export function render(v) {
@@ -247,7 +130,7 @@ export function render(v) {
   const name = (p.name || '').trim(), role = (p.role || '').trim();
   const b = v.board && v.board.total ? v.board : null;
   // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
-  // before the Day view's day end, wrapState; a check once wrapped). Triage is its tile.
+  // before the Day view's day end, from Docket's summary; a check once wrapped). Triage is its tile.
   const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
   const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
   const dayTools = b ? hbtn(ICON.day, b.focus.total ? 'Plan today' : "Pick today's tasks", `data-open="prioritizer" data-path="${b.focus.total ? 'day/today' : 'today'}"`, !b.triage && !b.focus.total ? 'primary' : '')

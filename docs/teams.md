@@ -30,5 +30,5 @@ Settings keeps one collection named `teams`, so its schema is `settings.teams`, 
 ## Rules
 
 1. **Only Settings writes it.** Other apps read it with `ws.data.get('teams', {app: 'settings'})`.
-2. **Missing means not set up.** Apps fall back to what they had before (Runway: Queue's old `queue.settings`, read only, until it is gone), and never write it themselves.
+2. **Missing means not set up.** Apps leave area paths empty (Runway asks for them in its dialog) and never write it themselves.
 3. **Not secret.** Area paths and connection names only. PATs stay in environment variables ([security.md](security.md)).

@@ -38,7 +38,7 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 
 1. **Write it with the data.** An app rewrites its summary whenever the data behind it changes, and once when it loads. Cards that depend on the date cover today and the next 6 days (`board`, `day`), so a reader can still show the right day when the app has not opened since.
 2. **Read like any other app's data.** Check `schema` and `version`; an unknown version is unreadable, not empty ([data-format.md](data-format.md), Migrations). A missing collection or card means the app has not written one yet.
-3. **Past its days, it is stale.** A `board` or `day` card with no entry for today is stale: the reader shows nothing for it, or tells the person to open the app.
+3. **Past its days, it is stale.** A `board` or `day` card with no entry for today is stale: the reader shows nothing for it, or tells the person to open the app. Readers never fall back to the writer's own collections.
 4. **A summary is for showing.** Readers never treat it as the record. To change something, open the writer's app (`ws.open`) or send a handoff ([handoffs.md](handoffs.md)).
 5. **Small.** A summary is read on every Home load. Keep each card to the limits above.
 
@@ -49,7 +49,3 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 | `prioritizer` (Docket) | `board` (id `board`), `day` (id `day`), `targets` (id `lists`, `capture: "task"`), `people` (id `people`). |
 | `receipts` (Rapport) | `count` (id `entries`: receipts logged). |
 | `runway` (Runway) | `targets` (id `roadmaps`, `capture: "idea"`). |
-
-## Moving readers over
-
-Before summaries, Home, Rapport and the Dispatch hub read Docket's and Runway's own collections. For one release they keep that as a fallback when the summary is missing or stale; then the fallback is removed.

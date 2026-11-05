@@ -48,21 +48,15 @@ test('toProposal: the shared capture shape', () => {
   assert.equal(toProposal({ to: 'notes', text: 'x', payload: { kind: 'note' } }).kind, 'note');
 });
 
-test('hubContext: names only, archived and unknown versions left out', () => {
+test('hubContext: names only, from the directory, Docket\'s summary and Settings\' teams; archived and unknown versions left out', () => {
   const people = { schema: 'settings.people', version: 1, items: [{ id: 'p_1', name: 'Person One', relation: 'report', role: 'secret role' }, { id: 'p_2', name: 'Gone', archived: true }] };
-  const lists = { schema: 'prioritizer.lists', version: 1, items: [{ id: 'l', name: 'Inbox', parentId: null }] };
-  const queue = { schema: 'queue.settings', version: 1, items: [], meta: { areas: ['Project\\Team'], people: [{ name: 'x' }] } };
-  assert.deepEqual(hubContext({ people, lists, queue }), { people: [{ id: 'p_1', name: 'Person One', relation: 'report', team: true }], lists: ['Inbox'], areas: ['Project\\Team'] });
+  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'lists', kind: 'targets', capture: 'task', title: 'Lists', updatedAt: 1, rows: [{ id: 'l1', title: 'Inbox' }] }] };
+  const teams = { schema: 'settings.teams', version: 1, rev: 1, items: [{ id: 't_mine', name: 'Mine', areas: ['Project\\Team'], updatedAt: 1 }] };
+  assert.deepEqual(hubContext({ people, summary, teams }), { people: [{ id: 'p_1', name: 'Person One', relation: 'report', team: true }], lists: ['Inbox'], areas: ['Project\\Team'] });
   assert.deepEqual(hubContext({ people: { ...people, version: 9 } }).people, []);
+  assert.deepEqual(hubContext({ summary: { ...summary, version: 2 }, teams: { ...teams, version: 2 } }), { people: [], lists: [], areas: [] });
   assert.deepEqual(hubContext(), { people: [], lists: [], areas: [] });
-  // Docket's summary and Settings' teams come first (docs/summaries.md, docs/teams.md).
-  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'lists', kind: 'targets', capture: 'task', title: 'Lists', updatedAt: 1, rows: [{ id: 'l1', title: 'This sprint' }] }] };
-  const teams = { schema: 'settings.teams', version: 1, rev: 1, items: [{ id: 't_mine', name: 'Mine', areas: ['Project\\Mine'], updatedAt: 1 }] };
-  const c = hubContext({ people, lists, queue, summary, teams });
-  assert.deepEqual(c.lists, ['This sprint']);
-  assert.deepEqual(c.areas, ['Project\\Mine']);
 });
-
 test('answerHtml escapes everything and links only http(s)', () => {
   const h = answerHtml('<!-- c -->**net8.0** in `Api.csproj`\n\n## Confirmed\n\n- <script>alert(1)</script>\n- see https://example.com/x?a=1&b=2 and javascript:alert(1)');
   assert.ok(!h.includes('<script>'));

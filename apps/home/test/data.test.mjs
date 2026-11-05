@@ -5,12 +5,15 @@ import { createHome } from '../js/data.js';
 import { render } from '../js/view.js';
 
 const unavailable = () => Object.assign(new Error('Allow Workshop to use the folder.'), { code: 'unavailable' });
-const tasksEnv = { schema: 'prioritizer.tasks', version: 3, rev: 1, items: [{ id: 't1', title: 'Write the plan', listId: 'l1', done: false, rank: 0, value: 3, effort: 'M' }] };
-const listsEnv = { schema: 'prioritizer.lists', version: 1, rev: 1, items: [{ id: 'l1', name: 'Main' }] };
+// Docket's summary with one open task for 2026-10-28.
+const plainSummary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [
+  { id: 'board', kind: 'board', updatedAt: 1, days: { '2026-10-28': { total: 1, open: 1, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0 } },
+    upNext: [{ id: 't1', title: 'Write the plan', list: '', listId: 'l1', due: null, people: [], triaged: true }], team: [] }
+] };
 const profileEnv = { schema: 'home.profile', version: 1, rev: 2, items: [], deleted: {}, meta: { name: 'Sam Rivera', role: 'EM' } };
 
 // A browser-backend SDK whose folder needs Allow until allow() is called.
-function fakeWs({ backend = 'browser', embedded = true, summary = null } = {}) {
+function fakeWs({ backend = 'browser', embedded = true, summary = plainSummary } = {}) {
   const handlers = {};
   const ws = {
     backend, embedded, allowed: false, gets: 0, puts: [], read: [],
@@ -20,7 +23,7 @@ function fakeWs({ backend = 'browser', embedded = true, summary = null } = {}) {
       async get(c, o) {
         ws.gets++;
         if (!ws.allowed) throw unavailable();
-        if (o && o.app === 'prioritizer') { ws.read.push(c); return c === 'summary' ? summary : c === 'tasks' ? tasksEnv : c === 'lists' ? listsEnv : null; }
+        if (o && o.app === 'prioritizer') { ws.read.push(c); return c === 'summary' ? summary : null; }
         return c === 'profile' ? profileEnv : null;
       },
       async put(c, env) { if (!ws.allowed) throw unavailable(); ws.puts.push([c, structuredClone(env)]); return { rev: env.rev + 1 }; }
@@ -71,7 +74,7 @@ test('on Allow (online turns true), profile, board and agents load again, once',
   ws.allow();
   await settle(); await settle();
   assert.equal(home.waiting, false);
-  assert.equal(ws.gets - before, 10, 'profile once; Docket\'s summary once; with none, tasks, lists, people and the three day plan collections once; and Docket\'s focus log and offers once (Wrap up)');
+  assert.equal(ws.gets - before, 2, 'profile once and Docket\'s summary once');
   assert.equal(home.v.board.open, 1);
   assert.deepEqual(home.v.profile, { name: 'Sam Rivera', role: 'EM' });
   assert.equal(home.v.agents.state, 'browser');
@@ -106,13 +109,12 @@ test('with the agent, an unavailable error is not a folder wait', async () => {
 });
 
 import { captureContext } from '../js/capture.js';
-test('captureContext: directory people and Docket list names, both optional', () => {
+test('captureContext: directory people, optional', () => {
   const people = { schema: 'settings.people', version: 1, items: [{ id: 'p_1', name: 'Person One', relation: 'report' }, { id: 'p_2', name: 'Gone', relation: 'peer', archived: true }] };
-  const lists = { schema: 'prioritizer.lists', version: 1, items: [{ id: 'l1', name: 'Inbox' }, { id: 'l2', name: 'Old', archived: true }] };
-  const c = captureContext({ people, lists }, new Date('2026-11-03T12:00:00'));
+  const c = captureContext({ people }, new Date('2026-11-03T12:00:00'));
   assert.equal(c.today, '2026-11-03');
   assert.deepEqual(c.people, [{ id: 'p_1', name: 'Person One', relation: 'report' }]);
-  assert.deepEqual(c.lists, ['Inbox']);
+  assert.deepEqual(c.lists, []);
   assert.deepEqual(captureContext({ people: { schema: 'settings.people', version: 2, items: [{ id: 'p', name: 'x' }] } }).people, [], 'an unknown version reads as none');
   assert.deepEqual(captureContext().lists, []);
 });
@@ -131,7 +133,6 @@ test('Docket\'s summary: the board, Now and Wrap up come from it, with no reads 
   const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9, 30) });
   await home.loadBoard();
   assert.deepEqual(ws.read, ['summary']);
-  assert.equal(home.v.source, 'summary');
   assert.equal(home.v.board.open, 4);
   assert.equal(home.v.board.upNext[0].title, 'From the summary');
   assert.equal(home.v.dayNow.current.name, 'Deep work');
@@ -141,13 +142,22 @@ test('Docket\'s summary: the board, Now and Wrap up come from it, with no reads 
   assert.match(render(home.v), /From the summary/);
 });
 
-test('Docket\'s summary: a stale one (no entry for today) falls back to Docket\'s collections', async () => {
+test('Docket\'s summary: a stale one (no entry for today) says to open Docket; none yet is an empty board', async () => {
   const ws = fakeWs({ summary: summaryEnv }); ws.allowed = true;
   const home = createHome(ws, { now: () => new Date(2026, 10, 9, 9) });
   await home.loadBoard();
-  assert.equal(home.v.source, 'collections');
-  assert.ok(ws.read.includes('tasks'));
-  assert.equal(home.v.board.open, 1);
+  assert.deepEqual(ws.read, ['summary'], 'never Docket\'s own collections');
+  assert.equal(home.v.board, null);
+  assert.match(home.v.boardNote, /Open Docket/);
+  const fresh = fakeWs({ summary: null }); fresh.allowed = true;
+  const h2 = createHome(fresh, { now: () => new Date(2026, 10, 9, 9) });
+  await h2.loadBoard();
+  assert.equal(h2.v.board.total, 0);
+  assert.match(render(h2.v), /No tasks yet/);
+  const newer = fakeWs({ summary: { ...summaryEnv, version: 2 } }); newer.allowed = true;
+  const h3 = createHome(newer, { now: () => new Date(2026, 9, 28, 9) });
+  await h3.loadBoard();
+  assert.match(h3.v.boardNote, /newer Docket/);
 });
 
 test('nowFromDay and wrapFromDay: between blocks, after the last one, and Wrap up time', async () => {

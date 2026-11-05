@@ -31,17 +31,15 @@ export function adoFact(info, config) {
   return { state: 'error', message: s.message || 'The ADO connector is not ready yet.' };
 }
 
-const count = env => (env && Array.isArray(env.items) ? env.items.length : 0);
 
 /** Active reports and manager in Settings' people directory (docs/people.md): the people Rapport works with. */
 export const teamCount = env => (env && Array.isArray(env.items) ? env.items.filter(p => p && !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
 
-/** Receipts logged: Rapport's summary (docs/summaries.md, the `entries` count card), else its entries collection
-    (a Rapport that writes no summary yet; removed after one release). */
-export function receiptsCount(summaryEnv, entriesEnv) {
+/** Receipts logged, from Rapport's summary (docs/summaries.md, the `entries` count card). 0 when it has none. */
+export function receiptsCount(summaryEnv) {
   const cards = readCards(summaryEnv, 'receipts');
   const c = cards && cards.get('entries');
-  return c && c.kind === 'count' && Number.isInteger(c.count) ? c.count : count(entriesEnv);
+  return c && c.kind === 'count' && Number.isInteger(c.count) ? c.count : 0;
 }
 
 /** Whether a data folder is inside OneDrive (any OneDrive: "OneDrive - Company" on Windows, OneDrive-Company on a Mac). */
@@ -54,9 +52,8 @@ export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(St
 export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
-  const [summary, receipts, people, list, cfg, adoCfg] = await Promise.all([
+  const [summary, people, list, cfg, adoCfg] = await Promise.all([
     quiet(ws.data.get('summary', { app: 'receipts' })),
-    quiet(ws.data.get('entries', { app: 'receipts' })),
     quiet(ws.data.get('people', { app: 'settings' })),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
@@ -68,7 +65,7 @@ export async function factsFor(ws) {
     connected: agent,
     mode: ws.mode,
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
-    receipts: receiptsCount(summary, receipts),
+    receipts: receiptsCount(summary),
     team: teamCount(people),
     dataDir: cfg && typeof cfg.dataDir === 'string' ? cfg.dataDir : null,
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,

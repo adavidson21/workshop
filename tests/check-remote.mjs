@@ -2,8 +2,6 @@
 // Checks Workshop against the apps it shows from other sites (apps/remote.json), using a checkout of each
 // app's repo in .remote/<id>/ (CI makes one from the repo named in remote.json):
 //
-//   - Home reads Docket's tasks: the prioritizer.tasks version Docket writes must be the one Home reads
-//     (apps/home/js/view.js, TASKS_VERSION). A mismatch fails: Home would show "can't read your tasks".
 //   - Docket's copies of Workshop's shared files (its workshop-files.json) should match this branch, or Docket
 //     inside Workshop runs an SDK or theme that differs from the shell's. Docket can only copy them after they
 //     merge here, so this warns, with the command to run in Docket's repo afterwards.
@@ -42,15 +40,6 @@ for (const app of remote) {
       return fs.existsSync(b) && (!fs.existsSync(a) || sha(a) !== sha(b));
     }).map(([, ours]) => ours);
     if (differ.length) warnings.push(`${app.id}: its copies of these Workshop files differ from this branch: ${differ.join(', ')}. After merging here, run in ${app.repo}: node scripts/sync-workshop.mjs --update`);
-  }
-
-  if (app.id === 'prioritizer') {
-    const fmt = fs.readFileSync(path.join(dir, 'js', 'store-format.js'), 'utf8');
-    const writes = Number((fmt.match(/VERSIONS\s*=\s*\{[^}]*\btasks:\s*(\d+)/) || [])[1]);
-    const view = fs.readFileSync(path.join(root, 'apps', 'home', 'js', 'view.js'), 'utf8');
-    const reads = Number((view.match(/TASKS_VERSION\s*=\s*(\d+)/) || [])[1]);
-    if (!writes || !reads) errors.push('prioritizer: could not find the tasks version in Docket\'s js/store-format.js or Home\'s js/view.js');
-    else if (writes !== reads) errors.push(`prioritizer: Docket writes prioritizer.tasks version ${writes}, Home reads version ${reads}. Update Home (apps/home/js/view.js) for the new version.`);
   }
 }
 
