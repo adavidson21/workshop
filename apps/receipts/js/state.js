@@ -8,6 +8,7 @@
    Nothing here talks to the network. */
 
 import { SITE } from '../shared/site.js';
+import { sendersFrom as sharedSendersFrom } from '../shared/handoffs.js';
 
 export const APP = 'receipts';
 export const VERSION = 1;
@@ -304,8 +305,7 @@ export const RETIRED_SENDERS = { oneonones: '1:1s' };
    handoffs.sends lists receipts, added to the built-in list (which keeps the retired senders, and any whose
    manifest does not say). Reading an app that is not there finds no offers. */
 export function sendersFrom(apps, self = APP, fallback = SENDERS) {
-  const found = (Array.isArray(apps) ? apps : []).filter(a => a && a.id !== self && a.handoffs && Array.isArray(a.handoffs.sends) && a.handoffs.sends.includes(self));
-  return { ...fallback, ...Object.fromEntries(found.map(a => [a.id, a.name || a.id])), ...RETIRED_SENDERS };
+  return { ...sharedSendersFrom(apps, self, fallback), ...RETIRED_SENDERS };
 }
 
 /* Rapport's summary for other apps (Workshop docs/summaries.md): how many receipts are logged, for Home's Get

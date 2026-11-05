@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// The source of every app's scripts/sync-workshop.mjs: it is in the platform bundle (docs/bundle.md), so an
+// app's --update also updates this script. Workshop itself does not run it.
+//
 // This app's copies of Workshop files (workshop-files.json): the SDK, site config, themes, fonts, icons, and the
 // data contract schemas its tests check against. Workshop is where these are edited; the app keeps exact copies
 // so it runs on its own, and so inside Workshop it reads and writes the same data the same way. The copies are
