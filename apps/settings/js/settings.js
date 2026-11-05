@@ -357,10 +357,10 @@ async function appsCard() {
     return 'In the rail.';
   };
   const render = () => {
-    box.querySelectorAll('.conn').forEach(el => el.remove());
+    box.querySelectorAll('.app-row').forEach(el => el.remove());
     for (const a of view.apps) {
       const row = document.createElement('div');
-      row.className = 'conn app-row';
+      row.className = 'app-row';
       row.dataset.app = a.id;
       const locked = readOnly || !a.canTurnOff;
       row.innerHTML = `<div class="conn-head">
@@ -375,7 +375,7 @@ async function appsCard() {
   async function flip(a, input) {
     const on = input.checked;
     input.disabled = true;
-    const st = input.closest('.conn').querySelector('.app-status');
+    const st = input.closest('.app-row').querySelector('.app-status');
     st.textContent = view.workMode ? 'Rebuilding the pinned copy...' : 'Saving...';
     try {
       if (ws.backend === 'agent') view = await agentCall('PUT', `/api/app-switches/${encodeURIComponent(a.id)}`, { on });
