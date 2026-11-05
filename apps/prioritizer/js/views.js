@@ -184,7 +184,7 @@ function renderPeople(){
   const live = state.tasks.filter(t => inScope(t) && (!t.done || isDoneToday(t)));
   const cards = cardsFor(live);
   if (!cards.length){
-    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @teammate", or ${TOUCH ? 'tap' : 'click'} Person. Groups like @leadership are set up in Workshop's Settings, People.</div>${fromWorkshop(live)}`;
+    main.innerHTML = `<div class="empty"><b>No people yet.</b>Type @name in any task, like "Review design doc @teammate", or ${TOUCH ? 'tap' : 'click'} Person. Groups like @leadership are set up in Workshop's People app.</div>${fromWorkshop(live)}`;
     return;
   }
   const byRank = (a, b) => a.rank - b.rank;

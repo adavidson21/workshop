@@ -7,7 +7,7 @@ import { getDirectory, nameOf } from './directory-model.js';
 import { ready } from './ws.js';
 /* Docket: People view menus. People and groups live in Workshop's people directory (docs/people.md): renaming
    changes the name everywhere; "Take off these tasks" only changes this board. Members and handles are edited
-   in Workshop's Settings, People. */
+   in Workshop's People app. */
 
 async function rename(id, name){
   name = String(name || '').replace(/^@/, '').trim();
@@ -36,13 +36,13 @@ function editName(id){
 
 function openPersonMenu(id, anchor){
   const it = getDirectory().byId.get(id);
-  const settings = '<button data-pm="settings">Edit in Settings</button>';
+  const settings = '<button data-pm="settings">Edit in People</button>';
   popMenu(`${it ? '<button data-pm="rename">Rename</button>' : ''}${it && it.kind === 'group' ? settings : ''}<button data-pm="off" class="danger">Take ${esc(nameOf(id))} off these tasks</button>`, anchor, 'right')
     .addEventListener('click', async e => {
       const b = e.target.closest('[data-pm]'); if (!b) return;
       closeMenu();
       if (b.dataset.pm === 'off') return takeOff(id);
-      if (b.dataset.pm === 'settings'){ const ws = await ready; if (ws && ws.embedded) ws.open({app: 'settings'}); else toast('Edit groups in Workshop: Settings, People.'); return; }
+      if (b.dataset.pm === 'settings'){ const ws = await ready; if (ws && ws.embedded) ws.open({app: 'people'}); else toast('Edit groups in Workshop: People.'); return; }
       editName(id);
     });
 }
