@@ -309,7 +309,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
         rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
         check('Rapport lists reports from People in Settings, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
-              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
+              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 1)
         if rf2:
             # A report's page: start 1:1s, write today's note, log a win twice: one receipt.
             rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-report]', timeout=5000)
@@ -649,7 +649,8 @@ def storage_checks(b, watch):
     stored = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
       const q = r.result.transaction('data').objectStore('data').get('prioritizer/tasks'); q.onsuccess = () => res(q.result); }; })""")
     check('browser mode saves the board as a prioritizer.tasks envelope', stored and stored['schema'] == 'prioritizer.tasks' and len(stored['items']) == len(want))
-    check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t1'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't1'))
+    # t2 has no names on it; t1's names become directory ids once the directory loads, which is a change.
+    check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t2'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't2'))
     check('the old copy is kept, and marked as moved', pg.evaluate("localStorage.getItem('prioritizer.v1') !== null && localStorage.getItem('prioritizer.v1.moved') !== null"))
     pg.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
     pg.reload(); pg.wait_for_timeout(1200)

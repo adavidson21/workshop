@@ -9,14 +9,14 @@
    with view() (the 1:1s tab) and panel() (a report's page). Clicks on this module's controls are handled here
    by their data- attributes. data.js loads and saves; model.js, view.js and markdown.js are pure. */
 import { createOneOnOnes } from './data.js';
-import { DEFAULT_CADENCE, NOTES, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, docketState, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, readable, receiptsPeople, winEntries, esc } from './model.js';
+import { DEFAULT_CADENCE, NOTES, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard, startPanelHtml } from './view.js';
 
 /**
  * ws: the SDK. root: the element main.js paints into. host: what this module needs from main.js:
  *   repaint()            paint the page again
  *   go(path)             open a Rapport path ('1on1s', 'team/<id>', ...)
- *   isReport(id)         id is one of your reports (from the directory, else Rapport's own list)
+ *   isReport(id)         id is one of your reports (in the people directory)
  *   reportName(id)       a report's name
  *   addWins(entries)     add receipts that are not there yet; resolves how many were added
  */
@@ -46,39 +46,42 @@ export function createOneOnOnesPage(ws, root, host) {
 
   /* ---------- derived ---------- */
 
+  // 1:1s people with the directory's name, relation and handle.
+  const shown = () => v.people.map(p => withDirectory(p, v.dir));
+
   function rows() {
     const t = today();
-    return v.people.filter(p => !p.archived).map(p => ({ person: p, ...cadenceState(d.notesOf(p.id), t, p.cadenceDays) }))
+    return shown().filter(p => !p.archived).map(p => ({ person: p, ...cadenceState(d.notesOf(p.id), t, p.cadenceDays) }))
       .sort((a, b) => (b.due - a.due) || ((b.days ?? 1e9) - (a.days ?? 1e9)) || a.person.name.localeCompare(b.person.name));
   }
-  const personNow = () => v.people.find(p => p.id === ui.personId) || null;
+  const personNow = () => shown().find(p => p.id === ui.personId) || null;
   // A report's 1:1s person: the active one linked to them, else an archived one (so no second one is made).
-  const personForReport = rid => v.people.find(p => p.links.receipts === rid && !p.archived) || v.people.find(p => p.links.receipts === rid) || null;
-  const reportOf = p => (p && p.links.receipts && host.isReport(p.links.receipts) ? p.links.receipts : '');
+  const personForReport = rid => shown().find(p => p.personId === rid && !p.archived) || shown().find(p => p.personId === rid) || null;
+  const reportOf = p => (p && p.personId && host.isReport(p.personId) ? p.personId : '');
 
   function packetFor(person) {
     const notes = d.notesOf(person.id);
     const t = today();
     const last = notes.find(n => n.day < t);
-    return buildPacket({
+    const packet = buildPacket({
       person, today: t, now: Date.now(), notes,
       lastText: last ? ui.lastText[last.path] ?? null : null,
       src: { docketSummary: v.src.docketSummary, receiptsEntries: v.src.receiptsEntries }
     });
+    // Tasks on a group they are in name the group.
+    if (packet.docket.state === 'ok') for (const t of [...packet.docket.open, ...packet.docket.waiting, ...packet.docket.nudges]) {
+      const g = t.via && v.dir && v.dir.byId.get(t.via);
+      if (g) t.viaName = g.handle;
+    }
+    return packet;
   }
 
-  // With Workshop's people directory, the report picker lists its reports (as Reports does).
+  // Who a 1:1s person can be: anyone in the people directory (reports first), and the ones to add in one click.
   function pickers() {
-    const dir = !!directoryPeople(v.src.directory);
     return {
-      docket: docketNames(v.src.docketSummary),
-      receipts: receiptsPeople(v.src.receiptsPeople, v.src.directory),
-      fromDirectory: directorySuggestions(v.people, v.src.directory),
-      directory: dir,
-      states: {
-        docket: docketState(v.src.docketSummary),
-        receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state
-      }
+      choices: directoryChoices(v.dir, ui.edit && ui.edit.personId),
+      fromDirectory: directorySuggestions(v.people, v.dir),
+      embedded: !!ws.embedded
     };
   }
 
@@ -97,13 +100,13 @@ export function createOneOnOnesPage(ws, root, host) {
     const setup = setupCard(v, ws.embedded);
     if (setup) return setup;
     if (!v.loaded) return '<p class="loading">Loading your 1:1s.</p>';
-    if (ui.mode === 'settings') return settingsHtml(v, pickers(), ui.edit);
+    if (ui.mode === 'settings') return settingsHtml({ ...v, people: shown() }, pickers(), ui.edit);
     if (ui.mode === 'person') {
       const person = personNow();
       if (person) return personBody(person, false);
       return `<div class="engcard"><h2>Not found</h2><p>This person is not in your 1:1s.</p><div class="acts"><button class="btn" data-route="">All 1:1s</button></div></div>`;
     }
-    return homeHtml(rows(), ui, directorySuggestions(v.people, v.src.directory));
+    return homeHtml(rows(), ui, directorySuggestions(v.people, v.dir));
   }
 
   /** The 1:1 section on a report's page. */
@@ -197,13 +200,12 @@ export function createOneOnOnesPage(ws, root, host) {
     if (ed) { ed.focus(); const at = ed.value.indexOf('## Talking points'); if (at >= 0) ed.setSelectionRange(at + 21, at + 21); }
   }
 
-  /** A report's first 1:1s person: linked to their report, and to Docket when a Docket person has their name. */
+  /** A report's first 1:1s person, linked to them in the people directory. */
   async function startForReport() {
     const rid = ui.reportId;
     if (!rid || personForReport(rid)) return;
-    const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === rid);
-    const base = dp ? personFromDirectory(dp, docketNames(v.src.docketSummary))
-      : { name: host.reportName(rid) || 'Unnamed', links: { receipts: rid }, cadenceDays: DEFAULT_CADENCE, archived: false };
+    const dp = v.dir && v.dir.byId.get(rid);
+    const base = dp ? personFromDirectory(dp) : { name: host.reportName(rid) || 'Unnamed', personId: rid, cadenceDays: DEFAULT_CADENCE, archived: false };
     try {
       const p = await d.savePerson(base);
       await openPerson(p.id);
@@ -268,14 +270,14 @@ export function createOneOnOnesPage(ws, root, host) {
     const followUps = parseFollowUps(n.text).open;
     const wins = parseWins(n.text);
     const canOffer = !!reportOf(person);
-    const form = await showDialog(logHtml({ followUps, wins, canOffer, docketLinked: !!person.links.docket }));
+    const form = await showDialog(logHtml({ followUps, wins, canOffer, docketLinked: !!person.handle }));
     if (!form) return;
     const f = new FormData(form);
     const pickedF = f.getAll('f').map(Number).map(i => followUps[i]).filter(Boolean);
     const pickedW = canOffer ? f.getAll('w').map(Number).map(i => wins[i]).filter(Boolean) : [];
     const done = [];
     if (pickedF.length) {
-      const lines = quickAddLines(pickedF, person.links.docket).join('\n');
+      const lines = quickAddLines(pickedF, person.handle).join('\n');
       try { await navigator.clipboard.writeText(lines); done.push(`${pickedF.length} Docket quick-add line${pickedF.length === 1 ? '' : 's'} copied`); }
       catch {
         await showDialog(`<form method="dialog" class="confirm"><h2>Copy these into Docket</h2><textarea rows="6" readonly>${esc(lines)}</textarea>
@@ -355,12 +357,12 @@ export function createOneOnOnesPage(ws, root, host) {
   root.addEventListener('click', async e => {
     const el = s => e.target.closest(s);
     let x;
-    if ((x = el('[data-person]'))) { const p = v.people.find(q => q.id === x.dataset.person); if (p) openRow(p); return; }
+    if ((x = el('[data-person]'))) { const p = shown().find(q => q.id === x.dataset.person); if (p) openRow(p); return; }
     if ((x = el('[data-route]'))) { host.go(x.dataset.route === 'settings' ? '1on1s/settings' : '1on1s'); return; }
     if ((x = el('[data-add-dir]'))) {
-      const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === x.dataset.addDir);
+      const dp = v.dir && v.dir.byId.get(x.dataset.addDir);
       if (dp) {
-        try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketSummary))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
+        try { await d.savePerson(personFromDirectory(dp)); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
         catch (err) { toastErr(err); }
       }
       return;
@@ -411,9 +413,9 @@ export function createOneOnOnesPage(ws, root, host) {
       try {
         await d.savePerson({
           ...(prev || {}), id,
-          name: String(data.get('name') || '').trim(),
+          name: (v.dir && v.dir.byId.get(String(data.get('personId') || '')) || {}).name || (prev && prev.name) || 'Unnamed',
+          personId: String(data.get('personId') || ''),
           cadenceDays: Number(data.get('cadenceDays')),
-          links: { docket: String(data.get('docket') || ''), receipts: String(data.get('receipts') || ''), queue: (prev && prev.links.queue) || '' },
           archived: data.get('archived') === 'on'
         });
         ui.edit = null; paint();
@@ -478,8 +480,8 @@ export function createOneOnOnesPage(ws, root, host) {
     await route(view, id);
   }
 
-  /** The active 1:1s person with this name (ignoring case), for Upward's link to your manager's 1:1s. */
-  const findByName = name => v.people.find(p => !p.archived && p.name.toLowerCase() === String(name || '').toLowerCase()) || null;
+  /** The active 1:1s person for a directory person, for Upward's link to your manager's 1:1s. */
+  const findByPerson = personId => shown().find(p => !p.archived && p.personId === personId) || null;
 
-  return { d, v, ui, view, panel, route, start, prep, findByName, setOwn: d.setOwn, saveNote, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
+  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
 }

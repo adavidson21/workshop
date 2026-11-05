@@ -453,7 +453,7 @@
         "manifestVersion": 1,
         "id": "receipts",
         "name": "Rapport",
-        "version": "2.3.0",
+        "version": "3.0.0",
         "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",

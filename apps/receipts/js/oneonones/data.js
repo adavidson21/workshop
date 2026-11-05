@@ -2,12 +2,12 @@
    tests can drive it with a fake `ws`. page.js owns the 1:1s parts of the page and repaints through onChange.
 
    Own collections (Rapport's, app id `receipts`, all version 1):
-     oneonones/people    the link table: {id, name, links: {docket?, receipts?}, cadenceDays, archived}
-                         (links.queue from before Queue was removed is kept, never read)
+     oneonones/people    who you meet with: {id, personId, name, cadenceDays, archived}. personId is the person in
+                         Workshop's people directory; id names their notes folder.
      oneonones/settings  no items; meta: {aiDraft, moved}. aiDraft false turns the draft step off; moved records
                          the copy from the old 1:1s app.
    Own files: oneonones/notes/<person folder>/<yyyy-mm-dd>.md, plain Markdown.
-   Read only: Docket's tasks and people, and Workshop's people directory (Settings' people). Rapport's own entries and people are handed in with setOwn().
+   Read only: Docket's summary. Rapport's own entries and the people directory are handed in with setOwn().
 
    The first load copies the old 1:1s app's people, settings and notes in (copyLegacy). The old files are never
    changed or removed. */
@@ -24,6 +24,7 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
     waiting: false,          // the browser's folder store needs Allow
     newer: '',               // one of our collections was saved by a newer Rapport: read only
     people: [],
+    dir: null,               // the people directory (ws.people), from main.js
     settings: { aiDraft: true },
     src: Object.fromEntries(Object.keys(SOURCES).map(k => [k, null])),
     files: [],               // [{path, mtime, size}] under oneonones/notes/
@@ -156,10 +157,10 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
     return lastCopy;
   }
 
-  /** Rapport's own entries and people envelopes, from main.js. */
-  function setOwn(entries, people) {
+  /** Rapport's own entries envelope and the people directory, from main.js. */
+  function setOwn(entries, dir) {
     v.src.receiptsEntries = entries || null;
-    v.src.receiptsPeople = people || null;
+    v.dir = dir || null;
   }
 
   /* ---------- people ---------- */

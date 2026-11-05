@@ -179,3 +179,11 @@ test('nowFromDay and wrapFromDay: between blocks, after the last one, and Wrap u
   assert.deepEqual(wrapFromDay(day, 16 * 60), { wrapped: false, due: true, receipts: 2 });
   assert.deepEqual(wrapFromDay(Object.assign({}, day, { wrapAt: null }), 23 * 60), { wrapped: false, due: false, receipts: 2 }, 'a day off');
 });
+
+test('no Docket summary yet reads as an empty board ("No tasks yet"), not an error', async () => {
+  const ws = fakeWs({ summary: null }); ws.allowed = true;
+  const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9) });
+  await home.loadBoard();
+  assert.equal(home.v.board.total, 0);
+  assert.match(render(home.v), /No tasks yet/);
+});
