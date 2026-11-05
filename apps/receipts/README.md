@@ -99,3 +99,7 @@ The Worker is named `receipts` and serves the custom domain `receipts.alexisdavi
 ### Releases and work mode
 
 This repo is the only copy of Rapport. Workshop serves it from here (a service binding on its site, and a `receipts` clone next to Workshop in work mode), like Docket and Runway. Work mode installs and updates only by release tag: Actions > Release > Run workflow, with a tag like `v3.0.0`. Workshop's `workshop update --latest` picks up the newest one.
+
+## License
+
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: `shared/fonts/OFL-*.txt`.

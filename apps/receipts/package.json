@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "description": "Keep the receipts for performance reviews. Stays on your device.",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "dev": "npx --yes http-server -p 8080 -c-1 .",
