@@ -252,8 +252,17 @@ for (const kind of ["v1", "v2"]) {
       assert.equal(reviewCalls().length, 1, "nothing starts after a stop");
       assert.deepEqual(await call("pr.queue.clear", {}, ctx()), { ok: true });
       assert.equal((await call("state", {}, ctx())).liveMode.live.prQueue.status, "idle");
-      assert.deepEqual(await call("pr.inbox.save", { prs: [{ url: link(904), commit: "abcdef1234567" }] }, ctx()), { ok: true, count: 1 });
+      const saved = await call("pr.inbox.save", { prs: [{ url: link(904), commit: "abcdef1234567", tier: "pool" }] }, ctx());
+      assert.deepEqual(saved, { ok: true, count: 1, queued: ["904"] }, "prReviews.onSync (on by default) queues it at once");
       assert.equal((await call("state", {}, ctx())).liveMode.live.prQueue.inbox.count, 1);
+      await waitFor(() => reviewCalls().length === 2, "the /pr-review for 904");
+      const rv = await call("pr.reviews", { ids: [904, "905"] }, ctx());
+      assert.equal(rv.onSync, true);
+      assert.deepEqual(rv.prs.map((p) => [p.id, p.state]), [["904", "running"], ["905", "none"]]);
+      assert.deepEqual((await call("pr.inbox.save", { prs: [{ url: link(904), commit: "abcdef1234567" }] }, ctx())).queued, [], "the same commit is not queued twice");
+      const s904 = (await call("state", {}, ctx())).liveMode.live.prQueue.items.find((i) => i.id === "904").session;
+      await finish(s904);
+      await waitFor(async () => (await call("pr.reviews", { ids: [904] }, ctx())).prs[0].state !== "running", "the 904 review to end");
     });
 
     test("projects: create, start a described run in one, see it in state, move it, remove the project", async () => {
