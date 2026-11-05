@@ -4,6 +4,14 @@
    Read only: it uses the connector's `roadmap` and `iterations.list` actions and never writes to ADO. */
 import { applyLive, cleanSource, mergeLinked, projectsOf, pulled, roadmapArgs } from './model.js';
 
+/** {areas, connection} from Workshop's settings.teams v1 (docs/teams.md): the first team with area paths, or null. */
+export function teamDefaults(env) {
+  if (!env || env.schema !== 'settings.teams' || env.version !== 1 || !Array.isArray(env.items)) return null;
+  const t = env.items.find(x => x && Array.isArray(x.areas) && x.areas.some(a => typeof a === 'string' && a.trim()));
+  if (!t) return null;
+  return { areas: t.areas.filter(a => typeof a === 'string' && a.trim()).slice(0, 20), connection: typeof t.connection === 'string' ? t.connection : '' };
+}
+
 export * from './model.js';
 
 const ADO = 'ado';
@@ -31,8 +39,13 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
 
   const unsub = ws.connectors.onStatus ? ws.connectors.onStatus(ADO, () => { check(); }) : () => {};
 
-  /** Area paths and connection from Queue's settings, to fill in the dialog. Missing or newer: nothing. */
+  /** Area paths and connection to fill in the dialog: your team in Workshop's Settings (settings.teams, Workshop
+      docs/teams.md), else Queue's old settings (read only, from before Queue was removed). Missing: nothing. */
   async function defaults() {
+    try {
+      const fromTeams = teamDefaults(await ws.data.get('teams', { app: 'settings' }));
+      if (fromTeams) return fromTeams;
+    } catch (e) { /* no teams yet */ }
     try {
       const q = await ws.data.get('settings', { app: 'queue' });
       if (!q || q.version !== 1 || !q.meta) return { areas: [], connection: '' };

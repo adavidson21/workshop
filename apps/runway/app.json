@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "runway",
   "name": "Runway",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -16,6 +16,17 @@
     {
       "id": "ado",
       "required": false
+    }
+  ],
+  "capture": [
+    "idea"
+  ],
+  "aliases": [
+    "roadmap",
+    "roadmaps",
+    {
+      "name": "reports",
+      "path": "reports"
     }
   ],
   "routes": [
@@ -69,6 +80,7 @@
     "js/outline.js",
     "js/pending.js",
     "js/store.js",
+    "js/summary.js",
     "js/timeline.js",
     "js/view.js",
     "shared/device-fs.js",
@@ -81,7 +93,9 @@
     "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
     "shared/pair.js",
     "shared/save-file.js",
+    "shared/site.js",
     "shared/standalone-bar.js",
+    "shared/summary.js",
     "shared/sw-register.js",
     "shared/theme.js",
     "shared/themes.css",

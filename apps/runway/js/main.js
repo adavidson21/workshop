@@ -14,7 +14,9 @@ import { dateAt, laneAt, layout, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
-import { createPending, ideaToItem, writeToMap } from './pending.js';
+import { SENDERS, createPending, ideaToItem, sendersFrom, writeToMap } from './pending.js';
+import { buildSummary } from './summary.js';
+import { createSummaryWriter } from '../shared/summary.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
   settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
@@ -32,8 +34,21 @@ else {
 }
 
 let painting = false;
-const store = createStore(ws, { onChange: () => { if (!painting) requestPaint(); } });
+// Runway's summary for other apps (js/summary.js): written a moment after the roadmap list changes.
+const summary = createSummaryWriter({ data: ws.data, app: 'runway', build: () => buildSummary(store.v) });
+let summaryKey = '';
+const store = createStore(ws, { onChange: () => {
+  const key = store.v.loaded ? JSON.stringify(store.v.list.map(r => [r.id, r.title])) : '';
+  if (key && key !== summaryKey) { summaryKey = key; summary.schedule(); }
+  if (!painting) requestPaint();
+} });
 const v = store.v;
+// Senders of captured ideas come from the manifests (ws.apps.list); SENDERS is updated in place.
+{
+  const found = sendersFrom(ws.apps && ws.apps.list ? await ws.apps.list().catch(() => []) : []);
+  for (const k of Object.keys(SENDERS)) delete SENDERS[k];
+  Object.assign(SENDERS, found);
+}
 
 /* Pending assignment (js/pending.js): ideas captured on Home. The open roadmap takes them through the store,
    so its unsaved edits are kept; other roadmaps get them straight in their collection. */

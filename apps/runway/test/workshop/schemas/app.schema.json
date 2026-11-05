@@ -166,6 +166,65 @@
       },
       "uniqueItems": true,
       "maxItems": 500
+    },
+    "handoffs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sends": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/name"
+          }
+        }
+      },
+      "description": "Handoffs this app writes (handoffs.md). sends: receiver app ids."
+    },
+    "capture": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "task",
+          "waiting",
+          "receipt",
+          "note",
+          "idea"
+        ]
+      },
+      "description": "Capture kinds this app takes from quick capture and the hub (hub.md)."
+    },
+    "aliases": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/alias"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/alias"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.~-]+(/[A-Za-z0-9_.~-]+)*$",
+                "maxLength": 200
+              }
+            }
+          }
+        ]
+      },
+      "description": "Other words for this app in > <place>. A word, or {name, path} to open part of the app."
     }
   },
   "$defs": {
@@ -186,6 +245,10 @@
         "pattern": "^(Alt\\+[1-9]|Ctrl\\+K)$"
       },
       "description": "Modifiers in the order Ctrl, Alt, Shift, Meta. Alt+1 to Alt+9 and Ctrl+K are reserved for the shell."
+    },
+    "alias": {
+      "type": "string",
+      "pattern": "^[a-z0-9:][a-z0-9: -]{0,39}$"
     }
   }
 }
