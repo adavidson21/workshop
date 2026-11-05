@@ -13,7 +13,7 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 - **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. Items with no dates wait in the Unscheduled tray; drag one onto the timeline.
 - **Keys** (timeline focused): `N` new item, `Up`/`Down` select, `Left`/`Right` move, `Shift`+`Left`/`Right` change the end, `Alt`+`Up`/`Down` change lane, `Enter` edit, `Delete` remove, `Esc` deselect.
 - **Goals:** the row under the dates has one cell per sprint (or month, quarter, week). Click one to say what that period delivers.
-- **Owners:** an item's Owners (its panel, or `who: @sam, @leadership` in the outline) are people and groups from Workshop's people directory, the same ones Docket and Rapport use. **Owner** above the timeline fades everything that is not theirs; a person owns what is assigned to them or to a group they are in.
+- **Owners:** an item's Owners (its panel, or `who: @sam, @leadership` in the outline) are people and groups from Workshop's people directory, the same ones Docket and Rapport use. **Owner** above the timeline fades everything that is not theirs; a person owns what is assigned to them or to a group they are in. Items from Azure DevOps get their owner from Assigned To (see Azure DevOps).
 - **Descriptions:** an item's Description (its panel, or indented lines under it in the outline) says what it delivers. Goals and descriptions in the dates shown are listed under the timeline.
 - **Dates and sprints** (calendar button): where S1 and W1 count from, and when sprints start.
 - **Export:** PNG or SVG of the dates and lanes on screen (folded lanes left out), with or without the title, today line, and the goals and descriptions listed under the chart, light or dark. Markdown as a download, on the clipboard, or saved to your Workshop folder (`runway/exports/<id>.md`), optionally with a table (descriptions included).
@@ -41,7 +41,9 @@ Rules, checked by `test/app-files.test.mjs`:
 - ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector. Team reports are in `js/ado/reports/` (`model.js` computes every report and the workbook, `view.js` is the HTML, `index.js` the page) and load the first time the page opens.
 - With the connector off or missing, ADO controls are hidden.
 
-`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, base, remote?, missing?}`, where `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours. Lanes made from ADO carry `adoKey`.
+`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `item.ado`: `{id, connection, rev, type, state, url, assignee, base, remote?, missing?}`, where `assignee` is ADO's Assigned To (`{name, email}` or null), `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours.
+
+Owners from ADO: Assigned To becomes the item's owner (`who`) when Workshop's people directory has someone whose ADO identity (`adoIdentity` in Settings, People) is that email or display name. Someone it does not have leaves the item without an owner, and the item's panel offers **Add to People**, which adds them as a contact with that identity and refreshes. In a linked roadmap owners work like the title and dates: an owner you set yourself is kept and shows as differing when ADO's changes. If People has not loaded, a refresh leaves owners as they are. Lanes made from ADO carry `adoKey`.
 
 ## Outline format
 

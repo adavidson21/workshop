@@ -10,10 +10,17 @@
    Nothing is ever written to ADO.
 
    meta.ado: {mode, areas[], types[], lanes: 'area' | 'epic', connection, includeClosed, fetchedAt, total, truncated}
-   item.ado: {id, connection, rev, type, state, url, base: {title, start, end, status}, remote?, missing?}
-     base    what the last refresh brought, so a refresh can tell your edits from ADO's
-     remote  ADO's values when they differ from yours (linked only)
-     missing true when the last refresh no longer found the work item */
+   item.ado: {id, connection, rev, type, state, url, assignee, base: {title, start, end, status, who}, remote?, missing?}
+     assignee ADO's Assigned To, {name, email}, or null
+     base     what the last refresh brought, so a refresh can tell your edits from ADO's
+     remote   ADO's values when they differ from yours (linked only)
+     missing  true when the last refresh no longer found the work item
+
+   Owners: Assigned To becomes the item's `who` when Workshop's people directory has someone with that Azure DevOps
+   identity (adoIdentity: email, else exact display name). Someone it does not have leaves `who` empty and shows
+   in the panel. Without a directory (not loaded, or another version) owners are left out of the refresh: `who`
+   stays as it is. */
+import { byAdoIdentity } from '../../shared/people.js';
 
 export const TYPES = ['Epic', 'Feature', 'User Story'];
 // Work item types that come in under the 'User Story' choice: the children the connector returns with stories: true.
@@ -22,7 +29,7 @@ export const STORY_TYPES = ['User Story', 'Issue'];
 const SEP = ' > ';
 export const LANE_MODES = ['area', 'epic'];
 export const MODES = ['live', 'linked'];
-const FIELDS = ['title', 'start', 'end', 'status'];
+const FIELDS = ['title', 'start', 'end', 'status', 'who'];
 const MIN_SPAN = 14; // days a bar spans when only one end is known
 
 const lower = s => String(s == null ? '' : s).toLowerCase();
@@ -94,6 +101,17 @@ export function statusOf(state) {
   return 'active';
 }
 
+/** Owner ids for an ADO assignee: the directory's person with that ADO identity (email, then display name), or
+    none. Undefined without a usable directory, so the refresh leaves owners alone. */
+export function ownersOf(assignee, dir) {
+  if (!dir || dir.unreadable) return undefined;
+  if (!assignee) return [];
+  const hit = (assignee.email && byAdoIdentity(dir, assignee.email)) || (assignee.name && byAdoIdentity(dir, assignee.name));
+  return hit ? [hit.id] : [];
+}
+
+const cleanAssignee = a => (a && (a.name || a.email) ? { name: clip(a.name || a.email, 200), email: clip(String(a.email || '').toLowerCase(), 300) } : null);
+
 /** The description Runway shows for a work item: type, id, state, story progress, then its ADO link. */
 export function describe(w) {
   const bits = [`${w.type || 'Work item'} #${w.id}`, w.state].filter(Boolean);
@@ -111,8 +129,9 @@ export function describe(w) {
  * none. Features without an Epic in the roadmap go to "No Epic".
  * User Stories (with types including 'User Story'): each story is a bar named "Feature > Story", in its Feature's
  * lane. A Feature whose stories are shown is not drawn as its own bar.
+ * `dir` is Workshop's people directory, for owners (ownersOf); without it items carry no `who`.
  */
-export function pulled(result, iterations, src) {
+export function pulled(result, iterations, src, { dir = null } = {}) {
   const iters = iterationIndex(iterations);
   const all = (result && Array.isArray(result.items) ? result.items : []).filter(w => w && Number.isInteger(Number(w.id)));
   const wantStories = src.types.includes('User Story');
@@ -155,10 +174,11 @@ export function pulled(result, iterations, src) {
     }
     const f = isStory(w) ? features.get(Number(w.parentId)) : null;
     const name = f ? `${String(f.title || `Feature #${f.id}`).trim()}${SEP}${String(w.title || `${w.type} #${w.id}`).trim()}` : (w.title || `${w.type} #${w.id}`);
-    const fields = { title: clip(name, 200), start: p.start, end: p.end, status: statusOf(w.state) };
+    const who = ownersOf(w.assignee, dir);
+    const fields = { title: clip(name, 200), start: p.start, end: p.end, status: statusOf(w.state), ...(who ? { who } : {}) };
     items.push({
       key: String(w.id), laneKey: laneOf(w), ...fields, milestone, notes: describe(w),
-      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), base: { ...fields } }
+      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), assignee: cleanAssignee(w.assignee), base: { ...fields } }
     });
   }
   // A Feature sits under its Epic when the Epic is an item in the same lane.
@@ -184,17 +204,24 @@ export function applyLive(doc, data, src, result) {
   const lanes = data.lanes.map((l, i) => ({ id: laneIdFor(l.key), kind: 'lane', title: l.title, order: i, adoKey: l.key }));
   const laneId = new Map(lanes.map(l => [l.adoKey, l.id]));
   const counter = new Map();
+  const before = new Map(doc.items.map(i => [i.id, i]));
   const items = data.items.map(it => {
     const lane = laneId.get(it.laneKey) || null;
     const order = counter.get(lane) || 0; counter.set(lane, order + 1);
-    return { id: `i-ado-${it.key}`, kind: 'item', lane, order, parent: it.parentKey ? `i-ado-${it.parentKey}` : null, title: it.title, start: it.start, end: it.end, size: null, milestone: !!it.milestone, status: it.status, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: it.ado };
+    const id = `i-ado-${it.key}`;
+    const who = it.who || (before.get(id) || {}).who || [];
+    return { id, kind: 'item', lane, order, parent: it.parentKey ? `i-ado-${it.parentKey}` : null, title: it.title, start: it.start, end: it.end, size: null, milestone: !!it.milestone, status: it.status, color: '', notes: it.notes, who: [...who], dependsOn: [], afterMissing: [], ado: it.ado };
   });
   const ids = new Set(lanes.map(l => l.id));
   return { meta: { ...doc.meta, hidden: doc.meta.hidden.filter(h => ids.has(h)), ado: { ...src, mode: 'live', ...fetchInfo(result) } }, lanes, items };
 }
 
-const same = (a, b) => FIELDS.every(f => (a[f] ?? null) === (b[f] ?? null));
-const pick = o => Object.fromEntries(FIELDS.map(f => [f, o[f] ?? null]));
+const key = (f, v) => (f === 'who' ? [...(v || [])].sort().join(',') : v ?? null);
+/** Equal on `fields` (all of FIELDS by default). */
+const same = (a, b, fields = FIELDS) => fields.every(f => key(f, a[f]) === key(f, b[f]));
+const pick = (o, fields = FIELDS) => Object.fromEntries(fields.map(f => [f, f === 'who' ? [...(o[f] || [])] : o[f] ?? null]));
+/** A refresh without a directory brings no owners: compare and take everything but `who`, and keep the old base's. */
+const fieldsOf = remote => ('who' in remote ? FIELDS : FIELDS.filter(f => f !== 'who'));
 
 /**
  * A linked roadmap: merge ADO's items into yours. Returns {doc, added, updated, differs, missing}.
@@ -222,35 +249,38 @@ export function mergeLinked(doc, data, src, result) {
   for (const it of [...data.items].sort((a, b) => (a.parentKey ? 1 : 0) - (b.parentKey ? 1 : 0))) {
     seen.add(it.ado.id);
     const cur = byAdo.get(it.ado.id);
-    const remote = pick(it);
+    const fields = fieldsOf(it);
+    const remote = pick(it, fields);
     if (!cur) {
       const lane = ensureLane(it.laneKey);
       const order = Math.max(-1, ...out.items.filter(i => (i.lane || null) === lane).map(i => Number(i.order) || 0)) + 1;
       let id = `i-ado-${it.key}`;
       while (out.items.some(i => i.id === id)) id += '-x';
       const par = it.parentKey ? byAdo.get(Number(it.parentKey)) : null;
-      const added = { id, kind: 'item', lane, order, parent: par && (par.lane || null) === lane ? par.id : null, ...remote, size: null, milestone: !!it.milestone, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } };
+      const added = { id, kind: 'item', lane, order, parent: par && (par.lane || null) === lane ? par.id : null, who: [], ...remote, size: null, milestone: !!it.milestone, color: '', notes: it.notes, dependsOn: [], afterMissing: [], ado: { ...it.ado } };
       out.items.push(added);
       byAdo.set(it.ado.id, added);
       counts.added++;
       continue;
     }
-    const base = cur.ado.base ? pick(cur.ado.base) : pick(cur);
-    const mine = pick(cur);
-    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url };
+    const base = pick(cur.ado.base || cur, fields);
+    const mine = pick(cur, fields);
+    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url, assignee: it.ado.assignee };
     delete link.missing;
-    if (same(base, remote)) {
+    // The new base, with the old base's owners when this refresh brought none.
+    const nextBase = { ...pick(cur.ado.base || cur), ...remote };
+    if (same(base, remote, fields)) {
       // ADO did not change. Keep yours; clear an old "differs" if you now match ADO.
-      if (link.remote && same(mine, remote)) delete link.remote;
+      if (link.remote && same(mine, remote, fields)) delete link.remote;
       cur.ado = link;
-    } else if (same(mine, base) || same(mine, remote)) {
+    } else if (same(mine, base, fields) || same(mine, remote, fields)) {
       // You did not change it (or already match): take ADO's.
       Object.assign(cur, remote);
       delete link.remote;
-      cur.ado = { ...link, base: remote };
+      cur.ado = { ...link, base: nextBase };
       counts.updated++;
     } else {
-      cur.ado = { ...link, base: remote, remote };
+      cur.ado = { ...link, base: nextBase, remote: nextBase };
       counts.differs++;
     }
   }
@@ -263,8 +293,9 @@ export function mergeLinked(doc, data, src, result) {
 export function useRemote(doc, id) {
   const it = doc.items.find(i => i.id === id);
   if (!it || !it.ado || !it.ado.remote) return false;
-  Object.assign(it, pick(it.ado.remote));
-  it.ado = { ...it.ado, base: pick(it.ado.remote) };
+  const r = it.ado.remote;
+  Object.assign(it, pick(r, fieldsOf(r)));
+  it.ado = { ...it.ado, base: { ...pick(it.ado.base || it), ...pick(r, fieldsOf(r)) } };
   delete it.ado.remote;
   return true;
 }
@@ -273,7 +304,8 @@ export function useRemote(doc, id) {
 export function keepMine(doc, id) {
   const it = doc.items.find(i => i.id === id);
   if (!it || !it.ado || !it.ado.remote) return false;
-  it.ado = { ...it.ado, base: pick(it.ado.remote) };
+  const r = it.ado.remote;
+  it.ado = { ...it.ado, base: { ...pick(it.ado.base || it), ...pick(r, fieldsOf(r)) } };
   delete it.ado.remote;
   return true;
 }

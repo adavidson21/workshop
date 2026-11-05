@@ -17,7 +17,7 @@ import { createStore } from './store.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
 import { createSummaryWriter } from '../shared/summary.js';
-import { mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
+import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
   settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog
@@ -207,7 +207,7 @@ function paintMap() {
   const panel = app.querySelector('[data-r="panel"]');
   if (!panel.contains(document.activeElement) || ui.selected !== panel.dataset.for) {
     panel.dataset.for = ui.selected || '';
-    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked()) : '');
+    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly }) : '');
   }
   app.querySelector('.body').classList.toggle('has-panel', !!ui.selected);
 }
@@ -222,13 +222,17 @@ function syncOutline(force = false) {
 }
 
 /* ---------- owners: Workshop's people directory (ws.people, docs/people.md) ---------- */
+// ADO refreshes set owners from Assigned To only with a directory that loaded (js/ado/model.js ownersOf).
+let peopleLoaded = false;
 async function loadPeople() {
-  try { setDirectory(await ws.people.get()); } catch (e) { /* none yet; owners show as ids */ }
+  try { setDirectory(await ws.people.get()); peopleLoaded = true; } catch (e) { /* none yet; owners show as ids */ }
   syncOutline();
   requestPaint();
 }
-ws.people.subscribe(dir => { setDirectory(dir); syncOutline(); requestPaint(); });
-loadPeople();
+ws.people.subscribe(dir => { setDirectory(dir); peopleLoaded = true; syncOutline(); requestPaint(); });
+const peopleReady = loadPeople();
+/** The directory for an ADO refresh, or null when it has not loaded (owners are then left as they are). */
+const adoDir = async () => { await peopleReady; return peopleLoaded ? getDirectory() : null; };
 
 /** Adds people the directory does not have as contacts, one at a time. Resolves name (lower case) -> id. */
 async function addContacts(names) {
@@ -504,6 +508,7 @@ app.addEventListener('click', async e => {
   else if ('addado' in t.dataset || 'adoedit' in t.dataset) adoSource();
   else if ('adostop' in t.dataset) adoStop();
   else if ('adodiff' in t.dataset) { const it = v.doc.items.find(i => i.ado && i.ado.remote); if (it) select(it.id); }
+  else if ('adoPerson' in t.dataset) { t.blur(); adoPerson(); }
   else if ('adoUse' in t.dataset || 'adoKeep' in t.dataset || 'adoUnlink' in t.dataset) adoItem(t.dataset);
   else if ('unschedule' in t.dataset) edit(d => { const it = d.items.find(i => i.id === ui.selected); if (it) { it.start = null; it.end = null; it.size = null; } });
 });
@@ -535,7 +540,7 @@ async function fromAdo() {
   try {
     toast('Reading Epics and Features from ADO.');
     const doc = blankDoc(r.title || 'Team roadmap');
-    const out = await ado.refresh(doc, r.src);
+    const out = await ado.refresh(doc, r.src, { dir: await adoDir() });
     if (!out.doc.items.length) toast('No Epics or Features under those area paths. The roadmap is empty for now.', 'warn');
     ui.adoRefreshed = null;
     const id = await store.create(out.doc);
@@ -562,7 +567,7 @@ async function adoRefresh(manual = false) {
   ui.adoRefreshing = true; ui.adoRefreshed = id; requestPaint();
   try {
     const m = await adoMod();
-    const { src, result, data } = await ado.pull(v.doc.meta.ado);
+    const { src, result, data } = await ado.pull(v.doc.meta.ado, { dir: await adoDir() });
     if (v.mapId !== id || !v.doc) return;
     let counts = null;
     edit(d => {
@@ -591,6 +596,19 @@ async function adoStop() {
   if (!f) return;
   const m = await adoMod();
   edit(d => { m.stopFollowing(d); });
+}
+
+/** Adds the selected item's ADO Assigned To to People as a contact with that ADO identity, then refreshes so
+    every item assigned to them gets them as owner. */
+async function adoPerson() {
+  const it = v.doc && v.doc.items.find(i => i.id === ui.selected);
+  const a = it && it.ado && it.ado.assignee;
+  if (!a || v.readOnly) return;
+  if (!adoOwner(a)) {
+    try { await ws.people.add({ name: a.name || a.email, relation: 'contact', adoIdentity: a.email || a.name }); setDirectory(await ws.people.get()); peopleLoaded = true; }
+    catch (e) { toast(`Couldn't add ${a.name || a.email} to People: ${e.message || e}`, 'warn'); return; }
+  }
+  if (adoReady()) adoRefresh(true); else requestPaint();
 }
 
 async function adoItem(ds) {

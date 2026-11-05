@@ -4,7 +4,7 @@ import { SCALES, fmt } from './dates.js';
 import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
 import { summary } from './export.js';
-import { choices, mentionOf, namesOf } from './people.js';
+import { adoOwner, choices, mentionOf, namesOf } from './people.js';
 
 const relTime = (ms, now = Date.now()) => {
   if (!ms) return '';
@@ -198,7 +198,7 @@ export function goalDialog(name, text) {
 
 /* ---------- the item panel ---------- */
 
-export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
+export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { addPerson = !readOnly } = {}) {
   const it = doc.items.find(x => x.id === id && x.kind === 'item');
   if (!it) return '';
   const s = sched.get(id);
@@ -232,7 +232,7 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false) {
     </div></fieldset>
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
       ${it.afterMissing.length ? `<p class="hint">Not in this roadmap: ${esc(it.afterMissing.join(', '))}</p>` : ''}</fieldset>
-    ${it.ado ? adoPanel(it, readOnly) : ''}
+    ${it.ado ? adoPanel(it, readOnly, { addPerson }) : ''}
     <label class="pf"><span>Description</span><textarea data-f="notes" rows="4" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
     ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
     <footer>${readOnly ? '' : `<button type="button" class="btn text-danger" data-delete>Delete</button>`}</footer>
@@ -299,19 +299,26 @@ export function confirmDialog(title, body, ok = 'Remove') {
 
 /* ---------- Azure DevOps (optional: shown only for roadmaps or items that use it) ---------- */
 
-const ADO_FIELDS = { title: 'Title', start: 'Start', end: 'End', status: 'Status' };
+const ADO_FIELDS = { title: 'Title', start: 'Start', end: 'End', status: 'Status', who: 'Owners' };
 const httpOnly = u => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
 
-/** The ADO part of the item panel: its work item, and what to do when it differs or is gone. */
-export function adoPanel(it, readOnly = false) {
+/** The ADO part of the item panel: its work item, and what to do when it differs or is gone. `addPerson` offers
+    to add an Assigned To that People does not have (also on a live roadmap, whose items can't be edited). */
+export function adoPanel(it, readOnly = false, { addPerson = !readOnly } = {}) {
   const a = it.ado;
   const url = httpOnly(a.url);
   const name = `${esc(a.type || 'Work item')} #${esc(a.id)}`;
-  const diff = a.remote ? Object.keys(ADO_FIELDS).filter(f => (a.remote[f] ?? null) !== (it[f] ?? null)) : [];
-  const val = (f, x) => esc(f === 'start' || f === 'end' ? (x ? fmt(x) : 'none') : (x || 'none'));
+  // Fields ADO's values differ in. A `remote` saved before owners came from ADO has no `who`.
+  const norm = (f, x) => (f === 'who' ? [...(x || [])].sort().join(',') : x ?? null);
+  const diff = a.remote ? Object.keys(ADO_FIELDS).filter(f => f in a.remote && norm(f, a.remote[f]) !== norm(f, it[f])) : [];
+  const val = (f, x) => esc(f === 'start' || f === 'end' ? (x ? fmt(x) : 'none') : f === 'who' ? (namesOf(x).join(', ') || 'none') : (x || 'none'));
+  // Assigned To in ADO that People does not have: say so, and offer to add them with that identity.
+  const asg = a.assignee && (a.assignee.name || a.assignee.email) ? a.assignee : null;
+  const unmatched = asg && !adoOwner(asg);
   return `<div class="adobox" data-adobox>
     <p class="eyebrow">Azure DevOps</p>
     <p>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name}${a.state ? ` <span class="muted">· ${esc(a.state)}</span>` : ''}</p>
+    ${unmatched ? `<p class="hint">Assigned to ${esc(asg.name || asg.email)} in ADO, who is not in People.${!addPerson ? '' : ' <button type="button" class="lnk" data-ado-person>Add to People</button>'}</p>` : ''}
     ${a.missing ? '<p class="hint warn">The last refresh did not find this work item (closed, moved or removed).</p>' : ''}
     ${diff.length ? `<p class="hint warn">Differs from ADO:</p><ul class="adodiff">${diff.map(f => `<li><span class="muted">${ADO_FIELDS[f]}:</span> yours ${val(f, it[f])}, ADO ${val(f, a.remote[f])}</li>`).join('')}</ul>` : ''}
     ${readOnly ? '' : `<div class="acts">${diff.length ? '<button type="button" class="btn" data-ado-use>Use ADO&#39;s</button><button type="button" class="btn ghost" data-ado-keep>Keep mine</button>' : ''}<button type="button" class="lnk" data-ado-unlink>Unlink</button></div>`}

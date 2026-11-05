@@ -27,6 +27,7 @@
     "ado": {"type": "object", "required": ["id"], "description": "The linked Azure DevOps work item (optional).", "properties": {
       "id": {"type": "integer"}, "connection": {"type": "string"}, "rev": {"type": "integer"},
       "type": {"type": "string"}, "state": {"type": "string"}, "url": {"type": "string", "description": "http(s) only, else empty."},
+      "assignee": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["name", "email"], "properties": {"name": {"type": "string"}, "email": {"type": "string"}}}], "description": "ADO's Assigned To. Owners (`who`) come from it when People has someone with that ADO identity."},
       "base": {"$ref": "#/$defs/adoFields", "description": "What the last refresh brought."},
       "remote": {"$ref": "#/$defs/adoFields", "description": "ADO's values when they differ from yours."},
       "missing": {"type": "boolean", "description": "The last refresh did not find the work item."}}}
@@ -36,6 +37,7 @@
       "title": {"type": "string"},
       "start": {"anyOf": [{"type": "null"}, {"type": "string"}]},
       "end": {"anyOf": [{"type": "null"}, {"type": "string"}]},
-      "status": {"type": "string"}}}
+      "status": {"type": "string"},
+      "who": {"type": "array", "items": {"type": "string"}, "description": "Owners from Assigned To. Missing in values saved before owners came from ADO."}}}
   }
 }

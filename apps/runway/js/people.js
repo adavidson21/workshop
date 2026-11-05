@@ -35,6 +35,9 @@ export function notFor(items, id, dir = current) {
   return new Set(items.filter(it => it.kind === 'item' && !D.involves(dir, it.who, id)).map(it => it.id));
 }
 
+/** The active person with an ADO assignee's identity ({name, email}): email first, then display name. Or null. */
+export const adoOwner = (a, dir = current) => (a && ((a.email && D.byAdoIdentity(dir, a.email)) || (a.name && D.byAdoIdentity(dir, a.name)))) || null;
+
 /** Choices for the owner filter and the panel: active people (not you) and groups. */
 export const choices = (dir = current) => D.active(dir, { self: false });
 

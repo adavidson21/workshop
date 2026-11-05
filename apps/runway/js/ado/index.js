@@ -46,8 +46,9 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
     catch (e) { return { areas: [], connection: '' }; }
   }
 
-  /** Read from ADO for a source: {result, data}. Sprint dates that fail to load are left out. */
-  async function pull(source) {
+  /** Read from ADO for a source: {result, data}. Sprint dates that fail to load are left out. `dir` is Workshop's
+      people directory, for owners from Assigned To (model.js ownersOf); null leaves owners as they are. */
+  async function pull(source, { dir = null } = {}) {
     const src = cleanSource(source);
     if (!src) throw Object.assign(new Error('Add at least one area path.'), { code: 'bad_request' });
     const call = (action, args) => ws.connectors.call(ADO, action, { ...(src.connection ? { connection: src.connection } : {}), ...args });
@@ -56,12 +57,12 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
     await Promise.all(projectsOf(result.items || [], src.areas).map(async project => {
       try { iterations[project] = (await call('iterations.list', { project })).iterations; } catch (e) { /* placed by own dates only */ }
     }));
-    return { src, result, data: pulled(result, iterations, src) };
+    return { src, result, data: pulled(result, iterations, src, { dir }) };
   }
 
   /** Refresh a doc from ADO by its meta.ado. Resolves {doc, added, updated, differs, missing}. */
-  async function refresh(doc, source = doc.meta.ado) {
-    const { src, result, data } = await pull(source);
+  async function refresh(doc, source = doc.meta.ado, { dir = null } = {}) {
+    const { src, result, data } = await pull(source, { dir });
     if (src.mode === 'live') return { doc: applyLive(doc, data, src, result), added: 0, updated: 0, differs: 0, missing: 0 };
     return mergeLinked(doc, data, src, result);
   }

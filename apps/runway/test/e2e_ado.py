@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runway with Azure DevOps, in headless Chrome: this repo served together with a small mock Workshop agent whose
 ADO connector answers `roadmap`, `iterations.list` and `dataset` from synthetic data. Checks a live ADO roadmap (read only,
-refresh rebuilds it), team reports, a linked one (your edit is kept and shows as differing), mixing in an ad hoc item, and that
+refresh rebuilds it, owners from Assigned To), team reports, a linked one (your edit is kept and shows as differing), mixing in an ad hoc item, and that
 with the connector off Runway shows no ADO controls and still opens every roadmap.
 
   pip install playwright && python -m playwright install chromium
@@ -18,14 +18,15 @@ SITE = f'http://127.0.0.1:{PORT}'
 STATE = {
     'connector': 'ready',
     'calls': [],
-    'data': {},
+    'data': {'settings/people': {'schema': 'settings.people', 'version': 2, 'rev': 1, 'updatedAt': '2026-11-03T12:00:00.000Z', 'deleted': {}, 'items': [
+        {'id': 'p_one', 'kind': 'person', 'updatedAt': 1, 'name': 'Dev One', 'handle': 'one', 'relation': 'report', 'adoIdentity': 'dev.one@example.test'}]}},
     'items': [
         {'id': 101, 'rev': 1, 'type': 'Epic', 'title': 'Docs Portal', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': '', 'parentId': None,
          'startDate': '2027-01-04', 'targetDate': '2027-03-31', 'url': 'https://ado.example.test/_workitems/edit/101'},
         {'id': 102, 'rev': 1, 'type': 'Feature', 'title': 'Content migration', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': 'Platform\\Sprint 1',
-         'parentId': 101, 'startDate': None, 'targetDate': None, 'storiesTotal': 4, 'storiesDone': 1, 'url': 'https://ado.example.test/_workitems/edit/102'},
+         'parentId': 101, 'startDate': None, 'targetDate': None, 'assignee': {'name': 'Dev One', 'email': 'dev.one@example.test'}, 'storiesTotal': 4, 'storiesDone': 1, 'url': 'https://ado.example.test/_workitems/edit/102'},
         {'id': 103, 'rev': 1, 'type': 'Feature', 'title': 'Search cutover', 'state': 'New', 'area': 'Platform\\Docs', 'iteration': '',
-         'parentId': 101, 'startDate': '2027-02-01', 'targetDate': '2027-02-20', 'url': 'https://ado.example.test/_workitems/edit/103'},
+         'parentId': 101, 'startDate': '2027-02-01', 'targetDate': '2027-02-20', 'assignee': {'name': 'New Person', 'email': 'new.person@example.test'}, 'url': 'https://ado.example.test/_workitems/edit/103'},
         {'id': 104, 'rev': 1, 'type': 'Feature', 'title': '<img src=x onerror="window.__pwned=1">', 'state': 'Closed', 'area': 'Platform\\Monitor',
          'iteration': '', 'parentId': None, 'startDate': '2027-01-10', 'targetDate': '2027-01-30', 'url': 'javascript:window.__pwned=1'}
     ]
@@ -181,6 +182,27 @@ def main():
         check('refresh rebuilds a live roadmap from ADO', True)
         check('roadmap action got the area paths', any(c[0] == 'roadmap' and c[1].get('areas') == ['Platform\\Docs', 'Platform\\Monitor'] for c in STATE['calls']))
         check('only read actions were called', all(c[0] in ('roadmap', 'iterations.list') for c in STATE['calls']))
+
+        # Owners from Assigned To: matched by ADO identity; someone People lacks can be added from the panel.
+        doc = pg.evaluate(f'() => {R}.store.v.doc')
+        mig = next(i for i in doc['items'] if i['ado']['id'] == 102)
+        cut = next(i for i in doc['items'] if i['ado']['id'] == 103)
+        check('Assigned To becomes the owner when People has that ADO identity', mig['who'] == ['p_one'])
+        check('an Assigned To People lacks leaves no owner', cut['who'] == [])
+        pg.evaluate(f'() => {{ {R}.ui.selected = "{cut["id"]}"; {R}.paint(); }}')
+        pg.wait_for_selector('[data-ado-person]', timeout=3000)
+        check('panel names the ADO assignee People lacks', 'New Person' in pg.inner_text('[data-adobox]'))
+        pg.click('[data-ado-person]')
+        pg.wait_for_function(f'() => {R}.store.v.doc.items.some(i => i.ado && i.ado.id === 103 && i.who.length === 1)', timeout=8000)
+        added = [x for x in STATE['data']['settings/people']['items'] if x.get('adoIdentity') == 'new.person@example.test']
+        check('Add to People adds a contact with that ADO identity', len(added) == 1 and added[0]['relation'] == 'contact' and added[0]['name'] == 'New Person')
+        check('and the refresh makes them the owner', pg.evaluate(f'() => {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 103).who[0]') == added[0]['id'])
+        try:
+            pg.wait_for_selector('[data-ado-person]', state='detached', timeout=3000); gone = True
+        except Exception:
+            gone = False
+        check('the hint is gone', gone)
+        pg.keyboard.press('Escape')
 
         pg.click('[data-adostop]')
         pg.click('dialog button[value="ok"]')

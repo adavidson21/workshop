@@ -3,8 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyLive, cleanSource, describe, iterationIndex, keepMine, mergeLinked, placeItem, pulled, statusOf, stopFollowing, unlink, useRemote
+  applyLive, cleanSource, describe, iterationIndex, keepMine, mergeLinked, ownersOf, placeItem, pulled, statusOf, stopFollowing, unlink, useRemote
 } from '../js/ado/model.js';
+import { directory } from '../shared/people.js';
 import { blankDoc, fromEnvelope, toEnvelopeParts } from '../js/model.js';
 import { createAdo } from '../js/ado/index.js';
 
@@ -257,4 +258,85 @@ test('a linked refresh and a live one keep the Epic milestone', () => {
   assert.equal(live.items.find(i => i.ado.type === 'Epic').milestone, true);
   const linked = mergeLinked(blankDoc('y'), pulled(result(ITEMS()), ITER, src), src, result(ITEMS())).doc;
   assert.equal(linked.items.find(i => i.ado.type === 'Epic').milestone, true);
+});
+
+/* ---------- owners from Assigned To ---------- */
+const DIR = directory({ schema: 'settings.people', version: 2, rev: 1, deleted: {}, items: [
+  { id: 'p_one', kind: 'person', updatedAt: 1, name: 'Dev One', handle: 'one', relation: 'report', adoIdentity: 'dev.one@example.com' },
+  { id: 'p_two', kind: 'person', updatedAt: 1, name: 'Dev Two', handle: 'two', relation: 'report', adoIdentity: 'Dev Two' },
+  { id: 'p_old', kind: 'person', updatedAt: 1, name: 'Dev Old', handle: 'old', relation: 'contact', adoIdentity: 'old@example.com', archived: true }
+] });
+const ONE = { name: 'Dev One', email: 'dev.one@example.com' };
+const TWO = { name: 'Dev Two', email: 'dev.two@example.com' };
+const NEW = { name: 'New Person', email: 'new@example.com' };
+
+test('ownersOf: ADO identity by email, then display name; none for strangers and archived; undefined without a directory', () => {
+  assert.deepEqual(ownersOf(ONE, DIR), ['p_one']);
+  assert.deepEqual(ownersOf({ name: 'DEV.ONE@example.com', email: '' }, DIR), ['p_one'], 'a display name can be the email');
+  assert.deepEqual(ownersOf(TWO, DIR), ['p_two'], 'the identity is the display name');
+  assert.deepEqual(ownersOf(NEW, DIR), []);
+  assert.deepEqual(ownersOf({ name: 'Dev Old', email: 'old@example.com' }, DIR), []);
+  assert.deepEqual(ownersOf(null, DIR), []);
+  assert.equal(ownersOf(ONE, null), undefined);
+  assert.equal(ownersOf(ONE, directory({ schema: 'settings.people', version: 99, items: [] })), undefined, 'another version: leave owners alone');
+});
+
+test('pulled and live: owners from Assigned To, and the ADO assignee is kept for the panel', () => {
+  const items = [w(2, 'Feature', 'A', { assignee: ONE }), w(3, 'Feature', 'B', { assignee: NEW }), w(4, 'Feature', 'C')];
+  const data = pulled(result(items), ITER, SRC, { dir: DIR });
+  assert.deepEqual(data.items.map(i => i.who), [['p_one'], [], []]);
+  assert.deepEqual(data.items[1].ado.assignee, NEW);
+  assert.equal(data.items[2].ado.assignee, null);
+  assert.deepEqual(data.items[0].ado.base.who, ['p_one']);
+  const live = applyLive(blankDoc(), data, SRC, result(items));
+  assert.deepEqual(live.items.map(i => i.who), [['p_one'], [], []]);
+  // Without a directory a live refresh keeps the owners it had.
+  const again = applyLive(live, pulled(result(items), ITER, SRC), SRC, result(items));
+  assert.deepEqual(again.items.map(i => i.who), [['p_one'], [], []]);
+});
+
+test('linked: owners follow ADO unless you changed them; then they differ', () => {
+  const r1 = result([w(2, 'Feature', 'A', { assignee: ONE }), w(3, 'Feature', 'B', { assignee: ONE })]);
+  let { doc } = mergeLinked(blankDoc(), pulled(r1, ITER, SRC, { dir: DIR }), SRC, r1);
+  const A = () => doc.items.find(i => i.ado.id === 2), B = () => doc.items.find(i => i.ado.id === 3);
+  assert.deepEqual(A().who, ['p_one']);
+  B().who = ['p_two']; // your edit
+  const r2 = result([w(2, 'Feature', 'A', { assignee: TWO }), w(3, 'Feature', 'B', { assignee: NEW })]);
+  const out = mergeLinked(doc, pulled(r2, ITER, SRC, { dir: DIR }), SRC, r2);
+  doc = out.doc;
+  assert.deepEqual(A().who, ['p_two'], 'unchanged here: takes ADO');
+  assert.deepEqual(B().who, ['p_two'], 'yours kept');
+  assert.deepEqual(B().ado.remote.who, []);
+  assert.equal(out.differs, 1);
+  assert.ok(useRemote(doc, B().id));
+  assert.deepEqual(B().who, []);
+});
+
+test('linked: a refresh without a directory leaves owners and their base alone', () => {
+  const r1 = result([w(2, 'Feature', 'A', { assignee: ONE })]);
+  let { doc } = mergeLinked(blankDoc(), pulled(r1, ITER, SRC, { dir: DIR }), SRC, r1);
+  const r2 = result([w(2, 'Feature', 'A renamed', { assignee: TWO })]);
+  const out = mergeLinked(doc, pulled(r2, ITER, SRC), SRC, r2);
+  const it = out.doc.items[0];
+  assert.equal(it.title, 'A renamed');
+  assert.deepEqual(it.who, ['p_one']);
+  assert.deepEqual(it.ado.base.who, ['p_one']);
+  assert.deepEqual(it.ado.assignee, TWO);
+  // The next refresh with a directory sees ADO's change.
+  const out2 = mergeLinked(out.doc, pulled(r2, ITER, SRC, { dir: DIR }), SRC, r2);
+  assert.deepEqual(out2.doc.items[0].who, ['p_two']);
+});
+
+test('linked: an item linked before owners came from ADO takes them, and an old remote without owners keeps yours', () => {
+  const r1 = result([w(2, 'Feature', 'A')]);
+  const { doc } = mergeLinked(blankDoc(), pulled(r1, ITER, SRC), SRC, r1);
+  const it = doc.items[0];
+  delete it.ado.base.who; delete it.ado.assignee; it.who = [];
+  const r2 = result([w(2, 'Feature', 'A', { assignee: ONE })]);
+  assert.deepEqual(mergeLinked(doc, pulled(r2, ITER, SRC, { dir: DIR }), SRC, r2).doc.items[0].who, ['p_one']);
+  it.who = ['p_two'];
+  it.ado.remote = { title: 'Old title', start: it.start, end: it.end, status: it.status };
+  assert.ok(useRemote(doc, it.id));
+  assert.equal(it.title, 'Old title');
+  assert.deepEqual(it.who, ['p_two']);
 });
