@@ -30,6 +30,7 @@ export function loadPrQueue() {
     asking,
     sessionEvents,
     nightlyAt: (cfg.prReviews && cfg.prReviews.nightlyAt) || "",
+    onSync: !cfg.prReviews || cfg.prReviews.onSync !== false, // default on
     log,
     timers: { later, every, cancel },
   });
@@ -63,6 +64,13 @@ export function reviewAll({ prs }) {
 }
 
 export const saveInbox = ({ prs }) => need().saveInbox(clean(prs));
+
+/** `pr.reviews`: where each PR's first-pass review stands. */
+export function prReviews({ ids }) {
+  const q = need();
+  const list = (Array.isArray(ids) ? ids : []).map(String).filter((x) => /^[0-9]{1,10}$/.test(x)).slice(0, 200);
+  return { onSync: q.onSync, ready: !!(oc.connected && oc.api), prs: q.status(list) };
+}
 export const stopQueue = () => need().stopRun();
 export function clearQueue() {
   try {

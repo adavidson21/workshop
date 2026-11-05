@@ -15,7 +15,7 @@ import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startReview, startSpike } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
-import { clearQueue, loadPrQueue, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
+import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
@@ -97,6 +97,13 @@ export const configSchema = {
           description: "Each day at this time, first-pass reviews of the PRs that were waiting on you the last time Dispatch checked. If the computer was asleep, it runs when Workshop next starts that day. Default 7:00 PM. Empty: off.",
           pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9]|(1[0-2]|0?[1-9]):[0-5][0-9] ?[AaPp]\\.?[Mm]?\\.?)?$",
           default: "7:00 PM",
+          "x-workshop-hosted": true,
+        },
+        onSync: {
+          type: "boolean",
+          title: "Review new PRs as soon as they are found",
+          description: "Each time Docket or Dispatch checks Azure DevOps, new PRs waiting on you (and PRs with a new commit) get a first-pass review right away, blocking ones first. Docket then shows them already reviewed. Drafts only, nothing is posted. Off: only Review all and the nightly run.",
+          default: true,
           "x-workshop-hosted": true,
         },
       },
@@ -200,6 +207,7 @@ const prItem = obj(["url"], {
   commit: str("Source commit", { maxLength: 40 }),
   waiting: { type: "boolean", title: "You voted Waiting for author" },
   id: { type: ["integer", "string"], title: "PR number (taken from the link)" },
+  tier: { type: "string", title: "How much it waits on you", enum: ["blocking", "asked", "pool"] },
 });
 const reviewComment = obj(["id", "path", "side", "startLine", "endLine", "quotedCode", "type", "body"], {
   id: str("Comment id", { minLength: 1, maxLength: 128 }),
@@ -364,8 +372,17 @@ const actions = {
       return clearQueue();
     },
   },
+  "pr.reviews": {
+    title: "Where each PR's first-pass review stands",
+    write: false,
+    argsSchema: obj(["ids"], { ids: { type: "array", maxItems: 200, items: { type: ["integer", "string"], title: "PR number" } } }),
+    async run(args) {
+      needReady();
+      return prReviews(args);
+    },
+  },
   "pr.inbox.save": {
-    title: "Remember the PRs waiting on you, for the nightly review",
+    title: "Remember the PRs waiting on you (nightly review, and reviews as soon as they are found)",
     write: false,
     argsSchema: obj(["prs"], { prs: { type: "array", maxItems: 200, items: prItem } }),
     async run(args) {
