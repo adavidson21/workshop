@@ -1,6 +1,8 @@
-/* Settings: your team's Azure DevOps area paths (docs/teams.md). Settings owns `teams` (settings.teams v1), like
-   the people directory; Runway's ADO roadmaps and the Dispatch hub read it with {app: 'settings'}. Version 1 has
-   one team, t_mine. Pure, no DOM (apps/settings/test/teams.test.mjs). */
+/* Your team's Azure DevOps area paths (docs/teams.md): collection `teams` in Settings' folder (settings.teams v1),
+   like the people directory. The People app edits it through the SDK's `ws.teams`; Runway's ADO roadmaps and the
+   Dispatch hub read it with {app: 'settings'}. Version 1 has one team, t_mine. Pure, no DOM or SDK
+   (shared/test/teams.test.mjs). */
+export const APP = 'settings';
 export const COLLECTION = 'teams';
 export const SCHEMA = 'settings.teams';
 export const VERSION = 1;

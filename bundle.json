@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.2.0",
+  "version": "2.3.0",
   "files": {
     "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
     "docs/schemas/app.schema.json": "783c203f4836a5e8cd2fc09c6b1fc08dfa915f53fb7301f4dcf21fc0388040b5",
@@ -72,6 +72,7 @@
     "shared/standalone-bar.js": "1d3a4f8c8b1989b8b5bfcc0a8d0bc973ea4af9fe4ad41f48980962ce55814daa",
     "shared/summary.js": "1cece731121622f7b167b5963e17eaa29e6a642370832f5a666d520944e34414",
     "shared/sw-register.js": "3c3e0149634530891476e8bca0a384ee2282a589ee0463a7637161cdb7dc960d",
+    "shared/teams.js": "af0852abf524bbff1f8a866413c40b17f03bbdd405c7813de85cfca79a7d9a36",
     "shared/theme.js": "cd42d3632943f5d3c67ff855b3bf81af2af0c86c903c3e03a874e7f579e8be2a",
     "shared/themes.css": "f2b421240643ba09c4f971ca192dbcdceb27922be39fada5e262736c034f5af5",
     "shared/ui.css": "f5f714bc512fd5f16855b73e6f08f96d23de206be0f6523b140527647ead846d",
@@ -79,7 +80,7 @@
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "99db80969731ddeb8582a93c1fd992196ea0985770c7175a530d6611a61c2121",
+    "shared/workshop-sdk.js": "43b901f94827975d177e96861a12146999ebe98f9eb30861896a85215022fd55",
     "tests/lib/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382"
   }
 }

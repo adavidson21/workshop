@@ -1,17 +1,17 @@
-// Settings' People card forms, and what they save matching the contract (docs/people.md).
+// People's forms, and what they save matching the contract (docs/people.md).
 // Run: node --test "apps/*/test/*.test.mjs"
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
-import * as F from '../js/people.js';
+import * as F from '../js/forms.js';
 import * as P from '../../../shared/people.js';
 
 const schemas = SchemaSet.fromDir(new URL('../../../docs/schemas', import.meta.url).pathname);
 const NOW = 1793736000000;
 
 test('personFields: trims, lowers the handle, defaults the relation', () => {
-  const f = F.personFields([['name', '  Person One '], ['handle', '@One'], ['relation', 'boss'], ['team', 'on'], ['since', '2025-03-01']]);
-  assert.deepEqual(f, { name: 'Person One', handle: 'one', relation: 'contact', team: true, adoIdentity: '', role: '', since: '2025-03-01' });
+  const f = F.personFields([['name', '  Person One '], ['handle', '@One'], ['relation', 'boss'], ['team', 'on']]);
+  assert.deepEqual(f, { name: 'Person One', handle: 'one', relation: 'contact', team: true, adoIdentity: '', role: '' });
 });
 
 test('groupFields: checked members in order, without duplicates', () => {

@@ -1,0 +1,53 @@
+{
+  "manifestVersion": 1,
+  "id": "people",
+  "name": "People",
+  "version": "1.0.0",
+  "description": "Everyone you assign work to, groups of them, and your team's area paths. Import a list from a spreadsheet.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 60,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "aliases": [
+    "people",
+    "groups",
+    {
+      "name": "teams",
+      "path": "team"
+    },
+    {
+      "name": "import people",
+      "path": "import"
+    }
+  ],
+  "routes": [
+    {
+      "path": "team",
+      "title": "Team area paths"
+    },
+    {
+      "path": "import",
+      "title": "Import people from a spreadsheet"
+    }
+  ],
+  "commands": [
+    {
+      "id": "add-person",
+      "title": "Add a person"
+    },
+    {
+      "id": "add-group",
+      "title": "Add a group"
+    }
+  ],
+  "files": [
+    "people.css",
+    "js/main.js",
+    "js/forms.js",
+    "js/sheet.js"
+  ]
+}

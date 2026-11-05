@@ -118,15 +118,14 @@ label.btn{cursor:pointer}
 .moved p{margin:.2rem 0}
 .sites{margin:.4rem 0 0;padding-left:1.2rem;display:grid;gap:.2rem}
 
-/* people */
+/* lists (Repos tab rows; the classes came from the People card, now its own app) */
 .people{list-style:none;margin:0;padding:0}
 .person{display:flex;align-items:center;gap:.8rem;border-top:1px solid var(--line);padding:.6rem 0}
 .person:first-child{border-top:0}
 .person>div{flex:1;min-width:0}
-.person.archived b{color:var(--muted)}
 .person.editing{display:block}
+.person .handle{font-size:.85em;color:var(--muted)}
 .person-meta{margin:.1rem 0 0;color:var(--muted);font-size:.82rem}
-.person-form .cfg-row>.cfg-input{flex:1;width:auto;min-width:12rem}
 .import-preview,.archived-list{margin-top:.8rem}
 .import-preview summary,.archived-list summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent)}
 .import-preview ul{margin:.4rem 0;padding-left:1.2rem;font-size:.86rem}
@@ -153,13 +152,6 @@ label.btn{cursor:pointer}
 .from-url-row{display:flex;gap:.5rem}
 .from-url-row .cfg-input{flex:1;min-width:0}
 .from-url .cfg-help{margin-top:.4rem}
-
-/* People card: handles, groups and the member checklist */
-.person .handle { font-size: 0.85em; color: var(--muted); }
-.people-sub { margin: 1.25rem 0 0.25rem; font-size: 1rem; }
-.person-form fieldset.members { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
-.person-form fieldset.members legend { padding: 0; margin-bottom: 0.25rem; }
-.person-form .member { display: inline-flex; align-items: center; gap: 0.35rem; }
 
 /* Repos tab (js/repos.js): one row per workspace repo */
 .repos .repo{display:flex;align-items:center;gap:.8rem;border-top:1px solid var(--line);padding:.6rem 0}

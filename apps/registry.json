@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "2.0.1",
+        "version": "2.1.0",
         "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -783,13 +783,69 @@
       }
     },
     {
+      "base": "/apps/people/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "people",
+        "name": "People",
+        "version": "1.0.0",
+        "description": "Everyone you assign work to, groups of them, and your team's area paths. Import a list from a spreadsheet.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 60,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "aliases": [
+          "people",
+          "groups",
+          {
+            "name": "teams",
+            "path": "team"
+          },
+          {
+            "name": "import people",
+            "path": "import"
+          }
+        ],
+        "routes": [
+          {
+            "path": "team",
+            "title": "Team area paths"
+          },
+          {
+            "path": "import",
+            "title": "Import people from a spreadsheet"
+          }
+        ],
+        "commands": [
+          {
+            "id": "add-person",
+            "title": "Add a person"
+          },
+          {
+            "id": "add-group",
+            "title": "Add a group"
+          }
+        ],
+        "files": [
+          "people.css",
+          "js/main.js",
+          "js/forms.js",
+          "js/sheet.js"
+        ]
+      }
+    },
+    {
       "base": "/apps/settings/",
       "manifest": {
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "2.0.0",
-        "description": "Connectors, repos, people, the data folder, and backups.",
+        "version": "3.0.0",
+        "description": "Connectors, repos, apps, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,
@@ -800,22 +856,15 @@
         ],
         "aliases": [
           "settings",
-          "people",
           {
             "name": "repos",
             "path": "repos"
-          },
-          {
-            "name": "teams",
-            "path": "people"
           }
         ],
         "files": [
           "js/forms.js",
-          "js/people.js",
           "js/repos.js",
           "js/settings.js",
-          "js/teams.js",
           "settings.css"
         ],
         "data": [

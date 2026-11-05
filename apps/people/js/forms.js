@@ -1,5 +1,5 @@
-/* Settings: what the People card's forms turn into (docs/people.md). Pure, so test/people.test.mjs can import
-   it. The directory model and its rules are shared/people.js; settings.js draws the card and saves through
+/* People: what the person and group forms turn into (docs/people.md). Pure, so test/forms.test.mjs can import
+   it. The directory model and its rules are shared/people.js; main.js draws the page and saves through
    ws.people. */
 import { RELATIONS } from '../../../shared/people.js';
 
@@ -11,7 +11,7 @@ export function personFields(entries) {
   return {
     name: s(f.name), handle: s(f.handle, 40).replace(/^@/, '').toLowerCase(),
     relation: RELATIONS.includes(f.relation) ? f.relation : 'contact',
-    team: f.team === 'on', adoIdentity: s(f.adoIdentity), role: s(f.role), since: s(f.since, 10)
+    team: f.team === 'on', adoIdentity: s(f.adoIdentity), role: s(f.role)
   };
 }
 

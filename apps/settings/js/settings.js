@@ -9,12 +9,9 @@
    Local mode (served by the agent): everything can be changed, including the data folder (dataDir).
    Hosted mode (a paired site): read-only. The agent refuses config changes from other sites.
    Browser mode (no agent): the data folder Chrome uses (choose or change it) and the data section.
-   Every mode: the people directory (people.js, docs/people.md). */
+   People and your team's area paths are their own app (apps/people). */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
-import * as PF from './people.js';
-import * as D from '../../../shared/people.js';
-import * as T from './teams.js';
 import * as R from './repos.js';
 
 const $ = s => document.querySelector(s);
@@ -42,11 +39,11 @@ function toast(text, kind) { return ws.toast(text, { kind }); }
 
 /* ---------- tabs ----------
    General, Repos (when the ADO or opencode connector is installed), one tab per connector (from the connector
-   list, so a new connector gets its own tab), People, Data. #/settings/<tab> opens a tab (repos, people, data). Each tab is a panel in #content; cards go into the panel named when they are made. The last tab
+   list, so a new connector gets its own tab), Data. #/settings/<tab> opens a tab (repos, data); #/settings/people opens the People app. Each tab is a panel in #content; cards go into the panel named when they are made. The last tab
    opened is remembered in this browser. */
 const tabsEl = $('#tabs');
 const TAB_KEY = 'workshop.settings.tab';
-const TAB_ORDER = { general: 0, apps: 4, repos: 5, connectors: 10, people: 80, data: 90 }; // connectors take 10, 11, ... in list order
+const TAB_ORDER = { general: 0, apps: 4, repos: 5, connectors: 10, data: 90 }; // connectors take 10, 11, ... in list order
 let wantTab = 'general';
 try { wantTab = localStorage.getItem(TAB_KEY) || 'general'; } catch (e) { /* storage blocked: start on General */ }
 
@@ -85,7 +82,7 @@ function panel(id, label, order) {
   else { p.hidden = true; btn.setAttribute('aria-selected', 'false'); btn.tabIndex = -1; }
   return p;
 }
-const TAB_LABEL = { general: 'General', apps: 'Apps', repos: 'Repos', connectors: 'Connectors', people: 'People', data: 'Data' };
+const TAB_LABEL = { general: 'General', apps: 'Apps', repos: 'Repos', connectors: 'Connectors', data: 'Data' };
 tabsEl.addEventListener('click', e => { const b = e.target.closest('[role=tab]'); if (b) selectTab(b.dataset.tab, true); });
 tabsEl.addEventListener('keydown', e => {
   const tabs = [...tabsEl.querySelectorAll('[role=tab]')];
@@ -98,9 +95,12 @@ tabsEl.addEventListener('keydown', e => {
   t.focus(); selectTab(t.dataset.tab, true);
 });
 // #/settings/repos and the like: open that tab now, or as soon as it exists.
-const ROUTE_TAB = { repos: 'repos', people: 'people', data: 'data', general: 'general' };
+const ROUTE_TAB = { repos: 'repos', data: 'data', general: 'general' };
 ws.on('route', ({ path } = {}) => {
-  const id = ROUTE_TAB[String(path || '').split('/')[0]];
+  const first = String(path || '').split('/')[0];
+  // People moved to its own app: old links (#/settings/people, Rapport's "Open People") go there.
+  if (first === 'people' && ws.embedded) { ws.open({ app: 'people' }).catch(() => {}); return; }
+  const id = ROUTE_TAB[first];
   if (!id) return;
   wantTab = id;
   if ($(`#panel-${id}`)) selectTab(id);
@@ -879,185 +879,6 @@ async function reposTab(list) {
   ws.on('visible', async ({ visible } = {}) => { if (visible && !st.editing && st.editingMap == null && !st.adding && !st.busy) { await load(); paint(); } });
 }
 
-/* ---------- people directory (docs/people.md) ----------
-   People and groups, changed through ws.people like every other app. Data writes work in every mode (only
-   config is read-only from a hosted site), so this card is always editable. */
-let dir = D.EMPTY;
-let peopleSec = null;
-let peopleEditing = null; // id of the person or group being edited, 'new-person', 'new-group', or null
-
-const relOptions = cur => D.RELATIONS.map(r => `<option value="${r}"${cur === r ? ' selected' : ''}>${esc(D.RELATION_LABEL[r])}</option>`).join('');
-
-function personForm(p) {
-  const isNew = !p.id;
-  return `<form class="cfg person-form" data-person-form="${esc(p.id || 'new')}">
-    <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name || '')}" required></div>
-    <div class="cfg-row"><label for="pHandle">Handle</label><input id="pHandle" name="handle" class="cfg-input mono" maxlength="41" value="${esc(p.handle || '')}" placeholder="${isNew ? 'first name, filled in for you' : ''}">
-      <p class="cfg-help">What you type after @ in Docket and quick capture.</p></div>
-    <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${relOptions(p.relation)}</select>
-      <p class="cfg-help">Contact is anyone outside your working circle: another team, a vendor.</p></div>
-    <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${D.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
-      <p class="cfg-help">Shows in Docket's Reports.</p></div>
-    <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity || '')}" placeholder="name@example.com or display name"></div>
-    <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
-    <div class="cfg-row"><label for="pSince">Since</label><input id="pSince" name="since" type="date" class="cfg-input" value="${esc(p.since || '')}"></div>
-    ${formActs(p)}
-  </form>`;
-}
-
-function groupForm(g) {
-  const members = new Set(g.members || []);
-  const people = D.active(dir, { kind: 'person' });
-  // Archived members stay listed (checked) so saving the form does not drop them by surprise.
-  const shown = [...people, ...(g.members || []).map(id => dir.byId.get(id)).filter(p => p && p.archived)];
-  const boxes = shown.map(p => `<label class="member"><input type="checkbox" name="member" value="${esc(p.id)}"${members.has(p.id) ? ' checked' : ''}> ${esc(p.name)}${p.archived ? ' <span class="state">Archived</span>' : ''}</label>`).join('');
-  return `<form class="cfg person-form" data-group-form="${esc(g.id || 'new')}">
-    <div class="cfg-row"><label for="gName">Name</label><input id="gName" name="name" class="cfg-input" maxlength="200" value="${esc(g.name || '')}" required></div>
-    <div class="cfg-row"><label for="gHandle">Handle</label><input id="gHandle" name="handle" class="cfg-input mono" maxlength="41" value="${esc(g.handle || '')}" placeholder="${g.id ? '' : 'from the name, filled in for you'}"></div>
-    <fieldset class="cfg-row members"><legend>Members</legend>${boxes || '<p class="cfg-help">Add people first. A group can also stay empty, for a team whose people you do not track.</p>'}</fieldset>
-    ${formActs(g)}
-  </form>`;
-}
-
-function formActs(it) {
-  return `<div class="acts"><span class="msg" aria-live="polite"></span>
-      ${it.id ? `<button type="button" class="btn" data-item-archive="${esc(it.id)}">${it.archived ? 'Restore' : 'Archive'}</button>` : ''}
-      <button type="button" class="btn" data-item-cancel>Cancel</button><button class="btn primary">Save</button></div>`;
-}
-
-function itemRow(it) {
-  if (peopleEditing === it.id) return `<li class="person editing">${it.kind === 'group' ? groupForm(it) : personForm(it)}</li>`;
-  const bits = it.kind === 'group'
-    ? [D.membersOf(dir, it.id).map(p => esc(p.name)).join(', ') || 'No members']
-    : [esc(D.RELATION_LABEL[it.relation]), D.onTeam(it) ? 'on my team' : '', it.role ? esc(it.role) : '', it.adoIdentity ? `<span class="mono">${esc(it.adoIdentity)}</span>` : '',
-       D.groupsOf(dir, it.id).map(g => `@${esc(g.handle)}`).join(' ')].filter(Boolean);
-  return `<li class="person${it.archived ? ' archived' : ''}"><div><b>${esc(it.name)}</b> <span class="mono handle">@${esc(it.handle)}</span>${it.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
-    <button class="btn" data-item-edit="${esc(it.id)}">Edit</button></li>`;
-}
-
-function paintPeople() {
-  const body = peopleSec.querySelector('.people-body');
-  if (dir.unreadable) {
-    body.innerHTML = `<p class="err">The people list was saved by another Workshop version (version ${esc(dir.version)}). Update Workshop to change it.</p>`;
-    return;
-  }
-  const people = D.sorted(dir.people.filter(p => !p.archived));
-  const groups = D.sorted(dir.groups.filter(g => !g.archived));
-  const archived = D.sorted(dir.items.filter(it => it.archived));
-  const hasSelf = !!D.self(dir);
-  body.innerHTML = `
-    ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : '<p class="sub">No one yet. Add yourself, your manager and your reports.</p>'}
-    ${peopleEditing === 'new-person' ? `<div class="person editing">${personForm({ relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
-    <h3 class="people-sub">Groups</h3>
-    ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.</p>'}
-    ${peopleEditing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
-    <div class="acts left">${peopleEditing && peopleEditing.startsWith('new') ? '' : '<button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button>'}
-      <span class="msg" aria-live="polite"></span></div>
-    ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(itemRow).join('')}</ul></details>` : ''}`;
-  const first = body.querySelector('.editing input[name=name]');
-  if (first) first.focus();
-}
-
-async function peopleCard() {
-  peopleSec = card('People', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Docket, Rapport and Home all use this list.', 'people');
-  peopleSec.dataset.people = '';
-  peopleSec.insertAdjacentHTML('beforeend', '<div class="people-body"><p class="sub">Loading...</p></div>');
-  try { dir = await ws.people.get(); } catch (e) { peopleSec.querySelector('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
-  paintPeople();
-
-  const done = (text) => { peopleEditing = null; toast(text, 'success'); paintPeople(); };
-
-  peopleSec.addEventListener('click', async e => {
-    const t = e.target.closest('button');
-    if (!t) return;
-    if (t.matches('[data-person-new]')) { peopleEditing = 'new-person'; return paintPeople(); }
-    if (t.matches('[data-group-new]')) { peopleEditing = 'new-group'; return paintPeople(); }
-    if (t.matches('[data-item-edit]')) { peopleEditing = t.dataset.itemEdit; return paintPeople(); }
-    if (t.matches('[data-item-cancel]')) { peopleEditing = null; return paintPeople(); }
-    if (t.matches('[data-item-archive]')) {
-      const it = dir.byId.get(t.dataset.itemArchive);
-      if (!it) return;
-      try {
-        if (it.archived) await ws.people.restore(it.id); else await ws.people.archive(it.id);
-        done(it.archived ? `${it.name} restored.` : `${it.name} archived. Records about them are kept.`);
-      } catch (err) { t.closest('form').querySelector('.msg').textContent = errText(err); }
-    }
-  });
-
-  // "On my team" follows the relation's default until it is clicked.
-  peopleSec.addEventListener('change', e => {
-    const form = e.target.closest('[data-person-form]');
-    if (!form) return;
-    if (e.target.name === 'team') form.dataset.teamTouched = '1';
-    if (e.target.name === 'relation' && !form.dataset.teamTouched) form.querySelector('[name=team]').checked = D.onTeam({ relation: e.target.value });
-  });
-
-  peopleSec.addEventListener('submit', async e => {
-    const form = e.target.closest('[data-person-form], [data-group-form]');
-    if (!form) return;
-    e.preventDefault();
-    const isGroup = form.hasAttribute('data-group-form');
-    const id = isGroup ? form.dataset.groupForm : form.dataset.personForm;
-    const fields = isGroup ? PF.groupFields(new FormData(form)) : PF.personFields(new FormData(form));
-    const old = dir.byId.get(id);
-    if (old && !fields.handle) fields.handle = old.handle; // an emptied handle keeps the old one
-    try {
-      const saved = old ? await ws.people.update(old.id, fields) : await ws.people.add({ ...fields, kind: isGroup ? 'group' : 'person' });
-      done(`${saved.name} saved as @${saved.handle}.`);
-    } catch (err) { form.querySelector('.msg').textContent = errText(err); }
-  });
-
-  ws.people.subscribe(next => {
-    dir = next;
-    if (!peopleEditing) paintPeople(); // don't redraw under an open form; the next save merges
-  });
-}
-
-/* ---------- your team's area paths (docs/teams.md) ----------
-   Settings' own collection `teams`, read by Runway's ADO roadmaps and the Dispatch hub. Editable in every mode,
-   like People. */
-async function teamCard() {
-  const sec = card('Team area paths', 'The Azure DevOps area paths your team works in. Runway fills them in for an ADO roadmap, and the Dispatch hub knows them.', 'people');
-  sec.insertAdjacentHTML('beforeend', '<div class="team-body"><p class="sub">Loading...</p></div>');
-  let env = null;
-  const load = async () => { const e = await ws.data.get(T.COLLECTION); env = e || T.blank(); return T.readable(e); };
-  const paint = ok => {
-    const body = sec.querySelector('.team-body');
-    if (!ok) { body.innerHTML = `<p class="err">Your team was saved by a newer Workshop (version ${esc(env.version)}). Update Workshop to change it.</p>`; return; }
-    const t = T.mine(env);
-    body.innerHTML = `<form class="cfg" data-team-form>
-      <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(t.areas.join('\n'))}</textarea>
-        <p class="cfg-help">One per line. Includes everything under each.</p></div>
-      <div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(t.connection)}" placeholder="Default">
-        <p class="cfg-help">The Azure DevOps connection to use, by its name above. Empty uses the default.</p></div>
-      <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div></form>`;
-  };
-  try { paint(await load()); } catch (e) { sec.querySelector('.team-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; return; }
-  sec.addEventListener('submit', async e => {
-    const form = e.target.closest('[data-team-form]');
-    if (!form) return;
-    e.preventDefault();
-    const fd = new FormData(form);
-    const before = env, after = structuredClone(before);
-    after.items = T.withMine(after.items, { areas: fd.get('areas'), connection: fd.get('connection') });
-    ws.data.stamp(before, after);
-    try {
-      try { const r = await ws.data.put(T.COLLECTION, after); env = { ...after, rev: r.rev }; }
-      catch (err) {
-        if (err.code !== 'conflict' || !err.current) throw err;
-        const merged = ws.data.merge(after, err.current);
-        const r = await ws.data.put(T.COLLECTION, merged); env = { ...merged, rev: r.rev };
-      }
-      toast('Team area paths saved.', 'success');
-      paint(true);
-    } catch (err) { form.querySelector('.msg').textContent = errText(err); }
-  });
-  ws.data.subscribe(T.COLLECTION, async () => {
-    if (sec.contains(document.activeElement) && document.activeElement.matches('textarea, input')) return;
-    try { paint(await load()); } catch (e) { /* the next load shows it */ }
-  });
-}
-
 /* ---------- data: bundles ---------- */
 function dataCard() {
   const sec = card('Backups', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.', 'data');
@@ -1143,8 +964,6 @@ async function start() {
     await folderCard(null);
     await appsCard();
   }
-  await peopleCard();
-  await teamCard();
   dataCard();
 }
 await start();

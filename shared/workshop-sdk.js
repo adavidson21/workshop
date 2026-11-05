@@ -19,6 +19,7 @@
    app also works when opened on its own (ws.embedded === false). */
 import { deviceAvailable, openDeviceRoot } from './device-fs.js';
 import * as People from './people.js';
+import * as Teams from './teams.js';
 
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
@@ -1410,6 +1411,8 @@ export async function connect(options) {
 
     /* the people directory (docs/people.md): every app reads and changes it here, never with data.* */
     people: peopleService(data),
+    /* your team's area paths (docs/teams.md): the People app edits them here, everyone reads them with data.get */
+    teams: teamsService(data),
 
     /* files (docs/sdk.md, Files): this app writes only its own files; any app's files can be read */
     files: {
@@ -1571,6 +1574,25 @@ function peopleService(data) {
     archive(id) { return patch(id, { archived: true }); },
     restore(id) { return patch(id, { archived: false }); },
     setMembers(groupId, members) { return patch(groupId, { members }); },
+    /** Many adds and edits in one save, in order: an entry with an `id` edits that item, one without adds it.
+        Resolves to the saved items in the same order. Nothing is saved when any entry has a problem; the error
+        says which (`index`). For importing a list. */
+    saveMany(list) {
+      return save(dir => {
+        let items = dir.items.slice();
+        const out = [];
+        (Array.isArray(list) ? list : []).forEach((entry, index) => {
+          try {
+            const { id, ...fields } = entry || {};
+            const it = id ? People.edit(one({ byId: new Map(items.map(x => [x.id, x])) }, id), fields, items) : People.create(fields, items);
+            items = id ? items.map(x => (x.id === it.id ? it : x)) : [...items, it];
+            out.push(it);
+          } catch (e) { throw Object.assign(e instanceof WorkshopError ? e : new WorkshopError(e.code || 'bad_request', e.message), { index }); }
+        });
+        const last = new Map(out.map(it => [it.id, it]));
+        return { upsert: [...last.values()], result: out.map(it => last.get(it.id)) };
+      });
+    },
     /** Add people other data already points to, keeping their ids (shared/people.js adopt). Resolves to the
         added items; nothing is written when there are none. */
     async adopt(list) {
@@ -1578,6 +1600,45 @@ function peopleService(data) {
       const deleted = (await data.get(APP, COLLECTION) || {}).deleted || {};
       if (!People.adopt(list, dir.items, deleted).length) return [];
       return save((d, before) => { const added = People.adopt(list, d.items, before.deleted || {}); return { upsert: added, result: added }; });
+    }
+  };
+}
+
+/* ws.teams (docs/sdk.md, Teams): your team's area paths, Settings' `teams` collection (shared/teams.js). The
+   People app writes it here; other apps read it with ws.data.get('teams', {app: 'settings'}). */
+function teamsService(data) {
+  const { APP, COLLECTION } = Teams;
+  const local = new Set();
+  const read = async () => {
+    const env = await data.get(APP, COLLECTION);
+    if (!Teams.readable(env)) throw new WorkshopError('unsupported', `Your team was saved by a newer Workshop (version ${env.version}). Update Workshop to change it.`);
+    return Teams.mine(env);
+  };
+  return {
+    /** Your team: {name, areas, connection}, empty when not set up. */
+    get: read,
+    subscribe(handler) {
+      const h = (t) => handler(t);
+      local.add(h);
+      const off = data.subscribe(APP, COLLECTION, async () => { try { handler(await read()); } catch (e) { console.error(e); } });
+      return () => { local.delete(h); off(); };
+    },
+    /** Saves your team's area paths and connection. Resolves to your team as saved. */
+    async setMine(fields) {
+      for (let attempt = 0; ; attempt++) {
+        const stored = await data.get(APP, COLLECTION);
+        if (!Teams.readable(stored)) throw new WorkshopError('unsupported', `Your team was saved by a newer Workshop (version ${stored.version}). Update Workshop to change it.`);
+        const before = stored || Teams.blank();
+        const after = stampEnvelope(before, { ...clone(before), items: Teams.withMine(clone(before.items || []), fields) });
+        try {
+          await data.put(APP, COLLECTION, after);
+          const t = Teams.mine(after);
+          for (const h of local) { try { h(t); } catch (e) { console.error(e); } }
+          return t;
+        } catch (e) {
+          if (!(e instanceof WorkshopError && e.code === 'conflict') || attempt >= 4) throw e;
+        }
+      }
     }
   };
 }
@@ -1637,6 +1698,6 @@ export const data = { merge: mergeEnvelopes, stamp: stampEnvelope };
 export { pickBackend as detectBackend };
 
 // Internals for tests (shared/test/): the stores against any directory handle, and the move from IndexedDB.
-export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService };
+export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService, teamsService };
 
 export default { connect, WorkshopError, data, detectBackend: pickBackend, folderState, allowFolder };
