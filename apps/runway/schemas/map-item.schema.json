@@ -31,6 +31,9 @@
       "iteration": {"type": "string", "description": "ADO's Iteration Path (its sprint). Publish can move the item to another sprint."},
       "project": {"type": "string", "description": "ADO's project, for the sprint list."},
       "ownDates": {"type": "boolean", "description": "ADO has its own start or target date, so its dates do not come from the sprint."},
+      "startDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Start Date, YYYY-MM-DD, or null."},
+      "targetDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Target Date, YYYY-MM-DD, or null."},
+      "titlePrefix": {"type": "string", "description": "What Runway puts before a User Story's ADO title (its Feature and ' > '); empty for others."},
       "base": {"$ref": "#/$defs/adoFields", "description": "What the last refresh brought."},
       "remote": {"$ref": "#/$defs/adoFields", "description": "ADO's values when they differ from yours."},
       "missing": {"type": "boolean", "description": "The last refresh did not find the work item."}}}

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanSource, mergeLinked, pulled } from '../js/ado/model.js';
-import { localChanges, planPublish, publishCount, sendPlan, sprintFor, updateArgs } from '../js/ado/publish.js';
+import { applySent, localChanges, planPublish, publishCount, sendPlan, sprintFor, updateArgs } from '../js/ado/publish.js';
 import { createAdo } from '../js/ado/index.js';
 import { directory } from '../shared/people.js';
 import { blankDoc, toEnvelopeParts } from '../js/model.js';
@@ -66,16 +66,16 @@ test('localChanges: only fields that differ from what the last refresh brought',
   assert.deepEqual(localChanges({ kind: 'item', title: 'ad hoc' }), []);
 });
 
-test('publishCount: owners and sprint moves count, titles and own dates do not; only linked roadmaps', () => {
+test('publishCount: titles, owners and dates count, status alone does not; only linked roadmaps', () => {
   const { doc, get } = linkedDoc();
   assert.equal(publishCount(doc), 0);
+  get(11).status = 'done';
+  assert.equal(publishCount(doc), 0, 'a status change alone can not be sent');
   get(11).title = 'Renamed'; get(12).start = '2027-01-11';
-  assert.equal(publishCount(doc), 0, 'a title or own dates alone can not be sent');
-  get(11).start = '2027-01-20'; get(11).end = '2027-02-02';
   get(13).who = ['p_one'];
-  assert.equal(publishCount(doc), 2);
+  assert.equal(publishCount(doc), 3);
   get(13).ado.missing = true;
-  assert.equal(publishCount(doc), 1, 'an item ADO no longer has is not counted');
+  assert.equal(publishCount(doc), 2, 'an item ADO no longer has is not counted');
   assert.equal(publishCount({ ...doc, meta: { ...doc.meta, ado: { ...doc.meta.ado, mode: 'live' } } }), 0);
   assert.equal(publishCount({ ...doc, meta: { ...doc.meta, ado: undefined } }), 0);
 });
@@ -92,21 +92,85 @@ test('sprintFor: exact sprint dates in the project, the one beside the current s
 
 test('planPublish: what is sent, what is not and why', () => {
   const { doc, get } = linkedDoc();
-  get(11).who = ['p_two']; get(11).start = '2027-01-20'; get(11).end = '2027-02-02'; get(11).title = 'Renamed'; get(11).status = 'done';
+  get(11).who = ['p_two']; get(11).start = '2027-01-20'; get(11).end = '2027-02-02'; get(11).title = '  Renamed   here '; get(11).status = 'done';
   get(12).start = '2027-01-11'; get(12).who = [];
   get(13).who = ['g_team'];
   const plan = planPublish(doc, { dir: DIR, iterations: ITER });
   assert.equal(plan.send, 2);
   const row = id => plan.rows.find(r => r.adoId === id);
-  assert.deepEqual(row(11).changes, { assignedTo: 'dev.two@example.test', iteration: 'Sample\\Team\\Sprint 2' });
-  assert.deepEqual(row(11).fields.map(f => [f.label, f.sent]), [['Assigned To', true], ['Sprint', true], ['Title', false], ['Status', false]]);
+  assert.deepEqual(row(11).changes, { assignedTo: 'dev.two@example.test', iteration: 'Sample\\Team\\Sprint 2', title: 'Renamed here' });
+  assert.deepEqual(row(11).fields.map(f => [f.label, f.sent]), [['Assigned To', true], ['Title', true], ['Sprint', true], ['Status', false]]);
   assert.equal(row(11).fields[0].from, 'Dev One (dev.one@example.test)');
-  assert.deepEqual(row(12).changes, { assignedTo: '' }, 'no owner unassigns; own dates are not sent');
-  assert.match(row(12).fields.find(f => f.label === 'Dates').why, /own start or target date/);
+  assert.deepEqual([row(11).fields[1].from, row(11).fields[1].to], ['Sprint placed', 'Renamed here']);
+  assert.deepEqual(row(12).changes, { assignedTo: '', startDate: '2027-01-11' }, 'no owner unassigns; only the moved end of own dates is sent');
+  assert.deepEqual(row(12).fields.find(f => f.label === 'Start date'), { label: 'Start date', from: 'Jan 4, 2027', to: 'Jan 11, 2027', sent: true, why: '' });
   assert.equal(row(13).status, 'skip');
   assert.match(row(13).fields[0].why, /group/);
   assert.deepEqual(plan.rows.map(r => r.status), ['send', 'send', 'skip'], 'items to send come first');
-  assert.deepEqual(updateArgs(row(11)), { id: 11, rev: 3, connection: 'main', changes: { assignedTo: 'dev.two@example.test', iteration: 'Sample\\Team\\Sprint 2' } });
+  assert.deepEqual(updateArgs(row(12)), { id: 12, rev: 3, connection: 'main', changes: { assignedTo: '', startDate: '2027-01-11' } });
+  assert.ok(plan.rows.every(r => !('area' in r.changes) && !('state' in r.changes)), 'never area or state');
+});
+
+test('own dates: both ends, clearing, a milestone, and values ADO already has', () => {
+  const { doc, get } = linkedDoc();
+  const plan = () => planPublish(doc, { dir: DIR, iterations: ITER }).rows.find(r => r.adoId === 12);
+  get(12).start = '2027-02-01'; get(12).end = '2027-03-05';
+  assert.deepEqual(plan().changes, { startDate: '2027-02-01', targetDate: '2027-03-05' });
+  get(12).start = null; get(12).end = null;
+  assert.deepEqual(plan().changes, { startDate: '', targetDate: '' }, 'unscheduled clears both');
+  assert.deepEqual(plan().fields.map(f => f.to), ['none', 'none']);
+  get(12).start = '2027-02-27'; get(12).end = '2027-02-27'; get(12).milestone = true;
+  assert.deepEqual(plan().changes, { targetDate: '2027-02-27' }, 'a milestone sends its target date only');
+  get(12).start = '2027-02-20'; get(12).end = '2027-02-20';
+  assert.equal(plan().status, 'skip', 'nothing when ADO already has it');
+  assert.equal(plan().fields[0].why, 'Already this in ADO.');
+  // Only a target date in ADO: the bar's start came from the sprint or a default span. Moving only the end sends only it.
+  const only = linkedDoc([w(21, 'Target only', { targetDate: '2027-02-20' })]);
+  const t = only.get(21);
+  assert.deepEqual([t.ado.startDate, t.ado.targetDate], [null, '2027-02-20']);
+  t.end = '2027-02-27';
+  assert.deepEqual(planPublish(only.doc, { dir: DIR, iterations: ITER }).rows[0].changes, { targetDate: '2027-02-27' });
+});
+
+test('sprint-placed items: a whole sprint moves the sprint, other dates become own dates for an Epic or Feature only', () => {
+  const items = [w(31, 'Feature in a sprint'), w(32, 'Story in a sprint', { type: 'User Story', parentId: 31 }), w(33, 'Other feature')];
+  const r0 = result(items);
+  const src = cleanSource({ areas: 'Sample\\Team', mode: 'linked', types: ['Epic', 'Feature', 'User Story'] });
+  const doc = mergeLinked(blankDoc('Plan'), pulled(r0, ITER, src, { dir: DIR }), src, r0).doc;
+  const get = id => doc.items.find(i => i.ado.id === id);
+  const feature = 33; // Feature 31 has its story shown, so it is not drawn itself
+  get(feature).start = '2027-01-08'; get(feature).end = '2027-01-30';
+  const r = planPublish(doc, { dir: DIR, iterations: ITER }).rows;
+  assert.deepEqual(r[0].changes, { startDate: '2027-01-08', targetDate: '2027-01-30' });
+  assert.equal(r[0].fields[0].from, 'none (from its sprint)');
+  get(32).start = '2027-01-08'; get(32).end = '2027-01-30';
+  const story = planPublish(doc, { dir: DIR, iterations: ITER }).rows.find(x => x.adoId === 32);
+  assert.equal(story.status, 'skip');
+  assert.match(story.fields[0].why, /exactly one sprint/);
+});
+
+test('titles: trimmed, at most 255, a story keeps its "Feature > " in Runway', () => {
+  const items = [w(40, 'Parent feature', { type: 'Feature' }), w(41, 'Child story', { type: 'User Story', parentId: 40 })];
+  const r = result(items);
+  const src = cleanSource({ areas: 'Sample\\Team', mode: 'linked', types: ['Epic', 'Feature', 'User Story'] });
+  const doc = mergeLinked(blankDoc('Plan'), pulled(r, ITER, src, { dir: DIR }), src, r).doc;
+  const story = doc.items.find(i => i.ado.id === 41);
+  assert.equal(story.title, 'Parent feature > Child story');
+  assert.equal(story.ado.titlePrefix, 'Parent feature > ');
+  const plan = () => planPublish(doc, { dir: DIR, iterations: ITER }).rows[0];
+  story.title = 'Parent feature > Child story, renamed';
+  assert.deepEqual(plan().changes, { title: 'Child story, renamed' });
+  assert.deepEqual([plan().fields[0].from, plan().fields[0].to], ['Child story', 'Child story, renamed']);
+  story.title = 'Renamed without its feature';
+  assert.equal(plan().status, 'skip');
+  assert.match(plan().fields[0].why, /Keep "Parent feature >"/);
+  story.title = 'Parent feature > ';
+  assert.match(plan().fields[0].why, /can't be empty/);
+  delete story.ado.titlePrefix; story.title = 'Parent feature > Again';
+  assert.match(plan().fields[0].why, /Refresh from ADO first/);
+  const { doc: d2, get } = linkedDoc();
+  get(11).title = 'x'.repeat(300);
+  assert.equal(planPublish(d2, { dir: DIR, iterations: ITER }).rows[0].changes.title.length, 255);
 });
 
 test('planPublish: owners that can not be Assigned To', () => {
@@ -165,6 +229,7 @@ function fakeConnector(items) {
     cur.rev += 1;
     if ('assignedTo' in args.changes) cur.assignee = args.changes.assignedTo;
     if ('iteration' in args.changes) cur.iteration = args.changes.iteration;
+    for (const k of ['title', 'startDate', 'targetDate']) if (k in args.changes) cur[k] = args.changes[k];
     return { id: cur.id, rev: cur.rev, iteration: cur.iteration };
   };
   return { calls, byId, call };
@@ -174,8 +239,8 @@ test('sendPlan: one update per item to send, conflicts and failures reported, no
   const { doc, get } = linkedDoc([...ITEMS(), w(14, 'Fourth', { assignee: ONE }), w(15, 'Fifth', { assignee: ONE })]);
   get(11).start = '2027-01-20'; get(11).end = '2027-02-02';
   get(12).who = ['p_two'];
-  get(13).title = 'Only a title';
-  get(14).who = ['p_two'];
+  get(13).status = 'done';
+  get(14).who = ['p_two']; get(14).title = 'Fourth, renamed';
   get(15).who = [];
   const plan = planPublish(doc, { dir: DIR, iterations: ITER });
   const fake = fakeConnector([{ id: 11, rev: 3 }, { id: 12, rev: 5 }, { id: 14, rev: 3 }]); // 12 changed in ADO; 15 is gone
@@ -188,12 +253,27 @@ test('sendPlan: one update per item to send, conflicts and failures reported, no
   assert.match(by(12).message, /changed in ADO/);
   assert.equal(fake.byId.get(12).rev, 5, 'a conflict changes nothing');
   assert.equal(by(14).outcome, 'updated');
+  assert.equal(fake.byId.get(14).title, 'Fourth, renamed');
   assert.equal(by(15).outcome, 'failed');
   assert.match(by(15).message, /not found/);
   assert.equal(by(13).outcome, 'skipped');
   assert.deepEqual(fake.calls.map(c => c.args.id), [11, 12, 14, 15], 'skipped items are never sent');
   assert.ok(fake.calls.every(c => c.action === 'workitem.update'));
   assert.equal(progress.length, 4);
+});
+
+test('applySent: an updated item takes the title as sent, so the next refresh does not see a difference', () => {
+  const { doc, get } = linkedDoc();
+  get(11).title = '  Spaced   out '; get(12).title = 'Not sent';
+  const plan = planPublish(doc, { dir: DIR, iterations: ITER });
+  applySent(doc, plan, [{ itemId: get(11).id, outcome: 'updated' }, { itemId: get(12).id, outcome: 'conflict' }]);
+  assert.equal(get(11).title, 'Spaced out');
+  assert.equal(get(12).title, 'Not sent', 'only items ADO updated');
+  const after = ITEMS(); after[0] = { ...after[0], rev: 4, title: 'Spaced out' };
+  const merged = mergeLinked(doc, pulled(result(after), ITER, SRC, { dir: DIR }), SRC, result(after)).doc;
+  const it = merged.items.find(i => i.ado.id === 11);
+  assert.ok(!it.ado.remote);
+  assert.deepEqual(localChanges(it), []);
 });
 
 test('createAdo().publish calls workitem.update on the ado connector with confirm: true', async () => {

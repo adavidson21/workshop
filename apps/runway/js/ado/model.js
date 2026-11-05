@@ -13,7 +13,9 @@
    item.ado: {id, connection, rev, type, state, url, assignee, iteration, project, ownDates, base: {title, start, end, status, who}, remote?, missing?}
      assignee ADO's Assigned To, {name, email}, or null
      iteration its sprint (Iteration Path), project its ADO project, ownDates true when ADO has its own start or
-              target date (so its bar does not come from the sprint). Publish (publish.js) uses these three.
+              target date (so its bar does not come from the sprint), startDate and targetDate ADO's own dates
+              (YYYY-MM-DD or null), titlePrefix the "Feature > " Runway puts before a story's title. Publish
+              (publish.js) uses these.
      base     what the last refresh brought, so a refresh can tell your edits from ADO's
      remote   ADO's values when they differ from yours (linked only)
      missing  true when the last refresh no longer found the work item
@@ -113,7 +115,10 @@ export function ownersOf(assignee, dir) {
 }
 
 /** Where ADO keeps a work item's dates: its sprint, its project, and whether it has its own start or target date. */
-const where = w => ({ iteration: clip(String(w.iteration || ''), 400), project: clip(projectOf(w.iteration) || projectOf(w.area), 200), ownDates: isDate(w.startDate) || isDate(w.targetDate) });
+const where = w => ({
+  iteration: clip(String(w.iteration || ''), 400), project: clip(projectOf(w.iteration) || projectOf(w.area), 200),
+  ownDates: isDate(w.startDate) || isDate(w.targetDate), startDate: isDate(w.startDate) ? w.startDate : null, targetDate: isDate(w.targetDate) ? w.targetDate : null
+});
 
 const cleanAssignee = a => (a && (a.name || a.email) ? { name: clip(a.name || a.email, 200), email: clip(String(a.email || '').toLowerCase(), 300) } : null);
 
@@ -183,7 +188,7 @@ export function pulled(result, iterations, src, { dir = null } = {}) {
     const fields = { title: clip(name, 200), start: p.start, end: p.end, status: statusOf(w.state), ...(who ? { who } : {}) };
     items.push({
       key: String(w.id), laneKey: laneOf(w), ...fields, milestone, notes: describe(w),
-      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), assignee: cleanAssignee(w.assignee), ...where(w), base: { ...fields } }
+      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), assignee: cleanAssignee(w.assignee), ...where(w), titlePrefix: f ? name.slice(0, name.length - String(w.title || `${w.type} #${w.id}`).trim().length) : '', base: { ...fields } }
     });
   }
   // A Feature sits under its Epic when the Epic is an item in the same lane.
@@ -270,7 +275,7 @@ export function mergeLinked(doc, data, src, result) {
     }
     const base = pick(cur.ado.base || cur, fields);
     const mine = pick(cur, fields);
-    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url, assignee: it.ado.assignee, iteration: it.ado.iteration, project: it.ado.project, ownDates: it.ado.ownDates };
+    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url, assignee: it.ado.assignee, iteration: it.ado.iteration, project: it.ado.project, ownDates: it.ado.ownDates, startDate: it.ado.startDate, targetDate: it.ado.targetDate, titlePrefix: it.ado.titlePrefix };
     delete link.missing;
     // The new base, with the old base's owners when this refresh brought none.
     const nextBase = { ...pick(cur.ado.base || cur), ...remote };

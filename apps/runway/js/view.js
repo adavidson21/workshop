@@ -387,7 +387,7 @@ export function publishDialog(plan) {
   const n = plan.send;
   return `<form method="dialog" class="sheet wide pubsheet">
     <h3>Publish to Azure DevOps</h3>
-    <p class="hint">Runway sends only what is in bold, through Workshop's ADO connector: Assigned To, and the sprint of an item whose dates come from its sprint. It never creates work items, adds comments or changes states. An item someone changed in ADO since Runway read it is skipped, not overwritten.</p>
+    <p class="hint">Runway sends only what is in bold, through Workshop's ADO connector: titles, Assigned To, start and target dates, and sprints. It never creates work items, adds comments, or changes states or area paths. An item someone changed in ADO since Runway read it is skipped, not overwritten.</p>
     ${plan.rows.length ? `<ul class="publist">${rows}</ul>` : '<p>No changes to publish.</p>'}
     <footer><span class="hint">${esc(n)} work item${n === 1 ? '' : 's'} to update${plan.conflicts ? `, ${esc(plan.conflicts)} conflict${plan.conflicts === 1 ? '' : 's'}` : ''}</span><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok" data-pub-confirm${n ? '' : ' disabled'}>Publish ${esc(n)}</button></footer>
   </form>`;

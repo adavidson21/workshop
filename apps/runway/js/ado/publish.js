@@ -7,13 +7,20 @@
    It never creates work items, never comments and never changes a state.
 
    What a "change" is: a field of a linked item that differs from `ado.base`, what the last refresh brought.
-   What can be sent (the connector's workitem.update takes state, assignedTo, priority, iteration and tags):
+   What can be sent (the connector's workitem.update, 1.5.0: title, assignedTo, iteration, startDate, targetDate,
+   area, state, priority, tags):
+     title      -> title        trimmed, at most 255 characters. A story's "Feature > " stays in Runway: only the
+                                part after it is sent, so it must still start with it.
      who        -> assignedTo   one person whose ADO identity People knows, or no owner (unassigns). A group, two
                                 or more people, or someone without an ADO identity can't be sent.
-     start, end -> iteration    only for an item whose dates come from its sprint (no start or target date of its
-                                own in ADO), moved to exactly one sprint's dates in the same project.
-   Not sent, and listed as such: title, status, and the dates of an item with its own dates in ADO (the connector
-   cannot change them), and anything on a live roadmap.
+     start, end -> startDate, targetDate   for an item with its own dates in ADO: YYYY-MM-DD, or '' to clear
+                                (unscheduled). A milestone sends its target date only. Only the end you moved
+                                is sent.
+                -> iteration    for an item whose dates come from its sprint, moved to exactly one sprint's
+                                dates in the same project. An Epic or Feature moved to other dates gets its own
+                                start and target dates instead.
+   Not sent, and listed as such: status (Publish never changes states), and anything on a live roadmap. Area is
+   never sent: Runway keeps a lane per item, not an area path, so it has nothing to send.
 
    Conflicts: an item whose ADO values changed too (`ado.remote`, "differs from ADO") is not sent; the person
    decides in its panel first. An item ADO changed after the last refresh is refused by the connector (it tests
@@ -27,6 +34,10 @@ const parentOf = p => String(p || '').split('\\').slice(0, -1).join('\\').toLowe
 const whoKey = v => [...(v || [])].sort().join(',');
 const eq = (f, a, b) => (f === 'who' ? whoKey(a) === whoKey(b) : (a ?? null) === (b ?? null));
 
+const STORY = ['User Story', 'Issue'];
+const OWN_DATE_TYPES = ['Epic', 'Feature'];
+const oneLine = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+
 const linked = it => !!(it && it.kind === 'item' && it.ado && Number.isInteger(it.ado.id) && it.ado.base);
 const canPublish = doc => !!(doc && doc.meta && doc.meta.ado && doc.meta.ado.mode === 'linked');
 
@@ -39,8 +50,8 @@ export function localChanges(it) {
     .map(f => ({ field: f, from: f === 'who' ? [...(base.who || [])] : base[f] ?? null, to: f === 'who' ? [...(it.who || [])] : it[f] ?? null }));
 }
 
-/** Whether a change is of a kind Publish may send (owners, or the dates of an item placed by its sprint). */
-const sendable = (it, fields) => fields.some(f => f === 'who' || ((f === 'start' || f === 'end') && !it.ado.ownDates));
+/** Whether a change is of a kind Publish may send: everything but status. The preview says when one can't be. */
+const sendable = (it, fields) => fields.some(f => f !== 'status');
 
 /** How many linked items have a change Publish may send. The Publish button shows only when this is above 0. */
 export function publishCount(doc) {
@@ -65,12 +76,67 @@ export function sprintFor(it, iterations) {
 const dayText = d => (isDate(d) ? fmt(d) : 'none');
 const assigneeText = a => (a && (a.name || a.email) ? (a.name && a.email ? `${a.name} (${a.email})` : a.name || a.email) : 'Unassigned');
 
+/** The Title row of the preview, and `row.changes.title` when it can be sent. */
+function titleField(it, row) {
+  const a = it.ado;
+  const story = STORY.includes(a.type);
+  const prefix = oneLine(typeof a.titlePrefix === 'string' ? a.titlePrefix : '');
+  const mine = oneLine(it.title);
+  const f = { label: 'Title', from: oneLine(a.base.title).slice(prefix.length).trim(), to: mine, sent: false, why: '' };
+  if (story && typeof a.titlePrefix !== 'string') { f.from = oneLine(a.base.title); f.why = "Refresh from ADO first, so Runway knows which part is the story's own title."; return f; }
+  if (prefix && !mine.startsWith(prefix)) { f.why = `Keep "${prefix}" at the start: Runway sends only the part after it, the story's own title.`; return f; }
+  const title = mine.slice(prefix.length).trim().slice(0, 255);
+  f.to = title;
+  if (!title) f.why = "A title can't be empty in ADO.";
+  else if (title === f.from) f.why = 'Already this in ADO.';
+  else { f.sent = true; row.changes.title = title; }
+  return f;
+}
+
+/** The date rows of the preview: own start and target dates, or a sprint move. Sets row.changes. */
+function dateFields(it, row, iterations) {
+  const a = it.ado;
+  const from = `${dayText(a.base.start)} to ${dayText(a.base.end)}`;
+  const to = `${dayText(it.start)} to ${dayText(it.end)}`;
+  if (typeof a.ownDates !== 'boolean' || (a.ownDates && !('startDate' in a))) {
+    return [{ label: 'Dates', from, to, sent: false, why: 'Refresh from ADO first, so Runway knows where ADO keeps these dates.' }];
+  }
+  if (!a.ownDates) {
+    const s = sprintFor(it, iterations);
+    if (s.sprint) {
+      if (lower(s.sprint.path) === lower(a.iteration)) return [{ label: 'Sprint', from: a.iteration, to: s.sprint.path, sent: false, why: 'Already in that sprint in ADO.' }];
+      row.changes.iteration = s.sprint.path;
+      return [{ label: 'Sprint', from: a.iteration || 'none', to: `${s.sprint.path} (${to})`, sent: true, why: '' }];
+    }
+    // Not a whole sprint: an Epic or Feature can take dates of its own; other types stay with their sprint.
+    if (!OWN_DATE_TYPES.includes(a.type) || !isDate(it.start) || !isDate(it.end)) return [{ label: 'Sprint', from: a.iteration || 'none', to, sent: false, why: s.why }];
+  }
+  // Own dates: send the end you moved, as YYYY-MM-DD, or '' to clear. A milestone is its target date.
+  const out = [];
+  const one = (label, field, mineDay, moved) => {
+    if (!moved) return;
+    const now = a[field] || null;
+    const f = { label, from: dayText(now) + (now || a.ownDates ? '' : ' (from its sprint)'), to: dayText(mineDay), sent: false, why: '' };
+    if ((mineDay || null) === now) f.why = 'Already this in ADO.';
+    else { f.sent = true; row.changes[field] = mineDay || ''; }
+    out.push(f);
+  };
+  const base = a.base;
+  if (it.milestone) one('Target date', 'targetDate', it.end || null, (it.start ?? null) !== (base.start ?? null) || (it.end ?? null) !== (base.end ?? null));
+  else {
+    one('Start date', 'startDate', it.start || null, (it.start ?? null) !== (base.start ?? null));
+    one('Target date', 'targetDate', it.end || null, (it.end ?? null) !== (base.end ?? null));
+  }
+  return out;
+}
+
 /**
  * What Publish would do for a roadmap. `dir` is Workshop's people directory (for ADO identities), `iterations`
  * is {project: [{path, start, finish}]} from the connector's iterations.list.
  * Returns {rows, send, conflicts}. One row per linked item with changes:
  *   {itemId, adoId, title, type, url, rev, connection, status: 'send' | 'conflict' | 'skip', why, changes, fields}
- *   changes  the workitem.update `changes` to send ({assignedTo?, iteration?}); empty unless status is 'send'
+ *   changes  the workitem.update `changes` to send ({title?, assignedTo?, iteration?, startDate?, targetDate?});
+ *            empty unless status is 'send'
  *   fields   [{label, from, to, sent, why}] every changed field, sent or not, as plain text (escape to show)
  */
 export function planPublish(doc, { dir = null, iterations = {} } = {}) {
@@ -100,21 +166,11 @@ export function planPublish(doc, { dir = null, iterations = {} } = {}) {
       }
       row.fields.push(f);
     }
-    // Dates: a sprint move, or not sent.
-    if (fieldsOf.has('start') || fieldsOf.has('end')) {
-      const from = `${dayText(a.base.start)} to ${dayText(a.base.end)}`;
-      const to = `${dayText(it.start)} to ${dayText(it.end)}`;
-      if (a.ownDates) row.fields.push({ label: 'Dates', from, to, sent: false, why: "ADO has its own start or target date for this item, and the ADO connector can't change those yet." });
-      else if (typeof a.ownDates !== 'boolean') row.fields.push({ label: 'Dates', from, to, sent: false, why: 'Refresh from ADO first, so Runway knows where ADO keeps these dates.' });
-      else {
-        const s = sprintFor(it, iterations);
-        if (!s.sprint) row.fields.push({ label: 'Sprint', from: a.iteration || 'none', to, sent: false, why: s.why });
-        else if (lower(s.sprint.path) === lower(a.iteration)) row.fields.push({ label: 'Sprint', from: a.iteration, to: s.sprint.path, sent: false, why: 'Already in that sprint in ADO.' });
-        else { row.fields.push({ label: 'Sprint', from: a.iteration || 'none', to: `${s.sprint.path} (${to})`, sent: true, why: '' }); row.changes.iteration = s.sprint.path; }
-      }
-    }
+    // Title: the part after a story's "Feature > ".
+    if (fieldsOf.has('title')) row.fields.push(titleField(it, row));
+    // Dates: ADO's own start and target dates, a sprint move, or not sent.
+    if (fieldsOf.has('start') || fieldsOf.has('end')) row.fields.push(...dateFields(it, row, iterations));
     for (const c of local) {
-      if (c.field === 'title') row.fields.push({ label: LABEL.title, from: c.from || '', to: c.to || '', sent: false, why: "The ADO connector can't change titles." });
       if (c.field === 'status') row.fields.push({ label: LABEL.status, from: c.from || '', to: c.to || '', sent: false, why: "Publish doesn't change ADO states." });
     }
     if (a.missing) { row.why = 'The last refresh did not find this work item.'; }
@@ -130,6 +186,17 @@ export function planPublish(doc, { dir = null, iterations = {} } = {}) {
   const rank = { send: 0, conflict: 1, skip: 2 };
   rows.sort((x, y) => rank[x.status] - rank[y.status]);
   return { rows, send: rows.filter(r => r.status === 'send').length, conflicts: rows.filter(r => r.status === 'conflict').length };
+}
+
+/** After a publish: items ADO updated take the title exactly as it was sent (trimmed, at most 255, a story's
+    "Feature > " kept), so the refresh that follows finds them the same as ADO, not differing. */
+export function applySent(doc, plan, results) {
+  const ok = new Set(results.filter(r => r.outcome === 'updated').map(r => r.itemId));
+  for (const row of plan.rows) {
+    if (!ok.has(row.itemId) || typeof row.changes.title !== 'string') continue;
+    const it = doc.items.find(i => i.id === row.itemId);
+    if (it && it.ado) it.title = oneLine(it.ado.titlePrefix || '') ? `${oneLine(it.ado.titlePrefix)} ${row.changes.title}` : row.changes.title;
+  }
 }
 
 /** The workitem.update arguments for a row. */

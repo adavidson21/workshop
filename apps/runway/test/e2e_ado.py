@@ -2,7 +2,7 @@
 """Runway with Azure DevOps, in headless Chrome: this repo served together with a small mock Workshop agent whose
 ADO connector answers `roadmap`, `iterations.list` and `dataset` from synthetic data. Checks a live ADO roadmap (read only,
 refresh rebuilds it, owners from Assigned To), team reports (area paths filled in from Settings' team), a linked one (your edit is kept and shows
-as differing), mixing in an ad hoc item, Publish (preview, confirm, workitem.update with confirm: true, conflicts skipped), and that with the
+as differing), mixing in an ad hoc item, Publish (preview, confirm, workitem.update with confirm: true for titles, owners, dates and sprints, conflicts skipped), and that with the
 connector off Runway shows no ADO controls and still opens every roadmap.
 
   pip install playwright && python -m playwright install chromium
@@ -141,6 +141,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 name = next((x['name'] for x in ppl if x.get('adoIdentity') == who), who)
                 item['assignee'] = {'name': name, 'email': who} if who else None
             if 'iteration' in ch: item['iteration'] = ch['iteration']
+            if 'title' in ch: item['title'] = ch['title']
+            for k in ('startDate', 'targetDate'):
+                if k in ch: item[k] = ch[k] or None
             item['rev'] += 1
             return self.send_json(200, {'result': {'id': item['id'], 'rev': item['rev'], 'iteration': item['iteration'], 'connection': 'work'}})
         return self.send_json(400, {'code': 'bad_request', 'error': 'Unknown action'})
@@ -267,50 +270,56 @@ def main():
         check('Use ADO\'s applies it', True)
         pg.keyboard.press('Escape')
 
-        # Publish: only owners (Assigned To) and sprint moves go to ADO, after a preview, with confirm: true.
+        # Publish: titles, owners (Assigned To), own dates and sprint moves go to ADO, after a preview, with confirm: true.
         check('no Publish button without changes ADO can take', pg.query_selector('[data-adopublish]') is None)
         ids = pg.evaluate(f'() => Object.fromEntries({R}.store.v.doc.items.filter(i => i.ado).map(i => [i.ado.id, i.id]))')
-        pg.evaluate(f'() => {R}.edit(d => {{ const it = d.items.find(i => i.id === "{ids["103"]}"); it.title = "Renamed here"; }})')
+        pg.evaluate(f'() => {R}.edit(d => {{ d.items.find(i => i.id === "{ids["103"]}").status = "done"; }})')
         pg.wait_for_timeout(200)
-        check('a title change alone does not offer Publish', pg.query_selector('[data-adopublish]') is None)
-        pg.evaluate(f'''() => {R}.edit(d => {{
+        check('a status change alone does not offer Publish', pg.query_selector('[data-adopublish]') is None)
+        pg.evaluate(f"""() => {R}.edit(d => {{
+            const epic = d.items.find(i => i.id === "{ids["101"]}"); epic.who = ["p_two"]; epic.title = "  Docs Portal   v2 "; epic.end = "2027-04-07";
             const mig = d.items.find(i => i.id === "{ids["102"]}"); mig.who = ["p_two"]; mig.start = "2027-01-20"; mig.end = "2027-02-02";
-            d.items.find(i => i.id === "{ids["101"]}").who = ["p_two"];
-            d.items.find(i => i.id === "{ids["103"]}").who = ["p_one"];
-        }})''')
+            const cut = d.items.find(i => i.id === "{ids["103"]}"); cut.who = ["p_one"]; cut.title = "Renamed here";
+        }})""")
         pg.wait_for_selector('[data-adopublish]', timeout=3000)
         check('Publish shows with changes ADO can take', 'Publish (3)' in pg.inner_text('[data-adopublish]'))
-        # Meanwhile in ADO: someone reassigns 103 (it will differ), and someone edits 101 right before Publish sends.
+        # Meanwhile in ADO: someone reassigns 103 (it will differ), and someone edits 102 right before Publish sends.
         STATE['items'][2]['assignee'] = {'name': 'Dev Two', 'email': 'dev.two@example.test'}; STATE['items'][2]['rev'] += 1
-        STATE['race'].add(101)
+        STATE['race'].add(102)
         before = len(STATE['calls'])
         pg.click('[data-adopublish]')
         pg.wait_for_selector('dialog .pubsheet', timeout=8000)
         rows = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('dialog [data-pub-row]')].map(r => [r.dataset.adoId, r.dataset.pubRow]))")
         check('the preview lists each item: sends, and a conflict for one ADO changed too', rows == {'101': 'send', '102': 'send', '103': 'conflict'})
-        mig_rows = pg.evaluate("() => [...document.querySelectorAll('dialog [data-ado-id=\"102\"] tbody tr')].map(r => [r.cells[0].textContent, r.cells[1].textContent, r.hasAttribute('data-sent')])")
-        check('the preview shows old and new values per field', ['Assigned To', 'Dev One (dev.one@example.test)', True] in [list(x) for x in mig_rows]
+        cells = lambda i: [list(x) for x in pg.evaluate(f"() => [...document.querySelectorAll('dialog [data-ado-id=\"{i}\"] tbody tr')].map(r => [r.cells[0].textContent, r.cells[1].textContent, r.hasAttribute('data-sent')])")]
+        epic_rows, mig_rows = cells(101), cells(102)
+        check('the preview shows old and new values per field: title and target date',
+              ['Title', 'Docs Portal', True] in epic_rows and ['Target date', 'Mar 31, 2027', True] in epic_rows and not any(r[0] == 'Start date' for r in epic_rows))
+        check('the preview shows Assigned To and the sprint', ['Assigned To', 'Dev One (dev.one@example.test)', True] in mig_rows
               and any(x[0] == 'Sprint' and x[1] == 'Platform\\Sprint 1' and x[2] for x in mig_rows))
-        check('the title change is listed as not sent', 'The ADO connector can' in pg.inner_text('dialog [data-ado-id="103"]'))
+        check('a conflict lists its title change as not sent', 'Not sent' in pg.inner_text('dialog [data-ado-id="103"]') and 'Renamed here' in pg.inner_text('dialog [data-ado-id="103"]'))
         check('nothing is written before you confirm', not any(c[0].startswith('workitem.') for c in STATE['calls'][before:]))
         check('confirm says how many', pg.inner_text('dialog [data-pub-confirm]').strip() == 'Publish 2')
         pg.click('dialog [data-pub-confirm]')
         pg.wait_for_selector('dialog [data-pub-result]', timeout=8000)
         res = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('dialog [data-pub-result]')].map(r => [r.dataset.adoId, r.dataset.pubResult]))")
-        check('results: updated, and conflicts skipped', res == {'102': 'updated', '101': 'conflict', '103': 'conflict'})
-        check('the connector\'s conflict message is shown', 'changed in ADO since you loaded it' in pg.inner_text('dialog [data-ado-id="101"]'))
+        check('results: updated, and conflicts skipped', res == {'101': 'updated', '102': 'conflict', '103': 'conflict'})
+        check('the connector\'s conflict message is shown', 'changed in ADO since you loaded it' in pg.inner_text('dialog [data-ado-id="102"]'))
         writes = [c for c in STATE['calls'][before:] if c[0].startswith('workitem.')]
         check('only workitem.update, each with confirm: true, and none for the conflict found before sending',
               [c[0] for c in writes] == ['workitem.update', 'workitem.update'] and all(c[2] for c in writes) and sorted(c[1]['id'] for c in writes) == [101, 102])
+        epic_call = next(c for c in writes if c[1]['id'] == 101)
         mig_call = next(c for c in writes if c[1]['id'] == 102)
-        check('Publish sends Assigned To and the sprint, with the revision Runway read',
-              mig_call[1]['changes'] == {'assignedTo': 'dev.two@example.test', 'iteration': 'Platform\\Sprint 2'} and mig_call[1]['rev'] == 1 and mig_call[1].get('connection') == 'work')
-        check('ADO now has them', STATE['items'][1]['iteration'] == 'Platform\\Sprint 2' and STATE['items'][1]['assignee']['email'] == 'dev.two@example.test')
+        check('Publish sends the title (trimmed), Assigned To and the moved target date, with the revision Runway read',
+              epic_call[1]['changes'] == {'assignedTo': 'dev.two@example.test', 'title': 'Docs Portal v2', 'targetDate': '2027-04-07'} and epic_call[1]['rev'] == 1 and epic_call[1].get('connection') == 'work')
+        check('and a sprint move for an item placed by its sprint', mig_call[1]['changes'] == {'assignedTo': 'dev.two@example.test', 'iteration': 'Platform\\Sprint 2'})
+        check('ADO now has the update, and the conflict changed nothing', STATE['items'][0]['title'] == 'Docs Portal v2' and STATE['items'][0]['targetDate'] == '2027-04-07'
+              and STATE['items'][1]['iteration'] == 'Platform\\Sprint 1')
         pg.click('dialog button[value="ok"]')
-        pg.wait_for_function(f'() => {{ const it = {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 102); return it.ado.rev === 2 && it.ado.iteration === "Platform\\\\Sprint 2"; }}', timeout=8000)
-        mig = pg.evaluate(f'() => {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 102)')
+        pg.wait_for_function(f'() => {{ const it = {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 101); return it.ado.rev === 2 && it.ado.base.title === "Docs Portal v2"; }}', timeout=8000)
+        epic = pg.evaluate(f'() => {R}.store.v.doc.items.find(i => i.ado && i.ado.id === 101)')
         check('the refresh after Publish leaves the published item with no local changes',
-              mig['ado']['base']['who'] == ['p_two'] and mig['ado']['base']['start'] == '2027-01-20' and mig['ado']['base']['end'] == '2027-02-02' and 'remote' not in mig['ado'])
+              epic['ado']['base']['who'] == ['p_two'] and epic['ado']['base']['end'] == '2027-04-07' and epic['title'] == epic['ado']['base']['title'] and 'remote' not in epic['ado'])
         check('no work item was created or commented on', not any(c[0] in ('workitem.create', 'workitem.comment') for c in STATE['calls']))
         pg.evaluate(f'() => {R}.flush()')
         linked_id = pg.evaluate(f'() => {R}.store.v.mapId')

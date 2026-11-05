@@ -608,6 +608,7 @@ async function adoPublish() {
     await store.flush();
     sent = true;
     const results = await ado.publish(plan, { onProgress: () => requestPaint() });
+    if (v.mapId === id) edit(d => pub.applySent(d, plan, results));
     showDialog(publishResultsDialog(results));
     const n = results.filter(r => r.outcome === 'updated').length;
     toast(`Published ${n} work item${n === 1 ? '' : 's'} to ADO.`, n === plan.send ? 'success' : 'warn');
