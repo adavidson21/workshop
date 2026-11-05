@@ -7,4 +7,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      # The files copied from Workshop must match the pinned bundle exactly (scripts/sync-workshop.mjs).
+      - run: node scripts/sync-workshop.mjs --check
       - run: npm test

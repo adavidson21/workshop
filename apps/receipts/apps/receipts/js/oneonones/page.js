@@ -9,7 +9,7 @@
    with view() (the 1:1s tab) and panel() (a report's page). Clicks on this module's controls are handled here
    by their data- attributes. data.js loads and saves; model.js, view.js and markdown.js are pure. */
 import { createOneOnOnes } from './data.js';
-import { DEFAULT_CADENCE, NOTES, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, readable, receiptsPeople, winEntries, esc } from './model.js';
+import { DEFAULT_CADENCE, NOTES, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryPeople, directorySuggestions, docketNames, docketState, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, readable, receiptsPeople, winEntries, esc } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard, startPanelHtml } from './view.js';
 
 /**
@@ -63,7 +63,7 @@ export function createOneOnOnesPage(ws, root, host) {
     return buildPacket({
       person, today: t, now: Date.now(), notes,
       lastText: last ? ui.lastText[last.path] ?? null : null,
-      src: { docketTasks: v.src.docketTasks, receiptsEntries: v.src.receiptsEntries }
+      src: { docketSummary: v.src.docketSummary, docketTasks: v.src.docketTasks, receiptsEntries: v.src.receiptsEntries }
     });
   }
 
@@ -71,12 +71,12 @@ export function createOneOnOnesPage(ws, root, host) {
   function pickers() {
     const dir = !!directoryPeople(v.src.directory);
     return {
-      docket: docketNames(v.src.docketPeople),
+      docket: docketNames(v.src.docketPeople, v.src.docketSummary),
       receipts: receiptsPeople(v.src.receiptsPeople, v.src.directory),
       fromDirectory: directorySuggestions(v.people, v.src.directory),
       directory: dir,
       states: {
-        docket: readable(v.src.docketPeople, SOURCES.docketPeople).state,
+        docket: docketState(v.src.docketSummary, v.src.docketPeople),
         receipts: dir ? 'ok' : readable(v.src.receiptsPeople, SOURCES.receiptsPeople).state
       }
     };
@@ -202,7 +202,7 @@ export function createOneOnOnesPage(ws, root, host) {
     const rid = ui.reportId;
     if (!rid || personForReport(rid)) return;
     const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === rid);
-    const base = dp ? personFromDirectory(dp, docketNames(v.src.docketPeople))
+    const base = dp ? personFromDirectory(dp, docketNames(v.src.docketPeople, v.src.docketSummary))
       : { name: host.reportName(rid) || 'Unnamed', links: { receipts: rid }, cadenceDays: DEFAULT_CADENCE, archived: false };
     try {
       const p = await d.savePerson(base);
@@ -360,7 +360,7 @@ export function createOneOnOnesPage(ws, root, host) {
     if ((x = el('[data-add-dir]'))) {
       const dp = (directoryPeople(v.src.directory) || []).find(p => p.id === x.dataset.addDir);
       if (dp) {
-        try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketPeople))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
+        try { await d.savePerson(personFromDirectory(dp, docketNames(v.src.docketPeople, v.src.docketSummary))); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
         catch (err) { toastErr(err); }
       }
       return;

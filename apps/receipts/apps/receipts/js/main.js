@@ -14,6 +14,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as R from './state.js';
+import { createSummaryWriter } from '../../../shared/summary.js';
 import { createOneOnOnesPage } from './oneonones/page.js';
 import { createGoalsPage } from './goals/page.js';
 
@@ -29,10 +30,19 @@ const NAMES = ['entries', 'people', 'config'];
 const store = {};
 const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0, items: [], deleted: {}, ...(name === 'config' ? { meta: { ...R.DEFAULT_CONFIG, updatedAt: 0 } } : {}) });
 
+// Rapport's summary for other apps (R.summaryCards): written after loading and after each save of entries.
+const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries) : null });
+// Senders of offers come from the manifests (ws.apps.list); R.SENDERS is updated in place.
+{
+  const found = R.sendersFrom(ws.apps && ws.apps.list ? await ws.apps.list().catch(() => []) : []);
+  for (const k of Object.keys(R.SENDERS)) delete R.SENDERS[k];
+  Object.assign(R.SENDERS, found);
+}
 async function loadAll() {
   for (const n of NAMES) store[n] = (await ws.data.get(n)) || blank(n);
   await loadDirectory();
   await loadOffers();
+  summary.schedule();
 }
 // Workshop's people directory (read only; docs/people.md in workshop). null: use our own people.
 let dir = null;
@@ -87,6 +97,7 @@ async function save(name, mutate) {
     const r = await ws.data.put(name, merged);
     store[name] = { ...merged, rev: r.rev, updatedAt: r.updatedAt };
   }
+  if (name === 'entries') summary.schedule();
 }
 async function safely(fn, okText) {
   try { await fn(); if (okText) ws.toast(okText, { kind: 'success' }); }

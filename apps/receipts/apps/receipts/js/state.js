@@ -8,6 +8,8 @@
      config   no items; meta holds settings: {sections, cycleStart, cycleEnd, upward, staleDays}.
    Nothing here talks to the network. */
 
+import { SITE } from '../../../shared/site.js';
+
 export const APP = 'receipts';
 export const VERSION = 1;
 
@@ -169,7 +171,7 @@ export function groupByMonth(list) {
    it is the list: reports are its `report` people and the manager its `manager`. Directory ids are the same
    `p_...` ids Receipts uses, so entries keep pointing at the right person. When it is missing (Receipts on its
    own site with browser storage, or never set up), Receipts uses its own `people` collection as before. */
-export const WORKSHOP_PEOPLE_URL = 'https://workshop.alexisdavidson.org/#/settings';
+export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/settings';
 export function readDirectory(env) {
   if (!env || env.schema !== 'settings.people' || env.version !== 1) return null;
   const all = (Array.isArray(env.items) ? env.items : []).filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').map(p => ({ ...cleanPerson(p), relation: p.relation }));
@@ -293,6 +295,19 @@ export const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-
    payload.about: 'me' (the default) or a report's person id ('p_...'). An offer about a report shows on that
    report's page and in Me. One about a person id that is not in your list is about you, so it is never lost. */
 export const SENDERS = { prioritizer: 'Docket', oneonones: '1:1s', home: 'Home', agents: 'Dispatch' };
+/* Retired senders Rapport still reads until their offers are handled (Workshop docs/handoffs.md, Senders). */
+export const RETIRED_SENDERS = { oneonones: '1:1s' };
+/* Who sends Rapport offers, from the manifests on this Workshop site (ws.apps.list()): every app whose
+   handoffs.sends lists receipts, added to the built-in list (which keeps the retired senders, and any whose
+   manifest does not say). Reading an app that is not there finds no offers. */
+export function sendersFrom(apps, self = APP, fallback = SENDERS) {
+  const found = (Array.isArray(apps) ? apps : []).filter(a => a && a.id !== self && a.handoffs && Array.isArray(a.handoffs.sends) && a.handoffs.sends.includes(self));
+  return { ...fallback, ...Object.fromEntries(found.map(a => [a.id, a.name || a.id])), ...RETIRED_SENDERS };
+}
+
+/* Rapport's summary for other apps (Workshop docs/summaries.md): how many receipts are logged, for Home's Get
+   started. Live entries only. */
+export const summaryCards = entriesEnv => [{ id: 'entries', kind: 'count', title: 'Receipts', count: (entriesEnv && Array.isArray(entriesEnv.items) ? entriesEnv.items : []).filter(e => e && !e.deleted).length, route: 'me' }];
 export const HANDLED_MAX = 500;
 const HANDOFF_VERSION = 1;
 

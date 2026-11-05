@@ -1,6 +1,6 @@
 /* The top bar for an app opened on its own page (not inside the Workshop shell), so it looks like every
    other tool on tools.alexisdavidson.org: breadcrumbs on the left and the round light/dark toggle in the top
-   right corner. On alexisdavidson.org the crumbs lead back up to LifeKit and its Office section; in the Android
+   right corner. On the owner's domain (site.js, crumbs) the crumbs lead back up to the owner's site; in the Android
    app there is only the app's name; anywhere else (the agent on 127.0.0.1, another company's domain) they
    start at Workshop.
 
@@ -11,12 +11,13 @@
    every app loads shared/ui.css. A page lays itself out around the bar with body.standalone. */
 
 import { deviceAvailable } from './device-fs.js';
+import { SITE, onCrumbsDomain } from './site.js';
 
-const LIFEKIT = /(^|\.)alexisdavidson\.org$/.test(location.hostname);
+const LIFEKIT = onCrumbsDomain(location.hostname);
 
 const CSS = `
 .ws-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex:none;min-height:60px;padding:0 20px 0 28px;box-sizing:border-box;background:var(--bg);border-bottom:1px solid var(--line)}
-.ws-crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ws-crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .ws-crumbs a{color:inherit;text-decoration:none;padding:4px 0;border-radius:2px}
 .ws-crumbs a:hover{color:var(--ink)}
 .ws-crumbs span[aria-hidden]{margin:0 8px;opacity:.5}
@@ -42,7 +43,7 @@ export function mountBar(name) {
   // In the Android app (mobile/) the app is the whole world: no crumbs leading to a site it does not have.
   const up = deviceAvailable() ? []
     : LIFEKIT
-    ? [['LifeKit', 'https://tools.alexisdavidson.org/'], ['Office', 'https://tools.alexisdavidson.org/office/']]
+    ? SITE.crumbs.links.map(c => [c.title, c.href])
     : [['Workshop', '../../']];
   const bar = document.createElement('header');
   bar.className = 'ws-bar';

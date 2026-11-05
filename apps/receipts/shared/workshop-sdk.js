@@ -14,7 +14,7 @@
      3. Otherwise -> mode 'browser', backend 'browser': the folder store when a folder handle is saved
         (File System Access API), else the IndexedDB store. ws.storage says which.
 
-   Shell methods (open, toast, badge, notify, commands, theme, events) travel to the shell by
+   Shell methods (open, toast, badge, notify, status, commands, theme, events) travel to the shell by
    postMessage. Data and connector calls go straight to the agent or the browser backend, so an
    app also works when opened on its own (ws.embedded === false). */
 import { deviceAvailable, openDeviceRoot } from './device-fs.js';
@@ -1197,6 +1197,8 @@ function makeShellChannel(ctx) {
         return Promise.resolve(null);
       }
       case 'commands.unregister': return Promise.resolve(null);
+      // Standalone there is no top bar: the app shows its own status. Rejecting tells it so.
+      case 'status.set': case 'status.clear': return Promise.reject(new WorkshopError('not_found', 'There is no shell top bar on a standalone page.'));
       default: return Promise.resolve(null);
     }
   }
@@ -1335,6 +1337,11 @@ export async function connect(options) {
     toast(text, opts) { return shell.request('toast', Object.assign({ text }, opts)); },
     badge(count) { return shell.request('badge', { count }); },
     notify(opts) { return shell.request('notify', opts); },
+    // One line about what this app is doing right now, in the shell's top bar on every app (docs/sdk.md, Status).
+    status: {
+      set(st) { return shell.request('status.set', st); },
+      clear() { return shell.request('status.clear', {}); }
+    },
     commands: {
       register(cmd) {
         shell.request('commands.register', cmd);
@@ -1350,6 +1357,11 @@ export async function connect(options) {
       }
     },
     on(event, handler) { return shell.on(event, handler); },
+
+    /* apps on this Workshop site (docs/sdk.md, Apps) */
+    apps: {
+      list() { return appsOnSite(); }
+    },
 
     /* data */
     data: {
@@ -1507,6 +1519,35 @@ async function putWithRetry(data, app, collection, envelope) {
     }
     throw e;
   }
+}
+
+// The apps on this Workshop site, from its apps/registry.json (docs/sdk.md, Apps): what each manifest says
+// about finding it (handoffs, capture, aliases). [] outside Workshop's site, where there is no registry. Read
+// once per page.
+let appsPromise = null;
+export function appsFromRegistry(reg) {
+  const list = reg && Array.isArray(reg.apps) ? reg.apps : [];
+  return list.map(a => a && a.manifest).filter(m => m && typeof m.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(m.id))
+    .map(m => ({
+      id: m.id, name: typeof m.name === 'string' ? m.name : m.id, version: m.version || '', order: typeof m.order === 'number' ? m.order : null,
+      handoffs: m.handoffs && Array.isArray(m.handoffs.sends) ? { sends: m.handoffs.sends.filter(s => typeof s === 'string') } : { sends: [] },
+      capture: Array.isArray(m.capture) ? m.capture.filter(s => typeof s === 'string') : [],
+      aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : []
+    }))
+    .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
+}
+function appsOnSite() {
+  if (!appsPromise) {
+    appsPromise = (async () => {
+      try {
+        if (typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return [];
+        const res = await fetch(new URL('/apps/registry.json', location.origin), { cache: 'no-cache' });
+        if (!res.ok || !/json/.test(res.headers.get('content-type') || 'json')) return [];
+        return appsFromRegistry(await res.json());
+      } catch (e) { return []; }
+    })();
+  }
+  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases] })));
 }
 
 async function agentAppIds(ctx) {
