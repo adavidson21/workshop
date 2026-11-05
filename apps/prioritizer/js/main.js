@@ -72,6 +72,8 @@ ready.then(ws => {
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));
+  // Workshop stopped answering, or is back: say so on the ADO button, and sync once it is back.
+  ws.on('online', () => adoDetect().then(() => adoSync(false)));
 });
 
 /* test hook: lets automated checks call the model without the UI */

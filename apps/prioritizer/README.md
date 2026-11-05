@@ -128,7 +128,7 @@ Themes live in `shared/themes.css`, copied from Workshop (see Files from Worksho
 ## Saving
 
 - Everything saves automatically. The board is a set of files in the `prioritizer` folder of your Workshop folder (`~/Workshop/prioritizer/` unless you changed it in Settings): `lists.json`, `tasks.json`, `settings.json`. People live in Workshop's people directory (`settings/people.json`). Other apps can read them, and they stay if you remove Workshop. Nothing leaves your device: there are no accounts and no server.
-- **Without Workshop running** (browser mode, like the github.io site) Chrome can use the same kind of folder: in **Settings**, **Choose folder**, and pick your Workshop folder. Until you choose one, the board is saved in that browser; choosing a folder copies it in and keeps the browser copy. After Chrome restarts it may ask again: click **Allow** in the bar at the top of Workshop. Until then your changes stay on screen and are saved once you allow it.
+- **Without Workshop running** (browser mode, like Docket's own site before you pair it) Chrome can use the same kind of folder: in **Settings**, **Choose folder**, and pick your Workshop folder. Until you choose one, the board is saved in that browser; choosing a folder copies it in and keeps the browser copy. After Chrome restarts it may ask again: click **Allow** in the bar at the top of Workshop. Until then your changes stay on screen and are saved once you allow it.
 - **Two windows stay in sync.** A change in one shows up in the other within a moment, and changes made in both at once are merged task by task: where both changed the same task, the later change wins. Nothing is overwritten wholesale.
 - **If a save fails** (for example the disk is full, Workshop stopped, or Chrome is waiting for you to allow the folder), the folder icon turns red and says "Not saved yet". Your changes stay on screen and are saved as soon as it works again. The file on disk is never left half written: the previous version stays until the new one is complete.
 - **The folder icon** is the file menu: it says where the board is saved, and has **Download an Excel copy**, **Download a backup (.json)** and **Import a file** (an Excel file, or a backup). The Excel file has one sheet per list; files from earlier versions still import. A backup is a Workshop bundle (`workshop-<date>.json`) with everything, including ADO settings and deletions, and merges into a board instead of replacing it. The **Settings** app can also export and import every app's data.
@@ -137,26 +137,35 @@ Themes live in `shared/themes.css`, copied from Workshop (see Files from Worksho
 ### Moving your board into Workshop
 
 - **Same site, nothing to do.** The first time this version opens, a board saved by an earlier version in the same browser and site moves in by itself, once. The old copy is left in place as a backup.
-- **From the github.io site to Workshop on your computer.** A browser can't read another site's storage, so move it with a file: on the github.io site, open the folder icon and choose **Download an Excel copy** (or **Download a backup (.json)** once that site runs this version). Then in Workshop, folder icon, **Import a file**. Into an empty board it comes in as it was; into a board with tasks, Excel asks whether to add or replace, and a backup merges.
+- **From a board saved in a browser to Workshop on your computer.** Pairing Docket's own site with Workshop does not bring a board saved in that browser along, and a browser can't read another site's storage, so move it with a file: before pairing, open the folder icon and choose **Download a backup (.json)** (or **Download an Excel copy**). Then in Workshop, folder icon, **Import a file**. Into an empty board it comes in as it was; into a board with tasks, Excel asks whether to add or replace, and a backup merges.
 
 ## Azure DevOps work items
 
 Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waiting on your review, show up as tasks in an **ADO** list, and in All lists next to everything else. Read-only for now.
 
-**How it connects:** when Workshop runs on your computer (`node agent/start.mjs`) and its ADO connector is on in **Settings**, Docket syncs through the connector, which keeps its connections (server, collection, project, which repo maps to which) in Workshop's settings. Otherwise a small helper (`ado-helper/ado_helper.py`, Python standard library only) runs on your computer instead. Either way your PAT stays in an environment variable on your computer and never touches the page. The helper only answers this site and only on this computer.
+**How it connects:** only through Workshop's ADO connector, on the same computer. That works inside Workshop, and on Docket's own site (https://docket.alexisdavidson.org) once the site is paired with Workshop (folder icon, **Use Workshop on this computer**). The connector keeps its connections (server, collection, project, which repos to watch for PRs) in Workshop's settings, and your PAT stays in an environment variable on your computer: it never touches the page. In the Android app, and on Docket's own site without Workshop, there is no ADO sync.
 
-**Docket's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings, so they stay the same whichever way Docket connects.
+**Setup:**
 
-With the connector, skip the helper steps below: turn the ADO connector on in Settings and add a connection. Docket starts syncing by itself the first time it sees the connector ready (no Connect click here); **Disconnect** in ADO Settings turns that off for this device until you click Connect again.
+1. Install Workshop on this computer, or start it if it is installed (`workshop open`). See [Workshop](https://github.com/adavidson21/workshop).
+2. Make a PAT with **Work Items (Read)** (add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs), then run `workshop pat ADO_PAT` and paste it.
+3. In Workshop **Settings**, turn on the **Azure DevOps** connector and add your connection, or **Import settings from a file** with the `ado-helper.json` you used before. Set **PAT expires**.
+4. On Docket's own site, pair it once: folder icon, **Use Workshop on this computer**, then allow the site in the window that opens. Inside Workshop there is nothing to pair.
 
-The ADO button shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to run, usually `workshop pat`), and a PAT that expires within two weeks turns it amber while sync keeps working.
+Docket starts syncing by itself the first time it sees the connector ready (no Connect click here); **Disconnect** in ADO Settings turns that off for this device until you click Connect again.
 
-**Setup on the work PC:**
+**When ADO can't be reached,** the ADO button (sync arrows, bottom of the sidebar) turns red, its tip and its Settings say what to do, and nothing syncs until it is fixed:
 
-1. Download `ado_helper.py` from the ADO button in the sidebar (or from `ado-helper/` in this repo) into a folder you keep.
-2. Run `py ado_helper.py`. The first run asks for your collection URL (for example `https://tfs.yourcompany.com/DefaultCollection`) and the name of your PAT environment variable. Settings save to `ado-helper.json` next to the script.
-3. Optional: `py ado_helper.py --test` checks the connection and lists what it finds. `py ado_helper.py --startup` starts it hidden at login (`--no-startup` undoes it).
-4. In the app, click the ADO button (sync arrows, bottom of the sidebar) and Connect. If the browser asks to allow access to apps on this device, choose Allow.
+- Workshop is not installed or not running, or this site is not paired: install or start Workshop on this computer and pair this site.
+- The site was paired but Workshop does not answer: start Workshop (`workshop open`) and reload the page.
+- Workshop stopped while Docket was open: start it again; Docket picks it up by itself.
+- The ADO connector is off or not set up: turn it on in Workshop **Settings**.
+
+The ADO button also shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to run, usually `workshop pat`), and a PAT that expires within two weeks turns it amber while sync keeps working.
+
+**Docket's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings.
+
+**Coming from `ado_helper.py`:** the Python helper was retired in Docket 5.4.0. A board it synced keeps working through the connector: work items are matched by their ADO id and PRs by collection, project and PR id, so nothing is added twice, and your notes, values and ranks stay. Stop the helper (and remove it from startup, `py ado_helper.py --no-startup`) once the connector syncs. If ADO Settings still shows the helper's Connect steps, reload the page to get this version.
 
 **What syncing does** (every 10 minutes by default while the app is open, when you switch back to it, or with Sync now):
 
@@ -167,7 +176,7 @@ The ADO button shows the connector's own messages: a missing or rejected PAT tur
 - Reassigned to someone else: marked won't do with a note saying who and when, so it's under Done. If it comes back to you, it reopens.
 - Deleting an ADO task here keeps it from coming back.
 
-Work item types and which states count as closed are in `ado-helper.json` (`types`, `closed_states`, `removed_states`). A PAT with Work Items (Read) is enough for work items.
+Work item types and which states count as closed are connector settings in Workshop **Settings** (`types`, `closedStates`, `removedStates`). A PAT with Work Items (Read) is enough for work items.
 
 ### Pull requests to review
 
@@ -201,11 +210,11 @@ With Workshop's opencode connector on and its **Review new PRs as soon as they a
 
 **Filtering PRs:** the menu under each view's title (the scope, like "All lists") has a **Pull requests** filter: **All**, **Only ones that need me** (hides Team PRs, the ones any teammate can take) or **None**. It applies to every view and to the sidebar counts, and the title line says how many it hides (for example "4 team PRs hidden"). It is per window, like the scope, so a second window can still show everything. Picking the Pull requests list itself always shows its PRs, even with None. Home and other apps still see every PR.
 
-**Setup:** run `py ado_helper.py --add-pr-source` and enter each collection URL and project to watch, optionally limited to some repos. This can be a different collection than your work items, and you can add more than one. Your PAT also needs **Code (Read)**, plus **Project and Team (Read)** for team PRs. `py ado_helper.py --test` lists the PRs it finds by tier and says which scope is missing if one is. In `ado-helper.json`, `pr_teams` limits which of your teams count (empty means all of them).
+**Setup:** in Workshop **Settings**, add a PR source for each collection and project to watch (on the **Repos** tab), optionally limited to some repos. This can be a different collection than your work items, and you can add more than one. Your PAT also needs **Code (Read)**, plus **Project and Team (Read)** for team PRs. The connector's `prTeams` setting limits which of your teams count (empty means all of them).
 
 ## Reports
 
-Team reports moved to **Runway** in Docket 4.18.0 (Runway's roadmap list, **Team reports**). They read your team's ADO history through Workshop's ADO connector. Inside Workshop, the ADO menu's **Team reports in Runway** and an old `reports` link open them there. Runway takes your team profile from Docket the first time it opens in the same browser. The helper's `POST /dataset` is no longer used by Docket.
+Team reports moved to **Runway** in Docket 4.18.0 (Runway's roadmap list, **Team reports**). They read your team's ADO history through Workshop's ADO connector. Inside Workshop, the ADO menu's **Team reports in Runway** and an old `reports` link open them there. Runway takes your team profile from Docket the first time it opens in the same browser.
 
 ## eng-agents stages
 

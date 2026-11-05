@@ -8,8 +8,8 @@
 
    First run: if nothing is saved yet and this browser has a board from the localStorage versions of
    Prioritizer (same site), it is moved in once and the old copy is left in place untouched. A board on
-   another site (adavidson21.github.io) can't be read from here, so the file menu imports a file
-   exported there: an Excel copy, or a Workshop backup (.json). */
+   another site can't be read from here, so the file menu imports a file exported there: an Excel copy,
+   or a Workshop backup (.json). */
 import { KEY } from './constants.js';
 import { hideTip, placeTip, tipFor } from './events.js';
 import { exportXlsx, importFile as importExcel } from './excel.js';

@@ -6,7 +6,7 @@
 //   www/shared/      the SDK, device storage, themes, fonts and SheetJS (copied from Workshop)
 //   www/icons/       favicons
 //
-// Left out on purpose: tests, the desktop-only ADO helper, sw.js (the app ships its files, so a cached copy
+// Left out on purpose: tests, sw.js (the app ships its files, so a cached copy
 // would only go stale) and the web app manifest. Then every local file a page or module refers to is checked,
 // so a missing file fails the build instead of the app.
 //

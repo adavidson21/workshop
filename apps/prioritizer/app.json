@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",

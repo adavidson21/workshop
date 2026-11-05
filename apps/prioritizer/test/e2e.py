@@ -298,6 +298,35 @@ def main():
         check('None hides every PR elsewhere', not any(x in ('Mine', 'Team one') for x in pg.evaluate(titles_shown)))
         pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'all'; P.state.tasks = P.state.tasks.filter(t => !t.pr); P.commit(); }}")
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.ado && t.ado.id === 12345)); P.state.view = 'day'; P.commit(); }}")
+        # ---------- ADO goes only through Workshop's connector; a board synced by the retired helper keeps its tasks ----------
+        r = pg.evaluate(f"""() => {{ const P = {P}; const choose = P.state.ado.choose; P.state.ado.choose = false; P.adoApply({{items: [{{id: 9101, title: 'Old bug', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main%20Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
+            prs: {{items: [{{key: 'https://TFS.example.test/tfs/Main%20Collection/|Platform|901', id: 901, repo: 'api', project: 'Platform', title: 'Old PR', tier: 'asked', created: '2026-01-01'}}]}}}});
+          const w = P.state.tasks.find(t => t.ado && t.ado.id === 9101), pr = P.state.tasks.find(t => t.pr && t.pr.id === 901);
+          w.notes = 'mine'; w.value = 1; pr.notes = 'mine too'; P.commit();
+          const before = P.state.tasks.length;
+          const n = P.adoApply({{items: [{{id: 9101, title: 'Old bug, renamed', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
+            prs: {{items: [{{key: 'https://tfs.example.test/tfs/Main Collection|Platform|901', id: 901, repo: 'api', project: 'Platform', title: 'Old PR', tier: 'blocking', created: '2026-01-01'}}]}}}});
+          const n2 = P.adoApply({{items: [], gone: [{{id: 9101, reason: 'closed', state: 'Closed'}}], prs: {{items: [], gone: [{{key: 'https://tfs.example.test/tfs/Main Collection|Platform|901', reason: 'merged'}}]}}}});
+          const out = [n.added, n.prAdded, P.state.tasks.length - before, w.title, w.notes, w.value, pr.notes.split('\\n')[0], pr.pr.key, pr.pr.tier, w.done, pr.done];
+          P.state.ado.choose = choose; P.state.tasks = P.state.tasks.filter(t => t !== w && t !== pr); P.commit(); return out; }}""")
+        check('a board synced by the helper keeps working through the connector: same tasks, no duplicates, your fields kept',
+              r == [0, 0, 0, 'Old bug, renamed', 'mine', 1, 'mine too', 'https://tfs.example.test/tfs/Main Collection|Platform|901', 'blocking', True, True])
+        pg.wait_for_timeout(200)
+        pg.click('#adoBtn'); pg.wait_for_timeout(400)
+        sheet = pg.locator('.sheet[aria-label="Connect Azure DevOps"]')
+        text = sheet.inner_text() if sheet.count() else ''
+        check('ADO Settings with no Workshop says what to do: install or start Workshop, pair this site, turn on the connector',
+              'Install or start Workshop' in text and 'pair this site' in text and 'turn on the ADO connector in Workshop Settings' in text)
+        check('ADO Settings has no helper download, steps or port', sheet.locator('a[href*="ado_helper"], #adoPort, ol.steps').count() == 0 and 'ado_helper' not in text and 'helper' not in text.lower())
+        sheet.locator('[data-ado-go]').click(); pg.wait_for_timeout(400)
+        check('Connect without Workshop keeps sync off and repeats the message', 'pair this site' in pg.inner_text('#adoMsg') and pg.evaluate(f"() => !{P}.ui.ado.on"))
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
+        r = pg.evaluate(f"""async () => {{ const P = {P}; P.ui.ado.on = true; P.ui.ado.last = 0; await P.adoSync(true);
+          const b = document.querySelector('#adoBtn'); const out = [b.dataset.ado, b.dataset.tip, P.ui.ado.error]; P.ui.ado.on = false; P.ui.ado.error = ''; return out; }}""")
+        check('sync turned on before (the helper) but no Workshop: the ADO button is red and its tip says what to do', r[0] == 'error' and 'pair this site' in r[1] and 'pair this site' in r[2])
+        pg.wait_for_timeout(300)
+        r = pg.evaluate("async () => (await fetch('/ado-helper/ado_helper.py', {cache: 'no-store'})).status")
+        check('the helper is no longer served', r == 404)
         # ---------- every-sprint offers from another app (Workshop docs/handoffs.md): inside Workshop only ----------
         # A sender (app id example-app) writes an offer to its own handoffs collection, in this browser's storage.
         offer_put = """async ([id, dueDay]) => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'example-app'});
