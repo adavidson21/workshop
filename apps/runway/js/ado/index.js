@@ -41,7 +41,7 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
 
   const unsub = ws.connectors.onStatus ? ws.connectors.onStatus(ADO, () => { check(); }) : () => {};
 
-  /** Area paths and connection to fill in the dialog: your team in Workshop's Settings (settings.teams, Workshop
+  /** Area paths and connection to fill in the dialog: your team in Workshop's People app (settings.teams, Workshop
       docs/teams.md). Missing: nothing. */
   async function defaults() {
     try { return teamDefaults(await ws.data.get('teams', { app: 'settings' })) || { areas: [], connection: '' }; }

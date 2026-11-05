@@ -91,7 +91,7 @@ export function planPublish(doc, { dir = null, iterations = {} } = {}) {
       else if (!to.length) { f.to = 'Unassigned'; f.sent = true; row.changes.assignedTo = ''; }
       else if (to.length > 1) { f.to = to.map(id => (dir.byId.get(id) || {}).name || id).join(', '); f.why = 'ADO has one Assigned To. Keep one person as owner to send it.'; }
       else if (!person || person.kind !== 'person') { f.to = person ? person.name : to[0]; f.why = person ? 'A group cannot be Assigned To in ADO.' : 'People does not have this owner.'; }
-      else if (!person.adoIdentity) { f.to = person.name; f.why = `${person.name} has no ADO identity in People (Settings, People).`; }
+      else if (!person.adoIdentity) { f.to = person.name; f.why = `${person.name} has no ADO identity in People.`; }
       else {
         f.to = person.name && lower(person.name) !== lower(person.adoIdentity) ? `${person.name} (${person.adoIdentity})` : person.adoIdentity;
         const same = a.assignee && [a.assignee.email, a.assignee.name].some(x => x && lower(x) === lower(person.adoIdentity));
