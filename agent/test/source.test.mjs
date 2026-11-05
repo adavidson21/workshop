@@ -8,6 +8,7 @@ import { builtinModules } from 'node:module';
 import { HERE, REPO } from './helpers.mjs';
 
 const AGENT = path.resolve(HERE, '..');
+const SITE_JS = path.join(REPO, 'shared', 'site.js');
 const files = (dir, out = []) => {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -27,6 +28,8 @@ test('the agent imports only Node built-ins and its own files', () => {
       const spec = m[1] || m[2];
       if (spec.startsWith('./') || spec.startsWith('../')) {
         const target = path.resolve(path.dirname(f), spec);
+        // One exception: shared/site.js, the site addresses (docs/site.md). Plain data with no imports (checked below).
+        if (target === SITE_JS) continue;
         assert.ok(target.startsWith(AGENT + path.sep), `${rel(f)} imports ${spec}, outside agent/`);
         continue;
       }
@@ -34,6 +37,11 @@ test('the agent imports only Node built-ins and its own files', () => {
     }
   }
   assert.equal(fs.existsSync(path.join(REPO, 'package.json')), false, 'no package.json, so no npm dependencies');
+});
+
+test('shared/site.js, the one file outside agent/ the agent imports, is plain data with no imports', () => {
+  const text = fs.readFileSync(SITE_JS, 'utf8');
+  assert.doesNotMatch(text, /^\s*import\s|import\(|require\(|\bfetch\s*\(/m);
 });
 
 test('the agent itself makes no outbound requests', () => {

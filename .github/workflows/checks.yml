@@ -14,10 +14,8 @@ jobs:
       # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
       - uses: actions/checkout@v4
         with: { repository: adavidson21/docket, path: .remote/prioritizer }
-      # Runway (adavidson21/runway) is served under /apps/runway/ the same way. Its repo is private, so this
-      # checkout may not be allowed; the checks and e2e then skip Runway, as they do for any app with no checkout.
+      # Runway (adavidson21/runway) is served under /apps/runway/ the same way, and checked the same way.
       - uses: actions/checkout@v4
-        continue-on-error: true
         with: { repository: adavidson21/runway, path: .remote/runway }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
@@ -27,6 +25,8 @@ jobs:
       - run: node tests/check-vendor.mjs
       - run: node tests/check-offline.mjs
       - run: node tests/check-remote.mjs
+      - run: node tests/check-site.mjs
+      - run: node scripts/bundle.mjs --check
       - run: node tests/check-contracts.mjs
       - run: node shell/registry.mjs --check
       - run: node --test "shared/test/*.test.mjs"

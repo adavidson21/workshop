@@ -8,6 +8,8 @@
      config   no items; meta holds settings: {sections, cycleStart, cycleEnd, upward, staleDays}.
    Nothing here talks to the network. */
 
+import { SITE } from '../../../shared/site.js';
+
 export const APP = 'receipts';
 export const VERSION = 1;
 
@@ -169,7 +171,7 @@ export function groupByMonth(list) {
    it is the list: reports are its `report` people and the manager its `manager`. Directory ids are the same
    `p_...` ids Receipts uses, so entries keep pointing at the right person. When it is missing (Receipts on its
    own site with browser storage, or never set up), Receipts uses its own `people` collection as before. */
-export const WORKSHOP_PEOPLE_URL = 'https://workshop.alexisdavidson.org/#/settings';
+export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/settings';
 export function readDirectory(env) {
   if (!env || env.schema !== 'settings.people' || env.version !== 1) return null;
   const all = (Array.isArray(env.items) ? env.items : []).filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').map(p => ({ ...cleanPerson(p), relation: p.relation }));

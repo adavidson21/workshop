@@ -6,10 +6,11 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
-// On its own page on alexisdavidson.org, Dispatch lives at dispatch.alexisdavidson.org (worker/index.js
-// serves it there). The old address forwards; inside the Workshop shell (an iframe) it stays put.
-const HOME = 'https://dispatch.alexisdavidson.org/';
-if (window.parent === window && location.hostname === 'workshop.alexisdavidson.org') location.replace(HOME + location.hash);
+// On its own page, Dispatch lives at its own site (shared/site.js, dispatch; worker/index.js serves it there).
+// The old address on Workshop's site forwards; inside the Workshop shell (an iframe) it stays put.
+import { SITE, hostOf } from '../../../shared/site.js';
+const HOME = SITE.dispatch + '/';
+if (window.parent === window && location.hostname === hostOf(SITE.workshop)) location.replace(HOME + location.hash);
 
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';

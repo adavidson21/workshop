@@ -11,6 +11,7 @@
 import { createAgent } from './server.mjs';
 import { resolveHome } from './lib/home.mjs';
 import { VERSION } from './version.mjs';
+import { SITE } from '../shared/site.js';
 
 const [major] = process.versions.node.split('.').map(Number);
 if (major < 22) {
@@ -46,7 +47,7 @@ try {
 // It is printed here only, never written to the log.
 const next = agent.workMode()
   ? `Work mode is on: Workshop runs from the pinned copy at that address (${agent.pinned.current().ok ? 'ready' : 'not built yet: run workshop pin'}), and no site can pair.`
-  : 'Then open Workshop at https://workshop.alexisdavidson.org in the same browser and click Connect.';
+  : `Then open Workshop at ${SITE.workshop} in the same browser and click Connect.`;
 console.log(`\nWorkshop ${VERSION} is running. Open this address once in Chrome or Edge on this computer, to sign that browser in:\n\n  ${agent.url}/?token=${agent.token}\n\n${next}\n\nHome: ${agent.home}\nData: ${agent.dataDir}\nLog:  ${agent.logFile}\nPress Ctrl+C to stop.\n`);
 
 let quitting = false;

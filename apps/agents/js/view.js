@@ -7,6 +7,7 @@
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
 import { S } from './state.js';
+import { SITE } from '../../../shared/site.js';
 import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
 import { reviewsHtml, isReviewSession, mineHtml, askingReviews, askingStarts, reviewCard } from './pr-reviews.js';
 import { isHubCommand } from './hub-model.js';
@@ -743,7 +744,7 @@ function bannersHtml() {
 // every few seconds while this step is open. 2. Connect: pair this page. Its state (S.setup) is kept per
 // browser by main.js.
 export const GUIDE_STEPS = ['install', 'connect'];
-const SOURCE = 'https://github.com/adavidson21/workshop/blob/main/scripts';
+const SOURCE = `https://github.com/${SITE.repos.workshop}/blob/main/scripts`;
 const CHECK_SVG = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
 export function guideDefaults() { return { done: {}, open: null, port: 4380, os: 'win', check: null, pair: null }; }
 /** The one-line install command for this site. */
