@@ -6,7 +6,7 @@ Workshop does not make any tool "approved" by itself. Your company's policy deci
 
 ## What it is
 
-A personal productivity hub (task priorities, review notes, a work-item view, optional coding agents) that runs as one Node.js process under the user's own account. Open source, MIT licensed: https://github.com/adavidson21/workshop.
+A personal productivity hub (task priorities, review notes, a work-item view, optional coding agents) that runs as one Node.js process under the user's own account. Source available under the PolyForm Shield License 1.0.0 (free to use, including at work; earlier versions MIT): https://github.com/adavidson21/workshop.
 
 ## Recommended setup at work
 
