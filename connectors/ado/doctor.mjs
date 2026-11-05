@@ -28,8 +28,8 @@ import { writeCheck } from './lib/write.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-// Where ado_helper.py usually is: Docket's checkout (next to Workshop, as the installers put it, or in
-// .remote/prioritizer), then the old in-repo path. The copy you run day to day, with its ado-helper.json, is
+// Where ado_helper.py used to be: Docket's checkout before Docket 5.4.0 retired it (next to Workshop, or in
+// .remote/prioritizer), then the old in-repo path. Today pass --helper with the copy you still run. The copy you run day to day, with its ado-helper.json, is
 // usually somewhere else: pass --helper for that one.
 export const HELPER_CANDIDATES = [
   path.join(path.dirname(REPO), 'docket', 'ado-helper', 'ado_helper.py'),
