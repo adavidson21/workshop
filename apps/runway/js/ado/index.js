@@ -40,18 +40,10 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
   const unsub = ws.connectors.onStatus ? ws.connectors.onStatus(ADO, () => { check(); }) : () => {};
 
   /** Area paths and connection to fill in the dialog: your team in Workshop's Settings (settings.teams, Workshop
-      docs/teams.md), else Queue's old settings (read only, from before Queue was removed). Missing: nothing. */
+      docs/teams.md). Missing: nothing. */
   async function defaults() {
-    try {
-      const fromTeams = teamDefaults(await ws.data.get('teams', { app: 'settings' }));
-      if (fromTeams) return fromTeams;
-    } catch (e) { /* no teams yet */ }
-    try {
-      const q = await ws.data.get('settings', { app: 'queue' });
-      if (!q || q.version !== 1 || !q.meta) return { areas: [], connection: '' };
-      const areas = Array.isArray(q.meta.areas) ? q.meta.areas.filter(a => typeof a === 'string') : [];
-      return { areas, connection: typeof q.meta.connection === 'string' ? q.meta.connection : '' };
-    } catch (e) { return { areas: [], connection: '' }; }
+    try { return teamDefaults(await ws.data.get('teams', { app: 'settings' })) || { areas: [], connection: '' }; }
+    catch (e) { return { areas: [], connection: '' }; }
   }
 
   /** Read from ADO for a source: {result, data}. Sprint dates that fail to load are left out. */

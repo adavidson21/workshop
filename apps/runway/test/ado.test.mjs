@@ -171,7 +171,7 @@ test('linked: a work item that disappears is marked, never deleted; unlink and s
 test('createAdo: reports the connector state and reads through roadmap and iterations.list only', async () => {
   const calls = [];
   const ws = {
-    data: { async get(name, o) { return name === 'settings' && o.app === 'queue' ? { version: 1, meta: { areas: ['Platform\\Docs'], connection: 'work' } } : null; } },
+    data: { async get(name, o) { return name === 'teams' && o.app === 'settings' ? { schema: 'settings.teams', version: 1, items: [{ id: 't_mine', name: 'Mine', areas: ['Platform\\Docs'], connection: 'work' }] } : name === 'settings' && o.app === 'queue' ? { version: 1, meta: { areas: ['Old\\Queue'] } } : null; } },
     connectors: {
       status: 'ready',
       async list() { return [{ id: 'ado', status: { state: this.status, message: 'PAT missing' } }]; },
