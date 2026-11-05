@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>About Docket</title>
+<meta name="description" content="Docket is a calm, keyboard-first task app that ranks your work for you. Free, private, no account.">
+<meta name="theme-color" content="#F4F1EA">
+<script src="../shared/theme.js"></script>
+<link rel="stylesheet" href="../shared/fonts/fonts.css">
+<link rel="icon" type="image/svg+xml" href="../icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/app-touch-180.png">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/ui.css">
+<link rel="stylesheet" href="about.css">
+</head>
+<body>
+<header class="bar">
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="https://tools.alexisdavidson.org/">LifeKit</a><span aria-hidden="true">/</span>
+    <a href="https://tools.alexisdavidson.org/office/">Office</a><span aria-hidden="true">/</span>
+    <a href="../">Docket</a><span aria-hidden="true">/</span>
+    <span class="here" aria-current="page">About</span>
+  </nav>
+  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch theme" title="Switch theme"></button>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <p class="eyebrow">Docket</p>
+    <h1 class="display">Decide what to work on next<span class="dot">.</span></h1>
+    <p class="lede">A calm, keyboard-first task list that ranks your work for you. Add a task in one line, and Docket tells you what matters today.</p>
+    <div class="ctas">
+      <a class="btn primary big" href="../">Open Docket</a>
+      <a class="btn big" href="https://github.com/adavidson21/docket/releases/download/docket-android/docket.apk">Android app</a>
+    </div>
+    <p class="fine">Free. No account. Your tasks never leave your device.</p>
+  </section>
+
+  <figure class="demo" aria-label="Example: a task typed in one line, and the ranked list it lands in">
+    <div class="quick">
+      <span class="plus" aria-hidden="true">+</span>
+      <code>Ship release notes @design !3 ~s ^fri</code>
+    </div>
+    <div class="chips" aria-hidden="true">
+      <span>@design <i>person</i></span><span>!3 <i>high value</i></span><span>~s <i>small</i></span><span>^fri <i>due Friday</i></span>
+    </div>
+    <ol class="board">
+      <li class="t1"><span class="title">Ship release notes</span><span class="tag">Do now</span><b>4.0</b></li>
+      <li class="t2"><span class="title">Reply to vendor quote</span><span class="tag">Quick win</span><b>2.5</b></li>
+      <li class="t3"><span class="title">Draft next quarter's plan</span><span class="tag">Schedule</span><b>1.2</b></li>
+      <li class="t4"><span class="title">Clean up old docs</span><span class="tag">Later</span><b>0.4</b></li>
+    </ol>
+    <figcaption>Scores are illustrative.</figcaption>
+  </figure>
+
+  <section>
+    <h2 class="section-label">What it does</h2>
+    <div class="grid">
+      <article>
+        <h3>Capture in one line</h3>
+        <p>Type the task with shorthand for who, how valuable, how big and when. Docket parses it as you type.</p>
+      </article>
+      <article>
+        <h3>Ranks it for you</h3>
+        <p>Value, effort and due date become one score. Today, Eisenhower and Value / Effort views all agree. Your own order still wins.</p>
+      </article>
+      <article>
+        <h3>Plans your day</h3>
+        <p>Turn your sprint into time blocks, drop tasks in, and rearrange when the day goes sideways.</p>
+      </article>
+      <article>
+        <h3>Preps your 1:1s</h3>
+        <p>One card per person: what you're waiting on them for, and what to bring up.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-label">Why it exists</h2>
+    <div class="why">
+      <p class="pull">Most task apps are great at collecting work and bad at telling you what to do with it. Docket is built for the second part.</p>
+      <ul>
+        <li><b>Less sorting.</b> Triage a pile one task at a time in seconds each.</li>
+        <li><b>Nothing rots.</b> Stale and overdue work surfaces on its own.</li>
+        <li><b>Private by design.</b> Saved in your browser or on your phone. No server, no sign up.</li>
+        <li><b>Works offline.</b> Install it like an app from your browser.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="close">
+    <h2 class="display small">Try it with today's to-do list<span class="dot">.</span></h2>
+    <p>It takes about a minute, and there's a short tour on first open.</p>
+    <a class="btn primary big" href="../">Open Docket</a>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Open source, MIT licensed. <a href="https://github.com/adavidson21/docket">View on GitHub</a></span>
+  <span>Also runs inside <a href="https://workshop.alexisdavidson.org">Workshop</a></span>
+</footer>
+<script src="about.js"></script>
+</body>
+</html>
