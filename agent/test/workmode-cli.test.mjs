@@ -21,11 +21,13 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, pull: false, latest: false });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, pull: false, latest: false });
   assert.equal(parseUpdateArgs(['--latest']).opts.latest, true);
+  assert.equal(parseUpdateArgs(['--receipts-tag', 'v3.0.0']).opts.receiptsTag, 'v3.0.0');
+  assert.ok(parseUpdateArgs(['--pull', '--receipts-tag', 'v3.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--tag', 'v1.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--pull']).error);
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', pull: false, latest: false });
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, pull: false, latest: false });
   assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
@@ -211,7 +213,7 @@ test('update --latest picks the newest release tag of each checkout found, and o
     assert.equal(latestTag(ws), 'v1.1.0', 'not docket-android, not a core- tag');
     assert.equal(latestTag(ea, 'core-v'), 'core-v2.1.0', 'not an old short tag like core-v9');
     const plan = planLatest(ws);
-    assert.deepEqual(plan.tags, { tag: 'v1.1.0' }, 'Docket is already newest; Runway has no clone');
+    assert.deepEqual(plan.tags, { tag: 'v1.1.0' }, 'Docket is already newest; Runway and Rapport have no clone');
     assert.ok(plan.lines.some(l => /Docket: already at v1\.1\.0/.test(l)), plan.lines.join('\n'));
     assert.ok(plan.lines.some(l => /Runway: no git clone found/.test(l)), plan.lines.join('\n'));
     assert.match(plan.engAgents, /update\.ps1 -Tag core-v2\.1\.0/);

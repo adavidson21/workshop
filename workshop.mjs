@@ -6,7 +6,7 @@
 //                                          Setup options (used by the one-line installer, scripts/bootstrap.*):
 //                                          --allow <origin>, --work-mode, --workspace <folder>, --opencode <command>,
 //                                          --powershell <command>. See setupFromFlags below.
-//   workshop pin [--docket <folder>|--no-docket] [--runway <folder>|--no-runway]
+//   workshop pin [--docket <folder>|--no-docket] [--runway <folder>|--no-runway] [--receipts <folder>|--no-receipts]
 //                                          Build work mode's pinned copy of the site into ~/.workshop/ui.
 //   workshop open [--print]                Open Workshop on this computer (sign-in and settings) in the default browser. --print only prints.
 //   workshop stop | restart                Stop the running agent; restart it in the background.
@@ -15,9 +15,9 @@
 //   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
-//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--latest] [--pull]
+//   workshop update [--tag <tag>] [--docket-tag <tag>] [--runway-tag <tag>] [--receipts-tag <tag>] [--latest] [--pull]
 //                                          Move this checkout to a release tag (no options: list the tags, change
-//                                          nothing). --latest moves Workshop, Docket and Runway to their newest
+//                                          nothing). --latest moves Workshop, Docket, Runway and Rapport to their newest
 //                                          tags. --pull is the old git pull. Other installs: how to update.
 //   workshop version                       Print the agent version.
 //   workshop help                          This help.
@@ -76,16 +76,19 @@ const USAGE = `Usage: workshop <command> [options]
   doctor                         Check Node, config.json, the port, the data folder, start at login and hosted mode.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
   publish [--out <dir>]          Build the static site for hosted or browser mode (default out: dist/).
-  pin [--docket <folder>]        Build work mode's pinned copy of Workshop (with Docket and Runway) from this
-      [--no-docket]              install into ~/.workshop/ui. The agent serves only that copy, checked file by
-      [--runway <folder>]        file. Docket and Runway come from a docket and runway folder next to Workshop
-      [--no-runway]              (or .remote/<id>) unless a folder is given.
+  pin [--docket <folder>]        Build work mode's pinned copy of Workshop (with Docket, Runway and Rapport)
+      [--no-docket]              from this install into ~/.workshop/ui. The agent serves only that copy,
+      [--runway <folder>]        checked file by file. Docket, Runway and Rapport come from a docket, runway
+      [--no-runway]              and receipts folder next to Workshop (or .remote/<id>) unless a folder is
+      [--receipts <folder>]      given.
+      [--no-receipts]
   update                         List the release tags and say which one this is. Changes nothing.
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
          [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
-         [--runway-tag <tag>]    the pinned copy is built from.
-  update --latest                Move Workshop, Docket and Runway each to its newest release tag (skipping any
-                                 already there), then rebuild the pinned copy. Says how to update eng-agents
+         [--runway-tag <tag>]    the pinned copy is built from. --receipts-tag does the same for Rapport.
+         [--receipts-tag <tag>]
+  update --latest                Move Workshop, Docket, Runway and Rapport each to its newest release tag
+                                 (skipping any already there), then rebuild the pinned copy. Says how to update eng-agents
                                  when it is next to Workshop and behind.
   update --pull                  Update to the newest code on the current branch (git pull), not a release.
   version                        Print the agent version.
@@ -527,10 +530,14 @@ export function manualUpdateLines(repo = REPO) {
 const TAG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes('..');
 
+/** True when update's options name any tag (Workshop's or a remote app's). */
+const anyTag = opts => !!opts.tag || REMOTE_APPS.some(a => opts[`${a.key}Tag`]);
+
 /** Read update's options. Returns {opts} or {error}. */
 export function parseUpdateArgs(rest) {
-  const opts = { tag: null, docketTag: null, runwayTag: null, pull: false, latest: false };
-  const keys = { '--tag': 'tag', '--docket-tag': 'docketTag', '--runway-tag': 'runwayTag' };
+  // --<key>-tag for each app from another repo (apps/remote.json): --docket-tag, --runway-tag, --receipts-tag.
+  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), pull: false, latest: false };
+  const keys = { '--tag': 'tag', ...Object.fromEntries(REMOTE_APPS.map(a => [`--${a.key}-tag`, `${a.key}Tag`])) };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pull') { opts.pull = true; continue; }
@@ -543,8 +550,8 @@ export function parseUpdateArgs(rest) {
     }
     return { error: `Unknown option ${a}. Run "workshop help".` };
   }
-  if (opts.pull && (opts.tag || opts.docketTag || opts.runwayTag)) return { error: '--pull and --tag do not go together.' };
-  if (opts.latest && (opts.pull || opts.tag || opts.docketTag || opts.runwayTag)) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
+  if (opts.pull && anyTag(opts)) return { error: '--pull and --tag do not go together.' };
+  if (opts.latest && (opts.pull || anyTag(opts))) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
   return { opts };
 }
 
@@ -594,7 +601,7 @@ export function listTags(dir, max = 5) {
   return r.code === 0 ? r.out.split('\n').filter(isReleaseTag).slice(0, max) : [];
 }
 
-/** The newest full release tag (<prefix>1.2.3) in a checkout with this prefix ('v' for Workshop, Docket and Runway, 'core-v' for
+/** The newest full release tag (<prefix>1.2.3) in a checkout with this prefix ('v' for Workshop, Docket, Runway and Rapport, 'core-v' for
  *  eng-agents), after fetching tags. Null when there is none. */
 export function latestTag(dir, prefix = 'v', out = () => {}) {
   const f = git(dir, ['fetch', '--tags', '--quiet', 'origin']);
@@ -702,13 +709,13 @@ async function runUpdate(rest, io) {
     for (const l of plan.lines) io.out(l);
     Object.assign(opts, plan.tags);
     engAgentsLine = plan.engAgents;
-    if (!opts.tag && !opts.docketTag && !opts.runwayTag) {
+    if (!anyTag(opts)) {
       io.out('Nothing to move. Nothing was changed.');
       if (engAgentsLine) io.out(engAgentsLine);
       return 0;
     }
   }
-  if (!opts.tag && !opts.docketTag && !opts.runwayTag) {
+  if (!anyTag(opts)) {
     const f = git(REPO, ['fetch', '--tags', '--quiet', 'origin']);
     if (f.code !== 0) io.out(`Could not fetch tags${f.err ? `: ${f.err.split('\n')[0]}` : ''}. Showing the tags already here.`);
     const now = gitInfo(REPO);
@@ -742,10 +749,10 @@ async function runUpdate(rest, io) {
 }
 
 /**
- * What `workshop update --latest` moves to: the newest release tag of Workshop and of each Docket and Runway
- * checkout found, skipping any that are already there or have no release yet. eng-agents is not moved (its own
+ * What `workshop update --latest` moves to: the newest release tag of Workshop and of each remote app's checkout
+ * found (Docket, Runway, Rapport), skipping any that are already there or have no release yet. eng-agents is not moved (its own
  * update.ps1 reinstalls the agents and asks first); when it sits next to Workshop and is behind, `engAgents` is
- * the command to run. Returns {tags: {tag, docketTag, runwayTag}, lines, engAgents}.
+ * the command to run. Returns {tags: {tag, <key>Tag...}, lines, engAgents}.
  */
 export function planLatest(repo = REPO, out = () => {}) {
   const tags = {}, lines = [];

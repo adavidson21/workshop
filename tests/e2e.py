@@ -3,10 +3,12 @@
 
   pip install playwright && python -m playwright install chromium
   git clone https://github.com/adavidson21/docket .remote/prioritizer   # Docket (apps/remote.json)
+  git clone https://github.com/adavidson21/receipts .remote/receipts    # Rapport
   python tests/e2e.py
 
-Docket's code lives in its own repo and the Worker serves it under /apps/prioritizer/ (worker/index.js). Here the
-static server and the agent's apps folder do the same from the checkout in .remote/prioritizer/ (or DOCKET_DIR).
+Docket's and Rapport's code live in their own repos and the Worker serves them under /apps/prioritizer/ and
+/apps/receipts/ (worker/index.js). Here the static server and the agent's apps folder do the same from the
+checkouts in .remote/ (or DOCKET_DIR, RECEIPTS_DIR).
 
 Five parts:
   1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
@@ -40,22 +42,22 @@ SAMPLES = 'http://localhost:8804'
 DOCKET = os.environ.get('DOCKET_DIR') or os.path.join(ROOT, '.remote', 'prioritizer')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
-# Runway (apps/remote.json) is served the same way from its checkout, when there is one.
+# Runway and Rapport (apps/remote.json) are served the same way from their checkouts.
 RUNWAY = os.environ.get('RUNWAY_DIR') or os.path.join(ROOT, '.remote', 'runway')
+RECEIPTS = os.environ.get('RECEIPTS_DIR') or os.path.join(ROOT, '.remote', 'receipts')
+REMOTE_DIRS = {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS}
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
-    """This repo as a static site, with /apps/prioritizer/ and /apps/runway/ served from their checkouts like the Worker does."""
+    """This repo as a static site, with each remote app (Docket, Runway, Rapport) served from its checkout like the Worker does."""
     def log_message(self, *a): pass
 
     def translate_path(self, path):
         clean = path.split('?', 1)[0].split('#', 1)[0]
-        if clean.startswith('/apps/prioritizer/'):
-            rest = clean[len('/apps/prioritizer/'):]
-            return os.path.join(DOCKET, *[p for p in rest.split('/') if p and p not in ('.', '..')])
-        if clean.startswith('/apps/runway/'):
-            rest = clean[len('/apps/runway/'):]
-            return os.path.join(RUNWAY, *[p for p in rest.split('/') if p and p not in ('.', '..')])
+        for app, folder in REMOTE_DIRS.items():
+            if clean.startswith(f'/apps/{app}/'):
+                rest = clean[len(f'/apps/{app}/'):]
+                return os.path.join(folder, *[p for p in rest.split('/') if p and p not in ('.', '..')])
         return super().translate_path(path)
 
 
@@ -102,8 +104,8 @@ def local_page(ctx, url, token, watch=None):
 
 
 def copy_app(name, dest):
-    """An app folder for the agent: Docket from its checkout, the rest from apps/."""
-    if name == 'prioritizer': shutil.copytree(DOCKET, dest, ignore=DOCKET_SKIP)
+    """An app folder for the agent: a remote app (Docket, Runway, Rapport) from its checkout, the rest from apps/."""
+    if name in REMOTE_DIRS: shutil.copytree(REMOTE_DIRS[name], dest, ignore=DOCKET_SKIP)
     else: shutil.copytree(os.path.join(ROOT, 'apps', name), dest)
 
 
@@ -1107,6 +1109,8 @@ def main():
     if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
+    if not os.path.isfile(os.path.join(RECEIPTS, 'app.json')):
+        sys.exit(f'Rapport is not checked out at {RECEIPTS}. Run: git clone https://github.com/adavidson21/receipts .remote/receipts')
     serve(8802, functools.partial(Static, directory=ROOT))
     serve(8803, functools.partial(Static, directory=ROOT))
     WithSamples.registry = samples_registry(tempfile.mkdtemp())

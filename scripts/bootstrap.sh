@@ -23,7 +23,7 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket and Runway (DOCKET_TAG and RUNWAY_TAG, else their newest code) and builds
+#                         downloads Docket, Runway and Rapport (DOCKET_TAG, RUNWAY_TAG and RECEIPTS_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 # Dispatch (opencode, git, PowerShell 7, Tandem and an AI model) is only for coding agents:
 #   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no PowerShell download, no AI step
@@ -51,7 +51,7 @@ main() {
   need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is needed and was not found."; }
   need curl; need tar; need uname
   # A release tag: letters, digits, dots, dashes and underscores (v1.2.0).
-  for t in "${WORKSHOP_TAG:-}" "${TANDEM_TAG:-}" "${DOCKET_TAG:-}" "${RUNWAY_TAG:-}"; do
+  for t in "${WORKSHOP_TAG:-}" "${TANDEM_TAG:-}" "${DOCKET_TAG:-}" "${RUNWAY_TAG:-}" "${RECEIPTS_TAG:-}"; do
     case "$t" in *[!A-Za-z0-9._-]*|-*|*..*) fail "\"$t\" is not a release tag like v1.2.0." ;; esac
   done
 
@@ -128,7 +128,7 @@ main() {
   fi
 
   # ------------------------------------------------------------ 2. Workshop and Tandem
-  local names="workshop"; [ "$DISPATCH" = "1" ] && names="$names eng-agents"; [ "$WORK" = "1" ] && names="$names docket runway"
+  local names="workshop"; [ "$DISPATCH" = "1" ] && names="$names eng-agents"; [ "$WORK" = "1" ] && names="$names docket runway receipts"
   for name in $names; do
     local tag="" var=""
     case "$name" in
@@ -136,6 +136,7 @@ main() {
       eng-agents) step "Tandem (eng-agents)"; tag="${TANDEM_TAG:-}"; var=TANDEM_TAG ;;
       docket) step "Docket (for the pinned copy)"; tag="${DOCKET_TAG:-}"; var=DOCKET_TAG ;;
       runway) step "Runway (for the pinned copy)"; tag="${RUNWAY_TAG:-}"; var=RUNWAY_TAG ;;
+      receipts) step "Rapport (for the pinned copy)"; tag="${RECEIPTS_TAG:-}"; var=RECEIPTS_TAG ;;
     esac
     local dir="$ROOT/$name" url="https://github.com/adavidson21/$name"
     if [ -d "$dir/.git" ]; then
@@ -148,10 +149,10 @@ main() {
       continue
     fi
     local ref="refs/heads/main"; [ -n "$tag" ] && ref="refs/tags/$tag"
-    # Runway's repo is private, so a download without a GitHub sign-in fails. It is optional: skip it, and the
+    # Runway and Rapport are optional: if a repo cannot be downloaded (private, or no such tag), skip it, and the
     # pinned copy is built without it until there is a clone of it here.
-    if [ "$name" = runway ] && ! curl -fsSLI "$url/archive/$ref.tar.gz" >/dev/null 2>&1; then
-      say "Runway could not be downloaded (its repo is private), so the pinned copy leaves it out."
+    if { [ "$name" = runway ] || [ "$name" = receipts ]; } && ! curl -fsSLI "$url/archive/$ref.tar.gz" >/dev/null 2>&1; then
+      say "$name could not be downloaded (a private repo, or no such tag), so the pinned copy leaves it out."
       say "To add it: git clone $url \"$dir\" (signed in to GitHub), then run: workshop pin"
       continue
     fi
@@ -281,6 +282,7 @@ main() {
   if [ "$WORK" = "1" ]; then
     step "Building the pinned copy (work mode)"
     local rargs=(--no-runway); [ -f "$ROOT/runway/app.json" ] && rargs=(--runway "$ROOT/runway")
+    if [ -f "$ROOT/receipts/app.json" ]; then rargs+=(--receipts "$ROOT/receipts"); else rargs+=(--no-receipts); fi
     "$NODE" "$ROOT/workshop/workshop.mjs" pin --docket "$ROOT/docket" "${rargs[@]}" || fail "Building the pinned copy failed. See the messages above."
   fi
 

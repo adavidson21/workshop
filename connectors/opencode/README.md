@@ -125,7 +125,7 @@ Status `details`: `{workspace, opencode: {connected, kind, version, error}, pars
 
 ## 1:1 drafts
 
-Rapport's 1:1s (`apps/receipts/js/oneonones/`; 1:1s was its own app until Rapport 2.0.0) can ask your opencode agents for draft talking points. `lib/one-on-one.mjs` keeps this away from your code: the packet holds people data, so it is saved in `<Workshop home>/data/_connectors/opencode/oneonones/<personId>-<date>/packet.md` (the same folder as this connector's `ctx.storage`), never in the workspace or `.work`. Tandem's `/one-on-one` (agent **people-prep**) reads it and writes `draft.md` next to it, and may edit nothing else. The app leaves out the person's name, and concerns from receipts unless the person asks for them on that run. The session shows in Dispatch with the others, so a permission prompt can be answered there.
+Rapport's 1:1s (`js/oneonones/` in [adavidson21/receipts](https://github.com/adavidson21/receipts); 1:1s was its own app until Rapport 2.0.0) can ask your opencode agents for draft talking points. `lib/one-on-one.mjs` keeps this away from your code: the packet holds people data, so it is saved in `<Workshop home>/data/_connectors/opencode/oneonones/<personId>-<date>/packet.md` (the same folder as this connector's `ctx.storage`), never in the workspace or `.work`. Tandem's `/one-on-one` (agent **people-prep**) reads it and writes `draft.md` next to it, and may edit nothing else. The app leaves out the person's name, and concerns from receipts unless the person asks for them on that run. The session shows in Dispatch with the others, so a permission prompt can be answered there.
 
 
 ## The hub
