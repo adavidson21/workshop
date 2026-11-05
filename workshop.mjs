@@ -407,7 +407,7 @@ export function setupFromFlags(config, opts, schemas) {
     // turning work mode off later in Settings brings them back.
     const before = config.features?.workMode === true;
     config.features = { ...defaultConfig().features, ...(config.features || {}), workMode: true, hostedMode: false };
-    said.push(before ? 'Work mode is on (unchanged); hosted mode is off.' : 'Turned on work mode and turned off hosted mode. Build the pinned copy with: workshop pin');
+    said.push(before ? 'Work mode is on (unchanged); hosted mode is off.' : 'Turned on work mode and turned off hosted mode. Workshop builds its pinned copy when it starts.');
   }
   for (const origin of opts.allow || []) {
     if (schemas.validate({ $ref: 'common.schema.json#/$defs/origin' }, origin).length) throw new Error(`${origin} is not a site address like https://example.org.`);
