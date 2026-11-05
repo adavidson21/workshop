@@ -86,4 +86,5 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 | Settings | Edits everyone: people, groups and their members. |
 | `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
 | `receipts` (Rapport) | Reports are `report` people; Upward is the `manager`. Entries' `about` is `me`, `up` or a person id. 1:1s are keyed by person id. |
+| `runway` (Runway) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |
 | Home, the Dispatch hub | Names for capture and routing (`find()`); Docket's `people` summary for counts. |
