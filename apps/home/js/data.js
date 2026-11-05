@@ -5,7 +5,8 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, boardFromSummary, dateStr, nowFromDay, wrapFromDay } from './view.js';
+import { agentCounts, boardFromSummary, dateStr, nowFromDay, withNames, wrapFromDay } from './view.js';
+import { EMPTY } from '../../../shared/people.js';
 import { cardDay, readCards } from '../../../shared/summary.js';
 
 const P = { app: 'prioritizer' };
@@ -14,7 +15,7 @@ const OC = 'opencode';
 const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, dir: EMPTY, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -26,11 +27,13 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   }
 
   /* Docket's numbers, the block on now and Wrap up, from Docket's summary (docs/summaries.md): its `board` and
-     `day` cards for today. No summary yet means Docket has not saved one (a new board): an empty board. A summary
-     with no entry for today is stale: Home says to open Docket rather than show another day's numbers. */
+     `day` cards for today, with names for its ids from the people directory (docs/people.md). No summary yet
+     means Docket has not saved one (a new board): an empty board. A summary with no entry for today is stale:
+     Home says to open Docket rather than show another day's numbers. */
   async function loadBoard() {
     try {
-      const env = await ws.data.get('summary', P);
+      const [env, dir] = await Promise.all([ws.data.get('summary', P), ws.people.get().catch(() => EMPTY)]);
+      v.dir = dir;
       const cards = readCards(env, 'prioritizer');
       const d = now(), today = dateStr(d), nowMin = d.getHours() * 60 + d.getMinutes();
       v.dayNow = null; v.wrap = null;
@@ -40,7 +43,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
         const board = boardFromSummary(cards.get('board'), today), day = cardDay(cards.get('day'), today);
         if (!board) { v.board = null; v.boardNote = 'Open Docket to bring your board up to date here.'; }
         else {
-          v.board = board; v.boardNote = '';
+          v.board = withNames(board, dir); v.boardNote = '';
           if (day) { v.dayNow = nowFromDay(day, nowMin); v.wrap = wrapFromDay(day, nowMin); }
         }
       }

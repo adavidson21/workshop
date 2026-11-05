@@ -106,10 +106,10 @@ test('text from settings is escaped', () => {
 function fakeWs({ backend = 'agent', saved = null } = {}) {
   const ws = {
     backend, mode: 'hosted', puts: [], subs: [],
+    people: { async get() { return { people: [{ id: 'p1', relation: 'self' }, { id: 'p2', relation: 'report' }] }; } },
     data: {
       async get(c, o) {
         if (o && o.app === 'receipts') return { items: [] };
-        if (o && o.app === 'settings') return { items: [{ id: 'p1', relation: 'self' }, { id: 'p2', relation: 'report' }] };
         if (c === 'setup') return saved;
         return null;
       },
@@ -129,6 +129,7 @@ test('factsFor reads every app and connector, and keeps going when one fails', a
   assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, team: 1, dataDir: OD, dispatch: 'off', startAtLogin: false, workMode: true });
   const ws = fakeWs({ backend: 'browser' });
   ws.data.get = async () => { throw new Error('no'); };
+  ws.people.get = async () => { throw new Error('no'); };
   const b = await factsFor(ws);
   assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, team: 0, dataDir: null, dispatch: null, startAtLogin: null, workMode: false });
 });
@@ -173,7 +174,7 @@ test('backup ticks off once the data folder is in OneDrive, and offers the move 
 });
 
 test('team counts active reports and the manager from the people directory', () => {
-  assert.equal(teamCount({ items: [{ relation: 'self' }, { relation: 'report' }, { relation: 'report', archived: true }, { relation: 'manager' }, { relation: 'peer' }] }), 2);
+  assert.equal(teamCount({ people: [{ relation: 'self' }, { relation: 'report' }, { relation: 'report', archived: true }, { relation: 'manager' }, { relation: 'peer' }] }), 2);
   assert.equal(teamCount(null), 0);
   assert.equal(states(stepsFor({ ...all, team: 0 })).team, 'todo');
 });

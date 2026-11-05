@@ -56,13 +56,17 @@ export function requestText({ text, context = {} }, today) {
   const lists = list(context.lists).filter((l) => typeof l === "string");
   const areas = list(context.areas).filter((a) => typeof a === "string");
   const section = (title, rows) => `## ${title}\n\n${rows.length ? rows.map((r) => `- ${r}`).join("\n") : "None."}\n`;
-  const rel = (p) => [line(p.relation, 20), p.team ? "on my team" : ""].filter(Boolean).join(", ");
+  const names = new Map(people.map((p) => [p.id, line(p.name)]));
+  const rel = (p) => p.kind === "group"
+    ? `group: ${list(p.members).map((id) => names.get(id)).filter(Boolean).join(", ") || "no members"}`
+    : [line(p.relation, 20), p.team ? "on my team" : ""].filter(Boolean).join(", ");
+  const handle = (p) => (typeof p.handle === "string" && /^[a-z0-9][a-z0-9._-]{0,39}$/.test(p.handle) ? ` @${p.handle}` : "");
   return [
     "# Hub request\n",
     `Date: ${today}\n`,
     "## Message\n",
     String(text).slice(0, MAX_MESSAGE).trim() + "\n",
-    section("People", people.map((p) => `${line(p.id, 110)}: ${line(p.name)}${rel(p) ? ` (${rel(p)})` : ""}`)),
+    section("People", people.map((p) => `${line(p.id, 110)}: ${line(p.name)}${handle(p)}${rel(p) ? ` (${rel(p)})` : ""}`)),
     section("Docket lists", lists.map((l) => line(l, 120))),
     section("Queue areas", areas.map((a) => line(a, 300))),
   ].join("\n");

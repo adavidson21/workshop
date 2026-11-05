@@ -32,8 +32,8 @@ export function adoFact(info, config) {
 }
 
 
-/** Active reports and manager in Settings' people directory (docs/people.md): the people Rapport works with. */
-export const teamCount = env => (env && Array.isArray(env.items) ? env.items.filter(p => p && !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
+/** Active reports and manager in the people directory (ws.people, docs/people.md): the people Rapport works with. */
+export const teamCount = dir => (dir && Array.isArray(dir.people) ? dir.people.filter(p => !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
 
 /** Receipts logged, from Rapport's summary (docs/summaries.md, the `entries` count card). 0 when it has none. */
 export function receiptsCount(summaryEnv) {
@@ -54,7 +54,7 @@ export async function factsFor(ws) {
   const quiet = p => p.catch(() => null);
   const [summary, people, list, cfg, adoCfg] = await Promise.all([
     quiet(ws.data.get('summary', { app: 'receipts' })),
-    quiet(ws.data.get('people', { app: 'settings' })),
+    quiet(ws.people.get()),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
     agent ? quiet(ws.connectors.getConfig('ado')) : null

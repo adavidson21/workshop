@@ -73,12 +73,12 @@ export function startHub(ws, root) {
   }
   async function readContext() {
     const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
-    const [people, summary, teams] = await Promise.all([get('people', 'settings'), get('summary', 'prioritizer'), get('teams', 'settings')]);
-    src = { people, summary, teams };
+    const [dir, summary, teams] = await Promise.all([ws.people.get().catch(() => null), get('summary', 'prioritizer'), get('teams', 'settings')]);
+    src = { dir, summary, teams };
   }
   const rulesCtx = () => {
     const c = hubContext(src), d = new Date();
-    return { today: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10), people: c.people, lists: c.lists };
+    return { today: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10), people: c.items, lists: c.lists };
   };
 
   /* ---------- sending ---------- */
@@ -90,7 +90,7 @@ export function startHub(ws, root) {
     cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
     draw();
     try {
-      const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, context: hubContext(src) }, { confirm: true });
+      const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, context: (({ people, lists, areas }) => ({ people, lists, areas }))(hubContext(src)) }, { confirm: true });
       card.session = r && r.session;
       poll(card);
     } catch (e) {
@@ -125,7 +125,7 @@ export function startHub(ws, root) {
   // A route arrived: captures become review rows, go opens the app.
   function arrive(card, route) {
     card.route = route;
-    if (route.intent === 'capture') card.rows = route.proposals.map(p => ({ p: toProposal(p), state: 'open' }));
+    if (route.intent === 'capture') card.rows = route.proposals.map(p => ({ p: toProposal(p, src.dir || undefined), state: 'open' }));
     if (route.intent === 'go') ws.open(route.go.path ? { app: route.go.app, path: route.go.path } : { app: route.go.app });
   }
   // No Tandem: the same rules as Home's quick capture.
@@ -302,7 +302,7 @@ export function startHub(ws, root) {
   });
 
   readContext();
-  ws.data.subscribe('people', readContext, { app: 'settings' });
+  ws.people.subscribe(readContext);
   ws.data.subscribe('summary', readContext, { app: 'prioritizer' });
   ws.data.subscribe('teams', readContext, { app: 'settings' });
   if (ws.backend === 'agent') { ws.connectors.onStatus(OC, check); ws.on('online', p => { if (p && p.online) check(); }); }

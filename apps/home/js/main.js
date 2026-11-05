@@ -66,6 +66,7 @@ function paint() {
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
 ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
+ws.people.subscribe(() => { boardLater(); setupLater(); });
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }

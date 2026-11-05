@@ -30,8 +30,9 @@ dont forget about the onboarding doc for person one
 
 ## People
 
-- p_one: Person One (report, on my team)
-- p_mgr: Person Two (manager)
+- p_one: Person One @person (report, on my team)
+- p_mgr: Person Two @two (manager)
+- g_lead: Leadership @leadership (group: Person One, Person Two)
 
 ## Docket lists
 
@@ -43,7 +44,7 @@ dont forget about the onboarding doc for person one
 | --- | --- |
 | `Date` | Today, `YYYY-MM-DD`. |
 | `Message` | What the person typed, up to 4000 characters. |
-| `People` | The people directory ([people.md](people.md)): id, name, relation, team. Archived people left out. |
+| `People` | The people directory ([people.md](people.md)): id, name, handle, and relation and team for people or members for groups. Archived items left out. |
 | `Docket lists` | Docket's list names, so a capture can name one. From the `targets` card with `capture: "task"` in Docket's summary ([summaries.md](summaries.md)). |
 
 Sections with nothing in them say `None.` Nothing else goes in: no Rapport entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
@@ -60,7 +61,7 @@ Written by the hub agent. Schema: [schemas/hub-route.schema.json](schemas/hub-ro
     {
       "to": "prioritizer",
       "text": "Onboarding doc for Person One",
-      "payload": {"kind": "task", "title": "Onboarding doc for Person One", "people": ["Person One"], "value": 3},
+      "payload": {"kind": "task", "title": "Onboarding doc for Person One", "who": ["p_one"], "value": 3},
       "confidence": 0.8,
       "reason": "A reminder about a report, no date given"
     }

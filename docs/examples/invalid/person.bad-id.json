@@ -1,1 +1,1 @@
-{"id": "person one", "updatedAt": 1793736000000, "name": "Person One", "relation": "report"}
+{"id": "person one", "kind": "person", "updatedAt": 1793736000000, "name": "Person One", "handle": "person", "relation": "report"}
