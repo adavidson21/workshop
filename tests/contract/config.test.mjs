@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import { startAgent, get, put, openEvents, expectJson, expectError, envelope, HOSTED } from './helpers.mjs';
+import { SITE } from '../../shared/site.js';
 
 let agent;
 before(async () => { agent = await startAgent(); });
@@ -11,7 +12,7 @@ after(async () => { await agent?.stop(); });
 
 test('defaults: Workshop\'s sites may pair; start at login and every connector are off', async () => {
   const body = expectJson(await get(agent, '/api/config'), 200, 'config-public');
-  assert.deepEqual(body.allowedOrigins, ['https://workshop.alexisdavidson.org', 'https://dispatch.alexisdavidson.org', 'https://docket.alexisdavidson.org']);
+  assert.deepEqual(body.allowedOrigins, [...SITE.allowedSites]);
   assert.deepEqual(body.features, { startAtLogin: false, hostedMode: true, workMode: false });
   assert.equal(body.port, agent.port);
   assert.ok(Object.values(body.connectors).every(c => c.enabled === false));

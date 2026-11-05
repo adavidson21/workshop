@@ -25,7 +25,12 @@ Version: `bundle: 1` (the format). Each release of the files has its own `versio
 | `version` | `major.minor.patch`. `scripts/bundle.mjs` raises the patch when any file changed; raise the minor or major by hand for a new file or a breaking change. |
 | `files` | Every file in the bundle, by its path in workshop, with its SHA-256 (hex). |
 
-What is in it: `shared/` (except `shared/test/` and `shared/screenshots/`), `icons/`, `docs/schemas/` and `tests/lib/schema.mjs`.
+What is in it: `shared/` (except `shared/test/` and `shared/screenshots/`), `icons/`, `docs/schemas/`, `tests/lib/schema.mjs` and `scripts/sync-workshop.mjs` (the sync script itself, so `--update` keeps it current; add it to `files` once).
+
+Shared helpers apps use instead of their own copies:
+
+- `shared/app-sw.js`: the service worker. An app's `sw.js` is two lines: `importScripts('./shared/app-sw.js'); appServiceWorker({ name: '<app>', version: '<x.y.z>' });`. It precaches the app's page, manifest, `app.json`, `icon.svg` and the files listed in `app.json`, plus any `core` paths passed in.
+- `shared/handoffs.js`: `sendersFrom(apps, self, fallback)` and `useSenders(senders, apps, self)`, the apps that may send this app handoffs.
 
 ## In an app's repo
 

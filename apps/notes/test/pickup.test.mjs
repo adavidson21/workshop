@@ -73,8 +73,3 @@ test('startPickup: Quick Notes waits while it has unsaved edits', async () => {
   assert.ok(files.get(QUICK).includes('- retro ideas'));
 });
 
-test('sendersFrom: manifests add senders to Home and Dispatch', async () => {
-  const { sendersFrom } = await import('../js/pickup.js');
-  assert.deepEqual(sendersFrom([{ id: 'newapp', name: 'New app', handoffs: { sends: ['notes'] } }, { id: 'notes', name: 'Notes', handoffs: { sends: ['notes'] } }]), { home: 'Home', agents: 'Dispatch', newapp: 'New app' });
-  assert.deepEqual(sendersFrom(null), { home: 'Home', agents: 'Dispatch' });
-});
