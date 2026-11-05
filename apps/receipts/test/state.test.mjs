@@ -201,3 +201,19 @@ test('summaryCards match the summary-card schema', async () => {
   const schemas = SchemaSet.fromDir(new URL(here ? './workshop/schemas/' : '../docs/schemas/', import.meta.url).pathname);
   for (const c of R.summaryCards({ items: [{ id: 'a' }] })) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), []);
 });
+
+test('oldReports: Rapport 2.x reports become directory people with their ids', () => {
+  const env = { schema: 'receipts.people', version: 1, rev: 3, deleted: {}, items: [
+    { id: 'p_a1', name: ' Ann Lee ', role: 'Engineer', since: '2025-02-01', updatedAt: 1 },
+    { id: 'p_b2', name: 'Bo Kim', archived: true, updatedAt: 1 },
+    { id: 'x_bad', name: 'Not a person id', updatedAt: 1 },
+    { id: 'p_c3', name: '   ', updatedAt: 1 }
+  ] };
+  assert.deepEqual(R.oldReports(env), [
+    { id: 'p_a1', name: 'Ann Lee', relation: 'report', role: 'Engineer', since: '2025-02-01', archived: false },
+    { id: 'p_b2', name: 'Bo Kim', relation: 'report', role: '', since: '', archived: true }
+  ]);
+  assert.deepEqual(R.oldReports(null), []);
+  assert.deepEqual(R.oldReports({ ...env, version: 2 }), []);
+  assert.deepEqual(R.oldReports({ ...env, schema: 'settings.people' }), []);
+});

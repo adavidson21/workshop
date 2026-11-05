@@ -169,6 +169,18 @@ export function groupByMonth(list) {
    Your reports and your manager are in the people directory (ws.people; docs/people.md in the workshop repo).
    Entries keep `about: 'me'`, `'up'` or a directory person id. */
 export const WORKSHOP_PEOPLE_URL = SITE.workshop + '/#/settings';
+/* Rapport 2.x kept your reports in its own `people` collection (receipts.people v1: {id, name, role, since,
+   archived}) when Workshop had no directory yet. 3.0.0 reads only the directory, so those reports, and the
+   receipts about them (`about` is their id), are copied into it once, keeping their ids (main.js). */
+export const OLD_PEOPLE = 'people';
+/** The old reports to copy, as directory people. [] for anything that is not that collection. */
+export function oldReports(env) {
+  if (!env || env.schema !== `${APP}.${OLD_PEOPLE}` || env.version !== 1 || !Array.isArray(env.items)) return [];
+  return env.items
+    .filter(p => p && typeof p.id === 'string' && /^p_/.test(p.id) && typeof p.name === 'string' && p.name.trim())
+    .map(p => ({ id: p.id, name: p.name.trim(), relation: 'report', role: typeof p.role === 'string' ? p.role : '', since: typeof p.since === 'string' ? p.since : '', archived: !!p.archived }));
+}
+
 /** Reports from the directory, archived ones included: [{id, name, role, since, archived}], by name. */
 export function reportsFrom(dir) {
   return (dir && Array.isArray(dir.people) ? dir.people : []).filter(p => p.relation === 'report')

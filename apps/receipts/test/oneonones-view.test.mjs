@@ -46,6 +46,11 @@ test('unlinked and unreadable sources say so instead of showing nothing', () => 
   assert.ok(packetHtml(p2).includes('version this app does not know'));
 });
 
+test('no Docket summary yet says to open Docket once', () => {
+  const p = buildPacket({ person: PERSON, today: TODAY, now: NOW, notes: [], lastText: null, src: { docketSummary: null } });
+  assert.ok(packetHtml(p).includes('Open Docket once'));
+});
+
 test('people list, settings and the note escape names and text', () => {
   const person = { ...PERSON, name: BAD };
   assert.ok(noRaw(homeHtml([{ person, lastDay: '', days: null, due: true }], { selected: -1 })));

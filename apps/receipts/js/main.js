@@ -43,8 +43,25 @@ const sendersReady = (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve
 async function loadAll() {
   for (const n of NAMES) store[n] = (await ws.data.get(n)) || blank(n);
   await loadDirectory();
+  await moveOldReports();
   await loadOffers();
   summary.schedule();
+}
+// Reports Rapport 2.x kept itself, copied into the directory once with their ids (R.oldReports), so they and
+// their receipts show again. config meta.reportsMovedAt says it ran; the old collection is only read, never changed.
+async function moveOldReports() {
+  if (!ws.people || !ws.people.adopt || cfg().reportsMovedAt || dir.unreadable) return;
+  let list;
+  try { list = R.oldReports(await ws.data.get(R.OLD_PEOPLE)); } catch (e) { return; }
+  if (!list.length) return;
+  try {
+    const added = await ws.people.adopt(list);
+    await saveConfig({ reportsMovedAt: Date.now() });
+    if (added.length) {
+      await loadDirectory();
+      ws.toast(`${added.length === 1 ? '1 report' : `${added.length} reports`} moved into People, with their receipts.`, { kind: 'success' });
+    }
+  } catch (e) { /* tried again next load */ }
 }
 // Workshop's people directory (ws.people; docs/people.md in workshop): your reports and your manager. Rapport
 // adds and edits reports there too, so a report is the same person in Docket, Home and Settings.

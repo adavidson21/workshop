@@ -1518,16 +1518,26 @@ async function agentCall(ctx, method, pathname, body) {
 function peopleService(data) {
   const { APP, COLLECTION } = People;
   const local = new Set(); // handlers in this page, told about this page's own writes (the agent filters them)
-  const read = async () => People.directory(await data.get(APP, COLLECTION));
+  // A version 1 directory is upgraded on the first read and saved as version 2, so apps that pin an older
+  // bundle read it too. If that save fails (another window saved first, or a read-only backend), this page
+  // still reads the upgraded copy and the next read tries again.
+  const read = async () => {
+    const stored = await data.get(APP, COLLECTION);
+    const up = People.upgrade(stored);
+    if (up !== stored) {
+      try { await data.put(APP, COLLECTION, stampEnvelope(stored, clone(up))); } catch (e) { /* upgraded in memory only */ }
+    }
+    return People.directory(up);
+  };
   const tell = (dir) => { for (const h of local) { try { h(dir); } catch (e) { console.error(e); } } };
 
   // change(dir) returns {upsert: [items], result}. Items the parser could not read are kept as they were.
   async function save(change) {
     for (let attempt = 0; ; attempt++) {
-      const stored = await data.get(APP, COLLECTION);
+      const stored = People.upgrade(await data.get(APP, COLLECTION));
       if (!People.readable(stored)) throw new WorkshopError('unsupported', `The people directory was saved by a newer Workshop (version ${stored.version}). Update Workshop to change it.`);
       const before = stored || People.blank();
-      const { upsert, result } = change(People.directory(before));
+      const { upsert, result } = change(People.directory(before), before);
       const byId = new Map(upsert.map(it => [it.id, it]));
       const items = (before.items || []).map(it => (it && byId.has(it.id) ? byId.get(it.id) : it));
       for (const it of upsert) if (!(before.items || []).some(x => x && x.id === it.id)) items.push(it);
@@ -1560,7 +1570,15 @@ function peopleService(data) {
     update(id, fields) { return patch(id, fields); },
     archive(id) { return patch(id, { archived: true }); },
     restore(id) { return patch(id, { archived: false }); },
-    setMembers(groupId, members) { return patch(groupId, { members }); }
+    setMembers(groupId, members) { return patch(groupId, { members }); },
+    /** Add people other data already points to, keeping their ids (shared/people.js adopt). Resolves to the
+        added items; nothing is written when there are none. */
+    async adopt(list) {
+      const dir = await read();
+      const deleted = (await data.get(APP, COLLECTION) || {}).deleted || {};
+      if (!People.adopt(list, dir.items, deleted).length) return [];
+      return save((d, before) => { const added = People.adopt(list, d.items, before.deleted || {}); return { upsert: added, result: added }; });
+    }
   };
 }
 

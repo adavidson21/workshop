@@ -49,7 +49,8 @@ const UNAVAILABLE = {
   missing: 'Nothing saved there yet.',
   unreadable: 'Saved by a version this app does not know. Update Workshop to read it.'
 };
-const unavailable = (s, link) => `<p class="soft">${esc(UNAVAILABLE[s.state] || 'Not available.')}${s.state === 'unlinked' && link ? ` <button class="lnk" data-route="settings">People and links</button>` : ''}</p>`;
+// missing: a message for that source when it has a better one (Docket writes its summary only when it runs).
+const unavailable = (s, link, missing) => `<p class="soft">${esc((s.state === 'missing' && missing) || UNAVAILABLE[s.state] || 'Not available.')}${s.state === 'unlinked' && link ? ` <button class="lnk" data-route="settings">People and links</button>` : ''}</p>`;
 
 function rows(title, list, fmt, empty = 'None') {
   return `<div class="grp"><h4>${esc(title)} <span class="num soft">${list.length}</span></h4>${list.length
@@ -64,7 +65,7 @@ export function packetHtml(p) {
     ? rows('Open, tagged with them', p.docket.open, t => `${esc(t.title)}${viaHtml(t)}${t.due ? ` <span class="soft">due ${esc(t.due)}</span>` : ''}`)
       + rows('Waiting on them', p.docket.waiting, t => `${esc(t.title)}${viaHtml(t)}${t.nudgeOn ? ` <span class="soft">nudge ${esc(t.nudgeOn)}</span>` : ''}`)
       + rows('Nudges due', p.docket.nudges, t => esc(t.title))
-    : unavailable(p.docket, true);
+    : unavailable(p.docket, true, 'Nothing from Docket yet. Open Docket once and their tasks show here.');
   const receipts = p.receipts.state === 'ok'
     ? (p.receipts.total ? KINDS.filter(k => p.receipts.groups[k].length).map(k => rows(KIND_LABELS[k], p.receipts.groups[k], e => `<span class="soft num">${esc(e.date)}</span> ${esc(e.text)}`)).join('') : '<p class="soft">No receipts about them in this period.</p>')
     : unavailable(p.receipts, true);
