@@ -9,7 +9,8 @@
      t <text>   Docket task (also the default with no prefix)
      w <text>   Docket task, waiting on someone ("waiting on ..." works too)
      r <text>   Rapport receipt, a win ("r growth: ..." and so on for the other kinds)
-     n <text>   note ("note: ..." works too)
+     n <text>   note ("note: ..." works too). "n <folder>: <text>" with one of Notes' folders makes a new note in that
+                folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Dispatch)
      p <text>   roadmap idea for Runway: a feature, bug or any thought for a project ("idea: ..." works too).
                 "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
      ? <text>   a question for the Dispatch hub (a line that ends in "?" too)
@@ -146,6 +147,20 @@ function nameCase(s, found) {
   return out;
 }
 
+/* The Notes folder (or "today") an "n" capture names before a colon: {folder, rest} or null. folders: [{id, title}]
+   from Notes' summary. Case and "-" versus a space don't matter; otherwise like findMap. A name no folder has is
+   left as part of the text. */
+export function findFolder(text, folders = []) {
+  const m = /^([^:\n]{1,120}):\s*(\S[\s\S]*)$/.exec(String(text || ''));
+  if (!m) return null;
+  const norm = (s) => s.trim().toLowerCase().replace(/[-_\s]+/g, ' ').replace(/\/+$/, '');
+  const want = norm(m[1]);
+  const live = (folders || []).filter(x => x && typeof x.id === 'string' && typeof x.title === 'string' && x.title.trim());
+  const exact = live.filter(x => norm(x.title) === want);
+  const hits = exact.length ? exact : live.filter(x => norm(x.title).startsWith(want));
+  return want && hits.length === 1 ? { folder: hits[0], rest: m[2].trim() } : null;
+}
+
 /* The roadmap a "p" capture names before a colon: {map, rest} or null. maps: [{id, title}] from Runway's index.
    The name matches a title without case, or the start of exactly one title. */
 export function findMap(text, maps = []) {
@@ -159,7 +174,8 @@ export function findMap(text, maps = []) {
 }
 
 /* One line to one proposal, or null for an empty line.
-   ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Docket list names, maps: Runway roadmaps [{id, title}]}.
+   ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Docket list names, maps: Runway roadmaps [{id, title}],
+   folders: Notes' folders [{id, title}] (with a row id 'today' for today's note)}.
    Returns {kind, to, text, title, payload} for a capture, {kind: 'ask', text} or {kind: 'go', app, text}. */
 export function parseCapture(line, ctx = {}) {
   let s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
@@ -208,9 +224,14 @@ export function parseCapture(line, ctx = {}) {
   }
   const found = findPeople(s, ctx.people);
   if (kind === 'note') {
-    const body = s.trim();
+    const named = findFolder(s.trim(), ctx.folders);
+    const body = (named ? named.rest : s).trim();
+    if (!body) return null;
     const title = cap(tidy(body.split(/[.!?\n]/)[0] || body)).slice(0, 120);
-    return { kind, to: TARGETS[kind], text: body, title, payload: { kind: 'note', title } };
+    const payload = { kind: 'note', title };
+    if (named && named.folder.id === 'today') payload.daily = today;
+    else if (named) payload.folder = named.folder.id;
+    return { kind, to: TARGETS[kind], text: body, title, payload };
   }
   if (kind === 'receipt') {
     const body = cap(tidy(nameCase(s, found)));
@@ -297,6 +318,8 @@ export function describe(p) {
   if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (p.names && p.names.length) bits.push(p.names.join(', '));
+  if (p.kind === 'note' && q.daily) bits.push("today's note");
+  else if (p.kind === 'note' && q.folder) bits.push(`${q.folder}/ · new note "${String(q.title || p.title || '').slice(0, 60)}"`);
   if (q.list) bits.push('#' + q.list);
   if (q.due) bits.push('due ' + q.due);
   if (q.urgent) bits.push('urgent');

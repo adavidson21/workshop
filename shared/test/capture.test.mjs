@@ -185,3 +185,25 @@ test('useApps: capture targets, names and places come from the manifests on this
   } finally { C.useApps(null); }
   assert.equal(C.TARGETS.idea, 'runway', 'back to the defaults');
 });
+
+test('n <folder>: and n today: send a note to a Notes folder or today\'s note; other colons are just text', () => {
+  const folders = [{ id: 'today', title: 'today' }, { id: 'runbooks', title: 'runbooks' }, { id: 'team-notes', title: 'team-notes' }, { id: 'team-notes/retros', title: 'team-notes/retros' }];
+  const ctx = { today: '2026-11-06', folders };
+  const a = parseCapture('n runbooks: rollback needs the feature flag off first', ctx);
+  assert.deepEqual(a.payload, { kind: 'note', title: 'Rollback needs the feature flag off first', folder: 'runbooks' });
+  assert.equal(a.text, 'rollback needs the feature flag off first');
+  assert.match(describe(a), /^Notes · runbooks\/ · new note "Rollback needs the feature flag off first"$/);
+  const t = parseCapture('n Today: Priya asked about the offsite', ctx);
+  assert.equal(t.payload.daily, '2026-11-06');
+  assert.equal(t.payload.folder, undefined);
+  assert.equal(describe(t), "Notes · today's note");
+  assert.equal(parseCapture('n team notes: async standups', ctx).payload.folder, 'team-notes', 'a space matches a dash');
+  assert.equal(parseCapture('n run: x', ctx).payload.folder, 'runbooks', 'the start of exactly one folder');
+  assert.equal(parseCapture('n team: x', ctx).payload.folder, undefined, 'the start of two folders: no folder');
+  const plain = parseCapture('n Remember: call the vendor', ctx);
+  assert.equal(plain.payload.folder, undefined);
+  assert.equal(plain.text, 'Remember: call the vendor', 'no folder by that name: the colon is part of the text');
+  assert.equal(describe(plain), 'Notes');
+  assert.equal(parseCapture('n runbooks: x', {}).payload.folder, undefined, 'no folders known: as before');
+  assert.equal(parseCapture('n runbooks:', ctx).text, 'runbooks:', 'nothing after the colon: the whole line');
+});

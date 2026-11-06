@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "files": {
     "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
     "docs/schemas/app.schema.json": "194cbabd29fdafba7f92afddd0b3d14cf15978037fb25084fc838cfe46e9dd55",
@@ -52,7 +52,7 @@
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/capture-box.js": "cbd555315bf0cf6e771daeb86c3aba2c97b13e7850199b29201c03062251279a",
     "shared/capture.css": "94b5b58ebd659a03f1f5cfbd99077c884053a3eaa5cc602d3d37b607e2c75ea4",
-    "shared/capture.js": "ec5bad544f53ea5412945404c711d570a2a48160e1ceb7795c94213f89b704d4",
+    "shared/capture.js": "286a4ef7f469856a52ef653a521daac52b8ab7be6774b1512ced92b6a9a3b96e",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/OFL-Inter.txt": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345",
     "shared/fonts/OFL-JetBrainsMono.txt": "403581b69dac5cff4079205e01c6b467e56af449ecbd7247693ddb1baafa005b",

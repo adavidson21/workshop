@@ -3,9 +3,9 @@
    accepted: true (docs/handoffs.md); Docket, Rapport and Notes add them when they next load. A question, or
    Ctrl+Enter, opens the hub in Dispatch with the text filled in.
 
-   Names and @handles come from the people directory (ws.people, docs/people.md). List and roadmap names come from
-   the `targets` cards in the summaries of the apps that take tasks and ideas (docs/summaries.md;
-   "p <roadmap>: ..."). All read only. */
+   Names and @handles come from the people directory (ws.people, docs/people.md). List, roadmap and folder names come from
+   the `targets` cards in the summaries of the apps that take tasks, ideas and notes (docs/summaries.md;
+   "p <roadmap>: ...", "n <folder>: ..."). All read only. */
 import { mountCapture } from '../../../shared/capture-box.js';
 import { TARGETS, useApps } from '../../../shared/capture.js';
 import { readCards, targetsFor } from '../../../shared/summary.js';
@@ -18,14 +18,15 @@ export function captureContext({ dir, summaries = [] } = {}, now = new Date()) {
     today: localDay(now),
     people: dir ? dir.items.filter(it => !it.archived) : [],
     lists: (targetsFor(summaries, 'task') || []).map(r => r.title),
-    maps: (targetsFor(summaries, 'idea') || []).map(r => ({ id: r.id, title: r.title }))
+    maps: (targetsFor(summaries, 'idea') || []).map(r => ({ id: r.id, title: r.title })),
+    folders: (targetsFor(summaries, 'note') || []).map(r => ({ id: r.id, title: r.title }))
   };
 }
 
 export function startCapture(ws, root) {
   let src = {};
   // The apps that take tasks and ideas here (TARGETS follows the manifests once main.js called useApps).
-  const takers = () => [...new Set([TARGETS.task, TARGETS.idea].filter(Boolean))];
+  const takers = () => [...new Set([TARGETS.task, TARGETS.idea, TARGETS.note].filter(Boolean))];
   const read = async () => {
     const apps = takers();
     const [dir, ...sums] = await Promise.all([
