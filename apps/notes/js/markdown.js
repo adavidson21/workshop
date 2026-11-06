@@ -181,6 +181,7 @@ const IMG = /^!\[([^\]\n]*)\]\(\s*(<[^>\n]*>|[^)\s]*)(?:\s+"[^"\n]*")?\s*\)/;
 const LINK_START = /^\[/;
 const AUTO = /^<(https?:\/\/[^>\s]+)>/i;
 const TAG = /^#([A-Za-z0-9_][A-Za-z0-9_/-]*)/;
+const AT = /^@([a-z0-9][a-z0-9._-]{0,39})/i;
 
 function findClose(s, i) {
   let depth = 0;
@@ -236,6 +237,11 @@ export function inline(text, ctx = {}) {
       }
     }
     if (c === '<' && (m = AUTO.exec(rest))) { html += linkHtml(m[1], esc(m[1]), ctx); i += m[0].length; continue; }
+    // @handle of someone in Workshop's People directory: their name as a quiet chip (ctx.person(handle) -> name).
+    if (c === '@' && ctx.person && (i === 0 || /\s|\(/.test(s[i - 1])) && (m = AT.exec(rest))) {
+      const h = m[1].toLowerCase().replace(/[._-]+$/, ''), name = h && ctx.person(h);
+      if (name) { html += `<span class="person" title="@${esc(h)}">${esc(name)}</span>`; i += 1 + h.length; continue; }
+    }
     if (c === '#' && (i === 0 || /\s|\(/.test(s[i - 1])) && (m = TAG.exec(rest)) && normTag(m[1])) {
       html += `<a href="#" class="tag" data-tag="${esc(normTag(m[1]))}">#${esc(m[1])}</a>`;
       i += m[0].length; continue;

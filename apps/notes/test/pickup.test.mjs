@@ -8,7 +8,7 @@ const H = { id: 'c_1', updatedAt: 1, to: 'notes', date: '2026-11-03', createdAt:
 const env = (app, items) => ({ schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {} });
 
 test('only accepted note offers for Notes, not yet taken', () => {
-  assert.deepEqual(Object.keys(SENDERS), ['home', 'agents']);
+  assert.deepEqual(Object.keys(SENDERS), ['home', 'agents', 'prioritizer']);
   const items = [H, { ...H, id: 'c_2', accepted: false }, { ...H, id: 'c_3', to: 'receipts' }, { ...H, id: 'c_4', payload: { kind: 'task' } }];
   assert.deepEqual(acceptedNotes('home', env('home', items)).map(o => o.id), ['c_1']);
   assert.deepEqual(acceptedNotes('home', env('home', items), new Set(['home:c_1'])), []);

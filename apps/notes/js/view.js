@@ -3,7 +3,7 @@
 import { esc, plainText } from './markdown.js';
 import { age, baseName, dirOf, stem } from './model.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
-import { actionItems, offerId, wins } from './offers.js';
+import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
 import { needsReview, productNotes, toReview } from './products.js';
 
 const ICON = {
@@ -191,21 +191,35 @@ export function panel(state) {
 /* Action items and wins in the open note, each with a button that sends it (offers.js). Only where the receivers
    can read Notes' offers: inside Workshop, or paired with Workshop on this computer. */
 function sendHtml(state, n) {
-  const { ui, notes, sent, canSend } = state;
+  const { ui, notes, sent, canSend, dir } = state;
   if (!canSend) return '';
   const text = notes.texts.get(ui.path)?.content || '';
   const items = actionItems(text).filter(i => !i.done);
-  const ws_ = wins(text);
-  if (!items.length && !ws_.length) return '';
-  const row = (kind, it, to) => {
-    const done = sent.has(offerId(kind, ui.path, it.text));
-    return `<li><a href="#" class="r-line" data-line="${it.line}" data-anchor="">${esc(plainText(it.text).slice(0, 160))}</a>
-      ${done ? `<span class="pill">Sent</span>` : `<button class="btn ghost small" data-act="send" data-kind="${kind}" data-line="${it.line}">${to}</button>`}</li>`;
+  const rapport = forRapport(text);
+  if (!items.length && !rapport.length) return '';
+  const note = { path: ui.path, title: '' };
+  // One line of meaning per row: the text (names put in), who it's about and the kind (muted), one button.
+  const row = (it, label, ids, act, to) => {
+    const done = ids.every(id => sent.has(id));
+    return `<li><span class="s-text"><a href="#" class="r-line" data-line="${it.line}" data-anchor="">${esc(plainText(readable(it.text, dir)).slice(0, 160))}</a>
+      ${label ? `<span class="s-who mono soft">${esc(label)}</span>` : ''}</span>
+      ${done ? '<span class="pill">Sent</span>' : `<button class="btn ghost small" data-act="send" data-kind="${act}" data-line="${it.line}">${to}</button>`}</li>`;
+  };
+  const taskRow = (it) => {
+    const who = whoOf(handlesIn(it.text), dir).people.map(p => p.name.split(/\s+/)[0]);
+    return row(it, who.join(', '), [offerId('task', ui.path, it.text)], 'task', 'To Docket');
+  };
+  const rapportRow = (it) => {
+    const { reports, others } = whoOf(it.handles, dir);
+    const offers = rapportOffers(note, it, { day: '2000-01-01', dir });
+    const names = reports.length ? reports.map(p => p.name.split(/\s+/)[0]).join(', ') : 'You';
+    const why = !reports.length && others.length ? ` (${others[0].name.split(/\s+/)[0]} isn't a report)` : '';
+    return row(it, `${names} · ${it.kind}${why}`, offers.map(o => o.offer.id), 'rapport', offers.length > 1 ? `To Rapport (${offers.length})` : 'To Rapport');
   };
   return `${items.length ? `<section><h2 class="section-label">Action items <span class="count">${items.length}</span></h2>
-      <ul class="sendables">${items.map(it => row('task', it, 'To Docket')).join('')}</ul></section>` : ''}
-    ${ws_.length ? `<section><h2 class="section-label">Wins <span class="count">${ws_.length}</span></h2>
-      <ul class="sendables">${ws_.map(it => row('win', it, 'To Rapport')).join('')}</ul></section>` : ''}`;
+      <ul class="sendables">${items.map(taskRow).join('')}</ul></section>` : ''}
+    ${rapport.length ? `<section><h2 class="section-label">For Rapport <span class="count">${rapport.length}</span></h2>
+      <ul class="sendables">${rapport.map(rapportRow).join('')}</ul></section>` : ''}`;
 }
 
 /* ---------- empty states ---------- */
@@ -244,7 +258,8 @@ export function linkUpdatesHtml(updates, index) {
 
 export function pickerHtml(items, pick) {
   if (!items.length) return '<p class="soft small pad">No note by that name. Keep typing for a [[link]].</p>';
-  return `<ul role="listbox">${items.map((n, k) => `<li role="option" aria-selected="${k === pick}" data-pick="${k}"><span class="r-title">${esc(n.title)}</span> <span class="soft mono">${esc(n.path)}</span></li>`).join('')}</ul>`;
+  const first = items.findIndex(n => n.href);
+  return `<ul role="listbox">${items.map((n, k) => `${k === first ? '<li class="pick-div" role="presentation">In other apps</li>' : ''}<li role="option" aria-selected="${k === pick}" data-pick="${k}"><span class="r-title">${esc(n.title)}</span> <span class="soft mono">${esc(n.href ? n.name : n.path)}</span></li>`).join('')}</ul>`;
 }
 
 /** New note: the title, and a template when there are any (templates.js). */

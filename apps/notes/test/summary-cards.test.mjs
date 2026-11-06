@@ -22,3 +22,16 @@ test('Notes publishes a count, recent notes and app mentions, with titles and pa
   assert.equal(JSON.stringify(cards).includes('Secret'), false);
   for (const c of cards) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), [], c.id);
 });
+
+test('folders for quick capture: today first, then folders by their newest note, not the special ones', async () => {
+  const { notesCards } = await import('../js/summary-cards.js');
+  const { buildIndex } = await import('../js/model.js');
+  const ix = buildIndex([
+    { path: 'runbooks/a.md', content: '# A', mtime: 2 }, { path: 'team/retros/b.md', content: '# B', mtime: 5 },
+    { path: 'daily/2026-11-06.md', content: '# D', mtime: 9 }, { path: 'templates/x.md', content: '# T', mtime: 9 }, { path: 'top.md', content: '# T', mtime: 9 }
+  ]);
+  const card = notesCards(ix).find(c => c.id === 'folders');
+  assert.equal(card.kind, 'targets');
+  assert.equal(card.capture, 'note');
+  assert.deepEqual(card.rows.map(r => r.id), ['today', 'team', 'team/retros', 'runbooks']);
+});
