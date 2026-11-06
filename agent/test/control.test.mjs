@@ -185,6 +185,12 @@ test('stop and restart really end and start the agent', { skip: process.platform
     assert.equal(await main(['restart'], io), 0, lines.join('\n'));
     assert.ok(lines.includes('Workshop stopped.'));
     assert.ok(await agentHealth(port));
+    // --opencode also restarts opencode's background service (faked here); other options are refused.
+    let oc = 0;
+    assert.equal(await main(['restart', '--opencode'], { ...io, restartOpencode: () => { oc++; } }), 0, lines.join('\n'));
+    assert.equal(oc, 1);
+    assert.ok(await agentHealth(port));
+    assert.equal(await main(['restart', '--bogus'], io), 2);
     assert.equal(await main(['stop'], io), 0, lines.join('\n'));
     assert.equal(await agentHealth(port), null);
   } finally {

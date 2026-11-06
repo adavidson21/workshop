@@ -256,7 +256,18 @@ else {
   $personal = Join-Path $env:USERPROFILE '.config\eng-agents\personal'
   if (Test-Path $personal) { $tandemArgs += @('-Personal', $personal); Say "Using your personal layer at $personal." }
   & powershell.exe @tandemArgs
-  if ($LASTEXITCODE -eq 0) { $tandemOk = $true }
+  if ($LASTEXITCODE -eq 0) {
+    $tandemOk = $true
+    # opencode reads agents when it starts, and 2.x's background service outlives this installer: restart it
+    # so newly installed agents are found (otherwise Dispatch says "Agent not found").
+    $ocv = (& $ocCmd --version 2>$null | Out-String)
+    if ($ocv -match '(\d+)\.\d+\.\d+' -and [int]$Matches[1] -ge 2) {
+      & $ocCmd service stop 2>$null | Out-Null
+      & $ocCmd service start 2>$null | Out-Null
+      if ($LASTEXITCODE -eq 0) { Say 'Restarted opencode''s background service so it loads Tandem''s agents.' }
+      else { Say 'Could not restart opencode''s background service. Run: opencode service stop, then opencode service start' }
+    }
+  }
   else { Write-Host '  Tandem did not install (see the messages above). Carrying on; Dispatch needs it, the other apps do not.' -ForegroundColor Yellow }
 }
 

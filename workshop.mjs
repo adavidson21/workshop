@@ -69,7 +69,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  links to Workshop's site to pair, and has the settings only this computer can change.
                                  --print only prints the sign-in address, to open in another browser.
   stop                           Stop Workshop if it is running.
-  restart                        Stop Workshop, then start it again in the background (no window).
+  restart [--opencode]           Stop Workshop, then start it again in the background (no window). --opencode
+                                 also restarts opencode's background service, so it loads newly installed agents.
   data-folder [<folder>]         Say where your data is. With a folder (or --onedrive for your company OneDrive),
               [--onedrive]       copy your data there and use it from now on. The old folder is kept.
   pat [NAME] [--remove]          Save a personal access token in the user environment variable NAME (default
@@ -285,7 +286,7 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
   // Tandem: what opencode loads should match the checkout next to Workshop (a stale install has missing agents).
   if (oc || findEngAgents(repo, { userHome })) {
     const t = tandemDoctor({ repo, userHome, dispatchOn: !readOff(home).has('agents') });
-    if (t) { lines.push(t.line); if (t.bad) bad = true; }
+    if (t) { lines.push(...t.line.split('\n')); if (t.bad) bad = true; }
   }
 
   lines.push(bad ? 'Result: fix the problems above.' : 'Result: all good.');
@@ -670,9 +671,21 @@ export function newerVersion(a, b) {
   return false;
 }
 
+/** The opencode command the opencode connector uses (config opencode.command, e.g. the installer's own copy), else "opencode". */
+export function opencodeCommand(home = resolveHome()) {
+  try {
+    const c = JSON.parse(fs.readFileSync(homePaths(home).config, 'utf8'));
+    const cmd = c?.connectors?.opencode?.config?.opencode?.command;
+    return typeof cmd === 'string' && cmd.trim() ? cmd.trim() : 'opencode';
+  } catch { return 'opencode'; }
+}
+
+// On Windows, a path with spaces is quoted for the shell (opencode is often an npm .cmd shim, which needs one).
+const shellCmd = cmd => (process.platform === 'win32' && /\s/.test(cmd) && !/^".*"$/.test(cmd) ? `"${cmd}"` : cmd);
+
 /** opencode's major version (from opencode --version), or null when it does not run. */
-export function opencodeMajor(run = spawnSync) {
-  const r = run('opencode', ['--version'], { encoding: 'utf8', windowsHide: true, timeout: 15000, shell: process.platform === 'win32' });
+export function opencodeMajor(run = spawnSync, cmd = 'opencode') {
+  const r = run(shellCmd(cmd), ['--version'], { encoding: 'utf8', windowsHide: true, timeout: 15000, shell: process.platform === 'win32' });
   const m = !r.error && r.status === 0 && /(\d+)\.\d+\.\d+/.exec(r.stdout || '');
   return m ? Number(m[1]) : null;
 }
@@ -681,13 +694,13 @@ export function opencodeMajor(run = spawnSync) {
  * opencode reads its agents when it starts, so after a Tandem install its background service (2.x) is restarted;
  * Dispatch reconnects to it. 1.x has no service: an "opencode serve" Workshop started goes with "workshop restart".
  */
-export function restartOpencode({ out, run = spawnSync } = {}) {
-  const major = opencodeMajor(run);
-  if (major === null) { out('opencode is not on PATH here, so it was not restarted. Restart it before using Dispatch.'); return false; }
+export function restartOpencode({ out, run = spawnSync, cmd = opencodeCommand() } = {}) {
+  const major = opencodeMajor(run, cmd);
+  if (major === null) { out(`opencode (${cmd}) did not run here, so it was not restarted. Restart it before using Dispatch.`); return false; }
   if (major < 2) { out('opencode loads agents when it starts: run "workshop restart", and close any opencode you started yourself.'); return false; }
   const o = { encoding: 'utf8', windowsHide: true, timeout: 60000, shell: process.platform === 'win32' };
-  run('opencode', ['service', 'stop'], o);
-  const r = run('opencode', ['service', 'start'], o);
+  run(shellCmd(cmd), ['service', 'stop'], o);
+  const r = run(shellCmd(cmd), ['service', 'start'], o);
   if (r.error || r.status !== 0) { out('Could not restart opencode\'s background service. Run: opencode service stop, then opencode service start'); return false; }
   out('Restarted opencode\'s background service so it loads the new agents. Close any opencode window you had open, then reload Dispatch.');
   return true;
@@ -775,7 +788,27 @@ export function ensureTandem({ repo = REPO, out, userHome = os.homedir() } = {})
 }
 
 /** What doctor says about Tandem: a line, and whether it is a problem. Null when there is nothing to say. */
+/**
+ * True when opencode's 2.x background service last started before Tandem was last installed, so it has not loaded
+ * agents added by that install ("Agent not found"). The service writes service.json when it starts; Tandem's
+ * install.ps1 writes its manifest. False when either is missing (1.x, or no install).
+ */
+export function opencodeStale(userHome = os.homedir()) {
+  try {
+    const oc = path.join(userHome, '.config', 'opencode');
+    return fs.statSync(path.join(oc, 'eng-agents', 'manifest.json')).mtimeMs > fs.statSync(path.join(oc, 'service.json')).mtimeMs + 1000;
+  } catch { return false; }
+}
+
+const STALE_LINE = 'opencode: its background service started before Tandem was last installed, so it may not know newer agents (Dispatch says "Agent not found"). Run: workshop restart --opencode';
+
 export function tandemDoctor({ repo = REPO, userHome = os.homedir(), dispatchOn = true } = {}) {
+  const r = tandemDoctorInner({ repo, userHome, dispatchOn });
+  if (r && !r.bad && installedTandem(userHome) && opencodeStale(userHome)) return { line: `${r.line}\n${STALE_LINE}`, bad: true };
+  return r;
+}
+
+function tandemDoctorInner({ repo, userHome, dispatchOn }) {
   const dir = findEngAgents(repo, { userHome }), inst = installedTandem(userHome);
   if (!dir && !inst) return dispatchOn ? { line: 'Tandem (eng-agents): not installed, so Dispatch has no agents. Add it with: workshop apps on dispatch', bad: false } : null;
   if (!dir) return { line: `Tandem (eng-agents): Core ${inst.core ?? 'unknown'} in opencode, from ${inst.source ?? 'an unknown folder'}, which is not an eng-agents clone, so "workshop update" leaves it alone. To update it, run: workshop update --eng-agents <folder of your eng-agents clone>`, bad: false };
@@ -1070,12 +1103,16 @@ async function runStop(io) {
   return r.ok ? 0 : 1;
 }
 
-async function runRestart(io) {
+async function runRestart(rest, io) {
+  const bad = rest.find(a => a !== '--opencode');
+  if (bad) { io.out(`Unknown option ${bad}. Usage: workshop restart [--opencode]`); return 2; }
   const port = configuredPort(io);
   const probe = io.probe || agentHealth;
   const s = await stopAgent({ port, probe, ...(io.control || {}) });
   if (!s.ok) { io.out(s.message); return 1; }
   if (s.wasRunning) io.out('Workshop stopped.');
+  // opencode's 2.x background service outlives Workshop; --opencode restarts it too, so it reloads agents and config.
+  if (rest.includes('--opencode')) (io.restartOpencode || restartOpencode)({ out: io.out, cmd: opencodeCommand(resolveHome(io.env)) });
   const r = await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
   io.out(r.message);
   return r.ok ? 0 : 1;
@@ -1253,7 +1290,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'data-folder') return runDataFolder(rest, io);
   if (cmd === 'start') return runStart(rest);
   if (cmd === 'stop') return runStop(io);
-  if (cmd === 'restart') return runRestart(io);
+  if (cmd === 'restart') return runRestart(rest, io);
   if (cmd === 'pat') return runPat(rest, io);
 
   if (cmd === 'doctor') {
