@@ -450,8 +450,8 @@ def notes_ecosystem(pg, nf):
     nf.click('#editor'); nf.press('#editor', 'Control+End')
     nf.type('#editor', '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:prioritizer/today)\n')
     nf.press('#editor', 'Control+s'); pg.wait_for_timeout(1200)
-    check('Notes: the panel lists the action item and the win, each with a send button',
-          nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=win]').count() == 1)
+    check('Notes: the panel lists the action item and the win (For Rapport), each with a send button',
+          nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=rapport]').count() == 1)
     check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'docket')
     nf.click('[data-act=send][data-kind=task]'); pg.wait_for_timeout(1200)
     check('Notes: a sent action item shows Sent', 'sent' in nf.inner_text('.sendables').lower())
