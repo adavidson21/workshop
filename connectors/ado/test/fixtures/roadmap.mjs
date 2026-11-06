@@ -34,6 +34,8 @@ export function roadmapScenario() {
           // Children of the Features: stories and issues, any area, not removed.
           { match: ["IN ('User Story', 'Issue')", '[System.Parent] IN (', "NOT IN ('Removed')"], ids: [801, 802, 803, 804, 805, 806] },
           // Epics and Features in Team A (with closed ones).
+          // Slate's backlog: every type, open only.
+          { match: ["IN ('Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Issue')", "UNDER 'Web App\\Team A'", 'NOT IN'], ids: [701, 711, 802, 804] },
           { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'", 'NOT IN'], ids: [701, 711, 712, 702] },
           { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'"], ids: [701, 711, 712, 702, 713] }
         ],

@@ -85,6 +85,7 @@ export async function startFakeAdo(input) {
     }
     for (const op of ops || []) {
       if (op.op === 'add' && op.path.startsWith('/fields/')) w.fields[op.path.slice(8)] = op.value;
+      if (op.op === 'add' && op.path === '/relations/-') (w.relations ||= []).push(op.value);
     }
     w.rev = (w.rev || 0) + 1;
     w.fields['System.Rev'] = w.rev;

@@ -1,0 +1,74 @@
+{
+  "manifestVersion": 1,
+  "id": "slate",
+  "name": "Slate",
+  "version": "1.0.0",
+  "description": "Your ADO backlog from request to who builds it: triage, define, publish, then delegate or build it yourself, with Tandem doing the legwork.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 55,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    },
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "aliases": [
+    "backlog",
+    "requests",
+    "enhancements"
+  ],
+  "handoffs": {
+    "sends": [
+      "runway",
+      "prioritizer"
+    ]
+  },
+  "routes": [
+    {
+      "path": "item/:id",
+      "title": "Open an item"
+    },
+    {
+      "path": "roadmap",
+      "title": "Roadmap"
+    }
+  ],
+  "commands": [
+    {
+      "id": "new",
+      "title": "New request",
+      "route": ""
+    },
+    {
+      "id": "refresh",
+      "title": "Refresh from ADO and Tandem"
+    },
+    {
+      "id": "roadmap",
+      "title": "Open the roadmap",
+      "route": "roadmap"
+    }
+  ],
+  "data": [
+    "items",
+    "handoffs"
+  ],
+  "files": [
+    "slate.css",
+    "js/main.js",
+    "js/data.js",
+    "js/model.js",
+    "js/view.js",
+    "js/host.js"
+  ]
+}

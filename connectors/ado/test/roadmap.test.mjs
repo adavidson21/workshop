@@ -6,7 +6,7 @@ import { createMockAgent } from '../../../tests/mock-agent.mjs';
 import { post } from '../../../tests/contract/helpers.mjs';
 import ado from '../index.mjs';
 import { normalize } from '../lib/config.mjs';
-import { roadmapList } from '../lib/roadmap.mjs';
+import { backlogList, roadmapList } from '../lib/roadmap.mjs';
 import { startFakeAdo } from './fake-ado.mjs';
 import { PAT, roadmapScenario } from './fixtures/roadmap.mjs';
 import { REPO } from './harness.mjs';
@@ -114,4 +114,15 @@ test('roadmap with stories and includeClosed returns done stories too', () => wi
 test('roadmap without stories returns no stories', () => withAdo(async ({ d }) => {
   const out = await roadmapList(d, { areas: [TEAM_A] });
   assert.equal(out.items.some(i => i.type === 'User Story' || i.type === 'Issue'), false);
+}));
+
+test('backlog returns open items of every type in the areas, whatever their parent, newest change first', () => withAdo(async ({ d, srv }) => {
+  const out = await backlogList(d, { areas: [TEAM_A] });
+  assert.equal(out.connection, 'main');
+  assert.deepEqual(out.items.map(i => i.id).sort(), [701, 711, 802, 804]);
+  assert.deepEqual(out.items.find(i => i.id === 802).type, 'User Story');
+  assert.equal(out.items.find(i => i.id === 804).parentId, 712);
+  const q = srv.requests.find(r => r.includes('wiql'));
+  assert.match(q, /NOT IN \('Resolved', 'Closed', 'Done', 'Removed'\)/);
+  await assert.rejects(backlogList(d, { areas: [] }), /area/i);
 }));

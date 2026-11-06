@@ -185,7 +185,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'people', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'slate', 'people', 'settings'])
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -275,7 +275,28 @@ def browser_mode_checks(ctx, pg, frame, watch):
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # People is Alt+6
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1500)
+    slf = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
+    check('Slate is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
+    if slf:
+        slf.wait_for_selector('.empty, .board', timeout=10000)
+        check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.inner_text('#top'))
+        slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('a new request lands in New and opens its panel', slf.locator('.col[aria-label=New] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
+              and slf.locator('.panel [data-act=triage]').count() == 1)
+        stored = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); return [e.schema, e.items.length, e.items[0].stage]; }""")
+        check('Slate keeps items in its own collection (slate.items v1)', stored == ['slate.items', 1, 'new'])
+        slf.click('.panel [data-act=roadmap-add]'); pg.wait_for_timeout(600)
+        offered = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e.items.map(h => [h.to, h.accepted, h.payload.kind]); }""")
+        check('Add to roadmap offers the idea to Runway', offered == [['runway', True, 'idea']])
+        slf.click('.top [data-act=tab][data-id=roadmap]'); pg.wait_for_timeout(2500)
+        rmf = next((f for f in pg.frames if '/apps/runway/' in f.url and f.parent_frame and '/apps/slate/' in f.parent_frame.url), None)
+        check('the Roadmap tab runs Runway inside Slate', rmf is not None)
+        if rmf and os.path.isfile(os.path.join(RUNWAY, 'app.json')):
+            rmf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
+            check('Runway inside Slate loads its roadmaps', rmf.locator('[data-new]').count() > 0)
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Slate is Alt+6, People Alt+7
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)

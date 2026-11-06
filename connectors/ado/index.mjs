@@ -1,6 +1,6 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
-// Docket's ado-helper/ado_helper.py. Read actions, plus one write action (workitem.update, for Runway's Publish) that the agent
-// only runs with `confirm: true`. See connectors/ado/README.md.
+// Docket's ado-helper/ado_helper.py. Read actions, plus two write actions (workitem.update, for Runway's and Slate's Publish,
+// and workitem.create, for Slate's Publish) that the agent only runs with `confirm: true`. See connectors/ado/README.md.
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
 import { dataset } from './lib/dataset.mjs';
@@ -10,8 +10,8 @@ import { authTracker, patStatus } from './lib/pat.mjs';
 import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
 import { iterationsList } from './lib/items.mjs';
-import { roadmapList } from './lib/roadmap.mjs';
-import { updateWorkItem } from './lib/write.mjs';
+import { BACKLOG_TYPES, backlogList, roadmapList } from './lib/roadmap.mjs';
+import { CREATE_TYPES, createWorkItem, updateWorkItem } from './lib/write.mjs';
 import { ConflictError } from './lib/client.mjs';
 
 const stringList = (title, description, def) => ({ type: 'array', title, ...(description ? { description } : {}), items: { type: 'string' }, ...(def ? { default: def } : {}) });
@@ -138,7 +138,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.6.0',
+  version: '1.7.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -238,6 +238,27 @@ export default {
       }
     },
 
+    backlog: {
+      title: 'Open work items in my team\'s areas, any type and parent (Slate)',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['areas'],
+        properties: {
+          connection: { type: 'string', maxLength: 40 },
+          areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
+          types: { type: 'array', maxItems: 10, items: { type: 'string', enum: BACKLOG_TYPES } }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'backlog', async () => {
+          const out = await backlogList(deps(ctx), args || {});
+          ctx.log.info(`backlog: ${out.items.length} items${out.truncated ? ` of ${out.total}` : ''}`);
+          return out;
+        });
+      }
+    },
+
     'iterations.list': {
       title: 'Sprints of a project',
       write: false,
@@ -268,6 +289,8 @@ export default {
               assignedTo: { type: 'string', maxLength: 300, description: 'Email or "Name <email>". Empty string unassigns.' },
               priority: { type: 'integer', minimum: 1, maximum: 4 },
               iteration: { type: 'string', minLength: 1, maxLength: 400 },
+              description: { type: 'string', maxLength: 32000, description: 'Plain text or Markdown; sent as HTML with line breaks kept.' },
+              acceptance: { type: 'string', maxLength: 32000, description: 'Acceptance criteria, plain text or Markdown; sent as HTML with line breaks kept.' },
               tagsAdd: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
               tagsRemove: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } }
             }
@@ -283,6 +306,42 @@ export default {
       }
     },
 
+    'workitem.create': {
+      title: 'Create a work item (Slate: epic, feature, story or bug, with its description and acceptance criteria)',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'title'],
+        properties: {
+          type: { type: 'string', enum: CREATE_TYPES },
+          title: { type: 'string', minLength: 1, maxLength: 255 },
+          project: { type: 'string', maxLength: 200 },
+          connection: { type: 'string', maxLength: 40 },
+          parent: { type: 'integer', minimum: 1, description: 'The new item goes under this one (a parent link).' },
+          fields: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              description: { type: 'string', maxLength: 32000 },
+              acceptance: { type: 'string', maxLength: 32000 },
+              area: { type: 'string', minLength: 1, maxLength: 400 },
+              iteration: { type: 'string', minLength: 1, maxLength: 400 },
+              assignedTo: { type: 'string', maxLength: 300 },
+              priority: { type: 'integer', minimum: 1, maximum: 4 },
+              tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } }
+            }
+          }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.create', async () => {
+          const out = await createWorkItem(deps(ctx), args);
+          ctx.log.info(`workitem.create: ${args.type} ${out.id}${args.parent ? ` under ${args.parent}` : ''}`);
+          return out;
+        });
+      }
+    },
 
     'connection.resolve': {
       title: 'Show which connection a repo or folder uses',

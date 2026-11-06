@@ -67,7 +67,7 @@ const call = (agent, action, args, extra = {}) => post(agent, `/api/connectors/a
 test('module follows the connector contract and its configSchema fits the settings form', () => {
   assert.equal(ado.id, 'ado');
   assert.deepEqual(schemas.validate('config-form', configSchema), []);
-  const writes = new Set(['workitem.update']);
+  const writes = new Set(['workitem.create', 'workitem.update']);
   for (const [name, a] of Object.entries(ado.actions)) assert.equal(a.write, writes.has(name), `${name} write flag`);
   assert.equal(ado.test.action, 'workitem.get');
 });
