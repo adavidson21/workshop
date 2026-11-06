@@ -1,8 +1,8 @@
 {
   "bundle": 1,
-  "version": "2.5.0",
+  "version": "2.5.1",
   "files": {
-    "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
+    "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
     "docs/schemas/app.schema.json": "6044f87e89978423d80ec6c99e1128badbefdc42148467f213e89133d46effda",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",

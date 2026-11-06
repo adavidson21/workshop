@@ -6,9 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createAgent } from '../server.mjs';
-import { readOff, writeOff, buildRegistry, gitHead, pinApps, appSwitches, APPS_FILE } from '../lib/apps.mjs';
+import { readOff, writeOff, buildRegistry, gitHead, pinApps, appSwitches, readManifest, APPS_FILE } from '../lib/apps.mjs';
 import { verifyPinned } from '../lib/pinned.mjs';
-import { loadSchemas } from '../../workshop.mjs';
+import { loadSchemas, skippedLines } from '../../workshop.mjs';
 import { tempHome, rmHome, get, put, REPO, dataDirOf } from './helpers.mjs';
 import { schemas as contractSchemas } from '../../tests/contract/helpers.mjs';
 
@@ -146,4 +146,42 @@ test('GET /api/doctor: the health check for Settings, from this computer only', 
     assert.equal(far.status, 403, far.text);
     assert.equal(far.json.code, 'local_only');
   } finally { await agent.stop(); rmHome(home); }
+});
+
+test('pinApps leaves out an app whose app.json is not valid and says why', () => {
+  const home = tempHome();
+  const uiDir = path.join(home, 'ui');
+  const notesDir = path.join(home, 'notes-checkout');
+  try {
+    // Notes v2.6.1 listed a file twice; the app schema wants unique files.
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'remote.json'), 'utf8')).apps.find(a => a.id === 'notes').manifest;
+    fs.mkdirSync(notesDir, { recursive: true });
+    fs.writeFileSync(path.join(notesDir, 'app.json'), JSON.stringify({ ...manifest, files: [...manifest.files, manifest.files[0]] }));
+    fs.writeFileSync(path.join(notesDir, 'index.html'), '<!doctype html>');
+    const { skipped } = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null, receipts: null, notes: notesDir } });
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].id, 'notes');
+    assert.match(skipped[0].problem, /not a valid app manifest .*duplicate item/);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'));
+    assert.match(skippedLines(skipped)[0], /^Notes is not included: its app\.json is not a valid app manifest .*workshop update --latest.*workshop pin/);
+
+    // The same manifest without the duplicate is pinned.
+    fs.writeFileSync(path.join(notesDir, 'app.json'), JSON.stringify(manifest));
+    const again = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null, receipts: null, notes: notesDir } });
+    assert.deepEqual(again.skipped, []);
+    assert.ok(ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'));
+  } finally { rmHome(home); }
+});
+
+test('readManifest explains a bad app.json in plain words', () => {
+  const dir = tempHome();
+  try {
+    assert.match(readManifest(dir, 'x', schemas).problem, /no app\.json/);
+    fs.writeFileSync(path.join(dir, 'app.json'), '{');
+    assert.match(readManifest(dir, 'x', schemas).problem, /not valid JSON/);
+    const ok = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'people', 'app.json'), 'utf8'));
+    fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(ok));
+    assert.equal(readManifest(dir, 'people', schemas).problem, undefined);
+    assert.match(readManifest(dir, 'notes', schemas).problem, /says id "people", not "notes"/);
+  } finally { rmHome(dir); }
 });

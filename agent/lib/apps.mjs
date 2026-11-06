@@ -34,21 +34,33 @@ export async function writeOff(home, off) {
 }
 
 /** The apps/registry.json contents (same shape as GET /api/apps), built from appsDir, leaving out `off`. */
-export function buildRegistry(appsDir, schemas, off = new Set()) {
+export function buildRegistry(appsDir, schemas, off = new Set(), skipped = null) {
   let dirs = [];
   try { dirs = fs.readdirSync(appsDir, { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('.')).map(d => d.name); } catch { return { apps: [] }; }
   const apps = [];
   for (const dir of dirs) {
     if (off.has(dir)) continue;
-    const file = path.join(appsDir, dir, 'app.json');
-    if (!fs.existsSync(file)) continue;
-    let manifest;
-    try { manifest = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, '')); } catch { continue; }
-    if (schemas.validate('app', manifest).length || manifest.id !== dir) continue;
+    if (!fs.existsSync(path.join(appsDir, dir, 'app.json'))) continue;
+    const { manifest, problem } = readManifest(path.join(appsDir, dir), dir, schemas);
+    // An app with a bad app.json is left out; `skipped` (when given) collects why, so callers can say so.
+    if (problem) { if (skipped) skipped.push({ id: dir, problem }); continue; }
     apps.push({ base: `/apps/${dir}/`, manifest });
   }
   apps.sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
   return { apps };
+}
+
+/** Read and check an app folder's app.json against the app schema and the id it must have.
+ *  Returns {manifest} when it is usable, else {problem} in plain words (the first few schema errors). */
+export function readManifest(dir, id, schemas) {
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8').replace(/^\uFEFF/, '')); } catch (e) {
+    return { problem: e.code === 'ENOENT' ? 'it has no app.json' : `its app.json is not valid JSON (${e.message})` };
+  }
+  const errors = schemas.validate('app', manifest);
+  if (errors.length) return { problem: `its app.json is not a valid app manifest (${errors.slice(0, 3).join('; ')}${errors.length > 3 ? `; and ${errors.length - 3} more` : ''})` };
+  if (manifest.id !== id) return { problem: `its app.json says id "${manifest.id}", not "${id}"` };
+  return { manifest };
 }
 
 /** Where `workshop apps on <app>` puts a new download: a <key> folder next to Workshop (docket, runway). */
@@ -153,8 +165,10 @@ export function pinApps({ home, repo, schemas, uiDir = uiDirOf(home), remotes = 
     info[a.key] = { version: v, ...(gitInfo(dir, prev[a.key]) || {}) };
   }
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-  const build = pinInto(uiDir, { repo, remotes: dirs, registry: d => buildRegistry(d, schemas, off), info, skip: [...off] });
-  return { build, dirs, off };
+  // Apps whose app.json is not valid are left out of the registry, so not in the rail; `skipped` says which and why.
+  let skipped = [];
+  const build = pinInto(uiDir, { repo, remotes: dirs, registry: d => { skipped = []; return buildRegistry(d, schemas, off, skipped); }, info, skip: [...off] });
+  return { build, dirs, off, skipped };
 }
 
 // ---------------------------------------------------------------- the list Settings and `workshop apps` show
@@ -202,6 +216,8 @@ export function appSwitches({ home, repo, schemas, workMode, uiDir = uiDirOf(hom
         out.ref = g ? g.ref : null;
         // What to run on this computer to download it (work mode only needs it; the site serves every app).
         out.command = dir ? null : `workshop apps on ${a.key}`;
+        // A download whose app.json is not valid is left out of the pinned copy; say why instead of "run workshop pin".
+        out.problem = dir ? readManifest(dir, a.id, schemas).problem || null : null;
       }
       return out;
     })
