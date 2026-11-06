@@ -36,7 +36,7 @@ On a work computer, use work mode. Workshop runs only from a copy on your comput
 3. **Follow Get started on Home.** It ticks itself off as you go: your name, backup, Azure DevOps (`workshop pat` saves your token; Settings imports your `ado-helper.json`), your team (in People), a Docket task and a receipt. Docket starts syncing ADO by itself once the connector is ready.
 4. **Every day:** Home's quick capture for anything that comes up, Docket for what to do next, Rapport for 1:1s and receipts.
 
-Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart`, `workshop update` (see Work mode), `workshop apps` (turn apps on and off; also in Settings, Apps).
+Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart` (`--opencode` also restarts opencode, for "Agent not found" in Dispatch), `workshop update` (see Work mode), `workshop apps` (turn apps on and off; also in Settings, Apps).
 
 Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
 

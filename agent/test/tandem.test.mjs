@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installedTandem, newerVersion, restartOpencode, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
+import { installedTandem, newerVersion, restartOpencode, opencodeStale, opencodeCommand, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const rm = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -211,5 +211,36 @@ test('restartOpencode stops and starts the 2.x service, and only explains for 1.
   assert.deepEqual(calls, ['--version']);
   assert.match(out.at(-1), /workshop restart/);
   assert.equal(restartOpencode({ out: l => out.push(l), run: fake(null) }), false);
-  assert.match(out.at(-1), /not on PATH/);
+  assert.match(out.at(-1), /did not run here/);
+});
+
+test('doctor says to restart opencode when its service started before the last Tandem install', { skip: !hasGit && 'git is not installed' }, () => {
+  const s = setup();
+  try {
+    const ea = s.clone(s.eaOrigin, 'eng-agents', 'core-v2.1.0');
+    const svc = path.join(s.userHome, '.config', 'opencode', 'service.json');
+    s.install('2.1.0', ea);
+    fs.writeFileSync(svc, '{}');
+    assert.equal(opencodeStale(s.userHome), false, 'service started after the install');
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(svc, old, old);
+    assert.equal(opencodeStale(s.userHome), true);
+    const d = tandemDoctor({ repo: s.ws, userHome: s.userHome });
+    assert.equal(d.bad, true);
+    assert.match(d.line, /Core 2\.1\.0 in opencode: ok\.\nopencode: .*workshop restart --opencode/);
+    fs.rmSync(svc);
+    assert.equal(opencodeStale(s.userHome), false, 'no service.json: 1.x or not started');
+  } finally { rm(s.root); }
+});
+
+test('restartOpencode uses the opencode command from the connector config', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workshop-occmd-'));
+  try {
+    assert.equal(opencodeCommand(home), 'opencode');
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ connectors: { opencode: { config: { opencode: { command: '/opt/oc/opencode' } } } } }));
+    assert.equal(opencodeCommand(home), '/opt/oc/opencode');
+    const seen = [];
+    restartOpencode({ out: () => {}, cmd: opencodeCommand(home), run: (exe, args) => { seen.push(exe); return args[0] === '--version' ? { status: 0, stdout: '2.0.0' } : { status: 0 }; } });
+    assert.deepEqual(seen, ['/opt/oc/opencode', '/opt/oc/opencode', '/opt/oc/opencode']);
+  } finally { rm(home); }
 });
