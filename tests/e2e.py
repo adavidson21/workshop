@@ -1163,7 +1163,8 @@ def agents_checks(b, watch):
         top = af.evaluate("document.getElementById('item-41207').getBoundingClientRect().top")
         check('the stage chip opens that item in Agents', pg.url.endswith('#/agents') and 0 <= top < 800)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
-        pf.locator('.row', has_text='Brand new').first.locator('.title').click(); pg.wait_for_timeout(400)
+        # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
+        pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
         pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
         cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
