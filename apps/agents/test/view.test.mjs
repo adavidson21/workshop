@@ -28,14 +28,19 @@ const count = (html, re) => (html.match(re) || []).length;
 
 beforeEach(() => load());
 
-test('the whole page renders every item, the sidebar and the header', () => {
+test('2.0 the page is a header with six tabs; every item is on its tab', () => {
   const html = render();
-  for (const it of S.D.items) assert.match(html, new RegExp(`id="item-${it.id || it.folder}"`), it.folder);
-  assert.match(html, /Repos with work in progress/);
-  assert.match(html, /Recent activity/);
+  assert.match(html, /<nav class="tabs" aria-label="Dispatch">/);
+  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['inbox', 'chat', 'runs', 'ship', 'reviews', 'research']);
+  assert.match(html, /class="tab on" data-tab="inbox" aria-current="page"/, 'Inbox is the default tab');
   assert.match(html, /class="pill on"[^>]*><span class="led"><\/span>Live/);
+  assert.doesNotMatch(html, /class="side|<aside|Repos with work in progress|Recent activity/, 'no sidebar and no side column');
+  const where = { item: ['runs', 'ship'], spike: ['research'], tsd: ['research'], docs: ['research'] };
+  for (const it of S.D.items) {
+    const tabs = (where[it.kind] || ['reviews']).filter(t => { S.ui.tab = t; return new RegExp(`id="item-${it.id || it.folder}"`).test(render()); });
+    assert.equal(tabs.length, 1, it.folder + ' is on exactly one tab');
+  }
 });
-
 test('1.2.0 clearer track: checked, current and faint stages', () => {
   const t = track(item('41207-fix-login-timeout')); // feature at build, 2 of 3 tasks
   assert.equal(count(t, /class="stop done"/g), 4, 'start, spec, plan, tasks are checked');
@@ -78,25 +83,37 @@ test('1.4.0 the autopilot box shows only while autopilot runs or waits for you',
   assert.equal(autoHtml(it), '');
 });
 
-test('1.4.0 count chips appear over 8 items', () => {
-  assert.doesNotMatch(render(), /class="counts"/, `${S.D.items.length} items: no chips`);
-  const more = clone(FIXTURE);
-  for (let i = 0; i < 3; i++) more.items.push({ ...clone(more.items[0]), id: String(50000 + i), folder: `${50000 + i}-extra`, title: `Extra ${i}` });
-  load(more);
+test('2.0 Runs: rows grouped by Needs you, In progress and Paused; Ship and Research hold the rest', () => {
+  S.ui.tab = 'runs';
   const html = render();
-  assert.match(html, /<ul class="counts"/);
-  assert.match(html, /data-b="active" class="">In progress <b>4<\/b>/);
+  assert.match(html, /<h3 id="gh-needs">Needs you <span class="n">2<\/span>/);
+  assert.match(html, /<h3 id="gh-active">In progress <span class="n">1<\/span>/);
+  assert.match(html, /<h3 id="gh-paused">Paused <span class="n">1<\/span>/);
+  assert.match(html, /<article class="rrow" id="item-41207"[^>]*><span class="sd running"[^>]*><\/span><button type="button" class="rr-t" data-open-run="41207-fix-login-timeout"><span class="num">#41207<\/span>/);
+  assert.doesNotMatch(html, /id="item-41610"/, 'ready to ship is on Ship');
+  assert.doesNotMatch(html, /id="item-spike-cache-options"/, 'spikes are in Research');
+  assert.match(html, /data-tab="runs" aria-current="page"><span>Runs<\/span><span class="n">4<\/span>/);
 });
-
-test('1.2.1 Pick up here is not repeated in its group, and has its own Abandon button', () => {
-  const html = render();
-  // 41300 needs you (approve bug.md) and is the newest moving item.
-  assert.match(html, /<section class="pickup" id="item-41300"/);
-  assert.equal(count(html, /id="item-41300"/g), 1, 'drawn once');
-  assert.match(html, /class="picked"[^>]*>.*?#41300.*?In Pick up here/s);
+test('2.0 a run opens its own page: track, next step, agent, then Brief, Tasks, Repos, Files and Activity', () => {
+  S.ui.tab = 'runs'; S.ui.run = '41207-fix-login-timeout';
+  let html = render();
+  assert.match(html, /data-close-run="runs">&larr; Runs</);
+  assert.match(html, /<article class="item run-page" id="item-41207"/);
+  assert.match(html, /<div class="track"/);
+  assert.deepEqual([...html.matchAll(/data-run-tab="(\w+)"/g)].map(m => m[1]), ['tasks', 'repos', 'files', 'activity'], 'no Brief without brief.md');
+  assert.match(html, /class="rtab on" data-run-tab="tasks"/);
+  assert.match(html, /Tasks <span class="bar"/);
+  S.ui.runTab = 'repos';
+  assert.match(render(), /<th>Repo<\/th>/);
+  S.ui.runTab = 'activity';
+  assert.match(render(), /<ul class="timeline">/);
+  // A run at Ship opens on the Ship tab, with its PR box.
+  S.ui.tab = 'ship'; S.ui.run = '41610-rate-limit-headers'; S.ui.runTab = 'brief';
+  html = render();
+  assert.match(html, /data-close-run="ship">&larr; Ship</);
+  assert.match(html, /class="prbox"/);
   assert.match(pickupHtml(item('41300-export-retry-fails')), /class="btn remove" data-remove="41300-export-retry-fails"[^>]*>Abandon</);
 });
-
 test('1.2.0 the remove dialog lists work still in the repos and the commands to delete branches', () => {
   const it = item('41207-fix-login-timeout');
   it.repos[0].git = { exists: true, isGit: true, branch: it.repos[0].branch, changed: 2, ahead: 1, upstream: 'origin/x', defaultBranch: 'main' };
@@ -155,19 +172,31 @@ test('the agent panel: state, Stop, the terminal command, reply, and earlier ses
   assert.match(idle, /Earlier sessions for this item \(1\)/);
 });
 
-test('prompts: shown with their item, or under Waiting for you when no item; counted for the badge', () => {
+test('2.0 Inbox: every prompt answerable in place with where it came from, then runs and code reviews waiting on you', () => {
   S.L.permissions.push({ id: 'per_1', sessionID: 'ses_0001abc', permission: 'bash', title: 'git push', folder: '41207-fix-login-timeout' });
   S.L.permissions.push({ id: 'per_2', sessionID: 'ses_tui', permission: 'edit', title: 'README.md', folder: null });
   S.L.questions.push({ id: 'que_1', sessionID: 'ses_0001abc', folder: '41207-fix-login-timeout', questions: [{ header: 'Branch', question: 'Which branch?', options: [{ label: 'main' }, { label: 'dev', description: 'the dev branch' }] }] });
   const html = render();
-  assert.match(html, /<section class="waiting"[^>]*>.*data-perm="per_2" data-answer="once"/s);
-  assert.match(html, /<section class="pickup" id="item-41207"/, 'an item whose agent is waiting is picked up first');
-  assert.match(html, /data-perm="per_1" data-answer="always"/);
+  assert.match(html, /<h3 id="gh-asks">Agents asking you <span class="n">3<\/span>/);
+  assert.match(html, /<span class="tag">Run<\/span><span class="st">#41207 Fix login timeout on renewal<\/span><button type="button" class="lnk plain" data-open-run="41207-fix-login-timeout">Open<\/button>/);
+  assert.match(html, /data-perm="per_2" data-answer="once"/);
+  assert.match(html, /<span class="tag">Conversation<\/span>.*data-open-chat="ses_tui"/s);
   assert.match(html, /<input type="radio" name="que_1-0" value="dev" data-qpick="que_1" data-qi="0">.*the dev branch/s);
   assert.match(html, /data-qsend="que_1">Answer</);
+  assert.match(html, /<h3 id="gh-gates">Runs waiting on you <span class="n">2<\/span>/);
+  assert.match(html, /<h3 id="gh-code">Code reviews to do <span class="n">1<\/span>/);
+  assert.match(html, /data-tab="inbox" aria-current="page"><span>Inbox<\/span><span class="cnt gate">6<\/span>/);
   assert.deepEqual(prompts().map(p => p.id), ['per_1', 'per_2', 'que_1']);
 });
 
+test('2.0 Inbox with nothing waiting: says so and offers Pick up here', () => {
+  for (const it of S.D.items) { if (it.bucket === 'needs') it.bucket = 'active'; delete it.blocked; }
+  S.D.items = S.D.items.filter(it => it.stage !== 'ship');
+  const html = render();
+  assert.match(html, /Nothing needs you right now/);
+  assert.match(html, /<section class="pickup" id="item-/);
+  assert.doesNotMatch(html, /class="cnt gate">/);
+});
 test('.work files open in the app through file.read, not as links', () => {
   const card = itemCard(item('41207-fix-login-timeout'), false);
   assert.match(card, /<button type="button" class="lnk" data-file="41207-fix-login-timeout" data-name="plan.md">plan.md<\/button>/);
@@ -236,9 +265,9 @@ test('an empty .work says how to start', () => {
   S.D.repos = [];
   html = render();
   assert.match(html, /class="gstep open">.*Add a repo.*data-repo-open="1"/s, 'no repos: adding one is next');
-  assert.match(html, /No repos in your workspace yet/);
+  S.ui.tab = 'runs';
+  assert.match(render(), /No runs in progress.*data-start-open="1">Start work/s);
 });
-
 test('the setup guide is one install command, then connect', () => {
   S.mode = 'browser'; S.connector = null; S.D = null; S.origin = 'https://dispatch.example.org';
   S.setup = guideDefaults();
@@ -348,8 +377,11 @@ test('start work: describe it (default), an ADO number when ADO is set up, or in
 
 test('add a repo: a clone URL, then an offer to draft its guide', () => {
   load(clone(FIXTURE));
-  assert.match(render(), /data-repo-open="1">Add a repo.*data-guide="gateway">Draft guide/s, 'the repos panel can add a repo and draft guides');
-  S.ui.repo = { busy: false, error: null, added: null };
+  S.ui.menu = { kind: 'more', top: 0, right: 0 };
+  assert.match(render(), /<div class="sep"><\/div><button type="button" role="menuitem" data-repos-open="1">Repos</, 'the menu has Repos (and Projects when the connector has them)');
+  S.ui.menu = null; S.ui.repos = true;
+  assert.match(render(), /<h3 id="repos-h">Repos with work in progress.*data-repo-open="1">Add a repo.*data-guide="gateway">Draft guide/s, 'the Repos sheet can add a repo and draft guides');
+  S.ui.repos = false; S.ui.repo = { busy: false, error: null, added: null };
   assert.match(render(), /<h3 id="repo-h">Add a repo<\/h3>.*data-draft="repo:url".*data-repo-go="1">Add repo/s);
   S.ui.repo.added = { folder: 'web-app', repoMap: 'created' };
   assert.match(render(), /Repo added.*started a repo map.*data-guide="web-app">Draft its guide/s);
@@ -358,7 +390,6 @@ test('add a repo: a clone URL, then an offer to draft its guide', () => {
   assert.match(repoUrlCheck('owner/repo').error, /git URL/);
   assert.match(repoUrlCheck('').error, /clone URL/);
 });
-
 test('add a repo: a category picker with the workspace folders, top of the workspace, or a new one', () => {
   load(clone(FIXTURE));
   S.D.repoCategories = ['Tools', 'Platform'];
@@ -394,17 +425,26 @@ test('AI: the checklist and a banner say how to connect one; unknown is not trea
   assert.equal(aiState(), 'on');
 });
 
-test('spikes and repo guides started from Dispatch show with their own reply box until dismissed', () => {
+test('2.0 Research: running spikes and guides with a reply box, findings as rows, a reader with Start work from this', () => {
   load(clone(FIXTURE));
   S.L.sessions.ses_loose = { id: 'ses_loose', title: '/spike how does login work', status: 'idle', command: '/spike how does login work', text: 'Two options.', folder: null };
   S.L.others = [{ session: 'ses_loose', command: '/spike how does login work', at: S.now - 60000 }];
   assert.equal(looseSessions().length, 1);
-  const html = render();
-  assert.match(html, /Investigations and repo guides.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
+  S.ui.tab = 'research';
+  let html = render();
+  assert.match(html, /<h3 id="gh-live">Running <span class="n">1<\/span>.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
+  assert.match(html, /<h3 id="gh-docs">Findings and documents <span class="n">2<\/span>.*data-open-doc="spike-cache-options">Cache options for the catalog/s);
   S.L.sessions.ses_loose.folder = 'spike-login';
   assert.equal(looseSessions().length, 0, 'once its folder exists, it is drawn with that item');
+  S.ui.doc = 'spike-cache-options';
+  S.docs['spike-cache-options'] = { name: 'findings.md', text: '# Findings\n\nUse **memory**.', at: 1 };
+  html = render();
+  assert.match(html, /data-close-doc="1">&larr; Research</);
+  assert.match(html, /<article class="item doc-page" id="item-spike-cache-options"/);
+  assert.match(html, /data-doc-start="spike-cache-options"[^>]*>Start work from this</);
+  assert.match(html, /<b>memory<\/b>/, 'the findings render as escaped markdown');
+  S.docs = {};
 });
-
 test('brief.md from /start: a Brief card at the top of the item, escaped, open until the spec stage', () => {
   load(clone(FIXTURE));
   const fresh = item('41455-audit-log-filter');

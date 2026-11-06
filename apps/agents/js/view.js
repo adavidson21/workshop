@@ -8,9 +8,8 @@
    - No update checks (the connector makes none). */
 import { S } from './state.js';
 import { SITE } from '../../../shared/site.js';
-import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
-import { reviewsHtml, isReviewSession, mineHtml, askingReviews, askingStarts, reviewCard } from './pr-reviews.js';
-import { HUB_GIVE_UP_MS, isHubCommand } from './hub-model.js';
+import { projectChip, projectList, projectsOn, projectName, projectSheetHtml, projectsSheetHtml, moveSheetHtml, INBOX } from './projects.js';
+import { pageHtml, tabsHtml } from './pages.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -49,7 +48,7 @@ export function ago(ms) {
 export function dayKey(d) {
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
 }
-function dayName(s) {
+export function dayName(s) {
   const k = (s || '').slice(0, 10);
   if (k === S.today) return 'Today';
   if (k === S.yest) return 'Yesterday';
@@ -82,11 +81,11 @@ export function bucketOf(it) {
   return it.bucket;
 }
 // A command to run for spikes, docs, and TSDs, from their "next" text: the first `/command ...`.
-function noteCommand(it) {
+export function noteCommand(it) {
   const m = /`(\/[a-z][a-z0-9-]*[^`]*)`/i.exec(it.nextText || '');
   return m ? m[1].trim() : null;
 }
-function openAttr(key, dflt) {
+export function openAttr(key, dflt) {
   const v = Object.prototype.hasOwnProperty.call(S.ui.open, key) ? S.ui.open[key] : dflt;
   return ` data-key="${h(key)}"` + (v ? ' open' : '');
 }
@@ -156,7 +155,7 @@ function trackLabel(it, stops, idx) {
 // --------------------------------------------------------------- next step
 // One main button per step; the command is in its tooltip. label: the button text (default "Run").
 // quiet: a secondary button next to a primary one.
-function runBtn(it, cmd, label, quiet) {
+export function runBtn(it, cmd, label, quiet) {
   if (!cmd) return '';
   const s = itemSession(it);
   const fresh = /^\/(do-task|check-docs)\b/.test(cmd);
@@ -180,19 +179,29 @@ export function cmdWords(it, cmd) {
   }
   return ((S.D && S.D.stepWords) || {})[name] || cmd;
 }
-export function nextHtml(it, big) {
+/** The step's buttons: Build with autopilot when it fits, then the step itself. primaryOnly: just the first one. */
+export function nextBtns(it, primaryOnly) {
   const n = it.next || {};
   const cmd = it.paused ? '/resume ' + it.id : n.command;
-  const act = it.paused ? null : n.action;
   const running = autoIs(it, 'running');
   const kind = running || autoIs(it, 'waiting') ? null : autoStartKind(it);
   const name = cmd ? cmd.split(/\s+/)[0] : '';
-  const text = act ? md(act) : cmd ? h(cmdWords(it, cmd)) : '';
-  let btns = '';
-  if (!running) {
-    if (kind) btns += autoBtn(it, kind, kind === 'approve-start' ? 'Approve and build' : 'Build with autopilot', 'primary', autoTip(it, kind), '');
-    if (cmd) btns += runBtn(it, cmd, name === '/approve' ? (kind ? 'Approve only' : 'Approve') : name === '/resume' ? 'Resume' : kind ? 'Run next step only' : 'Run', !!kind || autoIs(it, 'waiting'));
-  }
+  if (running) return '';
+  const auto = kind ? autoBtn(it, kind, kind === 'approve-start' ? 'Approve and build' : 'Build with autopilot', 'primary', autoTip(it, kind), '') : '';
+  const step = cmd ? runBtn(it, cmd, name === '/approve' ? (kind ? 'Approve only' : 'Approve') : name === '/resume' ? 'Resume' : kind ? 'Run next step only' : 'Run', !!kind || autoIs(it, 'waiting')) : '';
+  return primaryOnly ? (auto || step) : auto + step;
+}
+/** The step in plain words: the action text, else the command's words. */
+export function nextText(it) {
+  const n = it.next || {};
+  const cmd = it.paused ? '/resume ' + it.id : n.command;
+  const act = it.paused ? null : n.action;
+  return act ? md(act) : cmd ? h(cmdWords(it, cmd)) : '';
+}
+export function nextHtml(it, big) {
+  const n = it.next || {};
+  const text = nextText(it);
+  const btns = nextBtns(it, false);
   const note = n.note && !it.paused ? liveNote(n.note) : '';
   if (big) {
     return `<div class="do"><span class="act">${text}</span>${gateFileLink(it)}` + (btns ? `<span class="row" style="margin-left:auto">${btns}</span>` : '') + '</div>';
@@ -204,7 +213,7 @@ export function liveNote(note) {
   return String(note).replace(/\s*After approval:.*$/i, '').replace(/\s*Start a new session \(\/new\)( first| before \/do-task)?\.?/gi, '').replace(/Start a new session,? (and run|then) /gi, 'Run ').trim();
 }
 
-function leftOffHtml(it) {
+export function leftOffHtml(it) {
   let body = '';
   if (it.paused) {
     const p = it.paused;
@@ -225,7 +234,7 @@ function leftOffHtml(it) {
 }
 
 // ------------------------------------------------------------- agent panel
-function permHtml(p, showWho) {
+export function permHtml(p, showWho) {
   const s = L().sessions[p.sessionID];
   const what = p.title || (p.patterns || []).join(', ');
   const who = showWho ? `<p class="q-h">${h((s && s.title) || p.sessionID)}</p>` : '';
@@ -237,7 +246,7 @@ function permHtml(p, showWho) {
     `<button type="button" class="btn danger" data-perm="${h(p.id)}" data-answer="reject">Reject</button>` +
     '</div></div>';
 }
-function questionHtml(q, showWho) {
+export function questionHtml(q, showWho) {
   const s = L().sessions[q.sessionID];
   const picks = S.ui.picks[q.id] || {};
   let out = `<div class="ask" data-qform="${h(q.id)}">`;
@@ -344,27 +353,6 @@ export function sessionBox(s, perms, qs, hint) {
   return out + '</div>';
 }
 
-// The item in "Pick up here" is not drawn twice: its group gets this one line instead.
-function pickedRow(it) {
-  return `<a class="picked" href="#pickup-h" data-jump="pickup-h" style="--state:${stateVar(it)}"><span class="num">#${h(it.id)}</span>` +
-    `<span class="pt">${h(it.title)}</span><span class="dim">In Pick up here</span></a>`;
-}
-function agentNote(it) {
-  const s = itemSession(it);
-  if (!isBusy(s) && !asking(it)) return '';
-  return `<p class="note">${asking(it) ? 'The agent is waiting for you' : 'The agent is working'}: see <a href="#pickup-h" data-jump="pickup-h">Pick up here</a>.</p>`;
-}
-// Prompts from sessions that are not linked to a .work item (for example, started in the TUI).
-function waitingHtml() {
-  if (!L()) return '';
-  const loose = new Set(looseSessions().map(o => o.session));
-  const perms = L().permissions.filter(p => !p.folder && !loose.has(p.sessionID));
-  const qs = L().questions.filter(q => !q.folder && !loose.has(q.sessionID));
-  if (!perms.length && !qs.length) return '';
-  return '<section class="waiting" aria-label="Waiting for you"><h3 style="margin:0;font-size:15px">Waiting for you</h3>' +
-    perms.map(p => permHtml(p, true)).join('') + qs.map(q => questionHtml(q, true)).join('') + '</section>';
-}
-
 // ------------------------------------------------------------- repo flags
 function repoFlags(g, expected, paused) {
   const f = [];
@@ -383,7 +371,7 @@ function repoFlags(g, expected, paused) {
 }
 function flagsHtml(f) { return f.map(x => `<span class="flag ${x[0]}">${h(x[1])}</span>`).join(''); }
 
-function reposTable(it) {
+export function reposTable(it) {
   if (!it.repos || !it.repos.length) return '<p class="dim" style="margin:0">No repos.md yet.</p>';
   const rows = it.repos.map(r => {
     const g = r.git || {};
@@ -400,7 +388,7 @@ function reposTable(it) {
   return `<div class="tbl-wrap"><table><thead><tr><th>Repo</th><th>State</th><th>Last commit</th><th>Links</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function tasksHtml(it) {
+export function tasksHtml(it) {
   const t = it.tasks;
   if (!t || !t.total) return '';
   let firstOpen = null;
@@ -411,14 +399,14 @@ function tasksHtml(it) {
 }
 
 // The page runs commands itself. Offer the TUI on this item's session (or the server) for the terminal.
-function kitHtml(it) {
+export function kitHtml(it) {
   const s = it ? itemSession(it) : null;
   const cmd = s ? s.attach : (L() && L().opencode ? L().opencode.attach : null);
   if (!cmd) return '';
   return `<div class="kit"><div class="kit-head"><span>Work in the terminal (opencode TUI on ${s ? "this item's session" : 'this server'})</span></div>` +
     `<div class="kit-line"><code>${h(cmd)}</code>${copyBtn(cmd)}</div></div>`;
 }
-function filesHtml(it) {
+export function filesHtml(it) {
   if (!it.files || !it.files.length) return '';
   return `<div><p class="sub-h">Files</p><div class="files">${it.files.map(f => fileBtn(it.folder, f)).join('')}</div></div>`;
 }
@@ -561,8 +549,8 @@ export function slateChip(it) {
 export function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
 
 // ------------------------------------------------------------- item card
-// noAgent: the item is also shown in "Pick up here", which carries its agent panel.
-export function itemCard(it, noAgent) {
+// The whole run as one card, for places that show a run in full without its own page (tests, Ship's leftovers).
+export function itemCard(it) {
   if (it.kind !== 'item') return noteCard(it);
   const meta = [];
   meta.push(`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`);
@@ -574,11 +562,11 @@ export function itemCard(it, noAgent) {
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<article class="item" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
     `<div class="item-head"><h4 class="t">${idLink(it)}${title}</h4><div class="meta">${meta.join('')}</div></div>` +
-    briefHtml(it) + track(it) + nextHtml(it, false) + (it.stage === 'ship' ? prHtml(it) : '') + (noAgent ? '' : autoHtml(it)) + (noAgent ? agentNote(it) : agentHtml(it)) + leftOffHtml(it) +
+    briefHtml(it) + track(it) + nextHtml(it, false) + (it.stage === 'ship' ? prHtml(it) : '') + autoHtml(it) + agentHtml(it) + leftOffHtml(it) +
     `<details${openAttr('d:' + it.folder, false)}><summary>Repos, tasks, files</summary><div class="detail-body">` +
     reposTable(it) + tasksHtml(it) + kitHtml(it) + filesHtml(it) + '</div></details></article>';
 }
-function noteCard(it) {
+export function noteCard(it) {
   const label = { spike: 'Spike', docs: 'Docs', tsd: 'TSD' }[it.kind] || 'Folder';
   let body = '';
   if (it.state) body += `<p style="margin:6px 0 0"><strong>${h(it.state)}</strong></p>`;
@@ -611,7 +599,7 @@ export function pickupHtml(it) {
 }
 
 // -------------------------------------------------------------- sidebar
-function reposPanel() {
+export function reposPanel() {
   const repos = (S.D && S.D.repos) || [];
   const add = '<button type="button" class="lnk plain" data-repo-open="1">Add a repo</button>';
   if (!repos.length) return `<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">Repos <span class="n">0</span></h3><p class="dim" style="margin:0">No repos in your workspace yet. ${add}</p></section>`;
@@ -624,7 +612,7 @@ function reposPanel() {
   busy.sort((a, b) => (b.git.changed || 0) - (a.git.changed || 0));
   const li = busy.map(r => {
     const g = r.git;
-    const owner = r.owner ? (r.ownerKnown ? `<a href="#item-${h(r.owner)}" data-jump="item-${h(r.owner)}">#${h(r.owner)}</a>` : `<span title="No .work folder for this id">#${h(r.owner)}?</span>`) : '';
+    const owner = r.owner ? (r.ownerKnown ? `<button type="button" class="lnk" data-open-item="${h(r.owner)}">#${h(r.owner)}</button>` : `<span title="No .work folder for this id">#${h(r.owner)}?</span>`) : '';
     const flags = repoFlags(g, null).filter(f => f[0] !== 'ok');
     if (!r.owner && g.branch && g.branch !== g.defaultBranch) flags.unshift(['info', 'Not a pipeline branch']);
     const bl = g.links && g.links.branch ? link(g.links.branch, 'Branch') : '';
@@ -647,8 +635,9 @@ const VERB = {
   status: null, standup: null, dashboard: null, memory: null, 'onboard-repo': null
 };
 const ACTIVITY_ROWS = 8;
-function activityPanel() {
-  const a = (S.D && S.D.activity) || [];
+/** Recent activity: what moved, one line per item per day. folder: only that item's (the run page). */
+export function activityHtml(folder) {
+  const a = ((S.D && S.D.activity) || []).filter(e => !folder || e.folder === folder);
   if (!a.length) return '';
   const groups = [], byKey = {};
   a.forEach(e => { // newest first
@@ -658,7 +647,7 @@ function activityPanel() {
     g.entries.push(e);
   });
   let out = '', lastDay = null;
-  groups.slice(0, ACTIVITY_ROWS).forEach(g => {
+  groups.slice(0, folder ? 30 : ACTIVITY_ROWS).forEach(g => {
     const words = []; let tasks = 0, fail = false, pass = false;
     g.entries.slice().reverse().forEach(e => { // oldest first, so the line reads in order
       const c = String(e.command || '').replace(/^\//, '').split(/\s+/)[0].toLowerCase();
@@ -678,10 +667,10 @@ function activityPanel() {
     const name = `<span class="num">#${h(g.id)}</span>${h(g.title || g.folder)}`;
     const live = itemForFolder(g.folder);
     out += `<li class="ev ${cls}"${fail ? ' title="A verify step failed"' : ''}><span class="pip" aria-hidden="true"></span><div style="min-width:0">` +
-      (live ? `<a class="it" href="#item-${h(itemKey(live))}" data-jump="item-${h(itemKey(live))}">${name}</a>` : `<span class="it">${name}</span>`) +
+      (folder ? '' : live ? `<button type="button" class="lnk it" data-open-item="${h(live.folder)}">${name}</button>` : `<span class="it">${name}</span>`) +
       `<span class="w">${h(line)}</span></div></li>`;
   });
-  return `<section class="panel" aria-labelledby="act-h"><h3 id="act-h">Recent activity</h3><ul class="timeline">${out}</ul></section>`;
+  return `<ul class="timeline">${out}</ul>`;
 }
 
 // ---------------------------------------------------------------- header and menus
@@ -702,7 +691,9 @@ function moreMenuHtml() {
   }
   if (L() && L().canOpenTerminal && o.connected) items += '<button type="button" role="menuitem" data-term="">Open the opencode TUI</button>';
   if (o.attach) items += copyBtn(o.attach, 'Copy terminal command');
-  items += '<div class="sep"></div><button type="button" role="menuitem" data-cfg-open="1">opencode settings</button>';
+  items += '<div class="sep"></div>' + (projectsOn() ? '<button type="button" role="menuitem" data-projects-open="1">Projects</button>' : '') +
+    '<button type="button" role="menuitem" data-repos-open="1">Repos</button>' +
+    '<button type="button" role="menuitem" data-cfg-open="1">opencode settings</button>';
   return `<div class="menu" role="menu" style="top:${S.ui.menu.top}px;right:${S.ui.menu.right}px">${items}</div>`;
 }
 function themeMenuHtml() {
@@ -728,9 +719,8 @@ export function pill() {
 function headerHtml() {
   const o = (L() && L().opencode) || {};
   const st = pill();
-  const tip = S.conn === 'on' && S.D ? 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
-  const toggle = `<button type="button" class="ibtn side-open" data-side-open="1" aria-label="Runs and projects" title="Runs and projects">${ICON.menu}</button>`;
-  return `<header class="top">${toggle}${brandHtml()}<span class="ws">${h(S.D && S.D.workspace)}</span><span class="fresh">` +
+  const tip = S.conn === 'on' && S.D ? (S.D.workspace ? S.D.workspace + '. ' : '') + 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
+  return `<header class="top">${brandHtml()}${tabsHtml()}<span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
     `<button type="button" class="btn primary top-start" data-start-open="1" title="Describe a change, start an ADO work item, or investigate a question">Start work</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
@@ -832,12 +822,11 @@ export function setupHtml() {
 }
 
 // ---------------------------------------------------------------- page
+// The Runs tab's groups. Ready to ship has the Ship tab; spikes, docs and TSDs have Research (pages.js).
 export const GROUPS = [
   ['needs', 'Needs you', ''],
   ['active', 'In progress', ''],
-  ['paused', 'Paused', ''],
-  ['ship', 'Ready to ship', 'Review and push, create the PR, then Remove the item once it merges.'],
-  ['notes', 'Spikes, docs, and TSDs', '']
+  ['paused', 'Paused', '']
 ];
 
 // Pick up here: an item whose agent is waiting, else the most recently touched item that is moving,
@@ -988,7 +977,7 @@ function startSheetHtml() {
   const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
   const pnow = st.project || INBOX;
   const projectPick = projectsOn() && projectList().length > 1 ? `<label class="cfg-row"><span class="cfg-t">Project</span><span class="cfg-d">The run gets the project's instructions.</span><select data-start-project="1">` +
-    projectList().map(p => `<option value="${h(p.id)}"${p.id === pnow ? ' selected' : ''}>${h(p.name)}</option>`).join('') + '</select></label>' : '';
+    projectList().map(p => `<option value="${h(p.id)}"${p.id === pnow ? ' selected' : ''}>${h(projectName(p))}</option>`).join('') + '</select></label>' : '';
   const lanes = projectPick + `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Reproduce, fix, review, PR')}</div></div>`;
   const head = `<div class="sheet-head"><h3 id="start-h">Start work</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   const tabs = `<div class="gos start-modes" role="group" aria-label="How to start">${tab('describe', 'Describe it')}${adoOn() ? tab('ado', 'ADO work item') : ''}${tab('spike', 'Investigate')}</div>`;
@@ -1099,7 +1088,7 @@ export function onboardSteps() {
     { k: 'work', done: items > 0, title: 'Start your first piece of work' }
   ];
 }
-function onboardHtml() {
+export function onboardHtml() {
   const steps = onboardSteps();
   if (steps.every(x => x.done)) return '';
   const open = (steps.find(x => !x.done) || {}).k;
@@ -1122,87 +1111,24 @@ export function looseSessions() {
   if (!L() || !L().others) return [];
   return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
 }
-function looseHtml() {
-  // PR reviews show on their own page (pr-reviews.js). Hub sessions (hub.js) show only while they wait for you,
-  // when they stopped with an error, or when they have run longer than the hub waits (10 minutes), so the
-  // session the hub card points to is always here.
-  const waits = o => L().permissions.some(p => p.sessionID === o.session) || L().questions.some(q => q.sessionID === o.session);
-  const stuck = o => !!o.s.error || (isBusy(o.s) && Date.now() - (o.at || Date.now()) > HUB_GIVE_UP_MS);
-  const list = looseSessions().filter(o => !isReviewSession(o) && (!isHubCommand(o.command) || waits(o) || stuck(o)));
-  if (!list.length) return '';
-  return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
-    list.map(o => {
-      const s = o.s;
-      const perms = L().permissions.filter(p => p.sessionID === o.session), qs = L().questions.filter(q => q.sessionID === o.session);
-      const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
-      return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(stamp(o.at))}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
-        sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
-    }).join('') + '</div></section>';
+
+function reposSheetHtml() {
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="repos-h">` +
+    reposPanel().replace('<section class="panel" aria-labelledby="repos-h"><h3 id="repos-h">', `<section class="panel" aria-labelledby="repos-h"><div class="sheet-head"><h3 id="repos-h">`).replace(/<\/h3>/, `</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`) +
+    '<footer><span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Close</button></footer></div></div>';
 }
 
 function overlaysHtml() {
-  return menuHtml() + (S.ui.project ? projectSheetHtml() : S.ui.folder ? folderSheetHtml() : S.ui.move ? moveSheetHtml() : S.ui.repo ? repoSheetHtml() : S.ui.start ? startSheetHtml() : S.ui.settings ? settingsSheetHtml() : S.ui.remove ? removeSheetHtml() : S.ui.file ? fileSheetHtml() : '');
+  const ui = S.ui;
+  return menuHtml() + (ui.project ? projectSheetHtml() : ui.move ? moveSheetHtml() : ui.projects ? projectsSheetHtml() : ui.repo ? repoSheetHtml() : ui.repos ? reposSheetHtml() : ui.start ? startSheetHtml() : ui.settings ? settingsSheetHtml() : ui.remove ? removeSheetHtml() : ui.file ? fileSheetHtml() : '');
 }
 
-/** The whole page. Resets the copy list, so call it once per paint. */
+/** The whole page: the header with its tabs, then the tab in view (pages.js). Resets the copy list, so call it
+ *  once per paint. Before the connector is ready: what is wrong, and the hub's capture box under it (#hub-slot). */
 export function render() {
   S.copyStore = [];
-  if (!S.connector || S.connector.state !== 'ready' || !S.D) return setupHtml() + overlaysHtml();
-  return `<div class="layout">${sidebarHtml()}<div class="content">${mainHtml()}</div></div>` + overlaysHtml();
-}
-
-// The page to the right of the sidebar: header, then the runs in scope (all, a project, or Needs review).
-function mainHtml() {
-  // Pull requests: one column, no side panels (the repos and activity are about runs).
-  if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="solo">${waitingHtml()}${reviewsHtml()}</div>`;
-  if (scope().kind === 'mine') return headerHtml() + bannersHtml() + `<div class="solo">${mineHtml()}</div>`;
-  // Chat: chat.js draws it; main.js moves its element into the slot.
-  if (scope().kind === 'chat') return headerHtml() + bannersHtml() + '<div class="solo"><div id="chat-slot"></div></div>';
-  const all = (S.D.items || []).filter(it => it.kind !== 'pr'); // PR reviews have their own page
-  const items = all.filter(inScope);
-  const by = {};
-  items.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
-  let html = headerHtml() + bannersHtml();
-  const setup = onboardHtml();
-  if (!all.length) {
-    html += setup + waitingHtml() + looseHtml();
-    if (!setup) html += '<div class="empty"><h2>No work in .work yet</h2><p>Describe a change or ask a question about the code.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>' +
-      '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
-    html += `<div style="margin-top:28px">${reposPanel()}</div>`;
-    return html;
-  }
-  const sc = scope();
-  const pick = sc.kind === 'all' ? pickItem(items, by) : null;
-  html += '<div class="grid"><main>' + scopeHeadHtml() + (sc.kind === 'all' ? setup + waitingHtml() + looseHtml() : '');
-  if (pick) html += pickupHtml(pick);
-  // Needs you also lists PR reviews where the reviewer agent is asking you something.
-  const prAsks = sc.kind === 'needs' ? askingReviews() : [];
-  const prStarts = sc.kind === 'needs' ? askingStarts() : [];
-  if (prAsks.length || prStarts.length) {
-    html += `<section class="group" id="g-prs" aria-labelledby="gh-prs"><h3 id="gh-prs">PR reviews <span class="n">${prAsks.length + prStarts.length}</span></h3>` +
-      `<p class="hint">The reviewer is asking you something. <button type="button" class="lnk" data-side-scope="reviews">Open To review</button></p>` +
-      `<div class="items">${prAsks.map(it => reviewCard(it)).join('')}${prStarts.map(o => `<article class="item rv" style="--state:var(--gate)"><div class="item-head"><h4 class="t">${h(o.command)}</h4></div>${sessionBox(o.s, L().permissions.filter(p => p.sessionID === o.session), L().questions.filter(q => q.sessionID === o.session), 'Reply to the agent. Ctrl+Enter sends.')}</article>`).join('')}</div></section>`;
-  }
-  if (!items.length && !(prAsks.length || prStarts.length)) {
-    html += sc.kind === 'needs' ? '<div class="empty small"><p>Nothing is waiting on you.</p></div>'
-      : `<div class="empty small"><p>No runs in this project yet.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div></div>`;
-  }
-  if (items.length > 8) {
-    html += '<ul class="counts" aria-label="Jump to a group">' + GROUPS.map(g => {
-      const n = (by[g[0]] || []).length;
-      return `<li><a href="#g-${g[0]}" data-jump="g-${g[0]}" data-b="${g[0]}" class="${n ? '' : 'zero'}">${h(g[1])} <b>${n}</b></a></li>`;
-    }).join('') + '</ul>';
-  }
-  GROUPS.forEach(g => {
-    const list = by[g[0]];
-    if (!list || !list.length) return;
-    html += `<section class="group" id="g-${g[0]}" aria-labelledby="gh-${g[0]}"><h3 id="gh-${g[0]}">${h(g[1])} <span class="n">${list.length}</span></h3>` +
-      (g[2] ? `<p class="hint">${md(g[2])}</p>` : '') +
-      `<div class="items">${list.map(it => (it === pick ? pickedRow(it) : itemCard(it, false))).join('')}</div></section>`;
-  });
-  if (!S.D.gitAvailable) html += '<p class="note">git was not found on PATH, so repo state is missing.</p>';
-  html += `</main><aside>${reposPanel()}${activityPanel()}</aside></div>`;
-  return html;
+  if (!S.connector || S.connector.state !== 'ready' || !S.D) return setupHtml() + '<section class="setup-hub" aria-label="Capture"><div id="hub-slot"></div></section>' + overlaysHtml();
+  return headerHtml() + bannersHtml() + `<div class="page" data-page="${h(S.ui.tab)}">${pageHtml()}</div>` + (S.D.gitAvailable ? '' : '<p class="note">git was not found on PATH, so repo state is missing.</p>') + overlaysHtml();
 }
 
 /** Open prompts and questions, for the rail badge and alerts. */

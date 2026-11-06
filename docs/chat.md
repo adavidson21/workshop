@@ -5,7 +5,8 @@ Dispatch lets you talk to Tandem (eng-agents on opencode) directly: follow up on
 ## Where they show
 
 - **Hub threads.** A hub card that is not a capture gets a reply box. Follow-ups go to the hub message's own opencode session, so Tandem keeps the context; the turns show under the answer. Asks come back after a reload; captures do not, so nothing is accepted twice.
-- **Chat tab** (Dispatch sidebar, Conversations, Chat; route `#/agents/chat/<session>`). Chats you started (**You started**) and hub threads you followed up on (**From the hub**). Automated work (runs, PR reviews, the hub's routing) never shows here.
+- **Chat tab** (route `#/agents/chat/<session>`). The first entry, **Ask or capture**, is the hub: since Dispatch 2.0 it is the one place to start a conversation, so every new message goes through `/hub` (captures come back as rows, questions as answered cards). Under **Conversations**: hub threads you followed up on (**From the hub**), shown with their first question and answer, and chats started before 2.0 (**You started**). Automated work (runs, PR reviews, the hub's routing) never shows here.
+- **Questions in a thread.** When Tandem asks a permission or a question in a hub card's or a conversation's session, it is answered right there, with the same controls as Dispatch's Inbox (which lists it too).
 
 ## Rules
 
@@ -19,7 +20,7 @@ Dispatch lets you talk to Tandem (eng-agents on opencode) directly: follow up on
 
 | Action | Write | Args | Result |
 | --- | --- | --- | --- |
-| `chat.start` | yes | `text` | `{session}`: a new session, first message to the chat agent |
+| `chat.start` | yes | `text` | `{session}`: a new session, first message to the chat agent. Dispatch 2.0 starts conversations from the hub instead; the action stays for other callers |
 | `chat.send` | yes | `session`, `text` | `{ok}`. 409 while Tandem is still answering |
 | `chat.messages` | no | `session` | `{session, from, title, busy, waiting, error?, turns: [{role: "you" \| "tandem", text, at}]}`. Text only; a hub thread leaves out the /hub run itself |
 | `chat.list` | no | optional `hubs` | `{items}`: chats and followed-up hub threads, newest activity first; with `hubs: true`, the 12 newest hub threads |

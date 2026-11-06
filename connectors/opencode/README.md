@@ -127,7 +127,7 @@ The live server pushed the whole page model on its own event stream. Connector e
 
 ## Projects
 
-Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/_dashboard/projects.json`, next to `sessions.json`, so they never leave this computer (`lib/projects.mjs`). Folders and pins in Dispatch's sidebar are view state and stay in the browser.
+Dispatch groups runs (the `.work` items) into projects. They are kept in `.work/_dashboard/projects.json`, next to `sessions.json`, so they never leave this computer (`lib/projects.mjs`). Dispatch's project filter is view state and stays in the browser.
 
 `state.projects`: `{inbox: "inbox", colors: [...], projects: [{id, name, color, repo, baseBranch, instructions, model, agent, tracker, created, builtIn}], runs: {"<folder>": "<project id>"}}`. Inbox is always first; any run not in `runs` is in Inbox. One repo per project for now.
 

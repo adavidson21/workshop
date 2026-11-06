@@ -6,41 +6,47 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 
 - **Data:** the opencode connector's `state` action ([connectors/opencode/README.md](../../connectors/opencode/README.md)). The app fetches it again after the connector's events (`model`, `live`, `autopilot`, `agent.waiting`, `agent.done`) and when the connector's status changes. No polling.
 - **Buttons:** the connector's actions. Write actions (`run`, `start`, `start.local`, `spike`, `repo.add`, `repo.guide`, `reply`, `answer`, `abort`, `remove`, `push`, `autopilot`) send `confirm: true`, only from the click that says what will happen. `.work` files open in a sheet through `file.read`.
-- **Shell:** `#/agents/<id>` scrolls to that item (a work item id, or the folder name of a spike, doc or TSD). The rail badge counts open prompts. A notification, if allowed, when an agent waits for you or finishes while the app is out of sight. **Refresh work items** is in the `Ctrl+K` palette.
+- **Shell:** `#/agents/<id>` opens that item (a work item id opens its run page; a spike, doc or TSD folder opens it in Research; `pr-<id>` opens Reviews at that review). `#/agents/<tab>` opens a tab, `#/agents/runs/<id>` a run page, `#/agents/research/<folder>` a Research folder, `#/agents/chat/<session>` a conversation. The rail badge counts what is in the Inbox. A notification, if allowed, when an agent waits for you or finishes while the app is out of sight. **Refresh work items** is in the `Ctrl+K` palette.
 - **Theme:** the page loads `shared/themes.css` and `shared/theme.js`, and the SDK applies theme changes. Inside the shell, the shell owns the theme and the name; opened on its own (`/apps/agents/`), the page has both.
+
+**Tabs** (Dispatch 2.0, `js/pages.js`; plan: `claude/dispatch-ui-v2-plan.md` in the Workshop project). One job per tab, full width, no inner sidebar. The header has the tabs, the Live pill, **Start work**, and the menu (Refresh, alerts, the opencode TUI, Projects, Repos, opencode settings).
+
+- **Inbox** (the default): everything waiting on you. **Agents asking you**: every permission and question from any session (runs, spikes, repo guides, PR reviews, the hub, conversations), answered in place, each with where it came from and **Open**. **Runs waiting on you** (a gate to approve, autopilot waiting), **Code reviews to do** (with **Review**), **Stopped or blocked**, and one line for teammates' PRs with no review yet. With nothing waiting it says so and shows **Pick up here** (the most recently moving run). The getting-set-up checklist shows here until done.
+- **Chat:** see [Conversations](#conversations) below.
+- **Runs:** work items in progress as rows (status dot, title, stage, the next step and its main button, project chip), grouped Needs you, In progress, Paused. A row opens the **run page**: the track, the next step, autopilot, the agent session with its reply box, where it left off, then **Brief**, **Tasks**, **Repos** (with the terminal command), **Files** and **Activity**.
+- **Ship:** runs that wrote their PR text (see My PRs below), plus runs at Ship with no `pr.md` yet. **Open run** opens the run page on this tab; **Remove** cleans up once the PR merges.
+- **Reviews:** teammates' PRs (see To review below).
+- **Research:** spikes, docs and TSDs as rows, and spikes before their folder exists and repo guides under **Running** with their session. A folder opens a reader: its state, summary and next step, its main file (`findings.md`, or the document) rendered as escaped Markdown, **Start work from this** (Start work, Describe it, filled in from the findings) and **Save as note**.
+
+**Projects** come from the connector (`state.projects`; `project.create`, `project.update`, `project.delete`, `run.assign`). Once you have one, Runs and Ship show a filter (All projects, then each project with its count) and each run a chip that moves it. Runs with no project are in the built-in project, shown as **No project**. The filter is kept in this browser (`localStorage` key `dispatch.view`, `js/local.js`); Dispatch 1.x's `dispatch.sidebar` key (folders and pins) is removed on load. **Projects** in the menu lists them with Edit and New project. Start work starts in the project filtered to. With an older connector that has no projects, the project controls are hidden.
 
 **Using Dispatch on its own** (no Docket, no terminal):
 
 - **Getting set up:** after Workshop connects, a checklist shows until three things are done: an AI model connected to opencode (from `opencode.ai`; it shows the `opencode auth login` command and how to use Claude with an Anthropic API key), a repo in the workspace, and a first piece of work. If the AI step cannot be checked (an opencode that does not say), it is not counted as missing.
 - **Start work:** *Describe it* (the default: title, description, repro steps for a bug; the `start.local` action, no tracker), *ADO work item* (by number; only shown when Tandem has ADO connections), or *Investigate* (`spike`).
-- **Repos:** *Add a repo* clones by URL into the workspace and lists it in the repo map (`repo.add`), then offers *Draft its guide* (`repo.guide`, `/onboard-repo`). The repos panel has both for every repo.
-- Spikes and repo guides started here show under **Investigations and repo guides**, with the agent's questions and a reply box, until dismissed.
+- **Repos** (menu): inside Workshop, Settings > Repos. On its own page, a sheet: repos with work in progress, *Add a repo* (clones by URL into the workspace and lists it in the repo map, `repo.add`, then offers *Draft its guide*, `repo.guide`, `/onboard-repo`) and *Draft guide* for every repo.
+- Spikes and repo guides started here show in Research under **Running**, with the agent's questions and a reply box, until dismissed.
 
-**Pull requests** (sidebar group, `js/pr-reviews.js`): both kinds of PR in one place. **To review** is teammates' PRs; **My PRs** is the PRs of your own runs.
+**Pull requests** (`js/pr-reviews.js`): **Reviews** (the tab) is teammates' PRs; **Ship** (the tab) is the PRs of your own runs.
 
-**To review:** first-pass reviews of your team's pull requests by Tandem's pr-reviewer agent (eng-agents `/pr-review`, Core 2.6.0). One column, no side panels.
+**To review (the Reviews tab):** first-pass reviews of your team's pull requests by Tandem's pr-reviewer agent (eng-agents `/pr-review`, Core 2.6.0). One column, no side panels.
 
 - **Review a link:** the button in the page header (and the palette's **Review a pull request**) shows a box for any ADO PR link; the opencode connector's `pr.review` action runs `/pr-review <link>`. The repo must be cloned in the workspace. The agent reads the PR through git without checking it out.
 - **Waiting on you:** the ADO connector's `sync.prs` (read-only), checked when Dispatch connects, when the page opens (if older than five minutes) and from *Check again*. One entry per PR: its review card in place once a review exists (with the PR's tier), else a row with *Review*. Reviews still starting (no `pr-<id>` folder yet) are at the top. Without the ADO connector the page says how to turn it on; review by link still works.
 - **Earlier reviews:** reviews of PRs no longer waiting on you, or reviewed by link. With no inbox (ADO off or failing) the list is called Reviews.
-- **Needs you** also lists reviews where the reviewer agent is asking you something, and counts them.
+- The **Inbox** lists the reviewer agent's questions with the rest, with **Open** to the review.
 - **Review all:** queues every PR waiting on you that needs a first pass (not Waiting for author, not already reviewed at its latest commit, which `sync.prs` now sends). The opencode connector runs them one at a time, even with Dispatch closed (`pr.reviewAll`). A panel above the inbox shows progress, the PR being reviewed, and which ones were reviewed, need you, or failed, with Stop, Resume and Dismiss.
 - **Nightly review:** set a time under opencode settings, PR reviews. Each check of the inbox hands the list to the connector (`pr.inbox.save`), and at that time it reviews the list, so drafts are ready when you sit down. The line under the inbox says when it runs. See the connector's README for the rules.
 - **Reviews:** one card per `.work/pr-<id>`: recommendation, risk, and the draft comments (file, line, severity, why) each with *Copy comment*. A review of an older commit says so and offers *Review the new commits*. **Nothing is posted**: you paste the comments you agree with into the PR yourself.
-- Reviews are not runs: they are left out of All runs, projects and the run counts. The To review count is PRs waiting on you with no review yet (gate colored when the reviewer is asking you something). `#/agents/pr-<id>` opens the page at that review.
+- Reviews are not runs: they are left out of Runs, projects and the run counts. The Reviews tab count is PRs waiting on you with no review yet (gate colored when the reviewer is asking you something). `#/agents/pr-<id>` opens the page at that review.
 
-**My PRs:** every run at Ship with a `pr.md`, grouped by whose turn it is: **Your turn** (review before you push, a revision that needs you, a branch to push by hand, a repo or branch not found), **With the agent** (revising after your review) and **Ready for a PR** (approved, or pushed: create the PR). Each card is the run's Pull requests box (code review link, title and description to copy, Create PR) with **Open run**. The same box is still on the run card; this page only gathers them. The sidebar count is runs with a code review to do.
+**My PRs (the Ship tab):** every run at Ship with a `pr.md`, grouped by whose turn it is: **Your turn** (review before you push, a revision that needs you, a branch to push by hand, a repo or branch not found), **With the agent** (revising after your review) and **Ready for a PR** (approved, or pushed: create the PR). Each card is the run's Pull requests box (code review link, title and description to copy, Create PR) with **Open run**. The same box is on the run page; this tab only gathers them. The Ship tab count is runs with a code review to do.
 
-**Sidebar** (Dispatch App Experience Plan, phase 1, P2):
+Before the connector is ready, the page says what is wrong: browser mode, the connector off (with a button to Settings), starting, or its error message. The hub's capture box sits under it, so captures work without Tandem.
 
-- **New run** opens Start work in the project in view. **All runs** is the full page; **Needs review** lists runs waiting on you across all projects, with a count.
-- **Projects** come from the connector (`state.projects`; `project.create`, `project.update`, `project.delete`, `run.assign`). Each one expands to its newest runs with a status dot: running, needs review, revising, failed, ready to ship, paused, up next. Runs with no project are in the built-in **Inbox**. Picking a project filters the page to its runs; the gear edits its name, color, repo, base branch and agent instructions.
-- Each run card has a chip with its project; click it to move the run.
-- **Folders** (groups of projects, one level) and **Pinned** runs and projects are view state kept in this browser only (`localStorage` key `dispatch.sidebar`, `js/local.js`). If storage is blocked they last for this visit.
-- With an older connector that has no projects, every run is in Inbox and the project controls are hidden.
-- Under 860px wide the sidebar is a drawer opened from the menu button in the header.
+## Conversations
 
-Before the connector is ready, the page says what is wrong: browser mode, the connector off (with a button to Settings), starting, or its error message.
+The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or capture**, is the hub ([docs/hub.md](../../docs/hub.md)): one box for questions and captures, each answered as a card you can reply under. Below it, **Conversations**: hub threads you replied to, with their first question and answer, the turns since, and a reply box. When Tandem asks something in a thread or a hub card, it is answered right there (and it is in the Inbox too).
 
 ## Code review
 
@@ -59,15 +65,16 @@ Before the connector is ready, the page says what is wrong: browser mode, the co
 
 | File | What |
 | --- | --- |
-| `js/view.js` | The page as HTML strings, from the state. Ported from eng-agents `core/scripts/dashboard/dashboard.template.html` at `e2d202a` (Dashboard 1.6.1, live mode). No DOM, so it is tested in Node. |
+| `js/pages.js` | The tabs (Inbox, Runs and the run page, Ship, Research and its reader) and the tab bar. HTML strings, tested in Node. |
+| `js/view.js` | The header, sheets and the pieces the tabs draw (track, next step, agent box, PR box), as HTML strings, from the state. Ported from eng-agents `core/scripts/dashboard/dashboard.template.html` at `e2d202a` (Dashboard 1.6.1, live mode). No DOM, so it is tested in Node. |
 | `js/main.js` | SDK connection, fetching, painting, clicks, alerts, focus. |
 | `js/state.js` | The state the view reads. |
-| `js/sidebar.js` | The sidebar, the scope line above the list, the project chip on run cards, and the project, folder and move sheets. HTML strings, tested in Node. |
-| `js/pr-reviews.js` | The Pull requests pages. To review: link box, Review all, Waiting on you (review cards and rows), Earlier reviews. My PRs. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
-| `js/hub.js`, `js/hub-model.js` | The hub at the top of the page ([docs/hub.md](../../docs/hub.md)), with reply threads under its cards ([docs/chat.md](../../docs/chat.md)). |
-| `js/chat.js` | The Chat tab: chats you started and hub threads you followed up on, with Tandem's read-only chat agent. Its own element, moved into the page by `main.js` so typing survives repaints. |
+| `js/projects.js` | Projects: the filter, the project chip, run status, and the project, Projects and move sheets. HTML strings, tested in Node. |
+| `js/pr-reviews.js` | Reviews (link box, Review all, Waiting on you, Earlier reviews) and Ship's PR groups. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
+| `js/hub.js`, `js/hub-model.js` | The hub, Chat's Ask or capture pane ([docs/hub.md](../../docs/hub.md)), with reply threads under its cards ([docs/chat.md](../../docs/chat.md)). |
+| `js/chat.js` | The Chat tab: Ask or capture (the hub's element), and conversations with Tandem's read-only chat agent. Its own element, moved into the page by `main.js` so typing survives repaints. |
 | `js/thread.js` | Turns, the last answer, "5 min ago", and keeping focus through a repaint. Shared by the hub and Chat. Tested in Node. |
-| `js/local.js` | Folders, pins and collapsed groups in this browser: clean, load, save, prune. |
+| `js/local.js` | The project filter in this browser: clean, load, save, prune. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
 | `review.html`, `review.css` | The code review page and its styles. |
 | `js/review.js` | Code review: SDK connection, Monaco, line selection, comment boxes, drafts, submit. |
@@ -87,7 +94,7 @@ python tests/review-e2e.py
 ```
 
 - `test/view.test.mjs`: the page-only items from [connectors/opencode/PARITY.md](../../connectors/opencode/PARITY.md), on `test/fixtures/state.json`, a `state` result from the connector for `docs/examples/work` (synthetic).
-- `test/sidebar.test.mjs`: the sidebar, scopes, run status, starting in a project, the sheets, and browser-only folders and pins.
+- `test/projects.test.mjs`: the project filter, chips, run status, starting in a project, the sheets, and the browser-only filter.
 - `test/review.test.mjs`: the code review's logic, HTML and mock API.
 - `tests/review-e2e.py`: the code review page in Chromium against the mock, under the page's real CSP: ranges, the box, markers, the panel, drafts after a refresh, the payload, revision 2, a stale head, approve, deep links, theme.
-- `test/fixture.mjs`: a synthetic workspace and a fake opencode for `tests/e2e.py` part 5, which runs the app against the real agent and connector: buttons, prompts, Push, Remove, deep links, theme, and Prioritizer's stages and Start.
+- `test/fixture.mjs`: a synthetic workspace and a fake opencode for `tests/e2e.py` part 5, which runs the app against the real agent and connector: the tabs, the run page, prompts in the Inbox, Push, Remove, deep links, theme, projects, and Prioritizer's stages and Start.

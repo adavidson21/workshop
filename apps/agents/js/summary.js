@@ -16,7 +16,7 @@ export function summaryCards({ items = [], prompts = [], prs = [], now = Date.no
     needs.push({ id: it.folder, title: it.id ? `#${it.id} ${it.title || ''}`.trim() : (it.title || it.folder), note: 'The agent is asking you something', route: it.id ? String(it.id) : it.folder, flag: 'urgent' });
   }
   const waiting = prs.filter(p => p && !p.waiting);
-  if (waiting.length) needs.push({ id: 'prs', title: `${waiting.length} pull request${waiting.length === 1 ? '' : 's'} waiting for your review`, note: waiting.slice(0, 3).map(p => p.title).filter(Boolean).join(', ').slice(0, 200), route: '' });
+  if (waiting.length) needs.push({ id: 'prs', title: `${waiting.length} pull request${waiting.length === 1 ? '' : 's'} waiting for your review`, note: waiting.slice(0, 3).map(p => p.title).filter(Boolean).join(', ').slice(0, 200), route: 'reviews' });
   const week = now - 7 * DAY;
   const done = items.filter(it => it.kind === 'item' && (it.bucket === 'done' || (it.next && it.next.stage === 'ship')) && (it.modifiedMs || 0) >= week)
     .sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0))

@@ -13,11 +13,11 @@
    - One list: each PR waiting on you is one entry. A PR with a review shows the review card (with its
      tier); a PR with none shows a row with Review. Reviews of PRs no longer waiting on you are listed
      after it, under Earlier reviews.
-   - My PRs (scope "mine"): the pull requests of your own runs (pr.md, at Ship), with where each repo's
-     code review stands. Same data as the run cards; only gathered in one place. */
+   - Ship (its own tab): the pull requests of your own runs (pr.md, at Ship), with where each repo's code review
+     stands, grouped by whose turn it is. The run page has the same PR box. */
 import { S } from './state.js';
 import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar, stamp } from './view.js';
-import { projectChip } from './sidebar.js';
+import { projectChip } from './projects.js';
 
 const SEV = [['blocking', 'Blocking'], ['should-fix', 'Should fix'], ['optional', 'Optional']];
 const SEV_NAME = Object.fromEntries(SEV);
@@ -44,7 +44,7 @@ function reviewRunning(id) {
   return startingReviews().some(o => isBusy(o.s) && linkPrId(o.command) === String(id));
 }
 
-/** PRs waiting on you that have no review in .work yet (the sidebar count). */
+/** PRs waiting on you that have no review in .work yet (the Reviews tab count). */
 export function toReviewCount() {
   const inbox = S.inbox || {};
   if (inbox.state !== 'ok') return 0;
@@ -314,14 +314,14 @@ function pasteHtml() {
     '</div>';
 }
 
-/** The To review page (scope "reviews"): teammates' PRs and their first-pass reviews. */
+/** The Reviews tab: teammates' PRs and their first-pass reviews. */
 export function reviewsHtml() {
   const inbox = S.inbox || {};
   const listed = new Set(inbox.state === 'ok' ? (inbox.items || []).map(p => String(p.id)) : []);
   const earlier = reviewItems().filter(it => !listed.has(String((it.prReview && it.prReview.id) || it.folder.replace(/^pr-/, ''))));
   const st = S.ui.prReview || {};
   const linkBtn = st.open ? '' : '<button type="button" class="btn" data-rv-open="1">Review a link</button>';
-  let html = `<div class="scope-head"><h2>To review</h2><span class="dim">Teammates' PRs. Drafts only: nothing is posted to Azure DevOps.</span>${linkBtn}</div>`;
+  let html = `<div class="scope-head"><h2>Reviews</h2><span class="dim">Teammates' PRs. Drafts only: nothing is posted to Azure DevOps.</span>${linkBtn}</div>`;
   html += pasteHtml() + queueHtml() + inboxHtml();
   if (earlier.length) {
     const name = inbox.state === 'ok' ? 'Earlier reviews' : 'Reviews';
@@ -361,7 +361,7 @@ export function mineItems() {
   return ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && it.stage === 'ship' && (it.pr || []).length)
     .sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
 }
-/** Runs whose PR is waiting on you (a code review to do, or a revision that needs you). The sidebar count. */
+/** Runs whose PR is waiting on you (a code review to do, or a revision that needs you). The Ship tab count. */
 export function mineNeedsCount() { return mineItems().filter(it => ['fix', 'review'].includes(mineState(it))).length; }
 
 const MINE_GROUPS = [
@@ -374,17 +374,17 @@ function mineCard(it) {
   const meta = [`<span class="flag ${['fix', 'missing'].includes(st) ? 'bad' : ['review', 'push'].includes(st) ? 'warn' : 'ok'}">${h(MINE_STATE[st])}</span>`];
   meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`);
   meta.push(projectChip(it));
-  meta.push(`<button type="button" class="lnk plain" data-side-run="${h(it.folder)}">Open run</button>`);
+  meta.push(`<button type="button" class="lnk plain" data-open-run="${h(it.folder)}">Open run</button>`);
+  meta.push(removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
-  return `<article class="item mine" id="mine-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+  return `<article class="item mine" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
     `<div class="item-head"><h4 class="t">${it.id ? idLink(it) : ''}${title}</h4><div class="meta">${meta.join('')}</div></div>` + prHtml(it) + '</article>';
 }
 
-/** The My PRs page (scope "mine"). */
-export function mineHtml() {
-  const list = mineItems();
-  let html = '<div class="scope-head"><h2>My PRs</h2><span class="dim">Pull requests from your runs, from code review to merge.</span></div>';
-  if (!list.length) return html + '<div class="empty small"><p>No PRs yet. When a run reaches Ship, its pull requests show here.</p></div>';
+/** The Ship tab's PR groups, for the runs in `list` (default: every run with PRs). */
+export function mineHtml(list = mineItems()) {
+  let html = '';
+  if (!list.length) return '';
   for (const [key, name, hint, states] of MINE_GROUPS) {
     const g = list.filter(it => states.includes(mineState(it)));
     if (!g.length) continue;

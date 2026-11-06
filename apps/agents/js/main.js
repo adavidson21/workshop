@@ -16,13 +16,14 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
-import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
+import { INBOX, projectById, projectArgs, startProject } from './projects.js';
+import { TAB_IDS, inboxCount, docFile, sessionAsksHtml } from './pages.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
 import { startChat } from './chat.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { useApps } from '../../../shared/capture.js';
-import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
+import { loadView, saveView, pruneView } from './local.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -34,15 +35,20 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 // On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
 if (!ws.embedded) mountBar('Dispatch');
 
-/* ---------- the hub (hub.js): one input for asks and captures, drawn once above the page ---------- */
+/* ---------- the hub (hub.js) and the Chat tab (chat.js) ----------
+   The hub is drawn once into #hub; chat.js keeps it in its Ask or capture pane, and before Dispatch is connected
+   paint() moves it under the setup page (#hub-slot), so captures always work. */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
 ws.apps.list().then(useApps).catch(() => {});
 let chat = null;
-const hub = startHub(ws, document.getElementById('hub'), {
-  openChat: session => { setScope('chat'); chat.open(session); },
-  onStatus: () => { if (chat) chat.refresh(); }
+const hubEl = document.getElementById('hub');
+const hub = startHub(ws, hubEl, {
+  openChat: session => { setTab('chat'); chat.open(session); },
+  onStatus: () => { if (chat) chat.refresh(); },
+  asksHtml: sid => sessionAsksHtml(sid)
 });
-chat = startChat(ws, { noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
+chat = startChat(ws, { hubEl, intro: sid => hub.intro(sid), asksHtml: sid => sessionAsksHtml(sid), noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
+chat.mountHub();
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------
    Progress, the port and the computer type are kept per browser. Pairing works like the shell's Connect
@@ -52,11 +58,11 @@ const readJson = k => { try { return JSON.parse(localStorage.getItem(k) || 'null
 const paired = readJson(PAIR_KEY);
 const savedGuide = readJson(GUIDE_KEY);
 S.origin = location.origin;
-// Sidebar folders and pins: this browser only (local.js). Reading localStorage can throw (blocked site data).
+// The project filter: this browser only (local.js). Reading localStorage can throw (blocked site data).
 const store = (() => { try { return window.localStorage; } catch (e) { return null; } })();
-const memStore = { getItem: () => null, setItem: () => {} };
-S.local = loadLocal(store || memStore);
-const saveSide = () => saveLocal(store || memStore, S.local);
+const memStore = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+S.view = loadView(store || memStore);
+const saveViewNow = () => saveView(store || memStore, S.view);
 S.agentUrl = ws.mode === 'hosted' && paired && paired.url ? paired.url : null;
 S.wasPaired = ws.mode === 'browser' && !!(paired && paired.url);
 S.setup = Object.assign(guideDefaults(), savedGuide || {}, { check: null, pair: null });
@@ -241,7 +247,10 @@ async function fetchState() {
     publishSummary();
     watchPrompts();
     loadBriefs();
-    if (d.projects && pruneLocal(S.local, new Set(d.projects.projects.map(p => p.id)), new Set((d.items || []).map(i => i.folder)))) saveSide();
+    loadDoc();
+    if (d.projects && pruneView(S.view, new Set(d.projects.projects.map(p => p.id)))) saveViewNow();
+    hub.redraw();
+    chat.redraw();
   } catch (e) {
     if (e.code === 'unavailable' && /Workshop is not running|fetch/i.test(errText(e))) S.conn = 'off';
     else if (e.code === 'disabled' || e.code === 'unavailable') await loadStatus();
@@ -268,6 +277,19 @@ function loadBriefs() {
       .finally(() => { next.loading = false; schedule(); });
   }
   for (const f of Object.keys(S.briefs)) if (!live.has(f)) delete S.briefs[f];
+}
+// The main file of the Research folder that is open (pages.js docFile), read again when the folder changes.
+function loadDoc() {
+  const it = S.ui.doc ? itemForFolder(S.ui.doc) : null;
+  const name = it ? docFile(it) : null;
+  if (!it || !name) return;
+  const d = S.docs[it.folder];
+  if (d && d.name === name && (d.loading || d.at === it.modifiedMs)) return;
+  const next = S.docs[it.folder] = { name, text: d && d.name === name ? d.text : null, error: null, at: it.modifiedMs, loading: true };
+  read('file.read', { folder: it.folder, file: name })
+    .then(r => { next.text = r.text; })
+    .catch(e => { next.error = errText(e); })
+    .finally(() => { next.loading = false; schedule(); });
 }
 let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }
@@ -304,7 +326,8 @@ let seen = null, wasBusy = {}, wasAuto = {}, lastBadge = -1;
 function watchPrompts() {
   if (!S.L) return;
   const list = prompts();
-  if (list.length !== lastBadge) { lastBadge = list.length; ws.badge(list.length || null).catch(() => {}); }
+  const count = inboxCount();
+  if (count !== lastBadge) { lastBadge = count; ws.badge(count || null).catch(() => {}); }
   const first = seen === null;
   if (first) seen = {};
   const fresh = list.filter(p => !seen[p.id]);
@@ -327,7 +350,11 @@ function watchPrompts() {
   finished.forEach(s => alertUser((s.error ? 'Agent stopped: ' : 'Agent finished: ') + label(s.folder, s.title || 'opencode session'), s.error || s.command || '', s.folder));
 }
 
-/* ---------- focus: #/agents/<id> scrolls to that item and flashes it ---------- */
+/* ---------- routes ----------
+   #/agents/<tab> opens a tab (inbox, chat, runs, ship, reviews, research); #/agents/runs/<id> a run page;
+   #/agents/research/<folder> a Research folder; #/agents/chat/<session> a conversation; #/agents/hub/<text> asks the
+   hub (from Home's quick capture, where Enter was pressed). #/agents/<id> (Dispatch 1.x, notifications, Home and
+   Docket's links) opens whatever that is: a run page, a review on Reviews, or a Research folder. */
 let focusWanted = null;
 function focusItem(id) {
   const el = document.getElementById('item-' + id);
@@ -337,21 +364,38 @@ function focusItem(id) {
   setTimeout(() => el.classList.remove('flash'), 1600);
   return true;
 }
+// A work item id or folder name, as the old routes and notifications give it.
+function itemByKey(key) { return ((S.D && S.D.items) || []).find(it => itemKey(it) === key || it.folder === key) || null; }
+function openKey(key) {
+  const it = itemByKey(key);
+  if (!it) return false;
+  if (it.kind === 'item') openRun(it.folder);
+  else if (it.kind === 'pr') { setTab('reviews'); focusWanted = { id: itemKey(it), until: Date.now() + 15000 }; schedule(); }
+  else openDoc(it.folder);
+  return true;
+}
+let keyWanted = null;
 function wantFocus(path) {
   const p = String(path || '');
-  // #/agents/hub/<text>: a question sent from Home's quick capture (Enter was pressed there).
-  if (/^hub(\/|$)/.test(p)) { const text = p.replace(/^hub\/?/, '').trim(); if (text) hub.ask(text); else hub.focus(); return; }
-  // #/agents/chat[/<session>]: the Chat tab, on one conversation if given.
-  if (/^chat(\/|$)/.test(p)) { const sid = p.replace(/^chat\/?/, '').trim(); setScope('chat'); if (sid) chat.open(sid); return; }
-  const id = p.split('/')[0];
-  if (!id) return;
-  S.ui.scope = { kind: /^pr-\d+$/.test(id) ? 'reviews' : 'all' }; // the item may be outside the project in view
+  if (/^hub(\/|$)/.test(p)) { const text = p.replace(/^hub\/?/, '').trim(); setTab('chat'); chat.open(null); if (text) hub.ask(text); else hub.focus(); return; }
+  if (/^chat(\/|$)/.test(p)) { const sid = p.replace(/^chat\/?/, '').trim(); setTab('chat'); chat.open(sid || null); return; }
+  const [head, rest] = [p.split('/')[0], p.split('/').slice(1).join('/')];
+  if (!head) return;
+  if ((head === 'runs' || head === 'ship') && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
+  if (head === 'research' && rest) { openDoc(rest); return; }
+  if (TAB_IDS.includes(head)) { setTab(head); return; }
   // The page may not have the item yet: keep trying for a while as data arrives.
-  focusWanted = focusItem(id) ? null : { id, until: Date.now() + 15000 };
+  keyWanted = { key: head, until: Date.now() + 15000 };
+  tryKey();
+}
+function tryKey() {
+  if (!keyWanted) return;
+  if (openKey(keyWanted.key) || Date.now() > keyWanted.until) keyWanted = null;
 }
 ws.on('route', p => wantFocus(p.path));
-// Opened on its own: the hash is #<id> (the shell strips its own part before sending the route).
-if (!ws.embedded && location.hash.length > 1) wantFocus(decodeURIComponent(location.hash.slice(1)));
+// Opened on its own, the hash is #<route> (the shell strips its own part before sending the route). Inside the shell
+// the frame's own hash is set only by Back to Dispatch on the code review (review.html), which returns to the run.
+if (location.hash.length > 1) wantFocus(decodeURIComponent(location.hash.slice(1)));
 
 /* ---------- painting ---------- */
 // Elements with an entry animation, and how to tell the same one apart across a repaint.
@@ -377,17 +421,21 @@ function paint() {
   const key = a && a.getAttribute && a.getAttribute('data-draft');
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
-  const inChat = chat.el.contains(a) ? a : null;
+  const inChat = chat.el.contains(a) || hubEl.contains(a) ? a : null;
   const chatSel = inChat && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   app.innerHTML = html;
   lastHtml = html; lastFirst = app.firstChild;
-  // The Chat tab is its own element (chat.js), moved in rather than redrawn, so typing survives.
+  // The Chat tab is its own element (chat.js), moved in rather than redrawn, so typing survives. The hub lives in
+  // it, except before Dispatch is connected, when it sits under the setup page.
   const slot = app.querySelector('#chat-slot');
+  const hubSlot = app.querySelector('#hub-slot');
   if (slot) slot.replaceWith(chat.el);
+  if (hubSlot) hubSlot.replaceWith(hubEl); else chat.mountHub();
   chat.show(!!slot);
-  if (slot && inChat) { inChat.focus(); if (chatSel) try { inChat.setSelectionRange(chatSel[0], chatSel[1]); } catch (e) { /* not a text field */ } }
+  if (inChat && inChat.isConnected) { inChat.focus(); if (chatSel) try { inChat.setSelectionRange(chatSel[0], chatSel[1]); } catch (e) { /* not a text field */ } }
   // Entry animations play once: an element that was already on screen keeps still through repaints.
   ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
+  if (keyWanted) tryKey();
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;
   sh = app.querySelector('.sheet');
   if (sh) sh.scrollTop = sheetTop;
@@ -418,8 +466,8 @@ document.addEventListener('pointerup', () => {
 /* ---------- input ---------- */
 const ui = () => S.ui;
 function closeOverlays() {
-  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null; ui().move = null;
-  if (ui().project || ui().folder) { ui().project = null; ui().folder = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('proj:') || k.startsWith('folder:')) delete ui().drafts[k]; }
+  ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null; ui().repos = false; ui().move = null; ui().projects = false;
+  if (ui().project) { ui().project = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('proj:')) delete ui().drafts[k]; }
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
 }
 
@@ -428,8 +476,7 @@ let lastMode = 'describe', lastLane = 'feature';
 function focusFirst(sel) { const box = app.querySelector(sel); if (box) box.focus(); }
 function openStart(mode) {
   closeOverlays();
-  ui().start = { mode: mode || lastMode, lane: lastLane, project: scopeProject(), busy: false, error: null };
-  ui().side = false;
+  ui().start = { mode: mode || lastMode, lane: lastLane, project: startProject(), busy: false, error: null };
   paint();
   focusFirst('.start-first');
 }
@@ -446,8 +493,8 @@ async function startGo() {
     lastMode = st.mode; lastLane = st.lane;
     closeOverlays();
     const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
-    toast(r.action === 'spike' ? 'Investigating. Answers show up here.'
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. The agent may ask you to confirm repos.`
+    toast(r.action === 'spike' ? 'Investigating. Follow it in Research.'
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. It is on Runs; the agent may ask you to confirm repos.`
       : `Starting #${r.args.id} as a ${r.args.lane}${pname}. It shows up when its folder is ready.`);
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
@@ -488,9 +535,25 @@ async function repoGo() {
   fetchSoon();
   schedule();
 }
+// Repos, from the menu. Inside Workshop that is Settings > Repos; on its own page, a sheet with the workspace's repos.
+function openRepos() {
+  closeOverlays();
+  if (ws.embedded) { ws.open({ app: 'settings', path: 'repos' }).catch(() => {}); return; }
+  ui().repos = true;
+  paint();
+}
+// Start work from a Research folder: Describe it, filled in from the findings. Nothing starts until Start.
+function startFromDoc(folder) {
+  const it = itemForFolder(folder);
+  if (!it) return;
+  const d = S.docs[it.folder];
+  ui().drafts['start:title'] = String(it.title || '').slice(0, 200);
+  ui().drafts['start:desc'] = [it.summary || '', d && d.text ? `From .work/${it.folder}/${d.name}:\n\n${d.text}` : `See .work/${it.folder}.`].filter(Boolean).join('\n\n').slice(0, 8000);
+  openStart('describe');
+}
 function draftGuide(folder) {
   closeOverlays();
-  act(() => write('repo.guide', { repo: folder }), () => toast(`Drafting the guide for ${folder}. Follow it under Investigations and repo guides.`));
+  act(() => write('repo.guide', { repo: folder }), () => toast(`Drafting the guide for ${folder}. Follow it in Research.`));
 }
 
 /* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
@@ -525,31 +588,36 @@ async function saveSettings() {
   schedule();
 }
 
-/* ---------- sidebar: scope, pins, projects, folders, moving runs (sidebar.js, local.js) ---------- */
-function setScope(kind, id) {
-  ui().scope = kind === 'project' ? { kind, id } : { kind };
-  if (kind === 'reviews') loadInbox(false);
-  ui().side = false;
+/* ---------- tabs, the run page, Research folders, projects (pages.js, projects.js, local.js) ---------- */
+function setTab(tab, keep) {
+  if (!TAB_IDS.includes(tab)) tab = 'inbox';
+  if (!keep) { ui().run = null; ui().doc = null; }
+  ui().tab = tab;
+  if (tab === 'reviews') loadInbox(false);
   paint();
   window.scrollTo(0, 0);
 }
-function openRunFromSide(folder) {
+function openRun(folder) {
   const it = itemForFolder(folder);
   if (!it) return;
-  // Show the run where it is: keep the current list if it has it, else its project's.
-  const sc = ui().scope || { kind: 'all' };
-  const pid = (S.D && S.D.projects && S.D.projects.runs[folder]) || INBOX;
-  if ((sc.kind === 'project' && sc.id !== pid) || sc.kind === 'mine' || sc.kind === 'reviews') ui().scope = S.D && S.D.projects ? { kind: 'project', id: pid } : { kind: 'all' };
-  if (sc.kind === 'needs' && !(app.querySelector('#item-' + CSS.escape(itemKey(it))))) ui().scope = { kind: 'all' };
-  ui().side = false;
+  const ship = it.kind === 'item' && (it.stage === 'ship' || it.bucket === 'ship' || it.bucket === 'done');
+  ui().run = folder; ui().doc = null;
+  setTab(ship ? 'ship' : 'runs', true);
+}
+function openDoc(folder) {
+  ui().doc = folder; ui().run = null;
+  setTab('research', true);
+  loadDoc();
+}
+function setProjectFilter(id) {
+  S.view.project = id || 'all';
+  saveViewNow();
   paint();
-  focusItem(itemKey(it));
 }
 function openProject(id) {
   closeOverlays();
   const cur = id ? projectById(id) : null;
-  ui().project = { id: cur ? cur.id : null, color: cur ? cur.color : null, folder: undefined, busy: false, error: null, confirmDelete: false };
-  ui().side = false;
+  ui().project = { id: cur ? cur.id : null, color: cur ? cur.color : null, busy: false, error: null, confirmDelete: false };
   paint();
   focusFirst('.proj-first');
 }
@@ -564,9 +632,8 @@ async function saveProject() {
     const changed = Object.keys(r.args).filter(k => k !== 'id').length;
     const res = cur ? (changed ? await write('project.update', r.args) : { project: cur }) : await write('project.create', r.args);
     const pid = res.project.id;
-    if (st.folder !== undefined) { placeProject(S.local, pid, st.folder); saveSide(); }
     closeOverlays();
-    if (!cur) ui().scope = { kind: 'project', id: pid };
+    if (!cur) { S.view.project = pid; saveViewNow(); }
     toast(cur ? 'Saved ' + res.project.name + '.' : 'Added ' + res.project.name + '.');
   } catch (e) {
     if (ui().project) { ui().project.busy = false; ui().project.error = errText(e); }
@@ -580,32 +647,14 @@ async function deleteProject(id) {
   st.busy = true; paint();
   try {
     const res = await write('project.delete', { id });
-    if ((ui().scope || {}).id === id) ui().scope = { kind: 'all' };
+    if (S.view.project === id) { S.view.project = 'all'; saveViewNow(); }
     closeOverlays();
-    toast(res.movedToInbox ? `Removed. ${res.movedToInbox} run${res.movedToInbox === 1 ? '' : 's'} moved to Inbox.` : 'Removed.');
+    toast(res.movedToInbox ? `Removed. ${res.movedToInbox} run${res.movedToInbox === 1 ? ' is' : 's are'} now in no project.` : 'Removed.');
   } catch (e) {
     if (ui().project) { ui().project.busy = false; ui().project.error = errText(e); }
   }
   fetchSoon();
   schedule();
-}
-function openFolder(id) {
-  closeOverlays();
-  ui().folder = { id: id || null, error: null };
-  ui().side = false;
-  paint();
-  focusFirst('.folder-first');
-}
-function saveFolder() {
-  const st = ui().folder;
-  if (!st) return;
-  const name = ui().drafts['folder:name'];
-  const cur = st.id ? S.local.folders.find(f => f.id === st.id) : null;
-  const r = cur ? renameFolder(S.local, cur.id, name === undefined ? cur.name : name) : addFolder(S.local, name);
-  if (r.error) { st.error = r.error; paint(); return; }
-  saveSide();
-  closeOverlays();
-  paint();
 }
 async function moveRun(folder, project) {
   const st = ui().move;
@@ -614,7 +663,8 @@ async function moveRun(folder, project) {
   try {
     await write('run.assign', { folder, project });
     closeOverlays();
-    toast('Moved to ' + ((projectById(project) || {}).name || 'Inbox') + '.');
+    const to = projectById(project);
+    toast(to && !to.builtIn ? 'Moved to ' + to.name + '.' : 'Moved out of its project.');
   } catch (e) {
     if (ui().move) { ui().move.busy = false; ui().move.error = errText(e); }
   }
@@ -711,17 +761,30 @@ app.addEventListener('click', ev => {
   if (ui().menu && !t.closest('.menu')) { ui().menu = null; paint(); }
   else if (ui().menu && t.closest('.menu button:not(.copy)')) { ui().menu = null; schedule(); } // the action below still runs
 
-  // Sidebar
-  if (t.closest('[data-side-open]')) { ui().side = true; paint(); const n = app.querySelector('.side .srow'); if (n) n.focus(); return; }
-  if (t.closest('[data-side-close]')) { ui().side = false; paint(); return; }
-  const sco = t.closest('[data-side-scope]');
-  if (sco) { setScope(sco.getAttribute('data-side-scope'), sco.getAttribute('data-side-id')); return; }
-  const srun = t.closest('[data-side-run]');
-  if (srun) { openRunFromSide(srun.getAttribute('data-side-run')); return; }
-  const stg = t.closest('[data-side-toggle]');
-  if (stg) { toggleClosed(S.local, stg.getAttribute('data-side-toggle')); saveSide(); paint(); return; }
-  const pin = t.closest('[data-pin]');
-  if (pin) { togglePin(S.local, pin.getAttribute('data-pin'), pin.getAttribute('data-pin-id')); saveSide(); paint(); return; }
+  // Tabs, the run page, Research folders, the project filter
+  const tb = t.closest('[data-tab]');
+  if (tb) { setTab(tb.getAttribute('data-tab')); return; }
+  const orun = t.closest('[data-open-run]');
+  if (orun) { openRun(orun.getAttribute('data-open-run')); return; }
+  const oit = t.closest('[data-open-item]');
+  if (oit) { openKey(oit.getAttribute('data-open-item')); return; }
+  const odoc = t.closest('[data-open-doc]');
+  if (odoc) { openDoc(odoc.getAttribute('data-open-doc')); return; }
+  const ochat = t.closest('[data-open-chat]');
+  if (ochat) { setTab('chat'); chat.open(ochat.getAttribute('data-open-chat')); return; }
+  const crun = t.closest('[data-close-run]');
+  if (crun) { setTab(crun.getAttribute('data-close-run')); return; }
+  if (t.closest('[data-close-doc]')) { setTab('research'); return; }
+  const rt = t.closest('[data-run-tab]');
+  if (rt) { ui().runTab = rt.getAttribute('data-run-tab'); paint(); return; }
+  const fp = t.closest('[data-filter-project]');
+  if (fp) { setProjectFilter(fp.getAttribute('data-filter-project')); return; }
+  if (t.closest('[data-projects-open]')) { closeOverlays(); ui().projects = true; paint(); return; }
+  if (t.closest('[data-repos-open]')) { openRepos(); return; }
+  const dst = t.closest('[data-doc-start]');
+  if (dst) { startFromDoc(dst.getAttribute('data-doc-start')); return; }
+  const dnote = t.closest('[data-doc-note]');
+  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.docs[it.folder]; if (d && d.text) hub.noteOf(it.title, d.text); return; }
   if (t.closest('[data-proj-new]')) { openProject(null); return; }
   const pe = t.closest('[data-proj-edit]');
   if (pe) { openProject(pe.getAttribute('data-proj-edit')); return; }
@@ -731,12 +794,6 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-proj-delete-ask]') && ui().project) { ui().project.confirmDelete = true; paint(); return; }
   const pdel = t.closest('[data-proj-delete]');
   if (pdel) { deleteProject(pdel.getAttribute('data-proj-delete')); return; }
-  if (t.closest('[data-folder-new]')) { openFolder(null); return; }
-  const fe = t.closest('[data-folder-edit]');
-  if (fe) { openFolder(fe.getAttribute('data-folder-edit')); return; }
-  if (t.closest('[data-folder-save]')) { saveFolder(); return; }
-  const fdel = t.closest('[data-folder-delete]');
-  if (fdel) { removeFolder(S.local, fdel.getAttribute('data-folder-delete')); saveSide(); closeOverlays(); paint(); return; }
   const mv = t.closest('[data-move]');
   if (mv) { closeOverlays(); ui().move = { folder: mv.getAttribute('data-move'), busy: false, error: null }; paint(); return; }
   const mvt = t.closest('[data-move-to]');
@@ -744,7 +801,8 @@ app.addEventListener('click', ev => {
 
   if (t.closest('[data-settings]')) { ws.open({ app: 'settings' }).catch(() => {}); return; }
   if (t.closest('[data-cfg-open]')) { openSettings(); return; }
-  if (t.closest('[data-start-open]')) { openStart(); return; }
+  const so = t.closest('[data-start-open]');
+  if (so) { const m = so.getAttribute('data-start-open'); openStart(['describe', 'ado', 'spike'].includes(m) ? m : null); return; }
   if (t.closest('[data-start-go]')) { startGo(); return; }
   const sl = t.closest('[data-start-lane]');
   if (sl && ui().start) { ui().start.lane = sl.getAttribute('data-start-lane'); ui().start.error = null; paint(); return; }
@@ -850,8 +908,7 @@ app.addEventListener('change', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().project || ui().folder || ui().move) { closeOverlays(); paint(); }
-  else if (ui().side) { ui().side = false; paint(); }
+  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().repos || ui().project || ui().projects || ui().move) { closeOverlays(); paint(); }
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
@@ -861,7 +918,6 @@ app.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && dk && dk.startsWith('repo:')) { ev.preventDefault(); repoGo(); return; }
   if (ev.key === 'Enter' && dk === 'rv:url') { ev.preventDefault(); startReview(ev.target.value); return; }
   if (ev.key === 'Enter' && (dk === 'proj:name' || dk === 'proj:baseBranch')) { ev.preventDefault(); saveProject(); return; }
-  if (ev.key === 'Enter' && dk === 'folder:name') { ev.preventDefault(); saveFolder(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('rm:')) {
     ev.preventDefault();
     const go = app.querySelector('[data-remove-go]');
@@ -885,7 +941,7 @@ ws.on('command', ({ id }) => {
   if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
   if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
   if (id === 'project' && S.D && S.D.projects) openProject(null);
-  if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setScope('reviews'); openPaste(); }
+  if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setTab('reviews'); openPaste(); }
 });
 
 /* ---------- start ---------- */
