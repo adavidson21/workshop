@@ -107,3 +107,72 @@
   window.WorkshopTheme = {KEY, THEMES, SWATCH, pref, resolve, current, isDark, scheme, apply, set, toggle, toggleHtml, onChange, menuHtml};
   apply();
 })();
+
+/* Quiet "?" hints, shared by the shell and every app (styled by .qhint in ui.css).
+   A page's explanation sits behind a faint ? next to its heading instead of a paragraph under it.
+   Each hint retires after it has been opened RETIRE times, since regular users stop needing it;
+   WorkshopTheme.hints.reset() (Settings, "Show tips again") brings them all back.
+
+   Markup: WorkshopTheme.hints.html(id, text) gives
+     <span class="qhint" data-hint="id"><button type="button" aria-label="About this">?</button><span class="qhint-tip" role="tooltip">text</span></span>
+   Put it inside the heading it explains. Ids are short and stable, like "people" or "settings.local".
+   Counts are kept in this browser (localStorage, workshop.hints) and shared by every page on the site. */
+(function () {
+  'use strict';
+  const KEY = 'workshop.hints';
+  const RETIRE = 3;
+  let counts = {};
+  function load() {
+    try { counts = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { counts = {}; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(counts)); } catch (e) { /* private mode: hints just never retire */ }
+  }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  function html(id, text, label) {
+    return `<span class="qhint" data-hint="${esc(id)}"><button type="button" aria-label="${esc(label || 'About this')}">?</button><span class="qhint-tip" role="tooltip">${esc(text)}</span></span>`;
+  }
+  // Retired hints are hidden by one generated style rule, so hints rendered later are covered too.
+  let styleEl = null;
+  function paint() {
+    if (typeof document.createElement !== 'function' || !document.head) return;
+    if (!styleEl) { styleEl = document.createElement('style'); styleEl.dataset.hints = ''; document.head.appendChild(styleEl); }
+    const gone = Object.keys(counts).filter(k => counts[k] >= RETIRE);
+    styleEl.textContent = gone.length ? gone.map(k => `.qhint[data-hint="${k.replace(/["\\]/g, '')}"]`).join(',') + '{display:none!important}' : '';
+  }
+  // One count per opening: hover, keyboard focus or a tap. It retires once the tooltip closes.
+  let open = null, openedAt = 0;
+  function opened(el) {
+    if (open === el) return;
+    if (open) closed();
+    open = el;
+    openedAt = Date.now();
+    el.classList.add('open');
+    const id = el.getAttribute('data-hint');
+    if (id) { counts[id] = (counts[id] || 0) + 1; save(); }
+  }
+  function closed() {
+    if (!open) return;
+    open.classList.remove('open');
+    open = null;
+    paint();
+  }
+  function reset() { counts = {}; save(); paint(); }
+  if (typeof document.addEventListener === 'function') {
+    const hintOf = t => t && t.closest ? t.closest('.qhint') : null;
+    document.addEventListener('mouseover', e => { const h = hintOf(e.target); if (h) opened(h); else if (open && !open.contains(e.target)) closed(); });
+    document.addEventListener('focusin', e => { const h = hintOf(e.target); if (h) opened(h); });
+    document.addEventListener('focusout', e => { if (open && !open.contains(e.relatedTarget)) closed(); });
+    document.addEventListener('click', e => {
+      const h = hintOf(e.target);
+      if (h) { e.preventDefault(); e.stopPropagation(); if (open === h && Date.now() - openedAt > 400) closed(); else opened(h); return; }
+      closed();
+    }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closed(); });
+    window.addEventListener('storage', e => { if (e.key === KEY) { load(); paint(); } });
+    load();
+    if (document.head) paint(); else document.addEventListener('DOMContentLoaded', paint);
+  }
+  // Lives on WorkshopTheme (no new global): WorkshopTheme.hints.html(id, text) and .reset().
+  if (window.WorkshopTheme) window.WorkshopTheme.hints = {KEY, RETIRE, html, reset};
+})();

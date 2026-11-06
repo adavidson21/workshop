@@ -82,8 +82,7 @@ function adoReview(){
       <span class="pmeta">${esc(adoShort(p.type))} ${p.id} · ${esc(p.state)}${p.priority ? ' · P' + p.priority : ''}${p.due ? ' · due ' + fmtDay(p.due) : ''}${p.project ? ' · ' + esc(p.project) : ''}</span></span></label>
       ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">Open</a>` : ''}</li>`;
   const sorted = [...P].sort((a, b) => (a.priority || 9) - (b.priority || 9) || (a.due || '9').localeCompare(b.due || '9') || b.id - a.id);
-  showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="New ADO work items"><h3>New ADO work items</h3>
-    <p class="hint">Assigned to you, not on your board yet. Skipped items won't come back.</p>
+  showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="New ADO work items"><h3>New ADO work items${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('docket.ado-new', "Assigned to you, not on your board yet. Skipped items won't come back.", 'About new ADO work items') : ''}</h3>
     <div class="drow" style="margin-top:.5rem;gap:.8rem"><button class="lnk" data-all="1">Check all</button><button class="lnk" data-all="0">Uncheck all</button></div>
     <ul class="pick">${sorted.map(item).join('')}</ul>
     <footer><button class="btn" data-skip>Skip unchecked</button><span class="grow"></span><button class="btn" data-close>Later</button><button class="btn primary" data-add>Add checked</button></footer></div>`,

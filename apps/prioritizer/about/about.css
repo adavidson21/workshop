@@ -20,7 +20,7 @@ section{margin:0 0 72px}
 /* hero */
 .hero{padding:72px 0 40px;max-width:680px}
 .hero .eyebrow{margin-bottom:14px}
-.display{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(38px,6vw,60px);font-variation-settings:"opsz" 72;letter-spacing:-.03em;line-height:1.04}
+.display{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(38px,6vw,60px);letter-spacing:-.03em;line-height:1.04}
 .display.small{font-size:clamp(28px,4vw,38px)}
 .dot{color:var(--eyebrow)}
 .lede{margin:22px 0 0;font-size:clamp(17px,2vw,19px);color:var(--muted);max-width:560px}
