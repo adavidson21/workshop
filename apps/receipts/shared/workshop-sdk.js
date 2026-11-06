@@ -1327,6 +1327,25 @@ export async function connect(options) {
   // Wire online events: from the event stream (agent) or the folder's access (browser).
   status.onOnline((p) => shell.emit('online', p));
 
+  // Which of another app's files are private (privateFiles in its manifest), from the site's registry, or the
+  // agent's app list when the site has none (an app on its own site, paired). Read once per page.
+  let privacy = null;
+  function privateSpec(owner) {
+    if (!privacy) {
+      privacy = (async () => {
+        let list = await appsOnSite();
+        if (!list.length && data.kind === 'agent') {
+          try {
+            const { res, body } = await fetchJson(ctx.agentUrl + '/api/apps', { targetAddressSpace: 'loopback', headers: ctx.token ? { 'X-Workshop-Token': ctx.token } : {} });
+            if (res.ok) list = appsFromRegistry(body);
+          } catch (e) { /* not reachable: the fallback below still applies */ }
+        }
+        return new Map(list.map(a => [a.id, a.privateFiles]));
+      })();
+    }
+    return privacy.then(m => privateFilesOf(owner, m));
+  }
+
   const ws = {
     get mode() { return ctx.mode; },
     get backend() { return ctx.backend; },
@@ -1414,15 +1433,10 @@ export async function connect(options) {
     /* your team's area paths (docs/teams.md): the People app edits them here, everyone reads them with data.get */
     teams: teamsService(data),
 
-    /* files (docs/sdk.md, Files): this app writes only its own files; any app's files can be read */
-    files: {
-      list(folder, opts) { return data.files.list((opts && opts.app) || app, folder); },
-      read(path, opts) { return data.files.read((opts && opts.app) || app, path); },
-      write(path, content, opts) { return data.files.write(app, path, content, opts); },
-      trash(path, opts) { return data.files.trash(app, path, opts); },
-      subscribe(pathOrFolder, handler, opts) { return data.files.subscribe((opts && opts.app) || app, pathOrFolder || '', handler); },
-      isImage(path) { return isImage(path); }
-    },
+    /* files (docs/sdk.md, Files): this app writes only its own files. Another app's files can be read, except
+       the ones its manifest marks private (privateFiles, docs/app-manifest.md): those reads reject with
+       forbidden, listings leave them out, and their change events are not delivered. */
+    files: filesApi(app, data.files, privateSpec),
 
     /* the data folder (docs/sdk.md, Folder): for the shell and the Settings app */
     folder: {
@@ -1660,6 +1674,57 @@ async function putWithRetry(data, app, collection, envelope) {
 // about finding it (handoffs, capture, aliases). [] outside Workshop's site, where there is no registry. Read
 // once per page.
 let appsPromise = null;
+/* ws.files for `app` over a backend's files (docs/sdk.md, Files). privateSpec(owner) resolves another app's
+   privateFiles rule. Exported for tests through _internals. */
+function filesApi(app, files, privateSpec) {
+  return {
+    async list(folder, opts) {
+      const owner = (opts && opts.app) || app;
+      if (owner === app) return files.list(app, folder);
+      const spec = await privateSpec(owner);
+      if (spec === true || (folder && isPrivatePath(spec, folder))) throw privateError(owner);
+      return (await files.list(owner, folder)).filter(f => !isPrivatePath(spec, f.path));
+    },
+    async read(path, opts) {
+      const owner = (opts && opts.app) || app;
+      if (owner !== app && isPrivatePath(await privateSpec(owner), path)) throw privateError(owner);
+      return files.read(owner, path);
+    },
+    write(path, content, opts) { return files.write(app, path, content, opts); },
+    trash(path, opts) { return files.trash(app, path, opts); },
+    subscribe(pathOrFolder, handler, opts) {
+      const owner = (opts && opts.app) || app;
+      if (owner === app) return files.subscribe(app, pathOrFolder || '', handler);
+      return files.subscribe(owner, pathOrFolder || '', (ev) => {
+        privateSpec(owner).then(spec => { if (!isPrivatePath(spec, ev && ev.path)) handler(ev); }, () => {});
+      });
+    },
+    isImage(path) { return isImage(path); }
+  };
+}
+
+/* Private files (docs/app-manifest.md, privateFiles). A manifest's privateFiles is true (every file of the app)
+   or a list of top folders. PRIVATE_FILES_FALLBACK is used only when the owner's manifest is unknown, for example
+   on an app's own site with no registry (docs/app-manifest.md, Rules): Rapport's 1:1 notes and goals stay private
+   even there. */
+const PRIVATE_FILES_FALLBACK = { receipts: true };
+export function privateFilesSpec(v) {
+  if (v === true) return true;
+  if (Array.isArray(v)) { const l = v.filter(x => typeof x === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(x)); return l.length ? l : null; }
+  return null;
+}
+export function privateFilesOf(owner, manifests) {
+  if (manifests && manifests.has(owner)) return privateFilesSpec(manifests.get(owner));
+  return privateFilesSpec(PRIVATE_FILES_FALLBACK[owner]);
+}
+/** True if `path` (a file or folder, relative to the owner's folder) is private under `spec`. */
+export function isPrivatePath(spec, path) {
+  if (spec === true) return true;
+  if (!Array.isArray(spec) || typeof path !== 'string' || !path) return false;
+  return spec.includes(path.replace(/^\/+/, '').split('/')[0]);
+}
+function privateError(owner) { return new WorkshopError('forbidden', `${owner}'s files are private to it.`, 403); }
+
 export function appsFromRegistry(reg) {
   const list = reg && Array.isArray(reg.apps) ? reg.apps : [];
   return list.map(a => a && a.manifest).filter(m => m && typeof m.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(m.id))
@@ -1667,7 +1732,8 @@ export function appsFromRegistry(reg) {
       id: m.id, name: typeof m.name === 'string' ? m.name : m.id, version: m.version || '', order: typeof m.order === 'number' ? m.order : null,
       handoffs: m.handoffs && Array.isArray(m.handoffs.sends) ? { sends: m.handoffs.sends.filter(s => typeof s === 'string') } : { sends: [] },
       capture: Array.isArray(m.capture) ? m.capture.filter(s => typeof s === 'string') : [],
-      aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : []
+      aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : [],
+      privateFiles: privateFilesSpec(m.privateFiles)
     }))
     .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
 }
@@ -1682,7 +1748,7 @@ function appsOnSite() {
       } catch (e) { return []; }
     })();
   }
-  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases] })));
+  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases], privateFiles: Array.isArray(a.privateFiles) ? [...a.privateFiles] : a.privateFiles })));
 }
 
 async function agentAppIds(ctx) {
@@ -1698,6 +1764,6 @@ export const data = { merge: mergeEnvelopes, stamp: stampEnvelope };
 export { pickBackend as detectBackend };
 
 // Internals for tests (shared/test/): the stores against any directory handle, and the move from IndexedDB.
-export const _internals = { makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService, teamsService };
+export const _internals = { filesApi, makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService, teamsService };
 
 export default { connect, WorkshopError, data, detectBackend: pickBackend, folderState, allowFolder };

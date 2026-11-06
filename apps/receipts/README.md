@@ -55,6 +55,7 @@ Why: deploys are the top source of after-hours pages.
 - Receipts and 1:1 notes are saved in this browser (IndexedDB) by default. In Chrome or Edge you can **Save to a folder** in Settings to keep them as JSON files on your computer instead, which you can back up however your company allows.
 - **Back up** downloads a JSON file; **Restore** merges one back in and never deletes anything.
 - Inside Workshop, Rapport uses Workshop's storage (browser, folder, or the Workshop agent on your computer).
+- **1:1 notes and goals are private to Rapport.** Its manifest sets `privateFiles: true` ([Workshop docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md), Private files), so other Workshop apps (Notes included) can't list, read or watch Rapport's files. Rapport's summary cards for Home and 1:1 prep carry counts and names, never note text.
 
 Browser storage is per site: receipts saved on receipts.alexisdavidson.org are not visible on workshop.alexisdavidson.org unless both use the same folder (or you back up and restore).
 

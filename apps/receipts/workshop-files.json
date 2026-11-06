@@ -1,18 +1,18 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "5b81d781c7c604fb8668ff6b4fbc27c3272548ba",
+  "commit": "68d7bc07976f0513a7c90268a1e646d25d1332e7",
   "files": {
     "scripts/sync-workshop.mjs": "scripts/sync-workshop.mjs",
     "shared/app-sw.js": "shared/app-sw.js",
     "shared/device-fs.js": "shared/device-fs.js",
-    "shared/fonts/OFL-Inter.txt": "shared/fonts/OFL-Inter.txt",
-    "shared/fonts/OFL-JetBrainsMono.txt": "shared/fonts/OFL-JetBrainsMono.txt",
-    "shared/fonts/OFL-SourceSerif4.txt": "shared/fonts/OFL-SourceSerif4.txt",
     "shared/fonts/fonts.css": "shared/fonts/fonts.css",
     "shared/fonts/inter-latin-ext-wght-normal.woff2": "shared/fonts/inter-latin-ext-wght-normal.woff2",
     "shared/fonts/inter-latin-wght-normal.woff2": "shared/fonts/inter-latin-wght-normal.woff2",
     "shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2": "shared/fonts/jetbrains-mono-latin-ext-wght-normal.woff2",
     "shared/fonts/jetbrains-mono-latin-wght-normal.woff2": "shared/fonts/jetbrains-mono-latin-wght-normal.woff2",
+    "shared/fonts/OFL-Inter.txt": "shared/fonts/OFL-Inter.txt",
+    "shared/fonts/OFL-JetBrainsMono.txt": "shared/fonts/OFL-JetBrainsMono.txt",
+    "shared/fonts/OFL-SourceSerif4.txt": "shared/fonts/OFL-SourceSerif4.txt",
     "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-ext-opsz-normal.woff2",
     "shared/fonts/source-serif-4-latin-opsz-normal.woff2": "shared/fonts/source-serif-4-latin-opsz-normal.woff2",
     "shared/handoffs.js": "shared/handoffs.js",
@@ -30,7 +30,7 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "2.3.1",
+  "bundle": "2.4.0",
   "sha256": {
     "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
@@ -55,7 +55,7 @@
     "shared/theme.js": "cd42d3632943f5d3c67ff855b3bf81af2af0c86c903c3e03a874e7f579e8be2a",
     "shared/themes.css": "f2b421240643ba09c4f971ca192dbcdceb27922be39fada5e262736c034f5af5",
     "shared/ui.css": "f5f714bc512fd5f16855b73e6f08f96d23de206be0f6523b140527647ead846d",
-    "shared/workshop-sdk.js": "43b901f94827975d177e96861a12146999ebe98f9eb30861896a85215022fd55",
+    "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e"
