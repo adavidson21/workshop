@@ -352,6 +352,7 @@ async function appsCard() {
     if (!a.canTurnOff) return 'Always on.';
     if (!a.on) return 'Off. Not in the rail.';
     if (view.workMode && a.separate && !a.downloaded) return `Not downloaded yet, so it is not in Workshop. Run this on your computer, then reload: <code>${esc(a.command)}</code> ${copyBtn(a.command)}`;
+    if (view.workMode && a.separate && a.problem) return `Left out of the pinned copy: ${esc(a.problem)}. Update it with <code>workshop update --latest</code> ${copyBtn('workshop update --latest')}`;
     if (view.workMode && !a.inWorkshop) return `Not in the pinned copy yet. Run <code>workshop pin</code> ${copyBtn('workshop pin')}`;
     if (view.workMode && a.separate) return `In Workshop${a.ref ? `, ${esc(a.ref)}` : ''}.`;
     return 'In the rail.';

@@ -18,7 +18,7 @@ In work mode, `workshop apps on` for an app in its own repo (Docket, Runway) dow
 
 The Apps tab has the same switches. Changes come from Workshop on this computer only; a paired site sees them read only.
 
-- **Work mode:** a switch saves the change and rebuilds the pinned copy from what is already on this computer, then offers **Reload Workshop**. If an app in its own repo is not downloaded yet, the switch is saved and Settings shows the one command to run (`workshop apps on runway`), with a Copy button. The agent itself never downloads anything or runs git (docs/security.md, Outbound hosts).
+- **Work mode:** a switch saves the change and rebuilds the pinned copy from what is already on this computer, then offers **Reload Workshop**. If an app in its own repo is not downloaded yet, the switch is saved and Settings shows the one command to run (`workshop apps on runway`), with a Copy button. If it is downloaded but its `app.json` is not a valid manifest (`problem` in the response), the pinned copy leaves it out of the rail; Settings, `workshop apps` and `workshop pin` say why instead of "not in the pinned copy yet". The agent itself never downloads anything or runs git (docs/security.md, Outbound hosts).
 - **Hosted mode:** the switches change the rail.
 - **Browser mode (no agent):** the switches are kept in this browser and change its rail.
 
