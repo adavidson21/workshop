@@ -288,10 +288,15 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {} } 
     }
     return `<article class="hub-card" data-card="${ci}">${head}${body}</article>`;
   }
+  let lastHtml = null, lastFirst = null;
   function draw() {
     drawAi();
+    const html = cards.map(cardHtml).join('');
+    // Same markup: leave it, so the card under the pointer keeps its hover (no flicker).
+    if (html === lastHtml && list.firstChild === lastFirst && list.firstChild) return;
     const back = keepFocus(list);
-    list.innerHTML = cards.map(cardHtml).join('');
+    list.innerHTML = html;
+    lastHtml = html; lastFirst = list.firstChild;
     back();
   }
 

@@ -124,11 +124,16 @@ export function startChat(ws, { noteOf = async () => {}, aiReady = () => ({ read
       `<button type="button" class="btn primary" data-chat-send${off || busy || sending ? ' disabled' : ''}>Send</button></div>`;
     return `<div class="chat-conv">${head}<div class="chat-body" data-chat-follow>${body}</div>${box}${off ? `<p class="hub-meta">${esc(aiReady().why || 'AI is off.')}</p>` : ''}</div>`;
   }
+  let lastHtml = null, lastFirst = null;
   function draw() {
+    const html = listHtml() + convHtml();
+    // Same markup: leave it, so the item under the pointer keeps its hover (no flicker).
+    if (html === lastHtml && el.firstChild === lastFirst && el.firstChild) return;
     const scroller = el.querySelector('[data-chat-follow]');
     const atEnd = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
     const back = keepFocus(el);
-    el.innerHTML = listHtml() + convHtml();
+    el.innerHTML = html;
+    lastHtml = html; lastFirst = el.firstChild;
     back();
     const s = el.querySelector('[data-chat-follow]');
     if (s && atEnd) s.scrollTop = s.scrollHeight;

@@ -98,6 +98,7 @@ const matches = it => {
   return [it.name, it.handle, it.role, it.adoIdentity, (it.owns || []).join(' ')].some(v => String(v || '').toLowerCase().includes(q));
 };
 
+let peopleHtml = null, peopleFirst = null;
 function paintPeople() {
   const body = $('.people-body');
   if (!body) return;
@@ -108,7 +109,7 @@ function paintPeople() {
   const archived = D.sorted(dir.items.filter(it => it.archived));
   const hasSelf = !!D.self(dir);
   const filtered = query || filter !== 'all';
-  body.innerHTML = `
+  const html = `
     <p class="count">${plural(all.length, 'person', 'people')}${filtered ? ` · ${people.length} shown` : ''}</p>
     ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : `<p class="sub">${all.length ? 'No one matches.' : 'No one yet. Add yourself, your manager and your reports, or import a spreadsheet below.'}</p>`}
     ${editing === 'new-person' ? `<div class="person editing">${personForm({ relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
@@ -117,6 +118,10 @@ function paintPeople() {
     ${editing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
     <div class="acts left">${editing && editing.startsWith('new') ? '' : '<button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button>'}</div>
     ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(itemRow).join('')}</ul></details>` : ''}`;
+  // Same markup: leave it, so the row under the pointer keeps its hover (no flicker on a save echo).
+  if (html === peopleHtml && body.firstChild === peopleFirst && body.firstChild) return;
+  body.innerHTML = html;
+  peopleHtml = html; peopleFirst = body.firstChild;
   const first = body.querySelector('.editing input[name=name]');
   if (first) first.focus();
 }

@@ -33,31 +33,43 @@ function settingsTarget() {
 }
 // Three forms: hidden (a progress button in the header brings it back), one line under the greeting (the
 // default: the next step and n of total), or the full card while you work through it (per window).
-function placeSetup() {
-  copies = [];
-  const hello = app.querySelector('.hello');
-  if (!hello || editing || home.waiting || !setup.s.loaded) return;
+// The setup checklist's markup and where it goes: into the hello tools (hidden) or after the hello.
+function setupPart() {
+  if (editing || home.waiting || !setup.s.loaded) return null;
   const view = setup.view();
   if (setup.s.hidden) {
-    const tools = hello.querySelector('.htools');
     const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
-    if (tools) tools.insertAdjacentHTML('beforeend', hbtn(ICON.ring, label, 'data-setup-show', view.complete ? '' : 'acc'));
-    return;
+    return { into: 'tools', html: hbtn(ICON.ring, label, 'data-setup-show', view.complete ? '' : 'acc'), copies: [] };
   }
-  if (!setupOpen) { hello.insertAdjacentHTML('afterend', setupStrip(view)); return; }
+  if (!setupOpen) return { into: 'after', html: setupStrip(view), copies: [] };
   const out = setupCard(view, openStep, { facts: setup.s.facts, platform, origin: location.origin, settings: settingsTarget(), showDone });
-  copies = out.copies;
-  hello.insertAdjacentHTML('afterend', out.html);
+  return { into: 'after', html: out.html, copies: out.copies };
+}
+function placeSetup(part) {
+  copies = [];
+  const hello = app.querySelector('.hello');
+  if (!hello || !part) return;
+  if (part.into === 'tools') { const tools = hello.querySelector('.htools'); if (tools) tools.insertAdjacentHTML('beforeend', part.html); return; }
+  copies = part.copies;
+  hello.insertAdjacentHTML('afterend', part.html);
 }
 
 // Sections that fade in. They play once: a section already on screen keeps still through repaints
 // (a repaint comes with every agent event and once a minute).
-const ENTERS = ['.hello', '.setup', '.su-strip', '.tiles', '.cols', '.card.note'];
+const ENTERS = ['.hello', '.setup', '.su-strip', '.tiles', '.cols', '.card.note', '.dayflow'];
+let lastKey = null, lastFirst = null;
 function paint() {
   if (home.waiting) editing = false;
+  const html = editing ? profileForm(v.profile) : render(v);
+  const part = editing ? null : setupPart();
+  // Skip a repaint that would draw the same thing: rebuilding the page under the pointer drops and
+  // re-applies :hover, which flickers (most repaints come from agent events and the minute timer).
+  const key = html + '\u0000' + (part ? part.into + part.html : '');
+  if (key === lastKey && app.firstChild === lastFirst && app.firstChild) return;
   const had = ENTERS.map(q => !!app.querySelector(q));
-  app.innerHTML = editing ? profileForm(v.profile) : render(v);
-  placeSetup();
+  app.innerHTML = html;
+  placeSetup(part);
+  lastKey = key; lastFirst = app.firstChild;
   ENTERS.forEach((q, i) => { if (had[i]) app.querySelectorAll(q).forEach(el => el.classList.add('still')); });
   if (editing) { const f = app.querySelector('input[name=name]'); if (f) f.focus(); }
 }
