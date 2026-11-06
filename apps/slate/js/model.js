@@ -51,7 +51,7 @@ export function pmColumn(item, work = {}, agent = null) {
   if (s === 'delegated') return 'delegated';
   if (s === 'decide') return 'decide';
   if (s === 'ready') return 'publish';
-  if (s === 'defining') return work.ready ? 'publish' : 'define';
+  if (s === 'defining') return work.ready && item.reopened !== 'defining' ? 'publish' : 'define';
   if (s === 'waiting') return 'waiting';
   if (s === 'triaged') return 'triage';
   if (agent && item.sessions && item.sessions.triage) return 'triage';
@@ -99,6 +99,7 @@ export function cleanItem(raw = {}) {
   for (const k of ['win', 'decision']) if (typeof (raw.offered || {})[k] === 'string') it.offered[k] = raw.offered[k];
   it.published = {};
   for (const [k, v] of Object.entries(raw.published || {})) if (Number.isInteger(v)) it.published[k] = v;
+  if (raw.reopened !== it.stage) delete it.reopened;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
   return it;
@@ -119,9 +120,42 @@ export function newItem({ title, description = '', level = 'story', ado = null, 
 export function setStage(it, stage, now = new Date()) {
   if (!STAGES.includes(stage)) throw new Error(`Unknown stage ${stage}`);
   if (it.stage !== stage) {
+    delete it.reopened;
     it.stage = stage;
     it.history = [...(it.history || []), { stage, at: today(now) }].slice(-50);
   }
+  return it;
+}
+
+/* ---------- moving back ---------- */
+
+export const STAGE_TITLE = { new: 'New', triaged: 'Triage', waiting: 'Waiting on requester', defining: 'Define', ready: 'Publish', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Dev lane', done: 'Done' };
+
+/**
+ * Earlier stages an item can go back to: the ones its history went through (New always), before where it is
+ * now. `column` is where the board shows it: an item in Define whose draft is approved shows in Publish, so
+ * Define is a step back for it. Delegated and the Dev lane are two ends of one choice, so neither goes to the
+ * other; both go back to Who builds it?.
+ */
+export function backTargets(it, column = null) {
+  const cur = it.stage || 'new';
+  const seen = new Set(['new', ...(it.history || []).map(h => h.stage)]);
+  const before = STAGES.slice(0, STAGES.indexOf(cur));
+  const out = before.filter(st => seen.has(st) && st !== 'ready');
+  if (cur === 'defining' && column === 'publish') out.push('defining');
+  const skip = cur === 'dev' ? 'delegated' : cur === 'delegated' ? 'dev' : null;
+  return out.filter(st => st !== skip);
+}
+
+/**
+ * Move an item back to an earlier stage. It stays there until you act (`reopened`): back in New, a finished
+ * triage does not move it on again, and back in Define an approved draft does not send it to Publish. Any
+ * forward move or agent run clears it.
+ */
+export function moveBack(it, stage, now = new Date()) {
+  if (stage === it.stage) it.history = [...(it.history || []), { stage, at: today(now) }].slice(-50);
+  else setStage(it, stage, now);
+  it.reopened = stage;
   return it;
 }
 

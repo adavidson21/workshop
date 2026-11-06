@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  cards, changedInAdo, cleanItem, devColumn, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
+  backTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
   pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
 } from '../js/model.js';
 
@@ -354,4 +354,34 @@ test('the panel shows each level\'s fields, empty ones included', () => {
   const feat = detailRows(w, 'feature', prefs);
   assert.equal(feat.find(r => r.key === 'releaseNotes').value, 'Notes');
   assert.equal(detailRows(w, 'feature', cleanPrefs({ releaseNotesField: '' })).some(r => r.key === 'releaseNotes'), false);
+});
+
+test('backTargets: earlier stages from history, New always, never the other end of the decision', () => {
+  const at = '2026-11-01';
+  const it = cleanItem({ stage: 'decide', history: ['new', 'triaged', 'defining', 'decide'].map(stage => ({ stage, at })) });
+  assert.deepEqual(backTargets(it), ['new', 'triaged', 'defining']);
+  const dev = cleanItem({ stage: 'dev', history: ['new', 'decide', 'delegated', 'dev'].map(stage => ({ stage, at })) });
+  assert.deepEqual(backTargets(dev), ['new', 'decide']);
+  const del = cleanItem({ stage: 'delegated', history: [{ stage: 'decide', at }] });
+  assert.deepEqual(backTargets(del), ['new', 'decide']);
+  assert.deepEqual(backTargets(cleanItem({ stage: 'new' })), []);
+  const approved = cleanItem({ stage: 'defining', history: [{ stage: 'new', at }, { stage: 'defining', at }] });
+  assert.deepEqual(backTargets(approved, 'define'), ['new']);
+  assert.deepEqual(backTargets(approved, 'publish'), ['new', 'defining']);
+});
+
+test('moveBack: Define holds an approved draft until you act; a forward move clears it', () => {
+  const it = cleanItem({ stage: 'decide', work: { define: 'refine-x' }, history: [{ stage: 'defining', at: '2026-11-01' }] });
+  moveBack(it, 'defining', new Date(2026, 10, 6));
+  assert.equal(it.stage, 'defining');
+  assert.equal(it.reopened, 'defining');
+  assert.equal(it.history.at(-1).stage, 'defining');
+  assert.equal(pmColumn(it, { ready: true }), 'define');
+  assert.equal(cleanItem(it).reopened, 'defining');
+  setStage(it, 'decide');
+  assert.equal(it.reopened, undefined);
+  const pub = cleanItem({ stage: 'defining', history: [{ stage: 'defining', at: '2026-11-01' }] });
+  moveBack(pub, 'defining', new Date(2026, 10, 6));
+  assert.equal(pub.history.length, 2);
+  assert.equal(cleanItem({ stage: 'new', reopened: 'defining' }).reopened, undefined);
 });

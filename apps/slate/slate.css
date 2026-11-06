@@ -151,3 +151,4 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .dlg .levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.6rem}
 .dlg .levels .checks{grid-template-columns:1fr}
 .dlg .acts .grow{flex:1}
+.acts.foot .back{display:inline-flex;gap:.35rem;align-items:center;margin-right:auto}

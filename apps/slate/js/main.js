@@ -7,8 +7,8 @@ import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, aboutText, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
-  pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
+  APP, STAGE_TITLE, aboutText, backTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
+  moveBack, pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
 } from './model.js';
 import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
@@ -143,7 +143,7 @@ async function advance() {
   for (const it of store.v.items) {
     const t = parseTriage(filesOf(it.work.triage)['triage.md']);
     const working = agentOf(it.sessions.triage);
-    if (it.stage === 'new' && t && !(working && (working.busy || working.waiting))) moves.push([it.id, 'triaged', t.route]);
+    if (it.stage === 'new' && it.reopened !== 'new' && t && !(working && (working.busy || working.waiting))) moves.push([it.id, 'triaged', t.route]);
   }
   if (moves.length) await store.change(list => { for (const [id, stage, route] of moves) { const it = list.find(x => x.id === id); if (it) { setStage(it, stage); if (route && route !== 'undecided' && !it.route) it.route = route; } } }).catch(() => {});
 }
@@ -216,11 +216,13 @@ function panelState(c) {
   const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.define) };
   const draft = draftState(c, filesOf(c.work && c.work.define));
   const lane = c.virtualRun || c.stage === 'dev' || c.stage === 'done' ? 'dev' : 'pm';
+  const column = lane === 'pm' ? pmColumn(c, draft, agentOf(c.sessions && c.sessions.current)) : null;
   return {
     item: c, lane, files, draft, editing: ui.editing,
+    back: c.virtual || c.virtualRun ? [] : backTargets(c, column),
     triage: parseTriage(filesOf(c.work && c.work.triage)['triage.md']),
     agent: agentOf(c.sessions && c.sessions.current),
-    column: lane === 'pm' ? pmColumn(c, draft, agentOf(c.sessions && c.sessions.current)) : null,
+    column,
     run: c.run || runFor(c),
     assigneeName: personName(c.assignee),
     owners: ownersOf(c),
@@ -352,6 +354,7 @@ async function startSession(it, kind, action, args) {
   const r = await tandem(ws, action, args, { confirm: true });
   await store.update(it.id, x => {
     x.sessions = { ...x.sessions, [kind]: r.session, current: r.session };
+    delete x.reopened;
     if (r.folder) x.work = { ...x.work, [kind]: r.folder };
   });
   return r;
@@ -508,6 +511,25 @@ const ACT = {
     ws.toast('Sent to Runway. Assign it to a roadmap from its Pending list.', { kind: 'success' });
   },
   async done(c) { await store.update(c.id, x => setStage(x, 'done')); },
+  back(c) {
+    const to = $('backTo') && $('backTo').value;
+    if (!c || !to) return;
+    const a = agentOf(c.sessions && c.sessions.current);
+    if (a && a.busy) return ws.toast('An agent is running on it. Move it back when the run stops.', { kind: 'warn' });
+    const notes = [];
+    if (c.stage === 'delegated') notes.push('It stays assigned in ADO, and any Docket task stays: change those yourself if needed.');
+    if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it in Dispatch.');
+    if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push('What it published stays in ADO; publishing again updates or skips those items.');
+    showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Slate moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
+      await store.update(c.id, x => moveBack(x, to));
+      ui.editing = false;
+      ui.lane = ['dev', 'done'].includes(to) ? 'dev' : 'pm';
+      remember('lane', ui.lane);
+      paint();
+      ws.toast(`Moved back to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
+    });
+  },
+  async keep(c) { await store.update(c.id, x => { delete x.reopened; }); },
   remove: (c) => showDialog(confirmHtml('Remove from Slate?', 'Slate forgets this item. Nothing changes in ADO or in .work.', 'Remove'), async () => {
     await store.change(list => { const i = list.findIndex(x => x.id === c.id); if (i >= 0) list.splice(i, 1); });
     ui.open = null; paint();
