@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, beforeEach, test } from "node:test";
 import oc from "../index.mjs";
-import { KEEP, MAX_MESSAGE, folderFor, hubResult, hubRoot, prune, requestText, resetHub, runHub } from "../lib/hub.mjs";
+import { KEEP, MAX_MESSAGE, folderFor, hubResult, hubRoot, parseRoute, prune, requestText, resetHub, runHub } from "../lib/hub.mjs";
 import { sessions, upsertSession } from "../lib/opencode-state.mjs";
 import { schemas } from "../../../tests/contract/helpers.mjs";
 
@@ -83,6 +83,23 @@ test("a capture ends at routed; bad JSON and a silent end are failed; never aske
   upsertSession("ses_3", { status: "idle", error: "/hub failed: boom" });
   assert.deepEqual(hubResult({ id: "hub_none" }, { root, config: on }), { state: "failed", session: "ses_3", error: "/hub failed: boom" });
   assert.deepEqual(hubResult({ id: "hub_never" }, { root, config: on }), { state: "none" });
+});
+
+test("route.json in a code fence or with a line around it still reads; the answer and what it said come back on failure", async () => {
+  assert.deepEqual(parseRoute('```json\n{"version": 1, "intent": "go", "go": {"app": "notes"}}\n```\n'), { version: 1, intent: "go", go: { app: "notes" } });
+  assert.deepEqual(parseRoute('\uFEFFHere it is: {"version": 1} done'), { version: 1 });
+  assert.throws(() => parseRoute("no json here"));
+  const sid = (await runHub({ id: "hub_said", text: "which .NET?" }, { root, start, config: on })).session;
+  fs.writeFileSync(path.join(folderFor("hub_said", root), "route.json"), "{broken");
+  fs.writeFileSync(path.join(folderFor("hub_said", root), "answer.md"), "net8.0\n");
+  upsertSession(sid, { status: "idle", text: "It is on net8.0." });
+  const r = hubResult({ id: "hub_said" }, { root, config: on });
+  assert.equal(r.state, "failed");
+  assert.equal(r.answer, "net8.0\n", "a bad route does not hide the answer");
+  assert.equal(r.said, "It is on net8.0.");
+  const sid2 = (await runHub({ id: "hub_quiet", text: "which .NET?" }, { root, start, config: on })).session;
+  upsertSession(sid2, { status: "idle", text: "I could not find the repo map." });
+  assert.deepEqual(hubResult({ id: "hub_quiet" }, { root, config: on }), { state: "failed", session: sid2, error: "The hub ended without writing route.json.", said: "I could not find the repo map." });
 });
 
 test("empty and oversized messages are refused before anything runs", async () => {

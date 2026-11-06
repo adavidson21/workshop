@@ -21,13 +21,12 @@
    why under the input for a few seconds. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
-import { actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, toProposal } from './hub-model.js';
+import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 
 const OC = 'opencode';
 /* A sparkle. The slash shows only when AI is off (agents.css, .hub-ai). */
 const AI_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path class="spark" d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path class="spark" d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/><line class="slash" x1="4" y1="20" x2="20" y2="4"/></svg>';
 const POLL_MS = 1500;
-const GIVE_UP_MS = 10 * 60 * 1000;
 const KEEP_CARDS = 12;
 
 export function startHub(ws, root) {
@@ -104,19 +103,21 @@ export function startHub(ws, root) {
       if (card.state !== 'running') return;
       try {
         const r = await ws.connectors.call(OC, 'hub.result', { id: card.id });
-        if (r.route) {
-          const route = checkRoute(r.route);
-          if (!route) { card.state = 'failed'; card.error = 'The hub could not read the answer. Check its session below.'; return draw(); }
-          if (!card.route) arrive(card, route);
-        }
-        if (r.state === 'done') { card.state = 'done'; card.answer = r.answer || ''; }
-        else if (r.state === 'routed') card.state = card.route && card.route.intent === 'ask' ? 'noanswer' : 'done';
-        else if (r.state === 'failed') { card.state = 'failed'; card.error = r.error; }
+        if (r.said) card.said = r.said;
+        if (r.answer != null) card.answer = r.answer;
+        // A route that still does not fit after repair is not acted on, but the answer and reply still show.
+        const route = r.route ? checkRoute(repairRoute(r.route)) : null;
+        if (r.route && !route) card.badRoute = true;
+        if (route && !card.route) arrive(card, route);
+        if (r.state === 'running') { /* keep polling */ }
+        else if (r.state === 'done') card.state = 'done';
+        else if (r.state === 'routed') card.state = card.route && card.route.intent === 'ask' ? 'noanswer' : card.route ? 'done' : 'noanswer';
+        else if (r.state === 'failed') { card.state = card.answer != null ? 'done' : 'failed'; card.error = r.error; }
         else if (r.state === 'none') { card.state = 'failed'; card.error = 'Workshop restarted before the hub finished. Send it again.'; }
       } catch (e) { /* try again */ }
       draw();
       if (card.state === 'running') {
-        if (Date.now() - card.at > GIVE_UP_MS) { card.state = 'failed'; card.error = 'Still running after 10 minutes. Check its session below.'; draw(); }
+        if (Date.now() - card.at > HUB_GIVE_UP_MS) { card.state = 'failed'; card.error = 'Still running after 10 minutes. It shows under Investigations and repo guides, where you can stop it or reply.'; draw(); }
         else setTimeout(tick, POLL_MS);
       }
     };
@@ -172,7 +173,7 @@ export function startHub(ws, root) {
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
   async function saveNote(card) {
-    const body = `${card.text}\n\n${card.answer || ''}`.trim();
+    const body = `${card.text}\n\n${card.answer || card.said || ''}`.trim();
     const p = { kind: 'note', to: 'notes', text: body.slice(0, 2000), title: card.text.slice(0, 120), payload: { kind: 'note', title: card.text.slice(0, 120) } };
     try { await store.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
   }
@@ -197,12 +198,14 @@ export function startHub(ws, root) {
       body += `<ul class="hub-rows">${card.rows.map((r, i) => rowHtml(card, r, i)).join('')}</ul>` +
         (open > 1 ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-all>Accept all ${open}</button></p>` : '');
     }
-    if (route && route.intent === 'ask') {
-      body += card.answer != null ? `<div class="hub-answer">${answerHtml(card.answer)}</div>` : '';
-      if (route.ask.repos.length) body += `<p class="hub-meta">Looked in ${route.ask.repos.map(esc).join(', ')}</p>`;
-      if (card.state === 'done') body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
-      if (card.state === 'noanswer') body += '<p class="hub-meta">The hub ended without an answer. Check its session below, or ask again.</p>';
-    }
+    const asked = !route || route.intent === 'ask';
+    if (asked && card.answer != null) body += `<div class="hub-answer">${answerHtml(card.answer)}</div>`;
+    if (route && route.intent === 'ask' && route.ask.repos.length) body += `<p class="hub-meta">Looked in ${route.ask.repos.map(esc).join(', ')}</p>`;
+    // No answer file: show what the session said, so a reply is never lost behind an error.
+    if (card.answer == null && card.said && card.state !== 'running' && (asked || card.badRoute)) body += `<p class="hub-meta">Tandem said:</p><div class="hub-answer">${answerHtml(card.said)}</div>`;
+    if (asked && card.state !== 'running' && (card.answer != null || card.said)) body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
+    if (card.state === 'noanswer' && !card.said) body += '<p class="hub-meta">The hub ended without an answer. Ask again, or rephrase.</p>';
+    if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Dispatch expects, so nothing was captured or opened. Its reply is shown as is.</p>';
     if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
     if (route && route.intent === 'act') {
       body += actAllowed(route.act)
@@ -212,7 +215,7 @@ export function startHub(ws, root) {
     if (route && route.intent === 'clarify') {
       body += `<p class="hub-ask">${esc(route.clarify.question)}</p><p class="hub-actions">${route.clarify.choices.map((c, i) => `<button class="btn" type="button" data-hub-choice="${i}">${esc(c)}</button>`).join('')}</p>`;
     }
-    if (card.error) body += `<p class="hub-error">${esc(card.error)}</p>`;
+    if (card.error && card.answer == null) body += `<p class="hub-error">${esc(card.error)}</p>`;
     return `<article class="hub-card" data-card="${ci}">${head}${body}</article>`;
   }
   function draw() {

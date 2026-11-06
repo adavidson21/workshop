@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { actAllowed, answerHtml, checkRoute, hubContext, hubId, isHubCommand, isLow, toProposal } from '../js/hub-model.js';
+import { actAllowed, answerHtml, checkRoute, hubContext, hubId, isHubCommand, isLow, repairRoute, toProposal } from '../js/hub-model.js';
 import { directory } from '../../../shared/people.js';
 
 const dir = directory({ schema: 'settings.people', version: 2, items: [
@@ -21,6 +21,27 @@ const examples = dir => fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.s
 test('checkRoute agrees with the schema on every docs example', { skip: !schemas.schemas['hub-route.schema.json'] && 'the hub-route schema is not on this branch yet (WS17a)' }, () => {
   for (const [f, r] of examples(path.join(ROOT, 'docs/examples'))) assert.ok(checkRoute(r), f);
   for (const [f, r] of examples(path.join(ROOT, 'docs/examples/invalid'))) assert.equal(checkRoute(r), null, f);
+});
+
+test('repairRoute: unknown fields are dropped, not the whole route; what does not fit still fails', () => {
+  const ok = r => checkRoute(repairRoute(r));
+  assert.deepEqual(ok({ version: 1, intent: 'go', go: { app: 'receipts' }, run: 'rm -rf /' }), { version: 1, intent: 'go', go: { app: 'receipts' } });
+  assert.deepEqual(ok({ version: '1', intent: 'ask', ask: { repos: ['sample-api'], question: 'which .NET?' }, answer: 'net8.0', reason: 'x' }),
+    { version: 1, intent: 'ask', ask: { repos: ['sample-api'] } });
+  assert.deepEqual(ok({ version: 1, intent: 'ask' }), { version: 1, intent: 'ask', ask: { repos: [] } }, 'an ask with no repos list still shows its answer');
+  const cap = ok({ version: 1, intent: 'capture', act: { connector: 'ado', action: 'workitem.update', label: 'x' }, proposals: [
+    { to: 'queue', text: 'Assign 123', payload: { kind: 'task' } },
+    { to: 'prioritizer', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: '0.8', reason: null, extra: true }] });
+  assert.deepEqual(cap.proposals, [{ to: 'prioritizer', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: 0.8, reason: '' }], 'the bad proposal and the act are dropped');
+  assert.equal(cap.act, undefined);
+  assert.equal(ok({ version: 1, intent: 'clarify', clarify: { question: 'Which?', choices: ['a', 'b', 'c', 'd', 'e'], why: 'x' } }).clarify.choices.length, 4);
+  assert.equal(ok({ version: 1, intent: 'act', act: { connector: 'ado', action: 'workitem.update', label: 'Assign', extra: 1 } }).act.connector, 'ado', 'kept as text; actAllowed still refuses the button');
+  assert.equal(ok({ version: 1, intent: 'capture', proposals: [{ to: 'queue', text: 'x', payload: { kind: 'task' } }] }), null, 'nothing left to capture');
+  assert.equal(ok({ version: 2, intent: 'go', go: { app: 'notes' } }), null);
+  assert.equal(ok({ version: 1, intent: 'delete' }), null);
+  assert.equal(ok({ version: 1, intent: 'go' }), null);
+  assert.equal(repairRoute(null), null);
+  for (const [f, r] of examples(path.join(ROOT, 'docs/examples'))) assert.deepEqual(ok(r), checkRoute(r), `valid examples come through unchanged: ${f}`);
 });
 
 test('checkRoute: each intent needs its own field, unknown fields are refused', () => {
