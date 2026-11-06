@@ -31,7 +31,6 @@ export function sidebar(state) {
     </label>
     ${q.trim() ? '' : pinnedHtml(state)}
     <nav class="side-body" aria-label="${q.trim() ? 'Search results' : 'Notes'}">${body}</nav>
-    ${othersHtml(state)}
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}`;
 }
 
@@ -87,23 +86,10 @@ function results(state) {
       ${r.text ? `<span class="r-line">${esc(r.text)}</span>` : ''}</a></li>`).join('')}</ol>`;
 }
 
-function othersHtml(state) {
-  const { notes, ui } = state;
-  if (!notes.others.length) return '';
-  const open = ui.othersOpen;
-  return `<details class="others"${open ? ' open' : ''}><summary class="section-label">Other apps</summary>
-    <ul>${notes.others.map(o => `<li><a href="#" data-other-app="${esc(o.app)}" data-other-path="${esc(o.path)}"${ui.other && ui.other.app === o.app && ui.other.path === o.path ? ' aria-current="page"' : ''}><span class="mono">${esc(o.app)}/</span>${esc(o.path)}</a></li>`).join('')}</ul></details>`;
-}
-
 /* ---------- header and status ---------- */
 
 export function header(state) {
   const { ui, notes } = state;
-  if (ui.other) {
-    return `<div class="note-head"><div class="crumbs"><span class="mono soft">${esc(ui.other.app)}/${esc(dirOf(ui.other.path))}</span></div>
-      <div class="head-actions"><span class="pill">Read only</span>
-      <button class="btn" data-act="copy">Copy as Markdown</button></div></div>`;
-  }
   if (!ui.path) return '';
   const known = notes.files.get(ui.path);
   return `<div class="note-head">
@@ -145,7 +131,7 @@ function conflictBar(ui) {
 
 export function panel(state) {
   const { notes, ui } = state;
-  if (!ui.path || ui.other) return '';
+  if (!ui.path) return '';
   const n = notes.index.notes.get(ui.path);
   const backs = notes.index.backlinks.get(ui.path) || [];
   const heads = n ? n.headings.filter(h => h.level <= 3) : [];

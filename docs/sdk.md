@@ -104,8 +104,8 @@ For a text file `content` is a string. For an image it is a `Blob` whose `type` 
 
 | Method | Meaning |
 | --- | --- |
-| `ws.files.list(folder?, {app?})` | `[{path, mtime, size}]` for every file of the app, or under `folder` (`'summaries/person-one'`), at every depth, sorted by path. `[]` if there are none. |
-| `ws.files.read(path, {app?})` | The file, or `null` if it does not exist. `app` defaults to this app; another app's files are read-only. |
+| `ws.files.list(folder?, {app?})` | `[{path, mtime, size}]` for every file of the app, or under `folder` (`'summaries/person-one'`), at every depth, sorted by path. `[]` if there are none. Another app's private files are left out; listing an app or folder that is wholly private rejects with `forbidden`. |
+| `ws.files.read(path, {app?})` | The file, or `null` if it does not exist. `app` defaults to this app; another app's files are read-only, and its private files ([app-manifest.md](app-manifest.md), Private files) reject with `forbidden`. |
 | `ws.files.write(path, content, {mtime} \| {create: true})` | Writes this app's file. Pass the `mtime` you read to replace it, or `create: true` to create one that must not exist. Resolves `{app, path, mtime, size}`. If the file changed, is gone, or (with `create`) already exists, rejects with code `conflict` and `err.current` set to the file as it is now, or `null` if it does not exist: read the change, decide, and write again with `current.mtime` (or `create: true` if `current` is `null`). |
 | `ws.files.trash(path, {mtime?})` | Moves this app's file to the trash; never removes it. With `mtime`, rejects with `conflict` (and `err.current`) if the file changed. Resolves `{app, path, trash}`. |
 | `ws.files.isImage(path)` | `true` if the path ends in an image extension. Needs no backend. |

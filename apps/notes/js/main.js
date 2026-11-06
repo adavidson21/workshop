@@ -28,13 +28,11 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 
 const ui = {
   path: null,                 // the open note
-  other: null,                // {app, path, content}: another app's note, read only
   base: null,                 // {content, mtime}: the open note as last read or saved
   mode: ['edit', 'split', 'preview'].includes(store('mode')) ? store('mode') : 'split',
   query: '', pick: 0,
   closed: new Set(),
   extraFolders: new Set(),    // folders made here that hold no note yet (hidden after a reload)
-  othersOpen: false,
   status: { kind: 'saved' },  // saved, dirty, saving, failed, conflict, gone
   current: null               // the newer file on a conflict
 };
@@ -44,7 +42,7 @@ let pendingRoute = null;    // a route that came before the notes were read
 const notes = createNotes(ws, { onChange: () => paintChrome(), onExternal });
 // Notes captured in Home (into Quick Notes) or the Dispatch hub (into inbox/), pickup.js. No second click.
 const pickup = startPickup(ws, notes, {
-  hold: (path) => path === ui.path && !ui.other && ['dirty', 'saving', 'failed', 'conflict'].includes(ui.status.kind),
+  hold: (path) => path === ui.path && ['dirty', 'saving', 'failed', 'conflict'].includes(ui.status.kind),
   async onAdded(w, from) {
     if (w.some(x => x.path === QUICK)) { try { await notes.refresh(QUICK); onExternal({ path: QUICK, gone: false }); } catch { /* shows on the next load */ } }
     const quick = w.filter(x => x.path === QUICK).length;
@@ -68,32 +66,28 @@ function paintChrome() {
   if (inSearch) { const s = side.querySelector('[data-search]'); s.focus(); s.setSelectionRange(pos, pos); }
   head.innerHTML = header(st);
   panelEl.innerHTML = panel(st);
-  const showing = Boolean(ui.path || ui.other);
+  const showing = Boolean(ui.path);
   emptyEl.hidden = showing;
   bodyEl.hidden = !showing;
   if (!showing) emptyEl.innerHTML = empty(st);
-  const mode = ui.other ? 'preview' : ui.mode;
-  bodyEl.className = `body mode-${mode}`;
-  editor.readOnly = Boolean(ui.other);
-  panelEl.hidden = !ui.path || Boolean(ui.other);
+  bodyEl.className = `body mode-${ui.mode}`;
+  panelEl.hidden = !ui.path;
 }
 
 let previewTimer = null;
 function paintPreview(now = false) {
   clearTimeout(previewTimer);
   if (!now) { previewTimer = setTimeout(() => paintPreview(true), 120); return; }
-  const mode = ui.other ? 'preview' : ui.mode;
-  if (mode === 'edit') return;
-  const from = ui.other ? ui.other.path : ui.path;
+  if (ui.mode === 'edit') return;
+  const from = ui.path;
   if (!from) { preview.innerHTML = ''; return; }
-  const text = ui.other ? ui.other.content : editor.value;
+  const text = editor.value;
   const ix = notes.index;
   preview.innerHTML = render(text, {
     resolveLink(href) {
       const loc = localHref(href);
       if (!loc) return null;
       if (!loc.path) return loc.anchor ? { kind: 'anchor', anchor: loc.anchor } : null;
-      if (ui.other) return null;
       const target = resolvePath(from, loc.path);
       if (target === null) return null;
       if (ix.notes.has(target)) return { kind: 'note', path: target, anchor: loc.anchor };
@@ -101,14 +95,12 @@ function paintPreview(now = false) {
       return null;
     },
     imageUrl(src) {
-      if (ui.other) return null;
       const loc = localHref(src);
       if (!loc || !loc.path) return null;
       const target = resolvePath(from, loc.path);
       return target && isImagePath(target) && notes.files.has(target) ? { path: target } : null;
     },
     wiki(target) {
-      if (ui.other) return null;
       const p = resolveWiki(ix.byTitle, ix.notes, target);
       return p ? { path: p } : null;
     }
@@ -124,14 +116,14 @@ function paintPreview(now = false) {
 /* ---------- opening notes ---------- */
 
 async function openNote(path, { line = null, anchor = null, focus = false } = {}) {
-  if (path === ui.path && !ui.other) { if (line !== null) goToLine(line); if (anchor) goToAnchor(anchor); return; }
+  if (path === ui.path) { if (line !== null) goToLine(line); if (anchor) goToAnchor(anchor); return; }
   if (!(await leaveNote())) return;
   let t = notes.texts.get(path);
   if (!t) {
     try { const f = await notes.readNote(path); if (!f) { ws.toast(`There is no note ${path}.`, { kind: 'warn' }); return; } t = notes.texts.get(path); }
     catch (e) { toastErr(e); return; }
   }
-  ui.path = path; ui.other = null; ui.current = null;
+  ui.path = path; ui.current = null;
   ui.base = { content: t.content, mtime: t.mtime };
   ui.status = { kind: 'saved' };
   editor.value = t.content;
@@ -145,21 +137,9 @@ async function openNote(path, { line = null, anchor = null, focus = false } = {}
   if (focus && ui.mode !== 'preview') editor.focus();
 }
 
-async function openOther(app, path) {
-  if (!(await leaveNote())) return;
-  try {
-    const f = await notes.readOther(app, path);
-    if (!f) { ws.toast('That note is gone.', { kind: 'warn' }); return; }
-    ui.path = null; ui.base = null; ui.status = { kind: 'saved' };
-    ui.other = { app, path, content: f.content };
-    editor.value = f.content;
-    paintChrome(); paintPreview(true);
-  } catch (e) { toastErr(e); }
-}
-
 /** Save before leaving the open note. False if the user should stay (a conflict or failure to look at). */
 async function leaveNote() {
-  if (!ui.path || ui.other) return true;
+  if (!ui.path) return true;
   if (ui.status.kind === 'dirty' || ui.status.kind === 'saving') await saveNow();
   if (['conflict', 'failed', 'gone'].includes(ui.status.kind)) {
     ws.toast('This note has unsaved edits. Save them or load the other version first.', { kind: 'warn' });
@@ -207,7 +187,7 @@ function scheduleSave() {
 async function saveNow() {
   clearTimeout(saveTimer);
   if (saving) { await saving; if (ui.status.kind !== 'dirty') return; }
-  if (!ui.path || !ui.base || ui.other) return;
+  if (!ui.path || !ui.base) return;
   if (['conflict', 'gone'].includes(ui.status.kind)) return;
   const path = ui.path, text = editor.value;
   if (text === ui.base.content) { setStatus('saved'); return; }
@@ -470,7 +450,7 @@ async function trashNote(path = ui.path) {
 /* ---------- export ---------- */
 
 async function copyMarkdown() {
-  const text = ui.other ? ui.other.content : editor.value;
+  const text = editor.value;
   try { await navigator.clipboard.writeText(text); }
   catch {
     const t = Object.assign(document.createElement('textarea'), { value: text });
@@ -524,7 +504,7 @@ async function download() {
 /* ---------- images ---------- */
 
 async function addImages(list) {
-  if (!ui.path || ui.other) return;
+  if (!ui.path) return;
   for (const file of list) {
     if (!file.type.startsWith('image/')) continue;
     try {
@@ -548,7 +528,7 @@ const pk = { open: false, start: 0, items: [], pick: 0 };
 function updatePicker() {
   const before = editor.value.slice(0, editor.selectionStart);
   const m = /\[\[([^\]\n[]{0,60})$/.exec(before);
-  if (!m || ui.other) { closePicker(); return; }
+  if (!m) { closePicker(); return; }
   const q = m[1].toLowerCase();
   pk.start = editor.selectionStart - m[0].length;
   pk.items = [...notes.index.notes.values()].filter(n => n.path !== ui.path && (!q || n.title.toLowerCase().includes(q) || n.path.includes(q)))
@@ -570,7 +550,7 @@ function choosePicker(k = pk.pick) {
 /* ---------- events ---------- */
 
 editor.addEventListener('input', () => {
-  if (ui.other || !ui.path) return;
+  if (!ui.path) return;
   if (['conflict', 'gone'].includes(ui.status.kind)) { paintPreview(); updatePicker(); return; }
   if (ui.status.kind !== 'dirty' && ui.status.kind !== 'saving') setStatus('dirty');
   scheduleSave();
@@ -601,14 +581,12 @@ document.addEventListener('click', async (e) => {
   const el = (sel) => e.target.closest(sel);
   let x;
   if ((x = el('[data-open]'))) { e.preventDefault(); await openNote(x.dataset.open, { line: x.dataset.line !== undefined ? Number(x.dataset.line) : null }); return; }
-  if ((x = el('[data-other-app]'))) { e.preventDefault(); openOther(x.dataset.otherApp, x.dataset.otherPath); return; }
   if ((x = el('[data-note]'))) { e.preventDefault(); await openNote(x.dataset.note, { anchor: x.dataset.anchor || null }); return; }
   if ((x = el('[data-missing]'))) { e.preventDefault(); createAt(wikiPath(x.dataset.missing), x.dataset.missing); return; }
   if ((x = el('[data-missing-path]'))) { e.preventDefault(); createAt(x.dataset.missingPath, null); return; }
   if ((x = el('[data-anchor]'))) { e.preventDefault(); if (x.dataset.line !== undefined) goToLine(Number(x.dataset.line)); else goToAnchor(x.dataset.anchor); return; }
   if ((x = el('[data-tag]'))) { e.preventDefault(); setQuery(`tag:${x.dataset.tag}`); side.querySelector('[data-search]')?.focus(); return; }
   if ((x = el('[data-mode]'))) { ui.mode = x.dataset.mode; store('mode', ui.mode); paintChrome(); paintPreview(true); return; }
-  if ((x = el('.others summary'))) { ui.othersOpen = !x.parentElement.open; return; }
   if (!(x = el('[data-act]'))) return;
   const act = x.dataset.act;
   if (act === 'new-note') newNote();
@@ -704,7 +682,7 @@ ws.on('online', async (p) => {
 // Senders of captures come from the manifests (ws.apps.list), without holding up the page: SENDERS is updated in
 // place, then pickup runs again for any new sender.
 ws.apps.list().then(apps => { const before = Object.keys(SENDERS).length; useSenders(SENDERS, apps, 'notes'); if (Object.keys(SENDERS).length > before) pickup.run(); }).catch(() => {});
-  if (!ui.path && !ui.other) await openLast();
+  if (!ui.path) await openLast();
 });
 ws.on('visible', (p) => { if (!p.visible && ui.status.kind === 'dirty') saveNow(); });
 
@@ -718,5 +696,3 @@ async function openLast() {
   else paintChrome();
 }
 await openLast();
-fetch('../registry.json').then(r => (r.ok ? r.json() : null)).catch(() => null)
-  .then(reg => notes.loadOthers(reg && Array.isArray(reg.apps) ? reg.apps.map(a => a.manifest && a.manifest.id).filter(Boolean) : ['receipts', 'home', 'agents']));

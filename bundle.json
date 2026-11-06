@@ -1,9 +1,9 @@
 {
   "bundle": 1,
-  "version": "2.3.1",
+  "version": "2.4.0",
   "files": {
     "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
-    "docs/schemas/app.schema.json": "783c203f4836a5e8cd2fc09c6b1fc08dfa915f53fb7301f4dcf21fc0388040b5",
+    "docs/schemas/app.schema.json": "194cbabd29fdafba7f92afddd0b3d14cf15978037fb25084fc838cfe46e9dd55",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "docs/schemas/config-form.schema.json": "f5105b915dd8635440ee551a339d5bed2ce23669b1be1650a1ae1dd84f0a33e6",
@@ -80,7 +80,7 @@
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "43b901f94827975d177e96861a12146999ebe98f9eb30861896a85215022fd55",
+    "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
     "tests/lib/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382"
   }
 }

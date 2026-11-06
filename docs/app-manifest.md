@@ -64,7 +64,19 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `handoffs` | no | `{sends}`. `sends`: app ids this app writes handoff offers to ([handoffs.md](handoffs.md)). A receiver finds its senders from this (`ws.apps.list()`, [sdk.md](sdk.md)) instead of a list of app ids in its code. |
 | `capture` | no | Capture kinds this app takes from quick capture and the Dispatch hub: any of `task`, `waiting`, `receipt`, `note`, `idea` ([hub.md](hub.md), Captures). Each kind goes to the first app by `order` that lists it. The app must accept that kind as a handoff ([handoffs.md](handoffs.md), Receivers). |
 | `aliases` | no | Other words for this app in `> <place>` (quick capture and the hub). Up to 20, each a lowercase word (`"tasks"`) or `{name, path}` to open a part of the app (`{"name": "1:1s", "path": "1on1s"}`). The app's `id` and `name` always work. |
+| `privateFiles` | no | Files other apps may not see: `true` for every file of this app, or a list of top folders (`["oneonones", "goals"]`). See Private files below. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
+
+## Private files
+
+Any app can read another app's files ([sdk.md](sdk.md), Files), which suits files meant to be shared, such as Markdown summaries. Files that hold something personal, like Rapport's 1:1 notes and goals, should not show up in another app by accident. `privateFiles` marks them:
+
+- Another app's `ws.files.read` of a private file rejects with code `forbidden`, as does `ws.files.list` of the whole app (`true`) or of a private folder. A listing of the app leaves private files out. `ws.files.subscribe` does not deliver their change events.
+- The owner's own reads are unchanged, and so is Settings' full backup and import.
+- The SDK reads the rule from the site's registry, or from the agent's app list on an app's own site. When neither has the owner's manifest, a built-in fallback applies (Rapport is private).
+- This prevents accidents, not a hostile app: every page with the agent token can still call the agent's files API directly ([security.md](security.md)).
+
+Rapport sets `"privateFiles": true`.
 
 ## Apps from another site
 
