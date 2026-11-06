@@ -1,12 +1,12 @@
 /* Slate: the Health and Sprints tabs. Pure HTML builders, like view.js. */
-import { LEVEL_NAME, PM_COLUMNS, STALE_DAYS, esc, sprintLoad } from './model.js';
+import { LEVEL_NAME, PM_COLUMNS, SHAPE_COLUMNS, STALE_DAYS, esc, sprintLoad } from './model.js';
 
 const btn = (act, label, { id = '', primary = false } = {}) =>
   `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${esc(act)}"${id ? ` data-id="${esc(id)}"` : ''}>${esc(label)}</button>`;
 
 /** Health: where requests are and how long they sit, who holds delegated work, and Runway's team reports below. */
 export function healthHtml(h, { names = {}, reports = true } = {}) {
-  const rows = PM_COLUMNS.map(c => {
+  const rows = [...SHAPE_COLUMNS, ...PM_COLUMNS].map(c => {
     const x = h.cols[c.key] || { count: 0, stale: 0, medianDays: 0 };
     const limit = STALE_DAYS[c.key];
     return `<tr><th scope="row">${esc(c.title)}</th><td class="num">${x.count}</td><td class="num">${x.count ? x.medianDays : ''}</td>

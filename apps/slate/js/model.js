@@ -1,20 +1,23 @@
 /* Slate: the pure part. No DOM and no SDK, so Node tests drive it.
 
-   Slate is your ADO backlog as a board, in two lanes:
-     PM lane   a request goes New, Triage, Waiting on requester, Define, Publish, Decide, and ends Delegated or in
-               the Dev lane. Tandem agents (eng-agents) do each step's legwork: /triage, /scope and /slice or
-               /refine, /handoff. You approve.
+   Slate is your ADO backlog as a board, in three lanes:
+     Shape lane  every item starts here: New, Triage, Waiting on requester, Interview, Brief. Requests get /triage;
+                 your own ideas (and Runway's pending ones) get /shape, an interview with you a round at a time,
+                 ending in a brief.
+     PM lane     Define, Publish, Who builds it?, and it ends Delegated or in the Dev lane. /scope and /slice or
+                 /refine (from the brief when there is one), /handoff. You approve.
      Dev lane  the item's Tandem run (Dispatch's .work items), read live from the opencode connector.
 
    Collections (version 1, docs/data-format.md):
      items      one record per item you acted on (and `meta.fields`: which ADO fields cards and the panel show,
-                cleanPrefs): {id, title, level, parentId, ado, runway, work, sessions, route,
+                cleanPrefs; `meta.dismissed`: Runway pending ideas hidden from New): {id, title, level, kind ('idea'
+                for your own ideas), runwayPending (the Runway pending idea it came from), parentId, ado, runway, work, sessions, route,
                 assignee, answers, published, stage, createdAt, history}. ADO items you have not touched are not
                 stored: they come from the ADO connector's `backlog` action each time.
      handoffs   offers to Runway (an idea for a roadmap) and Docket (a "waiting on" task when you delegate).
 
-   The .work files are read with the opencode connector's file.read: triage.md, refine.md, stories.md,
-   milestones.md. Their shapes are eng-agents' templates (Core 2.12.0); the parsers below follow them and
+   The .work files are read with the opencode connector's file.read: triage.md, questions.md, understanding.md,
+   brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.15.0); the parsers below follow them and
    eng-agents core/scripts/ado/Export-Backlog.ps1 for milestones.md. */
 
 export const APP = 'slate';
@@ -27,11 +30,15 @@ export const levelOfType = (type) => ADO_LEVEL[type] || 'story';
 /* ---------- stages ---------- */
 
 // Stored stages. The column a card shows in also depends on what its agent is doing (pmColumn).
-export const STAGES = ['new', 'triaged', 'waiting', 'defining', 'ready', 'decide', 'delegated', 'dev', 'done'];
-export const PM_COLUMNS = [
-  { key: 'new', title: 'New', hint: 'Requests nobody has looked at yet.' },
+export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'done'];
+export const SHAPE_COLUMNS = [
+  { key: 'new', title: 'New', hint: 'Requests and ideas nobody has looked at yet.' },
   { key: 'triage', title: 'Triage', hint: 'An agent takes a first look: what it touches, what is missing, who should build it.' },
   { key: 'waiting', title: 'Waiting on requester', hint: 'Questions sent. Paste the answers to triage again.' },
+  { key: 'interview', title: 'Interview', hint: 'An agent asks you a round of questions at a time until the idea is understood.' },
+  { key: 'brief', title: 'Brief', hint: 'Understood. Read the brief, then send it to Define.' }
+];
+export const PM_COLUMNS = [
   { key: 'define', title: 'Define', hint: 'Stories and acceptance criteria: /refine for one story, /scope and /slice for more.' },
   { key: 'publish', title: 'Publish', hint: 'Approved. Create or update the work items in ADO.' },
   { key: 'decide', title: 'Who builds it?', hint: 'Delegate it with a brief, or build it yourself in the Dev lane.' },
@@ -45,10 +52,22 @@ export const DEV_COLUMNS = [
   { key: 'done', title: 'Done', hint: 'Shipped.' }
 ];
 
-/** Where a PM card goes. `work` is what the drafts say (draftState), `agent` its session ({busy, waiting} or null). */
+/** Which lane a column is in: 'shape', 'pm' or 'dev'. */
+export function laneOf(column) {
+  if (SHAPE_COLUMNS.some(c => c.key === column)) return 'shape';
+  if (PM_COLUMNS.some(c => c.key === column)) return 'pm';
+  return 'dev';
+}
+
+/**
+ * Where a Shape or PM card goes (one of SHAPE_COLUMNS or PM_COLUMNS). `work` is what the drafts say (draftState),
+ * `agent` its session ({busy, waiting} or null).
+ */
 export function pmColumn(item, work = {}, agent = null) {
   const s = item.stage || 'new';
   if (s === 'delegated') return 'delegated';
+  if (s === 'brief') return 'brief';
+  if (s === 'shaping') return 'interview';
   if (s === 'decide') return 'decide';
   if (s === 'ready') return 'publish';
   if (s === 'defining') return work.ready && item.reopened !== 'defining' ? 'publish' : 'define';
@@ -88,7 +107,9 @@ export function cleanItem(raw = {}) {
   it.ado = raw.ado && Number.isInteger(raw.ado.id) ? { id: raw.ado.id, rev: Number(raw.ado.rev) || 0, type: str(raw.ado.type, 60), url: str(raw.ado.url, 1000), connection: str(raw.ado.connection, 40), area: str(raw.ado.area, 400), state: str(raw.ado.state, 100) } : null;
   it.runway = raw.runway && typeof raw.runway.map === 'string' && typeof raw.runway.item === 'string' ? { map: raw.runway.map, item: raw.runway.item } : null;
   it.work = {};
-  for (const k of ['triage', 'define', 'handoff']) if (typeof (raw.work || {})[k] === 'string' && raw.work[k]) it.work[k] = raw.work[k];
+  for (const k of ['triage', 'shape', 'define', 'handoff']) if (typeof (raw.work || {})[k] === 'string' && raw.work[k]) it.work[k] = raw.work[k];
+  if (raw.kind === 'idea') it.kind = 'idea'; else delete it.kind;
+  if (typeof raw.runwayPending === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(raw.runwayPending)) it.runwayPending = raw.runwayPending; else delete it.runwayPending;
   it.sessions = {};
   for (const [k, v] of Object.entries(raw.sessions || {})) if (typeof v === 'string' && v) it.sessions[k] = v;
   it.route = ['delegate', 'myself'].includes(raw.route) ? raw.route : null;
@@ -106,8 +127,8 @@ export function cleanItem(raw = {}) {
 }
 
 /** A new item from a request typed into Slate, or from an ADO backlog item. */
-export function newItem({ title, description = '', level = 'story', ado = null, requester = '', requesterId = null } = {}, now = new Date()) {
-  const it = cleanItem({ id: newId(), title, description, level, stage: 'new', createdAt: today(now), requester, requesterId });
+export function newItem({ title, description = '', level = 'story', ado = null, requester = '', requesterId = null, kind = null, runwayPending = null } = {}, now = new Date()) {
+  const it = cleanItem({ id: newId(), title, description, level, stage: 'new', createdAt: today(now), requester, requesterId, kind, runwayPending });
   if (ado) {
     it.ado = cleanItem({ ado: { id: ado.id, rev: ado.rev, type: ado.type, url: ado.url, connection: ado.connection, area: ado.area, state: ado.state } }).ado;
     it.level = levelOfType(ado.type);
@@ -129,7 +150,7 @@ export function setStage(it, stage, now = new Date()) {
 
 /* ---------- moving back ---------- */
 
-export const STAGE_TITLE = { new: 'New', triaged: 'Triage', waiting: 'Waiting on requester', defining: 'Define', ready: 'Publish', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Dev lane', done: 'Done' };
+export const STAGE_TITLE = { new: 'New', triaged: 'Triage', waiting: 'Waiting on requester', shaping: 'Interview', brief: 'Brief', defining: 'Define', ready: 'Publish', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Dev lane', done: 'Done' };
 
 /**
  * Earlier stages an item can go back to: the ones its history went through (New always), before where it is
@@ -151,11 +172,11 @@ export function backTargets(it, column = null) {
  * Later stages an item can skip ahead to, for work that is already done elsewhere (a feature whose stories are
  * already written goes straight to Who builds it?). Only Define and Who builds it?: Waiting and Publish need
  * triage questions or drafts, and Delegated and the Dev lane go through Delegate and Do it myself.
- * Only from the PM lane before Who builds it?.
+ * Only from the Shape lane, Define and Publish (before Who builds it?).
  */
 export function forwardTargets(it) {
   const cur = it.stage || 'new';
-  if (!['new', 'triaged', 'waiting', 'defining', 'ready'].includes(cur)) return [];
+  if (!['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready'].includes(cur)) return [];
   const at = STAGES.indexOf(cur);
   return ['defining', 'decide'].filter(st => STAGES.indexOf(st) > at);
 }
@@ -172,6 +193,19 @@ export function moveBack(it, stage, now = new Date()) {
   return it;
 }
 
+/**
+ * Already shaped: straight to Who builds it?, skipping the rest of Shape and Define. The history line says it
+ * skipped (Health tells those apart), and Move back can take it back to where it was.
+ */
+export const SKIP_FROM = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready'];
+export function skipToDecide(it, now = new Date()) {
+  if (!SKIP_FROM.includes(it.stage || 'new')) throw new Error('Only items in Shape, Define or Publish can skip to Who builds it?.');
+  setStage(it, 'decide', now);
+  const last = it.history[it.history.length - 1];
+  if (last && last.stage === 'decide') last.skipped = true;
+  return it;
+}
+
 /** The board's cards: stored items, then ADO backlog items nobody has acted on (not stored until you do). */
 export function cards(items, backlog = []) {
   const byAdo = new Map(items.filter(i => i.ado).map(i => [i.ado.id, i]));
@@ -185,6 +219,17 @@ export function cards(items, backlog = []) {
     out.push({ ...newItem({ title: b.title, ado: b }), id: `ado_${b.id}`, virtual: true, adoNow: b, createdAt: (b.changed || '').slice(0, 10) || today() });
   }
   return out;
+}
+
+/**
+ * Runway's Pending assignment ideas (its summary's `pending` rows) as cards for New: not stored until you act on
+ * one, and left out once an item came from it (`runwayPending`) or you hid it (`dismissed`).
+ */
+export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Date()) {
+  const taken = new Set(items.map(it => it.runwayPending).filter(Boolean));
+  const hidden = new Set(dismissed);
+  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string' && !taken.has(r.id) && !hidden.has(r.id))
+    .map(r => ({ ...newItem({ title: r.title, description: r.note || '', kind: 'idea' }, now), id: `rw_${r.id}`, virtual: true, fromRunway: r.id, createdAt: isDay(r.due) ? r.due : today(now) }));
 }
 
 /** True when ADO changed the item since Slate last wrote or read it. */
@@ -300,6 +345,98 @@ export function parseTriage(text) {
     suggestion: s['suggested route'] || '',
     next: s['next step'] || ''
   };
+}
+
+/* ---------- the Shape interview (eng-agents /shape, Core 2.15.0) ---------- */
+
+export const SHAPE_FILES = ['idea.md', 'questions.md', 'understanding.md', 'answers.md', 'brief.md'];
+
+/**
+ * questions.md (templates/shape-questions.md): {status: 'ASKING' | 'READY' | null, round, questions: [{n, text,
+ * options: [{key, text}], recommended, why}]}. A question needs at least one option to count.
+ */
+export function parseShapeQuestions(text) {
+  if (!text) return null;
+  const body = stripComments(text);
+  const st = (headerLine(body, 'Status') || '').toUpperCase();
+  const round = parseInt(headerLine(body, 'Round') || '', 10);
+  const questions = [];
+  let q = null, fence = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*```/.test(line)) { fence = !fence; continue; }
+    if (fence) continue;
+    let m = /^##\s+Q(\d+)\s*[:.]\s*(.+?)\s*$/.exec(line);
+    if (m) { q = { n: Number(m[1]), text: m[2], options: [], recommended: null, why: '' }; questions.push(q); continue; }
+    if (/^#{1,2}\s/.test(line)) { q = null; continue; }
+    if (!q) continue;
+    m = /^\s*[-*]\s+([A-Za-z])[).:]\s*(.+?)\s*$/.exec(line);
+    if (m) { q.options.push({ key: m[1].toUpperCase(), text: m[2] }); continue; }
+    m = /^\s*Recommended:\s*\(?([A-Za-z])\b/.exec(line);
+    if (m) { q.recommended = m[1].toUpperCase(); continue; }
+    m = /^\s*Why:\s*(.+?)\s*$/.exec(line);
+    if (m) q.why = m[1];
+  }
+  const good = questions.filter(x => x.options.length && !/^<.*>$/.test(x.text)).slice(0, 10);
+  for (const x of good) if (!x.options.some(o => o.key === x.recommended)) x.recommended = null;
+  return { status: st === 'ASKING' || st === 'READY' ? st : null, round: Number.isFinite(round) && round > 0 ? round : null, questions: good };
+}
+
+const BRIEF_LEVEL = { epic: 'epic', feature: 'feature', 'user story': 'story', story: 'story', bug: 'bug' };
+/** brief.md (templates/shape-brief.md): {title, product, level, size, problem, open}. */
+export function parseBrief(text) {
+  if (!text) return null;
+  const s = sections(text);
+  const size = (headerLine(text, 'Size') || '').toUpperCase();
+  return {
+    title: (/^#\s+Brief:\s*(.+?)\s*$/m.exec(text) || [])[1] || '',
+    product: headerLine(text, 'Product') || '',
+    level: BRIEF_LEVEL[(headerLine(text, 'Level') || '').trim().toLowerCase()] || null,
+    size: ['S', 'M', 'L', 'XL'].includes(size) ? size : null,
+    problem: s.problem || '',
+    open: bullets(s['open questions'])
+  };
+}
+
+/** Where an item's interview stands, from its files and its agent: what the Interview column shows. */
+export function shapeState(files = {}, agent = null) {
+  const q = parseShapeQuestions(files['questions.md']);
+  const hasBrief = !!(files['brief.md'] && files['brief.md'].trim());
+  const running = !!(agent && (agent.busy || agent.waiting));
+  return {
+    q, round: q ? q.round : null,
+    ready: !!(q && q.status === 'READY' && hasBrief),
+    asking: !running && !!(q && q.status === 'ASKING' && q.questions.length)
+  };
+}
+
+/**
+ * One round of answers, as a block for answers.md. `answers` is {n: {pick: option key | 'other' | 'skip', other:
+ * text}}; `notes` is free text. Unanswered questions are Skipped.
+ */
+export function answersBlock(round, questions, answers = {}, notes = '') {
+  const out = [`## Round ${round || 1}`, ''];
+  for (const q of questions || []) {
+    const a = answers[q.n] || {};
+    const opt = q.options.find(o => o.key === a.pick);
+    const other = String(a.other || '').trim();
+    const ans = a.pick === 'other' && other ? other : opt ? `${opt.key}) ${opt.text}${other ? `. ${other}` : ''}` : 'Skipped';
+    out.push(`### Q${q.n}: ${q.text}`, '', `Answer: ${ans}`, '');
+  }
+  const n = String(notes || '').trim();
+  if (n) out.push('### Notes', '', n, '');
+  return out.join('\n');
+}
+
+/** A notes-only block (Keep going from the brief). */
+export function notesBlock(round, notes) {
+  const n = String(notes || '').trim();
+  return n ? `## Round ${round || 1} notes, after the brief\n\n${n}\n` : '';
+}
+
+/** answers.md with a block added at the end (a new file starts with a title). */
+export function appendAnswers(before, block) {
+  const head = before && before.trim() ? before.replace(/\s+$/, '') + '\n\n' : '# Answers\n\n<!-- Written by Slate, one block per round. /shape reads it. -->\n\n';
+  return head + block.replace(/\s+$/, '') + '\n';
 }
 
 /** The Status line of a gate file (refine.md, stories.md, milestones.md): DRAFT, APPROVED, or null. */
@@ -504,7 +641,7 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp
 /* ---------- requester and aging ---------- */
 
 // Days an item may sit in a PM column before it is flagged as stale. Waiting on someone else gets longer.
-export const STALE_DAYS = { new: 3, triage: 3, waiting: 5, define: 7, publish: 2, decide: 3 };
+export const STALE_DAYS = { new: 3, triage: 3, waiting: 5, interview: 5, brief: 3, define: 7, publish: 2, decide: 3 };
 const dayNum = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5 : null; };
 
 /** The day the item entered its current stage (the last history line for it), or its created day. */
@@ -519,8 +656,9 @@ export function daysInStage(it, now = new Date()) {
   return a == null || b == null ? 0 : Math.max(0, b - a);
 }
 
-/** True when an item has sat in its PM column longer than STALE_DAYS allows. */
-export const isStale = (it, column, now = new Date()) => STALE_DAYS[column] != null && daysInStage(it, now) > STALE_DAYS[column];
+/** True when an item has sat in its column longer than STALE_DAYS allows. Your own ideas can wait in New. */
+export const isStale = (it, column, now = new Date()) => !(column === 'new' && (it.kind === 'idea' || it.runwayPending))
+  && STALE_DAYS[column] != null && daysInStage(it, now) > STALE_DAYS[column];
 
 /* ---------- ownership (People's `owns`) ---------- */
 
@@ -616,7 +754,9 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
     else if (col === 'decide') needs.push(row(it, 'Decide who builds it'));
     else if (col === 'publish') needs.push(row(it, 'Approved: publish to ADO'));
     else if (col === 'define' && it.draftReady) needs.push(row(it, 'A draft is ready to approve'));
-    else if (col === 'triage' && !(a && a.busy)) needs.push(row(it, 'Triage is done: ask or define'));
+    else if (col === 'triage' && !(a && a.busy)) needs.push(row(it, 'Triage is done: ask, interview or define'));
+    else if (col === 'interview' && it.shapeAsking) needs.push(row(it, 'Answer the interview questions'));
+    else if (col === 'brief') needs.push(row(it, 'Brief ready: send it to Define'));
     else if (isStale(it, col, now)) needs.push(row(it, `${daysInStage(it, now)} days in ${col}`, 'waiting'));
   }
   const people = new Map();
@@ -637,8 +777,12 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   done.sort((a, b) => b.due.localeCompare(a.due));
   const ado = items.filter(it => it.ado && ['dev', 'delegated', 'decide'].includes(it.stage)).slice(-20)
     .map(it => ({ id: String(it.ado.id), title: it.title.slice(0, 200), route: `item/${it.id}`, ...(it.requester ? { note: `Asked by ${it.requester}`.slice(0, 200) } : {}) }));
+  // Runway pending ideas Slate has taken (Runway marks them "Shaping in Slate"). Only for showing.
+  const shaping = items.filter(it => it.runwayPending).slice(-50)
+    .map(it => ({ id: it.runwayPending, title: it.title.slice(0, 200), route: `item/${it.id}` }));
   return [
     card('needs', 'list', 'Needs you in Slate', { rows: needs.slice(0, 20), count: needs.length, route: '' }),
+    card('shaping', 'list', 'Runway ideas in Slate', { rows: shaping }),
     card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
     card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
     card('ado', 'list', 'ADO items in Slate', { rows: ado })

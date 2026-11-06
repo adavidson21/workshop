@@ -2,15 +2,16 @@
    Workshop, view.js builds HTML, host.js runs Runway in the Roadmap tab. This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { readCards } from '../../../shared/summary.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, NO_AREA, STAGE_TITLE, aboutText, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
-  moveBack, pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
+  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, aboutText, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, laneOf, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
+  moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer
 } from './model.js';
-import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
+import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,8 +24,8 @@ if (!ws.embedded) mountBar('Slate');
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
 
 const ui = {
-  tab: 'board', lane: remember('lane') === 'dev' ? 'dev' : 'pm', q: '', level: '', area: remember('area') || '', open: null,
-  editing: false, busy: false, error: '', roadmapRoute: '',
+  tab: 'board', lane: ['shape', 'pm', 'dev'].includes(remember('lane')) ? remember('lane') : 'shape', q: '', level: '', area: remember('area') || '', open: null,
+  editing: false, shapeEditing: null, busy: false, error: '', roadmapRoute: '',
   wide: remember('wide') === '1',
   picks: {},       // question id -> {index: [labels]}: what is ticked in the panel, kept across repaints
   drafts: {},      // typed answers (q:<id>:<i>) and replies (r:<session>), kept across repaints
@@ -36,6 +37,7 @@ const s = {
   team: { areas: [], connection: '' },
   people: People.EMPTY,
   backlog: [], backlogNote: '',
+  pending: [],                 // Runway's Pending assignment ideas (its summary's `pending` card rows)
   tstate: null,                // the opencode connector's `state`
   files: new Map(),            // folder -> {file: text}
   apps: [],
@@ -53,11 +55,22 @@ async function refresh({ backlog = true } = {}) {
     s.conn = await connectorState(ws);
     try { s.team = await ws.teams.get(); } catch { s.team = { areas: [], connection: '' }; }
     if (backlog) await readBacklog();
+    await readPending();
     await readTandem();
     paint();
     publishSummary();
   })().finally(() => { refreshing = null; });
   return refreshing;
+}
+
+/* Runway's Pending assignment ideas, from its summary (Workshop docs/summaries.md): shown in New until you act
+   on one. Only for showing; Slate copies the title and description into its own item when you do. */
+async function readPending() {
+  if (!runwayOn()) { s.pending = []; return; }
+  let c = null;
+  try { c = readCards(await ws.data.get('summary', { app: 'runway' }), 'runway'); } catch { c = null; }
+  const card = c && c.get('pending');
+  s.pending = (card && Array.isArray(card.rows) ? card.rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string');
 }
 
 async function readBacklog() {
@@ -129,7 +142,7 @@ async function linkFolders() {
   const L = live();
   const found = [];
   for (const it of store.v.items) {
-    for (const k of ['triage', 'define', 'handoff']) {
+    for (const k of ['triage', 'shape', 'define', 'handoff']) {
       const sid = it.sessions[k];
       if (!sid || it.work[k]) continue;
       for (const [folder, e] of Object.entries(L.items || {})) {
@@ -145,19 +158,21 @@ async function readAllFiles() {
   const want = new Map();
   for (const it of store.v.items) {
     if (it.work.triage) want.set(it.work.triage, FILES.triage);
+    if (it.work.shape) want.set(it.work.shape, SHAPE_FILES);
     if (it.work.define) want.set(it.work.define, it.work.define.startsWith('refine-') ? FILES.refine : FILES.scope);
   }
   await Promise.all([...want].map(async ([folder, names]) => s.files.set(folder, await readFiles(ws, folder, names))));
 }
 const filesOf = (folder) => (folder && s.files.get(folder)) || {};
 
-/** Stages the files settle: a triage that finished moves its item on. */
+/** Stages the files settle: a triage that finished moves its item on, and so does an interview that wrote its brief. */
 async function advance() {
   const moves = [];
   for (const it of store.v.items) {
     const t = parseTriage(filesOf(it.work.triage)['triage.md']);
     const working = agentOf(it.sessions.triage);
     if (it.stage === 'new' && it.reopened !== 'new' && t && !(working && (working.busy || working.waiting))) moves.push([it.id, 'triaged', t.route]);
+    if (it.stage === 'shaping' && it.reopened !== 'shaping' && shapeState(filesOf(it.work.shape), agentOf(it.sessions.shape)).ready && !agentOf(it.sessions.shape)) moves.push([it.id, 'brief', null]);
   }
   if (moves.length) await store.change(list => { for (const [id, stage, route] of moves) { const it = list.find(x => x.id === id); if (it) { setStage(it, stage); if (route && route !== 'undecided' && !it.route) it.route = route; } } }).catch(() => {});
 }
@@ -179,24 +194,31 @@ function enrich(c) {
   out.assigneeName = personName(c.assignee);
   out.age = daysInStage(c);
   out.facts = cardFacts(c.adoNow || null, store.v.prefs);
+  if (c.stage === 'shaping' && !out.agent) { const sh = shapeState(filesOf(c.work && c.work.shape)); out.shapeAsking = sh.asking; out.shapeRound = sh.round; }
+  const last = (c.history || [])[(c.history || []).length - 1];
+  out.skipped = !!(last && last.skipped && c.stage === 'decide');
   return out;
 }
 
-/** The lane's cards before any filter: the PM lane is everything not yours to build; the Dev lane is the rest. */
+/** Runway's pending ideas not taken or hidden, as cards in New (not stored until you act on one). */
+const pendingCards = () => pendingIdeaCards(s.pending, store.v.items, store.v.dismissed);
+
+/** The lane's cards before any filter: Shape (with Runway's pending ideas), PM, or Dev (what is yours to build). */
 function laneCards() {
-  const dev = (c) => c.stage === 'dev' || c.stage === 'done';
-  return cards(store.v.items, s.backlog).filter(c => ui.lane === 'dev' ? dev(c) : !dev(c));
+  const all = [...cards(store.v.items, s.backlog), ...(ui.lane === 'shape' ? pendingCards() : [])];
+  return all.filter(c => laneFor(c) === ui.lane);
 }
 
 function columns() {
   const cols = {};
   const push = (k, c) => (cols[k] ||= []).push(c);
   const list = filterCards(laneCards(), { q: ui.q, level: ui.level, area: ui.area });
-  if (ui.lane === 'pm') {
+  if (ui.lane !== 'dev') {
     for (const c of list) {
       if (['dev', 'done'].includes(c.stage)) continue;
       const e = enrich(c);
       const col = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
+      if (laneOf(col) !== ui.lane) continue;
       e.stale = !c.virtual && isStale(c, col);
       push(col, e);
     }
@@ -212,8 +234,17 @@ function findCard(id) {
   const stored = store.v.items.find(x => x.id === id);
   if (stored) return stored;
   if (id.startsWith('ado_')) { const b = s.backlog.find(x => `ado_${x.id}` === id); return b ? cards([], [b])[0] : null; }
+  if (id.startsWith('rw_')) return pendingCards().find(x => x.id === id) || null;
   return null;
 }
+
+/** The lane a card shows in. */
+function laneFor(c) {
+  if (!c) return 'shape';
+  if (c.virtualRun || ['dev', 'done'].includes(c.stage)) return 'dev';
+  return laneOf(pmColumn(c, draftState(c, filesOf(c.work && c.work.define)), agentOf(c.sessions && c.sessions.current)));
+}
+function showLane(c) { ui.lane = laneFor(c); remember('lane', ui.lane); }
 
 /** People who own what the item touches (People's `owns`), best match first. */
 function ownersOf(c) {
@@ -227,7 +258,7 @@ let summaryTimer = null;
 function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(() => {
-    const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
+    const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), shapeAsking: it.stage === 'shaping' && shapeState(filesOf(it.work.shape), itemAgent(it)).asking, adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
     store.writeSummary(summaryCards(items, { columnOf, agentOf: itemAgent })).catch(() => {});
   }, 300);
 }
@@ -235,12 +266,14 @@ function publishSummary() {
 const sessionOf = (sid) => { const x = sid && (live().sessions || {})[sid]; return x ? { ...x, id: sid } : null; };
 
 function panelState(c) {
-  const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.define) };
+  const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.shape), ...filesOf(c.work && c.work.define) };
   const draft = draftState(c, filesOf(c.work && c.work.define));
-  const lane = c.virtualRun || c.stage === 'dev' || c.stage === 'done' ? 'dev' : 'pm';
-  const column = lane === 'pm' ? pmColumn(c, draft, agentOf(c.sessions && c.sessions.current)) : null;
+  const dev = c.virtualRun || c.stage === 'dev' || c.stage === 'done';
+  const column = dev ? null : pmColumn(c, draft, agentOf(c.sessions && c.sessions.current));
+  const lane = dev ? 'dev' : laneOf(column);
   return {
-    item: c, lane, files, draft, editing: ui.editing,
+    item: c, lane, files, draft, editing: ui.editing, shapeEditing: ui.shapeEditing,
+    shape: shapeState(filesOf(c.work && c.work.shape), agentOf(c.sessions && c.sessions.current)),
     back: c.virtual || c.virtualRun ? [] : backTargets(c, column),
     forward: c.virtualRun ? [] : forwardTargets(c),
     triage: parseTriage(filesOf(c.work && c.work.triage)['triage.md']),
@@ -267,7 +300,7 @@ function notes() {
   if (s.conn.ado !== true && s.conn.ado !== 'Checking…') n.push(`Azure DevOps: ${s.conn.ado}`);
   if (s.conn.opencode !== true && s.conn.opencode !== 'Checking…') n.push(`Tandem: ${s.conn.opencode} Without it, the agent steps (triage, define, handoff, build) are off.`);
   if (store.v.error) n.push(store.v.error);
-  if (s.backlogNote && ui.lane === 'pm') n.push(s.backlogNote);
+  if (s.backlogNote && ui.lane === 'shape') n.push(s.backlogNote);
   return n;
 }
 
@@ -298,7 +331,7 @@ function paint() {
     setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
-  const waiting = store.v.items.filter(it => { const a = itemAgent(it); return a && a.waiting; }).length;
+  const waiting = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); }).length;
   ws.badge(waiting || null).catch(() => {});
   if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') {
     const el = $(focus);
@@ -310,13 +343,19 @@ function paint() {
 
 function paintPanel() {
   const c = findCard(ui.open);
-  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); return; }
-  // Keep text the person is typing.
+  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; return; }
+  // Keep text the person is typing, and the interview's picks and notes for the same item.
   const keep = ['draft', 'answers'].map(id => [id, $(id) && $(id).value]);
+  const same = panelEl.dataset.item === c.id;
+  const shapeKeep = same ? [...panelEl.querySelectorAll('#qnotes, #bnotes, #shapeEdit, .iq .qo')].map(el => [el.id, el.value]) : [];
+  const picked = same ? [...panelEl.querySelectorAll('.iq input[type=radio]:checked')].map(el => [el.name, el.value]) : [];
   panelEl.hidden = false;
   panelEl.parentElement.classList.toggle('wide', ui.wide);
   setHtml(panelEl, panelHtml(panelState(c)));
   for (const [id, val] of keep) if (val != null && $(id)) $(id).value = val;
+  for (const [id, val] of shapeKeep) if ($(id) && $(id).value !== val) $(id).value = val;
+  for (const [name, val] of picked) { const el = panelEl.querySelector(`.iq input[type=radio][name="${CSS.escape(name)}"][value="${CSS.escape(val)}"]`); if (el) el.checked = true; }
+  panelEl.dataset.item = c.id;
   panelEl.classList.toggle('busy', ui.busy);
   wantDetails(c);
 }
@@ -386,6 +425,13 @@ const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wr
 /** A card that came from ADO, stored the first time you act on it. Returns the stored item. */
 async function ensureStored(c) {
   if (!c.virtual && !c.virtualRun) return store.v.items.find(x => x.id === c.id) || c;
+  if (c.fromRunway) {
+    const r = s.pending.find(x => x.id === c.fromRunway);
+    const it = newItem({ title: r ? r.title : c.title, description: r ? r.note || '' : c.description, kind: 'idea', runwayPending: c.fromRunway });
+    await store.change(list => list.push(it));
+    ui.open = it.id;
+    return store.v.items.find(x => x.id === it.id);
+  }
   const b = c.virtual ? s.backlog.find(x => `ado_${x.id}` === c.id) : null;
   const it = b ? newItem({ title: b.title, ado: { ...b, connection: s.team.connection || '' } }) : newItem({ title: c.title, ado: c.ado && c.ado.id ? { id: c.ado.id, type: 'User Story' } : null });
   if (c.virtualRun) setStage(it, 'dev');
@@ -406,7 +452,7 @@ async function startSession(it, kind, action, args) {
 
 const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
-  'open-item': (c) => { if (c) { ui.open = c.id; ui.lane = ['dev', 'done'].includes(c.stage) ? 'dev' : 'pm'; paint(); } },
+  'open-item': (c) => { if (c) { ui.open = c.id; showLane(c); paint(); } },
   lane: (id) => { ui.lane = id; remember('lane', id); ui.open = null; paint(); },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
   fields: () => {
@@ -438,8 +484,99 @@ const ACT = {
     await store.change(list => list.push(it));
     ui.open = it.id; paint();
   }),
-  open: (id) => { ui.open = ui.open === id ? null : id; ui.editing = false; ui.error = ''; paint(); },
-  close: () => { ui.open = null; ui.editing = false; paint(); },
+  'new-idea': () => showDialog(newIdeaDialogHtml(), async (form) => {
+    const it = newItem({ title: form.title.value, description: form.description.value, kind: 'idea' });
+    await store.change(list => list.push(it));
+    ui.open = it.id; ui.lane = 'shape'; remember('lane', 'shape'); paint();
+  }),
+  open: (id) => { ui.open = ui.open === id ? null : id; ui.editing = false; ui.shapeEditing = null; ui.error = ''; paint(); },
+  close: () => { ui.open = null; ui.editing = false; ui.shapeEditing = null; paint(); },
+  /* ---------- the Shape interview (/shape) ---------- */
+  async shape(c) {
+    const it = await ensureStored(c);
+    if (it.work.shape) {
+      await startSession(it, 'shape', 'shape.start', { folder: it.work.shape });
+    } else if (it.work.triage) {
+      await startSession(it, 'shape', 'shape.start', { from: it.work.triage });
+    } else {
+      const idea = [it.title, it.ado ? `(ADO #${it.ado.id}, an existing ${it.ado.type || 'item'})` : '', it.requester ? `Asked by ${it.requester}.` : '', it.description].filter(Boolean).join('. ');
+      await startSession(it, 'shape', 'shape.start', { idea: idea.slice(0, 4000) });
+    }
+    await store.update(it.id, x => setStage(x, 'shaping'));
+    ui.lane = 'shape'; remember('lane', 'shape');
+    ws.toast('The interview started. Its first questions show here when the agent is done.', { kind: 'success' });
+  },
+  'use-recommended': () => {
+    for (const fs of panelEl.querySelectorAll('fieldset.iq')) {
+      if (fs.querySelector('input[type=radio]:checked')) continue;
+      const rec = fs.querySelector('input[type=radio][data-rec]');
+      if (rec) rec.checked = true;
+    }
+  },
+  async 'send-answers'(c) {
+    const sh = shapeState(filesOf(c.work.shape));
+    if (!sh.asking) return ws.toast('There are no questions to answer right now.', { kind: 'warn' });
+    const answers = {};
+    for (const q of sh.q.questions) {
+      const r = panelEl.querySelector(`input[type=radio][name="qa-${q.n}"]:checked`);
+      const other = ($(`qo-${q.n}`) && $(`qo-${q.n}`).value || '').trim();
+      answers[q.n] = { pick: r ? r.value : other ? 'other' : 'skip', other };
+    }
+    const notes = $('qnotes') ? $('qnotes').value : '';
+    const before = filesOf(c.work.shape)['answers.md'];
+    const text = appendAnswers(before, answersBlock(sh.round, sh.q.questions, answers, notes));
+    await writeShapeFile(c, 'answers.md', text, before);
+    await startSession(c, 'shape', 'shape.start', { folder: c.work.shape });
+    ws.toast('Answers sent. The next round shows here when the agent is done.', { kind: 'success' });
+  },
+  async 'write-brief'(c) {
+    if (!c.work.shape) return;
+    await startSession(c, 'shape', 'shape.start', { folder: c.work.shape, mode: 'brief' });
+    ws.toast('Writing the brief.', { kind: 'success' });
+  },
+  async 'to-brief'(c) { await store.update(c.id, x => setStage(x, 'brief')); },
+  async 'keep-going'(c) {
+    if (!c.work.shape) return;
+    const notes = $('bnotes') ? $('bnotes').value : '';
+    const sh = shapeState(filesOf(c.work.shape));
+    const block = notesBlock(sh.round, notes);
+    if (block) { const before = filesOf(c.work.shape)['answers.md']; await writeShapeFile(c, 'answers.md', appendAnswers(before, block), before); }
+    await startSession(c, 'shape', 'shape.start', { folder: c.work.shape, mode: 'more' });
+    await store.update(c.id, x => setStage(x, 'shaping'));
+    ws.toast('Another round is coming.', { kind: 'success' });
+  },
+  async 'send-define'(c) {
+    const b = parseBrief(filesOf(c.work.shape)['brief.md']);
+    if (!b) return ws.toast('There is no brief yet.', { kind: 'warn' });
+    const one = b.level === 'story' || b.level === 'bug';
+    await startSession(c, 'define', one ? 'refine.start' : 'scope.start', { from: c.work.shape });
+    await store.update(c.id, x => { if (b.level && !x.ado) x.level = b.level; setStage(x, 'defining'); });
+    ui.lane = 'pm'; remember('lane', 'pm');
+    ws.toast(`Sent to Define: ${one ? 'refining one story' : 'scoping'} from the brief.`, { kind: 'success' });
+  },
+  async skip(c) {
+    const a = agentOf(c.sessions && c.sessions.current);
+    if (a && a.busy) return ws.toast('An agent is running on it. Try again when the run stops.', { kind: 'warn' });
+    const it = await ensureStored(c);
+    await store.update(it.id, x => skipToDecide(x));
+    ui.lane = 'pm'; remember('lane', 'pm');
+    ws.toast('Moved to Who builds it?. Nothing changed in ADO. Move back undoes it.', { kind: 'success' });
+  },
+  async dismiss(c) {
+    if (!c || !c.fromRunway) return;
+    await store.dismiss(c.fromRunway);
+    ui.open = null;
+    ws.toast('Hidden from Slate. It stays in Runway.', { kind: 'success' });
+  },
+  'edit-understanding': () => { ui.shapeEditing = 'understanding.md'; paint(); },
+  'edit-brief': () => { ui.shapeEditing = 'brief.md'; paint(); },
+  async 'save-shape-file'(c) {
+    const file = ui.shapeEditing;
+    if (!file || !c.work.shape) return;
+    const before = filesOf(c.work.shape)[file];
+    await writeShapeFile(c, file, $('shapeEdit').value, before);
+    ui.shapeEditing = null; paint();
+  },
   async triage(c) {
     const it = await ensureStored(c);
     await startSession(it, 'triage', 'triage.start', it.ado ? { id: String(it.ado.id) } : { text: [it.title, it.description].filter(Boolean).join('. ').slice(0, 2000) });
@@ -491,7 +628,7 @@ const ACT = {
   },
   async slice(c) { await startSession(c, 'define', 'slice.start', { folder: c.work.define }); },
   'edit-draft': () => { ui.editing = true; paint(); },
-  'cancel-edit': () => { ui.editing = false; paint(); },
+  'cancel-edit': () => { ui.editing = false; ui.shapeEditing = null; paint(); },
   async 'save-draft'(c) {
     const d = draftState(c, filesOf(c.work.define));
     const before = filesOf(c.work.define)[d.file];
@@ -598,8 +735,8 @@ const ACT = {
       const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it in Dispatch.' : '';
       return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
-        await store.update(it.id, x => setStage(x, to));
-        ui.open = it.id; ui.editing = false; ui.lane = 'pm'; remember('lane', 'pm');
+        await store.update(it.id, x => (to === 'decide' ? skipToDecide(x) : setStage(x, to)));
+        ui.open = it.id; ui.editing = false; ui.shapeEditing = null; showLane(store.v.items.find(x => x.id === it.id));
         paint();
         ws.toast(`Moved to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
       });
@@ -610,9 +747,8 @@ const ACT = {
     if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push('What it published stays in ADO; publishing again updates or skips those items.');
     showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Slate moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
       await store.update(c.id, x => moveBack(x, to));
-      ui.editing = false;
-      ui.lane = ['dev', 'done'].includes(to) ? 'dev' : 'pm';
-      remember('lane', ui.lane);
+      ui.editing = false; ui.shapeEditing = null;
+      showLane(store.v.items.find(x => x.id === c.id));
       paint();
       ws.toast(`Moved back to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
     });
@@ -627,6 +763,13 @@ const ACT = {
 function forgetQuestion(id) {
   delete ui.picks[id];
   for (const k of Object.keys(ui.drafts)) if (k.startsWith(`q:${id}:`)) delete ui.drafts[k];
+}
+
+/** Write one file in the item's shape folder; a conflict (the agent wrote it since) keeps the text and says so. */
+async function writeShapeFile(c, file, text, before) {
+  try { await tandem(ws, 'file.write', { folder: c.work.shape, file, text, ...(before !== undefined ? { expected: before } : {}) }, { confirm: true }); }
+  catch (e) { if (e.code === 'conflict') { await readTandem(); throw new Error('The agent changed the file since you opened it. Your text is still in the box: copy it, then try again.'); } throw e; }
+  s.files.set(c.work.shape, { ...filesOf(c.work.shape), [file]: text });
 }
 
 /** The decision log: one note in Notes for each decision (Notes' inbox), never posted anywhere. */
@@ -767,7 +910,7 @@ async function route(path) {
     paint(); return;
   }
   if (parts[0] === 'health' || parts[0] === 'sprints' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
-  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; const c = findCard(parts[1]); if (c && (c.stage === 'dev' || c.stage === 'done')) ui.lane = 'dev'; paint(); return; }
+  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; const c = findCard(parts[1]); if (c) showLane(c); paint(); return; }
   if (parts[0] === 'runway' && parts[1] && parts[2]) { await fromRunway(parts[1], parts[2]); return; }
 }
 
@@ -788,13 +931,14 @@ async function fromRunway(map, item) {
     await store.change(list => list.push(fresh));
     it = store.v.items.find(x => x.id === fresh.id);
   }
-  ui.tab = 'board'; ui.lane = it.stage === 'dev' || it.stage === 'done' ? 'dev' : 'pm'; ui.open = it.id;
+  ui.tab = 'board'; showLane(it); ui.open = it.id;
   paint();
 }
 
 ws.on('route', (p) => route((p && p.path) || ''));
 ws.on('command', (p) => {
   if (p.id === 'new') ACT.new();
+  if (p.id === 'new-idea') ACT['new-idea']();
   if (p.id === 'refresh') ACT.refresh();
   if (p.id === 'roadmaps' || p.id === 'roadmap') route('roadmaps');
   if (p.id === 'health' || p.id === 'sprints') route(p.id);
@@ -805,6 +949,7 @@ ws.on('online', () => { store.load().then(() => refresh()).catch(() => {}); });
 let ocTimer = null;
 try { ws.connectors.on('opencode', '*', () => { clearTimeout(ocTimer); ocTimer = setTimeout(() => refresh({ backlog: false }).catch(() => {}), 400); }); } catch { /* browser mode */ }
 try { ws.people.subscribe((d) => { s.people = d; paint(); }); } catch { /* no directory */ }
+try { ws.data.subscribe('summary', () => readPending().then(paint).catch(() => {}), { app: 'runway' }); } catch { /* no data backend */ }
 
 /* ---------- start ---------- */
 

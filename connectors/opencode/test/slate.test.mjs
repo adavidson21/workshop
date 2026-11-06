@@ -5,12 +5,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { PM_FILE, PM_FOLDER, checkFolder, writePmFile } from "../lib/slate.mjs";
+import { PM_FILE, PM_FOLDER, checkFolder, startRefine, startScope, startShape, writePmFile } from "../lib/slate.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "oc-slate-"));
 
-test("only triage, scope, refine and handoff folders, and .md files at their top", () => {
-  for (const ok of ["triage-41207", "triage-csv-export-reports-page", "scope-change-request", "refine-export-orders", "handoff-L3"]) assert.ok(PM_FOLDER.test(ok), ok);
+test("only triage, shape, scope, refine and handoff folders, and .md files at their top", () => {
+  for (const ok of ["triage-41207", "triage-csv-export-reports-page", "shape-bulk-export", "shape-41207", "scope-change-request", "refine-export-orders", "handoff-L3"]) assert.ok(PM_FOLDER.test(ok), ok);
   for (const bad of ["41207-export", "spike-cache", "scope-", "scope-../x", "triage-a/b", ".work", "pr-12"]) assert.ok(!PM_FOLDER.test(bad), bad);
   for (const ok of ["triage.md", "answers.md", "refine.md"]) assert.ok(PM_FILE.test(ok), ok);
   for (const bad of ["notes.txt", "../x.md", "a/b.md", ".hidden.md", "x.md.exe"]) assert.ok(!PM_FILE.test(bad), bad);
@@ -43,6 +43,29 @@ test("file.write creates, replaces only what you read, and refuses anything else
     assert.throws(() => writePmFile({ folder: "41207-export", file: "a.md", text: "x" }, root), (e) => e.status === 400);
     assert.throws(() => writePmFile({ folder: "triage-41207", file: "big.md", text: "x".repeat(200001) }, root), /too big/);
     assert.ok(!fs.existsSync(file + ".tmp"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("shape.start, and scope or refine from a shape, refuse bad arguments before anything runs", async () => {
+  await assert.rejects(startShape({ folder: "shape-x", mode: "later" }), (e) => e.status === 400 && /brief.*more/.test(e.message));
+  await assert.rejects(startShape({ idea: "Bulk export", mode: "brief" }), (e) => e.status === 400 && /needs a shape folder/.test(e.message));
+  await assert.rejects(startShape({ idea: "  " }), (e) => e.status === 400);
+  await assert.rejects(startShape({ idea: "shape-bulk-export" }), (e) => e.status === 400 && /pass it as folder/.test(e.message));
+  await assert.rejects(startShape({ idea: "x".repeat(4001) }), /4000/);
+  await assert.rejects(startShape({ from: "scope-orders" }), (e) => e.status === 400 && /not a triage folder/.test(e.message));
+  await assert.rejects(startShape({ folder: "triage-41207" }), (e) => e.status === 400 && /not a shape folder/.test(e.message));
+  await assert.rejects(startShape({ folder: "shape-not-there-xyz" }), (e) => e.status === 404);
+  await assert.rejects(startScope({ from: "triage-41207" }), (e) => e.status === 400 && /not a shape folder/.test(e.message));
+  await assert.rejects(startRefine({ from: "shape-not-there-xyz" }), (e) => e.status === 404);
+});
+
+test("file.write takes a shape folder (Slate writes the interview's answers.md)", () => {
+  const root = tmp();
+  try {
+    fs.mkdirSync(path.join(root, "shape-bulk-export"));
+    assert.deepEqual(writePmFile({ folder: "shape-bulk-export", file: "answers.md", text: "## Round 1" }, root), { folder: "shape-bulk-export", file: "answers.md", size: 10 });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -8,7 +8,7 @@ import { APP, VERSION, cleanItem, cleanPrefs } from './model.js';
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
 export function createStore(ws, { onChange = () => {} } = {}) {
-  const v = { items: [], prefs: cleanPrefs(), loaded: false, readOnly: false, error: '' };
+  const v = { items: [], prefs: cleanPrefs(), dismissed: [], loaded: false, readOnly: false, error: '' };
   const env = { items: null, handoffs: null };
 
   async function read(name) {
@@ -31,6 +31,8 @@ export function createStore(ws, { onChange = () => {} } = {}) {
   const show = () => {
     v.items = ((env.items && env.items.items) || []).filter(x => x && x.id).map(cleanItem);
     v.prefs = cleanPrefs(env.items && env.items.meta && env.items.meta.fields);
+    const d = env.items && env.items.meta && env.items.meta.dismissed;
+    v.dismissed = Array.isArray(d) ? d.filter(x => typeof x === 'string' && x.length <= 80).slice(-500) : [];
     onChange(v);
   };
 
@@ -70,6 +72,17 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     return v.prefs;
   }
 
+  /** Hide a Runway pending idea from New (items' meta.dismissed), keeping anything else in meta. */
+  async function dismiss(id) {
+    if (v.readOnly) throw Object.assign(new Error('A newer version of Slate saved these items. Update Workshop to change them.'), { code: 'unsupported' });
+    const before = (await read('items')) || env.items;
+    const after = structuredClone(before);
+    const was = Array.isArray(after.meta && after.meta.dismissed) ? after.meta.dismissed : [];
+    after.meta = { ...(after.meta || {}), dismissed: [...was.filter(x => x !== id), String(id)].slice(-500) };
+    env.items = await write('items', before, after);
+    show();
+  }
+
   /** Change one item by id. Returns the item as stored. */
   async function update(id, fn) {
     let out = null;
@@ -102,7 +115,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
   }
 
   ws.data.subscribe('items', () => load().catch(() => {}));
-  return { v, load, change, update, savePrefs, offer, writeSummary };
+  return { v, load, change, update, savePrefs, dismiss, offer, writeSummary };
 }
 
 /* ---------- connectors ---------- */

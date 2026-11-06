@@ -3,12 +3,14 @@
 // folder exists, so Slate can follow it with `state` and read its files with `file.read`.
 //
 //   triage.start   /triage <id | words | folder>  .work/triage-<id or short name>/triage.md   (eng-agents Core 2.12.0)
-//   scope.start    /scope <idea> | scope-<name>   .work/scope-<name>/epics.md, stories.md
+//   shape.start    /shape <idea> | triage-<n> | shape-<n> [brief|more]
+//                                                  .work/shape-<name>/questions.md, understanding.md, brief.md (Core 2.15.0)
+//   scope.start    /scope <idea> | shape-<n> | scope-<name>   .work/scope-<name>/epics.md, stories.md
 //   slice.start    /slice scope-<name>            .work/scope-<name>/milestones.md
-//   refine.start   /refine <title> | refine-<n>   .work/refine-<name>/refine.md                (Core 2.12.0)
+//   refine.start   /refine <title> | shape-<n> | refine-<n>   .work/refine-<name>/refine.md   (Core 2.12.0; shape-<n> 2.15.0)
 //   handoff.start  /handoff <id> <name>           .work/handoff-<id>/handoff.md                (Core 2.12.0)
 //   approve        /approve scope-<name> [stories|milestones] | /approve refine-<name>
-//   file.write     one .md file at the top of a PM folder (Slate's panel edits, a triage's answers.md)
+//   file.write     one .md file at the top of a PM folder (Slate's panel edits, a triage's or a shape's answers.md)
 //
 // Nothing here talks to Azure DevOps or git. Not part of eng-agents' copied server (README.md, Source).
 
@@ -18,7 +20,7 @@ import { httpError, workRoot } from "./context.mjs";
 import { runLoose } from "./workspace.mjs";
 
 /** The PM folders Slate may start, approve and edit. */
-export const PM_FOLDER = /^(triage|scope|refine|handoff)-[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+export const PM_FOLDER = /^(triage|shape|scope|refine|handoff)-[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
 export const PM_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\.md$/;
 export const MAX_FILE = 200000;
 
@@ -75,8 +77,43 @@ export async function startTriage({ id, text, folder }) {
   return { ...(await runLoose("triage", t, newFolder("triage-"))), folder: null };
 }
 
-/** /scope <idea>, or /scope scope-<name> to revise a draft. */
-export async function startScope({ idea, folder }) {
+/**
+ * /shape: one round of the interview. `idea` starts one (the agent names the folder, so `folder` is null until
+ * the first new shape- folder appears); `from` (a triage-<name> folder) starts one from a triage, in
+ * shape-<the rest>; `folder` (a shape-<name> folder) runs the next round, with `mode` "brief" (write the brief now)
+ * or "more" (ask another round). Resolves {session, folder}.
+ */
+export async function startShape({ idea, from, folder, mode }) {
+  if (mode != null && mode !== "" && !["brief", "more"].includes(mode)) throw httpError(400, 'mode is "brief" or "more".');
+  if (folder) {
+    const f = checkFolder(folder, ["shape"]);
+    return { ...(await runLoose("shape", mode ? `${f} ${mode}` : f, when(f))), folder: f };
+  }
+  if (mode) throw httpError(400, "mode needs a shape folder.");
+  if (from) {
+    const t = checkFolder(from, ["triage"]);
+    const f = `shape-${t.slice("triage-".length)}`;
+    return { ...(await runLoose("shape", t, when(f))), folder: f };
+  }
+  const t = oneLine(idea);
+  if (!t) throw httpError(400, "Say what the idea is.");
+  if (t.length > 4000) throw httpError(400, "Keep the idea under 4000 characters.");
+  if (/^(shape|triage)-/.test(t)) throw httpError(400, "To continue a shape, pass it as folder; to start from a triage, pass it as from.");
+  return { ...(await runLoose("shape", t, newFolder("shape-"))), folder: null };
+}
+
+/** The scope- or refine- folder a shape's brief becomes: the same name after the prefix. */
+const fromShape = (from, kind) => {
+  const f = checkFolder(from, ["shape"]);
+  return { shape: f, folder: `${kind}-${f.slice("shape-".length)}` };
+};
+
+/** /scope <idea>, /scope shape-<name> (from a shaped brief), or /scope scope-<name> to revise a draft. */
+export async function startScope({ idea, from, folder }) {
+  if (from) {
+    const x = fromShape(from, "scope");
+    return { ...(await runLoose("scope", x.shape, when(x.folder))), folder: x.folder };
+  }
   if (folder) {
     const f = checkFolder(folder, ["scope"]);
     return { ...(await runLoose("scope", f, when(f))), folder: f };
@@ -97,7 +134,11 @@ export async function startSlice({ folder }) {
  * /refine <title> (with an optional description and parent), or /refine refine-<name> to revise a draft. The agent
  * names a new folder, so the session is linked to the first new refine- folder and `folder` is null until then.
  */
-export async function startRefine({ title, description, parent, folder }) {
+export async function startRefine({ title, description, parent, folder, from }) {
+  if (from) {
+    const x = fromShape(from, "refine");
+    return { ...(await runLoose("refine", x.shape, when(x.folder))), folder: x.folder };
+  }
   if (folder) {
     const f = checkFolder(folder, ["refine"]);
     return { ...(await runLoose("refine", f, when(f))), folder: f };
@@ -140,7 +181,7 @@ export async function approveFolder({ folder, what }) {
  * Resolves {folder, file, size}.
  */
 export function writePmFile({ folder, file, text, expected }, root = workRoot) {
-  const f = checkFolder(folder, ["triage", "scope", "refine", "handoff"], root);
+  const f = checkFolder(folder, ["triage", "shape", "scope", "refine", "handoff"], root);
   const name = String(file || "");
   if (!PM_FILE.test(name)) throw httpError(400, "Only a .md file at the top of the folder can be written.");
   const body = String(text ?? "");
