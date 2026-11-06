@@ -17,7 +17,7 @@
      handoffs   offers to Runway (an idea for a roadmap) and Docket (a "waiting on" task when you delegate).
 
    The .work files are read with the opencode connector's file.read: triage.md, questions.md, understanding.md,
-   brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.15.0); the parsers below follow them and
+   brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.16.0); the parsers below follow them and
    eng-agents core/scripts/ado/Export-Backlog.ps1 for milestones.md. */
 
 export const APP = 'slate';
@@ -347,7 +347,7 @@ export function parseTriage(text) {
   };
 }
 
-/* ---------- the Shape interview (eng-agents /shape, Core 2.15.0) ---------- */
+/* ---------- the Shape interview (eng-agents /shape, Core 2.16.0) ---------- */
 
 export const SHAPE_FILES = ['idea.md', 'questions.md', 'understanding.md', 'answers.md', 'brief.md'];
 
