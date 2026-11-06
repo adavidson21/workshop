@@ -229,3 +229,8 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
 .sendables .s-who{font-size:10.5px;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* @handle of someone in People (markdown.js) */
 .md .person{text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 50%,transparent);text-underline-offset:3px}
+
+/* big screens (a 27in monitor, Workshop full screen): wider sidebar, panel and reading measure.
+   :has() outranks a plain .notes, so both are listed. */
+@media (min-width:1600px){.notes,.notes:has(> .panel[hidden]){--side-w:19rem;--panel-w:18rem;--gut:2.25rem;--measure:60rem}}
+@media (min-width:2100px){.notes,.notes:has(> .panel[hidden]){--side-w:21rem;--panel-w:20rem;--measure:72rem}}
