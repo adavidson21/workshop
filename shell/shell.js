@@ -13,6 +13,7 @@
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { SITE, onCrumbsDomain } from '../shared/site.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
+import { CAPTURE_ICON, createCaptureBar } from './capture.js';
 
 const $ = s => document.querySelector(s);
 const svg = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -23,6 +24,7 @@ let apps = [];            // [{id, manifest, base, frame?, ...}]
 let byId = {};
 let railApps = [];        // apps with a rail button: every app but the home page
 let homeApp = null;       // the app with home: true, opened by the logo and the plain address
+let hostedBy = {};        // hosted app id -> {host, path}: shown inside another app (docs/app-manifest.md, Hosted apps)
 let connectors = [];      // GET /api/connectors, agent backend only
 let current = null;
 const mounted = new Set();
@@ -64,6 +66,12 @@ async function loadApps() {
     .filter(a => !a.manifest.modes || a.manifest.modes.includes(env.mode))
     .filter(a => a.manifest.home === true || a.id === 'settings' || !off.has(a.id))
     .sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
+  // An app shown inside another one (manifest `hosts`) leaves the rail and the palette while both are on; its
+  // addresses open in the host (resolveApp).
+  hostedBy = {};
+  const ids = new Set(apps.map(a => a.id));
+  for (const a of apps) for (const h of a.manifest.hosts || []) if (h && ids.has(h.app) && h.app !== a.id && !hostedBy[a.id]) hostedBy[h.app] = { host: a.id, path: h.path };
+  apps = apps.filter(a => !hostedBy[a.id]);
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
   homeApp = apps.find(a => a.manifest.home === true) || null;
   railApps = apps.filter(a => a !== homeApp);
@@ -131,7 +139,15 @@ function renderTopbar() {
   bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
     + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span></nav>`
     + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
+    + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
     + WorkshopTheme.toggleHtml();
+  $('#capBtn').addEventListener('click', () => capture().toggle());
+}
+// The capture bar (shell/capture.js): one place to capture or ask, from every app.
+let captureBar = null;
+function capture() {
+  if (!captureBar) captureBar = createCaptureBar(document.body, { go: (id, path) => go(id, path), onClose: () => { const app = byId[current]; if (app) focusFrame(app); } });
+  return captureBar;
 }
 function markTopbar() {
   const here = $('#topbar .here');
@@ -170,10 +186,17 @@ function setBadge(appId, count) {
 const homeId = () => homeApp ? homeApp.id : railApps.length ? railApps[0].id : null;
 // Addresses from before an app was renamed: the Dashboard pane became the Agents app (WS6).
 const RENAMED = { dashboard: 'agents' };
-function parseHash() {
-  let [id, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+/** Where an app id and path really open: a renamed app under its new id, a hosted app inside its host. */
+function resolveApp(id, path = '') {
   if (!byId[id] && byId[RENAMED[id]]) id = RENAMED[id];
-  return { id: byId[id] ? id : null, path: rest.length ? rest.map(decodeURIComponent).join('/') : '' };
+  const h = hostedBy[id];
+  if (h && byId[h.host]) return { id: h.host, path: [h.path, path].filter(Boolean).join('/') };
+  return { id, path };
+}
+function parseHash() {
+  const [first, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+  const r = resolveApp(first, rest.length ? rest.map(decodeURIComponent).join('/') : '');
+  return { id: byId[r.id] ? r.id : null, path: r.path };
 }
 function paneOf(app) {
   let pane = document.getElementById('pane-' + app.id);
@@ -209,6 +232,7 @@ function route() {
   if (location.hash !== want) history.replaceState(null, '', want || location.pathname + location.search);
 }
 function go(id, path) {
+  ({ id, path } = resolveApp(id, path || ''));
   const h = '#/' + id + (path ? '/' + String(path).split('/').map(encodeURIComponent).join('/') : '');
   if (location.hash === h) route(); else location.hash = h;
 }
@@ -294,7 +318,7 @@ function handleRequest(app, method, p) {
       return { theme: themeNow(), route, visible: current === app.id };
     }
     case 'open': {
-      if (!byId[p.app]) throw fail('not_found', `There is no ${p.app} app here.`);
+      if (!byId[resolveApp(p.app).id]) throw fail('not_found', `There is no ${p.app} app here.`);
       go(p.app, p.path || '');
       return null;
     }
@@ -435,6 +459,7 @@ function allCommands() {
     for (const c of app.manifest.commands || []) { seen.add(c.id); out.push({ app, id: c.id, title: c.title, route: c.route }); }
     for (const [id, c] of app.runtimeCommands || []) if (!seen.has(id)) out.push({ app, id, title: c.title });
   }
+  out.unshift({ title: 'Capture or ask (Ctrl+.)', run: () => capture().open() });
   for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
   if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
   if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
@@ -495,6 +520,7 @@ function comboOf(e) {
 }
 function onKey(e) {
   if (e.key === 'Escape' && palette) { e.preventDefault(); closePalette(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'Period') { e.preventDefault(); e.stopPropagation(); closePalette(); capture().toggle(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); palette ? closePalette() : openPalette(); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && e.altKey && !e.ctrlKey && !e.metaKey) {

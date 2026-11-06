@@ -1,9 +1,9 @@
 {
   "bundle": 1,
-  "version": "2.4.1",
+  "version": "2.4.2",
   "files": {
     "docs/schemas/app-switches.schema.json": "9b5982ab98e7598ca5bf9e419c69647f3f5d75f7deda866833801149c8f6c0c1",
-    "docs/schemas/app.schema.json": "194cbabd29fdafba7f92afddd0b3d14cf15978037fb25084fc838cfe46e9dd55",
+    "docs/schemas/app.schema.json": "6044f87e89978423d80ec6c99e1128badbefdc42148467f213e89133d46effda",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "docs/schemas/config-form.schema.json": "f5105b915dd8635440ee551a339d5bed2ce23669b1be1650a1ae1dd84f0a33e6",
@@ -37,7 +37,7 @@
     "docs/schemas/health.schema.json": "39c0ac627bf167afb6992a498a17763902ecea7389869a209aeee866e8519d51",
     "docs/schemas/hub-route.schema.json": "10d3d8b46e993b162a1b29ffcf33a94c1b31cba737d6eb6033aa26f7964ff129",
     "docs/schemas/person-group.schema.json": "7ddba893c6aaee2e1c0acc72c1814d47962412867b3f978166f4660868a2a040",
-    "docs/schemas/person.schema.json": "bd293d8b480e712ed4ad8de947355fdfde3b2e2a665a4365b764f2f5add7ff3c",
+    "docs/schemas/person.schema.json": "4311c304977caa3d5b6f6707ccb8bdd9bec6a0e3b4802e072b76fa5670cb6d6c",
     "docs/schemas/sdk-message.schema.json": "63682eeae2d02419a48d218914fdc48fbdf5bde2ac06bea0e4b26112076e1c9c",
     "docs/schemas/session.schema.json": "7085112e4d8690ac99cbd84e6db731656b0cdf94ab2047dbcc20b1addd01861f",
     "docs/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e",

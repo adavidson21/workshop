@@ -73,6 +73,7 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /api/session` | cookie (own origin) | The token for the header |
 | `GET /pair?origin=<origin>` | cookie | Hosted pairing page (HTML) |
 | `GET /api/apps` | token | Installed apps |
+| `GET /api/doctor` | token, own origin only | The health check: `{ok, lines}`, the parts of `workshop doctor` the agent can see itself: Node, its version and port, the data folder, start at login, connectors (Settings, General) |
 | `GET /api/data/<app>` | token | Collections of one app |
 | `GET /api/data/<app>/<collection>` | token | Read a collection |
 | `PUT /api/data/<app>/<collection>` | header token | Write a collection |

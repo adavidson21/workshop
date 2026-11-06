@@ -185,7 +185,12 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'agents', 'receipts', 'notes', 'runway', 'slate', 'people', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'slate', 'agents', 'receipts', 'notes', 'people', 'settings'])
+    check('Runway is hosted by Slate, so it has no rail button', pg.locator('.app-btn[data-app=runway]').count() == 0)
+    pg.click('#capBtn'); pg.wait_for_timeout(800)
+    check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
+    pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+    check('Esc closes the capture bar', pg.locator('.capbar').count() == 0 or not pg.locator('.capbar').is_visible())
     check('static site runs in browser mode', pg.evaluate('document.documentElement.dataset.mode') == 'browser')
     check('app icons are inlined so they take the theme color', pg.locator('.app-btn[data-app=settings] .ico svg circle').count() == 1)
 
@@ -200,7 +205,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/#/prioritizer')
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
     check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
@@ -208,7 +213,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
         check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
 
-    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
@@ -229,7 +234,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
-        pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
+        pg.keyboard.press('Alt+5'); pg.wait_for_timeout(500)
         check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
@@ -266,19 +271,20 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Rapport copies old 1:1 notes and keeps the old ones', moved == [['oneonones/notes/p-old1/2026-10-01.md'], 1, 'receipts.oneonones/people'])
     op.close()
 
-    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1500)
+    pg.evaluate("location.hash = '#/runway'"); pg.wait_for_timeout(2500)
     wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
-    check('Runway is on the rail and opens', wf is not None and pg.url.endswith('#/runway'))
+    check('#/runway opens Roadmaps in Slate', wf is not None and '#/slate' in pg.url)
     if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
         print(f'SKIP  Runway in browser mode (no checkout in {RUNWAY}; git clone https://github.com/adavidson21/runway .remote/runway)')
     elif wf:
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1500)
+    pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1500)
     slf = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
     check('Slate is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
     if slf:
+        slf.click('.top [data-act=tab][data-id=board]'); pg.wait_for_timeout(400)
         slf.wait_for_selector('.empty, .board', timeout=10000)
         check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.inner_text('#top'))
         slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
@@ -290,13 +296,13 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.panel [data-act=roadmap-add]'); pg.wait_for_timeout(600)
         offered = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e.items.map(h => [h.to, h.accepted, h.payload.kind]); }""")
         check('Add to roadmap offers the idea to Runway', offered == [['runway', True, 'idea']])
-        slf.click('.top [data-act=tab][data-id=roadmap]'); pg.wait_for_timeout(2500)
+        slf.click('.top [data-act=tab][data-id=roadmaps]'); pg.wait_for_timeout(2500)
         rmf = next((f for f in pg.frames if '/apps/runway/' in f.url and f.parent_frame and '/apps/slate/' in f.parent_frame.url), None)
-        check('the Roadmap tab runs Runway inside Slate', rmf is not None)
+        check('the Roadmaps tab runs Runway inside Slate', rmf is not None)
         if rmf and os.path.isfile(os.path.join(RUNWAY, 'app.json')):
             rmf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
             check('Runway inside Slate loads its roadmaps', rmf.locator('[data-new]').count() > 0)
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Slate is Alt+6, People Alt+7
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # People is Alt+6
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -1270,7 +1276,7 @@ def main():
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
-        check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/agents'))
+        check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/slate'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
         browser_mode_checks(ctx, pg, frame, watch)

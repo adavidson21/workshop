@@ -246,3 +246,74 @@ test('handoff offers for Docket and Runway follow docs/handoffs.md', () => {
   const idea = roadmapIdea(it, NOW);
   assert.deepEqual([idea.to, idea.payload.kind, idea.text], ['runway', 'idea', 'Export orders\nFor finance']);
 });
+
+test('aging: days in the current stage, and stale past the column limit', async () => {
+  const { daysInStage, isStale, stageSince } = await import('../js/model.js');
+  const it = newItem({ title: 'x', requester: '  Finance   lead ' }, new Date('2026-11-01T12:00:00'));
+  assert.equal(it.requester, 'Finance lead');
+  setStage(it, 'waiting', new Date('2026-11-02T12:00:00'));
+  assert.equal(stageSince(it), '2026-11-02');
+  assert.equal(daysInStage(it, new Date('2026-11-09T12:00:00')), 7);
+  assert.equal(isStale(it, 'waiting', new Date('2026-11-06T12:00:00')), false);
+  assert.equal(isStale(it, 'waiting', new Date('2026-11-09T12:00:00')), true);
+});
+
+test('owners: whole owned terms found in what the item touches, best match first', async () => {
+  const { ownersFor, aboutText } = await import('../js/model.js');
+  const owners = [{ id: 'p_a', name: 'Ana', owns: ['Lighthouse', 'web-app'] }, { id: 'p_b', name: 'Bo', owns: ['catalog-api', 'Web\\Team A'] }, { id: 'p_c', name: 'Cy', owns: ['app'] }];
+  const it = newItem({ title: 'Lighthouse export', ado: { id: 1, type: 'User Story', area: 'Web\\Team A' } }, NOW);
+  const text = aboutText(it, { repos: ['Orders (`web-app`): `web-app/src/x.ts`'] });
+  const found = ownersFor(owners, text);
+  assert.deepEqual(found.map(o => [o.id, o.hits.length]), [['p_a', 2], ['p_b', 1]]);
+  assert.deepEqual(ownersFor(owners, 'nothing here'), []);
+});
+
+test('health: counts, stale and median days per column; request to decision', async () => {
+  const { health } = await import('../js/model.js');
+  const a = newItem({ title: 'a' }, new Date('2026-11-01T12:00:00'));
+  const b = newItem({ title: 'b' }, new Date('2026-11-03T12:00:00'));
+  const c = newItem({ title: 'c' }, new Date('2026-11-01T12:00:00')); setStage(c, 'decide', new Date('2026-11-04T12:00:00'));
+  const d = newItem({ title: 'd' }, new Date('2026-11-01T12:00:00')); setStage(d, 'delegated', new Date('2026-11-02T12:00:00')); d.assignee = 'p_1';
+  const h = health([a, b, c, d], it => (it.stage === 'decide' ? 'decide' : it.stage === 'delegated' ? 'delegated' : 'new'), new Date('2026-11-06T12:00:00'));
+  assert.deepEqual(h.cols.new, { count: 2, stale: 1, medianDays: 3 });
+  assert.equal(h.cols.decide.count, 1);
+  assert.deepEqual(h.load, { p_1: 1 });
+  assert.deepEqual(h.toDecision, { n: 2, median: 1 });
+  assert.equal(h.oldest[0].it.title, 'a');
+});
+
+test('summary cards: needs, delegated people, decisions this week, ADO ids', async () => {
+  const { summaryCards } = await import('../js/model.js');
+  const now = new Date('2026-11-06T12:00:00');
+  const dec = newItem({ title: 'Decide me', ado: { id: 7, type: 'User Story' } }, now); setStage(dec, 'decide', now);
+  const del = newItem({ title: 'With Ana', ado: { id: 8, type: 'Bug' }, requester: 'Finance' }, now); setStage(del, 'delegated', now); del.assignee = 'p_ana';
+  const ask = newItem({ title: 'Asking' }, now); ask.sessions.current = 's1';
+  const cols = { [dec.id]: 'decide', [del.id]: 'delegated', [ask.id]: 'new' };
+  const cards = summaryCards([dec, del, ask], { columnOf: it => cols[it.id], agentOf: it => (it.id === ask.id ? { waiting: true } : null), now });
+  const by = Object.fromEntries(cards.map(c => [c.id, c]));
+  assert.deepEqual(by.needs.rows.map(r => [r.title, r.note, r.flag || '']), [['#7 Decide me', 'Decide who builds it', ''], ['Asking', 'An agent is asking you something', 'urgent']]);
+  assert.deepEqual(by.delegated.rows, [{ id: 'p_ana', open: [{ id: del.id, title: '#8 With Ana', due: '', nudgeOn: '', via: '' }], waiting: [] }]);
+  assert.deepEqual(by['done-week'].rows.map(r => r.note), ['Defined and published', 'Delegated']);
+  assert.deepEqual(by.ado.rows.map(r => [r.id, r.note || '']), [['7', ''], ['8', 'Asked by Finance']]);
+  for (const c of cards) assert.ok(c.rows.length <= 200 && c.kind && c.updatedAt);
+});
+
+test('decision notes for Notes and win offers for Rapport follow docs/handoffs.md', async () => {
+  const { decisionNote, winOffer } = await import('../js/model.js');
+  const it = newItem({ title: 'Export orders', ado: { id: 5, type: 'User Story' }, requester: 'Finance' }, NOW);
+  const n = decisionNote(it, 'Delegated to Ana', NOW);
+  assert.deepEqual([n.to, n.accepted, n.payload.kind, n.payload.title], ['notes', true, 'note', 'Decision: Export orders']);
+  assert.match(n.text, /^Decision: Delegated to Ana\n\n- Item: Export orders \(ADO #5\)\n- Asked by: Finance/);
+  const w = winOffer(it, 'p_ana', NOW);
+  assert.deepEqual([w.to, w.accepted, w.payload.kind, w.payload.about], ['receipts', undefined, 'win', 'p_ana']);
+});
+
+test('sprints: items by iteration and load per assignee', async () => {
+  const { bySprint, sprintLoad } = await import('../js/model.js');
+  const a = newItem({ title: 'a', ado: { id: 1, type: 'User Story' } }, NOW); a.adoNow = { iteration: 'P\\S1', assignee: { name: 'Ana' } };
+  const b = newItem({ title: 'b', ado: { id: 2, type: 'User Story' } }, NOW); b.adoNow = { iteration: 'P\\S1', assignee: null };
+  const c = newItem({ title: 'c' }, NOW);
+  const g = bySprint([a, b, c]);
+  assert.deepEqual(Object.keys(g), ['P\\S1']);
+  assert.deepEqual(sprintLoad(g['P\\S1']), [{ name: 'Ana', count: 1 }, { name: 'Unassigned', count: 1 }]);
+});

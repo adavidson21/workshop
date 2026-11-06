@@ -2,9 +2,13 @@
 
 Your day at a glance. The Workshop logo at the top of the rail opens it, and so does the plain address. It has no rail button of its own (`"home": true` in `app.json`, see [docs/app-manifest.md](../../docs/app-manifest.md)).
 
+The **Capture** button in the top bar (or Ctrl+. on any app) is the quick way in from anywhere: type a task, a note, a receipt or a question for the agents, and send it where it belongs.
+
 What it shows:
 
 - **Greeting** with your name and role. Use **Add your name** (or **Edit profile**) to set them.
+- **Needs you:** one list of everything waiting on you, from every app's summary (`needs` cards, docs/summaries.md): agents asking a question, Slate items to decide or approve, pull requests to review, 1:1s due, plus Docket's overdue tasks and tasks to triage. Urgent first. Each row opens the place to act.
+- **Weekly status:** the document button by your name drafts your status update from every app's `done-week` card (tasks finished in Docket, decisions in Slate, runs shipped with Dispatch, your wins in Rapport), with Next week and Risks headings to fill in. Edit, then Copy. It is the highlighted button on Friday afternoons.
 - **Your day:** buttons for Triage (with the count), Plan today (or Pick today's tasks when Today is empty) and Wrap up the day. The one that needs doing is highlighted. Wrap up the day is highlighted from an hour before your day ends (Docket's Day view settings; 15:00 if no sprint is set), on working days only. After Docket's Wrap up it reads **Day wrapped**. Its tooltip counts receipts offered to Receipts today. Reads Docket's `focus/days/<yyyy>` and `handoffs` at version 1 only.
 - **Get started:** a checklist for someone new, under the greeting. Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
   1. Connect Workshop on this computer (the installer command for your system, then Connect).

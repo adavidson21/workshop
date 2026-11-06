@@ -19,6 +19,7 @@ import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults,
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
+import { slateLinks, summaryCards } from './summary.js';
 import { useApps } from '../../../shared/capture.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
 
@@ -117,6 +118,30 @@ const toast = (text, bad) => ws.toast(text, { kind: bad ? 'error' : 'info' });
 const write = (action, args) => ws.connectors.call(OC, action, args, { confirm: true });
 const read = (action, args) => ws.connectors.call(OC, action, args);
 
+/* ---------- what Dispatch tells other apps (docs/summaries.md), and the Slate request behind each run ---------- */
+let summaryKey = '', summaryTimer = null;
+function publishSummary() {
+  clearTimeout(summaryTimer);
+  summaryTimer = setTimeout(async () => {
+    const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now() });
+    const key = JSON.stringify(cards.map(c => ({ ...c, updatedAt: 0 })));
+    if (key === summaryKey) return;
+    try {
+      const before = (await ws.data.get('summary')) || { schema: 'agents.summary', version: 1, rev: 0, items: [], deleted: {} };
+      if (before.schema !== 'agents.summary' || before.version !== 1) return;
+      const after = ws.data.stamp(before, { ...structuredClone(before), items: cards });
+      try { await ws.data.put('summary', after); }
+      catch (e) { if (e.code === 'conflict' && e.current) await ws.data.put('summary', { ...ws.data.merge(after, e.current), items: cards }); else throw e; }
+      summaryKey = key;
+    } catch (e) { /* the next change tries again */ }
+  }, 500);
+}
+async function loadSlate() {
+  try { S.slate = slateLinks(await ws.data.get('summary', { app: 'slate' })); schedule(); } catch (e) { /* no Slate here */ }
+}
+loadSlate();
+try { ws.data.subscribe('summary', loadSlate, { app: 'slate' }); } catch (e) { /* no data backend */ }
+
 /* ---------- PRs waiting on you: the ADO connector's sync.prs (read-only) ----------
    Checked once when Dispatch connects, when the PR reviews page opens (if older than five minutes),
    and from Check again. Without the ADO connector (or with it off) the page says how to turn it on. */
@@ -133,6 +158,7 @@ async function loadInbox(force) {
     const r = await ws.connectors.call(ADO, 'sync.prs', { knownPrs: [] });
     S.inbox = { state: 'ok', items: (r && r.items) || [], notes: (r && r.notes) || [], error: null, at: Date.now() };
     saveInbox();
+    publishSummary();
   } catch (e) {
     S.inbox = { state: 'error', items: [], notes: [], error: errText(e), at: Date.now() };
   }
@@ -206,6 +232,7 @@ async function fetchState() {
   try {
     const d = await read('state');
     S.D = d; S.L = d.liveMode ? d.liveMode.live : null; S.conn = 'on';
+    publishSummary();
     watchPrompts();
     loadBriefs();
     if (d.projects && pruneLocal(S.local, new Set(d.projects.projects.map(p => p.id)), new Set((d.items || []).map(i => i.folder)))) saveSide();
@@ -633,6 +660,8 @@ app.addEventListener('change', ev => {
 app.addEventListener('click', ev => {
   const t = ev.target;
   if (!t.closest) return;
+  const slOpen = t.closest('[data-open-slate]');
+  if (slOpen) { ws.open({ app: 'slate', path: slOpen.getAttribute('data-open-slate') }).catch(() => {}); return; }
   const go = t.closest('[data-gopen]');
   if (go) { const k = go.getAttribute('data-gopen'); const cur = S.setup.open || nextStep(); S.setup.open = cur === k ? 'none' : k; saveGuide(); paint(); return; }
   const gd = t.closest('[data-gdone]');

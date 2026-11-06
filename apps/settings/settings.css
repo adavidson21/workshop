@@ -180,3 +180,5 @@ label.btn{cursor:pointer}
 .app-status code{font-size:.8rem;white-space:nowrap}
 .app-copy{margin-left:.3rem;padding:.1rem .55rem;font-size:.78rem}
 .app-reload{margin-top:.6rem}
+.health-lines{list-style:none;margin:.4rem 0 .8rem;padding:0;font-family:var(--mono);font-size:.8rem;line-height:1.6}
+.health-lines li.err{color:var(--danger)}

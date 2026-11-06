@@ -5,7 +5,7 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, boardFromSummary, dateStr, nowFromDay, withNames, wrapFromDay } from './view.js';
+import { agentCounts, boardFromSummary, dateStr, inboxRows, nowFromDay, weekRows, withNames, wrapFromDay } from './view.js';
 import { EMPTY } from '../../../shared/people.js';
 import { cardDay, readCards } from '../../../shared/summary.js';
 
@@ -15,7 +15,7 @@ const OC = 'opencode';
 const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], inbox: [], week: [], apps: [], board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -83,6 +83,19 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     changed();
   }
 
+  /* Needs you and the week, from every app's summary (docs/summaries.md): `needs` and `done-week` list cards.
+     Docket's board counts (triage, overdue) and agents waiting (the opencode connector) join the inbox here. */
+  async function loadInbox() {
+    try {
+      if (!v.apps.length) v.apps = (await ws.apps.list().catch(() => [])).filter(a => a.id !== 'home');
+      const sums = await Promise.all(v.apps.map(a => ws.data.get('summary', { app: a.id }).then(env => readCards(env, a.id)).catch(() => null)));
+      const byApp = v.apps.map((a, i) => ({ app: a.id, name: a.name, cards: sums[i] }));
+      v.inbox = inboxRows(byApp, { board: v.board, agents: v.agents, today: dateStr(now()) });
+      v.week = weekRows(byApp);
+    } catch (e) { waitFor(e); }
+    changed();
+  }
+
   async function loadProfile() {
     try {
       profileEnv = await ws.data.get('profile');
@@ -97,6 +110,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     const was = v.waiting;
     v.waiting = false;
     await Promise.all([loadProfile(), loadBoard(), loadAgents(), loadNotes()]);
+    await loadInbox();
     if (was && !v.waiting) changed();
   }
 
@@ -129,7 +143,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   ws.on('online', p => { if (p && p.online) loadAll(); });
 
   return {
-    v, loadAll, loadBoard, loadAgents, loadNotes, loadProfile, saveProfile,
+    v, loadAll, loadBoard, loadAgents, loadNotes, loadInbox, loadProfile, saveProfile,
     get waiting() { return v.waiting; }
   };
 }

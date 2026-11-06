@@ -941,6 +941,25 @@ function sitesCard(cfg) {
 }
 
 /* ---------- start ---------- */
+/* ---------- health check: what `workshop doctor` checks, here (GET /api/doctor, Workshop on this computer) ---------- */
+function healthCard() {
+  const sec = card('Health check', 'Node, the data folder, start at login and each connector, as Workshop on this computer sees them. For the full check run <code>workshop doctor</code>.');
+  sec.insertAdjacentHTML('beforeend', '<div class="health-out" aria-live="polite"></div><p><button type="button" class="btn" data-health>Check now</button></p>');
+  const out = sec.querySelector('.health-out');
+  const run = async () => {
+    out.innerHTML = '<p class="sub">Checking…</p>';
+    try {
+      const r = await agentCall('GET', '/api/doctor');
+      const lines = (r.lines || []).filter(l => !/^Result:/.test(l));
+      const bad = l => !/not available/.test(l) && /too old|not |problem|fix |could not|missing|failed|behind|error/i.test(l) && !/: ok\.?$/i.test(l);
+      out.innerHTML = `<p class="${r.ok ? 'ok' : 'err'}"><b>${r.ok ? 'All good.' : 'Something needs fixing. The lines marked below say what to do.'}</b></p>`
+        + `<ul class="health-lines">${lines.map(l => `<li class="${bad(l) ? 'err' : ''}">${esc(l)}</li>`).join('')}</ul>`;
+    } catch (e) { out.innerHTML = `<p class="err">${esc(errText(e))}</p>`; }
+  };
+  sec.addEventListener('click', e => { if (e.target.closest('[data-health]')) run(); });
+  run();
+}
+
 async function start() {
   header();
   tabsEl.innerHTML = ''; content.innerHTML = '';
@@ -949,6 +968,7 @@ async function start() {
       const cfg = await ws.config.get();
       if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       await folderCard(cfg);
+      if (ws.mode === 'local') healthCard();
       await workshopCard(cfg);
       await appsCard();
       const list = await connectorsCard(cfg);

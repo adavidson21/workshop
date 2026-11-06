@@ -126,3 +126,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 .ws-prompt .hint{flex:1;color:var(--muted);font-size:.78rem}
 @media (max-width:900px){ .ws-detail{display:none} .ws-app{display:none} }
 @media (max-width:640px){ .ws-time{display:none} .ws-text{max-width:9rem} }
+
+/* The capture bar (shell/capture.js): a button in the top bar and Ctrl+. from any app */
+.capbtn{display:inline-flex;align-items:center;gap:.4rem;margin-left:auto;min-height:2.1rem;padding:.3rem .8rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:.86rem;font-weight:500;color:var(--ink)}
+.capbtn:hover{background:var(--hover)}
+.capbtn svg{width:15px;height:15px}
+.wstatus:not([hidden])~.capbtn{margin-left:0}
+.capbar{position:fixed;inset:0;z-index:50}
+.capbar[hidden]{display:none}
+.cb-backdrop{position:absolute;inset:0;background:color-mix(in srgb,#000 22%,transparent)}
+.cb-card{position:absolute;left:50%;top:72px;transform:translateX(-50%);width:min(44rem,92vw);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:1rem 1.1rem}
+.cb-err{margin:0;color:var(--muted)}
+@media (max-width:640px){.capbtn span{display:none}.capbtn{padding:.3rem .55rem}}

@@ -54,6 +54,8 @@ export function hostFrame(frame, { ws, child = 'runway', onOpenSlate = () => {},
   const offTheme = ws.on('theme', (p) => event('theme', p));
   return {
     route(path) { event('route', { path: path || '' }); },
+    /** Run one of the child's commands (a palette command Slate lists for it, like New roadmap). */
+    command(id) { if (ready) event('command', { id }); else setTimeout(() => { if (ready) event('command', { id }); }, 1500); },
     stop() { win.removeEventListener('message', onMessage); if (offTheme) offTheme(); ready = false; },
     get ready() { return ready; }
   };

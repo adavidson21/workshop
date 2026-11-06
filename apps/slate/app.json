@@ -2,11 +2,11 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Slate",
-  "version": "1.0.0",
-  "description": "Your ADO backlog from request to who builds it: triage, define, publish, then delegate or build it yourself, with Tandem doing the legwork.",
+  "version": "1.1.0",
+  "description": "Your team's backlog from request to who builds it, with roadmaps, sprints and team health. Tandem does the legwork; you decide.",
   "icon": "icon.svg",
   "entry": "index.html",
-  "order": 55,
+  "order": 15,
   "modes": [
     "local",
     "hosted",
@@ -25,12 +25,22 @@
   "aliases": [
     "backlog",
     "requests",
-    "enhancements"
+    "enhancements",
+    {
+      "name": "health",
+      "path": "health"
+    },
+    {
+      "name": "sprints",
+      "path": "sprints"
+    }
   ],
   "handoffs": {
     "sends": [
       "runway",
-      "prioritizer"
+      "prioritizer",
+      "notes",
+      "receipts"
     ]
   },
   "routes": [
@@ -39,8 +49,16 @@
       "title": "Open an item"
     },
     {
-      "path": "roadmap",
-      "title": "Roadmap"
+      "path": "roadmaps",
+      "title": "Roadmaps"
+    },
+    {
+      "path": "health",
+      "title": "Team health"
+    },
+    {
+      "path": "sprints",
+      "title": "Sprints"
     }
   ],
   "commands": [
@@ -54,14 +72,30 @@
       "title": "Refresh from ADO and Tandem"
     },
     {
-      "id": "roadmap",
-      "title": "Open the roadmap",
-      "route": "roadmap"
+      "id": "roadmaps",
+      "title": "Open roadmaps",
+      "route": "roadmaps"
+    },
+    {
+      "id": "new-roadmap",
+      "title": "New roadmap",
+      "route": "roadmaps"
+    },
+    {
+      "id": "health",
+      "title": "Team health",
+      "route": "health"
+    },
+    {
+      "id": "sprints",
+      "title": "Plan sprints",
+      "route": "sprints"
     }
   ],
   "data": [
     "items",
-    "handoffs"
+    "handoffs",
+    "summary"
   ],
   "files": [
     "slate.css",
@@ -69,6 +103,13 @@
     "js/data.js",
     "js/model.js",
     "js/view.js",
-    "js/host.js"
+    "js/host.js",
+    "js/health.js"
+  ],
+  "hosts": [
+    {
+      "app": "runway",
+      "path": "roadmaps"
+    }
   ]
 }

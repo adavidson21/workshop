@@ -553,6 +553,11 @@ export function briefHtml(it) {
     `<div class="brief-body">${body}<p class="brief-foot">${fileBtn(it.folder, 'brief.md', 'plain', 'Open brief.md')}</p></div></details>`;
 }
 
+/** "From Slate": the request this run came from, when Slate knows the ADO item (Slate's summary, `ado` card). */
+export function slateChip(it) {
+  const s = it && it.id && S.slate && S.slate.get(String(it.id));
+  return s ? `<button type="button" class="tag slate" data-open-slate="${h(s.route)}" title="${h(s.note || 'Open the request in Slate')}">From Slate</button>` : '';
+}
 export function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
 
 // ------------------------------------------------------------- item card
@@ -564,6 +569,7 @@ export function itemCard(it, noAgent) {
   if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
   meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`);
   meta.push(projectChip(it));
+  meta.push(slateChip(it));
   meta.push(removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   return `<article class="item" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +

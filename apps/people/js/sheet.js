@@ -11,11 +11,12 @@
      Groups        @handles, comma separated; groups that do not exist yet are made
    A row matches someone already here by handle, else by name (one active match only), and updates them.
    Everyone else is added. Groups only gain members; an import never removes anyone from a group. */
+import { ownsList } from './forms.js';
 import * as P from '../../../shared/people.js';
 
 export const SHEET = 'People';
-export const COLUMNS = ['Name', 'Handle', 'Relation', 'On my team', 'Azure DevOps', 'Role', 'Groups'];
-const KEY = { name: 'name', handle: 'handle', relation: 'relation', onmyteam: 'team', team: 'team', azuredevops: 'adoIdentity', ado: 'adoIdentity', adoidentity: 'adoIdentity', email: 'adoIdentity', role: 'role', groups: 'groups', group: 'groups' };
+export const COLUMNS = ['Name', 'Handle', 'Relation', 'On my team', 'Azure DevOps', 'Role', 'Owns', 'Groups'];
+const KEY = { name: 'name', handle: 'handle', relation: 'relation', onmyteam: 'team', team: 'team', azuredevops: 'adoIdentity', ado: 'adoIdentity', adoidentity: 'adoIdentity', email: 'adoIdentity', role: 'role', owns: 'owns', groups: 'groups', group: 'groups' };
 const REL = {
   you: 'self', self: 'self', me: 'self', manager: 'manager', 'my manager': 'manager',
   'direct report': 'report', report: 'report', 'direct reports': 'report', peer: 'peer', contact: 'contact'
@@ -31,6 +32,7 @@ export const HELP = [
   ['On my team', 'Yes or No. Empty means yes for You and direct reports, no for everyone else.'],
   ['Azure DevOps', 'Optional. Their email or exact display name in Azure DevOps.'],
   ['Role', 'Optional. Their title.'],
+  ['Owns', 'Optional. Products, repos or area paths they own, comma separated. Slate suggests them for work that touches these.'],
   ['Groups', 'Optional. Group handles, comma separated, for example @leadership, @platform. New groups are made for you.'],
   [],
   ['Importing', 'A row with the handle or name of someone already in People updates them; other rows add someone. You see every change before anything is saved.']
@@ -44,7 +46,7 @@ const handleOf = v => low(v).replace(/^@/, '');
 export function rows(dir) {
   const out = [COLUMNS.slice()];
   for (const p of P.active(dir, { kind: 'person' })) {
-    out.push([p.name, p.handle, P.RELATION_LABEL[p.relation], P.onTeam(p) ? 'Yes' : 'No', p.adoIdentity, p.role,
+    out.push([p.name, p.handle, P.RELATION_LABEL[p.relation], P.onTeam(p) ? 'Yes' : 'No', p.adoIdentity, p.role, (p.owns || []).join(', '),
       P.groupsOf(dir, p.id).map(g => '@' + g.handle).join(', ')]);
   }
   return out;
@@ -66,7 +68,7 @@ export function parse(table) {
     const f = {};
     cols.forEach((k, j) => { if (k && !(k in f && f[k])) f[k] = cell(r[j]); });
     const row = { line: i + 1, name: cell(f.name).slice(0, 200), handle: handleOf(f.handle).slice(0, 40), relation: '', team: null,
-      adoIdentity: cell(f.adoIdentity).slice(0, 200), role: cell(f.role).slice(0, 200), groups: [], why: '' };
+      adoIdentity: cell(f.adoIdentity).slice(0, 200), role: cell(f.role).slice(0, 200), owns: ownsList(cell(f.owns)), groups: [], why: '' };
     const rel = low(f.relation);
     if (rel && !REL[rel]) row.why = `Relation "${cell(f.relation)}" is not one of You, Manager, Direct report, Peer or Contact.`;
     else if (rel) row.relation = REL[rel];
@@ -84,8 +86,9 @@ export function parse(table) {
   return out;
 }
 
-const PERSON_FIELDS = ['name', 'handle', 'relation', 'team', 'adoIdentity', 'role'];
-const FIELD_LABEL = { name: 'name', handle: 'handle', relation: 'relation', team: 'on my team', adoIdentity: 'Azure DevOps', role: 'role' };
+const PERSON_FIELDS = ['name', 'handle', 'relation', 'team', 'adoIdentity', 'role', 'owns'];
+const FIELD_LABEL = { name: 'name', handle: 'handle', relation: 'relation', team: 'on my team', adoIdentity: 'Azure DevOps', role: 'role', owns: 'owns' };
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null) || (Array.isArray(a) && !a.length && b == null);
 
 /** What importing `parsed` into `dir` would do, checked with the directory's own rules:
     {rows: [{line, name, action: 'new' | 'update' | 'same' | 'skip', id, fields, changes, groups, why}],
@@ -105,7 +108,7 @@ export function plan(dir, parsed) {
     if (!match) { const byName = live.filter(it => low(it.name) === low(r.name)); if (byName.length === 1) match = byName[0]; }
     if (match && used.has(match.id)) { row.why = `${match.name} is already on an earlier row.`; continue; }
     const relation = r.relation || (match ? match.relation : 'contact');
-    const fields = { name: r.name, relation, adoIdentity: r.adoIdentity, role: r.role };
+    const fields = { name: r.name, relation, adoIdentity: r.adoIdentity, role: r.role, owns: r.owns || [] };
     if (r.handle) fields.handle = r.handle;
     if (r.team !== null) fields.team = r.team;
     else if (!match) fields.team = P.onTeam({ relation });
@@ -113,8 +116,9 @@ export function plan(dir, parsed) {
       if (match) {
         // Empty cells leave what is there.
         for (const k of ['adoIdentity', 'role']) if (!fields[k]) delete fields[k];
+        if (!fields.owns.length) delete fields.owns;
         const next = P.edit(match, fields, items);
-        row.changes = PERSON_FIELDS.filter(k => next[k] !== match[k]).map(k => FIELD_LABEL[k]);
+        row.changes = PERSON_FIELDS.filter(k => !same(next[k], match[k])).map(k => FIELD_LABEL[k]);
         row.id = match.id;
         used.add(match.id);
         items = items.map(it => (it.id === next.id ? next : it));
