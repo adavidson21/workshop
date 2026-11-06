@@ -148,6 +148,19 @@ export function backTargets(it, column = null) {
 }
 
 /**
+ * Later stages an item can skip ahead to, for work that is already done elsewhere (a feature whose stories are
+ * already written goes straight to Who builds it?). Only Define and Who builds it?: Waiting and Publish need
+ * triage questions or drafts, and Delegated and the Dev lane go through Delegate and Do it myself.
+ * Only from the PM lane before Who builds it?.
+ */
+export function forwardTargets(it) {
+  const cur = it.stage || 'new';
+  if (!['new', 'triaged', 'waiting', 'defining', 'ready'].includes(cur)) return [];
+  const at = STAGES.indexOf(cur);
+  return ['defining', 'decide'].filter(st => STAGES.indexOf(st) > at);
+}
+
+/**
  * Move an item back to an earlier stage. It stays there until you act (`reopened`): back in New, a finished
  * triage does not move it on again, and back in Define an approved draft does not send it to Publish. Any
  * forward move or agent run clears it.
@@ -177,10 +190,68 @@ export function cards(items, backlog = []) {
 /** True when ADO changed the item since Slate last wrote or read it. */
 export const changedInAdo = (it) => !!(it.ado && it.adoNow && Number(it.adoNow.rev) > Number(it.ado.rev));
 
-/** Text search and level filter. */
-export function filterCards(list, { q = '', level = '' } = {}) {
+/* ---------- area paths ---------- */
+
+/** The area choice for cards with no ADO area path (requests not in ADO yet). */
+export const NO_AREA = '-';
+
+/** The card's ADO area path, as ADO has it now if known: '' when it has none. */
+export const areaOf = (c) => String((c.adoNow && c.adoNow.area) || (c.ado && c.ado.area) || '');
+
+const areaParts = (p) => String(p || '').split('\\').map(x => x.trim()).filter(Boolean);
+const areaKey = (p) => areaParts(p).join('\\').toLowerCase();
+
+/** True when `path` is `root` or under it. ADO area paths are backslash separated and case-insensitive. */
+export function underArea(path, root) {
+  const p = areaKey(path), r = areaKey(root);
+  return !!r && (p === r || p.startsWith(r + '\\'));
+}
+
+/** True when the card belongs in the area view: '' is every area, NO_AREA is cards with none. */
+export function inArea(c, area) {
+  if (!area) return true;
+  const a = areaOf(c);
+  return area === NO_AREA ? !a : !!a && underArea(a, area);
+}
+
+/**
+ * The area views for the cards: the team's area paths (`roots`, People), every path the cards sit in, and the
+ * paths between, as a tree. [{path, label, depth, count}], parents before children; count is the cards at or
+ * under the path. A card outside every root still gets its own path. `keep` (the saved choice) is always listed,
+ * so a view with nothing in it says so instead of quietly showing everything.
+ */
+export function areaOptions(list, roots = [], keep = '') {
+  const rootParts = roots.map(areaParts).filter(r => r.length);
+  const paths = new Map(); // key -> display path
+  const add = (parts) => { const p = parts.join('\\'); if (p && !paths.has(p.toLowerCase())) paths.set(p.toLowerCase(), p); };
+  for (const r of rootParts) add(r);
+  let none = 0;
+  for (const c of list) {
+    const parts = areaParts(areaOf(c));
+    if (!parts.length) { none++; continue; }
+    const root = rootParts.filter(r => underArea(parts.join('\\'), r.join('\\'))).sort((a, b) => b.length - a.length)[0];
+    for (let n = root ? root.length : parts.length; n <= parts.length; n++) add(parts.slice(0, n));
+  }
+  if (keep && keep !== NO_AREA) add(areaParts(keep));
+  const sorted = [...paths.values()].sort((a, b) => areaKey(a).localeCompare(areaKey(b)));
+  const out = sorted.map(path => {
+    // Depth below the nearest listed ancestor's chain, so a root shows flush left with its sub-areas under it.
+    const ancestors = sorted.filter(o => o !== path && underArea(path, o));
+    return {
+      path,
+      label: ancestors.length ? areaParts(path).slice(-1)[0] : path,
+      depth: ancestors.length,
+      count: list.filter(c => { const a = areaOf(c); return a && underArea(a, path); }).length
+    };
+  });
+  if (none || keep === NO_AREA) out.push({ path: NO_AREA, label: 'No area path', depth: 0, count: none });
+  return out;
+}
+
+/** Text search, level and area filter. */
+export function filterCards(list, { q = '', level = '', area = '' } = {}) {
   const words = String(q).toLowerCase().split(/\s+/).filter(Boolean);
-  return list.filter(c => (!level || c.level === level) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''} ${c.requester || ''}`.toLowerCase().includes(w)));
+  return list.filter(c => (!level || c.level === level) && inArea(c, area) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''} ${c.requester || ''}`.toLowerCase().includes(w)));
 }
 
 /* ---------- .work files ---------- */

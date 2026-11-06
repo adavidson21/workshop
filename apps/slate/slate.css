@@ -22,6 +22,7 @@ body.standalone .slate{height:auto;flex:1;min-height:0}
 .tab.on,.seg.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
 .tab{font-family:var(--serif);font-size:1rem}
 .q{width:15rem;font-family:var(--mono);font-size:.84rem}
+.area{max-width:18rem}
 .notes{padding:.4rem 1.25rem;border-bottom:1px solid var(--line);background:var(--sunk)}
 .note{margin:.15rem 0;font-size:.84rem;color:var(--muted)}
 
