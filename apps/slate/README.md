@@ -19,7 +19,11 @@ Four tabs: **Board** (the two lanes below), **Roadmaps** (Runway), **Sprints** a
 
 Every card shows how many days it has been in its column; past a limit (3 days in New, Triage or Who builds it?, 5 waiting on the requester, 7 in Define, 2 in Publish) it is marked **Stale** and shows on Home's Needs you.
 
-**Dev lane:** Ready, Spec and plan, Build, Review and PR, Done. Only what you chose to build yourself, with its Tandem stage. **Start** runs Tandem on the ADO item; after that the panel offers the run's next step, or **Open in Dispatch**, where every run, prompt and review lives. When an agent asks you something, the card says **Waiting on you** and **Answer in Dispatch** opens it.
+**Dev lane:** Ready, Spec and plan, Build, Review and PR, Done. Only what you chose to build yourself, with its Tandem stage. **Start** runs Tandem on the ADO item; after that the panel offers the run's next step, or **Open in Dispatch**, where every run, prompt and review lives. When an agent asks you something, the card says **Waiting on you**.
+
+**Answering the agent.** When any of an item's agents asks you something (a triage, define or handoff session, or its Tandem run in the Dev lane), the panel shows it at the top: **Allow once**, **Always allow** or **Reject** for a permission prompt, and the options plus a text box for a question, then **Answer** or **Dismiss**. Below that, **Agent** shows what the item's current session last said, with a reply box once it stops, for a question asked in plain text (Ctrl+Enter sends). Answers and replies go through the opencode connector's `answer` and `reply` actions, with a confirm. What you tick and type survives refreshes. **Open in Dispatch** is still there for the whole session.
+
+**More room.** **Expand** in the panel's header widens it (the board stays beside it, narrower); **Narrow** goes back. Slate remembers which you chose.
 
 **Moving a card.** Under the panel, pick a stage and **Move**.
 

@@ -163,11 +163,60 @@ function adoSection(it, d, prefs) {
   return section('Azure DevOps', body);
 }
 
+/* ---------- what the agent is asking, answered in the panel (opencode connector `answer` and `reply`) ---------- */
+
+function permHtml(p) {
+  const what = p.title || (p.patterns || []).join(', ');
+  const always = (p.always || []).length ? ` (${(p.always || []).join(', ')})` : '';
+  return `<div class="ask"><p class="ask-q">Allow <strong>${esc(p.permission)}</strong>${what ? `: <code>${esc(what)}</code>` : ''}</p>
+    <div class="acts">${btn('perm', 'Allow once', { primary: true, extra: ` data-perm="${esc(p.id)}" data-answer="once"` })}${btn('perm', 'Always allow', { extra: ` data-perm="${esc(p.id)}" data-answer="always"`, title: `Stop asking for this in this session${always}` })}${btn('perm', 'Reject', { extra: ` data-perm="${esc(p.id)}" data-answer="reject"` })}</div></div>`;
+}
+
+function questionHtml(q, ui) {
+  const picks = (ui.picks || {})[q.id] || {};
+  let out = `<div class="ask" data-qform="${esc(q.id)}">`;
+  (q.questions || []).forEach((qq, i) => {
+    const chosen = picks[i] || [];
+    const typedKey = `q:${q.id}:${i}`;
+    out += `${qq.header ? `<p class="q-h">${esc(qq.header)}</p>` : ''}<p class="ask-q">${esc(qq.question)}</p><div class="opts">`;
+    for (const o of qq.options || []) {
+      out += `<label class="opt"><input type="${qq.multiple ? 'checkbox' : 'radio'}" name="${esc(`${q.id}-${i}`)}" value="${esc(o.label)}" data-qpick="${esc(q.id)}" data-qi="${i}"${chosen.includes(o.label) ? ' checked' : ''}>
+        <span>${esc(o.label)}${o.description ? ` <span class="soft small">${esc(o.description)}</span>` : ''}</span></label>`;
+    }
+    if (qq.custom !== false) out += `<label class="sr" for="${esc(`qa-${q.id}-${i}`)}">Your own answer</label><input type="text" id="${esc(`qa-${q.id}-${i}`)}" class="qtype" placeholder="${(qq.options || []).length ? 'Or type your own answer' : 'Your answer'}" data-draft="${esc(typedKey)}" value="${esc((ui.drafts || {})[typedKey] || '')}" autocomplete="off">`;
+    out += '</div>';
+  });
+  return `${out}<div class="acts">${btn('qsend', 'Answer', { primary: true, extra: ` data-q="${esc(q.id)}"` })}${btn('qreject', 'Dismiss', { extra: ` data-q="${esc(q.id)}"`, title: 'Tell the agent you will not answer this one' })}</div></div>`;
+}
+
+/** Every prompt and question for the item, in the panel's "next" box. */
+function asksHtml(p) {
+  const a = p.asks;
+  return `<div class="next asking"><p><span class="dot wait" aria-hidden="true"></span> The agent is asking you ${a.count === 1 ? 'something' : `${a.count} things`}. Answer here; it carries on right away.</p>
+    ${a.permissions.map(permHtml).join('')}${a.questions.map(q => questionHtml(q, p.ui)).join('')}
+    <div class="acts">${btn('dispatch', 'Open in Dispatch', { title: 'See the whole session' })}</div></div>`;
+}
+
+/** The item's current agent session: what it last said, and a reply box once it stops (for questions asked in plain text). */
+function agentSection(p) {
+  const ses = p.session;
+  if (!ses || (!ses.text && !ses.error)) return '';
+  const busy = !!(p.agent && p.agent.busy);
+  const key = `r:${ses.id}`;
+  const remembered = (p.ui.agentOpen || {})[ses.id];
+  const open = remembered !== undefined ? remembered : p.asks.count || (!busy && /\?\s*$/.test(ses.text || '')) || ((p.ui.drafts || {})[key] || '').trim();
+  const reply = busy || p.asks.count ? '' : `<label class="sr" for="${esc(`reply-${ses.id}`)}">Reply to the agent</label><textarea id="${esc(`reply-${ses.id}`)}" class="reply" rows="3" data-draft="${esc(key)}" placeholder="Reply to the agent. Ctrl+Enter sends.">${esc((p.ui.drafts || {})[key] || '')}</textarea>
+    <div class="acts">${btn('reply', 'Send', { primary: true, extra: ` data-sid="${esc(ses.id)}"` })}</div>`;
+  return `<details class="ps agent-box" data-sid="${esc(ses.id)}"${open ? ' open' : ''}><summary><h3>Agent${ses.command ? ` <span class="mono soft">${esc(ses.command)}</span>` : ''}</h3><span class="soft small">${busy ? 'Working' : ses.error ? 'Stopped' : 'Said'}</span></summary>
+    ${ses.error ? `<p class="bad small">${esc(ses.error)}</p>` : ''}${ses.text ? `<pre class="txt say">${esc(ses.text)}</pre>` : ''}${reply}</details>`;
+}
+
 /** The one thing to do next, as a sentence and buttons. */
 function nextHtml(p) {
   const it = p.item;
   const a = p.agent;
   const out = (text, buttons) => `<div class="next"><p>${text}</p><div class="acts">${buttons.join('')}</div></div>`;
+  if (p.asks && p.asks.count) return asksHtml(p);
   if (a && a.waiting) return out('The agent is asking you something.', [btn('dispatch', 'Answer in Dispatch', { primary: true })]);
   if (a && a.busy) return out('The agent is working on it.', [btn('dispatch', 'Follow in Dispatch')]);
   if (p.lane === 'dev') {
@@ -223,12 +272,13 @@ export function panelHtml(p) {
     ? `<h2 class="ptitle">${esc(it.title)}</h2>`
     : `<label class="sr" for="ptitle">Title</label><input id="ptitle" class="ptitle-in" value="${esc(it.title)}" maxlength="255">`;
   return `<div class="phead">
-      <div class="prow">${chip(LEVEL_NAME[it.level] || 'Story', `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
+      <div class="prow">${chip(LEVEL_NAME[it.level] || 'Story', `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${btn('wide', p.wide ? 'Narrow' : 'Expand', { title: p.wide ? 'Give the board more room' : 'Give the panel more room', extra: ` aria-pressed="${p.wide}"` })}${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
       ${titleField}
       ${links.length ? `<p class="links">${links.join(' · ')}</p>` : ''}
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
     </div>
     ${nextHtml(p)}
+    ${agentSection(p)}
     ${it.requester || p.age ? `<p class="soft small meta-line">${it.requester ? `Asked by ${esc(it.requester)}. ` : ''}${p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''}</p>` : ''}
     ${adoSection(it, p.details, p.prefs)}
     ${it.description && !it.ado ? section('Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}

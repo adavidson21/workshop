@@ -451,6 +451,33 @@ export function publishPlan(item, files = {}, { area = '', storyType = 'User Sto
   return plan;
 }
 
+/**
+ * What the agents are asking about this item, so the panel can answer it in place: permission prompts and
+ * questions (opencode connector `state`, `liveMode.live`) from any session Slate started for it, its `.work`
+ * folders, or its Tandem run's folder (Dev lane). `{permissions, questions, count}`.
+ */
+export function asksFor(item, live, run = null) {
+  const L = live || {};
+  const sids = new Set(Object.values((item && item.sessions) || {}).filter(Boolean));
+  const folders = new Set(Object.values((item && item.work) || {}).filter(Boolean));
+  if (run && run.folder) folders.add(run.folder);
+  const mine = (x) => !!x && typeof x.id === 'string' && (sids.has(x.sessionID) || (!!x.folder && folders.has(x.folder)));
+  const permissions = (L.permissions || []).filter(mine);
+  const questions = (L.questions || []).filter(mine);
+  return { permissions, questions, count: permissions.length + questions.length };
+}
+
+/** Answers for one opencode question from what was picked and typed: one array of labels per question, or null if any is empty. */
+export function questionAnswers(q, picks = {}, typed = {}) {
+  const out = ((q && q.questions) || []).map((qq, i) => {
+    const a = (picks[i] || []).filter(x => typeof x === 'string' && x);
+    const t = String(typed[i] || '').trim();
+    if (t) a.push(t);
+    return a;
+  });
+  return out.length && out.every(a => a.length) ? out : null;
+}
+
 /** Docket's "waiting on" task for a delegated item (handoff payload, Workshop docs/handoffs.md, Receivers). */
 export function waitingTask(item, personId, now = new Date()) {
   return {
