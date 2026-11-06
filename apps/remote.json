@@ -9,7 +9,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "5.5.0",
+        "version": "5.6.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -62,7 +62,8 @@
         ],
         "handoffs": {
           "sends": [
-            "receipts"
+            "receipts",
+            "notes"
           ]
         },
         "capture": [
@@ -209,7 +210,7 @@
         "manifestVersion": 1,
         "id": "runway",
         "name": "Runway",
-        "version": "1.10.0",
+        "version": "1.11.0",
         "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -503,7 +504,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "description": "Markdown notes: folders, links and backlinks, tags, search, images, templates and a daily note.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -558,6 +559,7 @@
         "files": [
           "notes.css",
           "js/applinks.js",
+          "js/daily.js",
           "js/data.js",
           "js/export.js",
           "js/history.js",
@@ -565,8 +567,8 @@
           "js/markdown.js",
           "js/model.js",
           "js/offers.js",
-          "js/products.js",
           "js/pickup.js",
+          "js/products.js",
           "js/summary-cards.js",
           "js/templates.js",
           "js/vault.js",
