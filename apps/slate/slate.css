@@ -135,3 +135,19 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .srow select{font-size:.8rem;min-height:1.8rem;padding:.1rem .3rem}
 .load-line{margin:.3rem 0 0;font-family:var(--mono);font-size:.74rem;color:var(--muted)}
 @media (max-width:760px){.hcard.wide{grid-column:auto}}
+/* ADO fields on cards and in the panel (Fields settings) */
+.card .ado{display:flex;flex-wrap:wrap;gap:.15rem .55rem;font-size:.74rem;color:var(--muted)}
+.card .ado .f-assignee{color:var(--ink)}
+.card .tags{display:flex;flex-wrap:wrap;gap:.25rem}
+.chip.tag{line-height:1.25rem;font-size:.66rem;background:var(--sunk);border-color:transparent}
+.links-list{list-style:none;padding-left:0 !important}
+.links-list li{margin:.15rem 0;overflow-wrap:anywhere}
+.comments{list-style:none;padding-left:0 !important}
+.comments li p{margin:.3rem 0 .15rem}
+.dlg.fields .levels fieldset{min-width:0}
+.dlg fieldset{border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .75rem;margin:0;display:flex;flex-direction:column;gap:.5rem}
+.dlg legend{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:0 .3rem}
+.dlg .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.2rem .8rem}
+.dlg .levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.6rem}
+.dlg .levels .checks{grid-template-columns:1fr}
+.dlg .acts .grow{flex:1}

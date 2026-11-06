@@ -3,7 +3,7 @@
 // Picks the connection the way eng-agents Get-WorkItem.ps1 does, minus the git remote lookup.
 import { AdoError, clientFor } from './client.mjs';
 import { resolveConnection } from './config.mjs';
-import { get, pyQuote, who } from './util.mjs';
+import { asInt, get, pyQuote, who } from './util.mjs';
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
@@ -91,9 +91,87 @@ export async function getWorkItem(d, args) {
     }
     if (args.pullRequests) out.pullRequests = pullRequests;
   }
+  if (args.extras) Object.assign(out, await extras(ado, w, f, args));
   if (args.comments) out.comments = await comments(ado, conn, project, w.id);
   if (args.history) out.history = await history(ado, w.id);
   return out;
+}
+
+/** Story points fields tried in order when a caller names none: Agile's Story Points, then Scrum's Effort. */
+export const POINTS_FIELDS = ['Microsoft.VSTS.Scheduling.StoryPoints', 'Microsoft.VSTS.Scheduling.Effort'];
+
+/** The first number set in `refs`, or null. */
+export function pointsOf(fields, refs = POINTS_FIELDS) {
+  for (const r of refs) {
+    const v = get(fields, r);
+    if (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))) return Number(v);
+  }
+  return null;
+}
+
+/** ADO tags ("a; b") as a list. */
+export const tagList = (v) => String(v || '').split(';').map(t => t.trim()).filter(Boolean);
+
+/** Any field value as plain text: rich text converted, identities by name, everything else as a string. */
+export function fieldText(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return who(v)?.name || '';
+  const s = String(v);
+  return /<[a-z][^>]*>/i.test(s) ? htmlToText(s) : s;
+}
+
+const MAX_LINKS = 50;
+
+/**
+ * More of the item for Slate's panel: assignee, priority, severity, story points, system info, comment count,
+ * links (work items with their title, type and state; hyperlinks; attachments) and any fields asked for by
+ * reference name (`fields`, as plain text in `custom`). The related items cost one batch call.
+ */
+async function extras(ado, w, f, args) {
+  const items = [];
+  const hyperlinks = [];
+  const attachments = [];
+  let pullRequests = 0;
+  for (const rel of w.relations || []) {
+    const url = String(rel.url || '');
+    const name = get(rel.attributes || {}, 'name') || rel.rel || '';
+    const m = /\/workItems\/(\d+)$/i.exec(url);
+    if (m) { if (items.length < MAX_LINKS) items.push({ id: Number(m[1]), name }); continue; }
+    if (rel.rel === 'Hyperlink' && /^https?:\/\//i.test(url)) { if (hyperlinks.length < MAX_LINKS) hyperlinks.push({ url, comment: String(get(rel.attributes || {}, 'comment') || '') }); continue; }
+    if (rel.rel === 'AttachedFile') { if (attachments.length < MAX_LINKS) attachments.push({ name: String(get(rel.attributes || {}, 'name') || 'Attachment'), url }); continue; }
+    if (/^vstfs:\/\/\/Git\/PullRequestId\//i.test(url)) pullRequests++;
+  }
+  if (items.length) {
+    try {
+      const found = await ado.details([...new Set(items.map(i => i.id))]);
+      for (const i of items) {
+        const r = found.get(i.id);
+        if (!r) continue;
+        const rf = r.fields || {};
+        const project = get(rf, 'System.TeamProject') || '';
+        const href = get(get(get(r, '_links') || {}, 'html') || {}, 'href');
+        Object.assign(i, {
+          title: get(rf, 'System.Title', '') || '',
+          type: get(rf, 'System.WorkItemType', '') || '',
+          state: get(rf, 'System.State', '') || '',
+          url: href || (project ? `${ado.base}/${pyQuote(project)}/_workitems/edit/${i.id}` : `${ado.base}/_workitems/edit/${i.id}`)
+        });
+      }
+    } catch { /* titles are a nicety: the ids still show */ }
+  }
+  const custom = {};
+  for (const ref of args.fields || []) custom[ref] = fieldText(get(f, ref));
+  const sev = get(f, 'Microsoft.VSTS.Common.Severity');
+  return {
+    assignee: who(get(f, 'System.AssignedTo')),
+    priority: asInt(get(f, 'Microsoft.VSTS.Common.Priority')),
+    severity: sev ? String(sev) : '',
+    storyPoints: pointsOf(f, args.pointsFields && args.pointsFields.length ? args.pointsFields : POINTS_FIELDS),
+    systemInfo: htmlToText(get(f, 'Microsoft.VSTS.TCM.SystemInfo')),
+    commentCount: asInt(get(f, 'System.CommentCount')),
+    links: { items, hyperlinks, attachments, pullRequests },
+    custom
+  };
 }
 
 /** The comments API version for a connection: the work item comments API is a preview on ADO Server 2020. */

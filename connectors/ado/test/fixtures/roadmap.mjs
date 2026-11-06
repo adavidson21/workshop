@@ -46,7 +46,7 @@ export function roadmapScenario() {
           712: wi(712, 3, f('Feature', 'New', 'Synthetic feature 712', { 'System.AssignedTo': { displayName: 'Dev Two', uniqueName: 'dev.two@example.com' }, 'System.Parent': 701, 'System.AreaPath': 'Web App\\Team A\\Sub' })),
           713: wi(713, 4, f('Feature', 'Closed', 'Synthetic closed feature 713', { 'System.Parent': 702 })),
           801: wi(801, 1, f('User Story', 'Closed', 'Synthetic story 801', { 'System.Parent': 711 })),
-          802: wi(802, 1, f('User Story', 'Active', 'Synthetic story 802', { 'System.Parent': 711 })),
+          802: wi(802, 1, f('User Story', 'Active', 'Synthetic story 802', { 'System.Parent': 711, 'System.Tags': 'api; urgent', 'Microsoft.VSTS.Common.Priority': 2, 'Microsoft.VSTS.Scheduling.StoryPoints': 5, 'System.CommentCount': 1, 'Custom.Team': 'Blue' })),
           803: wi(803, 1, f('Issue', 'Resolved', 'Synthetic issue 803', { 'System.Parent': 711, 'System.AreaPath': 'Other Project\\Team Z' })),
           804: wi(804, 1, f('User Story', 'New', 'Synthetic story 804', { 'System.Parent': 712 })),
           805: wi(805, 1, f('User Story', 'Done', 'Synthetic story 805', { 'System.Parent': 713 })),

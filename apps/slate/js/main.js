@@ -7,10 +7,10 @@ import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, aboutText, bySprint, cards, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
+  APP, aboutText, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
   pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
 } from './model.js';
-import { boardHtml, confirmHtml, delegateDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, roadmapHtml, topHtml } from './view.js';
+import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
@@ -35,7 +35,8 @@ const s = {
   tstate: null,                // the opencode connector's `state`
   files: new Map(),            // folder -> {file: text}
   apps: [],
-  sprints: null, sprintNote: ''
+  sprints: null, sprintNote: '',
+  details: new Map()           // ADO id -> {rev, key, loading, data, error, comments, commentsLoading, commentsError}
 };
 const store = createStore(ws, { onChange: () => { paint(); publishSummary(); } });
 
@@ -60,7 +61,7 @@ async function readBacklog() {
   if (s.conn.ado !== true) { s.backlog = []; return; }
   if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths in People so Slate can list your ADO backlog.'; return; }
   try {
-    const r = await ado(ws, 'backlog', { areas: s.team.areas, ...(s.team.connection ? { connection: s.team.connection } : {}) });
+    const r = await ado(ws, 'backlog', { areas: s.team.areas, pointsFields: store.v.prefs.pointsFields, ...(s.team.connection ? { connection: s.team.connection } : {}) });
     s.backlog = r.items || [];
     if (r.truncated) s.backlogNote = `Showing the newest ${s.backlog.length} of ${r.total} open items.`;
     else await closeFinished();
@@ -163,6 +164,7 @@ function enrich(c) {
   out.agent = agentOf(c.sessions && c.sessions.current);
   out.assigneeName = personName(c.assignee);
   out.age = daysInStage(c);
+  out.facts = cardFacts(c.adoNow || null, store.v.prefs);
   return out;
 }
 
@@ -223,6 +225,8 @@ function panelState(c) {
     assigneeName: personName(c.assignee),
     owners: ownersOf(c),
     age: daysInStage(c),
+    details: c.ado ? s.details.get(String(c.ado.id)) || null : null,
+    prefs: store.v.prefs,
     error: ui.error
   };
 }
@@ -268,6 +272,28 @@ function paintPanel() {
   panelEl.innerHTML = panelHtml(panelState(c));
   for (const [id, val] of keep) if (val != null && $(id)) $(id).value = val;
   panelEl.classList.toggle('busy', ui.busy);
+  wantDetails(c);
+}
+
+/* ---------- the open item's ADO fields (workitem.get with extras), read when the panel opens ---------- */
+
+const connOf = (c) => (c.ado && c.ado.connection) || s.team.connection || '';
+const prefsKey = () => JSON.stringify([customRefs(store.v.prefs), store.v.prefs.pointsFields]);
+
+/** Read the item from ADO unless what is cached is for this rev and these field settings. Repaints when done. */
+function wantDetails(c) {
+  if (!c || !c.ado || s.conn.ado !== true) return;
+  const key = String(c.ado.id);
+  const rev = Number((c.adoNow && c.adoNow.rev) || c.ado.rev) || 0;
+  const have = s.details.get(key);
+  if (have && (have.loading || (have.rev === rev && have.key === prefsKey()))) return;
+  const d = { rev, key: prefsKey(), loading: true, data: have ? have.data : null, error: '', comments: null };
+  s.details.set(key, d);
+  const conn = connOf(c);
+  ado(ws, 'workitem.get', { id: c.ado.id, details: true, extras: true, pointsFields: store.v.prefs.pointsFields, fields: customRefs(store.v.prefs), ...(conn ? { connection: conn } : {}) })
+    .then(w => { d.data = w; })
+    .catch(e => { d.error = `Could not read #${key} from ADO: ${e && e.message ? e.message : 'unknown error'}`; })
+    .finally(() => { d.loading = false; const o = findCard(ui.open); if (o && o.ado && String(o.ado.id) === key) paintPanel(); });
 }
 
 let reportsHost = null;
@@ -335,7 +361,29 @@ const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
   'open-item': (c) => { if (c) { ui.open = c.id; ui.lane = ['dev', 'done'].includes(c.stage) ? 'dev' : 'pm'; paint(); } },
   lane: (id) => { ui.lane = id; remember('lane', id); ui.open = null; paint(); },
-  refresh: () => refresh().then(() => ws.toast('Up to date.', { kind: 'success' })),
+  refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
+  fields: () => {
+    showDialog(fieldsDialogHtml(store.v.prefs), async (form) => {
+      const before = JSON.stringify(store.v.prefs.pointsFields);
+      await store.savePrefs(readFieldsForm(form));
+      s.details.clear();
+      if (JSON.stringify(store.v.prefs.pointsFields) !== before) await refresh();
+      else paint();
+      ws.toast('Fields saved.', { kind: 'success' });
+    });
+    const reset = dlg.querySelector('[data-reset]');
+    if (reset) reset.addEventListener('click', () => { const f = dlg.querySelector('form'); const fresh = fieldsDialogHtml(cleanPrefs({})); const tmp = document.createElement('div'); tmp.innerHTML = fresh; for (const el of f.querySelectorAll('input')) { const twin = tmp.querySelector(`input[name="${el.name}"]${el.type === 'checkbox' ? `[value="${el.value}"]` : ''}`); if (!twin) continue; if (el.type === 'checkbox') el.checked = twin.checked; else el.value = twin.value; } });
+  },
+  async comments(c) {
+    if (!c || !c.ado) return;
+    const d = s.details.get(String(c.ado.id));
+    if (!d) return;
+    d.commentsLoading = true; d.commentsError = ''; paintPanel();
+    const conn = connOf(c);
+    try { d.comments = (await ado(ws, 'workitem.get', { id: c.ado.id, comments: true, ...(conn ? { connection: conn } : {}) })).comments || []; }
+    catch (e) { d.commentsError = `Could not read the comments: ${e && e.message ? e.message : 'unknown error'}`; }
+    finally { d.commentsLoading = false; }
+  },
   new: () => showDialog(newDialogHtml((s.people.people || []).filter(p => !p.archived).map(p => p.name)), async (form) => {
     const asked = form.requester.value.trim();
     const match = (s.people.people || []).find(p => !p.archived && p.name.toLowerCase() === asked.toLowerCase());

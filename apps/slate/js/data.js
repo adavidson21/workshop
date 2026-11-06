@@ -3,12 +3,12 @@
 
    Writes stamp against what was read and merge on a conflict (docs/data-format.md), so two windows, or Slate and
    a Workshop data import, never lose each other's changes. */
-import { APP, VERSION, cleanItem } from './model.js';
+import { APP, VERSION, cleanItem, cleanPrefs } from './model.js';
 
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
 export function createStore(ws, { onChange = () => {} } = {}) {
-  const v = { items: [], loaded: false, readOnly: false, error: '' };
+  const v = { items: [], prefs: cleanPrefs(), loaded: false, readOnly: false, error: '' };
   const env = { items: null, handoffs: null };
 
   async function read(name) {
@@ -30,6 +30,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
 
   const show = () => {
     v.items = ((env.items && env.items.items) || []).filter(x => x && x.id).map(cleanItem);
+    v.prefs = cleanPrefs(env.items && env.items.meta && env.items.meta.fields);
     onChange(v);
   };
 
@@ -56,6 +57,17 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     env.items = await write('items', before, after);
     show();
     return v.items;
+  }
+
+  /** Save the field settings (items' meta.fields), keeping anything else in meta. */
+  async function savePrefs(prefs) {
+    if (v.readOnly) throw Object.assign(new Error('A newer version of Slate saved these items. Update Workshop to change them.'), { code: 'unsupported' });
+    const before = (await read('items')) || env.items;
+    const after = structuredClone(before);
+    after.meta = { ...(after.meta || {}), fields: cleanPrefs(prefs) };
+    env.items = await write('items', before, after);
+    show();
+    return v.prefs;
   }
 
   /** Change one item by id. Returns the item as stored. */
@@ -90,7 +102,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
   }
 
   ws.data.subscribe('items', () => load().catch(() => {}));
-  return { v, load, change, update, offer, writeSummary };
+  return { v, load, change, update, savePrefs, offer, writeSummary };
 }
 
 /* ---------- connectors ---------- */

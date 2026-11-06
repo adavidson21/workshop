@@ -3,6 +3,7 @@
 import { clientFor } from './client.mjs';
 import { checkAreas, itemUrl, itemConnection } from './items.mjs';
 import { asInt, day, get, who, wiqlList } from './util.mjs';
+import { POINTS_FIELDS, fieldText, pointsOf, tagList } from './workitem.mjs';
 
 export const MAX_ITEMS = 2000;
 export const MAX_CHILDREN = 5000;
@@ -116,10 +117,29 @@ export async function roadmapList(d, args = {}) {
 export const BACKLOG_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Issue'];
 export const MAX_BACKLOG = 500;
 
+/** A backlog item: the roadmap shape plus what Slate's cards show (tags, priority, story points, comment count)
+    and any fields asked for by reference name, as plain text in `custom`. */
+export function backlogItem(ado, w, args = {}) {
+  const f = w.fields || {};
+  const out = {
+    ...roadmapItem(ado, w),
+    tags: tagList(get(f, 'System.Tags')),
+    priority: asInt(get(f, 'Microsoft.VSTS.Common.Priority')),
+    storyPoints: pointsOf(f, args.pointsFields && args.pointsFields.length ? args.pointsFields : POINTS_FIELDS),
+    commentCount: asInt(get(f, 'System.CommentCount'))
+  };
+  if (args.fields && args.fields.length) {
+    out.custom = {};
+    for (const ref of args.fields) out.custom[ref] = fieldText(get(f, ref)).slice(0, 500);
+  }
+  return out;
+}
+
 /**
  * "backlog" (Slate): open work items of BACKLOG_TYPES under the areas, in the roadmap shape, newest change first,
  * at most MAX_BACKLOG. Unlike roadmap, stories and bugs come whatever their parent, so a new request that sits
- * on its own shows. args: {connection?, areas[], types?}. `types` narrows BACKLOG_TYPES.
+ * on its own shows. args: {connection?, areas[], types?, pointsFields?, fields?}. `types` narrows BACKLOG_TYPES;
+ * `pointsFields` are tried in order for storyPoints; `fields` adds those fields to `custom`.
  */
 export async function backlogList(d, args = {}) {
   const conn = itemConnection(d.cfg, args);
@@ -138,7 +158,7 @@ export async function backlogList(d, args = {}) {
   const items = [];
   for (const id of wanted) {
     const w = details.get(id);
-    if (w) items.push(roadmapItem(ado, w));
+    if (w) items.push(backlogItem(ado, w, args));
   }
   items.sort((a, b) => String(b.changed || '').localeCompare(String(a.changed || '')));
   return { connection: conn.name, items, total: ids.length, truncated: ids.length > MAX_BACKLOG, fetchedAt: new Date().toISOString() };
