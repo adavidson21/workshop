@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Slate",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Your team's backlog from request to who builds it, with roadmaps, sprints and team health. Tandem does the legwork; you decide.",
   "icon": "icon.svg",
   "entry": "index.html",

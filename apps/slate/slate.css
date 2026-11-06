@@ -27,7 +27,9 @@ body.standalone .slate{height:auto;flex:1;min-height:0}
 .note{margin:.15rem 0;font-size:.84rem;color:var(--muted)}
 
 .work{flex:1;display:grid;grid-template-columns:minmax(0,1fr);min-height:0}
-.work:has(> .panel:not([hidden])){grid-template-columns:minmax(0,1fr) min(30rem,42vw)}
+.work:has(> .panel:not([hidden])){grid-template-columns:minmax(0,1fr) min(34rem,44vw)}
+/* Expand (the panel's header button, remembered): room to read drafts and answer the agent, board still beside it. */
+.work.wide:has(> .panel:not([hidden])){grid-template-columns:minmax(16rem,1fr) min(64rem,70vw)}
 .main{overflow:auto;min-height:0}
 .board{display:grid;grid-template-columns:repeat(var(--cols),minmax(13.5rem,1fr));gap:0;min-height:100%;min-width:calc(var(--cols) * 13.5rem)}
 .col{border-right:1px solid var(--line);padding:.8rem .65rem 1.5rem;min-width:0}
@@ -153,3 +155,23 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .dlg .levels .checks{grid-template-columns:1fr}
 .dlg .acts .grow{flex:1}
 .acts.foot .back{display:inline-flex;gap:.35rem;align-items:center;margin-right:auto}
+/* Answering the agent in the panel: permission prompts, questions, and a reply box */
+.next.asking{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:var(--warn-soft)}
+.next.asking > p{display:flex;align-items:center;gap:.45rem;font-weight:500}
+.ask{margin:0 0 .7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
+.ask .ask-q{margin:0 0 .5rem;font-size:.9rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.ask .ask-q code{font-family:var(--mono);font-size:.8rem;background:var(--sunk);padding:0 .25rem;border-radius:3px}
+.ask .q-h{margin:.4rem 0 .15rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ask .opts{display:flex;flex-direction:column;gap:.3rem;margin:0 0 .6rem}
+.ask .opt{display:flex;gap:.5rem;align-items:flex-start;padding:.35rem .5rem;border:1px solid var(--line);border-radius:var(--r-sm);font-size:.86rem;cursor:pointer}
+.ask .opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.ask .opt input{min-height:0;margin-top:.2rem;flex:none}
+.ask .qtype{width:100%;box-sizing:border-box}
+.agent-box summary{display:flex;align-items:baseline;gap:.6rem;cursor:pointer;list-style:none}
+.agent-box summary::-webkit-details-marker{display:none}
+.agent-box summary h3{margin:0}
+.agent-box summary::after{content:'+';margin-left:auto;font-family:var(--mono);color:var(--muted)}
+.agent-box[open] summary::after{content:'\2212'}
+.agent-box .say{margin-top:.5rem;max-height:18rem}
+.work.wide .agent-box .say,.work.wide .txt{max-height:34rem}
+.reply{width:100%;box-sizing:border-box;font-size:.86rem;margin:.2rem 0 .5rem;min-height:4.5rem}

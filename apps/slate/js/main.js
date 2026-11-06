@@ -7,7 +7,7 @@ import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, NO_AREA, STAGE_TITLE, aboutText, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
+  APP, NO_AREA, STAGE_TITLE, aboutText, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
   moveBack, pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
 } from './model.js';
 import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
@@ -24,7 +24,11 @@ const remember = (k, v) => { try { if (v === undefined) return localStorage.getI
 
 const ui = {
   tab: 'board', lane: remember('lane') === 'dev' ? 'dev' : 'pm', q: '', level: '', area: remember('area') || '', open: null,
-  editing: false, busy: false, error: '', roadmapRoute: ''
+  editing: false, busy: false, error: '', roadmapRoute: '',
+  wide: remember('wide') === '1',
+  picks: {},       // question id -> {index: [labels]}: what is ticked in the panel, kept across repaints
+  drafts: {},      // typed answers (q:<id>:<i>) and replies (r:<session>), kept across repaints
+  agentOpen: {}    // session id -> whether its Agent section is open, once you open or close it
 };
 const TABS = ['board', 'roadmaps', 'sprints', 'health'];
 const s = {
@@ -110,6 +114,16 @@ function agentOf(sid) {
   return { busy, waiting, error: ses && ses.error || null };
 }
 
+/** What the agents are asking about an item, from any of its sessions, folders or its Tandem run. */
+const asksOf = (it) => asksFor(it, live(), it.run || runFor(it));
+
+/** The item's agent state for cards, badges and the panel: its current session, and waiting when anything asks. */
+function itemAgent(it) {
+  const a = agentOf(it.sessions && it.sessions.current);
+  if (!asksOf(it).count) return a;
+  return { busy: false, error: null, ...(a || {}), waiting: true };
+}
+
 /** Folders the agents created: the session ids Slate started, found in the connector's links. */
 async function linkFolders() {
   const L = live();
@@ -161,7 +175,7 @@ function runFor(it) {
 function enrich(c) {
   const out = { ...c };
   out.triage = parseTriage(filesOf(c.work && c.work.triage)['triage.md']);
-  out.agent = agentOf(c.sessions && c.sessions.current);
+  out.agent = itemAgent(c);
   out.assigneeName = personName(c.assignee);
   out.age = daysInStage(c);
   out.facts = cardFacts(c.adoNow || null, store.v.prefs);
@@ -214,9 +228,11 @@ function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(() => {
     const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
-    store.writeSummary(summaryCards(items, { columnOf, agentOf: it => agentOf(it.sessions.current) })).catch(() => {});
+    store.writeSummary(summaryCards(items, { columnOf, agentOf: itemAgent })).catch(() => {});
   }, 300);
 }
+
+const sessionOf = (sid) => { const x = sid && (live().sessions || {})[sid]; return x ? { ...x, id: sid } : null; };
 
 function panelState(c) {
   const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.define) };
@@ -228,7 +244,11 @@ function panelState(c) {
     back: c.virtual || c.virtualRun ? [] : backTargets(c, column),
     forward: c.virtualRun ? [] : forwardTargets(c),
     triage: parseTriage(filesOf(c.work && c.work.triage)['triage.md']),
-    agent: agentOf(c.sessions && c.sessions.current),
+    agent: itemAgent(c),
+    asks: asksOf(c),
+    session: sessionOf(c.sessions && c.sessions.current),
+    ui: { picks: ui.picks, drafts: ui.drafts, agentOpen: ui.agentOpen },
+    wide: ui.wide,
     column,
     run: c.run || runFor(c),
     assigneeName: personName(c.assignee),
@@ -256,7 +276,7 @@ function notes() {
 const drawn = new WeakMap();
 function setHtml(el, html) {
   const was = drawn.get(el);
-  if (was && was.html === html && was.first === el.firstChild && el.firstChild) return;
+  if (was && was.html === html && was.first === el.firstChild && (el.firstChild || !html)) return;
   el.innerHTML = html;
   drawn.set(el, { html, first: el.firstChild });
 }
@@ -278,18 +298,24 @@ function paint() {
     setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
-  const waiting = store.v.items.filter(it => { const a = agentOf(it.sessions.current); return a && a.waiting; }).length;
+  const waiting = store.v.items.filter(it => { const a = itemAgent(it); return a && a.waiting; }).length;
   ws.badge(waiting || null).catch(() => {});
-  if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') $(focus).focus();
+  if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') {
+    const el = $(focus);
+    el.focus();
+    // A typed answer or reply was put back by the repaint: keep the caret at the end of it.
+    if (el.dataset.draft && typeof el.setSelectionRange === 'function') { const n = el.value.length; try { el.setSelectionRange(n, n); } catch { /* not a text field */ } }
+  }
 }
 
 function paintPanel() {
   const c = findCard(ui.open);
-  if (!c) { panelEl.hidden = true; panelEl.innerHTML = ''; return; }
+  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); return; }
   // Keep text the person is typing.
   const keep = ['draft', 'answers'].map(id => [id, $(id) && $(id).value]);
   panelEl.hidden = false;
-  panelEl.innerHTML = panelHtml(panelState(c));
+  panelEl.parentElement.classList.toggle('wide', ui.wide);
+  setHtml(panelEl, panelHtml(panelState(c)));
   for (const [id, val] of keep) if (val != null && $(id)) $(id).value = val;
   panelEl.classList.toggle('busy', ui.busy);
   wantDetails(c);
@@ -522,6 +548,36 @@ const ACT = {
     if (!run || !run.next || !run.next.command) return;
     await tandem(ws, 'run', { folder: run.folder, command: run.next.command }, { confirm: true });
   },
+  wide: () => { ui.wide = !ui.wide; remember('wide', ui.wide ? '1' : '0'); },
+  async perm(c, b) {
+    await tandem(ws, 'answer', { kind: 'permission', id: b.dataset.perm, reply: b.dataset.answer }, { confirm: true });
+    await refresh({ backlog: false });
+  },
+  async qsend(c, b) {
+    const id = b.dataset.q;
+    const q = (live().questions || []).find(x => x.id === id);
+    if (!q) { await refresh({ backlog: false }); return ws.toast('That question was already answered or dismissed.', { kind: 'warn' }); }
+    const typed = Object.fromEntries((q.questions || []).map((_, i) => [i, ui.drafts[`q:${id}:${i}`] || '']));
+    const answers = questionAnswers(q, ui.picks[id] || {}, typed);
+    if (!answers) return ws.toast('Pick or type an answer for each question.', { kind: 'warn' });
+    await tandem(ws, 'answer', { kind: 'question', id, answers }, { confirm: true });
+    forgetQuestion(id);
+    await refresh({ backlog: false });
+  },
+  async qreject(c, b) {
+    await tandem(ws, 'answer', { kind: 'question', id: b.dataset.q, reject: true }, { confirm: true });
+    forgetQuestion(b.dataset.q);
+    await refresh({ backlog: false });
+  },
+  async reply(c, b) {
+    const sid = b.dataset.sid;
+    const text = (ui.drafts[`r:${sid}`] || '').trim();
+    if (!text) return ws.toast('Type a reply first.', { kind: 'warn' });
+    await tandem(ws, 'reply', { session: sid, text }, { confirm: true });
+    delete ui.drafts[`r:${sid}`];
+    ws.toast('Sent to the agent.', { kind: 'success' });
+    await refresh({ backlog: false });
+  },
   dispatch: (c) => { const run = c && (c.run || runFor(c)); return ws.open({ app: 'agents', path: run ? String(run.id || '') : '' }); },
   ado: (c) => { if (c.ado && c.ado.url) window.open(c.ado.url, '_blank', 'noopener'); },
   async 'roadmap-add'(c) {
@@ -567,6 +623,11 @@ const ACT = {
     ui.open = null; paint();
   })
 };
+
+function forgetQuestion(id) {
+  delete ui.picks[id];
+  for (const k of Object.keys(ui.drafts)) if (k.startsWith(`q:${id}:`)) delete ui.drafts[k];
+}
 
 /** The decision log: one note in Notes for each decision (Notes' inbox), never posted anywhere. */
 async function logDecision(it, decision) {
@@ -628,18 +689,25 @@ document.addEventListener('click', async (e) => {
   if (['tab', 'lane', 'open'].includes(act)) return fn(b.dataset.id);
   if (ui.busy) return;
   ui.busy = true; ui.error = ''; b.disabled = true;
-  try { await fn(target || findCard(ui.open)); }
+  try { await fn(target || findCard(ui.open), b); }
   catch (err) { ui.error = err && err.message || ''; toastErr(err); }
   finally { ui.busy = false; if (document.contains(b)) b.disabled = false; paint(); }
 });
 
 let qTimer = null;
 document.addEventListener('input', (e) => {
+  if (e.target.dataset && e.target.dataset.draft) { ui.drafts[e.target.dataset.draft] = e.target.value; return; }
   if (e.target.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = e.target.value; paint(); }, 150); }
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
   if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
+  if (e.target.dataset.qpick) {
+    const id = e.target.dataset.qpick, i = Number(e.target.dataset.qi);
+    const ticked = [...panelEl.querySelectorAll(`input[data-qpick="${CSS.escape(id)}"][data-qi="${i}"]:checked`)].map(x => x.value);
+    ui.picks[id] = { ...(ui.picks[id] || {}), [i]: ticked };
+    return;
+  }
   if (e.target.dataset.sprint || e.target.dataset.assign) { sprintChange(e.target); return; }
   const c = findCard(ui.open);
   if (!c || c.virtual) return;
@@ -671,8 +739,21 @@ function sprintChange(sel) {
 }
 
 document.addEventListener('keydown', (e) => {
+  // Ctrl+Enter sends a reply or an answer from the panel.
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.dataset && e.target.dataset.draft) {
+    const box = e.target.closest('[data-qform]') || e.target.closest('.agent-box');
+    const send = box && box.querySelector('[data-act=qsend],[data-act=reply]');
+    if (send) { e.preventDefault(); send.click(); }
+    return;
+  }
   if (e.key === 'Escape' && ui.open && !dlg.open && !['TEXTAREA', 'INPUT', 'SELECT'].includes(document.activeElement && document.activeElement.tagName)) { ui.open = null; ui.editing = false; paint(); }
 });
+
+// Remember an Agent section you opened or closed, so a refresh does not undo it.
+document.addEventListener('toggle', (e) => {
+  const d = e.target;
+  if (d && d.classList && d.classList.contains('agent-box') && d.dataset.sid) ui.agentOpen[d.dataset.sid] = d.open;
+}, true);
 
 /* ---------- routes: item/<id>, roadmap, runway/<map>/<item> (Runway's Work item button) ---------- */
 

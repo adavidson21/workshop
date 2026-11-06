@@ -435,3 +435,28 @@ test('forwardTargets: skip ahead to Define or Who builds it? from the PM lane on
   assert.equal(pmColumn(it), 'decide');
   assert.equal(it.reopened, undefined);
 });
+
+test('asksFor: prompts from the item\'s sessions, folders and run, nothing else', async () => {
+  const { asksFor } = await import('../js/model.js');
+  const it = cleanItem({ id: 'w_1', title: 'X', sessions: { triage: 's1', current: 's2' }, work: { define: 'refine-x' } });
+  const live = {
+    permissions: [{ id: 'p1', sessionID: 's1', permission: 'bash' }, { id: 'p2', sessionID: 'other' }],
+    questions: [{ id: 'q1', sessionID: 'zz', folder: 'refine-x', questions: [] }, { id: 'q2', sessionID: 'zz', folder: '41207-run' }, { id: 'q3', sessionID: 's2' }]
+  };
+  const a = asksFor(it, live);
+  assert.deepEqual(a.permissions.map(x => x.id), ['p1']);
+  assert.deepEqual(a.questions.map(x => x.id), ['q1', 'q3']);
+  assert.equal(a.count, 3);
+  assert.deepEqual(asksFor(it, live, { folder: '41207-run' }).questions.map(x => x.id), ['q1', 'q2', 'q3']);
+  assert.equal(asksFor(it, null).count, 0);
+  assert.equal(asksFor(cleanItem({ id: 'w_2', title: 'Y' }), live).count, 0);
+});
+
+test('questionAnswers: picks plus typed text, null until every question has one', async () => {
+  const { questionAnswers } = await import('../js/model.js');
+  const q = { questions: [{ question: 'A?' }, { question: 'B?', multiple: true }] };
+  assert.equal(questionAnswers(q, { 0: ['Yes'] }, {}), null);
+  assert.deepEqual(questionAnswers(q, { 0: ['Yes'], 1: ['One', 'Two'] }, { 1: ' and three ' }), [['Yes'], ['One', 'Two', 'and three']]);
+  assert.deepEqual(questionAnswers(q, {}, { 0: 'typed', 1: 'also' }), [['typed'], ['also']]);
+  assert.equal(questionAnswers({ questions: [] }), null);
+});
