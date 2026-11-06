@@ -1163,7 +1163,8 @@ def agents_checks(b, watch):
         top = af.evaluate("document.getElementById('item-41207').getBoundingClientRect().top")
         check('the stage chip opens that item in Agents', pg.url.endswith('#/agents') and 0 <= top < 800)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
-        pf.locator('.row', has_text='Brand new').first.locator('.title').click(); pg.wait_for_timeout(400)
+        # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
+        pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
         pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
         cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
@@ -1271,7 +1272,7 @@ def main():
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
         add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
         check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-        frame.locator('.row', has_text='Fix login').first.locator('.title').click(); pg.wait_for_timeout(300)
+        frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
         check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
@@ -1331,10 +1332,10 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
-        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 5)  # Today, Day, Triage, Prioritize, People (Reports moved to Runway)
+        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() in (4, 5))  # Docket 6.0: Today, Day, People, Done (before: Today, Day, Triage, Prioritize, People)
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)
