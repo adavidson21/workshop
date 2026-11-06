@@ -1,6 +1,6 @@
 # Slate
 
-Your team's Azure DevOps backlog and your own ideas, from a rough request to a decision: **delegate it**, or **build it yourself**. Tandem's agents (eng-agents Core 2.12.0 or later; 2.15.0 for the interview) do each step's legwork, and nothing moves until you click.
+Your team's Azure DevOps backlog and your own ideas, from a rough request to a decision: **delegate it**, or **build it yourself**. Tandem's agents (eng-agents Core 2.12.0 or later; 2.16.0 for the interview) do each step's legwork, and nothing moves until you click.
 
 Four tabs: **Board** (the three lanes below), **Roadmaps** (Runway), **Sprints** and **Health**.
 
@@ -80,7 +80,7 @@ The `.work` files stay in your workspace; Slate reads them with the opencode con
 | The board and New request | Nothing: it works in every mode, with data in your Workshop folder or this browser. |
 | Your ADO backlog, Publish, assigning | Workshop on this computer with the ADO connector on, your team's area paths in People, and a PAT with Work Items (Read & Write) for Publish. |
 | Triage, define, handoff, the Dev lane | Workshop on this computer with the opencode connector on, and eng-agents Core 2.12.0 or later installed in opencode. |
-| The interview (Shape it, Interview me) | The same, with eng-agents Core 2.15.0 or later. |
+| The interview (Shape it, Interview me) | The same, with eng-agents Core 2.16.0 or later. |
 | Runway's pending ideas in New | Runway on (it publishes them in its summary, Runway 1.12.0). |
 
 ## Files

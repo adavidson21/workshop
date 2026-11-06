@@ -4,10 +4,10 @@
 //
 //   triage.start   /triage <id | words | folder>  .work/triage-<id or short name>/triage.md   (eng-agents Core 2.12.0)
 //   shape.start    /shape <idea> | triage-<n> | shape-<n> [brief|more]
-//                                                  .work/shape-<name>/questions.md, understanding.md, brief.md (Core 2.15.0)
+//                                                  .work/shape-<name>/questions.md, understanding.md, brief.md (Core 2.16.0)
 //   scope.start    /scope <idea> | shape-<n> | scope-<name>   .work/scope-<name>/epics.md, stories.md
 //   slice.start    /slice scope-<name>            .work/scope-<name>/milestones.md
-//   refine.start   /refine <title> | shape-<n> | refine-<n>   .work/refine-<name>/refine.md   (Core 2.12.0; shape-<n> 2.15.0)
+//   refine.start   /refine <title> | shape-<n> | refine-<n>   .work/refine-<name>/refine.md   (Core 2.12.0; shape-<n> 2.16.0)
 //   handoff.start  /handoff <id> <name>           .work/handoff-<id>/handoff.md                (Core 2.12.0)
 //   approve        /approve scope-<name> [stories|milestones] | /approve refine-<name>
 //   file.write     one .md file at the top of a PM folder (Slate's panel edits, a triage's or a shape's answers.md)
