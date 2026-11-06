@@ -243,6 +243,30 @@
         ]
       },
       "description": "Other words for this app in > <place>. A word, or {name, path} to open part of the app."
+    },
+    "hosts": {
+      "type": "array",
+      "maxItems": 5,
+      "description": "Other apps this app shows inside itself (app-manifest.md, Hosted apps). While both are on, a hosted app has no rail button of its own and its addresses open here, at path.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "app",
+          "path"
+        ],
+        "properties": {
+          "app": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,31}$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.~-]+$",
+            "maxLength": 40
+          }
+        }
+      }
     }
   },
   "$defs": {
