@@ -22,6 +22,7 @@ import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
+import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
 import { MAX_FILE, approveFolder, startHandoff, startRefine, startScope, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 
 export const configSchema = {
@@ -159,6 +160,7 @@ function resetAll() {
   resetPrQueue();
   resetOneOnOnes();
   resetHub();
+  resetChats();
 }
 
 async function init() {
@@ -516,6 +518,51 @@ const actions = {
     async run(args) {
       needReady();
       return hubResult(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.start": {
+    title: "Start a chat with Tandem (read-only chat agent)",
+    write: true,
+    argsSchema: obj(["text"], { text: str("The first message", { minLength: 1, maxLength: CHAT_MAX }) }),
+    async run(args) {
+      needReady();
+      return startChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.send": {
+    title: "Send the next message in a hub thread or chat (read-only chat agent)",
+    write: true,
+    argsSchema: obj(["session", "text"], { session, text: str("The message", { minLength: 1, maxLength: CHAT_MAX }) }),
+    async run(args) {
+      needReady();
+      return sendChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.messages": {
+    title: "The turns of a hub thread or chat",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return chatMessages(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.list": {
+    title: "Chats you started and hub threads you followed up on",
+    write: false,
+    argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" } }),
+    async run(args) {
+      needReady();
+      return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs) });
+    },
+  },
+  "chat.remove": {
+    title: "Stop listing a chat (the opencode session is kept)",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return removeChat(args, { config: ctxRef && ctxRef.config });
     },
   },
   "repo.add": {

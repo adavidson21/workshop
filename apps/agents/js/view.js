@@ -1156,6 +1156,8 @@ function mainHtml() {
   // Pull requests: one column, no side panels (the repos and activity are about runs).
   if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="solo">${waitingHtml()}${reviewsHtml()}</div>`;
   if (scope().kind === 'mine') return headerHtml() + bannersHtml() + `<div class="solo">${mineHtml()}</div>`;
+  // Chat: chat.js draws it; main.js moves its element into the slot.
+  if (scope().kind === 'chat') return headerHtml() + bannersHtml() + '<div class="solo"><div id="chat-slot"></div></div>';
   const all = (S.D.items || []).filter(it => it.kind !== 'pr'); // PR reviews have their own page
   const items = all.filter(inScope);
   const by = {};

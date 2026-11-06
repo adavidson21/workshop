@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -20,6 +20,10 @@
     {
       "path": "hub/:text",
       "title": "Ask the hub"
+    },
+    {
+      "path": "chat",
+      "title": "Chat with Tandem"
     }
   ],
   "data": [
@@ -81,6 +85,8 @@
     "js/pr-reviews.js",
     "js/hub.js",
     "js/hub-model.js",
+    "js/chat.js",
+    "js/thread.js",
     "review.html",
     "review.css",
     "js/review.js",

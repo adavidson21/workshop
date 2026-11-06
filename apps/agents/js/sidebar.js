@@ -41,7 +41,7 @@ export const runsIn = pid => newest(items().filter(it => projectOf(it) === pid))
 export function runLabel(it) { return it.id ? '#' + it.id + ' ' + it.title : it.title; }
 
 // ------------------------------------------------------------------ scope
-// S.ui.scope: {kind: 'all'} | {kind: 'needs'} | {kind: 'reviews'} (To review) | {kind: 'mine'} (My PRs) | {kind: 'project', id}.
+// S.ui.scope: {kind: 'all'} | {kind: 'needs'} | {kind: 'reviews'} (To review) | {kind: 'mine'} (My PRs) | {kind: 'chat'} | {kind: 'project', id}.
 export function scope() {
   const sc = S.ui.scope || { kind: 'all' };
   if (sc.kind === 'project' && !projectById(sc.id)) return { kind: 'all' };
@@ -51,6 +51,7 @@ export function inScope(it) {
   const sc = scope();
   if (it.kind === 'pr' || sc.kind === 'reviews') return sc.kind === 'reviews' && it.kind === 'pr';
   if (sc.kind === 'mine') return mineItems().includes(it);
+  if (sc.kind === 'chat') return false;
   if (sc.kind === 'needs') return bucketOf(it) === 'needs';
   if (sc.kind === 'project') return projectOf(it) === sc.id;
   return true;
@@ -140,6 +141,9 @@ function reviewBadge() {
 }
 
 /** The sidebar. open: shown as a drawer on narrow screens. */
+// Conversations you have with Tandem (chat.js), apart from automated work.
+const talk = () => '<section class="sgroup" aria-labelledby="sh-talk"><h3 id="sh-talk">Conversations</h3><ul class="snav">' +
+  `<li><button type="button" class="srow chatrow${on('chat') ? ' on' : ''}" data-side-scope="chat" title="Chats you started and hub threads you followed up on"><span class="sl">Chat</span></button></li></ul></section>`;
 export function sidebarHtml() {
   const needs = needsReview().length + reviewsAsking();
   const all = items().length;
@@ -154,14 +158,14 @@ export function sidebarHtml() {
   return `<nav class="side${S.ui.side ? ' open' : ''}" aria-label="Runs and projects">` +
     `<div class="side-top"><button type="button" class="btn primary new-run" data-start-open="1" title="Start a run in ${h((projectById(scopeProject()) || INBOX_ROW).name)}">Start work</button>` +
     `<button type="button" class="ibtn side-close" data-side-close="1" aria-label="Close the sidebar">${ICON.x}</button></div>` +
-    pinnedSection() + nav + prs + projectsSection() + '</nav>' +
+    pinnedSection() + nav + talk() + prs + projectsSection() + '</nav>' +
     (S.ui.side ? '<div class="side-scrim" data-side-close="1"></div>' : '');
 }
 
 /** The line above the list when a project or Needs you is in view. */
 export function scopeHeadHtml() {
   const sc = scope();
-  if (sc.kind === 'all' || sc.kind === 'reviews' || sc.kind === 'mine') return '';
+  if (sc.kind === 'all' || sc.kind === 'reviews' || sc.kind === 'mine' || sc.kind === 'chat') return '';
   if (sc.kind === 'needs') {
     const n = needsReview().length, r = reviewsAsking();
     const what = [n ? plural(n, 'run') : '', r ? plural(r, 'PR review') : ''].filter(Boolean).join(' and ');
