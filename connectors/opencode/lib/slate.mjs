@@ -2,7 +2,7 @@
 // the same way a spike does (lib/workspace.mjs runLoose), and links the session to its .work folder once that
 // folder exists, so Slate can follow it with `state` and read its files with `file.read`.
 //
-//   triage.start   /triage <ADO id or words>      .work/triage-<id or short name>/triage.md   (eng-agents Core 2.12.0)
+//   triage.start   /triage <id | words | folder>  .work/triage-<id or short name>/triage.md   (eng-agents Core 2.12.0)
 //   scope.start    /scope <idea> | scope-<name>   .work/scope-<name>/epics.md, stories.md
 //   slice.start    /slice scope-<name>            .work/scope-<name>/milestones.md
 //   refine.start   /refine <title> | refine-<n>   .work/refine-<name>/refine.md                (Core 2.12.0)
@@ -15,7 +15,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { httpError, workRoot } from "./context.mjs";
-import { slugOf } from "./workspace.mjs";
 import { runLoose } from "./workspace.mjs";
 
 /** The PM folders Slate may start, approve and edit. */
@@ -53,21 +52,27 @@ export function checkFolder(folder, kinds, root = workRoot) {
   return f;
 }
 
-/** /triage <id> or /triage <words>. With an id the folder is known: triage-<id>. Resolves {session, folder}. */
-export async function startTriage({ id, text }) {
+/**
+ * /triage <id>, /triage <words>, or /triage triage-<name> to triage again (after the requester answered). With an
+ * id the folder is known (triage-<id>); with words it is the agent's to name, so the session is linked to the first
+ * new triage- folder and `folder` is null until then. Resolves {session, folder}.
+ */
+export async function startTriage({ id, text, folder }) {
+  if (folder) {
+    const f = checkFolder(folder, ["triage"]);
+    return { ...(await runLoose("triage", f, when(f))), folder: f };
+  }
   if (id != null && id !== "") {
     const n = String(id);
     if (!/^[0-9]{1,10}$/.test(n)) throw httpError(400, "The work item id is a number.");
-    const folder = `triage-${n}`;
-    const r = await runLoose("triage", n, when(folder));
-    return { ...r, folder };
+    const f = `triage-${n}`;
+    return { ...(await runLoose("triage", n, when(f))), folder: f };
   }
   const t = oneLine(text);
   if (!t) throw httpError(400, "Give the work item id, or say what is being asked.");
   if (t.length > 2000) throw httpError(400, "Keep the request under 2000 characters.");
-  const folder = `triage-${slugOf(t)}`;
-  const r = await runLoose("triage", t, exists(folder) ? when(folder) : newFolder("triage-"));
-  return { ...r, folder };
+  if (/^triage-/.test(t)) throw httpError(400, "To triage a folder again, pass it as folder.");
+  return { ...(await runLoose("triage", t, newFolder("triage-"))), folder: null };
 }
 
 /** /scope <idea>, or /scope scope-<name> to revise a draft. */
@@ -88,7 +93,10 @@ export async function startSlice({ folder }) {
   return { ...(await runLoose("slice", f, when(f))), folder: f };
 }
 
-/** /refine <title> (with an optional description), or /refine refine-<name> to revise a draft. */
+/**
+ * /refine <title> (with an optional description and parent), or /refine refine-<name> to revise a draft. The agent
+ * names a new folder, so the session is linked to the first new refine- folder and `folder` is null until then.
+ */
 export async function startRefine({ title, description, parent, folder }) {
   if (folder) {
     const f = checkFolder(folder, ["refine"]);
@@ -97,14 +105,13 @@ export async function startRefine({ title, description, parent, folder }) {
   const t = oneLine(title);
   if (!t) throw httpError(400, "Give the story a title.");
   if (t.length > 200) throw httpError(400, "Keep the title under 200 characters.");
-  if (parent != null && !/^[0-9]{1,10}$/.test(String(parent))) throw httpError(400, "The parent is a work item id.");
+  if (/^refine-/.test(t)) throw httpError(400, "To revise a draft, pass it as folder.");
+  if (parent != null && parent !== "" && !/^[0-9]{1,10}$/.test(String(parent))) throw httpError(400, "The parent is a work item id.");
   const parts = [t];
   if (parent) parts.push(`Parent: #${parent}`);
   const d = oneLine(description);
   if (d) parts.push(`Description: ${d.slice(0, 4000)}`);
-  const f = `refine-${slugOf(t)}`;
-  if (exists(f)) throw httpError(409, `.work/${f} exists. Revise it instead.`);
-  return { ...(await runLoose("refine", parts.join(". "), when(f))), folder: f };
+  return { ...(await runLoose("refine", parts.join(". "), newFolder("refine-"))), folder: null };
 }
 
 /** /handoff <id> <assignee>. */
