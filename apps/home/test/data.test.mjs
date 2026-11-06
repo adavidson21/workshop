@@ -205,6 +205,9 @@ test('Recent notes: from Notes\' summary, titles only, opening each note; no car
   const html = render(home.v);
   assert.match(html, /<h2>Recent notes<\/h2>/);
   assert.match(html, /data-open="notes" data-path="runbooks\/a\.md">Deploy &lt;runbook&gt;</);
+  // Shown even when Docket has nothing to show yet.
+  assert.match(render({ ...home.v, board: null, boardNote: 'Loading your board.' }), /Recent notes/);
+  assert.match(render({ ...home.v, noSummary: true, summary: null }), /Recent notes/);
   const none = createHome(Object.assign(fakeWs(), { allowed: true }), { now: () => new Date(2026, 9, 28, 9) });
   await none.loadAll();
   assert.doesNotMatch(render(none.v), /Recent notes/);

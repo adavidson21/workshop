@@ -160,16 +160,16 @@ export function render(v) {
   if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
-    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + agentsCard(v.agents);
+    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b && v.noSummary) {
     // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
     return head + `<section class="card note"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b) {
     return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
 
   const allDone = b.focus.total && b.focus.done === b.focus.total;
