@@ -63,16 +63,18 @@ def main():
             pg.keyboard.press('t'); pg.wait_for_timeout(800)
             check("T opens today's note under daily/", 'daily/' in pg.inner_text('#head'))
 
-            pg.click('[data-act=new-note]'); pg.wait_for_selector('dialog[open]')
-            pg.click('button[value=starters]'); pg.wait_for_timeout(800)
-            check('the starter templates are added and New note offers them', pg.locator('select[name=template] option').count() == STARTERS + 1)  # plus Blank
-            pg.fill('input[name=value]', 'Team Sync'); pg.select_option('select[name=template]', 'templates/meeting.md')
-            check('the template list shows names, and the picked one says what it is for',
-                  'Meeting notes' in pg.inner_text('select[name=template]') and 'meeting' in pg.inner_text('[data-tpl-use]').lower())
-            pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
+            pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
+            check('New note opens a blank note right away, with no dialog',
+                  pg.locator('dialog[open]').count() == 0 and pg.input_value('#editor') == '# \n\n')
+            check("a note made while today's note is open goes at the top, not in daily/", pg.inner_text('#head').startswith('untitled.md'))
+            pg.click('[data-act=starters]'); pg.wait_for_timeout(800)
+            check('the starter templates are added and the blank note offers them', pg.locator('[data-act=use-template]').count() == STARTERS)
+            pg.fill('#editor', '# Team Sync\n\n'); pg.wait_for_timeout(300)
+            check('the template offer shows names', 'Meeting notes' in pg.inner_text('#head'))
+            pg.click('[data-act=use-template][data-tpl="templates/meeting.md"]'); pg.wait_for_timeout(800)
             txt = pg.input_value('#editor')
-            check('a note from the meeting template has its title filled in', txt.startswith('# Team Sync') and '## Action items' in txt)
-            check("a note made while today's note is open goes at the top, not in daily/", pg.inner_text('#head').startswith('team-sync.md'))
+            check('a note from the meeting template keeps the title typed', txt.startswith('# Team Sync') and '## Action items' in txt)
+            check('once the note has a body, the template offer goes away', pg.locator('[data-act=use-template]').count() == 0)
 
             pg.fill('#editor', '# Team Sync\n\n- [ ] Draft the rollout plan\n- Shipped the cache #win\n\nSee [the task](ws:prioritizer/task/t_1)\n')
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(1200)
@@ -88,8 +90,13 @@ def main():
             check('history/ is not in the tree', pg.locator('#side [data-folder="history"]').count() == 0)
             check('templates show by name in the tree, not {{title}}', 'Meeting notes' in pg.inner_text('#side') and '{{title}}' not in pg.inner_text('#side'))
 
-            pg.click('[data-act=new-note]'); pg.wait_for_selector('dialog[open]')
-            pg.fill('input[name=value]', 'Scratch'); pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
+            pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
+            check('leaving a new note names its file from the title', pg.locator('#side li.note[data-path="team-sync.md"]').count() == 1
+                  and pg.locator('#side li.note[data-path="untitled.md"]').count() == 1)
+            pg.fill('#editor', '# Scratch\n\nA line.\n'); pg.wait_for_timeout(300)
+            pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
+            pg.click('#side li.note[data-path="team-sync.md"] a.row'); pg.wait_for_timeout(800)
+            check('a new note left blank goes to the trash', pg.locator('#side li.note[data-path^="untitled"]').count() == 0)
             pg.hover('#side li.note[data-path="scratch.md"]')
             pg.click('#side li.note[data-path="scratch.md"] [data-act=trash-path]'); pg.wait_for_selector('dialog[open]')
             pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)

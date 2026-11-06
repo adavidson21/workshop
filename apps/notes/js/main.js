@@ -13,7 +13,7 @@ import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { RELATION_LABEL } from '../shared/people.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
-import { DAILY, PRODUCT_TPL, STARTERS, TEMPLATES, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
+import { DAILY, PRODUCT_TPL, TEMPLATES, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
 import { actionItems, forRapport, offerFor, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
@@ -21,12 +21,12 @@ import { notesCards } from './summary-cards.js';
 import { docketPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, wikiHtml } from './export.js';
-import { render, headingId } from './markdown.js';
+import { facts, render, headingId } from './markdown.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, newNoteHtml, panel, pickerHtml, promptHtml, sidebar } from './view.js';
+import { confirmHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), editor = $('editor'), preview = $('preview');
@@ -92,7 +92,7 @@ const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wr
 
 function state() {
   return { notes, ui, found, tree: tree([...notes.texts.keys()], [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
-    versions: ui.path ? notes.history(ui.path).length : 0 };
+    versions: ui.path ? notes.history(ui.path).length : 0, start: startOffer() };
 }
 
 /* Where notes are saved, for the sidebar's foot on Notes' own site (inside Workshop, Workshop says). */
@@ -227,6 +227,7 @@ async function leaveNote() {
     ws.toast('This note has unsaved edits. Save them or load the other version first.', { kind: 'warn' });
     return false;
   }
+  await settleFresh();
   return true;
 }
 
@@ -396,40 +397,67 @@ const defaultFolder = () => {
   const d = ui.path ? dirOf(ui.path) : '';
   return d === DAILY || d === TEMPLATES ? '' : d;
 };
+/* New note opens a blank note straight away, like any empty note: type the title on the first line. Until you
+   leave it, the note is "fresh": on leaving, it is named from its title, or moved to the trash if nothing was
+   written. While its body is empty, the header offers the templates (templates.js). */
+const BLANK = '# \n\n';
+let fresh = null; // {path, folder}
+const isBlank = (text) => !String(text).replace(/^#[ \t]*$/m, '').trim();
+const bodyBlank = (text) => !String(text).replace(/^\s*#[^\n]*\n?/, '').trim();
+
 async function newNote(folder = defaultFolder()) {
-  const templates = templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '');
-  dlg.innerHTML = newNoteHtml({ folder, templates, productMissing: !notes.texts.has(PRODUCT_TPL) });
-  dlg.returnValue = '';
-  const form = dlg.querySelector('form');
-  const tplPick = form.querySelector('[data-tpl-pick]'), tplUse = form.querySelector('[data-tpl-use]');
-  if (tplPick && tplUse) tplPick.addEventListener('change', () => { tplUse.textContent = tplPick.selectedOptions[0]?.dataset.use || ''; });
-  form.addEventListener('submit', (e) => {
-    const v = e.submitter && e.submitter.value;
-    if (v === 'cancel' || v === 'starters' || v === 'product-template') return;
-    if (!String(new FormData(form).get('value')).trim()) { e.preventDefault(); const err = form.querySelector('.dlg-err'); err.textContent = 'Give it a title.'; err.hidden = false; }
-  });
-  const how = await new Promise(resolve => { dlg.addEventListener('close', () => resolve(dlg.returnValue), { once: true }); dlg.showModal(); form.querySelector('input[name="value"]').focus(); });
-  if (how === 'starters') { await addStarters(); return newNote(folder); }
-  if (how === 'product-template') {
-    try { await notes.create(PRODUCT_TPL, STARTERS[PRODUCT_TPL]); ws.toast('Added templates/product.md. Edit it like any note.', { kind: 'success' }); }
-    catch (e) { if (e.code !== 'conflict') toastErr(e); }
-    return newNote(folder);
-  }
-  if (how !== 'ok') return;
-  const fd = new FormData(form);
-  const title = String(fd.get('value')).trim();
-  const tpl = String(fd.get('template') || '');
-  if (tpl === PRODUCT_TPL && !folder) folder = PRODUCTS; // product notes live in products/ (products.js)
-  const path = freePath(new Set(notes.files.keys()), folder, slugify(title), 'md');
-  const text = tpl && notes.texts.has(tpl) ? fill(notes.texts.get(tpl).content, { title }) : newNoteText(title);
   if (!(await leaveNote())) return;
+  const path = freePath(new Set(notes.files.keys()), folder, 'untitled', 'md');
   try {
-    await notes.create(path, text);
+    await notes.create(path, BLANK);
     if (folder) ui.extraFolders.delete(folder);
     if (ui.mode === 'preview') { ui.mode = 'split'; store('mode', 'split'); }
+    fresh = { path, folder };
     await openNote(path);
     editor.focus();
-    editor.setSelectionRange(editor.value.length, editor.value.length);
+    editor.setSelectionRange(2, 2);
+  } catch (e) { fresh = null; toastErr(e); }
+}
+
+/** The template offer for the open note while it is fresh and has nothing below its title, or null. */
+function startOffer() {
+  if (!fresh || fresh.path !== ui.path || !bodyBlank(editor.value)) return null;
+  return { templates: templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '') };
+}
+
+/* Replace the fresh note's text with a template, keeping the title typed so far. */
+function useTemplate(tpl) {
+  if (!fresh || fresh.path !== ui.path || !notes.texts.has(tpl)) return;
+  if (tpl === PRODUCT_TPL && !fresh.folder) fresh.folder = PRODUCTS; // product notes live in products/ (products.js)
+  editor.value = fill(notes.texts.get(tpl).content, { title: facts(editor.value).title || '' });
+  editor.dispatchEvent(new Event('input'));
+  paintChrome();
+  const m = /^# .*$/m.exec(editor.value);
+  const at = m ? m.index + m[0].length : 0;
+  editor.focus();
+  editor.setSelectionRange(at, at);
+}
+
+/** On leaving a fresh note (already saved): name it from its title, or trash it if nothing was written. */
+async function settleFresh() {
+  if (!fresh || fresh.path !== ui.path || ui.status.kind !== 'saved') return;
+  const { path, folder } = fresh;
+  fresh = null;
+  const text = editor.value;
+  if (isBlank(text)) {
+    ui.path = null; ui.base = null;
+    try { await notes.trash(path); } catch { /* stays as an empty note */ }
+    return;
+  }
+  const title = facts(text).title;
+  if (!title && folder === dirOf(path)) return;
+  const taken = new Set([...notes.files.keys()].filter(p => p !== path));
+  const to = freePath(taken, folder, title ? slugify(title) : stem(path), 'md');
+  if (to === path) return;
+  try {
+    await notes.create(to, text);
+    try { await notes.trash(path); } catch { /* the old file stays; the new one has the text */ }
+    if (ui.path === path) { ui.path = to; ui.base = { content: text, mtime: notes.texts.get(to)?.mtime ?? null }; store('last', to); }
   } catch (e) { toastErr(e); }
 }
 
@@ -881,6 +909,8 @@ document.addEventListener('click', async (e) => {
   else if (act === 'pair') askPair();
   else if (act === 'unpair') forgetPairing();
   else if (act === 'new-note-in') newNote(x.dataset.folder);
+  else if (act === 'use-template') useTemplate(x.dataset.tpl);
+  else if (act === 'starters') { await addStarters(); paintChrome(); editor.focus(); }
   else if (act === 'new-folder') newFolder();
   else if (act === 'toggle') { const f = x.dataset.folder; if (ui.closed.has(f)) ui.closed.delete(f); else ui.closed.add(f); paintChrome(); }
   else if (act === 'folder-menu') renameFolder(x.dataset.folder);
@@ -893,6 +923,9 @@ document.addEventListener('click', async (e) => {
   else if (act === 'retry') { ui.status = { kind: 'dirty' }; saveNow(); }
   else if (['take-theirs', 'keep-copy', 'overwrite', 'restore'].includes(act)) resolveConflict(act);
 });
+
+// The template offer keeps focus in the editor: a blur would save, repaint the header and lose the click.
+head.addEventListener('mousedown', (e) => { if (e.target.closest('[data-act=use-template], [data-act=starters]')) e.preventDefault(); });
 
 function setQuery(q) {
   ui.query = q; ui.pick = 0;

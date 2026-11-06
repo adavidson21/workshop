@@ -61,3 +61,10 @@ test('a restore keeps the text it replaces even inside the spacing window', () =
   assert.equal(planSnapshot('a.md', 'current', snaps, now).write, null);
   assert.equal(planSnapshot('a.md', 'current', snaps, now, { force: true }).write, `${historyFolder('a.md')}/${stampName(now)}`);
 });
+
+test("planSnapshot: a new note's blank start (a bare #) is not kept", () => {
+  const now = Date.UTC(2026, 10, 6, 12);
+  assert.equal(planSnapshot('untitled.md', '# \n\n', [], now).write, null);
+  assert.equal(planSnapshot('untitled.md', '#\n', [], now).write, null);
+  assert.ok(planSnapshot('untitled.md', '# Title\n\n', [], now).write);
+});

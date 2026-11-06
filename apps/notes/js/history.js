@@ -53,11 +53,11 @@ export function snapshotsOf(path, listing) {
 
 /**
  * What to do before saving over a note: {write: path | null, trash: [paths]}. Keeps the old text unless it is
- * empty or within SPACING_MS of the newest snapshot (unless `force`, as when restoring), and trims to KEEP.
+ * empty (or only a bare `#`, a new note's blank start) or within SPACING_MS of the newest snapshot (unless `force`, as when restoring), and trims to KEEP.
  */
 export function planSnapshot(path, oldText, snaps, now, { force = false } = {}) {
   const fresh = force ? !(snaps[0] && snaps[0].at === now) : !(snaps[0] && now - snaps[0].at < SPACING_MS);
-  const write = oldText && oldText.trim() && fresh ? `${historyFolder(path)}/${stampName(now)}` : null;
+  const write = oldText && oldText.replace(/^#[ \t]*$/m, '').trim() && fresh ? `${historyFolder(path)}/${stampName(now)}` : null;
   const kept = (write ? [{ path: write, at: now }, ...snaps] : snaps);
   return { write, trash: kept.slice(KEEP).map(s => s.path) };
 }

@@ -145,7 +145,15 @@ export function header(state) {
       <button class="btn ghost" data-act="rename" title="Rename or move (F2)">Rename</button>
       <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
     </div></div>
-    ${conflictBar(ui) || review || tpl}`;
+    ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
+}
+/* A fresh, empty note (main.js newNote): its templates, or the starter set when there are none. */
+function startBar(start) {
+  if (!start) return '';
+  if (!start.templates.length) return `<div class="bar template" role="note"><span class="bar-msg soft">Type a title on the first line. The file is named from it when you leave the note.</span>
+      <span class="bar-acts"><button class="btn ghost small" data-act="starters">Add starter templates</button></span></div>`;
+  return `<div class="bar template" role="note"><span class="bar-msg">Start from a template, or just write.</span>
+      <span class="bar-acts">${start.templates.map(t => `<button class="btn ghost small" data-act="use-template" data-tpl="${esc(t.path)}" title="${esc(t.use || '')}">${esc(t.name)}</button>`).join('')}</span></div>`;
 }
 function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
@@ -265,15 +273,6 @@ export function pickerHtml(items, pick) {
   if (!items.length) return '<p class="soft small pad">No note by that name. Keep typing for a [[link]].</p>';
   const first = items.findIndex(n => n.href);
   return `<ul role="listbox">${items.map((n, k) => `${k === first ? '<li class="pick-div" role="presentation">In other apps</li>' : ''}<li role="option" aria-selected="${k === pick}" data-pick="${k}"><span class="r-title">${esc(n.title)}</span> <span class="soft mono">${esc(n.href ? n.name : n.path)}</span></li>`).join('')}</ul>`;
-}
-
-/** New note: the title, and a template when there are any (templates.js). */
-export function newNoteHtml({ folder, templates, productMissing = false }) {
-  const pick = templates.length ? `<label>Template<select name="template" data-tpl-pick><option value="" data-use="An empty note with just the title.">Blank</option>${templates.map(t => `<option value="${esc(t.path)}" data-use="${esc(t.use || '')}">${esc(t.name)}</option>`).join('')}</select></label>
-      <p class="soft small tpl-use" data-tpl-use aria-live="polite">An empty note with just the title.</p>
-      ${productMissing ? '<p class="soft small"><button class="linkish" type="submit" value="product-template" formnovalidate>Add the product template</button> for notes Tandem reads and writes (they go in <code>products/</code>).</p>' : ''}`
-    : '<p class="soft small">No templates yet. <button class="linkish" type="submit" value="starters" formnovalidate>Add the starter set</button> (meeting, incident, ADR, runbook, retro, daily, product) to <code>templates/</code>.</p>';
-  return promptHtml({ title: 'New note', label: 'Title', ok: 'Create', hint: folder ? `In ${folder}/. The file name comes from the title.` : 'The file name comes from the title.', extra: pick });
 }
 
 /** Earlier versions of a note, newest first, with a preview of the picked one. */
