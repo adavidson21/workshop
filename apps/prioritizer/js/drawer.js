@@ -12,6 +12,9 @@ import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
+import { notesFor, shown, taskLink } from './notes-link.js';
+import { toast } from './overlays.js';
+import { embedded, ws } from './ws.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
 /* ---------- selection + keyboard navigation ---------- */
 function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
@@ -81,6 +84,7 @@ function renderDrawer(){
       ${t.pr ? prAiDrawer(t) : ''}
       ${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
+      ${aboutHtml(t)}
       <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
       <div class="dfld"><span class="lbl">Effort</span><div class="seg">${EFFORTS.map(e => `<button data-de="${e}" data-fk="e${e}" aria-pressed="${t.effort === e}"${t.effort === e ? ' class="on"' : ''}>${e}<span class="pts">${POINTS[e]}</span></button>`).join('')}</div></div>
       <div class="dfld"><label for="dDue">Due</label><div class="drow"><input type="date" id="dDue" data-f="due" data-fk="due" value="${t.due || ''}">${t.due ? `<button class="lnk" data-d="clear-due" data-fk="cdue">Clear</button>` : `<span class="hint">${imp ? `Implied ${fmtDay(imp)}` : 'Set a value to start aging'}</span>`}</div></div>
@@ -109,6 +113,27 @@ function renderDrawer(){
   const fit = () => { ti.style.height = 'auto'; ti.style.height = ti.scrollHeight + 'px'; };
   fit();
   if (focusKey){ const f = drawer.querySelector(`[data-fk="${focusKey}"]`); if (f) f.focus({preventScroll: true}); }
+}
+/* The notes in Notes that link to this task, and Copy link (notes-link.js). One quiet line under the task's own notes. */
+function aboutHtml(t){
+  const {list, more} = shown(embedded ? notesFor(t.id) : []);
+  const titles = list.map((n, i) => `<button class="lnk d-note" data-d="open-note" data-path="${esc(n.route)}" data-fk="note${i}" title="Open in Notes">${esc(n.title)}</button>`).join('<span class="dot" aria-hidden="true">·</span>');
+  return `<div class="d-about">${list.length ? `<span class="lbl">Notes</span><span class="d-notelist">${titles}${more ? `<span class="dot" aria-hidden="true">·</span><button class="lnk" data-d="more-notes" data-fk="morenotes" title="Show them all in Notes">+${more}</button>` : ''}</span>` : '<span class="grow"></span>'}
+    <button class="lnk" data-d="copy-link" data-fk="copylink" data-tip="A link to this task for any note (L)">Copy link</button></div>`;
+}
+/* Put a task's link on the clipboard (L, or Copy link). The Clipboard API, with a fallback for frames that block it. */
+function copyTaskLink(t){
+  if (!t) return;
+  const text = taskLink(t), done = () => toast('Link copied. Paste it into any note.');
+  const fallback = () => {
+    const ta = Object.assign(document.createElement('textarea'), {value: text});
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast("Couldn't copy. The link is " + text); }
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
 }
 function flushText(){
   if (!textTimer) return;
@@ -172,10 +197,13 @@ drawer.addEventListener('click', e => {
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
   if (a === 'prai-open') return prAiOpen(t);
   if (a === 'prai-again') return prAiAgain(t, b);
+  if (a === 'copy-link') return copyTaskLink(t);
+  if (a === 'open-note' && ws) return ws.open({app: 'notes', path: b.dataset.path}).catch(() => {});
+  if (a === 'more-notes' && ws) return ws.open({app: 'notes', path: 'search/' + encodeURIComponent(`ws:prioritizer/task/${t.id}`)}).catch(() => {});
   if (focusDrawerClick(t, a)) return;
   if (planFieldClick(t, a)) return renderDrawer();
   if (repeatFieldClick(t, a)) return;
 });
 }
 
-export { drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };
+export { copyTaskLink, drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };

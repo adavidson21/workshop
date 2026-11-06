@@ -15,7 +15,7 @@ import * as prAiModel from './pr-ai-model.js';
 import { applySide } from './events.js';
 import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
-import { drawerInit, openDrawer } from './drawer.js';
+import { drawerInit, openDrawer, syncDrawer } from './drawer.js';
 import { pasteInit } from './paste.js';
 import { dayInit, setDate } from './day-view.js';
 import { maybeOnboard, openTour, tourInit } from './onboarding.js';
@@ -28,6 +28,7 @@ import * as dayModel from './dayplan-model.js';
 import { offers, watchSender } from './offers.js';
 import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
+import { startNotesLink } from './notes-link.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 import { mountBar } from '../shared/standalone-bar.js';
@@ -44,9 +45,12 @@ else { mountBar('Docket'); mountAppBanner(); startNative(); if (window.WorkshopS
 const loaded = boot();
 ready.then(ws => {
   if (!ws) return;
+  // Notes about each task, for the drawer's Notes line (notes-link.js). Inside Workshop only.
+  startNotesLink(ws, embedded, () => loaded.then(syncDrawer));
   ws.on('route', ({path}) => loaded.then(() => {
     const m = /^task\/(.+)$/.exec(path || '');
     if (m && findTask(m[1])) openDrawer(m[1]);
+    else if (m) toast("That task isn't in Docket anymore. It may have been deleted.");
     // #/prioritizer/day/<yyyy-mm-dd> or day/today: the Day view (Workshop Home's Today card links here).
     const d = /^day(?:\/(\d{4}-\d{2}-\d{2}|today))?$/.exec(path || '');
     if (d){ setView('day'); setDate(!d[1] || d[1] === 'today' ? todayStr() : d[1]); }

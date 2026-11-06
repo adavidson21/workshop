@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "5.6.0",
+  "version": "5.7.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -55,7 +55,8 @@
   ],
   "handoffs": {
     "sends": [
-      "receipts"
+      "receipts",
+      "notes"
     ]
   },
   "capture": [
@@ -148,6 +149,7 @@
     "js/main.js",
     "js/model.js",
     "js/native.js",
+    "js/notes-link.js",
     "js/offers-model.js",
     "js/offers.js",
     "js/onboarding.js",

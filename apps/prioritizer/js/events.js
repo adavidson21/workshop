@@ -3,7 +3,7 @@ import { onAdoClick } from './ado.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
-import { closeDrawer, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
+import { closeDrawer, copyTaskLink, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
 import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
@@ -200,6 +200,7 @@ document.addEventListener('keydown', e => {
   else if (k === 's' && (sel || activeTask())){ e.preventDefault(); toggleStart(sel || activeTask().id); }
   else if (k === 's' && state.view !== 'triage'){ e.preventDefault(); startNext(); }
   else if (k === 'i'){ e.preventDefault(); logInterrupt(); }
+  else if (k === 'l' && sel){ e.preventDefault(); copyTaskLink(findTask(sel)); }
   else if (k === '?'){ showHelp(); }
 });
 let lastDay = todayStr();

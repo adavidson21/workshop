@@ -169,6 +169,44 @@ function pruneHandoffs(log, today){
   return before - log.handoffs.length;
 }
 
+/* ---------- the wrap-up in today's note (Notes) ----------
+   Wrap up can write a short wrap-up into today's note in Notes. Docket never writes Notes' files: it offers the
+   lines as one accepted note offer to Notes (Workshop docs/handoffs.md, rule 4: the checkbox in the sheet is the
+   acceptance). payload.daily names the day's note and payload.section its heading; Notes replaces the section it
+   wrote last time, or adds a new one if you edited it. A later wrap-up the same day replaces the offer with a new
+   id, so Notes takes it again. text is a one-line fallback for a receiver that doesn't know payload.lines. */
+const WRAP_SOURCE = 'wrap';
+const isWrapNote = (h, date) => h.to === 'notes' && h.source && h.source.id === WRAP_SOURCE && h.payload && (!date || h.payload.daily === date);
+const wrapNoteId = (date, at) => `w_${date}_${String(at).replace(/[^0-9]/g, '').slice(0, 17)}`;
+const wrapNote = (log, date) => log.handoffs.find(h => isWrapNote(h, date)) || null;
+/* The wrap-up's lines. done, tomorrow: task titles. leftOff: [{title, crumb}] (crumb may be ''). counts: dayCounts(). */
+function wrapLines({done = [], leftOff = [], tomorrow = [], counts = {}}){
+  const t = s => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  const list = a => a.map(t).filter(Boolean).join(', ');
+  const n = (k, w, pl) => `${k} ${k === 1 ? w : pl}`;
+  const lines = [done.length ? `Done: ${list(done)}.` : 'Done: nothing marked done.'];
+  const left = leftOff.filter(x => t(x.title)).map(x => t(x.crumb) ? `${t(x.title)} (next: ${t(x.crumb)})` : t(x.title));
+  if (left.length) lines.push(`Left off: ${left.join(', ')}.`);
+  if (tomorrow.length) lines.push(`Tomorrow: ${list(tomorrow)}.`);
+  lines.push(`Day: ${n(done.length, 'task', 'tasks')} done, ${n(counts.switches || 0, 'switch', 'switches')}, ${n(counts.interrupts || 0, 'interruption', 'interruptions')}.`);
+  return lines;
+}
+/* Offer the day's wrap-up to Notes, replacing an earlier one for that day. Returns the offer. */
+function offerWrapNote(log, date, lines, at){
+  withdrawWrapNote(log, date);
+  const clean = (lines || []).map(l => str(l, 1000).replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 10);
+  if (!clean.length) return null;
+  const h = cleanHandoff({id: wrapNoteId(date, at), to: 'notes', date, createdAt: at, accepted: true, text: `Wrap-up for ${date}`,
+    payload: {kind: 'note', daily: date, section: 'Wrap-up', lines: clean}, source: {app: 'prioritizer', id: WRAP_SOURCE}});
+  if (h) log.handoffs.push(h);
+  return h;
+}
+function withdrawWrapNote(log, date){
+  const before = log.handoffs.length;
+  log.handoffs = log.handoffs.filter(h => !isWrapNote(h, date));
+  return before !== log.handoffs.length;
+}
+
 /* ---------- breadcrumbs ---------- */
 function cleanCrumbs(a){
   if (!Array.isArray(a)) return [];
@@ -185,4 +223,4 @@ function addCrumb(t, text, at){
 }
 const lastCrumb = t => t && t.crumbs && t.crumbs.length ? t.crumbs[t.crumbs.length - 1] : null;
 
-export { HANDOFF_DAYS, HANDOFF_KINDS, cleanHandoff, offerReceipt, pruneHandoffs, receiptId, receiptOffer, withdrawOffer, CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };
+export { HANDOFF_DAYS, HANDOFF_KINDS, cleanHandoff, offerReceipt, offerWrapNote, withdrawWrapNote, wrapLines, wrapNote, pruneHandoffs, receiptId, receiptOffer, withdrawOffer, CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };

@@ -171,3 +171,27 @@ test('handoffs: a finished task offered to Receipts once per day, updated in pla
   assert.ok(it.updatedAt > 0);
   assert.deepEqual(Object.keys(focusEnvelopesFromBundle({collections: [{app: 'prioritizer', collection: 'handoffs', envelope: env}]})), ['handoffs']);
 });
+
+test('wrap-up for Notes: the lines tell the day in four short lines', () => {
+  const lines = F.wrapLines({done: ['Fix login', 'Review PR'], leftOff: [{title: 'Q4 draft', crumb: 'outline Q1'}, {title: 'Docs', crumb: ' '}],
+    tomorrow: ['Q4 draft', '1:1 prep'], counts: {switches: 1, interrupts: 2}});
+  assert.deepEqual(lines, ['Done: Fix login, Review PR.', 'Left off: Q4 draft (next: outline Q1), Docs.', 'Tomorrow: Q4 draft, 1:1 prep.', 'Day: 2 tasks done, 1 switch, 2 interruptions.']);
+  assert.deepEqual(F.wrapLines({}), ['Done: nothing marked done.', 'Day: 0 tasks done, 0 switches, 0 interruptions.']);
+});
+
+test('wrap-up for Notes: one accepted note offer per day, replaced by a later wrap-up, valid as a handoff', () => {
+  const log = F.freshLog();
+  const a = F.offerWrapNote(log, '2026-11-06', ['Done: A.'], '2026-11-06T21:00:00.000Z');
+  assert.equal(a.to, 'notes');
+  assert.equal(a.accepted, true);
+  assert.deepEqual(a.payload, {kind: 'note', daily: '2026-11-06', section: 'Wrap-up', lines: ['Done: A.']});
+  assert.deepEqual(schemas.validate('handoff-item', {...a, updatedAt: 1}), []);
+  F.offerReceipt(log, 't1', '2026-11-06', 'A', 'win', '2026-11-06T21:00:00.000Z');
+  const b = F.offerWrapNote(log, '2026-11-06', ['Done: A, B.'], '2026-11-06T22:30:00.000Z');
+  assert.notEqual(a.id, b.id, 'a new id, so Notes takes the later wrap-up too');
+  assert.deepEqual(log.handoffs.filter(h => h.to === 'notes').map(h => h.id), [b.id]);
+  assert.equal(F.wrapNote(log, '2026-11-06'), b);
+  assert.equal(F.withdrawWrapNote(log, '2026-11-06'), true);
+  assert.equal(F.wrapNote(log, '2026-11-06'), null);
+  assert.equal(log.handoffs.length, 1, "Rapport's receipt offer stays");
+});

@@ -42,7 +42,9 @@ test('summary: board counts per day, Up next and the team', () => {
   const [b] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
   assert.deepEqual(Object.keys(b.days), horizon(TODAY));
   assert.equal(Object.keys(b.days).length, HORIZON);
-  assert.deepEqual(b.days[TODAY], {total: 4, open: 3, focus: {total: 2, done: 1}, triage: 2, overdue: 1, dueWeek: 1});
+  assert.deepEqual(b.days[TODAY], {total: 4, open: 3, triage: 2, overdue: 1, dueWeek: 1,
+    focus: {total: 2, done: 1, tasks: [{id: 't3', title: 'Plan the sprint', done: false}, {id: 't4', title: 'Done today', done: true}]}},
+    "Today's tasks by rank, titles and ids only (Notes' daily note)");
   assert.equal(b.days['2026-11-10'].overdue, 2, 'the 11-09 task is overdue by then');
   assert.deepEqual(b.upNext.map(t => t.id), ['t1', 't3'], 'waiting and done tasks are not up next');
   assert.equal(b.upNext[0].list, 'Inbox');

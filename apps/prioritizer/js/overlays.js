@@ -72,6 +72,7 @@ function showHelp(){
       ${r('<kbd>I</kbd>', 'Log an interruption')}
       ${r('<kbd>X</kbd>', 'Complete or reopen')}
       ${r('<kbd>T</kbd>', 'Toggle Today')}
+      ${r('<kbd>L</kbd>', 'Copy a link to the task, for a note')}
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>

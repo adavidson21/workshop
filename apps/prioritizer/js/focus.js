@@ -20,17 +20,21 @@ const REMIND_BEFORE_MIN = 30;
 let log = F.freshLog(), fstore = null;
 let onChange = () => {};
 
-let prefs = {remind: false, reminded: null};
+let prefs = {remind: false, reminded: null, wrapNote: true};
 try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) {}
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} };
 
 const switches = n => `${n} switch${n === 1 ? '' : 'es'}`;
+let notesOn = false;
+const notesHere = () => embedded && notesOn;
 const nowIso = () => new Date().toISOString();
 const isOpen = id => { const t = findTask(id); return !!t && !t.done; };
 
 /* Called once by storage.js after the board loaded. */
 async function focusBoot(wsh, {render, status}){
   onChange = render;
+  // Notes on this site: Wrap up can write into today's note (only inside Workshop, where both share a folder).
+  if (embedded && wsh.apps) wsh.apps.list().then(a => { notesOn = a.some(x => x.id === 'notes'); }).catch(() => {});
   fstore = createStore({
     data: wsh.data,
     board: () => log,
@@ -267,6 +271,7 @@ function openShutdown(){
         <p class="soft sd-over" hidden>More than 3 picked.</p>`
       : '<p class="soft">Nothing open.</p>')}
     <label class="chk sd-remind"><input type="checkbox" data-remind${prefs.remind ? ' checked' : ''}> Remind me on this device ${REMIND_BEFORE_MIN} minutes before my day ends (${esc(dp.sprint.dayEnd)}, set in Day settings)</label>
+    ${notesHere() ? `<label class="chk sd-remind"><input type="checkbox" data-wrapnote${prefs.wrapNote !== false ? ' checked' : ''}> Add a wrap-up to today's note in Notes</label>` : ''}
     <footer><span class="grow"></span><button type="button" class="btn" data-close>Not yet</button><button class="btn primary">Wrap up</button></footer></form>`,
     f => {
       const over = f.querySelector('.sd-over');
@@ -285,7 +290,19 @@ function openShutdown(){
           if (picks.has(t.id)) t.focusOn = next;
           else if (t.focusOn && (t.focusOn === d || t.focusOn === next) && next !== d) t.focusOn = null;
         });
-        prefs.remind = f.querySelector('[data-remind]').checked; savePrefs();
+        prefs.remind = f.querySelector('[data-remind]').checked;
+        const wn = f.querySelector('[data-wrapnote]');
+        let noted = false;
+        if (wn){
+          prefs.wrapNote = wn.checked;
+          if (wn.checked){
+            const crumbs = new Map([...f.querySelectorAll('[data-crumb]')].map(i => [i.dataset.crumb, i.value]));
+            const leftOff = unfinished.filter(t => crumbs.has(t.id)).map(t => ({title: t.title, crumb: crumbs.get(t.id)}));
+            const tomorrowTitles = pool.filter(t => picks.has(t.id)).map(t => t.title);
+            noted = !!F.offerWrapNote(log, d, F.wrapLines({done: done.map(t => t.title), leftOff, tomorrow: tomorrowTitles, counts: n}), at);
+          } else F.withdrawWrapNote(log, d);
+        }
+        savePrefs();
         let sent = 0;
         f.querySelectorAll('[data-rcpt]').forEach(c => {
           const id = c.dataset.rcpt, row = c.closest('.sd-rcpt');
@@ -297,7 +314,9 @@ function openShutdown(){
         closeModal();
         save(); commit();
         const r = sent ? ` ${plural(sent, 'receipt')} waiting in Receipts.` : '';
-        toast((picks.size ? `Day wrapped. ${plural(picks.size, 'task')} lined up for ${fmtDay(next).toLowerCase()}.` : 'Day wrapped.') + r);
+        const msg = (picks.size ? `Day wrapped. ${plural(picks.size, 'task')} lined up for ${fmtDay(next).toLowerCase()}.` : 'Day wrapped.') + r;
+        if (noted && ws) toast(msg, "Open today's note", () => ws.open({app: 'notes', path: 'today'}).catch(() => {}), 8000);
+        else toast(msg);
       });
     });
 }
