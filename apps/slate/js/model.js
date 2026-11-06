@@ -7,7 +7,8 @@
      Dev lane  the item's Tandem run (Dispatch's .work items), read live from the opencode connector.
 
    Collections (version 1, docs/data-format.md):
-     items      one record per item you acted on: {id, title, level, parentId, ado, runway, work, sessions, route,
+     items      one record per item you acted on (and `meta.fields`: which ADO fields cards and the panel show,
+                cleanPrefs): {id, title, level, parentId, ado, runway, work, sessions, route,
                 assignee, answers, published, stage, createdAt, history}. ADO items you have not touched are not
                 stored: they come from the ADO connector's `backlog` action each time.
      handoffs   offers to Runway (an idea for a roadmap) and Docket (a "waiting on" task when you delegate).
@@ -134,7 +135,7 @@ export function cards(items, backlog = []) {
       it.adoNow = b; // the item as ADO has it now (for "changed in ADO")
       continue;
     }
-    out.push({ ...newItem({ title: b.title, ado: b }), id: `ado_${b.id}`, virtual: true, createdAt: (b.changed || '').slice(0, 10) || today() });
+    out.push({ ...newItem({ title: b.title, ado: b }), id: `ado_${b.id}`, virtual: true, adoNow: b, createdAt: (b.changed || '').slice(0, 10) || today() });
   }
   return out;
 }
@@ -532,4 +533,120 @@ export function decisionNote(item, decision, now = new Date()) {
 export function winOffer(item, personId, now = new Date()) {
   return { id: `h_${item.id}_win`, to: 'receipts', date: today(now), createdAt: now.toISOString(),
     text: `Delivered ${item.ado ? `#${item.ado.id} ` : ''}${item.title}`.slice(0, 2000), payload: { kind: 'win', about: personId || 'me' }, source: { app: APP, id: item.id } };
+}
+
+/* ---------- ADO fields: what cards and the panel show (items' meta.fields) ---------- */
+
+// On cards, from the backlog read. Every one is on unless turned off in Fields.
+export const CARD_FIELDS = [
+  { key: 'assignee', label: 'Assigned to' },
+  { key: 'iteration', label: 'Iteration' },
+  { key: 'area', label: 'Area path' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'points', label: 'Story points' },
+  { key: 'comments', label: 'Comment count' }
+];
+// In the panel, from workitem.get when it opens. Assigned to, state, iteration, area and tags always show there.
+export const DETAIL_FIELDS = [
+  { key: 'description', label: 'Description' },
+  { key: 'acceptance', label: 'Acceptance criteria' },
+  { key: 'repro', label: 'Repro steps' },
+  { key: 'systemInfo', label: 'System info' },
+  { key: 'releaseNotes', label: 'Release notes' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'severity', label: 'Severity' },
+  { key: 'points', label: 'Story points' },
+  { key: 'links', label: 'Links' },
+  { key: 'comments', label: 'Comments' }
+];
+const DETAIL_KEYS = DETAIL_FIELDS.map(f => f.key);
+export const DEFAULT_PREFS = {
+  card: ['assignee', 'iteration', 'area', 'tags', 'priority', 'points'],
+  detail: {
+    epic: ['description', 'priority', 'links', 'comments'],
+    feature: ['description', 'releaseNotes', 'priority', 'links', 'comments'],
+    story: ['description', 'acceptance', 'points', 'priority', 'links', 'comments'],
+    bug: ['repro', 'systemInfo', 'points', 'priority', 'severity', 'links', 'comments']
+  },
+  // Custom fields by reference name, per level, shown in the panel under their own name.
+  custom: { epic: [], feature: [], story: [], bug: [] },
+  releaseNotesField: 'Custom.ReleaseNotes',
+  pointsFields: ['Microsoft.VSTS.Scheduling.StoryPoints', 'Microsoft.VSTS.Scheduling.Effort']
+};
+const REF = /^[A-Za-z][A-Za-z0-9_.]*$/;
+const refs = (v, max = 10) => [...new Set((Array.isArray(v) ? v : String(v || '').split(/[,;\n]+/)).map(x => String(x).trim()).filter(x => x && x.length <= 200 && REF.test(x)))].slice(0, max);
+
+/** Field settings, filled with defaults and with anything unknown dropped. */
+export function cleanPrefs(raw = {}) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const keys = (v, known, dflt) => known.filter(k => (Array.isArray(v) ? v : dflt).includes(k));
+  const out = {
+    card: keys(r.card, CARD_FIELDS.map(f => f.key), DEFAULT_PREFS.card),
+    detail: {},
+    custom: {},
+    releaseNotesField: refs(r.releaseNotesField ?? DEFAULT_PREFS.releaseNotesField, 1)[0] || '',
+    pointsFields: Array.isArray(r.pointsFields) || typeof r.pointsFields === 'string' ? refs(r.pointsFields, 5) : [...DEFAULT_PREFS.pointsFields]
+  };
+  for (const l of LEVELS) {
+    out.detail[l] = keys((r.detail || {})[l], DETAIL_KEYS, DEFAULT_PREFS.detail[l]);
+    out.custom[l] = refs((r.custom || {})[l]);
+  }
+  if (!out.pointsFields.length) out.pointsFields = [...DEFAULT_PREFS.pointsFields];
+  return out;
+}
+
+/** Every custom reference name any level asks for, plus release notes: what workitem.get should return. */
+export function customRefs(prefs) {
+  return [...new Set([prefs.releaseNotesField, ...LEVELS.flatMap(l => prefs.custom[l])].filter(Boolean))].slice(0, 20);
+}
+
+/** "Custom.ReleaseNotes" -> "Release Notes". */
+export function fieldLabel(ref) {
+  const last = String(ref || '').split('.').pop() || '';
+  return last.replace(/_/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim() || ref;
+}
+
+/** The last part of an ADO path ("Web App\\Sprint 12" -> "Sprint 12"). */
+export const leaf = (path) => String(path || '').split('\\').pop();
+
+/** What a card shows from ADO, per the card settings: [{key, text, title?}] and the tags. */
+export function cardFacts(b, prefs) {
+  if (!b) return { facts: [], tags: [] };
+  const on = new Set(prefs.card);
+  const facts = [];
+  if (on.has('assignee')) facts.push({ key: 'assignee', text: b.assignee && b.assignee.name ? b.assignee.name : 'Unassigned' });
+  if (on.has('priority') && b.priority != null) facts.push({ key: 'priority', text: `P${b.priority}` });
+  if (on.has('points') && b.storyPoints != null) facts.push({ key: 'points', text: `${b.storyPoints} pt${b.storyPoints === 1 ? '' : 's'}` });
+  if (on.has('comments') && b.commentCount) facts.push({ key: 'comments', text: `${b.commentCount} comment${b.commentCount === 1 ? '' : 's'}` });
+  if (on.has('iteration') && b.iteration) facts.push({ key: 'iteration', text: leaf(b.iteration), title: b.iteration });
+  if (on.has('area') && b.area) facts.push({ key: 'area', text: leaf(b.area), title: b.area });
+  return { facts, tags: on.has('tags') && Array.isArray(b.tags) ? b.tags : [] };
+}
+
+/**
+ * The panel's ADO section for one level: [{key, label, kind, value}] in settings order, from workitem.get with
+ * extras. kind: 'text' (long text), 'value' (short), 'links', 'comments'. An empty field stays in, as '' (the
+ * panel says it is empty in ADO, which is worth knowing).
+ */
+export function detailRows(w, level, prefs) {
+  if (!w) return [];
+  const rows = [];
+  for (const key of prefs.detail[level] || []) {
+    const label = DETAIL_FIELDS.find(f => f.key === key).label;
+    if (key === 'description') rows.push({ key, label, kind: 'text', value: w.description || '' });
+    else if (key === 'acceptance') rows.push({ key, label, kind: 'text', value: w.acceptanceCriteria || '' });
+    else if (key === 'repro') rows.push({ key, label, kind: 'text', value: w.reproSteps || '' });
+    else if (key === 'systemInfo') rows.push({ key, label, kind: 'text', value: w.systemInfo || '' });
+    else if (key === 'releaseNotes') {
+      if (prefs.releaseNotesField) rows.push({ key, label, kind: 'text', value: (w.custom || {})[prefs.releaseNotesField] || '', field: prefs.releaseNotesField });
+    }
+    else if (key === 'priority') rows.push({ key, label, kind: 'value', value: w.priority != null ? String(w.priority) : '' });
+    else if (key === 'severity') rows.push({ key, label, kind: 'value', value: w.severity || '' });
+    else if (key === 'points') rows.push({ key, label, kind: 'value', value: w.storyPoints != null ? String(w.storyPoints) : '' });
+    else if (key === 'links') rows.push({ key, label, kind: 'links', value: w.links || { items: [], hyperlinks: [], attachments: [], pullRequests: 0 } });
+    else if (key === 'comments') rows.push({ key, label, kind: 'comments', value: w.commentCount ?? null });
+  }
+  for (const ref of prefs.custom[level] || []) rows.push({ key: `custom:${ref}`, label: fieldLabel(ref), kind: 'text', value: (w.custom || {})[ref] || '', field: ref });
+  return rows;
 }

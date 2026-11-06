@@ -138,7 +138,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.7.0',
+  version: '1.8.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -208,7 +208,10 @@ export default {
           html: { type: 'boolean', description: 'With details: also the raw ADO HTML of description, acceptance criteria and repro steps (untrusted).' },
           pullRequests: { type: 'boolean', description: 'With details: linked pull requests.' },
           comments: { type: 'boolean', description: 'Also the comments, oldest first.' },
-          history: { type: 'boolean', description: 'Also changes to state, assignee, priority, sprint, area, tags and title, newest first.' }
+          history: { type: 'boolean', description: 'Also changes to state, assignee, priority, sprint, area, tags and title, newest first.' },
+          extras: { type: 'boolean', description: 'Also assignee, priority, severity, story points, system info, comment count, links and the `fields` asked for (Slate).' },
+          pointsFields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } },
+          fields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } }
         }
       },
       async run(args, ctx) {
@@ -247,7 +250,9 @@ export default {
         properties: {
           connection: { type: 'string', maxLength: 40 },
           areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
-          types: { type: 'array', maxItems: 10, items: { type: 'string', enum: BACKLOG_TYPES } }
+          types: { type: 'array', maxItems: 10, items: { type: 'string', enum: BACKLOG_TYPES } },
+          pointsFields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } },
+          fields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } }
         }
       },
       async run(args, ctx) {

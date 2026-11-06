@@ -122,6 +122,11 @@ test('backlog returns open items of every type in the areas, whatever their pare
   assert.deepEqual(out.items.map(i => i.id).sort(), [701, 711, 802, 804]);
   assert.deepEqual(out.items.find(i => i.id === 802).type, 'User Story');
   assert.equal(out.items.find(i => i.id === 804).parentId, 712);
+  const s802 = out.items.find(i => i.id === 802);
+  assert.deepEqual([s802.tags, s802.priority, s802.storyPoints, s802.commentCount], [['api', 'urgent'], 2, 5, 1]);
+  assert.equal('custom' in s802, false);
+  const withCustom = await backlogList(d, { areas: [TEAM_A], fields: ['Custom.Team'] });
+  assert.equal(withCustom.items.find(i => i.id === 802).custom['Custom.Team'], 'Blue');
   const q = srv.requests.find(r => r.includes('wiql'));
   assert.match(q, /NOT IN \('Resolved', 'Closed', 'Done', 'Removed'\)/);
   await assert.rejects(backlogList(d, { areas: [] }), /area/i);

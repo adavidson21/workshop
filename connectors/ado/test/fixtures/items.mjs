@@ -47,7 +47,10 @@ export function itemsScenario() {
         workItems: {
           501: wi(501, 4, f('Bug', 'Active', 'Synthetic bug 501', { 'System.AssignedTo': ME, 'Microsoft.VSTS.Common.Priority': 1, 'System.Tags': 'api; urgent',
             'System.Description': '<p>Steps <b>one</b></p><script>alert(1)</script>', 'Microsoft.VSTS.TCM.ReproSteps': '<ol><li>Open</li><li>Click</li></ol>',
-            'Microsoft.VSTS.Common.StateChangeDate': '2026-10-05T10:00:00Z' }), [
+            'Microsoft.VSTS.Common.StateChangeDate': '2026-10-05T10:00:00Z', 'Microsoft.VSTS.TCM.SystemInfo': '<div>Browser: <b>Edge</b></div>',
+            'Microsoft.VSTS.Scheduling.StoryPoints': 3, 'Microsoft.VSTS.Common.Severity': '2 - High', 'System.CommentCount': 2, 'Custom.ReleaseNotes': '<p>Fixed the <i>export</i></p>' }), [
+            { rel: 'Hyperlink', url: 'https://wiki.example.com/page', attributes: { comment: 'Spec' } },
+            { rel: 'Hyperlink', url: 'javascript:alert(1)', attributes: {} },
             { rel: 'System.LinkTypes.Related', url: '{{ADO}}/Main/_apis/wit/workItems/502', attributes: { name: 'Related' } },
             { rel: 'ArtifactLink', url: 'vstfs:///Git/PullRequestId/p-1%2Fr-1%2F77', attributes: { name: 'Pull Request' } }
           ]),

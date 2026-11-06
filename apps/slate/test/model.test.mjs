@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   cards, changedInAdo, cleanItem, devColumn, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
-  pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask
+  pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
 } from '../js/model.js';
 
 const NOW = new Date('2026-11-05T15:00:00Z');
@@ -316,4 +316,42 @@ test('sprints: items by iteration and load per assignee', async () => {
   const g = bySprint([a, b, c]);
   assert.deepEqual(Object.keys(g), ['P\\S1']);
   assert.deepEqual(sprintLoad(g['P\\S1']), [{ name: 'Ana', count: 1 }, { name: 'Unassigned', count: 1 }]);
+});
+
+test('field settings: defaults, unknown keys dropped, reference names checked', () => {
+  assert.deepEqual(cleanPrefs({}), cleanPrefs(DEFAULT_PREFS));
+  const p = cleanPrefs({ card: ['tags', 'nope'], detail: { bug: ['repro', 'x'] }, custom: { story: 'Custom.Risk, bad name!, Custom.Risk' }, releaseNotesField: '', pointsFields: '' });
+  assert.deepEqual(p.card, ['tags']);
+  assert.deepEqual(p.detail.bug, ['repro']);
+  assert.deepEqual(p.detail.story, ['description', 'acceptance', 'priority', 'points', 'links', 'comments'], 'a level not given keeps its defaults');
+  assert.deepEqual(p.custom.story, ['Custom.Risk']);
+  assert.equal(p.releaseNotesField, '');
+  assert.deepEqual(p.pointsFields, DEFAULT_PREFS.pointsFields, 'never empty');
+  assert.deepEqual(customRefs(cleanPrefs({ custom: { bug: ['Custom.Found'] } })), ['Custom.ReleaseNotes', 'Custom.Found']);
+  assert.equal(fieldLabel('Custom.ReleaseNotes'), 'Release Notes');
+});
+
+test('cards show assignee, priority, points, iteration, area and tags from the backlog', () => {
+  const b = { assignee: { name: 'Dev One' }, priority: 2, storyPoints: 3, commentCount: 4, iteration: 'Web App\\Sprint 12', area: 'Web App\\Team A', tags: ['api'] };
+  const all = cardFacts(b, cleanPrefs({}));
+  assert.deepEqual(all.facts.map(f => f.text), ['Dev One', 'P2', '3 pts', 'Sprint 12', 'Team A']);
+  assert.equal(all.facts.find(f => f.key === 'iteration').title, 'Web App\\Sprint 12');
+  assert.deepEqual(all.tags, ['api']);
+  const some = cardFacts({ ...b, assignee: null }, cleanPrefs({ card: ['assignee', 'comments'] }));
+  assert.deepEqual(some.facts.map(f => f.text), ['Unassigned', '4 comments']);
+  assert.deepEqual(some.tags, []);
+  assert.deepEqual(cards([], [{ id: 9, title: 'x', type: 'Bug', rev: 1 }])[0].adoNow.id, 9);
+});
+
+test('the panel shows each level\'s fields, empty ones included', () => {
+  const w = { description: 'D', acceptanceCriteria: '', reproSteps: 'R', systemInfo: 'Edge', priority: 1, storyPoints: 5, severity: '', commentCount: 2,
+    links: { items: [{ id: 2 }], hyperlinks: [], attachments: [], pullRequests: 0 }, custom: { 'Custom.ReleaseNotes': 'Notes', 'Custom.Risk': 'High' } };
+  const prefs = cleanPrefs({ custom: { story: ['Custom.Risk'] } });
+  const story = detailRows(w, 'story', prefs);
+  assert.deepEqual(story.map(r => [r.key, r.value === '' ? '' : typeof r.value === 'object' ? 'obj' : r.value]),
+    [['description', 'D'], ['acceptance', ''], ['priority', '1'], ['points', '5'], ['links', 'obj'], ['comments', 2], ['custom:Custom.Risk', 'High']]);
+  assert.deepEqual(detailRows(w, 'bug', prefs).map(r => r.key), ['repro', 'systemInfo', 'priority', 'severity', 'points', 'links', 'comments']);
+  const feat = detailRows(w, 'feature', prefs);
+  assert.equal(feat.find(r => r.key === 'releaseNotes').value, 'Notes');
+  assert.equal(detailRows(w, 'feature', cleanPrefs({ releaseNotesField: '' })).some(r => r.key === 'releaseNotes'), false);
 });

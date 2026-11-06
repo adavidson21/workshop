@@ -23,6 +23,17 @@ Every card shows how many days it has been in its column; past a limit (3 days i
 
 **Decision log.** Each decision (delegated, building it myself, defined and published) adds a note to Notes' inbox with a link back to the item. Nothing is posted anywhere.
 
+## Fields
+
+Cards and the panel show what ADO has for each item. **Fields** (top bar) picks which.
+
+- **Cards** (from the backlog read): Assigned to, Iteration, Area path, Tags, Priority and Story points are on; Comment count is off.
+- **Panel** (read from ADO when it opens, again when the item changes there): state, assigned to, iteration, area path and tags always, then each level's fields. Defaults: Epic: description, priority, links, comments. Feature: description, release notes, priority, links, comments. Story: description, acceptance criteria, priority, story points, links, comments. Bug: repro steps, system info, priority, severity, story points, links, comments. An empty field says **Empty in ADO**. Comments show as a count, with **Show comments** to read them.
+- **Custom fields** per level, by reference name (`Custom.Risk`), shown under their own name.
+- **Field names in your ADO**: release notes has no standard field, so set its reference name (default `Custom.ReleaseNotes`); story points tries `Microsoft.VSTS.Scheduling.StoryPoints`, then `Microsoft.VSTS.Scheduling.Effort`.
+
+Saved in `items`' `meta.fields`, so they follow your Workshop folder.
+
 ## Roadmaps
 
 Runway, inside Slate. Slate's manifest hosts Runway (`"hosts": [{"app": "runway", "path": "roadmaps"}]`, Workshop docs/app-manifest.md, Hosted apps): while Slate is on, Runway has no rail button and `#/runway/...` opens here. Draft roadmaps with no ADO items at all, or follow ADO's Epics and Features; both work as they do in Runway. Slate stands in for the shell for Runway's frame (`js/host.js`), so Runway's own routes stay in the tab, and its **Open in Slate** button opens the roadmap item here (`#/slate/runway/<map>/<item>`), made the first time. Runway keeps its own site.
@@ -37,7 +48,7 @@ Where requests sit (items, median days and stale count per column), the median d
 
 ## Data
 
-- `items` (`slate.items` v1): one record per item you acted on: title, level (`epic`, `feature`, `story`, `bug`), stage, the ADO item (`id`, `rev`, `url`), the Runway item, the `.work` folders and Tandem sessions for triage, define and handoff, the route, who it is delegated to, what Publish created, and a stage history.
+- `items` (`slate.items` v1): the Fields settings in `meta.fields`, and one record per item you acted on: title, level (`epic`, `feature`, `story`, `bug`), stage, the ADO item (`id`, `rev`, `url`), the Runway item, the `.work` folders and Tandem sessions for triage, define and handoff, the route, who it is delegated to, what Publish created, and a stage history.
 - `handoffs` (`slate.handoffs` v1): offers to Runway (an idea, from **Add to roadmap**), Docket (a waiting-on task, from **Delegate**), Notes (the decision log) and Rapport (a win when delegated work closes), as Workshop `docs/handoffs.md` describes. All but the win are accepted offers.
 - `summary` (`slate.summary` v1, Workshop docs/summaries.md): `needs` (Home's Needs you), `delegated` (Rapport's 1:1 prep), `done-week` (Home's weekly status) and `ado` (Dispatch's From Slate link).
 
@@ -55,7 +66,7 @@ The `.work` files stay in your workspace; Slate reads them with the opencode con
 
 | File | What |
 | --- | --- |
-| `js/model.js` | Pure: stages and columns, the parsers for `triage.md`, `refine.md` and `milestones.md` (as eng-agents' `Export-Backlog.ps1` reads it), the publish plan, handoff offers. |
+| `js/model.js` | Pure: stages and columns, the Fields settings and what cards and the panel show from ADO, the parsers for `triage.md`, `refine.md` and `milestones.md` (as eng-agents' `Export-Backlog.ps1` reads it), the publish plan, handoff offers. |
 | `js/data.js` | The collections, and calls to the ADO and opencode connectors. |
 | `js/view.js` | HTML for the board, panel and dialogs. |
 | `js/host.js` | The stand-in shell for Runway, in Roadmaps and Health. |

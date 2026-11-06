@@ -1,6 +1,6 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
-import { DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, changedInAdo, esc, parseRefine, parseTriage } from './model.js';
+import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, changedInAdo, detailRows, esc, parseRefine, parseTriage } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = {}) =>
@@ -18,6 +18,7 @@ export function topHtml(ui, notes) {
     <label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     <span class="grow"></span>
+    ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
     ${btn('refresh', 'Refresh', { title: 'Read ADO and Tandem again' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
   </div>${notes.length ? `<div class="notes">${notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}</div>` : ''}`;
@@ -49,6 +50,8 @@ function card(c, s) {
     <span class="row1">${chip(LEVEL_NAME[c.level] || 'Story', `lv-${c.level}`)}${flags.join('')}</span>
     <span class="title">${esc(c.title)}</span>
     <span class="meta">${esc(meta.join(' · '))}</span>
+    ${c.facts && c.facts.facts.length ? `<span class="ado">${c.facts.facts.map(f => `<span class="f-${esc(f.key)}"${f.title ? ` title="${esc(f.title)}"` : ''}>${esc(f.text)}</span>`).join('')}</span>` : ''}
+    ${c.facts && c.facts.tags.length ? `<span class="tags">${c.facts.tags.map(t => chip(t, 'tag')).join('')}</span>` : ''}
     ${c.agent ? `<span class="agent">${agentLine(c.agent)}</span>` : ''}
   </button></li>`;
 }
@@ -97,6 +100,63 @@ function draftSection(p) {
     body = `<pre class="txt">${esc(file.length > 6000 ? file.slice(0, 6000) + '\n…' : file)}</pre>`;
   } else body = '<p class="soft">The agent has not written it yet.</p>';
   return section(`Draft: ${d.file}${d.status ? ` (${d.status.toLowerCase()})` : ''}`, `${body}${file ? `<div class="acts">${btn('edit-draft', 'Edit')}</div>` : ''}`);
+}
+
+/* ---------- the ADO section of the panel ---------- */
+
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
+const empty = (field) => `<p class="soft small">Empty in ADO${field ? ` (<span class="mono">${esc(field)}</span>)` : ''}.</p>`;
+
+function linksHtml(l) {
+  const out = [];
+  for (const i of l.items || []) {
+    const u = safeUrl(i.url);
+    const text = `${i.name ? `${i.name}: ` : ''}#${i.id}${i.title ? ` ${i.title}` : ''}`;
+    out.push(`<li>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>` : esc(text)}${i.type || i.state ? ` <span class="soft small">${esc([i.type, i.state].filter(Boolean).join(', '))}</span>` : ''}</li>`);
+  }
+  for (const h of l.hyperlinks || []) { const u = safeUrl(h.url); if (u) out.push(`<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(h.comment || u)}</a></li>`); }
+  for (const a of l.attachments || []) { const u = safeUrl(a.url); out.push(`<li>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(a.name)}</a>` : esc(a.name)} <span class="soft small">attachment</span></li>`); }
+  if (l.pullRequests) out.push(`<li>${l.pullRequests} pull request${l.pullRequests === 1 ? '' : 's'}</li>`);
+  return out.length ? `<ul class="links-list">${out.join('')}</ul>` : '<p class="soft small">No links.</p>';
+}
+
+function commentsHtml(count, d) {
+  if (d.comments) {
+    if (!d.comments.length) return '<p class="soft small">No comments.</p>';
+    return `<ol class="comments">${d.comments.map(c => `<li><p class="soft small">${esc((c.by && c.by.name) || 'Someone')}${c.date ? `, ${esc(String(c.date).slice(0, 10))}` : ''}${c.edited ? ' (edited)' : ''}</p><pre class="txt">${esc(c.text)}</pre></li>`).join('')}</ol>`;
+  }
+  const n = count == null ? 'Comments' : count === 0 ? 'No comments' : `${count} comment${count === 1 ? '' : 's'}`;
+  return `<p class="small">${n}.${count !== 0 ? ` ${btn('comments', d.commentsLoading ? 'Loading…' : 'Show comments', { extra: d.commentsLoading ? ' disabled' : '' })}` : ''}</p>${d.commentsError ? `<p class="bad small">${esc(d.commentsError)}</p>` : ''}`;
+}
+
+/** Assigned to, state, iteration, area and tags, then the level's fields from Fields settings. */
+function adoSection(it, d, prefs) {
+  if (!it.ado) return '';
+  const now = it.adoNow || {};
+  const w = d && d.data;
+  const assignee = (w && w.assignee) || now.assignee;
+  const tags = w ? String(w.tags || '').split(';').map(t => t.trim()).filter(Boolean) : (now.tags || []);
+  const kv = [
+    ['State', (w && w.state) || now.state || it.ado.state],
+    ['Assigned to', assignee && assignee.name ? assignee.name : 'Unassigned'],
+    ['Iteration', (w && w.iteration) || now.iteration],
+    ['Area path', (w && w.area) || now.area || it.ado.area]
+  ];
+  const rows = w ? detailRows(w, it.level, prefs) : [];
+  const values = rows.filter(r => r.kind === 'value');
+  let body = `<dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="soft">None</span>'}</dd>`).join('')}
+    ${values.map(r => `<dt>${esc(r.label)}</dt><dd>${r.value ? esc(r.value) : '<span class="soft">Empty</span>'}</dd>`).join('')}
+    <dt>Tags</dt><dd>${tags.length ? tags.map(t => chip(t, 'tag')).join(' ') : '<span class="soft">None</span>'}</dd></dl>`;
+  if (!d || d.loading) body += '<p class="soft small">Reading the item from ADO…</p>';
+  if (d && d.error) body += `<p class="bad small">${esc(d.error)}</p>`;
+  for (const r of rows) {
+    if (r.kind === 'value') continue;
+    body += `<p class="lbl">${esc(r.label)}</p>`;
+    if (r.kind === 'text') body += r.value ? `<pre class="txt">${esc(r.value)}</pre>` : empty(r.field);
+    else if (r.kind === 'links') body += linksHtml(r.value);
+    else if (r.kind === 'comments') body += commentsHtml(r.value, d);
+  }
+  return section('Azure DevOps', body);
 }
 
 /** The one thing to do next, as a sentence and buttons. */
@@ -154,6 +214,7 @@ export function panelHtml(p) {
     </div>
     ${nextHtml(p)}
     ${it.requester || p.age ? `<p class="soft small meta-line">${it.requester ? `Asked by ${esc(it.requester)}. ` : ''}${p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''}</p>` : ''}
+    ${adoSection(it, p.details, p.prefs)}
     ${it.description && !it.ado ? section('Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}
     ${p.owners && p.owners.length && p.lane === 'pm' ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''}
     ${triageSection(p.triage)}
@@ -193,6 +254,29 @@ export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
     <label class="check"><input type="checkbox" name="assign"${canAssign ? ' checked' : ' disabled'}> Assign it to them in ADO</label>
     <label class="check"><input type="checkbox" name="task" checked> Add a "waiting on" task in Docket</label>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate</button></div></form>`;
+}
+
+export function fieldsDialogHtml(prefs) {
+  const box = (name, key, label, on) => `<label class="check"><input type="checkbox" name="${esc(name)}" value="${esc(key)}"${on ? ' checked' : ''}> ${esc(label)}</label>`;
+  return `<form method="dialog" class="dlg wide fields" data-form="fields"><h2>Fields</h2>
+    <p class="soft">Which Azure DevOps fields Slate shows. The panel always shows state, assigned to, iteration, area path and tags.</p>
+    <fieldset><legend>On cards</legend><div class="checks">${CARD_FIELDS.map(f => box('card', f.key, f.label, prefs.card.includes(f.key))).join('')}</div></fieldset>
+    <div class="levels">${LEVELS.map(l => `<fieldset><legend>${esc(LEVEL_NAME[l])} panel</legend>
+      <div class="checks">${DETAIL_FIELDS.map(f => box(`detail-${l}`, f.key, f.label, prefs.detail[l].includes(f.key))).join('')}</div>
+      <label>Custom fields<input name="custom-${l}" value="${esc(prefs.custom[l].join(', '))}" placeholder="Custom.Field, Other.Field" autocomplete="off" spellcheck="false"></label></fieldset>`).join('')}</div>
+    <fieldset><legend>Field names in your ADO</legend>
+      <label>Release notes field<input name="releaseNotesField" value="${esc(prefs.releaseNotesField)}" placeholder="Custom.ReleaseNotes" autocomplete="off" spellcheck="false"></label>
+      <label>Story points fields, first one set wins<input name="pointsFields" value="${esc(prefs.pointsFields.join(', '))}" autocomplete="off" spellcheck="false"></label>
+      <p class="soft small">Reference names, as ADO's process settings show them (for example <span class="mono">Microsoft.VSTS.Scheduling.StoryPoints</span>).</p></fieldset>
+    <div class="acts"><button type="button" class="btn" data-reset>Defaults</button><span class="grow"></span>${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Save</button></div></form>`;
+}
+
+/** The Fields form as settings (cleanPrefs cleans it). */
+export function readFieldsForm(form) {
+  const checked = (name) => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(i => i.value);
+  const out = { card: checked('card'), detail: {}, custom: {}, releaseNotesField: form.releaseNotesField.value.trim(), pointsFields: form.pointsFields.value };
+  for (const l of LEVELS) { out.detail[l] = checked(`detail-${l}`); out.custom[l] = form[`custom-${l}`].value; }
+  return out;
 }
 
 export function confirmHtml(title, text, okLabel) {

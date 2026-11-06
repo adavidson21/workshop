@@ -51,6 +51,24 @@ test('workitem.get keeps its old shape and adds comments, history, PRs and raw H
   assert.deepEqual(full.history[1].changes, [{ field: 'assignee', from: null, to: 'Engineer A' }]);
 }));
 
+test('workitem.get extras: points, system info, links with titles, custom fields as text', () => withAdo(async ({ d }) => {
+  const plain = await getWorkItem(d, { id: 501, details: true });
+  for (const k of ['priority', 'storyPoints', 'links', 'custom']) assert.equal(k in plain, false, k);
+  const x = await getWorkItem(d, { id: 501, details: true, extras: true, fields: ['Custom.ReleaseNotes', 'Custom.Missing'] });
+  assert.equal(x.priority, 1);
+  assert.equal(x.storyPoints, 3);
+  assert.equal(x.severity, '2 - High');
+  assert.equal(x.systemInfo, 'Browser: Edge');
+  assert.equal(x.commentCount, 2);
+  assert.equal(x.assignee.name, 'Engineer A');
+  assert.deepEqual(x.custom, { 'Custom.ReleaseNotes': 'Fixed the export', 'Custom.Missing': '' });
+  assert.deepEqual(x.links.hyperlinks, [{ url: 'https://wiki.example.com/page', comment: 'Spec' }], 'only http(s) links');
+  assert.equal(x.links.pullRequests, 1);
+  assert.deepEqual(x.links.items.map(i => [i.id, i.name, i.title, i.type]), [[502, 'Related', 'Synthetic story 502', 'User Story']]);
+  const other = await getWorkItem(d, { id: 501, extras: true, pointsFields: ['Microsoft.VSTS.Scheduling.Effort'] });
+  assert.equal(other.storyPoints, null);
+}));
+
 test('comments use the preview API version of the connection', () => withAdo(async ({ d, srv }) => {
   await getWorkItem(d, { id: 501, comments: true });
   assert.ok(srv.requests.some(r => /Web%20App\/_apis\/wit\/workItems\/501\/comments\?\$top=200&api-version=6\.0-preview\.3/.test(r)));
