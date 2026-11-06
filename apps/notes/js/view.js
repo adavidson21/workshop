@@ -240,8 +240,8 @@ function sendHtml(state, n) {
 export function empty(state) {
   const { notes } = state;
   if (!notes.loaded && !notes.error) return '<p class="loading">Loading notes.</p>';
-  if (!notes.loaded) return `<div class="engcard"><p class="eyebrow">Notes</p><h1 class="page-title dot">Waiting for your notes</h1><p>${esc(notes.error)}</p></div>`;
-  return `<div class="engcard"><p class="eyebrow">Notes</p><h1 class="page-title dot">Write it down</h1>
+  if (!notes.loaded) return `<div class="engcard"><h1 class="page-title">Waiting for your notes</h1><p>${esc(notes.error)}</p></div>`;
+  return `<div class="engcard"><h1 class="page-title">Write it down</h1>
     <p>Markdown notes, as plain <code>.md</code> files. Link notes with <kbd>[[</kbd>, tag them with <code>#tag</code>, paste images straight in.</p>
     <div class="acts"><button class="btn primary" data-act="new-note">New note <kbd>N</kbd></button><button class="btn" data-act="today">Today's note <kbd>T</kbd></button></div></div>`;
 }

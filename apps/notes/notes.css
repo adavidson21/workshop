@@ -98,7 +98,7 @@ input[type=checkbox]{min-height:0;width:1rem;height:1rem;accent-color:var(--acce
 .md{overflow-y:auto;min-height:0;padding:1.5rem var(--gut) 40vh;font-size:1rem;line-height:1.65;overflow-wrap:anywhere}
 .md>*:first-child{margin-top:0}
 .md h1,.md h2,.md h3,.md h4,.md h5,.md h6{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.2;margin:1.6em 0 .5em;scroll-margin-top:1rem}
-.md h1{font-size:2rem;font-variation-settings:"opsz" 60}
+.md h1{font-size:2rem}
 .md h2{font-size:1.45rem;padding-bottom:.25rem;border-bottom:1px solid var(--line)}
 .md h3{font-size:1.18rem}
 .md h4,.md h5,.md h6{font-size:1rem}
@@ -145,7 +145,7 @@ dialog{border:1px solid var(--line);border-radius:var(--r-md);background:var(--s
 dialog{border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md)}
 dialog::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 .dlg{display:flex;flex-direction:column;gap:.85rem;padding:1.5rem 1.75rem 1.25rem;font-size:.92rem;line-height:1.5}
-.dlg h2{margin:0 0 .1rem;font:600 1.35rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.dlg h2{margin:0 0 .1rem;font:600 1.35rem/1.2 var(--serif);letter-spacing:-.015em}
 .dlg label{display:flex;flex-direction:column;gap:.35rem;font-size:.8rem;color:var(--muted);font-weight:500}
 .dlg label input:not([type=checkbox]){width:100%}
 .dlg p{margin:0}
