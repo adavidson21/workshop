@@ -251,11 +251,21 @@ function notes() {
   return n;
 }
 
+// Set an element's markup only when it changed. Rebuilding the same markup under the pointer drops and
+// re-applies :hover, which flickers (repaints come with every agent event and once a minute).
+const drawn = new WeakMap();
+function setHtml(el, html) {
+  const was = drawn.get(el);
+  if (was && was.html === html && was.first === el.firstChild && el.firstChild) return;
+  el.innerHTML = html;
+  drawn.set(el, { html, first: el.firstChild });
+}
+
 let host = null;
 function paint() {
   const focus = document.activeElement && document.activeElement.id;
   const board = ui.tab === 'board' && store.v.loaded;
-  topEl.innerHTML = topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(laneCards(), s.team.areas, ui.area) : []);
+  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(laneCards(), s.team.areas, ui.area) : []));
   if (ui.tab !== 'roadmaps' && host) { host.stop(); host = null; }
   if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
   if (ui.tab === 'roadmaps') {
@@ -263,9 +273,9 @@ function paint() {
   } else if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
   } else if (ui.tab === 'sprints') {
-    mainEl.innerHTML = sprintsView();
+    setHtml(mainEl, sprintsView());
   } else {
-    mainEl.innerHTML = store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>';
+    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
   const waiting = store.v.items.filter(it => { const a = agentOf(it.sessions.current); return a && a.waiting; }).length;
