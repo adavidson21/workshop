@@ -29,6 +29,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # Never release a commit whose manifest or unit tests fail (v2.6.1 shipped an invalid app.json that way,
+      # and work mode's pin dropped Notes). The browser test stays in checks.yml.
+      - name: Check before releasing
+        run: |
+          node scripts/sync-workshop.mjs --check
+          node --test "test/*.test.mjs"
       - name: Pick the tag
         id: tag
         env:
