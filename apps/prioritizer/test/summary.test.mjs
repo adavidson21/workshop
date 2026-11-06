@@ -72,3 +72,15 @@ test('summary: lists as capture targets, and people with open and waiting tasks'
   assert.deepEqual(people.rows.find(r => r.id === 'g_lead').open.map(t => [t.id, t.via]), [['t3', '']]);
   assert.deepEqual(people.rows.map(r => r.id).sort(), ['g_lead', 'p_one', 'p_two']);
 });
+
+test('done-week: tasks finished in the last 7 days, newest first, never won\'t do', async () => {
+  const { doneWeekCard } = await import('../js/summary.js');
+  const b = board();
+  b.tasks.push({id: 't6', listId: 'l1', title: 'Last week', done: true, doneAt: '2026-10-28'},
+    {id: 't7', listId: 'l1', title: 'Skipped', done: true, wontDo: true, doneAt: TODAY},
+    {id: 't8', listId: 'l1', title: 'Six days ago', done: true, doneAt: '2026-10-29'.replace('29', '30')});
+  const c = doneWeekCard(b, TODAY);
+  assert.equal(c.kind, 'list');
+  assert.deepEqual(c.rows.map(r => [r.title, r.due, r.note, r.route]), [['Done today', TODAY, 'Team', 'task/t4'], ['Six days ago', '2026-10-30', 'Inbox', 'task/t8']]);
+  assert.equal(c.count, 2);
+});

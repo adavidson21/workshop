@@ -9,6 +9,7 @@
      lists    targets for capture: "task" (Home quick capture, the Dispatch hub)
      people   open and waiting tasks per person and group in Workshop's people directory, a person's through
               their groups too (Rapport's 1:1 prep)
+     done-week  tasks finished in the last 7 days, newest first (Home's weekly status draft)
    Days past the last one are stale: readers show nothing for them until Docket opens again. */
 import { WINDOW } from './constants.js';
 import { isTriaged } from './model.js';
@@ -112,8 +113,18 @@ export function peopleCard(board, dir = D.EMPTY){
   return {id: 'people', kind: 'people', rows};
 }
 
+/** Tasks finished (not won't do) in the 7 days up to today, newest first: a `list` card for the weekly status. */
+export function doneWeekCard(board, today){
+  const known = new Map(board.lists.map(l => [l.id, l.name]));
+  const from = addDays(today, -6);
+  const done = board.tasks.filter(t => t && known.has(t.listId) && t.done && !t.wontDo && isDate(t.doneAt) && t.doneAt >= from && t.doneAt <= today)
+    .sort((a, b) => (a.doneAt < b.doneAt ? 1 : a.doneAt > b.doneAt ? -1 : 0));
+  return {id: 'done-week', kind: 'list', title: 'Finished this week', count: done.length,
+    rows: done.slice(0, 20).map(t => ({id: t.id, title: str(t.title, 200) || 'Untitled task', route: `task/${t.id}`, due: t.doneAt, note: str(known.get(t.listId), 200)}))};
+}
+
 /** Every card, without updatedAt (the writer stamps them). board: {lists, tasks}; dir: the people directory;
     dp: the day plan; log: the focus log ({days, handoffs}); today: YYYY-MM-DD. */
 export function buildSummary({board, dir = D.EMPTY, dp, log, today}){
-  return [boardCard(board, today, dir), dayCard(dp, log, board, today), listsCard(board), peopleCard(board, dir)];
+  return [boardCard(board, today, dir), dayCard(dp, log, board, today), listsCard(board), peopleCard(board, dir), doneWeekCard(board, today)];
 }
