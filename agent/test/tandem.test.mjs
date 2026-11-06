@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installedTandem, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents } from '../../workshop.mjs';
+import { installedTandem, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const rm = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -144,4 +144,33 @@ test('doctor flags a Tandem install that is behind its checkout', { skip: !hasGi
     d = tandemDoctor({ repo: s.ws, userHome: s.userHome });
     assert.equal(d.bad, false); assert.match(d.line, /Core 2\.1\.0 in opencode: ok/);
   } finally { rm(s.root); }
+});
+
+test('a Tandem clone kept elsewhere is found from opencode\'s manifest, or named with --eng-agents', { skip: !hasGit && 'git is not installed' }, () => {
+  const s = setup();
+  try {
+    const ea = s.clone(s.eaOrigin, path.join('repos', 'AI', 'eng-agents'), 'core-v2.0.0');
+    assert.equal(findEngAgents(s.ws, { userHome: s.userHome }), null, 'not next to Workshop and nothing installed');
+    s.install('2.0.0', ea);
+    assert.equal(findEngAgents(s.ws, { userHome: s.userHome }), ea, 'from the manifest source');
+    const plan = planLatest(s.ws, () => {}, { userHome: s.userHome });
+    assert.equal(plan.tags.engAgentsTag, 'core-v2.1.0');
+    assert.ok(plan.lines.some(l => l.includes(`Tandem (eng-agents, ${ea})`)), 'names the folder when it is not next to Workshop');
+    assert.match(tandemDoctor({ repo: s.ws, userHome: s.userHome }).line, /Core 2\.0\.0 in opencode: ok/, 'doctor checks it too');
+
+    s.install('2.0.0', '/not/a/clone');
+    assert.equal(findEngAgents(s.ws, { userHome: s.userHome }), null);
+    assert.match(tandemDoctor({ repo: s.ws, userHome: s.userHome }).line, /workshop update --eng-agents/);
+    assert.equal(planLatest(s.ws, () => {}, { userHome: s.userHome, engAgentsDir: ea }).tags.engAgentsTag, 'core-v2.1.0', 'named folder');
+    assert.equal(findEngAgents(s.ws, { userHome: s.userHome, dir: s.root }), null, 'a named folder must be a clone');
+  } finally { rm(s.root); }
+});
+
+test('update --eng-agents parses, and does not go with --pull or --check', () => {
+  assert.equal(parseUpdateArgs(['--eng-agents', '/x']).opts.engAgents, '/x');
+  assert.equal(parseUpdateArgs(['--eng-agents', '/x']).opts.latest, true);
+  assert.equal(parseUpdateArgs(['--eng-agents', '/x', '--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag, 'core-v2.1.0');
+  assert.match(parseUpdateArgs(['--eng-agents']).error, /needs the folder/);
+  assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--pull']).error);
+  assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--check']).error);
 });
