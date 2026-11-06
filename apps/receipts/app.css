@@ -347,3 +347,7 @@ button.g-prog:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .g-bar{width:4.5rem}
 }
 @media (pointer:coarse){ .g-row,.g-kr{min-height:44px} .g-tw{width:2.2rem;height:2.2rem} }
+
+/* ---------- big screens (a 27in monitor, Workshop full screen): use the room ---------- */
+@media (min-width:1600px){.wrap{max-width:78rem;padding-inline:40px}.wrap.wide{max-width:110rem}.set{max-width:52rem}.oo-pform,.oo-settings{max-width:56rem}}
+@media (min-width:2100px){.wrap{max-width:90rem}.wrap.wide{max-width:128rem}}
