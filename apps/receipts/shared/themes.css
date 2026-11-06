@@ -2,9 +2,8 @@
   Shared themes, the single source of truth for the Workshop shell and every app in it
   (Home, Prioritizer, Agents, Settings). Apps load this file directly.
 
-  The look matches tools.alexisdavidson.org (LifeKit) and alexisdavidson.org: an editorial style with
-  paper-toned flat backgrounds (no gradients), Source Serif 4 headings, JetBrains Mono labels, Inter
-  body text, hairline rules instead of shadowed boxes, and the Office section's slate as the accent.
+  An editorial style with paper-toned flat backgrounds (no gradients), Gelasio headings, DM Mono
+  labels, Figtree body text, hairline rules instead of shadowed boxes, and slate as the accent.
   There are two themes, Light and Dark, picked with the round toggle in the top right corner (or the
   device setting until you use it).
 
@@ -29,7 +28,8 @@
   --hover:color-mix(in srgb,var(--ink) 5%,var(--surface));
   --sunk:color-mix(in srgb,var(--ink) 4%,var(--bg));
   --side:var(--bg);
-  --rule:var(--ink);
+  /* Section rules: a touch stronger than --line, so sections sit on hairlines rather than heavy ink rules. */
+  --rule:color-mix(in srgb,var(--ink) 24%,var(--line));
   --accent-soft:color-mix(in srgb,var(--accent) 14%,var(--surface));
   --danger-soft:color-mix(in srgb,var(--danger) 10%,var(--surface));
   --warn-soft:color-mix(in srgb,var(--warn) 14%,var(--surface));
@@ -38,8 +38,8 @@
   --shadow-lg:0 10px 30px color-mix(in srgb,#000 12%,transparent);
   --r-sm:6px;
   --r-md:8px;
-  /* Inter, Source Serif 4 and JetBrains Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
-  --sans:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
-  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
-  --mono:"JetBrains Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
+  /* Gelasio, Figtree and DM Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
+  --sans:Figtree,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --serif:Gelasio,Georgia,"Times New Roman",serif;
+  --mono:"DM Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
 }

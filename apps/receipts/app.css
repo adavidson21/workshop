@@ -96,7 +96,7 @@ label.btn{flex-direction:row;font-size:.86rem;color:var(--ink);cursor:pointer}
 button.cov.gap{cursor:pointer;font:inherit;font-size:.82rem}
 button.cov.gap:hover{border-style:solid;background:var(--warn-soft)}
 .pname{display:flex;flex-direction:column;min-width:0}
-.pname b{font:600 1.1rem/1.25 var(--serif);font-variation-settings:"opsz" 36}
+.pname b{font:600 1.1rem/1.25 var(--serif)}
 .pname span{font-size:.82rem;color:var(--muted)}
 .pnums{display:flex;gap:.8rem;font-size:.8rem;color:var(--muted)}
 .pnums span:first-child{color:var(--ink);font-weight:500}
@@ -110,7 +110,7 @@ button.cov.gap:hover{border-style:solid;background:var(--warn-soft)}
 .pform{grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;padding:1rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface)}
 .pform .acts{grid-column:1/-1}
 .phead{margin:-.2rem 0 1.2rem}
-.phead h2{margin:0;font:600 1.7rem/1.15 var(--serif);font-variation-settings:"opsz" 60;letter-spacing:-.02em}
+.phead h2{margin:0;font:600 1.7rem/1.15 var(--serif);letter-spacing:-.02em}
 .phead p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem}
 .acts{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 

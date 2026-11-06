@@ -508,8 +508,7 @@ function paint() {
   else body = meView();
   app.classList.toggle('wide', oo.isWide() || goals.isWide());
   app.innerHTML = `<header class="head">
-      <p class="eyebrow">Rapport</p>
-      <h1 class="page-title dot">${esc(title)}</h1>
+      <h1 class="page-title">${esc(title)}</h1>
     </header>
     <nav class="tabs" aria-label="Sections">${TABS().map(([k, l]) => `<button data-act="go" data-path="${k}"${k === view ? ' class="on" aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>
     <main class="v-${view}">${body}</main>`;
