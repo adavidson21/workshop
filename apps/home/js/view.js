@@ -29,7 +29,8 @@ export const ICON = {
   bell: svg('<path d="M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.3 1.5H4.2z"/><path d="M8.3 17a1.8 1.8 0 0 0 3.4 0"/>'),
   play: svg('<path d="M6.5 4.3v11.4l9-5.7z"/>'),
   chev: svg('<path d="M5.5 8l4.5 4.5L14.5 8"/>', 1.6),
-  x: svg('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>', 1.6)
+  x: svg('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>', 1.6),
+  doc: svg('<path d="M5.5 2.8h6l3.5 3.5v10.9H5.5z"/><path d="M11.5 2.8v3.5H15M8 10h5M8 13h5"/>')
 };
 // Round icon button; the tooltip (title) and aria-label carry the words.
 export const hbtn = (icon, label, attrs, cls = '', tip = label) => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(label)}" title="${esc(tip)}">${icon}</button>`;
@@ -133,6 +134,70 @@ const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + c
 const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}" title="${esc(tip)}">
   <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
+/* ---------- Needs you, and the week ---------- */
+
+// Order in the inbox: what blocks someone first, then decisions, then upkeep.
+const RANK = { urgent: 0, '': 1, waiting: 2 };
+
+/**
+ * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md), Docket's board
+ * (tasks to triage, overdue) and agents waiting for an answer. byApp: [{app, name, cards: Map | null}].
+ * Rows: [{app, appName, title, note, route, flag}], urgent first, at most 12.
+ */
+export function inboxRows(byApp, { board = null, agents = null } = {}) {
+  const out = [];
+  if (agents && agents.state === 'ready' && agents.needYou) out.push({ app: 'agents', appName: 'Dispatch', title: `${plural(agents.needYou, 'agent')} waiting for an answer`, note: '', route: '', flag: 'urgent' });
+  for (const a of byApp) {
+    const c = a.cards && a.cards.get('needs');
+    if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) continue;
+    for (const r of c.rows.slice(0, 20)) {
+      if (!r || typeof r.title !== 'string') continue;
+      out.push({ app: a.app, appName: a.name, title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : '', route: typeof r.route === 'string' ? r.route : '', flag: ['urgent', 'waiting'].includes(r.flag) ? r.flag : '' });
+    }
+  }
+  if (board && board.overdue) out.push({ app: 'prioritizer', appName: 'Docket', title: `${plural(board.overdue, 'task')} overdue`, note: '', route: 'prioritize', flag: '' });
+  if (board && board.triage) out.push({ app: 'prioritizer', appName: 'Docket', title: `${plural(board.triage, 'task')} to triage`, note: '', route: 'triage', flag: 'waiting' });
+  return out.map((r, i) => [RANK[r.flag] ?? 1, i, r]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]).slice(0, 12);
+}
+
+/** The week's work, from each app's `done-week` list card: [{app, name, rows: [{title, note, due}]}]. */
+export function weekRows(byApp) {
+  const out = [];
+  for (const a of byApp) {
+    const c = a.cards && a.cards.get('done-week');
+    if (!c || c.kind !== 'list' || !Array.isArray(c.rows) || !c.rows.length) continue;
+    out.push({ app: a.app, name: a.name, title: typeof c.title === 'string' ? c.title : a.name, count: Number.isInteger(c.count) ? c.count : c.rows.length,
+      rows: c.rows.filter(r => r && typeof r.title === 'string').slice(0, 20).map(r => ({ title: r.title, note: typeof r.note === 'string' ? r.note : '', due: typeof r.due === 'string' ? r.due : '' })) });
+  }
+  return out;
+}
+
+/** The weekly status draft, as Markdown to edit and paste: one section per app that has something to say. */
+export function statusDraft(week, { name = '', now = new Date() } = {}) {
+  const head = `# Weekly status${name ? `: ${name}` : ''}, week of ${new Date(now.getTime() - 6 * 864e5).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  if (!week.length) return `${head}
+
+Nothing logged this week yet. Finish tasks in Docket, decide in Slate, ship with Dispatch, and it shows up here.
+`;
+  const parts = [head, ''];
+  for (const w of week) {
+    parts.push(`## ${w.title}`, '');
+    for (const r of w.rows) parts.push(`- ${r.title}${r.note ? ` (${r.note})` : ''}`);
+    if (w.count > w.rows.length) parts.push(`- and ${w.count - w.rows.length} more`);
+    parts.push('');
+  }
+  parts.push('## Next week', '', '- ', '', '## Risks and asks', '', '- ');
+  return parts.join('\n');
+}
+
+function inboxCard(rows) {
+  return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>
+    ${rows.length ? `<ul class="inbox-list">${rows.map(r => `<li><button class="irow${r.flag ? ' ' + r.flag : ''}" data-open="${esc(r.app)}"${r.route ? ` data-path="${esc(r.route)}"` : ''}>
+      <span class="iapp">${esc(r.appName)}</span><span class="it">${esc(r.title)}</span>${r.note ? `<span class="in">${esc(r.note)}</span>` : ''}</button></li>`).join('')}</ul>`
+      : '<p class="soft">Nothing needs you right now.</p>'}
+  </section>`;
+}
+
 /* The whole page. `v` is {now, profile, board, boardNote, noSummary, agents, waiting, embedded}:
    profile {name, role}; board = withNames(boardFromSummary()) or null; boardNote = why there is no board (string) or '';
    agents = {state: 'ready' | 'off' | 'browser' | 'loading', needYou, working, message};
@@ -145,6 +210,9 @@ export function render(v) {
   // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
   // before the Day view's day end, from Docket's summary; a check once wrapped). Triage is its tile.
   const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
+  // The weekly status draft: always one click away, the highlighted thing on Friday afternoons.
+  const friday = v.now.getDay() === 5 && v.now.getHours() >= 12;
+  const statusTool = hbtn(ICON.doc, 'Weekly status', 'data-status', friday ? 'primary' : '', 'Draft your weekly status from what you finished, decided and shipped.');
   const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
   const dayTools = b ? hbtn(ICON.day, b.focus.total ? 'Plan today' : "Pick today's tasks", `data-open="prioritizer" data-path="${b.focus.total ? 'day/today' : 'today'}"`, !b.triage && !b.focus.total ? 'primary' : '')
     + (w.wrapped ? hbtn(ICON.check, 'Day wrapped', 'data-open="prioritizer" data-path="shutdown"', 'done', 'Day wrapped.' + offered)
@@ -154,21 +222,21 @@ export function render(v) {
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
-    ${v.waiting ? '' : `<div class="htools">${dayTools}${hbtn(ICON.pencil, name ? 'Edit profile' : 'Add your name', 'data-edit-profile')}</div>`}
+    ${v.waiting ? '' : `<div class="htools">${dayTools}${statusTool}${hbtn(ICON.pencil, name ? 'Edit profile' : 'Add your name', 'data-edit-profile')}</div>`}
   </header>`;
 
   if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
-    return head + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
+    return head + inboxCard(v.inbox || []) + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b && v.noSummary) {
     // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
     return head + `<section class="card note"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + inboxCard(v.inbox || []) + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b) {
-    return head + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
+    return head + inboxCard(v.inbox || []) + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
 
@@ -201,7 +269,7 @@ export function render(v) {
       : `<p class="soft">No people yet. Add them in <button class="lnk" data-open="prioritizer" data-path="people">Docket, People</button>.</p>`}
   </section>`;
 
-  return head + tiles + `<div class="cols">${next}<div class="stack">${nowCard(v.dayNow)}${team}${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
+  return head + tiles + `<div class="cols"><div class="stack">${inboxCard(v.inbox || [])}${next}</div><div class="stack">${nowCard(v.dayNow)}${team}${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */

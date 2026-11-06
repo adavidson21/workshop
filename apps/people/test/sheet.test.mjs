@@ -19,8 +19,8 @@ test('template: header only for an empty directory, a row per active person othe
   const g = P.create({ kind: 'group', name: 'Leads', members: [d.people[1].id] }, d.items, NOW);
   const d2 = P.directory({ ...P.blank(), items: [...d.items, g] });
   assert.deepEqual(S.rows(d2).slice(1), [
-    ['Person One', 'person', 'You', 'Yes', '', '', ''],
-    ['Dev Two', 'dev', 'Direct report', 'Yes', 'dev@example.com', '', '@leads']
+    ['Person One', 'person', 'You', 'Yes', '', '', '', ''],
+    ['Dev Two', 'dev', 'Direct report', 'Yes', 'dev@example.com', '', '', '@leads']
   ]);
 });
 
@@ -33,7 +33,7 @@ test('parse: headers in any order and case, blank rows skipped, values normalize
     ['', 'Bo Kim', '', '', '', '', '']
   ]);
   assert.equal(rows.length, 2);
-  assert.deepEqual({ ...rows[0] }, { line: 3, name: 'Ana Lee', handle: 'ana', relation: 'report', team: false, adoIdentity: 'ana@example.com', role: 'Lead', groups: ['leadership', 'platform'], why: '' });
+  assert.deepEqual({ ...rows[0] }, { line: 3, name: 'Ana Lee', handle: 'ana', relation: 'report', team: false, adoIdentity: 'ana@example.com', role: 'Lead', owns: [], groups: ['leadership', 'platform'], why: '' });
   assert.equal(rows[1].relation, '');
   assert.equal(rows[1].team, null);
 });
@@ -115,4 +115,15 @@ test('app.json lists every script, and nothing mentions a Since date', () => {
   const app = JSON.parse(fs.readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
   for (const f of ['js/main.js', 'js/forms.js', 'js/sheet.js', 'people.css']) assert.ok(app.files.includes(f), f);
   for (const f of ['js/main.js', 'js/forms.js', 'js/sheet.js']) assert.doesNotMatch(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /since/i, f);
+});
+
+test('Owns: a comma list in the sheet, kept on the person, and an import that changes it says so', () => {
+  const rows = S.parse([['Name', 'Owns'], ['Ana Lee', 'Lighthouse, web-app; lighthouse']]);
+  assert.deepEqual(rows[0].owns, ['Lighthouse', 'web-app']);
+  const d = dirOf([{ name: 'Ana Lee', relation: 'report' }]);
+  const out = S.plan(d, rows);
+  assert.equal(out.rows[0].action, 'update');
+  assert.deepEqual(out.rows[0].changes, ['owns']);
+  const same = S.plan(d, S.parse([['Name', 'Owns'], ['Ana Lee', '']]));
+  assert.equal(same.rows[0].action, 'same', 'an empty cell leaves what is there');
 });

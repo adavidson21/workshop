@@ -77,8 +77,20 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     env.handoffs = await write('handoffs', before, after);
   }
 
+  /** Rewrite Slate's summary (Workshop docs/summaries.md): the cards replace what was there. Skipped when unchanged. */
+  let lastSummary = '';
+  async function writeSummary(cards) {
+    if (v.readOnly) return;
+    const key = JSON.stringify(cards.map(c => ({ ...c, updatedAt: 0 })));
+    if (key === lastSummary) return;
+    const before = (await read('summary')) || blank('summary');
+    const after = { ...structuredClone(before), items: cards };
+    await write('summary', before, after);
+    lastSummary = key;
+  }
+
   ws.data.subscribe('items', () => load().catch(() => {}));
-  return { v, load, change, update, offer };
+  return { v, load, change, update, offer, writeSummary };
 }
 
 /* ---------- connectors ---------- */

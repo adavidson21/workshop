@@ -92,6 +92,10 @@ export function cleanItem(raw = {}) {
   for (const [k, v] of Object.entries(raw.sessions || {})) if (typeof v === 'string' && v) it.sessions[k] = v;
   it.route = ['delegate', 'myself'].includes(raw.route) ? raw.route : null;
   it.assignee = typeof raw.assignee === 'string' && raw.assignee ? raw.assignee : null;
+  it.requester = oneLine(raw.requester, 200);
+  it.requesterId = typeof raw.requesterId === 'string' && /^p_/.test(raw.requesterId) ? raw.requesterId : null;
+  it.offered = {};
+  for (const k of ['win', 'decision']) if (typeof (raw.offered || {})[k] === 'string') it.offered[k] = raw.offered[k];
   it.published = {};
   for (const [k, v] of Object.entries(raw.published || {})) if (Number.isInteger(v)) it.published[k] = v;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
@@ -100,8 +104,8 @@ export function cleanItem(raw = {}) {
 }
 
 /** A new item from a request typed into Slate, or from an ADO backlog item. */
-export function newItem({ title, description = '', level = 'story', ado = null } = {}, now = new Date()) {
-  const it = cleanItem({ id: newId(), title, description, level, stage: 'new', createdAt: today(now) });
+export function newItem({ title, description = '', level = 'story', ado = null, requester = '', requesterId = null } = {}, now = new Date()) {
+  const it = cleanItem({ id: newId(), title, description, level, stage: 'new', createdAt: today(now), requester, requesterId });
   if (ado) {
     it.ado = cleanItem({ ado: { id: ado.id, rev: ado.rev, type: ado.type, url: ado.url, connection: ado.connection, area: ado.area, state: ado.state } }).ado;
     it.level = levelOfType(ado.type);
@@ -141,7 +145,7 @@ export const changedInAdo = (it) => !!(it.ado && it.adoNow && Number(it.adoNow.r
 /** Text search and level filter. */
 export function filterCards(list, { q = '', level = '' } = {}) {
   const words = String(q).toLowerCase().split(/\s+/).filter(Boolean);
-  return list.filter(c => (!level || c.level === level) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''}`.toLowerCase().includes(w)));
+  return list.filter(c => (!level || c.level === level) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''} ${c.requester || ''}`.toLowerCase().includes(w)));
 }
 
 /* ---------- .work files ---------- */
@@ -363,3 +367,169 @@ export function roadmapIdea(item, now = new Date()) {
 
 /** Escape for HTML. */
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- requester and aging ---------- */
+
+// Days an item may sit in a PM column before it is flagged as stale. Waiting on someone else gets longer.
+export const STALE_DAYS = { new: 3, triage: 3, waiting: 5, define: 7, publish: 2, decide: 3 };
+const dayNum = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5 : null; };
+
+/** The day the item entered its current stage (the last history line for it), or its created day. */
+export function stageSince(it) {
+  const h = (it.history || []).filter(x => x.stage === it.stage);
+  return (h.length ? h[h.length - 1].at : it.createdAt) || null;
+}
+
+/** Whole days in the current stage, on `now`. */
+export function daysInStage(it, now = new Date()) {
+  const a = dayNum(stageSince(it)), b = dayNum(today(now));
+  return a == null || b == null ? 0 : Math.max(0, b - a);
+}
+
+/** True when an item has sat in its PM column longer than STALE_DAYS allows. */
+export const isStale = (it, column, now = new Date()) => STALE_DAYS[column] != null && daysInStage(it, now) > STALE_DAYS[column];
+
+/* ---------- ownership (People's `owns`) ---------- */
+
+/**
+ * People who own something the item touches, best match first: [{id, name, hits: [what matched]}].
+ * `owners` is [{id, name, owns: [product, repo or area path]}] from the directory; `text` is everything known about
+ * the item (title, triage's products and repos, ADO area). A match is a whole owned term found in the text, case
+ * ignored. Facts only: nobody is ranked on anything but what they own.
+ */
+export function ownersFor(owners, text) {
+  const hay = ` ${String(text || '').toLowerCase().replace(/[^a-z0-9\\/._-]+/g, ' ')} `;
+  const out = [];
+  for (const p of owners || []) {
+    const hits = (p.owns || []).filter(t => {
+      const w = String(t || '').toLowerCase().trim().replace(/[^a-z0-9\\/._-]+/g, ' ');
+      return w && hay.includes(` ${w} `) || (w.includes('\\') && hay.includes(w));
+    });
+    if (hits.length) out.push({ id: p.id, name: p.name, hits });
+  }
+  return out.sort((a, b) => b.hits.length - a.hits.length || a.name.localeCompare(b.name));
+}
+
+/** What an item is about, as text for ownersFor. */
+export function aboutText(it, triage) {
+  return [it.title, it.ado && it.ado.area, it.adoNow && it.adoNow.area, ...(triage ? triage.repos : [])].filter(Boolean).join(' ');
+}
+
+/* ---------- team health ---------- */
+
+/** Health numbers for the Health tab: per column {count, stale, medianDays}, the oldest open items, and load. */
+export function health(items, columnOf, now = new Date()) {
+  const cols = {};
+  const open = items.filter(it => !['done'].includes(it.stage));
+  for (const it of open) {
+    const k = columnOf(it);
+    const c = (cols[k] ||= { count: 0, stale: 0, days: [] });
+    c.count++;
+    const d = daysInStage(it, now);
+    c.days.push(d);
+    if (isStale(it, k, now)) c.stale++;
+  }
+  for (const c of Object.values(cols)) { const s = c.days.sort((a, b) => a - b); c.medianDays = s.length ? s[Math.floor((s.length - 1) / 2)] : 0; delete c.days; }
+  const oldest = open.filter(it => it.stage !== 'dev' && it.stage !== 'delegated').map(it => ({ it, days: daysInStage(it, now), column: columnOf(it) }))
+    .sort((a, b) => b.days - a.days).slice(0, 8);
+  const load = {};
+  for (const it of items) if (it.stage === 'delegated' && it.assignee) load[it.assignee] = (load[it.assignee] || 0) + 1;
+  // Request to decision: days from created to the first decide, delegated or dev line.
+  const toDecision = items.map(it => {
+    const d = (it.history || []).find(h => ['decide', 'delegated', 'dev'].includes(h.stage));
+    const a = dayNum(it.createdAt), b = d && dayNum(d.at);
+    return a != null && b != null ? b - a : null;
+  }).filter(x => x != null).sort((a, b) => a - b);
+  return { cols, oldest, load, toDecision: { n: toDecision.length, median: toDecision.length ? toDecision[Math.floor((toDecision.length - 1) / 2)] : null } };
+}
+
+/* ---------- sprints ---------- */
+
+/** Items with an ADO id grouped by sprint (iteration path): {path: [items]}, plus '' for no sprint. */
+export function bySprint(items) {
+  const out = {};
+  for (const it of items) {
+    if (!it.ado) continue;
+    const p = (it.adoNow && it.adoNow.iteration) || '';
+    (out[p] ||= []).push(it);
+  }
+  return out;
+}
+
+/** Load per assignee in one sprint's items: [{name, count}], most first. */
+export function sprintLoad(list) {
+  const m = new Map();
+  for (const it of list) { const n = (it.adoNow && it.adoNow.assignee && it.adoNow.assignee.name) || 'Unassigned'; m.set(n, (m.get(n) || 0) + 1); }
+  return [...m].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+/* ---------- summary for other apps (Workshop docs/summaries.md) ---------- */
+
+const card = (id, kind, title, extra) => ({ id, kind, title, updatedAt: Date.now(), ...extra });
+const row = (it, note, flag) => ({ id: it.id, title: `${it.ado ? `#${it.ado.id} ` : ''}${it.title}`.slice(0, 200), route: `item/${it.id}`, ...(note ? { note: note.slice(0, 200) } : {}), ...(flag ? { flag } : {}) });
+
+/**
+ * Slate's summary cards: `needs` (what waits on you, for Home's inbox), `delegated` (a people card: what is with
+ * each person, for Rapport's 1:1 prep), `done-week` (decisions made in the last 7 days, for the weekly status), and
+ * `ado` (ADO ids Slate knows, for Dispatch to link a run back to its request). `columnOf(it)` and `agentOf(it)`
+ * come from main.js.
+ */
+export function summaryCards(items, { columnOf, agentOf = () => null, now = new Date() } = {}) {
+  const needs = [];
+  for (const it of items) {
+    if (['dev', 'done', 'delegated'].includes(it.stage)) continue;
+    const a = agentOf(it), col = columnOf(it);
+    if (a && a.waiting) needs.push(row(it, 'An agent is asking you something', 'urgent'));
+    else if (col === 'decide') needs.push(row(it, 'Decide who builds it'));
+    else if (col === 'publish') needs.push(row(it, 'Approved: publish to ADO'));
+    else if (col === 'define' && it.draftReady) needs.push(row(it, 'A draft is ready to approve'));
+    else if (col === 'triage' && !(a && a.busy)) needs.push(row(it, 'Triage is done: ask or define'));
+    else if (isStale(it, col, now)) needs.push(row(it, `${daysInStage(it, now)} days in ${col}`, 'waiting'));
+  }
+  const people = new Map();
+  for (const it of items) {
+    if (it.stage !== 'delegated' || !it.assignee) continue;
+    const r = people.get(it.assignee) || { id: it.assignee, open: [], waiting: [] };
+    if (r.open.length < 20) r.open.push({ id: it.id, title: `${it.ado ? `#${it.ado.id} ` : ''}${it.title}`.slice(0, 200), due: '', nudgeOn: '', via: '' });
+    people.set(it.assignee, r);
+  }
+  const week = today(new Date(now.getTime() - 7 * 864e5));
+  const done = [];
+  for (const it of items) {
+    const h = [...(it.history || [])].reverse().find(x => ['delegated', 'dev', 'decide', 'done'].includes(x.stage) && x.at >= week);
+    if (!h) continue;
+    const what = h.stage === 'delegated' ? 'Delegated' : h.stage === 'dev' ? 'Taking it on myself' : h.stage === 'decide' ? 'Defined and published' : 'Closed';
+    done.push({ ...row(it, what), due: h.at });
+  }
+  done.sort((a, b) => b.due.localeCompare(a.due));
+  const ado = items.filter(it => it.ado && ['dev', 'delegated', 'decide'].includes(it.stage)).slice(-20)
+    .map(it => ({ id: String(it.ado.id), title: it.title.slice(0, 200), route: `item/${it.id}`, ...(it.requester ? { note: `Asked by ${it.requester}`.slice(0, 200) } : {}) }));
+  return [
+    card('needs', 'list', 'Needs you in Slate', { rows: needs.slice(0, 20), count: needs.length, route: '' }),
+    card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
+    card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
+    card('ado', 'list', 'ADO items in Slate', { rows: ado })
+  ];
+}
+
+/* ---------- other offers ---------- */
+
+/** A Notes note for the decision log (Workshop docs/handoffs.md, Receivers: notes, from another app: inbox/). */
+export function decisionNote(item, decision, now = new Date()) {
+  const lines = [
+    `Decision: ${decision}`,
+    '',
+    `- Item: ${item.title}${item.ado ? ` (ADO #${item.ado.id})` : ''}`,
+    item.requester ? `- Asked by: ${item.requester}` : null,
+    `- Date: ${today(now)}`,
+    `- In Slate: [${item.title.replace(/[[\]]/g, '')}](ws:slate/item/${item.id})`
+  ].filter(l => l !== null);
+  return { id: `h_${item.id}_decision_${today(now)}`, to: 'notes', date: today(now), createdAt: now.toISOString(), text: lines.join('\n').slice(0, 2000), accepted: true,
+    payload: { kind: 'note', title: `Decision: ${item.title}`.slice(0, 120) }, source: { app: APP, id: item.id } };
+}
+
+/** A receipt offer for Rapport when delegated work closes: a win about the person (an ordinary offer to accept). */
+export function winOffer(item, personId, now = new Date()) {
+  return { id: `h_${item.id}_win`, to: 'receipts', date: today(now), createdAt: now.toISOString(),
+    text: `Delivered ${item.ado ? `#${item.ado.id} ` : ''}${item.title}`.slice(0, 2000), payload: { kind: 'win', about: personId || 'me' }, source: { app: APP, id: item.id } };
+}

@@ -34,6 +34,17 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 | `day` | `days`: an object keyed by `YYYY-MM-DD` for today and the next 6 days, each `{blocks, wrapAt, wrapped, offered}`. `blocks`: up to 24 of `{name, at, until, tasks}`, where `at` and `until` are `HH:MM` and `tasks` up to 10 of `{id, title, done}`. `wrapAt`: `HH:MM` when Wrap up is due that day, or `null` for a day off. `wrapped`: the day is wrapped. `offered`: receipts offered that day. A day with no plan has `blocks: []`. | Home (Now and Wrap up). |
 | `people` | `rows`: up to 200 of `{id, open, waiting}`, one per person or group id ([people.md](people.md)) that has open tasks; `open` and `waiting` are up to 20 of `{id, title, due, nudgeOn, via}` (`due` and `nudgeOn` are `YYYY-MM-DD` or empty; `via` is the group id the task is assigned to when it reaches a person through a group, else empty). A person's row counts tasks assigned to them and to their active groups. Readers show names from the directory, not from the summary. | Rapport (1:1 prep). |
 
+## Two list cards every app may write
+
+Two `list` cards have a fixed meaning, so Home can gather them from every app without knowing any of them:
+
+| Card id | Meaning | Read by |
+| --- | --- | --- |
+| `needs` | What waits on the person in this app right now, one row each, most pressing first. `flag: "urgent"` for something blocking someone (an agent asking a question), `"waiting"` for upkeep that can wait (a 1:1 that is due). `note` says what to do in a few words; `route` opens it. | Home's **Needs you** inbox, with Docket's triage and overdue counts and agents waiting. |
+| `done-week` | What the person finished, decided or shipped in the last 7 days, newest first. `due` is the day it happened; `note` adds context (a list, "Shipped"). Never anything about another person that the person would not put in a status update. | Home's **Weekly status** draft. |
+
+An app that has nothing to say writes the card with no rows, or leaves it out.
+
 ## Rules
 
 1. **Write it with the data.** An app rewrites its summary whenever the data behind it changes, and once when it loads. Cards that depend on the date cover today and the next 6 days (`board`, `day`), so a reader can still show the right day when the app has not opened since.
@@ -46,7 +57,9 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 
 | Writer | Cards |
 | --- | --- |
-| `prioritizer` (Docket) | `board` (id `board`), `day` (id `day`), `targets` (id `lists`, `capture: "task"`), `people` (id `people`). |
-| `receipts` (Rapport) | `count` (id `entries`: receipts logged). |
+| `prioritizer` (Docket) | `board` (id `board`), `day` (id `day`), `targets` (id `lists`, `capture: "task"`), `people` (id `people`), `list` (id `done-week`: tasks finished, Docket 5.6.0). |
+| `receipts` (Rapport) | `count` (id `entries`: receipts logged), `list` (id `needs`: 1:1s due, names and days only), `list` (id `done-week`: your own wins; never receipts about anyone else). Rapport 3.3.0. |
+| `slate` (Slate) | `list` (id `needs`: items to decide, approve, publish or answer, and stale ones), `people` (id `delegated`: open items delegated to each person, for Rapport's 1:1 prep), `list` (id `done-week`: decisions made), `list` (id `ado`: ADO ids Slate knows, each row's `id` the ADO id and `route` the Slate item, for Dispatch's From Slate link). |
+| `agents` (Dispatch) | `list` (id `needs`: agents asking a question, pull requests waiting for your review), `list` (id `done-week`: runs that reached PR or shipped). |
 | `runway` (Runway) | `targets` (id `roadmaps`, `capture: "idea"`). |
 | `notes` (Notes) | `count` (id `notes`), `list` (id `recent`: the 10 notes changed last), `list` (id `mentions`: notes that link to another app's record with a `ws:` link; each row's `note` is the record, `<app>/<route>`). Titles and paths only. Home shows `recent`. |

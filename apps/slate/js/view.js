@@ -13,7 +13,7 @@ export function topHtml(ui, notes) {
   const lane = (key, label) => `<button type="button" class="seg${ui.lane === key ? ' on' : ''}" aria-pressed="${ui.lane === key}" data-act="lane" data-id="${key}">${label}</button>`;
   const board = ui.tab === 'board';
   return `<div class="top">
-    <div class="tabs" role="tablist" aria-label="Slate">${tab('board', 'Board')}${tab('roadmap', 'Roadmap')}</div>
+    <div class="tabs" role="tablist" aria-label="Slate">${tab('board', 'Board')}${tab('roadmaps', 'Roadmaps')}${tab('sprints', 'Sprints')}${tab('health', 'Health')}</div>
     ${board ? `<div class="segs" role="group" aria-label="Lane">${lane('pm', 'PM')}${lane('dev', 'Dev')}</div>
     <label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
@@ -39,7 +39,10 @@ function card(c, s) {
   if (c.triage && c.triage.size) meta.push(`Size ${c.triage.size}`);
   if (c.route) meta.push(c.route === 'delegate' ? 'Delegate' : 'Myself');
   if (c.assigneeName) meta.push(c.assigneeName);
+  if (c.requester) meta.push(`from ${c.requester}`);
+  if (!c.virtual && c.age) meta.push(`${c.age}d`);
   const flags = [];
+  if (c.stale) flags.push(chip('Stale', 'warn'));
   if (changedInAdo(c)) flags.push(chip('Changed in ADO', 'warn'));
   if (c.virtual) flags.push(chip('In ADO', 'soft'));
   return `<li><button type="button" class="card${s.open === c.id ? ' open' : ''}" data-act="open" data-id="${esc(c.id)}">
@@ -129,7 +132,7 @@ function nextHtml(p) {
       return out('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch')]);
     }
     case 'publish': return out(it.ado && p.draft.kind === 'refine' ? `Update #${it.ado.id} in ADO with the description and acceptance criteria.` : 'Create the work items in ADO.', [btn('publish', 'Publish to ADO', { primary: true })]);
-    case 'decide': return out('Who builds it?', [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', 'Do it myself', { primary: p.item.route !== 'delegate' })]);
+    case 'decide': return out(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`, [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', 'Do it myself', { primary: p.item.route !== 'delegate' })]);
     case 'delegated': return out(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`, [btn('myself', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [])]);
     default: return '';
   }
@@ -150,7 +153,9 @@ export function panelHtml(p) {
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
     </div>
     ${nextHtml(p)}
+    ${it.requester || p.age ? `<p class="soft small meta-line">${it.requester ? `Asked by ${esc(it.requester)}. ` : ''}${p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''}</p>` : ''}
     ${it.description && !it.ado ? section('Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}
+    ${p.owners && p.owners.length && p.lane === 'pm' ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''}
     ${triageSection(p.triage)}
     ${draftSection(p)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
@@ -160,9 +165,11 @@ export function panelHtml(p) {
 
 /* ---------- dialogs ---------- */
 
-export function newDialogHtml() {
+export function newDialogHtml(names = []) {
   return `<form method="dialog" class="dlg" data-form="new"><h2>New request</h2>
     <label>Title<input name="title" required maxlength="255" autocomplete="off"></label>
+    <label>Asked by<input name="requester" list="slatePeople" maxlength="200" autocomplete="off" placeholder="A name, a team, or a customer"></label>
+    <datalist id="slatePeople">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
     <label>What is being asked, and by whom<textarea name="description" rows="5" maxlength="32000"></textarea></label>
     <label>Level<select name="level">${LEVELS.map(l => `<option value="${l}"${l === 'story' ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Add</button></div></form>`;
@@ -177,9 +184,10 @@ export function publishDialogHtml(plan, { area }) {
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok"${n ? '' : ' disabled'}>Publish</button></div></form>`;
 }
 
-export function delegateDialogHtml(people, { canBrief, canAssign }) {
+export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
   return `<form method="dialog" class="dlg" data-form="delegate"><h2>Delegate</h2>
-    <label>To<select name="person" required><option value="">Pick someone</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label>
+    <label>To<select name="person" required><option value="">Pick someone</option>${people.map(p => `<option value="${esc(p.id)}"${p.id === pick ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    <p class="soft">Owners of what it touches come first (People, Owns).</p>
     ${people.length ? '' : '<p class="soft">Add your team in People first.</p>'}
     <label class="check"><input type="checkbox" name="brief"${canBrief ? ' checked' : ' disabled'}> Write a brief for them (/handoff; posts nothing)</label>
     <label class="check"><input type="checkbox" name="assign"${canAssign ? ' checked' : ' disabled'}> Assign it to them in ADO</label>

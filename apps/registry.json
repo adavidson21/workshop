@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -244,12 +244,130 @@
       }
     },
     {
+      "base": "/apps/slate/",
+      "manifest": {
+        "manifestVersion": 1,
+        "id": "slate",
+        "name": "Slate",
+        "version": "1.1.0",
+        "description": "Your team's backlog from request to who builds it, with roadmaps, sprints and team health. Tandem does the legwork; you decide.",
+        "icon": "icon.svg",
+        "entry": "index.html",
+        "order": 15,
+        "modes": [
+          "local",
+          "hosted",
+          "browser"
+        ],
+        "connectors": [
+          {
+            "id": "ado",
+            "required": false
+          },
+          {
+            "id": "opencode",
+            "required": false
+          }
+        ],
+        "aliases": [
+          "backlog",
+          "requests",
+          "enhancements",
+          {
+            "name": "health",
+            "path": "health"
+          },
+          {
+            "name": "sprints",
+            "path": "sprints"
+          }
+        ],
+        "handoffs": {
+          "sends": [
+            "runway",
+            "prioritizer",
+            "notes",
+            "receipts"
+          ]
+        },
+        "routes": [
+          {
+            "path": "item/:id",
+            "title": "Open an item"
+          },
+          {
+            "path": "roadmaps",
+            "title": "Roadmaps"
+          },
+          {
+            "path": "health",
+            "title": "Team health"
+          },
+          {
+            "path": "sprints",
+            "title": "Sprints"
+          }
+        ],
+        "commands": [
+          {
+            "id": "new",
+            "title": "New request",
+            "route": ""
+          },
+          {
+            "id": "refresh",
+            "title": "Refresh from ADO and Tandem"
+          },
+          {
+            "id": "roadmaps",
+            "title": "Open roadmaps",
+            "route": "roadmaps"
+          },
+          {
+            "id": "new-roadmap",
+            "title": "New roadmap",
+            "route": "roadmaps"
+          },
+          {
+            "id": "health",
+            "title": "Team health",
+            "route": "health"
+          },
+          {
+            "id": "sprints",
+            "title": "Plan sprints",
+            "route": "sprints"
+          }
+        ],
+        "data": [
+          "items",
+          "handoffs",
+          "summary"
+        ],
+        "files": [
+          "slate.css",
+          "js/main.js",
+          "js/data.js",
+          "js/model.js",
+          "js/view.js",
+          "js/host.js",
+          "js/health.js"
+        ],
+        "hosts": [
+          {
+            "app": "runway",
+            "path": "roadmaps"
+          }
+        ]
+      }
+    },
+    {
       "base": "/apps/agents/",
       "manifest": {
         "manifestVersion": 1,
         "id": "agents",
         "name": "Dispatch",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -270,7 +388,8 @@
           }
         ],
         "data": [
-          "handoffs"
+          "handoffs",
+          "summary"
         ],
         "connectors": [
           {
@@ -451,7 +570,8 @@
           "vendor/monaco/vs/wgsl-BhLXMOR0.js",
           "vendor/monaco/vs/workers-BeMslOxK.js",
           "vendor/monaco/vs/xml-DHCggo_L.js",
-          "vendor/monaco/vs/yaml-C-RIivnc.js"
+          "vendor/monaco/vs/yaml-C-RIivnc.js",
+          "js/summary.js"
         ]
       }
     },
@@ -849,89 +969,12 @@
       }
     },
     {
-      "base": "/apps/slate/",
-      "manifest": {
-        "manifestVersion": 1,
-        "id": "slate",
-        "name": "Slate",
-        "version": "1.0.0",
-        "description": "Your ADO backlog from request to who builds it: triage, define, publish, then delegate or build it yourself, with Tandem doing the legwork.",
-        "icon": "icon.svg",
-        "entry": "index.html",
-        "order": 55,
-        "modes": [
-          "local",
-          "hosted",
-          "browser"
-        ],
-        "connectors": [
-          {
-            "id": "ado",
-            "required": false
-          },
-          {
-            "id": "opencode",
-            "required": false
-          }
-        ],
-        "aliases": [
-          "backlog",
-          "requests",
-          "enhancements"
-        ],
-        "handoffs": {
-          "sends": [
-            "runway",
-            "prioritizer"
-          ]
-        },
-        "routes": [
-          {
-            "path": "item/:id",
-            "title": "Open an item"
-          },
-          {
-            "path": "roadmap",
-            "title": "Roadmap"
-          }
-        ],
-        "commands": [
-          {
-            "id": "new",
-            "title": "New request",
-            "route": ""
-          },
-          {
-            "id": "refresh",
-            "title": "Refresh from ADO and Tandem"
-          },
-          {
-            "id": "roadmap",
-            "title": "Open the roadmap",
-            "route": "roadmap"
-          }
-        ],
-        "data": [
-          "items",
-          "handoffs"
-        ],
-        "files": [
-          "slate.css",
-          "js/main.js",
-          "js/data.js",
-          "js/model.js",
-          "js/view.js",
-          "js/host.js"
-        ]
-      }
-    },
-    {
       "base": "/apps/people/",
       "manifest": {
         "manifestVersion": 1,
         "id": "people",
         "name": "People",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "Everyone you assign work to, groups of them, and your team's area paths. Import a list from a spreadsheet.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -987,7 +1030,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "3.0.0",
+        "version": "3.1.0",
         "description": "Connectors, repos, apps, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",

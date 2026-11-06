@@ -132,3 +132,18 @@ test('a paired site can read the switches but not change them', async () => {
     assert.equal(fs.existsSync(path.join(home, APPS_FILE)), false, 'nothing was saved');
   } finally { await agent.stop(); rmHome(home); }
 });
+
+test('GET /api/doctor: the health check for Settings, from this computer only', async () => {
+  const home = tempHome();
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: ['https://workshop.example.org'], features: { hostedMode: true } }));
+  const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home) });
+  try {
+    const r = await get(agent, '/api/doctor');
+    assert.equal(r.status, 200, r.text);
+    assert.equal(typeof r.json.ok, 'boolean');
+    assert.ok(r.json.lines.some(l => /^Workshop \d/.test(l)) && r.json.lines.some(l => /^Node v/.test(l)));
+    const far = await get(agent, '/api/doctor', { origin: 'https://workshop.example.org' });
+    assert.equal(far.status, 403, far.text);
+    assert.equal(far.json.code, 'local_only');
+  } finally { await agent.stop(); rmHome(home); }
+});

@@ -130,3 +130,32 @@ test('withNames: names for Up next and team ids come from the directory, groups 
   assert.deepEqual(b.team.map(m => m.name), ['Dana Lee']);
   assert.equal(withNames(null, dir), null);
 });
+
+test('Needs you: one list from every app, urgent first, with Docket and agents added', async () => {
+  const { inboxRows } = await import('../js/view.js');
+  const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
+  const rows = inboxRows([
+    { app: 'slate', name: 'Slate', cards: cards([{ id: 'w1', title: '#7 Export', note: 'Decide who builds it', route: 'item/w1' }, { id: 'w2', title: 'Asking', note: 'An agent is asking', route: 'item/w2', flag: 'urgent' }]) },
+    { app: 'receipts', name: 'Rapport', cards: cards([{ id: 'p1', title: '1:1 with Ana', flag: 'waiting', route: '1on1s' }]) },
+    { app: 'notes', name: 'Notes', cards: null }
+  ], { board: { triage: 2, overdue: 1 }, agents: { state: 'ready', needYou: 1 } });
+  assert.deepEqual(rows.map(r => [r.appName, r.title, r.flag]), [
+    ['Dispatch', '1 agent waiting for an answer', 'urgent'], ['Slate', 'Asking', 'urgent'], ['Slate', '#7 Export', ''],
+    ['Docket', '1 task overdue', ''], ['Rapport', '1:1 with Ana', 'waiting'], ['Docket', '2 tasks to triage', 'waiting']
+  ]);
+  assert.deepEqual(inboxRows([], {}), []);
+});
+
+test('weekly status: a Markdown draft from every app that logged something', async () => {
+  const { weekRows, statusDraft } = await import('../js/view.js');
+  const week = weekRows([
+    { app: 'prioritizer', name: 'Docket', cards: new Map([['done-week', { kind: 'list', title: 'Finished this week', count: 3, rows: [{ id: 't1', title: 'Ship the guide' }, { id: 't2', title: 'Fix login', note: 'Platform' }] }]]) },
+    { app: 'slate', name: 'Slate', cards: new Map([['done-week', { kind: 'list', title: 'Decisions this week', rows: [] }]]) }
+  ]);
+  assert.equal(week.length, 1);
+  const md = statusDraft(week, { name: 'Alex', now: new Date('2026-11-06T12:00:00') });
+  assert.match(md, /^# Weekly status: Alex, week of /);
+  assert.match(md, /## Finished this week\n\n- Ship the guide\n- Fix login \(Platform\)\n- and 1 more\n/);
+  assert.match(md, /## Next week/);
+  assert.match(statusDraft([], {}), /Nothing logged this week yet/);
+});

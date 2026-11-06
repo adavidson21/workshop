@@ -64,8 +64,22 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `handoffs` | no | `{sends}`. `sends`: app ids this app writes handoff offers to ([handoffs.md](handoffs.md)). A receiver finds its senders from this (`ws.apps.list()`, [sdk.md](sdk.md)) instead of a list of app ids in its code. |
 | `capture` | no | Capture kinds this app takes from quick capture and the Dispatch hub: any of `task`, `waiting`, `receipt`, `note`, `idea` ([hub.md](hub.md), Captures). Each kind goes to the first app by `order` that lists it. The app must accept that kind as a handoff ([handoffs.md](handoffs.md), Receivers). |
 | `aliases` | no | Other words for this app in `> <place>` (quick capture and the hub). Up to 20, each a lowercase word (`"tasks"`) or `{name, path}` to open a part of the app (`{"name": "1:1s", "path": "1on1s"}`). The app's `id` and `name` always work. |
+| `hosts` | no | Other apps shown inside this one: up to 5 of `{app, path}`. While both are on, the hosted app has no rail button, its commands leave the palette, and `#/<app>/<rest>` (and `ws.open` to it) opens this app at `<path>/<rest>`. See Hosted apps below. |
 | `privateFiles` | no | Files other apps may not see: `true` for every file of this app, or a list of top folders (`["oneonones", "goals"]`). See Private files below. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
+
+
+## Hosted apps
+
+An app can show another app inside itself with `hosts`. Slate does it for Runway: `"hosts": [{"app": "runway", "path": "roadmaps"}]`. Its Roadmaps tab frames Runway's own page and stands in for the shell for it (Slate's `js/host.js`): it answers `ready`, keeps Runway's routes inside the tab, and passes `toast`, `notify` and `open` to other apps on to the shell.
+
+While the host and the hosted app are both on:
+
+- The hosted app has no rail button and no Alt+<n> of its own, and its manifest commands are left out of the palette (the host has its own).
+- `#/<hosted>/<rest>` opens `#/<host>/<path>/<rest>`, so old links, `ws.open` from other apps and quick capture's `> <alias>` all land in the host.
+- Everything else about the hosted app is unchanged: its data, handoffs, captures and summary, and its own site.
+
+Turning the host off brings the hosted app back to the rail. The rule lives in the shell (`shell/shell.js`); the SDK and the agent do not need to know.
 
 ## Private files
 

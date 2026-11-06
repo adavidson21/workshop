@@ -5,7 +5,7 @@
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { createHome } from './data.js';
-import { ICON, hbtn, profileForm, render } from './view.js';
+import { ICON, esc, hbtn, profileForm, render, statusDraft } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
 import { startCapture } from './capture.js';
 
@@ -72,6 +72,9 @@ const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
 ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
+// Needs you and the week follow every app's summary.
+const inboxLater = later(home.loadInbox, 300);
+ws.apps.list().then(list => { for (const a of list) if (a.id !== 'home') ws.data.subscribe('summary', inboxLater, { app: a.id }); }).catch(() => {});
 // The checklist follows the apps and connectors it checks, so steps tick themselves off.
 const setupLater = later(setup.load, 300);
 ws.data.subscribe('setup', setupLater);
@@ -99,6 +102,7 @@ app.addEventListener('click', e => {
   if (t.closest('[data-setup-collapse]')) { setupOpen = false; openStep = null; paint(); return; }
   if (t.closest('[data-setup-done]')) { showDone = !showDone; paint(); return; }
   if (t.closest('[data-setup-check]')) { setup.load().then(() => ws.toast('Checked', { kind: 'success' })); home.loadBoard(); return; }
+  if (t.closest('[data-status]')) { openStatus(); return; }
   if (t.closest('[data-edit-profile]')) { if (!home.waiting) { editing = true; paint(); } return; }
   if (t.closest('[data-cancel]')) { editing = false; paint(); }
 });
@@ -112,6 +116,21 @@ app.addEventListener('submit', async e => {
     else ws.toast("Couldn't save your profile. Try again.", { kind: 'error' });
   }
 });
+/* The weekly status draft: Markdown from every app's week, in a box to edit, then Copy. Nothing is sent. */
+const statusDlg = document.getElementById('status');
+function openStatus() {
+  const text = statusDraft(v.week || [], { name: v.profile.name, now: new Date() });
+  statusDlg.innerHTML = `<div class="sd"><h2>Weekly status</h2><p class="soft">From what you finished in Docket, decided in Slate and shipped with Dispatch this week. Edit it, then copy it into your update.</p>
+    <label class="sr" for="statusText">Weekly status</label><textarea id="statusText" spellcheck="true">${esc(text)}</textarea>
+    <div class="sd-acts"><button class="btn" data-status-close>Close</button><button class="btn primary" data-status-copy>Copy</button></div></div>`;
+  statusDlg.showModal();
+}
+statusDlg.addEventListener('click', e => {
+  if (e.target === statusDlg || e.target.closest('[data-status-close]')) statusDlg.close();
+  const c = e.target.closest('[data-status-copy]');
+  if (c) copyText(statusDlg.querySelector('textarea').value, c);
+});
+
 async function copyText(text, b) {
   if (typeof text !== 'string') return;
   const done = () => { const old = b.textContent; b.textContent = 'Copied'; setTimeout(() => { b.textContent = old; }, 1400); };
@@ -132,7 +151,7 @@ document.addEventListener('keydown', e => {
 
 // Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
 // "overdue" change at midnight; the counts change when you work in other apps).
-const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); setup.load(); } };
+const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); home.loadInbox(); setup.load(); } };
 ws.on('visible', p => { visible = !!p.visible; refresh(); });
 setInterval(refresh, 60000);
 

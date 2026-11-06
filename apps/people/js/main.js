@@ -52,6 +52,8 @@ function personForm(p) {
       <p class="cfg-help">Shows in Docket's Reports.</p></div>
     <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity || '')}" placeholder="name@example.com or display name"></div>
     <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
+    <div class="cfg-row"><label for="pOwns">Owns</label><input id="pOwns" name="owns" class="cfg-input" maxlength="2000" value="${esc((p.owns || []).join(', '))}" placeholder="Products, repos or area paths, separated by commas">
+      <p class="cfg-help">Slate uses this to suggest who to delegate to, from what a request touches. Facts only: what they own.</p></div>
     ${formActs(p)}
   </form>`;
 }
@@ -81,6 +83,7 @@ function itemRow(it) {
   const bits = it.kind === 'group'
     ? [D.membersOf(dir, it.id).map(p => esc(p.name)).join(', ') || 'No members']
     : [esc(D.RELATION_LABEL[it.relation]), D.onTeam(it) ? 'on my team' : '', it.role ? esc(it.role) : '', it.adoIdentity ? `<span class="mono">${esc(it.adoIdentity)}</span>` : '',
+       Array.isArray(it.owns) && it.owns.length ? `owns ${esc(it.owns.join(', '))}` : '',
        D.groupsOf(dir, it.id).map(g => `@${esc(g.handle)}`).join(' ')].filter(Boolean);
   return `<li class="person${it.archived ? ' archived' : ''}"><div><b>${esc(it.name)}</b> <span class="mono handle">@${esc(it.handle)}</span>${it.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
     <button class="btn" data-item-edit="${esc(it.id)}">Edit</button></li>`;
@@ -92,7 +95,7 @@ const matches = it => {
   if (filter !== 'all' && filter !== 'team' && it.relation !== filter) return false;
   if (!query) return true;
   const q = query.toLowerCase();
-  return [it.name, it.handle, it.role, it.adoIdentity].some(v => String(v || '').toLowerCase().includes(q));
+  return [it.name, it.handle, it.role, it.adoIdentity, (it.owns || []).join(' ')].some(v => String(v || '').toLowerCase().includes(q));
 };
 
 function paintPeople() {

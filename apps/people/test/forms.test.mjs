@@ -11,7 +11,8 @@ const NOW = 1793736000000;
 
 test('personFields: trims, lowers the handle, defaults the relation', () => {
   const f = F.personFields([['name', '  Person One '], ['handle', '@One'], ['relation', 'boss'], ['team', 'on']]);
-  assert.deepEqual(f, { name: 'Person One', handle: 'one', relation: 'contact', team: true, adoIdentity: '', role: '' });
+  assert.deepEqual(f, { name: 'Person One', handle: 'one', relation: 'contact', team: true, adoIdentity: '', role: '', owns: [] });
+  assert.deepEqual(F.personFields([['name', 'X'], ['owns', 'Lighthouse, web-app\nWeb\\Team A, lighthouse']]).owns, ['Lighthouse', 'web-app', 'Web\\Team A']);
 });
 
 test('groupFields: checked members in order, without duplicates', () => {

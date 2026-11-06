@@ -822,3 +822,4 @@ section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
 .rv-todo .rv-row:hover { background: none; }
 .item-head .meta .tier { width: auto; padding: 0 8px; }
 .mine .prbox { margin-top: 10px; }
+.tag.slate{cursor:pointer;color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}

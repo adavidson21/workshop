@@ -11,8 +11,20 @@ export function personFields(entries) {
   return {
     name: s(f.name), handle: s(f.handle, 40).replace(/^@/, '').toLowerCase(),
     relation: RELATIONS.includes(f.relation) ? f.relation : 'contact',
-    team: f.team === 'on', adoIdentity: s(f.adoIdentity), role: s(f.role)
+    team: f.team === 'on', adoIdentity: s(f.adoIdentity), role: s(f.role),
+    owns: ownsList(f.owns)
   };
+}
+
+/** What a person owns, from one line of text: products, repos or area paths, separated by commas or new lines.
+    Trimmed, no repeats (case ignored), up to 30 of up to 200 characters (docs/people.md, owns). */
+export function ownsList(text) {
+  const out = [];
+  for (const raw of String(text || '').split(/[,\n;]/)) {
+    const t = raw.trim().slice(0, 200);
+    if (t && !out.some(x => x.toLowerCase() === t.toLowerCase())) out.push(t);
+  }
+  return out.slice(0, 30);
 }
 
 /** Fields for a group form: name, handle and the checked members (`member` entries, in form order). */

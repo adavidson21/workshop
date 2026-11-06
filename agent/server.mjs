@@ -102,6 +102,26 @@ export async function createAgent(o) {
   const dataLock = new KeyedLock(); // shared by collections and files: both live in the data folder
   await moveOldData({ home, root: dataRoot, tracker, log: log.for('data') });
 
+  /** Lines for Settings' health check, and whether all is well. Each line ends with "ok" or says what to do. */
+  const healthReport = () => {
+    const lines = []; let bad = false;
+    const major = Number(process.versions.node.split('.')[0]);
+    if (major >= 22) lines.push(`Node ${process.version}: ok.`); else { lines.push(`Node ${process.version}: too old. Workshop needs Node 22 or later.`); bad = true; }
+    lines.push(`Workshop ${VERSION}: running on port ${server.address()?.port ?? '?'}: ok.`);
+    try { fs.accessSync(dataDir, fs.constants.W_OK); lines.push(`Data folder ${dataDir}: ok.`); }
+    catch { lines.push(`Data folder ${dataDir}: not writable. Fix its permissions, or choose another folder above.`); bad = true; }
+    const login = startAtLoginStatus(loginOpts);
+    lines.push(login.kind === 'unsupported' ? 'Start at login: not available on this system.' : `Start at login: ${login.installed ? 'on' : 'off'}.`);
+    for (const c of connectors.list()) {
+      const st = c.status || {};
+      if (!c.enabled || st.state === 'disabled') { lines.push(`${c.name} connector: off.`); continue; }
+      const good = st.state === 'ready';
+      if (!good && st.state === 'error') bad = true;
+      lines.push(`${c.name} connector ${c.version}: ${good ? 'ok.' : (st.message || st.state)}`);
+    }
+    return { ok: !bad, lines };
+  };
+
   const configLock = new KeyedLock();
   /** Apply a change to the live config and save it. If saving fails, the change is undone. */
   const commitConfig = mutate => configLock.run('config', async () => {
@@ -320,6 +340,15 @@ document.getElementById('allow').addEventListener('click', function () {
     const ok = body => sendJson(res, 200, body, cors);
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); ok(listApps()); return; }
+
+    // The health check for Settings: the parts of `workshop doctor` the running agent can see for itself (it runs no
+    // programs, docs/security.md). Local only: it names folders on this computer.
+    if (parts[0] === 'doctor' && parts.length === 1) {
+      only('GET');
+      if (!own) fail('local_only', 'The health check runs in Workshop on this computer.');
+      ok(healthReport());
+      return;
+    }
 
     // Turning apps on and off (docs/apps.md). Saved in <home>/apps.json; in work mode the pinned copy is rebuilt
     // from what is already on this computer. Downloading an app is `workshop apps on <app>`: the agent runs no git.

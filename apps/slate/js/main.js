@@ -7,9 +7,11 @@ import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, cards, devColumn, draftState, filterCards, newItem, parseTriage, pmColumn, publishPlan, roadmapIdea, setStage, waitingTask
+  APP, aboutText, bySprint, cards, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
+  pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
 } from './model.js';
 import { boardHtml, confirmHtml, delegateDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, roadmapHtml, topHtml } from './view.js';
+import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
 const topEl = $('top'), mainEl = $('main'), panelEl = $('panel'), dlg = $('dlg');
@@ -24,6 +26,7 @@ const ui = {
   tab: 'board', lane: remember('lane') === 'dev' ? 'dev' : 'pm', q: '', level: '', open: null,
   editing: false, busy: false, error: '', roadmapRoute: ''
 };
+const TABS = ['board', 'roadmaps', 'sprints', 'health'];
 const s = {
   conn: { ado: 'Checking…', opencode: 'Checking…' },
   team: { areas: [], connection: '' },
@@ -31,9 +34,10 @@ const s = {
   backlog: [], backlogNote: '',
   tstate: null,                // the opencode connector's `state`
   files: new Map(),            // folder -> {file: text}
-  apps: []
+  apps: [],
+  sprints: null, sprintNote: ''
 };
-const store = createStore(ws, { onChange: () => paint() });
+const store = createStore(ws, { onChange: () => { paint(); publishSummary(); } });
 
 /* ---------- reading ADO and Tandem ---------- */
 
@@ -46,6 +50,7 @@ async function refresh({ backlog = true } = {}) {
     if (backlog) await readBacklog();
     await readTandem();
     paint();
+    publishSummary();
   })().finally(() => { refreshing = null; });
   return refreshing;
 }
@@ -58,11 +63,29 @@ async function readBacklog() {
     const r = await ado(ws, 'backlog', { areas: s.team.areas, ...(s.team.connection ? { connection: s.team.connection } : {}) });
     s.backlog = r.items || [];
     if (r.truncated) s.backlogNote = `Showing the newest ${s.backlog.length} of ${r.total} open items.`;
+    else await closeFinished();
   } catch (e) {
     s.backlog = [];
     s.backlogNote = `Could not read the ADO backlog: ${e.message}`;
   }
 }
+
+/**
+ * Delegated and own items whose ADO item left the open backlog: read it, and if it is closed, the work is done.
+ * A delegated one offers Rapport a win about the person (once). Runs only on a complete backlog read.
+ */
+async function closeFinished() {
+  const open = new Set(s.backlog.map(b => b.id));
+  const gone = store.v.items.filter(it => it.ado && ['delegated', 'dev'].includes(it.stage) && !open.has(it.ado.id)).slice(0, 10);
+  for (const it of gone) {
+    let w = null;
+    try { w = await ado(ws, 'workitem.get', { id: it.ado.id, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch { continue; }
+    if (!w || !/^(closed|done|resolved|removed)$/i.test(w.state || '')) continue;
+    if (it.stage === 'delegated' && !it.offered.win && !/removed/i.test(w.state)) await store.offer(winOffer(it, it.assignee)).catch(() => {});
+    await store.update(it.id, x => { setStage(x, 'done'); if (x.stage === 'done' && it.stage === 'delegated') x.offered = { ...x.offered, win: today() }; }).catch(() => {});
+  }
+}
+const today = () => new Date().toISOString().slice(0, 10);
 
 async function readTandem() {
   if (s.conn.opencode !== true) { s.tstate = null; return; }
@@ -139,6 +162,7 @@ function enrich(c) {
   out.triage = parseTriage(filesOf(c.work && c.work.triage)['triage.md']);
   out.agent = agentOf(c.sessions && c.sessions.current);
   out.assigneeName = personName(c.assignee);
+  out.age = daysInStage(c);
   return out;
 }
 
@@ -150,18 +174,13 @@ function columns() {
     for (const c of list) {
       if (['dev', 'done'].includes(c.stage)) continue;
       const e = enrich(c);
-      push(pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent), e);
+      const col = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
+      e.stale = !c.virtual && isStale(c, col);
+      push(col, e);
     }
   } else {
-    const mine = list.filter(c => c.stage === 'dev' || c.stage === 'done');
-    const seen = new Set();
-    for (const c of mine) { const run = runFor(c); if (run) seen.add(run.folder); push(c.stage === 'done' ? 'done' : devColumn(run), enrich(c)); }
-    // Tandem runs started elsewhere (Dispatch, the terminal) are part of the Dev picture too.
-    for (const r of ((s.tstate && s.tstate.items) || []).filter(x => x.kind === 'item' && !seen.has(x.folder))) {
-      const c = { id: `run_${r.folder}`, title: r.title || r.folder, level: r.lane === 'bug' ? 'bug' : 'story', stage: 'dev', virtualRun: true, run: r, work: {}, sessions: {}, history: [],
-        ado: /^\d+$/.test(String(r.id)) ? { id: Number(r.id), url: '', rev: 0 } : null };
-      if (filterCards([c], { q: ui.q, level: ui.level }).length) push(devColumn(r), c);
-    }
+    // Only what you chose to build yourself. Every Tandem run, with its prompts and review, is Dispatch's.
+    for (const c of list.filter(x => x.stage === 'dev' || x.stage === 'done')) push(c.stage === 'done' ? 'done' : devColumn(runFor(c)), enrich(c));
   }
   return cols;
 }
@@ -171,8 +190,24 @@ function findCard(id) {
   const stored = store.v.items.find(x => x.id === id);
   if (stored) return stored;
   if (id.startsWith('ado_')) { const b = s.backlog.find(x => `ado_${x.id}` === id); return b ? cards([], [b])[0] : null; }
-  if (id.startsWith('run_')) return (columns()[Object.keys(columns()).find(k => (columns()[k] || []).some(c => c.id === id))] || []).find(c => c.id === id) || null;
   return null;
+}
+
+/** People who own what the item touches (People's `owns`), best match first. */
+function ownersOf(c) {
+  const list = (s.people.people || []).filter(p => !p.archived && Array.isArray(p.owns) && p.owns.length).map(p => ({ id: p.id, name: p.name, owns: p.owns }));
+  return ownersFor(list, aboutText(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])));
+}
+
+function columnOf(it) { return ['dev', 'done'].includes(it.stage) ? it.stage : pmColumn(it, draftState(it, filesOf(it.work.define)), agentOf(it.sessions.current)); }
+
+let summaryTimer = null;
+function publishSummary() {
+  clearTimeout(summaryTimer);
+  summaryTimer = setTimeout(() => {
+    const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
+    store.writeSummary(summaryCards(items, { columnOf, agentOf: it => agentOf(it.sessions.current) })).catch(() => {});
+  }, 300);
 }
 
 function panelState(c) {
@@ -186,6 +221,8 @@ function panelState(c) {
     column: lane === 'pm' ? pmColumn(c, draft, agentOf(c.sessions && c.sessions.current)) : null,
     run: c.run || runFor(c),
     assigneeName: personName(c.assignee),
+    owners: ownersOf(c),
+    age: daysInStage(c),
     error: ui.error
   };
 }
@@ -205,14 +242,18 @@ let host = null;
 function paint() {
   const focus = document.activeElement && document.activeElement.id;
   topEl.innerHTML = topHtml(ui, ui.tab === 'board' ? notes() : []);
-  if (ui.tab === 'roadmap') {
+  if (ui.tab !== 'roadmaps' && host) { host.stop(); host = null; }
+  if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
+  if (ui.tab === 'roadmaps') {
     if (!mainEl.querySelector('#runway') && !mainEl.querySelector('.empty')) mountRoadmap();
-    panelEl.hidden = !ui.open; if (ui.open) paintPanel();
+  } else if (ui.tab === 'health') {
+    if (!mainEl.querySelector('.health')) mountHealth();
+  } else if (ui.tab === 'sprints') {
+    mainEl.innerHTML = sprintsView();
   } else {
-    if (host) { host.stop(); host = null; }
     mainEl.innerHTML = store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote }) : '<p class="loading">Loading…</p>';
-    paintPanel();
   }
+  paintPanel();
   const waiting = store.v.items.filter(it => { const a = agentOf(it.sessions.current); return a && a.waiting; }).length;
   ws.badge(waiting || null).catch(() => {});
   if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') $(focus).focus();
@@ -229,9 +270,38 @@ function paintPanel() {
   panelEl.classList.toggle('busy', ui.busy);
 }
 
+let reportsHost = null;
+const runwayOn = () => s.apps.some(a => a.id === 'runway') || !s.apps.length;
+function mountHealth() {
+  const items = store.v.items;
+  const names = Object.fromEntries((s.people.people || []).map(p => [p.id, p.name]));
+  mainEl.innerHTML = healthHtml(health(items, columnOf), { names, reports: runwayOn() });
+  const frame = $('reports');
+  if (frame) reportsHost = hostFrame(frame, { ws, onOpenSlate: (path) => route(path), getRoute: () => 'reports' });
+}
+
+function sprintsView() {
+  if (s.conn.ado !== true) return sprintsHtml({ note: typeof s.conn.ado === 'string' ? `Sprints come from Azure DevOps. ${s.conn.ado}` : 'Checking Azure DevOps…' });
+  if (!s.sprints) { loadSprints(); return '<p class="loading">Reading sprints…</p>'; }
+  const items = store.v.items.filter(it => it.ado && !['done'].includes(it.stage)).map(it => ({ ...it, adoNow: s.backlog.find(b => b.id === it.ado.id) || it.adoNow || null }));
+  const people = (s.people.people || []).filter(p => !p.archived && p.adoIdentity);
+  return sprintsHtml({ sprints: s.sprints, groups: bySprint(items), people, note: s.sprintNote });
+}
+async function loadSprints() {
+  if (s.loadingSprints) return;
+  s.loadingSprints = true;
+  try {
+    const project = (s.backlog[0] && s.backlog[0].url && decodeURIComponent((/\/([^/]+)\/_workitems\//.exec(s.backlog[0].url) || [])[1] || '')) || undefined;
+    const r = await ado(ws, 'iterations.list', { ...(project ? { project } : {}), ...(s.team.connection ? { connection: s.team.connection } : {}) });
+    s.sprints = (r.iterations || []).filter(x => x.path);
+    s.sprintNote = s.sprints.length ? '' : 'No sprints in this project yet.';
+  } catch (e) { s.sprints = []; s.sprintNote = `Could not read sprints: ${e.message}`; }
+  s.loadingSprints = false;
+  if (ui.tab === 'sprints') paint();
+}
+
 function mountRoadmap() {
-  const on = s.apps.some(a => a.id === 'runway') || !s.apps.length;
-  mainEl.innerHTML = roadmapHtml(on ? 'on' : 'off');
+  mainEl.innerHTML = roadmapHtml(runwayOn() ? 'on' : 'off');
   const frame = $('runway');
   if (!frame) return;
   host = hostFrame(frame, { ws, onOpenSlate: (path) => route(path), getRoute: () => ui.roadmapRoute });
@@ -262,11 +332,14 @@ async function startSession(it, kind, action, args) {
 }
 
 const ACT = {
-  tab: (id) => { ui.tab = id; paint(); },
+  tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
+  'open-item': (c) => { if (c) { ui.open = c.id; ui.lane = ['dev', 'done'].includes(c.stage) ? 'dev' : 'pm'; paint(); } },
   lane: (id) => { ui.lane = id; remember('lane', id); ui.open = null; paint(); },
   refresh: () => refresh().then(() => ws.toast('Up to date.', { kind: 'success' })),
-  new: () => showDialog(newDialogHtml(), async (form) => {
-    const it = newItem({ title: form.title.value, description: form.description.value, level: form.level.value });
+  new: () => showDialog(newDialogHtml((s.people.people || []).filter(p => !p.archived).map(p => p.name)), async (form) => {
+    const asked = form.requester.value.trim();
+    const match = (s.people.people || []).find(p => !p.archived && p.name.toLowerCase() === asked.toLowerCase());
+    const it = newItem({ title: form.title.value, description: form.description.value, level: form.level.value, requester: asked, requesterId: match ? match.id : null });
     await store.change(list => list.push(it));
     ui.open = it.id; paint();
   }),
@@ -341,8 +414,11 @@ const ACT = {
     showDialog(publishDialogHtml(plan, { area }), () => runPublish(c, plan));
   },
   async delegate(c) {
-    const ppl = People.team(s.people).concat(People.withRelation(s.people, 'peer')).filter(p => p.relation !== 'self');
-    showDialog(delegateDialogHtml(ppl.map(p => ({ id: p.id, name: p.name })), { canBrief: s.conn.opencode === true && !!c.ado, canAssign: s.conn.ado === true && !!c.ado }), async (form) => {
+    const owners = ownersOf(c);
+    const base = People.team(s.people).concat(People.withRelation(s.people, 'peer')).filter(p => p.relation !== 'self');
+    const ppl = [...owners.map(o => base.find(p => p.id === o.id) || (s.people.people || []).find(p => p.id === o.id)).filter(Boolean), ...base.filter(p => !owners.some(o => o.id === p.id))];
+    const label = (p) => { const o = owners.find(x => x.id === p.id); return o ? `${p.name} (owns ${o.hits.join(', ')})` : p.name; };
+    showDialog(delegateDialogHtml(ppl.map(p => ({ id: p.id, name: label(p) })), { canBrief: s.conn.opencode === true && !!c.ado, canAssign: s.conn.ado === true && !!c.ado, pick: owners[0] && owners[0].id }), async (form) => {
       const person = ppl.find(p => p.id === form.person.value);
       if (!person) throw new Error('Pick someone to delegate to.');
       if (form.brief.checked && c.ado) await startSession(c, 'handoff', 'handoff.start', { id: String(c.ado.id), assignee: person.name });
@@ -355,12 +431,14 @@ const ACT = {
       }
       if (form.task.checked) await store.offer(waitingTask(c, person.id));
       await store.update(c.id, x => { x.assignee = person.id; x.route = 'delegate'; setStage(x, 'delegated'); });
+      await logDecision(c, `Delegated to ${person.name}`);
       ws.toast(`Delegated to ${person.name}.`, { kind: 'success' });
     });
   },
   async myself(c) {
     const it = await ensureStored(c);
     await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; setStage(x, 'dev'); });
+    await logDecision(it, 'Building it myself');
     ui.lane = 'dev'; remember('lane', 'dev'); paint();
   },
   async start(c) {
@@ -388,6 +466,11 @@ const ACT = {
   })
 };
 
+/** The decision log: one note in Notes for each decision (Notes' inbox), never posted anywhere. */
+async function logDecision(it, decision) {
+  try { await store.offer(decisionNote(it, decision)); } catch { /* the board still has it */ }
+}
+
 async function runPublish(c, plan) {
   const ids = { ...(c.published || {}) };
   const conn = c.ado && c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
@@ -407,6 +490,7 @@ async function runPublish(c, plan) {
     await store.update(c.id, x => { x.published = { ...x.published, [p.ref]: out.id }; if (!x.ado && (p.ref === 'item' || p.ref === 'epic')) x.ado = { id: out.id, rev: out.rev, type: out.type, url: out.url, connection: out.connection, area: out.area, state: out.state }; });
   }
   await store.update(c.id, x => { if (!x.ado && first) x.ado = { id: first.id, rev: first.rev, type: first.type, url: first.url, connection: first.connection, area: first.area, state: first.state }; setStage(x, 'decide'); });
+  await logDecision(store.v.items.find(x => x.id === c.id) || c, `Defined and published to ADO (${Object.keys(ids).length} item${Object.keys(ids).length === 1 ? '' : 's'})`);
   ws.toast('Published to ADO.', { kind: 'success' });
   refresh().catch(() => {});
 }
@@ -453,6 +537,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
+  if (e.target.dataset.sprint || e.target.dataset.assign) { sprintChange(e.target); return; }
   const c = findCard(ui.open);
   if (!c || c.virtual) return;
   try {
@@ -460,6 +545,28 @@ document.addEventListener('change', async (e) => {
     if (e.target.id === 'ptitle' && e.target.value.trim()) await store.update(c.id, x => { x.title = e.target.value; });
   } catch (err) { toastErr(err); }
 });
+/** Sprints tab: move an item to a sprint, or assign it, in ADO after a confirm. The select goes back on Cancel. */
+function sprintChange(sel) {
+  const it = store.v.items.find(x => x.id === (sel.dataset.sprint || sel.dataset.assign));
+  if (!it || !it.ado) return;
+  const now = s.backlog.find(b => b.id === it.ado.id) || {};
+  const rev = now.rev || it.ado.rev;
+  const conn = it.ado.connection ? { connection: it.ado.connection } : {};
+  let changes, what;
+  if (sel.dataset.sprint) {
+    if (!sel.value) { ws.toast('Pick a sprint. To take it out of every sprint, change it in ADO.', { kind: 'warn' }); paint(); return; }
+    changes = { iteration: sel.value }; what = `Move #${it.ado.id} to ${sel.value.split('\\').pop()}?`;
+  } else {
+    const p = (s.people.people || []).find(x => x.id === sel.value);
+    changes = { assignedTo: p ? p.adoIdentity : '' }; what = p ? `Assign #${it.ado.id} to ${p.name}?` : `Unassign #${it.ado.id}?`;
+  }
+  showDialog(confirmHtml('Change in Azure DevOps', what, 'Change it'), async () => {
+    await ado(ws, 'workitem.update', { id: it.ado.id, rev, changes, ...conn }, { confirm: true });
+    await readBacklog(); paint();
+  });
+  dlg.addEventListener('close', () => { if (ui.tab === 'sprints') paint(); }, { once: true });
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.open && !dlg.open && !['TEXTAREA', 'INPUT', 'SELECT'].includes(document.activeElement && document.activeElement.tagName)) { ui.open = null; ui.editing = false; paint(); }
 });
@@ -470,7 +577,12 @@ async function route(path) {
   let raw = String(path || '');
   try { raw = decodeURIComponent(raw); } catch { /* keep it as it came */ }
   const parts = raw.split('/').filter(Boolean);
-  if (parts[0] === 'roadmap') { ui.tab = 'roadmap'; ui.roadmapRoute = parts.slice(1).join('/'); paint(); return; }
+  if (parts[0] === 'roadmaps' || parts[0] === 'roadmap') {
+    ui.tab = 'roadmaps'; ui.roadmapRoute = parts.slice(1).join('/');
+    if (host && host.ready) host.route(ui.roadmapRoute);
+    paint(); return;
+  }
+  if (parts[0] === 'health' || parts[0] === 'sprints' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
   if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; const c = findCard(parts[1]); if (c && (c.stage === 'dev' || c.stage === 'done')) ui.lane = 'dev'; paint(); return; }
   if (parts[0] === 'runway' && parts[1] && parts[2]) { await fromRunway(parts[1], parts[2]); return; }
 }
@@ -497,7 +609,13 @@ async function fromRunway(map, item) {
 }
 
 ws.on('route', (p) => route((p && p.path) || ''));
-ws.on('command', (p) => { if (p.id === 'new') ACT.new(); if (p.id === 'refresh') ACT.refresh(); if (p.id === 'roadmap') route('roadmap'); });
+ws.on('command', (p) => {
+  if (p.id === 'new') ACT.new();
+  if (p.id === 'refresh') ACT.refresh();
+  if (p.id === 'roadmaps' || p.id === 'roadmap') route('roadmaps');
+  if (p.id === 'health' || p.id === 'sprints') route(p.id);
+  if (p.id === 'new-roadmap') { route('roadmaps'); setTimeout(() => host && host.command('new-roadmap'), 50); }
+});
 ws.on('visible', (p) => { if (p && p.visible) refresh({ backlog: false }).catch(() => {}); });
 ws.on('online', () => { store.load().then(() => refresh()).catch(() => {}); });
 let ocTimer = null;

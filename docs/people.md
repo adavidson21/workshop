@@ -39,6 +39,7 @@ Schema: [schemas/person.schema.json](schemas/person.schema.json). Example: [exam
 | `team` | Optional. On your team, for team views. Missing means `true` for `self` and `report`, `false` otherwise. |
 | `adoIdentity` | Optional. Email or exact Azure DevOps display name, compared without case. |
 | `role` | Optional. Job title. |
+| `owns` | Optional. What they own: products, repos or area paths, as written (up to 30, each up to 200 characters, no repeats). Slate matches it against what a request touches to suggest who to delegate to. Facts only: never a rating. |
 | `since` | Optional, no longer edited. `YYYY-MM-DD`; older directories may have it. Apps keep it as they keep any field and do not show it. |
 | `archived` | Optional. Left. Kept so old records still show a name; hidden from pickers, team views and `@` matching. Its handle is free again. |
 
@@ -85,5 +86,6 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 | `people` (People) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
 | `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
 | `receipts` (Rapport) | Reports are `report` people; Upward is the `manager`. Entries' `about` is `me`, `up` or a person id. 1:1s are keyed by person id. |
+| `slate` (Slate) | Delegate picks a person; owners (`owns`) of what the item touches come first. Requesters are matched to people by name. What is delegated to each person is in Slate's summary (`delegated`), for Rapport's 1:1 prep. |
 | `runway` (Runway) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |
 | Home, the Dispatch hub | Names for capture and routing (`find()`); Docket's `people` summary for counts. |
