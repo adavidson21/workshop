@@ -39,7 +39,7 @@ export function startCapture(ws, root) {
     ws, sender: 'home',
     context: () => captureContext(src),
     onAsk: text => ws.open({ app: 'agents', path: 'hub/' + text }),
-    placeholder: 'Capture a task, receipt, note or roadmap idea. Ask with ?',
+    placeholder: "What's on your mind? Ask with ?",
     hint: '<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea · <kbd>?</kbd> ask in Dispatch · <kbd>&gt;</kbd> go'
   });
   read();

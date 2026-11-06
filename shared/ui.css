@@ -1,7 +1,8 @@
 /* Shared UI pieces for the shell and its apps: buttons, icon buttons, links, menus, the light/dark
    toggle, toast, tooltip, the centered card (.engcard) for setup and empty states, and the editorial
    type helpers (.eyebrow, .title, .section-label). Load after themes.css and before an app's own styles.
-   Style matches tools.alexisdavidson.org: flat, hairlines, serif headings, mono labels. */
+   Flat, hairlines, Gelasio headings, uppercase DM Mono labels. Page titles carry no trailing period, and
+   explanations go behind a quiet ? hint (.qhint, behavior in theme.js) rather than a paragraph under the heading. */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 button,input,textarea,select{font:inherit;color:inherit}
@@ -14,10 +15,17 @@ kbd{font-family:var(--mono);font-size:.76rem;padding:.02rem .32rem;border:1px so
 
 /* editorial type */
 .eyebrow{margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(30px,4vw,40px);font-variation-settings:"opsz" 72;letter-spacing:-.025em;line-height:1.08;color:var(--ink)}
-.page-title.dot::after{content:".";color:var(--eyebrow)}
+.page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(30px,4vw,40px);letter-spacing:-.015em;line-height:1.1;color:var(--ink)}
+.page-sub{margin:.35rem 0 0;color:var(--muted);font-size:.92rem}
 .section-label{display:flex;align-items:center;gap:14px;margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* quiet ? hint next to a heading: faint until the heading is hovered, retires after a few uses (theme.js) */
+.qhint{position:relative;display:inline-flex;vertical-align:super;margin-left:.3rem;font:400 12.5px/1.4 var(--sans);letter-spacing:0;text-transform:none}
+.qhint>button{font:500 12px/1 var(--sans);color:var(--muted);opacity:.3;padding:2px 4px;border-radius:4px;transition:opacity .15s}
+*:hover>.qhint>button,.qhint.open>button,.qhint>button:focus-visible{opacity:.9}
+.qhint-tip{position:absolute;left:0;top:calc(100% + 6px);z-index:70;width:max-content;max-width:min(18rem,80vw);background:var(--ink);color:var(--bg);font:400 12.5px/1.4 var(--sans);letter-spacing:0;text-transform:none;white-space:normal;text-align:left;padding:.45rem .6rem;border-radius:6px;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .12s}
+.qhint.open>.qhint-tip,.qhint:focus-within>.qhint-tip{opacity:1}
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.38rem .85rem;border-radius:var(--r-sm);font-size:.86rem;font-weight:500;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--ink);transition:background-color .2s,border-color .2s,color .2s}
@@ -50,7 +58,7 @@ kbd{font-family:var(--mono);font-size:.76rem;padding:.02rem .32rem;border:1px so
 
 /* centered card for setup and empty states: an ink rule on top, hairlines, no shadow */
 .engcard{max-width:36rem;margin:2.5rem auto;padding:1.4rem 1.5rem 1.5rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);font-size:.92rem;color:var(--muted)}
-.engcard h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em;color:var(--ink)}
+.engcard h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);letter-spacing:-.01em;color:var(--ink)}
 .engcard ol{margin:.7rem 0 0;padding-left:1.2rem;display:grid;gap:.45rem}
 .engcard code{font-family:var(--mono);font-size:.86rem;color:var(--ink);background:var(--panel);padding:.05rem .3rem;border-radius:4px;word-break:break-all}
 .engcard .acts{display:flex;align-items:center;gap:.5rem;margin-top:1.15rem;flex-wrap:wrap}

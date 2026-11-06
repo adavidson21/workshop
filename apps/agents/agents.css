@@ -35,7 +35,7 @@ button { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .logo { width: 22px; height: 22px; border-radius: var(--r-sm); background: var(--accent); display: grid; place-items: center; flex: none; }
 .logo i { display: block; width: 12px; height: 2px; border-radius: 2px; background: var(--on-accent); box-shadow: 0 4px 0 color-mix(in srgb, var(--on-accent) 75%, transparent), 0 -4px 0 var(--on-accent); }
-.top h1 { font: 600 24px/1.1 var(--serif); font-variation-settings: "opsz" 48; margin: 0; letter-spacing: -0.02em; white-space: nowrap; }
+.top h1 { font: 600 24px/1.1 var(--serif);  margin: 0; letter-spacing: -0.02em; white-space: nowrap; }
 .top .ver { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
 .top .ws { color: var(--eyebrow); font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em; word-break: break-all; }
 .top .fresh { margin-left: auto; color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -54,7 +54,7 @@ button { font: inherit; color: inherit; }
 .pickup::before { top: 22px; bottom: 22px; left: -1px; }
 .pick-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .pickup .eyebrow { margin: 0 0 10px; font: 500 12px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
-.pickup h2 { margin: 0 0 14px; font: 600 clamp(26px, 3vw, 32px)/1.15 var(--serif); font-variation-settings: "opsz" 72; letter-spacing: -0.02em; }
+.pickup h2 { margin: 0 0 14px; font: 600 clamp(26px, 3vw, 32px)/1.15 var(--serif);  letter-spacing: -0.02em; }
 .pickup h2 a { text-decoration: none; }
 .pickup h2 .num { color: var(--muted); font-weight: 400; margin-right: 8px; font-family: var(--mono); font-size: .55em; vertical-align: .25em; }
 .pickup .track { margin: 6px 0 18px; }
@@ -83,7 +83,7 @@ section.group > p.hint { margin: -4px 0 12px; color: var(--muted); font-size: 13
 .item { padding: 18px 8px 16px 20px; border-bottom: 1px solid var(--line); transition: background-color .25s; }
 .item:hover { background: var(--surface); }
 .item-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-.item-head .t { font: 600 20px/1.25 var(--serif); font-variation-settings: "opsz" 32; margin: 0; flex: 1 1 320px; min-width: 0; letter-spacing: -0.012em; }
+.item-head .t { font: 600 20px/1.25 var(--serif);  margin: 0; flex: 1 1 320px; min-width: 0; letter-spacing: -0.012em; }
 .item-head .t .num { color: var(--muted); font-weight: 400; margin-right: 8px; font-family: var(--mono); font-size: .62em; vertical-align: .15em; }
 .item-head .t a { text-decoration: none; transition: color .2s; }
 .item-head .t a:hover { color: var(--accent); }
@@ -196,7 +196,7 @@ tr:last-child td { border-bottom: 0; }
 .panel { background: transparent; border: 0; padding: 0; }
 .repo-list { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--rule); }
 .repo-list li { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
-.repo-list .rn { font: 600 16px/1.3 var(--serif); font-variation-settings: "opsz" 24; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.repo-list .rn { font: 600 16px/1.3 var(--serif);  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .repo-list .rn a { font: 500 12.5px/1.4 var(--sans); color: var(--accent); text-decoration: none; }
 .repo-list .rn a:hover { text-decoration: underline; }
 .repo-list .lc { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -243,7 +243,7 @@ a.btn { text-decoration: none; }
 .sheet ul.gone li { margin: 2px 0; }
 
 .empty { background: transparent; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--line); padding: 40px 22px; text-align: center; color: var(--muted); }
-.empty h2 { margin: 0 0 8px; font: 600 26px/1.2 var(--serif); font-variation-settings: "opsz" 48; letter-spacing: -0.015em; color: var(--ink); }
+.empty h2 { margin: 0 0 8px; font: 600 26px/1.2 var(--serif);  letter-spacing: -0.015em; color: var(--ink); }
 .empty p { margin: 0 0 12px; }
 .empty .do { display: inline-flex; }
 .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
@@ -308,7 +308,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
   position: relative; width: min(620px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface);
   border: 1px solid var(--line); border-top-color: var(--rule); border-radius: 2px 2px var(--r-md) var(--r-md); box-shadow: var(--shadow-lg); padding: 20px 22px 18px; animation: pop .16s ease;
 }
-.sheet h3 { margin: 0; font: 600 22px/1.2 var(--serif); font-variation-settings: "opsz" 48; letter-spacing: -0.015em; }
+.sheet h3 { margin: 0; font: 600 22px/1.2 var(--serif);  letter-spacing: -0.015em; }
 .sheet-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .sheet-head .ibtn { margin-left: auto; }
 .sheet p { margin: 6px 0; color: var(--muted); font-size: 13.5px; }
@@ -352,7 +352,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 }
 .say-h { font-size: 12px; color: var(--muted); margin: 0 0 -4px; }
 .ask { border: 1px solid var(--gate); border-left-width: 3px; background: var(--gate-soft); border-radius: 2px var(--r-sm) var(--r-sm) 2px; padding: 10px 12px; display: grid; gap: 8px; }
-.ask .q { font: 600 17px/1.35 var(--serif); font-variation-settings: "opsz" 24; margin: 0; }
+.ask .q { font: 600 17px/1.35 var(--serif);  margin: 0; }
 .ask .q-h { font: 500 11.5px/1.4 var(--mono); color: var(--gate); text-transform: uppercase; letter-spacing: .06em; margin: 0; }
 .ask code { background: var(--surface); padding: 1px 6px; border-radius: 4px; word-break: break-all; }
 .ask .opts { display: grid; gap: 4px; }
@@ -405,9 +405,8 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 /* ---------- the setup guide: shown while this page can't reach Workshop (view.js guideHtml) */
 .guide { max-width: 720px; margin: 8px auto 48px; animation: rise .6s ease-out both; }
 .guide .eyebrow { margin: 0 0 12px; font: 500 12.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--eyebrow); }
-.guide > h2 { margin: 0; font: 600 clamp(32px, 4.4vw, 46px)/1.06 var(--serif); font-variation-settings: "opsz" 144; letter-spacing: -0.03em; }
-.guide > h2::after { content: "."; color: var(--eyebrow); }
-.guide .lede { margin: 14px 0 28px; max-width: 36rem; font: 400 18px/1.55 var(--serif); font-variation-settings: "opsz" 24; color: var(--muted); }
+.guide > h2 { margin: 0; font: 600 clamp(32px, 4.4vw, 46px)/1.06 var(--serif);  letter-spacing: -0.03em; }
+.guide .lede { margin: 14px 0 28px; max-width: 36rem; font: 400 18px/1.55 var(--serif);  color: var(--muted); }
 .guide .banner { margin-bottom: 22px; }
 .gsteps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
 .gstep { border-bottom: 1px solid var(--line); }
@@ -417,7 +416,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 .gnum svg { width: 13px; height: 13px; }
 .gstep.open .gnum { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .gstep.done .gnum { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.gt { flex: 1; min-width: 0; font: 600 20px/1.25 var(--serif); font-variation-settings: "opsz" 32; letter-spacing: -0.012em; transition: color .2s; }
+.gt { flex: 1; min-width: 0; font: 600 20px/1.25 var(--serif);  letter-spacing: -0.012em; transition: color .2s; }
 .gstep.done:not(.open) .gt { color: var(--muted); }
 .gstate { font: 500 11.5px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .gbody { padding: 0 4px 22px 46px; display: grid; gap: 12px; color: var(--ink); }
@@ -452,7 +451,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 .sheet h3 code { font-size: 14px; word-break: break-all; }
 .filetext { margin: 10px 0 0; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: calc(100vh - 220px); overflow: auto; }
 .setup { max-width: 620px; margin: 48px auto; background: var(--surface); border: 1px solid var(--line); border-top-color: var(--rule); border-radius: 2px 2px var(--r-md) var(--r-md); padding: 24px 26px; }
-.setup h2 { margin: 0 0 8px; font: 600 26px/1.2 var(--serif); font-variation-settings: "opsz" 48; letter-spacing: -0.015em; }
+.setup h2 { margin: 0 0 8px; font: 600 26px/1.2 var(--serif);  letter-spacing: -0.015em; }
 .setup p { margin: 6px 0; color: var(--muted); }
 .setup .acts { margin-top: 14px; display: flex; justify-content: flex-end; }
 .menu .hint { color: var(--muted); font-size: 12px; }
@@ -552,7 +551,7 @@ button.pill:hover { color: var(--ink); background: var(--surface); }
 
 /* the line above the list when a project or Needs review is in view */
 .scope-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.scope-head h2 { margin: 0; font: 600 24px/1.2 var(--serif); font-variation-settings: "opsz" 48; letter-spacing: -0.015em; }
+.scope-head h2 { margin: 0; font: 600 24px/1.2 var(--serif);  letter-spacing: -0.015em; }
 .scope-head .sw[data-c] { width: 12px; height: 12px; }
 .scope-head .dim { font-size: 13px; }
 .scope-head .btn { min-height: 26px; padding: 1px 10px; font-size: 12.5px; margin-left: auto; }
@@ -827,7 +826,7 @@ section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
 .lnk.back { display: inline-block; margin: 0 0 12px; color: var(--muted); text-decoration: none; font-size: 13px; }
 .lnk.back:hover { color: var(--ink); }
 .run-page, .doc-page { border-top: 1px solid var(--rule); padding: 18px 0 8px 18px; }
-.run-page .item-head .t, .doc-page .item-head .t { font: 600 26px/1.2 var(--serif); font-variation-settings: "opsz" 48; letter-spacing: -0.015em; margin: 0; }
+.run-page .item-head .t, .doc-page .item-head .t { font: 600 26px/1.2 var(--serif); letter-spacing: -0.015em; margin: 0; }
 .run-page .item-head .t .num { font: 500 14px var(--mono); color: var(--muted); margin-right: 10px; }
 .rtabs { display: flex; gap: 2px; flex-wrap: wrap; margin: 22px 0 0; border-bottom: 1px solid var(--line); }
 .rtab { border: 0; background: transparent; padding: 6px 12px; font-size: 13.5px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }

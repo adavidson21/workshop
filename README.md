@@ -158,7 +158,7 @@ shared/                 used by the shell and every app
   sw-register.js        registers sw.js
   device-fs.js          the Android app's storage on the phone, for the SDK's device store
   save-file.js          downloads in a browser, Android's share sheet in the app
-  fonts/                self-hosted Inter and JetBrains Mono (OFL), fonts.css
+  fonts/                self-hosted Gelasio, Figtree and DM Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
   screenshots/          images for the install dialog
   test/                 SDK tests

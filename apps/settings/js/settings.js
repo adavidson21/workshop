@@ -107,10 +107,12 @@ ws.on('route', ({ path } = {}) => {
 });
 
 // A card in a tab (General unless named). A card with no title starts with its own heading.
-function card(title, sub, tab = 'general') {
+// sub is shown under the heading (state and next steps); hint is an explanation behind the heading's quiet ?.
+function card(title, sub, tab = 'general', hint = '') {
   const sec = document.createElement('section');
   sec.className = 'card';
-  sec.innerHTML = `${title ? `<h2>${esc(title)}</h2>` : ''}${sub ? `<p class="sub">${sub}</p>` : ''}`;
+  const qh = hint && title && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('settings.' + title.toLowerCase().replace(/[^a-z]+/g, '-'), hint.replace(/<[^>]+>/g, ''), 'About ' + title) : '';
+  sec.innerHTML = `${title ? `<h2>${esc(title)}${qh}</h2>` : ''}${sub ? `<p class="sub">${sub}</p>` : ''}`;
   panel(tab, TAB_LABEL[tab] || tab, TAB_ORDER[tab] ?? 50).appendChild(sec);
   return sec;
 }
@@ -164,7 +166,7 @@ function moveSummary(m) {
 }
 
 async function folderCard(cfg) {
-  const sec = card('Data folder', 'Every app saves its files here, one subfolder per app. It is yours: Workshop never syncs it.', 'data');
+  const sec = card('Data folder', '', 'data', 'Every app saves its files here, one subfolder per app. It is yours: Workshop never syncs it.');
   sec.dataset.folder = ws.storage;
   const body = document.createElement('div');
   sec.appendChild(body);
@@ -325,7 +327,7 @@ function copyBtn(text) {
 async function appsCard() {
   const intro = ws.backend !== 'agent' ? 'Turn an app off to take it out of the rail in this browser.'
     : 'Turn an app off to take it out of Workshop\'s rail. In work mode the pinned copy is rebuilt for you.';
-  const sec = card('Apps', intro, 'apps');
+  const sec = card('Apps', '', 'apps', intro);
   const box = document.createElement('div');
   sec.appendChild(box);
   const reload = document.createElement('div');
@@ -639,11 +641,11 @@ async function reposTab(list) {
   const ocInfo = list.find(c => c.id === 'opencode');
   if (!adoInfo && !ocInfo) return;
   const st = { ado: null, oc: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false };
-  const main = card('Repos', 'The repos in your workspace, the Azure DevOps project each one uses, and whether Docket shows its pull requests.', 'repos');
+  const main = card('Repos', '', 'repos', 'The repos in your workspace, the Azure DevOps project each one uses, and whether Docket shows its pull requests.');
   const body = document.createElement('div'); main.appendChild(body);
-  const prSec = adoInfo ? card('Pull requests', 'Where Docket looks for pull requests waiting on you.', 'repos') : null;
+  const prSec = adoInfo ? card('Pull requests', '', 'repos', 'Where Docket looks for pull requests waiting on you.') : null;
   const prBody = prSec ? prSec.appendChild(document.createElement('div')) : null;
-  const mapSec = adoInfo ? card('Other folders', 'Folders outside your workspace, or patterns, and the connection they use. <code>*</code> matches any characters.', 'repos') : null;
+  const mapSec = adoInfo ? card('Other folders', '', 'repos', 'Folders outside your workspace, or patterns, and the connection they use. * matches any characters.') : null;
   const mapBody = mapSec ? mapSec.appendChild(document.createElement('div')) : null;
 
   const cfg = () => (st.ado && st.ado.config) || {};
@@ -882,7 +884,7 @@ async function reposTab(list) {
 
 /* ---------- data: bundles ---------- */
 function dataCard() {
-  const sec = card('Backups', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.', 'data');
+  const sec = card('Backups', '', 'data', 'Download a copy to back up your data or move it to another browser or computer. Importing a copy merges it with what is here.');
   sec.insertAdjacentHTML('beforeend', `<div class="acts left"><button class="btn" data-export>Download a copy</button>
     <label class="btn"><input type="file" accept=".json,application/json" data-import hidden>Import a copy</label><span class="msg" aria-live="polite"></span></div>`);
   const msg = sec.querySelector('.msg');
@@ -923,7 +925,7 @@ async function workCard() {
   const b = await pinnedBuild();
   if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off below.'); return; }
   const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
-  const sec = card('Open Workshop', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run <code>workshop update</code>. Turn apps on and off under Apps.');
+  const sec = card('Open Workshop', '', 'general', 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run workshop update. Turn apps on and off under Apps.');
   const parts = [one('Workshop', b.workshop), one('Docket', b.docket), one('Runway', b.runway), one('Rapport', b.receipts)];
   sec.insertAdjacentHTML('beforeend', `<p class="sub">${parts.join(' · ')} · built ${esc(new Date(b.builtAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }))}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
 }
@@ -944,7 +946,7 @@ function sitesCard(cfg) {
 /* ---------- start ---------- */
 /* ---------- health check: what `workshop doctor` checks, here (GET /api/doctor, Workshop on this computer) ---------- */
 function healthCard() {
-  const sec = card('Health check', 'Node, the data folder, start at login and each connector, as Workshop on this computer sees them. For the full check run <code>workshop doctor</code>.');
+  const sec = card('Health check', '', 'general', 'Node, the data folder, start at login and each connector, as Workshop on this computer sees them. For the full check run workshop doctor.');
   sec.insertAdjacentHTML('beforeend', '<div class="health-out" aria-live="polite"></div><p><button type="button" class="btn" data-health>Check now</button></p>');
   const out = sec.querySelector('.health-out');
   const run = async () => {
@@ -986,5 +988,14 @@ async function start() {
     await appsCard();
   }
   dataCard();
+  tipsCard();
+}
+
+// The quiet ? hints retire after a few uses (shared/theme.js); this brings them back.
+function tipsCard() {
+  if (!globalThis.WorkshopTheme?.hints) return;
+  const sec = card('Tips', 'The ? hints next to headings go away once you have opened each one a few times.');
+  sec.insertAdjacentHTML('beforeend', '<div class="acts left"><button type="button" class="btn" data-hints-reset>Show tips again</button></div>');
+  sec.addEventListener('click', e => { if (e.target.closest('[data-hints-reset]')) { globalThis.WorkshopTheme?.hints.reset(); toast('Tips are back.'); } });
 }
 await start();

@@ -23,8 +23,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .hello .who{flex:1;min-width:0}
 .hello .meta{margin:0 0 .35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 /* kept small so Home works in a half-width laptop window */
-.hello h1{margin:0;font-family:var(--serif);font-size:clamp(22px,2.4vw,28px);font-weight:600;font-variation-settings:"opsz" 72;letter-spacing:-.02em;line-height:1.15}
-.hello h1::after{content:".";color:var(--eyebrow)}
+.hello h1{margin:0;font-family:var(--serif);font-size:clamp(22px,2.4vw,28px);font-weight:600;letter-spacing:-.02em;line-height:1.15}
 .hello .btn{margin-bottom:.35rem}
 
 /* the day's entrypoints, right under the greeting */
@@ -34,7 +33,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--rule);overflow:hidden;animation:rise .6s ease-out .08s both}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;padding:1.1rem 1.1rem 1.25rem;border-bottom:1px solid var(--line);box-shadow:1px 0 0 var(--line);transition:background-color .25s}
 .tile:hover{background:var(--surface)}
-.tile .n{font-family:var(--serif);font-size:2.6rem;font-weight:600;font-variation-settings:"opsz" 96;letter-spacing:-.02em;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.tile .n{font-family:var(--serif);font-size:2.6rem;font-weight:600;letter-spacing:-.02em;line-height:1;font-variant-numeric:lining-nums tabular-nums}
 .tile .n small{font-size:1.3rem;color:var(--muted);font-weight:500}
 .tile .lbl{margin-top:.5rem;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .tile .sub{font-size:.8rem;color:var(--muted)}
@@ -52,7 +51,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .card h2::after{content:"";flex:1;height:1px;background:var(--line)}
 .ch{display:flex;align-items:center;gap:12px;min-height:28px;margin-bottom:.75rem}
 .card.note{padding:1.3rem 1.4rem 1.4rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);animation:rise .6s ease-out .08s both}
-.card.note h2{display:block;font:600 1.5rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em;text-transform:none;color:var(--ink)}
+.card.note h2{display:block;font:600 1.5rem/1.2 var(--serif);letter-spacing:-.015em;text-transform:none;color:var(--ink)}
 .card.note h2::after{content:none}
 .card.note p{color:var(--muted);margin:.45rem 0 0}
 .card.note p:has(.btn){margin-top:1rem}
@@ -66,7 +65,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .pair.three{grid-template-columns:repeat(3,1fr)}
 .stat{display:flex;flex-direction:column;align-items:flex-start;padding:.85rem .9rem 1rem;border-bottom:1px solid var(--line);box-shadow:1px 0 0 var(--line);text-align:left;transition:background-color .2s}
 .stat:hover{background:var(--surface)}
-.stat .n{font-family:var(--serif);font-size:2rem;font-weight:600;font-variation-settings:"opsz" 72;line-height:1.05;font-variant-numeric:lining-nums tabular-nums}
+.stat .n{font-family:var(--serif);font-size:2rem;font-weight:600;line-height:1.05;font-variant-numeric:lining-nums tabular-nums}
 .stat .lbl{margin-top:.35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .stat.warn .n{color:var(--warn)}
 
@@ -75,7 +74,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .su-top{display:flex;align-items:flex-start;gap:1rem}
 .su-top>div:first-child{flex:1;min-width:0}
 .su-eyebrow{margin:0 0 .35rem;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.setup h2{margin:0;font:600 1.5rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.setup h2{margin:0;font:600 1.5rem/1.2 var(--serif);letter-spacing:-.015em}
 .su-sub{margin:.35rem 0 0;color:var(--muted);font-size:.9rem}
 .su-tools{display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}
 .su-bar{height:3px;margin:1rem 0 .4rem;background:var(--line);border-radius:2px;overflow:hidden}
@@ -112,7 +111,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 
 /* profile form */
 .pform{width:100%;max-width:28rem;margin:2.5rem auto;padding:1.4rem 1.5rem 1.5rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);display:flex;flex-direction:column;gap:.85rem}
-.pform h2{margin:0;font:600 1.5rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.pform h2{margin:0;font:600 1.5rem/1.2 var(--serif);letter-spacing:-.015em}
 .pform label{display:flex;flex-direction:column;gap:.35rem;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .pform input{min-height:2.5rem;padding:.4rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:400 15px var(--sans);letter-spacing:0;text-transform:none}
 .pform input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}

@@ -16,6 +16,8 @@ const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 const ws = await connect({ app: 'people' });
 const toast = (text, kind) => ws.toast(text, { kind });
 const content = $('#content');
+const page = $('#app'); // the header's search and filter live outside #content, so events listen here
+const qh = (id, text) => globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html(id, text) : '';
 
 let dir = D.EMPTY;
 let editing = null;          // id being edited, 'new-person', 'new-group', or null
@@ -113,8 +115,8 @@ function paintPeople() {
     <p class="count">${plural(all.length, 'person', 'people')}${filtered ? ` · ${people.length} shown` : ''}</p>
     ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : `<p class="sub">${all.length ? 'No one matches.' : 'No one yet. Add yourself, your manager and your reports, or import a spreadsheet below.'}</p>`}
     ${editing === 'new-person' ? `<div class="person editing">${personForm({ relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
-    ${filter === 'all' || filter === 'groups' ? `<h3 class="people-sub">Groups</h3>
-    ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.</p>'}` : ''}
+    ${filter === 'all' || filter === 'groups' ? `<h3 class="people-sub">Groups${qh('people.groups', 'Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.')}</h3>
+    ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">No groups yet. A group like @leadership is assigned like a person.</p>'}` : ''}
     ${editing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
     <div class="acts left">${editing && editing.startsWith('new') ? '' : '<button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button>'}</div>
     ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(itemRow).join('')}</ul></details>` : ''}`;
@@ -195,25 +197,23 @@ function paintTeam() {
 
 /* ---------- the page ---------- */
 function layout() {
+  $('#ptools').innerHTML = `<div class="bar"><label class="sr" for="q">Search people</label><input id="q" class="cfg-input" type="search" placeholder="Search people" autocomplete="off">
+        <label class="sr" for="f">Show</label><select id="f" class="cfg-input">
+          <option value="all">Everyone</option><option value="team">On my team</option><option value="report">Direct reports</option>
+          <option value="peer">Peers</option><option value="contact">Contacts</option><option value="groups">Groups only</option></select></div>`;
   content.innerHTML = `
     <section class="card" id="people">
       <div class="card-head"><h2>People and groups</h2></div>
-      <div class="bar"><label class="sr" for="q">Search people</label><input id="q" class="cfg-input" type="search" placeholder="Search by name, handle, role or email" autocomplete="off">
-        <label class="sr" for="f">Show</label><select id="f" class="cfg-input">
-          <option value="all">Everyone</option><option value="team">On my team</option><option value="report">Direct reports</option>
-          <option value="peer">Peers</option><option value="contact">Contacts</option><option value="groups">Groups only</option></select></div>
       <div class="people-body"><p class="sub">Loading...</p></div>
     </section>
     <section class="card" id="import">
-      <h2>Import from a spreadsheet</h2>
-      <p class="sub">For a longer list: download the template, fill in one person per row in Excel or any spreadsheet app, then import it. A row with the handle or name of someone already here updates them. You see every change before anything is saved.</p>
+      <h2>Import from a spreadsheet${qh('people.import', 'Download the template, fill in one person per row, then import it. A row with the handle or name of someone already here updates them. You see every change before anything is saved.')}</h2>
       <div class="acts left"><button class="btn" data-template>Download template</button><button class="btn" data-export>Download current list</button>
         <label class="btn primary"><input type="file" accept=".xlsx,.xls,.csv" data-sheet hidden>Import a spreadsheet</label><span class="msg" aria-live="polite"></span></div>
       <div class="import-body"></div>
     </section>
     <section class="card" id="team">
-      <h2>Team area paths</h2>
-      <p class="sub">The Azure DevOps area paths your team works in. Runway fills them in for an ADO roadmap, and the Dispatch hub knows them.</p>
+      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Runway fills them in for an ADO roadmap, and the Dispatch hub knows them.')}</h2>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`;
 }
@@ -221,11 +221,11 @@ function layout() {
 function wire() {
   const done = text => { editing = null; toast(text, 'success'); paintPeople(); };
 
-  content.addEventListener('input', e => {
+  page.addEventListener('input', e => {
     if (e.target.id === 'q') { query = e.target.value.trim(); if (!editing) paintPeople(); }
   });
 
-  content.addEventListener('click', async e => {
+  page.addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t) return;
     if (t.matches('[data-person-new]')) { editing = 'new-person'; return paintPeople(); }
@@ -265,7 +265,7 @@ function wire() {
     }
   });
 
-  content.addEventListener('change', async e => {
+  page.addEventListener('change', async e => {
     if (e.target.id === 'f') { filter = e.target.value; if (!editing) paintPeople(); return; }
     if (e.target.matches('[data-sheet]')) {
       const file = e.target.files[0];
@@ -290,7 +290,7 @@ function wire() {
     if (e.target.name === 'relation' && !form.dataset.teamTouched) form.querySelector('[name=team]').checked = D.onTeam({ relation: e.target.value });
   });
 
-  content.addEventListener('submit', async e => {
+  page.addEventListener('submit', async e => {
     const tf = e.target.closest('[data-team-form]');
     if (tf) {
       e.preventDefault();

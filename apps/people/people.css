@@ -1,18 +1,18 @@
 /* People. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css. Laid out like
-   Settings: serif title, cards on an ink rule, mono labels. */
+   Settings: serif title with search beside it, sections on hairlines, mono labels. */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
 .wrap{max-width:52rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
-.phead{margin-bottom:1.6rem}
-.phead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;font-variation-settings:"opsz" 144;letter-spacing:-.03em;line-height:1.04}
-.phead h1::after{content:".";color:var(--eyebrow)}
-.phead .sub{margin:.7rem 0 0;max-width:40rem;font-family:var(--serif);font-variation-settings:"opsz" 24;font-size:1.12rem;line-height:1.5;color:var(--muted)}
+.phead{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1.5rem;margin-bottom:1.4rem}
+.phead-tools{margin-left:auto;flex:0 1 26rem;min-width:min(100%,16rem)}
+.phead-tools .bar{margin:0}
+.phead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;letter-spacing:-.02em;line-height:1.04}
 .sub{color:var(--muted);font-size:.9rem}
 .err{color:var(--danger);font-size:.88rem}
 
-.card{background:var(--surface);border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);padding:1.3rem 1.4rem 1.4rem;margin:0 0 1.5rem}
-.card h2{margin:0 0 .35rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.card{border-top:1px solid var(--rule);padding:1.2rem 0 1.4rem;margin:0}
+.card h2{margin:0 0 .6rem;font:600 1.35rem/1.2 var(--serif);letter-spacing:-.01em}
 .card>.sub{margin:0 0 1rem}
 .card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem}
 .card-head h2{flex:1}
