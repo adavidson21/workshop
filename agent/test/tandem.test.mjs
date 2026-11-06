@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installedTandem, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents } from '../../workshop.mjs';
+import { installedTandem, newerVersion, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents } from '../../workshop.mjs';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const rm = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -143,5 +143,21 @@ test('doctor flags a Tandem install that is behind its checkout', { skip: !hasGi
     s.install('2.1.0', ea);
     d = tandemDoctor({ repo: s.ws, userHome: s.userHome });
     assert.equal(d.bad, false); assert.match(d.line, /Core 2\.1\.0 in opencode: ok/);
+  } finally { rm(s.root); }
+});
+
+test('update never moves Tandem back to an older release than opencode has', { skip: !hasGit && 'git is not installed' }, () => {
+  const s = setup();
+  try {
+    const ea = s.clone(s.eaOrigin, 'eng-agents');
+    s.install('2.10.0', ea);
+    const plan = planLatest(s.ws, () => {}, { userHome: s.userHome });
+    assert.equal(plan.tags.engAgentsTag, undefined, '2.10.0 is newer than core-v2.1.0');
+    assert.ok(plan.lines.some(l => /newer than the newest release \(core-v2\.1\.0\)/.test(l)), plan.lines.join('\n'));
+    const out = [];
+    assert.equal(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run: () => { throw new Error('ran'); } }), false);
+    assert.match(out.join('\n'), /Not installing an older version/);
+    assert.equal(newerVersion('2.10.0', '2.9.1'), true);
+    assert.equal(newerVersion('2.1.0', '2.1.0'), false);
   } finally { rm(s.root); }
 });

@@ -642,6 +642,14 @@ export function installedTandem(userHome = os.homedir()) {
   } catch { return null; }
 }
 
+/** True when version a is newer than b (dotted numbers, like 2.10.0 and 2.9.1). False when either is missing. */
+export function newerVersion(a, b) {
+  if (!a || !b) return false;
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+
 /** Tandem's Core version at a ref of its checkout (core/VERSION), or null. */
 export function tandemVersionAt(dir, ref = 'HEAD') {
   const r = git(dir, ['show', `${ref}:core/VERSION`]);
@@ -663,7 +671,9 @@ export function findPowerShell(platform = process.platform) {
  * moved to the tag and install.ps1 runs, with ~/.config/eng-agents/personal when it exists (as the installer does).
  * Returns true when opencode now has that tag's Core version.
  */
-export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync } = {}) {
+export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync, allowOlder = false } = {}) {
+  { const w = tandemVersionAt(dir, `refs/tags/${tag}`), have = installedTandem(userHome)?.core;
+    if (!allowOlder && newerVersion(have, w)) { out(`opencode has Tandem Core ${have}, newer than ${tag}. Not installing an older version.`); return false; } }
   if (!ps) { out('Tandem needs PowerShell to install (pwsh, or Windows PowerShell). Install PowerShell 7, then run "workshop update" again.'); return false; }
   const want = tandemVersionAt(dir, `refs/tags/${tag}`);
   const before = installedTandem(userHome);
@@ -837,7 +847,7 @@ async function runUpdate(rest, io) {
   if (opts.engAgentsTag) {
     const ea = findEngAgents(REPO);
     if (!ea) { io.out('--eng-agents-tag needs Tandem next to Workshop. Get it with: workshop apps on dispatch'); return 1; }
-    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: io.out });
+    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: io.out, allowOlder: !opts.latest });
   }
   if (!moved) io.out('Everything is already at its newest release.');
   if (info.config?.features?.workMode === true) {
@@ -880,6 +890,7 @@ export function planLatest(repo = REPO, out = () => {}, { userHome = os.homedir(
     const want = latest && tandemVersionAt(ea, `refs/tags/${latest}`);
     const inst = installedTandem(userHome);
     if (!latest) lines.push('Tandem (eng-agents): no release tags yet. Left as it is.');
+    else if (inst && want && newerVersion(inst.core, want)) lines.push(`Tandem (eng-agents): opencode has Core ${inst.core}, newer than the newest release (${latest}). Left as it is; release it from eng-agents (Actions, Release) for "workshop update" to manage it.`);
     else if (inst && want && inst.core === want && tagsAtHead(ea).includes(latest)) lines.push(`Tandem (eng-agents): already at ${latest}.`);
     else { tags.engAgentsTag = latest; lines.push(`Tandem (eng-agents): ${inst ? `Core ${inst.core ?? 'unknown'} in opencode` : 'not installed in opencode'} -> ${latest}.`); }
   } else if (dispatchOn) lines.push('Tandem (eng-agents): not downloaded, so skipped. To add it: workshop apps on dispatch');
