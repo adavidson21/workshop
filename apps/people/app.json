@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "people",
   "name": "People",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Everyone you assign work to, groups of them, and your team's area paths. Import a list from a spreadsheet.",
   "icon": "icon.svg",
   "entry": "index.html",

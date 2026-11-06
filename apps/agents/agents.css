@@ -853,3 +853,16 @@ section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
 .chat-head .row { margin-left: auto; display: flex; gap: 6px; }
 .chat-body { flex: 1; overflow-y: auto; max-height: 62vh; padding: 4px 2px 8px; }
 @media (max-width: 820px) { .chat { grid-template-columns: 1fr; } }
+
+/* big screens (a 27in monitor, Workshop full screen): wider page, side column and PR list */
+@media (min-width: 1600px) {
+  .wrap, .hubwrap { max-width: 1720px; padding-left: 40px; padding-right: 40px; }
+  .grid { grid-template-columns: minmax(0, 1fr) 400px; gap: 56px; }
+  .solo { max-width: 1180px; }
+  .layout { grid-template-columns: 280px minmax(0, 1fr); gap: 44px; }
+}
+@media (min-width: 2100px) {
+  .wrap, .hubwrap { max-width: 2040px; }
+  .grid { grid-template-columns: minmax(0, 1fr) 440px; }
+  .solo { max-width: 1360px; }
+}

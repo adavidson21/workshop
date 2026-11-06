@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
