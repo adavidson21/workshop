@@ -84,7 +84,7 @@ export function createReports(o) {
         <button class="btn ghost" data-rp="profile">Team profile</button></div>` : '';
     return `<header class="lhead">
       <p class="eyebrow"><a href="#/" data-rp="home">Runway</a></p>
-      <h1 class="page-title dot">Team reports</h1>
+      <h1 class="page-title">Team reports</h1>
       <p class="hint">${esc(sub)}</p>${tools}</header>`;
   }
 

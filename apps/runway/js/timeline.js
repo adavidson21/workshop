@@ -18,7 +18,7 @@ export const GOAL_ROW = 40;
 const BAR = 20;
 const PAD = 8;
 const COLLAPSED = 30;
-const CHAR = 6.6;          // average width of a 12px Inter character, for fitting labels
+const CHAR = 6.6;          // average width of a 12px Figtree character (a little generous), for fitting labels
 
 export const PALETTE = {
   light: { slate: '#4F6B78', teal: '#2F7A74', green: '#4E7A3A', amber: '#9A6214', red: '#9B3A30', purple: '#6A5487', gray: '#776F68', on: '#FFFFFF' },
@@ -29,9 +29,9 @@ export const THEME = {
   dark: { bg: '#161514', surface: '#1D1C1A', panel: '#211F1D', ink: '#EEEBE7', muted: '#A8A29C', line: '#34312E', eyebrow: '#CBA684', warn: '#E2B66D', danger: '#F2BDB7', accent: '#A9BCC6' }
 };
 export const FONTS = {
-  sans: 'Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
-  serif: '"Source Serif 4", Georgia, "Times New Roman", serif',
-  mono: '"JetBrains Mono", Consolas, Menlo, monospace'
+  sans: 'Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
+  serif: 'Gelasio, Georgia, "Times New Roman", serif',
+  mono: '"DM Mono", Consolas, Menlo, monospace'
 };
 
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

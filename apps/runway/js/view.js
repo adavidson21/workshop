@@ -80,8 +80,7 @@ export function listHtml(v, { canPair = false, paired = false, ado = false, repo
     <p>Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export an image or Markdown.</p>
     <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}${repLink}</div></div>`;
   return `<header class="lhead">
-      <p class="eyebrow">Runway</p>
-      <h1 class="page-title dot">Roadmaps</h1>
+      <h1 class="page-title">Roadmaps</h1>
       ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button>${repLink}</div>` : ''}
     </header>
     ${pendingHtml(pending, v.list.length > 0, { shaping, workItems })}
@@ -257,8 +256,7 @@ export function settingsDialog(doc) {
 
 export function exportDialog(doc, { dark = false } = {}) {
   return `<form method="dialog" class="sheet wide">
-    <h3>Export</h3>
-    <p class="hint">The image shows the dates and lanes on screen now. Folded lanes are left out.</p>
+    <h3>Export${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme.hints.html('runway.export', 'The image shows the dates and lanes on screen now. Folded lanes are left out.', 'About export') : ''}</h3>
     <div class="prow">
       <label class="pc"><input type="checkbox" name="title" checked> Title</label>
       <label class="pc"><input type="checkbox" name="details" checked> Goals and descriptions</label>
@@ -284,8 +282,7 @@ export function promptDialog(title, label, value = '', ok = 'Save') {
 
 export function importDialog() {
   return `<form method="dialog" class="sheet wide">
-    <h3>Import Markdown</h3>
-    <p class="hint">Paste an outline or a Runway Markdown export, or pick a .md file. Lines Runway can't read are kept as text with a warning.</p>
+    <h3>Import Markdown${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme.hints.html('runway.import', "Paste an outline or a Runway Markdown export, or pick a .md file. Lines Runway can't read are kept as text with a warning.", 'About import') : ''}</h3>
     <textarea name="v" rows="12" class="mono" aria-label="Markdown" placeholder="# Platform Q1 2027&#10;## Lane&#10;- Item | Jan-Mar 2027"></textarea>
     <footer><label class="btn ghost filepick">Choose a file<input type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" data-file hidden></label><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Import</button></footer>
   </form>`;
