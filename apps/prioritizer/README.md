@@ -14,7 +14,7 @@ A brand new board (no tasks) opens a short tour: where your board is saved, addi
 
 ## How it decides
 
-Each task gets three inputs, usually set in Triage in a few seconds:
+Each task gets three inputs, usually set in Today's Inbox in a few seconds:
 
 - **Value:** Trivial, Low, Medium, High (1 to 4).
 - **Effort:** XS, S, M, L, XL, worth 1, 2, 3, 5 and 8 points.
@@ -30,12 +30,19 @@ Your manual rank always has the final say. **Suggest order** previews a score-ba
 
 ## Views
 
-- **Today:** where the day happens. A **Needs you** strip on top shows only what needs you, each handled right there: tasks to triage (an inline triage card, one at a time, with Triage's keys; `Esc` closes it), new ADO items to review, PRs blocked on you, follow-ups due, work that came back, and Today tasks not in a Day block. Below it your short list for the day (3 to 5 works best). On the side: **Now** (the Day view's block on now, its tasks and the next block, or **Plan the day**), Up next by score, and everything you're waiting on, grouped by person, with **Nudged** and **Got it back**. The other views are for planning and review, so the sidebar shows Today on its own, then them under **Review**.
-- **Triage:** one unsorted or stale task at a time. Title, notes and list can be edited in place. A task is stale at twice its implied window (4, 8, 14 or 28 days).
-- **Prioritize:** List (stack rank with a weekly capacity line), Eisenhower, and Value / Effort. Dragging into a quadrant sets the fields it needs.
+- **Today:** where the day happens, in three columns. Work moves left to right:
+  - **Inbox:** what needs a decision. New and stale tasks, one at a time on a triage card (value, effort, due, urgent, Today; title, notes and list edit in place), the rest listed under it; click one to triage it next. Work that came back from someone (**Got it back**) shows here too, marked **Came back**, until you rank it, pick it, edit it or dismiss the mark. A task is stale at twice its implied window (4, 8, 14 or 28 days).
+  - **Ranked:** your stack rank with the weekly capacity line, without what is in the Inbox or waiting on someone. Tasks already on Today stay, dimmed. A lens switch has **List**, **Eisenhower** and **Value / Effort**; the two matrices need room, so the Inbox and Today fold into slim rails (still drop targets) until you go back to List. Dragging into a quadrant sets the fields it needs.
+  - **Today:** your short list (3 to 5 works best), **Now** (the Day view's block on now, its tasks and the next block, or **Plan the day**), and everything you're waiting on, grouped by person, with **Nudged** and **Got it back**.
+  - Drag between columns: Ranked to Today picks a task, Today to Ranked unpicks it, and a stale or came-back task dragged from the Inbox lands at that rank. A task with no value or effort cannot skip the Inbox: dropping it on Ranked opens its triage card.
+  - **Needs you** above the columns has what is not already a column, each handled right there: new ADO items to review, PRs blocked on you, follow-ups due, and Today tasks not in a Day block.
+  - In a narrower window the Inbox folds to a button that opens it over the page; on a phone the columns stack, Today first.
+  - On Today, a new task from `N` lands in the Inbox to triage; added while the Today column has focus, it goes straight onto Today.
 - **People:** delegation review. On the left, **Unassigned**: open tasks with no one on them, with a filter. Drag one onto a person's card to delegate it to them, or select it and press `A`; dragging a task off a card into Unassigned takes them off it. On the right, one card per person or group with something open, plus your team: "Waiting on them" (oldest follow-up first, with Nudged and Got it back), "To discuss or do" (handy as a 1:1 agenda), and "Through @leadership" for what is assigned to a group they are in, so what is waiting on John includes what is waiting on @leadership. Each card shows open tasks, the effort points you handed them that are still open, and follow-ups due; cards with follow-ups due come first. **Everyone** and **My team** filter the cards. A report's or your manager's menu has **Open in Rapport** (inside Workshop). People and groups come from Workshop's people directory (the People app), so a name is typed once everywhere. A new `@name` becomes a contact (another team, a vendor). Everyone else in the directory is one click away under the cards.
-- **Done** (a tab in Prioritize, next to List, Eisenhower and Value / Effort): a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
+- **Done:** a weekly recap you can copy into a status update, with how your work split across quadrants, plus finished and won't-do tasks.
 - **Day:** time blocks for today (or any day), built from your sprint. Slot tasks into blocks, and rearrange when the day goes sideways. See below.
+
+The sidebar has **Today** on top (with the Inbox count), then a **Review** group: Day, People and Done. Triage and Prioritize were views before Docket 6.0; their links (`#/prioritizer/triage`, `prioritize`, `list`, `eisenhower`, `value-effort`) open Today with that column or lens, and `inbox` and `ranked` work too.
 
 The **Lists** in the sidebar (All lists, a list, or a section) filter every view. All lists shows once you have more than one. The same choice is in the menu under each view's title, which also has the **Pull requests** filter once PR reviews sync (see [Pull requests to review](#pull-requests-to-review)).
 
@@ -130,7 +137,7 @@ Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
 ## Keyboard
 
-`1` to `5` switch views in sidebar order (Today, Day, Triage, Prioritize, People), `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `A` delegates or adds people, `W` turns waiting on or off, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In Triage: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next (also from the title, or `Ctrl+Enter` from notes), `S` skip, `0` won't do. On Today, with the inline triage card open, Triage's keys apply to it and `Esc` closes it. Press `?` for the full list.
+`1` Today, `2` Day, `3` Today's Inbox, `4` Today's Ranked, `5` People, `6` Done. On Today, `Left`/`Right` move between the columns. `J`/`K` move through tasks, `Enter` opens details, `X` completes, `T` toggles Today, `A` delegates or adds people, `W` turns waiting on or off, `S` starts or pauses the selected task, `I` logs an interruption, `Alt+Up`/`Alt+Down` reorder, `Esc` closes. In the Inbox: `1` to `4` value, `Q W E R T` effort, `D` due, `U` urgent, `Space` Today, `Enter` save and next (also from the title, or `Ctrl+Enter` from notes), `S` skip, `0` won't do. `Esc` leaves the column. Press `?` for the full list.
 
 ## Themes
 
@@ -183,7 +190,7 @@ The ADO button also shows the connector's own messages: a missing or rejected PA
 **What syncing does** (every 10 minutes by default while the app is open, when you switch back to it, or with Sync now):
 
 - **New work items wait for you to pick them.** The sync button shows a count, and a toast offers Review. In the review list, check what you want and choose **Add**, or **Skip unchecked** to also dismiss the rest for good. **Later** keeps them waiting. Items closed or reassigned before you pick them drop off on their own. To skip this step, choose **Add them automatically** in ADO Settings. PRs are always added automatically.
-- Added items become tasks in the ADO list. ADO Priority 1 to 4 sets a starting value (High to Trivial); effort is left for you in Triage. ADO's due or target date fills Due.
+- Added items become tasks in the ADO list. ADO Priority 1 to 4 sets a starting value (High to Trivial); effort is left for you in the Inbox. ADO's due or target date fills Due.
 - Title, state and due date follow ADO. Your notes, value, effort, rank, Today and people stay yours.
 - Resolved, Closed or Done in ADO: completed here. If it gets reactivated, it reopens. Removed in ADO: marked won't do.
 - Reassigned to someone else: marked won't do with a note saying who and when, so it's under Done. If it comes back to you, it reopens.
@@ -203,7 +210,7 @@ Active PRs where you or one of your teams is a reviewer become tasks in **ADO > 
 
 The starting value and urgent flag are defaults; change them per tier in ADO Settings.
 
-A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in the list. PRs never go stale or back to Triage: what they need is a review.
+A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in the list. PRs never go stale or back to the Inbox: what they need is a review.
 
 - **Your vote decides when it's done.** Approve, Approve with suggestions or Reject completes the task. Waiting for author moves it to Waiting with the author attached, so it shows on their People card. If your vote resets after a new push, it comes back to you.
 - **Team PRs** complete when a teammate votes for the team.
@@ -313,7 +320,7 @@ A section (block) is `{id, name, kind, color, around, minutes, capacity}`, plus 
 
 ### Upgrading from the previous version
 
-Boards migrate automatically on first load: High/Low value becomes High (4) or Low (2), Important becomes Medium or Low when no value was set, High/Low effort becomes L or S, and Urgent becomes the urgent flag. Existing tasks keep their created dates, so expect a one-time batch of stale tasks in Triage. Reload each device once after deploying, before editing.
+Boards migrate automatically on first load: High/Low value becomes High (4) or Low (2), Important becomes Medium or Low when no value was set, High/Low effort becomes L or S, and Urgent becomes the urgent flag. Existing tasks keep their created dates, so expect a one-time batch of stale tasks in the Inbox. Reload each device once after deploying, before editing.
 
 ## License
 

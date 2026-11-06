@@ -3,7 +3,7 @@ import { closeDrawer, drawerId, openDrawer } from './drawer.js';
 import { urgency } from './model.js';
 import { toast } from './overlays.js';
 import { parseQuick } from './quick-add.js';
-import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state } from './state.js';
+import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state, rankedOpen } from './state.js';
 import { fmtDay, todayStr, uid } from './util.js';
 import { focusTaskClosed } from './focus.js';
 import { assign } from './directory.js';
@@ -83,7 +83,7 @@ function applyOrder(ids){
 }
 function moveTask(id, how){
   const t = findTask(id); if (!t || t.done) return false;
-  const list = state.view === 'today' && isFocus(t) ? scopeOpen().filter(isFocus) : scopeOpen();
+  const list = state.view === 'today' && isFocus(t) ? scopeOpen().filter(isFocus) : state.view === 'today' && rankedOpen().some(x => x.id === id) ? rankedOpen() : scopeOpen();
   const i = list.findIndex(x => x.id === id); if (i < 0) return false;
   const j = how === 'top' ? 0 : how === 'up' ? i - 1 : i + 1;
   if (j < 0 || j >= list.length || j === i) return false;

@@ -98,9 +98,9 @@ function sanitize(s){
   s.version = 2;
   s.tasks = Array.isArray(s.tasks) ? s.tasks : [];
   s.colorIdx = Number.isFinite(s.colorIdx) ? s.colorIdx : 0;
-  if (s.view === 'focus') s.view = 'today';
-  if (!VIEWS.includes(s.view)) s.view = 'today';
   if (!(s.lens in LENSES)) s.lens = (s.view in LENSES) ? s.view : 'rank';
+  // Triage and Prioritize are columns of Today now (Docket 6.0): an old view opens Today.
+  if (!VIEWS.includes(s.view)) s.view = 'today';
   s.capacity = Number.isFinite(+s.capacity) && +s.capacity >= 1 ? Math.min(999, Math.round(+s.capacity)) : 20;
   s.capacityAt = Number.isFinite(s.capacityAt) ? s.capacityAt : 0;
   // who: people and group ids from Workshop's people directory (directory-model.js). Names a task still has in
@@ -213,4 +213,14 @@ function triageQueue(){
   return state.tasks.filter(t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t)))
     .sort((a,b) => a.ageFrom.localeCompare(b.ageFrom) || a.rank - b.rank);
 }
-export { PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+// Today's Inbox column: what needs a decision. Tasks to triage (no value or effort, or stale), then work that came
+// back from someone (Got it back), oldest first.
+const inInbox = t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t) || isDate(t.cameBack));
+function inboxQueue(){
+  const q = triageQueue(), have = new Set(q.map(t => t.id));
+  const back = state.tasks.filter(t => !t.done && inScope(t) && isDate(t.cameBack) && !have.has(t.id)).sort((a,b) => a.cameBack.localeCompare(b.cameBack) || a.rank - b.rank);
+  return [...q, ...back];
+}
+// Today's Ranked column: open tasks in rank order, without the Inbox's and what is waiting on someone.
+const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting);
+export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

@@ -147,12 +147,12 @@ def main():
             back = lambda: pg.evaluate("window.__native.listeners['App.backButton'].forEach(cb => cb({canGoBack: false}))")
             calls = lambda: pg.evaluate("window.__native.calls")
             check('Docket listens for the Back button', pg.evaluate("(window.__native.listeners['App.backButton'] || []).length") == 1)
-            pg.evaluate("(() => { const P = window.__prioritizer; P.state.view = 'rank'; P.render(); })()")
+            pg.evaluate("(() => { const P = window.__prioritizer; P.state.view = 'people'; P.render(); })()")
             pg.locator('.row[data-id]').first.tap(); pg.wait_for_timeout(400)
             drawer_open = pg.evaluate("document.querySelector('.app').classList.contains('drawer-open')")
             back(); pg.wait_for_timeout(300)
             check('Back closes the task details first', drawer_open and not pg.evaluate("document.querySelector('.app').classList.contains('drawer-open')")
-                  and pg.evaluate("window.__prioritizer.state.view") == 'rank')
+                  and pg.evaluate("window.__prioritizer.state.view") == 'people')
             back(); pg.wait_for_timeout(300)
             check('then Back goes to Today', pg.evaluate("window.__prioritizer.state.view") == 'today' and not any(c[1] == 'minimizeApp' for c in calls()))
             back(); pg.wait_for_timeout(300)
@@ -167,14 +167,14 @@ def main():
 
             # Press and hold a task, then drag it: the new order is saved.
             pg.evaluate("""() => { const P = window.__prioritizer, L = P.state.lists[0].id;
-              for (const [id, title] of [['m2', 'Second'], ['m3', 'Third']]) { const t = {id, title, listId: L, rank: P.state.tasks.length + 1, who: []}; P.migrateTask(t); P.state.tasks.push(t); }
-              P.state.view = 'rank'; P.commit(); }""")
+              for (const [id, title] of [['m2', 'Second'], ['m3', 'Third']]) { const t = {id, title, listId: L, rank: P.state.tasks.length + 1, who: [], value: 2, effort: 'S'}; P.migrateTask(t); P.state.tasks.push(t); }
+              P.state.tasks.forEach(t => { if (!t.done){ t.value = t.value || 2; t.effort = t.effort || 'S'; t.focusOn = null; } }); P.state.view = 'today'; P.state.lens = 'rank'; P.commit(); }""")
             pg.wait_for_timeout(400)
-            order = lambda: pg.evaluate("[...document.querySelectorAll('.ranklist > .row[data-id]')].map(r => r.dataset.id)")
+            order = lambda: pg.evaluate("[...document.querySelectorAll('.col-rank .ranklist > .row[data-id]')].map(r => r.dataset.id)")
             before = order()
             cdp = ctx.new_cdp_session(pg)
-            first = pg.locator('.ranklist > .row[data-id]').first.bounding_box()
-            last = pg.locator('.ranklist > .row[data-id]').last.bounding_box()
+            first = pg.locator('.col-rank .ranklist > .row[data-id]').first.bounding_box()
+            last = pg.locator('.col-rank .ranklist > .row[data-id]').last.bounding_box()
             x, y0, y1 = first['x'] + first['width'] / 2, first['y'] + first['height'] / 2, last['y'] + last['height'] - 4
             touch = lambda kind, y: cdp.send('Input.dispatchTouchEvent', {'type': kind, 'touchPoints': [] if kind == 'touchEnd' else [{'x': x, 'y': y}]})
             touch('touchStart', y0); pg.wait_for_timeout(600)
@@ -191,7 +191,7 @@ def main():
             check('and the order is on the phone', bool(ranks) and ranks[before[0]] > ranks[before[-1]])
 
             # A quick swipe over a task scrolls instead of lifting it.
-            r = pg.locator('.ranklist > .row[data-id]').nth(1).bounding_box()
+            r = pg.locator('.col-rank .ranklist > .row[data-id]').nth(1).bounding_box()
             touch('touchStart', r['y'] + 10); touch('touchMove', r['y'] + 60); pg.wait_for_timeout(600); touch('touchEnd', r['y'] + 60); pg.wait_for_timeout(300)
             check('a swipe does not lift a task', order() == after and not pg.evaluate("!!document.querySelector('.row.lifted')"))
 

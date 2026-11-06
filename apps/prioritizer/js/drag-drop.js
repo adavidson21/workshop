@@ -2,7 +2,9 @@ import { applyOrder, dropIntoQuadrant } from './actions.js';
 import { hideTip } from './events.js';
 import { toast } from './overlays.js';
 import { render } from './render.js';
-import { commit, findTask, listById, state } from './state.js';
+import { commit, findTask, inInbox, listById, state } from './state.js';
+import { isStale, isTriaged } from './model.js';
+import { focusCol, tri } from './render.js';
 import { todayStr } from './util.js';
 import { dayDrop } from './day-view.js';
 import { dropDelegate } from './delegate.js';
@@ -40,7 +42,7 @@ document.addEventListener('dragover', e => {
   const z = e.target.closest && e.target.closest('.dropzone,[data-droplist]');
   if (!z){ clearOver(); return; }
   e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-  if (z.dataset.zone === 'rank'){
+  if (z.dataset.zone === 'rank' || z.dataset.zone === 'today'){
     const el = z.querySelector(':scope > .row.dragging');
     if (!el){ setOver(z); return; } // coming from another panel
     clearOver();
@@ -64,10 +66,25 @@ document.addEventListener('drop', e => {
   }
   const zone = z.dataset.zone, from = dragFromPerson; dragFromPerson = null;
   if (zone === 'dsec' || zone === 'dtray') return dayDrop(id, z, e.clientY); // the Day view's blocks and tray
-  if (zone === 'rank'){
-    if (state.view === 'today' && t.focusOn !== todayStr()){ t.focusOn = todayStr(); commit(); return; }
-    applyOrder([...z.querySelectorAll(':scope > .row')].map(n => n.dataset.id)); return;
+  // Today's columns. Within a column a drop reorders; across columns it moves the task, at the place it was dropped.
+  if (zone === 'rank' || zone === 'today'){
+    const rows = [...z.querySelectorAll(':scope > .row')].map(n => n.dataset.id);
+    if (z.querySelector(':scope > .row.dragging')) return applyOrder(rows);
+    if (rows.includes(id)) rows.splice(rows.indexOf(id), 1);   // a task on Today is also in Ranked, dimmed
+    if (zone === 'rank'){
+      // From the Inbox: a task with no value or effort needs them first, so its triage card opens instead.
+      if (inInbox(t) && !isTriaged(t)){ tri.pick = id; tri.id = null; render(); focusCol('inbox'); toast('Give it a value and effort first. Saving moves it to Ranked.'); return; }
+      if (t.focusOn === todayStr()) t.focusOn = null;
+      if (isStale(t)) t.ageFrom = todayStr();
+      delete t.cameBack;
+    } else { t.focusOn = todayStr(); delete t.cameBack; }
+    let after = getAfter(z, e.clientY); if (after && after.dataset.id === id) after = after.nextElementSibling && after.nextElementSibling.classList.contains('row') ? after.nextElementSibling : null;
+    const at = after ? rows.indexOf(after.dataset.id) : rows.length;
+    rows.splice(at < 0 ? rows.length : at, 0, id);
+    return applyOrder(rows);
   }
+  if (zone === 'todayrail'){ if (t.focusOn !== todayStr()){ t.focusOn = todayStr(); delete t.cameBack; commit(); } else render(); return; }
+  if (zone === 'inbox') return render();
   if (zone === 'untray'){                          // off a person's card into Unassigned: take them off
     if (!from || !t.who.includes(from)) return render();
     const before = {who: [...t.who], waiting: t.waiting, nudgeOn: t.nudgeOn};
@@ -86,7 +103,7 @@ document.addEventListener('drop', e => {
     if (!t.who.includes(p)) t.who.push(p);
     commit(); return;
   }
-  if (state.view === 'eisen' || state.view === 've') return dropIntoQuadrant(t, zone, state.view);
+  if (state.view === 'today' && (state.lens === 'eisen' || state.lens === 've')) return dropIntoQuadrant(t, zone, state.lens);
   render();
 });
 document.addEventListener('dragend', () => {
@@ -108,7 +125,7 @@ document.addEventListener('touchstart', e => {
   const t = e.target, row = t.closest && t.closest('.row[data-id]');
   if (!row || t.closest('button, input, select, textarea, a') || row.classList.contains('done')) return;
   const zone = row.parentElement;
-  if (!zone || !zone.matches('[data-zone="rank"]') || rowsOf(zone, row).length === 0) return;
+  if (!zone || !zone.matches('[data-zone="rank"],[data-zone="today"]') || rowsOf(zone, row).length === 0) return;
   const {clientX: x, clientY: y} = e.touches[0];
   tdrag = {row, zone, x, y, lastY: y, active: false, raf: 0, order: rowsOf(zone).map(r => r.dataset.id).join()};
   tdrag.timer = setTimeout(lift, HOLD_MS);

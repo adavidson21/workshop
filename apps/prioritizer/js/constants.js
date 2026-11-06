@@ -19,14 +19,16 @@ const VQ = {
   fill:  {title: 'Fill-ins',   sub: 'Low value, low effort'},
   pit:   {title: 'Money pits', sub: 'Low value, high effort'}
 };
-const VIEWS = ['today','day','triage','rank','eisen','ve','people','archive'];
+// Views with a page of their own. Triage and Prioritize (List, Eisenhower, Value / Effort) are columns of Today.
+const VIEWS = ['today','day','people','archive'];
 const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 // A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
-// Done (the archive) is a tab inside Prioritize, next to the lenses, not its own sidebar view.
-const NAV_OF = v => (v in LENSES || v === 'archive') ? 'prio' : v;
+// Old view names (links, saved windows, the 3 and 4 keys) and where they go now: Today, with a column or a lens.
+const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank'}, prioritize: {col: 'rank'}, rank: {col: 'rank', lens: 'rank'}, eisen: {col: 'rank', lens: 'eisen'}, ve: {col: 'rank', lens: 've'}, focus: {}};
+const NAV_OF = v => v;
 // ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
 const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
@@ -88,7 +90,8 @@ function initials(name){
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
 // [key, label, icon, shortcut]. Number keys follow the sidebar, top to bottom.
-const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['triage','Triage',ICON.triage,'3'],['prio','Prioritize',ICON.prio,'4'],['people','People',ICON.people,'5']];
-const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people'};
+// Today on top, then the Review group. 3 and 4 go where Triage and Prioritize were: Today's Inbox and Ranked columns.
+const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
+const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
-export { initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
+export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

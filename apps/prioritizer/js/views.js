@@ -1,42 +1,146 @@
 import { wontDo } from './actions.js';
-import { EFFORTS, EQ, ICON, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
-import { ageDays, byScore, eKey, fmtScore, isStale, isTriaged, nudgeDue, score, vKey } from './model.js';
-import { toast } from './overlays.js';
-import { capacityCut, doneGroup, emptyHTML, main, openQuad, prevView, render, row, setView, showAllPick, tri, weekOff } from './render.js';
-import { commit, findTask, inScope, initials, isDoneToday, isFocus, listById, orderedLists, saveUi, scopeListIds, scopeOpen, state, triageQueue, ui } from './state.js';
-import { $, addDays, dateStr, esc, fmtDay, fmtMD, parseD, plural, todayStr } from './util.js';
+import { EFFORTS, EQ, ICON, LENSES, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
+import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
+import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, render, row, setView, tri, weekOff } from './render.js';
+import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeListIds, scopeOpen, state, ui } from './state.js';
+import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayStr } from './util.js';
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
-import { cameBackOpen } from './delegate-model.js';
 import { dp } from './dayplan.js';
 import { currentSection, dayView, fmt12, isWorkday, sectionTasks } from './dayplan-model.js';
 import { adoReview } from './ado.js';
-/* Prioritizer: The views: Prioritize (list, matrices, and Done with the weekly recap), Today, Triage, People. */
-function renderRank(){
+/* Prioritizer: The views: Today (three columns: Inbox, Ranked, Today), Done with the weekly recap, People.
+
+   Today is where the day happens. Work moves left to right: triage it in the Inbox, rank it, pick it for Today.
+   The Ranked column has three lenses (List, Eisenhower, Value / Effort); the matrices need room, so with one on,
+   the Inbox and Today fold into slim rails. Above the columns, Needs you has what is not already a column: new
+   ADO items, PRs blocked on you, follow-ups due, and Today tasks not in a block. */
+
+/* ---------- Needs you ---------- */
+let need = null;   // which Needs you panel is open: 'prs', 'nudges' or null
+function openNeed(k){
+  if (k === 'ado') return adoReview();
+  if (k === 'plan') return setView('day');
+  need = need === k ? null : k;
+  render();
+}
+function closeNeed(){ if (!need) return false; need = null; render(); return true; }
+const blockingPr = t => !t.done && t.pr && t.pr.tier === 'blocking' && !t.pr.waiting;
+function unplannedToday(){
+  const sp = dp.sprint, d = todayStr();
+  if (!sp || !sp.anchor || !isWorkday(sp, d)) return 0;
+  const rec = dayView(dp, d).rec;
+  if (!rec.sections.some(x => !x.lost)) return 0;
+  const slotted = new Set(rec.slots.map(x => x.taskId));
+  return state.tasks.filter(t => inScope(t) && !t.done && t.focusOn === d && !slotted.has(t.id)).length;
+}
+function needs(){
   const open = scopeOpen();
-  const done = state.tasks.filter(t => inScope(t) && isDoneToday(t)).sort((a,b) => (b.doneAt || '').localeCompare(a.doneAt || '') || a.rank - b.rank);
-  if (!open.length && !done.length){ main.innerHTML = emptyHTML; return; }
+  return {
+    ado: ui.ado && ui.ado.on ? state.ado.pending.length : 0,
+    prs: open.filter(blockingPr),
+    nudges: open.filter(nudgeDue),
+    plan: unplannedToday()
+  };
+}
+function needsStrip(n){
+  const chip = (k, count, label, icon, cls = '') => count ? `<button class="need${cls ? ' ' + cls : ''}${need === k ? ' on' : ''}" data-need="${k}" aria-pressed="${need === k}">${icon}<b class="num">${count}</b><span>${label}</span></button>` : '';
+  const html = chip('ado', n.ado, n.ado === 1 ? 'new ADO item' : 'new ADO items', ICON.item)
+    + chip('prs', n.prs.length, n.prs.length === 1 ? 'PR blocked on you' : 'PRs blocked on you', ICON.block, 'warn')
+    + chip('nudges', n.nudges.length, n.nudges.length === 1 ? 'follow-up due' : 'follow-ups due', ICON.bell, 'acc')
+    + chip('plan', n.plan, 'not in a block', ICON.day);
+  return html ? `<div class="needs" role="toolbar" aria-label="Needs you"><span class="needs-h">Needs you</span>${html}</div>` : '';
+}
+function needPanel(n){
+  if (!need) return '';
+  const list = need === 'prs' ? n.prs : need === 'nudges' ? n.nudges : [];
+  if (!list.length){ need = null; return ''; }
+  const title = {prs: 'Pull requests blocked on you', nudges: 'Time to follow up'}[need];
+  return `<section class="needp" aria-label="${title}"><header><h3>${title}</h3><button class="ibtn" data-need="${need}" aria-label="Close" data-tip="Close">${ICON.x}</button></header>
+    <div class="rows">${list.map(t => row(t, {compact: true, showList: true, follow: need === 'nudges'})).join('')}</div></section>`;
+}
+
+/* ---------- the Inbox column: triage in place, and work that came back ---------- */
+function triageState(){
+  const q = inboxQueue();
+  const cur = (tri.pick && q.find(t => t.id === tri.pick)) || q.find(t => !tri.seen.has(t.id)) || null;
+  return {q, cur};
+}
+function triageCard(cur, pos, total){
+  if (tri.id !== cur.id){
+    tri.id = cur.id;
+    tri.draft = {title: cur.title, notes: cur.notes || '', listId: cur.listId, value: cur.value, effort: cur.effort, due: cur.due, urgentFlag: cur.urgentFlag, today: cur.focusOn === todayStr(), stale: isStale(cur)};
+  }
+  const d = tri.draft, age = isDate(cur.ageFrom) ? ageDays(cur) : 0, who = cur.who || [];
+  const preview = Object.assign({}, cur, {value: d.value, effort: d.effort, due: d.due, urgentFlag: d.urgentFlag});
+  const s = score(preview), ek = eKey(preview), vk = vKey(preview);
+  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '  ' : ''}${esc(l.name)}</option>`).join('');
+  const opt = (on, attr, key, label, extra = '') => `<button class="opt${on ? ' on' : ''}" ${attr} aria-pressed="${on}"${key ? ` aria-keyshortcuts="${key}"` : ''}>${label}${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+  return `<div class="tri-card" tabindex="-1" aria-live="polite" aria-label="Triage: ${esc(cur.title)}">
+    <div class="tri-top"><span class="num">${pos} of ${total}</span>${isDate(cur.cameBack) ? `<span class="chip cb">${ICON.back}Came back</span>` : ''}<span class="grow"></span>
+      <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${age}d</span>
+      <button class="ibtn" data-tri-open="${esc(cur.id)}" aria-label="Open details" data-tip="Open details">${ICON.dots}</button></div>
+    <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
+    <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
+    ${who.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${who.map(id => `<span class="chip">${esc(mentionOf(id))}</span>`).join('')}</div>` : ''}
+    ${d.stale ? `<div class="stale">Stale: ${age} days. Do it, give it a due date, or won't do.</div>` : ''}
+    <div class="tri-fields">
+      <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
+      <div class="tfld"><label>Effort<kbd>Q-T</kbd></label><div class="seg-row">${EFFORTS.map(e => opt(d.effort === e, `data-te="${e}"`, '', e, `<span class="pts">${POINTS[e]}</span>`)).join('')}</div></div>
+      <div class="tfld"><label for="triDue">Due<kbd>D</kbd></label><div class="opts"><input type="date" id="triDue" value="${d.due || ''}">
+        ${d.due ? `<button class="lnk" data-tdue-clear>Clear</button>` : `<span class="hint">${d.value && isDate(cur.ageFrom) ? `Rises after ${fmtDay(addDays(cur.ageFrom, WINDOW[d.value]))}` : 'Optional'}</span>`}</div></div>
+      <div class="tfld"><label>Flags</label><div class="opts">
+        ${opt(d.urgentFlag, 'data-tt="urgentFlag"', 'U', 'Urgent')}${opt(d.today, 'data-tt="today"', 'Space', 'Today')}</div></div>
+    </div>
+    <div class="tri-score">${s != null ? `<span class="num">${fmtScore(s)}</span> · ` : ''}${ek ? EQ[ek].title : 'Unsorted'}${vk ? ` · ${VQ[vk].title}` : ''}</div>
+    <div class="tri-foot">
+      <button class="btn ghost text-danger" data-tact="wont">Won't do<kbd>0</kbd></button>
+      <button class="btn ghost" data-tact="skip">Skip<kbd>S</kbd></button>
+      <span class="grow"></span>
+      <button class="btn primary" data-tact="save">Save<kbd>Enter</kbd></button>
+    </div>
+  </div>`;
+}
+function inboxCol(rail){
+  const {q, cur} = triageState();
+  if (!cur){ tri.id = null; tri.draft = null; }
+  if (rail) return `<section class="col col-inbox rail" data-col="inbox" aria-label="Inbox"><button class="railbtn" data-lens="rank" data-goto="inbox" data-tip="Inbox: back to List to triage">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
+  const rest = q.filter(t => !cur || t.id !== cur.id);
+  const body = cur ? triageCard(cur, q.indexOf(cur) + 1, q.length)
+    : q.length ? `<div class="colempty">You skipped ${plural(q.length, 'task')}.<p><button class="btn" data-tri-again>Go through again</button></p></div>`
+    : `<div class="colempty"><b>Inbox clear.</b>New tasks and work that comes back land here.</div>`;
+  return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox">
+    <header class="colh"><button class="ibtn railx" data-inbox-toggle aria-label="Inbox" data-tip="Inbox">${ICON.triage}</button><h3>Inbox</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
+    <div class="colbody">${body}${rest.length ? `<div class="rows inrows">${rest.map(t => row(t, {compact: true, back: true, noToday: true})).join('')}</div>` : ''}</div>
+  </section>`;
+}
+
+/* ---------- the Ranked column ---------- */
+function rankHtml(){
+  const t0 = todayStr();
+  const open = rankedOpen();
+  if (!state.tasks.length) return emptyHTML;
+  if (!open.length) return `<div class="colempty"><b>Nothing ranked yet.</b>Triage the Inbox, or ${TOUCH ? 'tap +' : 'press N'} to add a task.</div><div class="ranklist rows dropzone" data-zone="rank"></div>`;
   const {cut, sum} = capacityCut(open);
   const over = sum > state.capacity;
   let html = '';
   open.forEach((t, i) => {
-    html += row(t, {rank: i + 1, top: i < 3, estimate: true});
+    html += row(t, {rank: i + 1, top: i < 3, estimate: true, dim: t.focusOn === t0});
     if (i === cut){
       html += `<div class="capline${over ? ' over' : ''}" role="separator"><span><b class="num">${sum}</b> of <span class="num">${state.capacity}</span> pts this week${i === open.length - 1 ? (over ? '' : '. Room for more.') : ''}</span></div>`;
       if (i < open.length - 1) html += `<div class="belowcap">Not this week</div>`;
     }
   });
-  main.innerHTML = `<div class="ranklist rows dropzone" data-zone="rank">${html}</div>${TOUCH && open.length > 1 ? '<p class="soft">Press and hold a task to drag it into place.</p>' : ''}${doneGroup(done)}`;
+  return `<div class="ranklist rows dropzone" data-zone="rank">${html}</div>${TOUCH && open.length > 1 ? '<p class="soft">Press and hold a task to drag it into place.</p>' : ''}`;
 }
-
-function renderMatrix(kind){
+function matrixHtml(kind){
   const Q = kind === 'eisen' ? EQ : VQ;
   const keyFn = kind === 'eisen' ? (t => eKey(t)) : vKey;
   const ax = kind === 'eisen' ? ['Urgent','Not urgent'] : ['Low effort','High effort'];
   const ay = kind === 'eisen' ? ['Important','Not important'] : ['High value','Low value'];
   const open = scopeOpen();
   const un = open.filter(t => !keyFn(t));
-  main.innerHTML = `<div class="unsorted dropzone" data-zone="none">${un.length
-      ? `<span><b class="num">${un.length}</b> ${un.length === 1 ? 'task needs' : 'tasks need'} ${kind === 'eisen' ? 'a value' : 'a value and effort'}.</span><button class="lnk" data-nav="triage">Triage now</button>`
+  return `<div class="unsorted dropzone" data-zone="none">${un.length
+      ? `<span><b class="num">${un.length}</b> ${un.length === 1 ? 'task needs' : 'tasks need'} ${kind === 'eisen' ? 'a value' : 'a value and effort'}.</span><button class="lnk" data-lens="rank" data-goto="inbox">Triage now</button>`
       : `<span>${TOUCH ? 'Everything is placed. Change a task\'s value or effort in its details to move it.' : 'Everything is placed. Drop a task here to unsort it.'}</span>`}</div>
     <div class="matrix">
       <div class="axis-x"><span>${ax[0]}</span><span>${ax[1]}</span></div>
@@ -50,65 +154,20 @@ function renderMatrix(kind){
         </section>`;
       }).join('')}</div>
     </div>`;
-  if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
+}
+function rankCol(lens){
+  const open = rankedOpen().length;
+  const tools = lens === 'rank' ? `<label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
+      ${open > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
+  return `<section class="col col-rank" data-col="rank" aria-label="Ranked">
+    <header class="colh"><h3>Ranked</h3>${open ? `<span class="n num">${open}</span>` : ''}
+      <div class="lens" role="tablist" aria-label="Rank by">${Object.entries(LENSES).map(([k, n]) => `<button data-lens="${k}" role="tab" aria-selected="${lens === k}"${lens === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>
+      <span class="grow"></span>${tools}</header>
+    <div class="colbody">${lens === 'rank' ? rankHtml() : matrixHtml(lens)}</div>
+  </section>`;
 }
 
-/* ---------- Today: the hub ----------
-   Today is where the day happens: a Needs you strip (to triage, new ADO items, blocking PRs, follow-ups due,
-   work that came back, Today tasks not in a block), each handled in place; the Today list; the block on now;
-   Up next; and what you wait on, grouped by person, with Nudged and Got it back. The other views are for
-   planning and review. */
-let need = null;   // which Needs you panel is open: 'triage', 'prs', 'nudges', 'back' or null
-const inlineTri = () => state.view === 'today' && need === 'triage';
-function openNeed(k){
-  if (k === 'ado') return adoReview();
-  if (k === 'plan') return setView('day');
-  need = need === k ? null : k;
-  if (need === 'triage'){ tri.seen = new Set(); tri.draft = null; tri.id = null; }
-  render();
-  if (need === 'triage') requestAnimationFrame(() => { const c = main.querySelector('.tri-card'); if (c) c.focus({preventScroll: true}); });
-}
-function closeNeed(){ if (!need) return false; need = null; tri.draft = null; tri.id = null; render(); return true; }
-const blockingPr = t => !t.done && t.pr && t.pr.tier === 'blocking' && !t.pr.waiting;
-function unplannedToday(){
-  const sp = dp.sprint, d = todayStr();
-  if (!sp || !sp.anchor || !isWorkday(sp, d)) return 0;
-  const rec = dayView(dp, d).rec;
-  if (!rec.sections.some(x => !x.lost)) return 0;
-  const slotted = new Set(rec.slots.map(x => x.taskId));
-  return state.tasks.filter(t => inScope(t) && !t.done && t.focusOn === d && !slotted.has(t.id)).length;
-}
-function needs(){
-  const open = scopeOpen();
-  return {
-    triage: triageQueue().length,
-    ado: ui.ado && ui.ado.on ? state.ado.pending.length : 0,
-    prs: open.filter(blockingPr),
-    nudges: open.filter(nudgeDue),
-    back: open.filter(cameBackOpen),
-    plan: unplannedToday()
-  };
-}
-function needsStrip(n){
-  const chip = (k, count, label, icon, cls = '') => count ? `<button class="need${cls ? ' ' + cls : ''}${need === k ? ' on' : ''}" data-need="${k}" aria-pressed="${need === k}">${icon}<b class="num">${count}</b><span>${label}</span></button>` : '';
-  const html = chip('triage', n.triage, 'to triage', ICON.triage)
-    + chip('ado', n.ado, n.ado === 1 ? 'new ADO item' : 'new ADO items', ICON.item)
-    + chip('prs', n.prs.length, n.prs.length === 1 ? 'PR blocked on you' : 'PRs blocked on you', ICON.block, 'warn')
-    + chip('nudges', n.nudges.length, n.nudges.length === 1 ? 'follow-up due' : 'follow-ups due', ICON.bell, 'acc')
-    + chip('back', n.back.length, 'came back', ICON.back, 'acc')
-    + chip('plan', n.plan, n.plan === 1 ? 'not in a block' : 'not in a block', ICON.day);
-  return html ? `<div class="needs" role="toolbar" aria-label="Needs you"><span class="needs-h">Needs you</span>${html}</div>` : '';
-}
-function needPanel(n){
-  if (!need) return '';
-  if (need === 'triage') return `<section class="needp needtri" aria-label="Triage">${triageInner(true)}</section>`;
-  const list = need === 'prs' ? n.prs : need === 'nudges' ? n.nudges : need === 'back' ? n.back : [];
-  if (!list.length){ need = null; return ''; }
-  const title = {prs: 'Pull requests blocked on you', nudges: 'Time to follow up', back: 'Came back to you'}[need];
-  const o = need === 'nudges' ? {follow: true} : need === 'back' ? {back: true} : {};
-  return `<section class="needp" aria-label="${title}"><header><h3>${title}</h3><button class="ibtn" data-need="${need}" aria-label="Close" data-tip="Close">${ICON.x}</button></header>
-    <div class="rows">${list.map(t => row(t, {compact: true, showList: true, ...o})).join('')}</div></section>`;
-}
+/* ---------- the Today column ---------- */
 /* The Day view's block on now, its tasks and the next block. Plan the day when today has blocks but nothing planned. */
 function nowCard(){
   const sp = dp.sprint, d = todayStr();
@@ -134,96 +193,42 @@ function waitingGroups(waiting){
   const due = ts => ts.filter(nudgeDue).length, first = ts => ts.map(t => t.nudgeOn || '9').sort()[0];
   return [...groups].sort(([, a], [, b]) => due(b) - due(a) || first(a).localeCompare(first(b)))
     .map(([id, ts]) => `<div class="wgrp"><div class="sub">${id ? esc(nameOf(id)) : 'No one named'}${due(ts) ? ` <span class="sig acc txt" role="img" aria-label="${plural(due(ts), 'nudge')} due">${ICON.bell}<b>${due(ts)}</b></span>` : ''}</div>
-      <div class="rows">${ts.map(t => row(t, {compact: true, showList: true, follow: true, skipPerson: id})).join('')}</div></div>`).join('');
+      <div class="rows">${ts.map(t => row(t, {compact: true, follow: true, skipPerson: id, noToday: true})).join('')}</div></div>`).join('');
 }
-function renderToday(){
+function todayCol(rail){
   const t0 = todayStr();
   const focus = state.tasks.filter(t => inScope(t) && isFocus(t)).sort((a,b) => a.rank - b.rank);
   const open = focus.filter(t => !t.done), done = focus.filter(t => t.done);
+  if (rail) return `<section class="col col-today rail dropzone" data-col="today" data-zone="todayrail" aria-label="Today"><button class="railbtn" data-lens="rank" data-tip="Today: drop a task here to add it, or click to go back to List">${ICON.sun}<b class="num">${open.length}</b><span class="rl">Today</span></button></section>`;
   const left = state.tasks.filter(t => inScope(t) && !t.done && t.focusOn && t.focusOn < t0);
-  const pickAll = scopeOpen().filter(t => t.focusOn !== t0 && !t.waiting);
-  pickAll.sort((a,b) => isTriaged(a) && isTriaged(b) ? byScore(a,b) : isTriaged(a) ? -1 : isTriaged(b) ? 1 : a.rank - b.rank);
-  const pick = showAllPick ? pickAll : pickAll.slice(0, 6);
   const waiting = scopeOpen().filter(t => t.waiting).sort((a,b) => (nudgeDue(b) - nudgeDue(a)) || (a.nudgeOn || '9').localeCompare(b.nudgeOn || '9') || a.rank - b.rank);
   const nudges = waiting.filter(nudgeDue).length;
-  const n = needs();
-  main.innerHTML = `<div class="focus">
-    <div class="fmain">
-      ${needsStrip(n)}${needPanel(n)}
+  return `<section class="col col-today" data-col="today" aria-label="Today">
+    <header class="colh"><h3>Today</h3>${focus.length ? `<span class="n"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span>` : ''}</header>
+    <div class="colbody">
       ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
         <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today.">${ICON.sun}<span>Keep</span></button></div>` : ''}
-      ${focus.length ? `<div class="fhead"><span class="count"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span></div>
-        <div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
-      <div class="ranklist rows dropzone" data-zone="rank">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
-        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${ICON.plus} new, or ${ICON.sun} 3 to 5 from Up next</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
+      ${nowCard()}
+      ${focus.length ? `<div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
+      <div class="ranklist rows dropzone" data-zone="today">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
+        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Ranked` : `Drag 3 to 5 from Ranked, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
       ${open.length > 5 ? `<p class="soft">${open.length} tasks on Today. Keep it to 3 to 5.</p>` : ''}
       ${doneGroup(done)}
-    </div>
-    <aside>
-      ${nowCard()}
-      <section class="panel dropzone" data-zone="unfocus">
-        <header><h3 data-tip="Open tasks, best score first">Up next</h3>${pickAll.length > 6 ? `<button class="lnk" data-pickall>${showAllPick ? 'Show less' : `Show all ${pickAll.length}`}</button>` : ''}</header>
-        <div class="rows">${pick.map(t => row(t, {compact: true, showList: true})).join('') || `<div class="pempty">Nothing else open here.</div>`}</div>
-        ${pick.length ? `<p class="soft hint-ic">${ICON.sun} ${TOUCH ? 'adds to Today. Hold to reorder.' : 'or T adds to Today. Or drag it over. A delegates.'}</p>` : ''}
-      </section>
-      <section class="panel">
+      <section class="panel waitp">
         <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="sig acc txt" style="margin-left:auto" role="img" aria-label="${plural(nudges, 'nudge')} due" data-tip="${plural(nudges, 'nudge')} due">${ICON.bell}<b>${nudges}</b></span>` : ''}</header>
-        ${waiting.length ? waitingGroups(waiting) : `<div class="pempty">Nothing handed over. Press A on a task to delegate it.</div>`}
+        ${waiting.length ? waitingGroups(waiting) : `<div class="pempty">Nothing handed over. ${TOUCH ? 'Tap a task\'s person button' : 'Press A on a task'} to delegate it.</div>`}
       </section>
-    </aside>
-  </div>`;
-  if (need === 'triage') fitTriage();
+    </div>
+  </section>`;
 }
 
-/* triage (Build spec: Triage) */
-function triageState(){
-  const q = triageQueue();
-  const rest = q.filter(t => !tri.seen.has(t.id));
-  return {q, rest, cur: rest[0] || null};
+function renderToday(){
+  const wide = state.lens === 'rank', n = needs();
+  main.innerHTML = `${needsStrip(n)}${needPanel(n)}<div class="t3wrap"><div class="today3${wide ? '' : ' lensed'}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(!wide)}${rankCol(state.lens)}${todayCol(!wide)}</div></div>`;
+  main.querySelectorAll('.col').forEach(c => c.classList.toggle('colon', c.dataset.col === col));
+  fitTriage();
+  if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
 }
-function triageInner(inline = false){
-  const {rest, cur} = triageState();
-  if (!cur){
-    tri.id = null; tri.draft = null;
-    return `<div class="tri"><div class="tri-done"><b>${tri.seen.size ? 'Triage done.' : 'Nothing to triage.'}</b>${tri.seen.size ? `You went through ${plural(tri.seen.size, 'task')}.` : 'Every task in scope has a value and an effort.'}
-      <p>${inline ? '<button class="btn" data-need="triage">Close</button>' : `<button class="btn" data-view="${state.lens}">Go to Prioritize</button>`}</p></div></div>`;
-  }
-  if (tri.id !== cur.id){
-    tri.id = cur.id;
-    tri.draft = {title: cur.title, notes: cur.notes || '', listId: cur.listId, value: cur.value, effort: cur.effort, due: cur.due, urgentFlag: cur.urgentFlag, today: cur.focusOn === todayStr(), stale: isStale(cur)};
-  }
-  const d = tri.draft, pos = tri.seen.size + 1, total = tri.seen.size + rest.length;
-  const preview = Object.assign({}, cur, {value: d.value, effort: d.effort, due: d.due, urgentFlag: d.urgentFlag});
-  const s = score(preview), ek = eKey(preview), vk = vKey(preview);
-  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '\u00a0\u00a0' : ''}${esc(l.name)}</option>`).join('');
-  const opt = (on, attr, key, label, extra = '') => `<button class="opt${on ? ' on' : ''}" ${attr} aria-pressed="${on}"${key ? ` aria-keyshortcuts="${key}"` : ''}>${label}${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
-  return `<div class="tri${inline ? ' inline' : ''}"><div class="tri-card" tabindex="-1" aria-live="polite">
-    <div class="tri-top"><span class="num">${pos} of ${total}</span><span class="grow"></span>
-      <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${ageDays(cur)}d old</span></div>
-    <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
-    <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
-    ${cur.who.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${cur.who.map(id => `<span class="chip">${esc(mentionOf(id))}</span>`).join('')}</div>` : ''}
-    ${d.stale ? `<div class="stale">Stale: it's been ${ageDays(cur)} days. Do it, give it a due date, or mark it won't do.</div>` : ''}
-    <div class="tri-fields">
-      <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
-      <div class="tfld"><label>Effort<kbd>Q-T</kbd></label><div class="seg-row">${EFFORTS.map(e => opt(d.effort === e, `data-te="${e}"`, '', e, `<span class="pts">${POINTS[e]}</span>`)).join('')}</div></div>
-      <div class="tfld"><label for="triDue">Due<kbd>D</kbd></label><div class="opts"><input type="date" id="triDue" value="${d.due || ''}">
-        ${d.due ? `<button class="lnk" data-tdue-clear>Clear</button>` : `<span class="hint">${d.value ? `Rises on its own after ${fmtDay(addDays(cur.ageFrom, WINDOW[d.value]))}` : 'Optional'}</span>`}</div></div>
-      <div class="tfld"><label>Flags</label><div class="opts">
-        ${opt(d.urgentFlag, 'data-tt="urgentFlag"', 'U', 'Urgent')}${opt(d.today, 'data-tt="today"', 'Space', 'Today')}</div></div>
-    </div>
-    <div class="tri-foot">
-      <span class="tri-score">${s != null ? `<span class="num">${fmtScore(s)}</span> · ` : ''}${ek ? EQ[ek].title : 'Unsorted'}${vk ? ` · ${VQ[vk].title}` : ''}</span>
-      <span class="grow"></span>
-      <button class="btn ghost text-danger" data-tact="wont">Won't do<kbd>0</kbd></button>
-      <button class="btn ghost" data-tact="skip">Skip<kbd>S</kbd></button>
-      <button class="btn primary" data-tact="save">Save and next<kbd>Enter</kbd></button>
-    </div>
-  </div><p class="tri-help kb-only">Click the title or notes to edit. <kbd>Enter</kbd> in the title or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in notes saves. <kbd>Esc</kbd> ${inline ? 'closes this' : 'leaves Triage'}.${inline ? ' <button class="lnk" data-view="triage">Open Triage</button> for a batch.' : ''}</p></div>`;
-}
-function renderTriage(){ main.innerHTML = triageInner(false); fitTriage(); }
-/* Re-draw after a triage key or click: the Triage view, or Today's inline card. */
-function triRender(){ if (state.view === 'triage') renderTriage(); else render(); }
 
 // Title and notes grow with their text (field-sizing where the browser has it, scrollHeight otherwise).
 function fitTriage(){
@@ -242,12 +247,12 @@ function triageSave(){
   if (d.today) t.focusOn = todayStr(); else if (t.focusOn === todayStr()) t.focusOn = null;
   // kept after triage: restart the aging clock, so a task you just placed doesn't come straight back as stale
   if (d.stale || isStale(t)) t.ageFrom = todayStr();
-  tri.seen.add(t.id); tri.id = null;
+  delete t.cameBack;   // came back and now placed: handled
+  tri.seen.add(t.id); tri.id = null; tri.pick = null;
   commit();
 }
-function triageSkip(){ if (!tri.id) return; tri.seen.add(tri.id); tri.id = null; render(); }
-function triageWont(){ if (!tri.id) return; const id = tri.id; tri.seen.add(id); tri.id = null; wontDo(id); }
-function exitTriage(){ setView(prevView && prevView !== 'triage' ? prevView : 'today'); }
+function triageSkip(){ if (!tri.id) return; tri.seen.add(tri.id); tri.id = null; tri.pick = null; render(); }
+function triageWont(){ if (!tri.id) return; const id = tri.id; tri.seen.add(id); tri.id = null; tri.pick = null; wontDo(id); }
 function triageKey(e){
   if (!tri.draft) return false;
   const d = tri.draft, k = e.key;
@@ -261,7 +266,7 @@ function triageKey(e){
   else if (k === 's' || k === 'S'){ triageSkip(); return true; }
   else return false;
   e.preventDefault();
-  triRender();
+  render();
   return true;
 }
 
@@ -425,4 +430,4 @@ function renderArchive(){
   </div>`;
 }
 
-export { closeNeed, inlineTri, openNeed, triRender, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, exitTriage, recapData, recapText, renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage, triageKey, triageSave, triageSkip, triageWont };
+export { closeNeed, openNeed, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };

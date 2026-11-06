@@ -9,7 +9,7 @@ import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { openDisplay } from './display.js';
-import { app, drawer, main, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
+import { app, col, drawer, focusCol, freshTri, inboxOpen, main, openQuad, render, sel, setCol, setDoneOpen, setInboxOpen, setLens, setOpenQuad, setScope, setSel, setView, setWeekOff, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
@@ -17,7 +17,7 @@ import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext,
 import { addPerson } from './directory.js';
 import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
-import { closeNeed, inlineTri, openNeed, triRender, setPeopleFilter, setTrayQ, copyText, exitTriage, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { closeNeed, openNeed, setPeopleFilter, setTrayQ, copyText, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -45,8 +45,14 @@ document.addEventListener('click', e => {
   if (t.closest('input.rename')) return;
   const m = t.closest('[data-menu]'); if (m){ e.stopPropagation(); openListMenu(m.dataset.menu, m); return; }
   const pm = t.closest('[data-pmenu]'); if (pm){ e.stopPropagation(); openPersonMenu(pm.dataset.pmenu, pm); return; }
-  const nv = t.closest('[data-nav]'); if (nv){ setView(nv.dataset.nav === 'prio' ? state.lens : nv.dataset.nav); return; }
+  const nv = t.closest('[data-nav]'); if (nv){ setView(nv.dataset.nav); return; }
   const v = t.closest('[data-view]'); if (v){ setView(v.dataset.view); return; }
+  // Today: a lens on Ranked (a rail goes back to List), the narrow-window Inbox, and the triage card's extras.
+  const ln = t.closest('[data-lens]');
+  if (ln){ if (ln.dataset.goto === 'inbox'){ setView('triage'); return; } setLens(ln.dataset.lens); return; }
+  if (t.closest('[data-inbox-toggle]')){ setInboxOpen(!inboxOpen); render(); if (inboxOpen) focusCol('inbox'); return; }
+  if (t.closest('[data-tri-again]')){ freshTri(); render(); focusCol('inbox'); return; }
+  const to = t.closest('[data-tri-open]'); if (to){ openDrawer(to.dataset.triOpen); return; }
   const sc = t.closest('[data-scope]'); if (sc){ setScope(sc.dataset.scope); return; }
   if (t.closest('[data-scopemenu]')){ openScopeMenu(t.closest('[data-scopemenu]')); return; }
   if (t.closest('#collapseBtn')){ toggleCollapse(); return; }
@@ -60,10 +66,10 @@ document.addEventListener('click', e => {
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }
   if (t.closest('[data-add]')){ openCmd(); return; }
   if (t.closest('[data-suggest]')){ suggestPreview(); return; }
-  const tv = t.closest('[data-tv]'); if (tv && tri.draft){ const n = +tv.dataset.tv; tri.draft.value = tri.draft.value === n ? null : n; triRender(); return; }
-  const te = t.closest('[data-te]'); if (te && tri.draft){ tri.draft.effort = tri.draft.effort === te.dataset.te ? null : te.dataset.te; triRender(); return; }
-  const tt = t.closest('[data-tt]'); if (tt && tri.draft){ tri.draft[tt.dataset.tt] = !tri.draft[tt.dataset.tt]; triRender(); return; }
-  if (t.closest('[data-tdue-clear]') && tri.draft){ tri.draft.due = null; triRender(); return; }
+  const tv = t.closest('[data-tv]'); if (tv && tri.draft){ const n = +tv.dataset.tv; tri.draft.value = tri.draft.value === n ? null : n; render(); return; }
+  const te = t.closest('[data-te]'); if (te && tri.draft){ tri.draft.effort = tri.draft.effort === te.dataset.te ? null : te.dataset.te; render(); return; }
+  const tt = t.closest('[data-tt]'); if (tt && tri.draft){ tri.draft[tt.dataset.tt] = !tri.draft[tt.dataset.tt]; render(); return; }
+  if (t.closest('[data-tdue-clear]') && tri.draft){ tri.draft.due = null; render(); return; }
   const ta = t.closest('[data-tact]'); if (ta){ ({save: triageSave, skip: triageSkip, wont: triageWont})[ta.dataset.tact](); return; }
   const chk = t.closest('[data-act="done"]'); if (chk){ toggleDone(chk.closest('[data-id]').dataset.id); return; }
   const st = t.closest('[data-act="start"]'); if (st){ toggleStart(st.closest('[data-id]').dataset.id); return; }
@@ -94,7 +100,6 @@ document.addEventListener('click', e => {
     state.tasks.forEach(x => { if (inScope(x) && !x.done && x.focusOn && x.focusOn < t0) x.focusOn = lo.dataset.left === 'carry' ? t0 : null; });
     commit(); return;
   }
-  if (t.closest('[data-pickall]')){ setShowAllPick(!showAllPick); render(); return; }
   const pf = t.closest('[data-pfilter]'); if (pf){ setPeopleFilter(pf.dataset.pfilter); return; }
   const nd = t.closest('[data-need]'); if (nd){ openNeed(nd.dataset.need); return; }
   const dp = t.closest('[data-dir-person]');
@@ -115,13 +120,18 @@ document.addEventListener('click', e => {
     return;
   }
   if (t.closest('a.sig[href]')) return;   // the ADO chip on a row opens the item, not the drawer
+  // A task in the Inbox's list becomes the triage card; anywhere else a click opens its details.
+  const ir = t.closest('.col-inbox .inrows .row[data-id]'); if (ir){ tri.pick = ir.dataset.id; tri.id = null; setCol('inbox'); render(); focusCol('inbox'); return; }
   const r = t.closest('.row[data-id]'); if (r && !t.closest('.qform,.pform')){ openDrawer(r.dataset.id); return; }
 });
 document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); }, true);
+// The column you work in on Today: where triage keys go, and where Left and Right move from.
+const colOf = el => el && el.closest && el.closest('main .col[data-col]');
+document.addEventListener('mousedown', e => { const c = colOf(e.target); if (c && c.dataset.col !== col) setCol(c.dataset.col); }, true);
 document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
   if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); } commit(); }
-  if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; triRender(); }
+  if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; render(); }
   if (e.target.id === 'triList' && tri.draft){ tri.draft.listId = e.target.value; }
 });
 // Triage title and notes: typed text lives in the draft until Save and next.
@@ -143,7 +153,7 @@ document.addEventListener('submit', e => {
   }
   const f = e.target.closest && e.target.closest('.qform'); if (!f) return;
   e.preventDefault();
-  addTask(f.querySelector('input').value, {quad: {zone: f.dataset.qform, kind: state.view}, ado: takePasted(f.querySelector('input'))});
+  addTask(f.querySelector('input').value, {quad: {zone: f.dataset.qform, kind: state.lens}, ado: takePasted(f.querySelector('input'))});
 });
 document.addEventListener('focusout', e => {
   const f = e.target.closest && e.target.closest('.qform');
@@ -155,6 +165,7 @@ document.addEventListener('focusout', e => {
 document.addEventListener('focusin', e => {
   const r = e.target.closest && e.target.closest('main .row[data-id]');
   if (r && sel !== r.dataset.id){ setSel(r.dataset.id); markSel(); }
+  const c = colOf(e.target); if (c && c.dataset.col !== col) setCol(c.dataset.col);
 });
 document.addEventListener('keydown', e => {
   const ae = document.activeElement || document.body;
@@ -175,8 +186,8 @@ document.addEventListener('keydown', e => {
     if (innerWidth < 760 && mobileOpen){ closeSide(); return; }
     if (drawerId) return closeDrawer();
     if (typing){ ae.blur(); return; }
-    if (state.view === 'triage') return exitTriage();
     if (closeNeed()) return;
+    if (state.view === 'today' && (col || inboxOpen)){ setCol(null); if (inboxOpen){ setInboxOpen(false); render(); } if (ae && ae.blur) ae.blur(); return; }
     return;
   }
   if (tri.draft && e.key === 'Enter' && !e.isComposing && ((ae.id === 'triTitle' && !e.shiftKey) || (ae.id === 'triNotes' && (e.ctrlKey || e.metaKey)))){ e.preventDefault(); triageSave(); return; }
@@ -187,15 +198,21 @@ document.addEventListener('keydown', e => {
   }
   if (typing || modalOpen || cmdOpen()) return;
   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')){
-    if (sel && state.view !== 'triage'){ e.preventDefault(); if (moveTask(sel, e.key === 'ArrowUp' ? 'up' : 'down')) requestAnimationFrame(focusSel); }
+    if (sel){ e.preventDefault(); if (moveTask(sel, e.key === 'ArrowUp' ? 'up' : 'down')) requestAnimationFrame(focusSel); }
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const onButton = ae.tagName === 'BUTTON' || ae.tagName === 'A' || (ae.getAttribute && ae.getAttribute('role') === 'button');
-  if ((state.view === 'triage' || inlineTri()) && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
+  // In Today's Inbox column, Triage's keys set the card (value 1-4, effort Q-T, Enter saves).
+  if (state.view === 'today' && col === 'inbox' && tri.draft && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
-  else if (/^[1-5]$/.test(k)){ const nav = NAV_KEYS[k]; setView(nav === 'prio' ? state.lens : nav); }
+  else if (/^[1-6]$/.test(k)){ setView(NAV_KEYS[k]); }
+  else if ((k === 'ArrowLeft' || k === 'ArrowRight') && state.view === 'today'){
+    const cols = [...main.querySelectorAll('.col[data-col]:not(.rail)')].map(c => c.dataset.col); if (!cols.length) return;
+    const i = cols.indexOf(col), j = i < 0 ? (k === 'ArrowLeft' ? 0 : cols.length - 1) : Math.max(0, Math.min(cols.length - 1, i + (k === 'ArrowLeft' ? -1 : 1)));
+    e.preventDefault(); focusCol(cols[j]);
+  }
   else if (k === 'j' || k === 'ArrowDown' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(1); }
   else if (k === 'k' || k === 'ArrowUp' && ae.classList && ae.classList.contains('row')){ e.preventDefault(); moveSel(-1); }
   else if (k === 'Enter' && !onButton){
@@ -209,7 +226,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'a' && sel){ e.preventDefault(); openAssign(sel, main.querySelector(`.row[data-id="${CSS.escape(sel)}"] .twho`) || main.querySelector(`.row[data-id="${CSS.escape(sel)}"]`)); }
   else if (k === 'w' && sel){ e.preventDefault(); toggleWaiting(sel); requestAnimationFrame(focusSel); }
   else if (k === 's' && (sel || activeTask())){ e.preventDefault(); toggleStart(sel || activeTask().id); }
-  else if (k === 's' && state.view !== 'triage'){ e.preventDefault(); startNext(); }
+  else if (k === 's'){ e.preventDefault(); startNext(); }
   else if (k === 'i'){ e.preventDefault(); logInterrupt(); }
   else if (k === 'l' && sel){ e.preventDefault(); copyTaskLink(findTask(sel)); }
   else if (k === '?'){ showHelp(); }
@@ -232,7 +249,7 @@ function backStep(){
   if (mobileOpen || midOpen){ closeSide(); return true; }
   if (drawerId){ closeDrawer(); return true; }
   if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) ae.blur();
-  if (state.view === 'triage'){ exitTriage(); return true; }
+  if (state.view === 'today' && inboxOpen){ setInboxOpen(false); render(); return true; }
   if (state.view !== 'today'){ setView('today'); return true; }
   return false;
 }

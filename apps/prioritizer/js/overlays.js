@@ -64,7 +64,8 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>5</kbd>', 'Today, Day, Triage, Prioritize, People')}
+      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Day, Inbox, Ranked, People, Done')}
+      ${r('<kbd>←</kbd> <kbd>→</kbd>', "Move between Today's columns: Inbox, Ranked, Today")}
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
@@ -78,7 +79,7 @@ function showHelp(){
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>
-    <table class="keys"><tbody><tr><td colspan="2"><h4>In Triage</h4></td></tr>
+    <table class="keys"><tbody><tr><td colspan="2"><h4>In the Inbox</h4></td></tr>
       ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'Value: Trivial, Low, Medium, High')}
       ${r('<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>', 'Effort: XS, S, M, L, XL')}
       ${r('<kbd>D</kbd> / <kbd>U</kbd> / <kbd>Space</kbd>', 'Due date / Urgent / Today')}
