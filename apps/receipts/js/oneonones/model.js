@@ -30,6 +30,7 @@ export const LEGACY = { app: 'oneonones', people: 'people', settings: 'settings'
     handed in by main.js instead of read here. */
 export const SOURCES = {
   docketSummary: { app: 'prioritizer', collection: 'summary', schema: 'prioritizer.summary', version: 1 },
+  slateSummary: { app: 'slate', collection: 'summary', schema: 'slate.summary', version: 1 },
   receiptsEntries: { app: 'receipts', collection: 'entries', schema: 'receipts.entries', version: 1, own: true }
 };
 
@@ -233,6 +234,18 @@ export function docketSection(personId, today, summaryEnv = null) {
   return { state: 'ok', open, waiting, nudges: waiting.filter(t => isDay(t.nudgeOn) && t.nudgeOn <= today) };
 }
 
+/** Slate: work delegated to the person (Slate's summary, its `delegated` people card). Missing when Slate is not
+    here or has delegated nothing yet. */
+export function slateSection(personId, summaryEnv = null) {
+  if (!personId) return { state: 'unlinked' };
+  const r = readable(summaryEnv, SOURCES.slateSummary);
+  if (r.state !== 'ok') return { state: r.state };
+  const card = r.env.items.find(c => c && c.id === 'delegated' && c.kind === 'people' && Array.isArray(c.rows));
+  const p = card ? card.rows.find(x => x && x.id === personId) : null;
+  const items = p && Array.isArray(p.open) ? p.open.filter(t => t && t.id && t.title).slice(0, 20).map(t => ({ id: String(t.id), title: oneLine(t.title).slice(0, 300) })) : [];
+  return { state: 'ok', items };
+}
+
 /** Receipts: entries about the person from `since` to `today`, grouped by kind. */
 export function receiptsSection(entriesEnv, receiptsId, since, today) {
   if (!receiptsId) return { state: 'unlinked' };
@@ -270,6 +283,7 @@ export function buildPacket({ person, today, now, notes, lastText, src }) {
     since: s.since,
     sinceFrom: s.from,
     docket: docketSection(person.personId, today, src.docketSummary),
+    slate: slateSection(person.personId, src.slateSummary),
     receipts: receiptsSection(src.receiptsEntries, about, s.since, today),
     last: lastSection(s.last, lastText)
   };
@@ -281,6 +295,7 @@ const plural = (n, w, ws = w + 's') => `${n} ${n === 1 ? w : ws}`;
 export function packetSummary(p) {
   const out = [];
   if (p.docket.state === 'ok') out.push(`Docket: ${plural(p.docket.open.length, 'open task')}, ${p.docket.waiting.length} waiting on them, ${plural(p.docket.nudges.length, 'nudge')} due`);
+  if (p.slate && p.slate.state === 'ok' && p.slate.items.length) out.push(`Slate: ${plural(p.slate.items.length, 'item')} delegated to them`);
   if (p.receipts.state === 'ok') {
     const g = p.receipts.groups;
     out.push(`Receipts: ${plural(g.win.length, 'win')}, ${g.feedback.length} feedback, ${g.growth.length} growth, ${plural(g.note.length, 'note')}`);
@@ -336,6 +351,7 @@ export function packetMarkdown(p, { includeConcerns = false } = {}) {
     list('Waiting on them', p.docket.waiting, t => t.title + (t.nudgeOn ? ` (nudge on ${t.nudgeOn})` : ''));
     list('Nudges due', p.docket.nudges, t => t.title);
   } else lines.push('- Not available.', '');
+  if (p.slate && p.slate.state === 'ok' && p.slate.items.length) { lines.push('## Delegated in Slate', ''); list('With them now', p.slate.items, t => t.title); }
   lines.push('## Receipts', '');
   if (p.receipts.state === 'ok') {
     for (const k of KINDS) {

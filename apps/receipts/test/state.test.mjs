@@ -188,8 +188,22 @@ test('sendersFrom: manifests add to the built-in senders, and the retired 1:1s a
 });
 
 test('summaryCards: the receipts count for Home (Workshop docs/summaries.md)', () => {
-  assert.deepEqual(R.summaryCards({ items: [{ id: 'a' }, { id: 'b' }] }), [{ id: 'entries', kind: 'count', title: 'Receipts', count: 2, route: 'me' }]);
+  assert.deepEqual(R.summaryCards({ items: [{ id: 'a' }, { id: 'b' }] })[0], { id: 'entries', kind: 'count', title: 'Receipts', count: 2, route: 'me' });
   assert.equal(R.summaryCards(null)[0].count, 0);
+});
+
+test('summaryCards: 1:1s due for Home\'s Needs you, and only your own wins for the weekly status', () => {
+  const env = { items: [
+    { id: 'w1', kind: 'win', about: 'me', date: '2026-11-05', text: 'Shipped the guide' },
+    { id: 'w2', kind: 'win', about: 'me', date: '2026-10-20', text: 'Old win' },
+    { id: 'c1', kind: 'concern', about: 'p_ana', date: '2026-11-05', text: 'Never shared' },
+    { id: 'w3', kind: 'win', about: 'p_ana', date: '2026-11-05', text: 'Ana\'s win stays in Rapport' }
+  ] };
+  const cards = R.summaryCards(env, { due: [{ id: 'oo1', name: 'Ana', days: 16, route: 'team/p_ana' }, { id: 'oo2', name: 'Bo', days: null }], today: '2026-11-06' });
+  const by = Object.fromEntries(cards.map(c => [c.id, c]));
+  assert.deepEqual(by.needs.rows.map(r => [r.title, r.note, r.route]), [['1:1 with Ana', '16 days since the last one', 'team/p_ana'], ['1:1 with Bo', 'No 1:1 yet', '1on1s']]);
+  assert.deepEqual(by['done-week'].rows.map(r => r.title), ['Shipped the guide']);
+  assert.equal(R.summaryCards(env).some(c => c.id === 'done-week'), false, 'no day, no week card');
 });
 
 test('summaryCards match the summary-card schema', async () => {

@@ -177,3 +177,14 @@ test('the packet: receipts are about a report by id and about your manager as up
   assert.deepEqual(pk({ ...PERSON, personId: 'p_mgr', relation: 'manager' }).receipts.groups.win.map(e => e.id), ['u1']);
   assert.equal(pk({ ...PERSON, personId: 'p_peer', relation: 'peer' }).receipts.state, 'unlinked');
 });
+
+test('slateSection: what Slate delegated to the person, from its summary', () => {
+  const env = { schema: 'slate.summary', version: 1, items: [{ id: 'delegated', kind: 'people', rows: [{ id: 'p_one', open: [{ id: 'w1', title: '#7 Export orders' }], waiting: [] }] }] };
+  assert.deepEqual(M.slateSection('p_one', env), { state: 'ok', items: [{ id: 'w1', title: '#7 Export orders' }] });
+  assert.deepEqual(M.slateSection('p_two', env), { state: 'ok', items: [] });
+  assert.equal(M.slateSection('p_one', null).state, 'missing');
+  assert.equal(M.slateSection('p_one', { ...env, version: 2 }).state, 'unreadable');
+  assert.equal(M.slateSection('', env).state, 'unlinked');
+  const md = M.packetMarkdown({ today: '2026-11-06', since: '2026-10-30', docket: { state: 'missing' }, slate: { state: 'ok', items: [{ id: 'w1', title: '#7 Export orders' }] }, receipts: { state: 'missing' }, last: { state: 'missing' } });
+  assert.match(md, /## Delegated in Slate\n\n### With them now\n\n- #7 Export orders/);
+});

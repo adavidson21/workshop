@@ -308,9 +308,26 @@ export function sendersFrom(apps, self = APP, fallback = SENDERS) {
   return { ...sharedSendersFrom(apps, self, fallback), ...RETIRED_SENDERS };
 }
 
-/* Rapport's summary for other apps (Workshop docs/summaries.md): how many receipts are logged, for Home's Get
-   started. Live entries only. */
-export const summaryCards = entriesEnv => [{ id: 'entries', kind: 'count', title: 'Receipts', count: (entriesEnv && Array.isArray(entriesEnv.items) ? entriesEnv.items : []).filter(e => e && !e.deleted).length, route: 'me' }];
+/* Rapport's summary for other apps (Workshop docs/summaries.md). Live entries only.
+     entries    how many receipts are logged (Home's Get started)
+     needs      1:1s that are due (Home's Needs you): a name and how long since the last one, nothing from the notes
+     done-week  your own wins logged in the last 7 days (Home's weekly status). Never receipts about anyone else:
+                feedback, growth and concerns about people stay in Rapport.
+   due: [{id, name, days, route}] from the 1:1s page; today: YYYY-MM-DD. */
+export const summaryCards = (entriesEnv, { due = [], today = '' } = {}) => {
+  const live = (entriesEnv && Array.isArray(entriesEnv.items) ? entriesEnv.items : []).filter(e => e && !e.deleted);
+  const cards = [{ id: 'entries', kind: 'count', title: 'Receipts', count: live.length, route: 'me' }];
+  cards.push({ id: 'needs', kind: 'list', title: '1:1s due', count: due.length, route: '1on1s',
+    rows: due.slice(0, 20).map(d => ({ id: String(d.id), title: `1:1 with ${String(d.name || 'someone').slice(0, 180)}`, note: d.days == null ? 'No 1:1 yet' : `${d.days} days since the last one`, route: d.route || '1on1s', flag: 'waiting' })) });
+  if (today) {
+    const from = isoDay(new Date(new Date(today + 'T12:00:00').getTime() - 6 * 864e5));
+    const wins = live.filter(e => (e.about || 'me') === 'me' && e.kind === 'win' && typeof e.date === 'string' && e.date >= from && e.date <= today)
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    cards.push({ id: 'done-week', kind: 'list', title: 'Wins this week', count: wins.length,
+      rows: wins.slice(0, 20).map(e => ({ id: String(e.id), title: String(e.text || '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'A win', due: e.date, route: 'me' })) });
+  }
+  return cards;
+};
 export const HANDLED_MAX = 500;
 const HANDOFF_VERSION = 1;
 

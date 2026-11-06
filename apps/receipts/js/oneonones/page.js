@@ -66,7 +66,7 @@ export function createOneOnOnesPage(ws, root, host) {
     const packet = buildPacket({
       person, today: t, now: Date.now(), notes,
       lastText: last ? ui.lastText[last.path] ?? null : null,
-      src: { docketSummary: v.src.docketSummary, receiptsEntries: v.src.receiptsEntries }
+      src: { docketSummary: v.src.docketSummary, slateSummary: v.src.slateSummary, receiptsEntries: v.src.receiptsEntries }
     });
     // Tasks on a group they are in name the group.
     if (packet.docket.state === 'ok') for (const t of [...packet.docket.open, ...packet.docket.waiting, ...packet.docket.nudges]) {
@@ -359,6 +359,7 @@ export function createOneOnOnesPage(ws, root, host) {
     let x;
     if ((x = el('[data-person]'))) { const p = shown().find(q => q.id === x.dataset.person); if (p) openRow(p); return; }
     if ((x = el('[data-route]'))) { host.go(x.dataset.route === 'settings' ? '1on1s/settings' : '1on1s'); return; }
+    if ((x = el('[data-slate]'))) { ws.open({ app: 'slate', path: `item/${x.dataset.slate}` }).catch(() => {}); return; }
     if ((x = el('[data-add-dir]'))) {
       const dp = v.dir && v.dir.byId.get(x.dataset.addDir);
       if (dp) {
@@ -483,5 +484,10 @@ export function createOneOnOnesPage(ws, root, host) {
   /** The active 1:1s person for a directory person, for Upward's link to your manager's 1:1s. */
   const findByPerson = personId => shown().find(p => !p.archived && p.personId === personId) || null;
 
-  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
+  /** 1:1s that are due, for Rapport's summary (Home's Needs you): [{id, name, days, route}]. Names only. */
+  function dueList() {
+    if (!v.loaded) return [];
+    return rows().filter(r => r.due).map(r => { const rid = reportOf(r.person); return { id: r.person.id, name: r.person.name, days: r.days, route: rid ? `team/${rid}` : `1on1s/${r.person.id}` }; });
+  }
+  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, dueList, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
 }

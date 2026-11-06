@@ -32,7 +32,7 @@ const store = {};
 const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0, items: [], deleted: {}, ...(name === 'config' ? { meta: { ...R.DEFAULT_CONFIG, updatedAt: 0 } } : {}) });
 
 // Rapport's summary for other apps (R.summaryCards): written after loading and after each save of entries.
-const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries) : null });
+const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries, { due: oo && oo.dueList ? oo.dueList() : [], today: R.isoDay(new Date()) }) : null });
 // Senders of offers come from the manifests (ws.apps.list); R.SENDERS is updated in place. Not awaited here, so
 // the page's route and command handlers are in place before the first event; loadOffers waits for it.
 const sendersReady = (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
@@ -187,7 +187,7 @@ async function addWins(list) {
   if (fresh.length) { await save('entries', env => { env.items.push(...fresh); }); paint(); }
   return fresh.length;
 }
-oo = createOneOnOnesPage(ws, app, { repaint: () => paint(), go: path => go(path), isReport, reportName: id => nameOf(id), addWins });
+oo = createOneOnOnesPage(ws, app, { repaint: () => { paint(); summary.schedule(); }, go: path => go(path), isReport, reportName: id => nameOf(id), addWins });
 
 /* ---------- Goals (js/goals/) ---------- */
 goals = createGoalsPage(ws, app, { repaint: () => paint(), go: path => go(path), reports: () => people() });

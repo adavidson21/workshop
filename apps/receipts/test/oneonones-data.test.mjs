@@ -11,7 +11,7 @@ test('loads its own collections and reads other apps without writing them', asyn
   await d.loadAll();
   assert.equal(d.v.loaded, true);
   assert.equal(d.v.src.docketSummary.schema, 'prioritizer.summary');
-  assert.deepEqual(Object.keys(d.v.src).sort(), ['docketSummary', 'receiptsEntries'], 'only Docket\'s summary is read from other apps');
+  assert.deepEqual(Object.keys(d.v.src).sort(), ['docketSummary', 'receiptsEntries', 'slateSummary'], 'only Docket\'s and Slate\'s summaries are read from other apps');
   assert.ok(!('queueSnapshot' in d.v.src), 'Queue is no longer read');
   assert.equal(d.v.src.receiptsEntries, null, "Rapport's own entries are handed in, not read here");
   d.setOwn(receiptsEntries([]), DIR);

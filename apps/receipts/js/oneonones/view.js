@@ -69,12 +69,16 @@ export function packetHtml(p) {
   const receipts = p.receipts.state === 'ok'
     ? (p.receipts.total ? KINDS.filter(k => p.receipts.groups[k].length).map(k => rows(KIND_LABELS[k], p.receipts.groups[k], e => `<span class="soft num">${esc(e.date)}</span> ${esc(e.text)}`)).join('') : '<p class="soft">No receipts about them in this period.</p>')
     : unavailable(p.receipts, true);
+  // Slate: shown only when Slate is here and has delegated something to them.
+  const slate = p.slate && p.slate.state === 'ok' && p.slate.items.length
+    ? `<section><h3 class="section-label">Delegated in Slate</h3>${rows('With them now', p.slate.items, t => `<button class="lnk" data-slate="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
   const last = p.last.state === 'ok'
     ? rows(`Open follow-ups from ${p.last.day}`, p.last.open, t => esc(t))
     : `<p class="soft">${p.last.state === 'unreadable' ? "Couldn't read the last note." : 'No earlier 1:1 note.'}</p>`;
   return `<section class="packet" aria-label="Prep">
     <p class="since soft">Since ${esc(p.since)}${p.sinceFrom === 'note' ? ' (the last 1:1 note)' : ' (cadence, no earlier note)'}</p>
     <section><h3 class="section-label">Docket</h3>${docket}</section>
+    ${slate}
     <section><h3 class="section-label">Receipts</h3>${receipts}</section>
     <section><h3 class="section-label">Last 1:1</h3>${last}</section>
   </section>`;
