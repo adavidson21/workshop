@@ -1313,10 +1313,10 @@ def main():
         check('a question in quick capture opens Dispatch', pg.url.endswith('#/agents'))
         pg.click('#rail .mark'); pg.wait_for_timeout(600)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        hf.locator('[data-task]').first.click(); pg.wait_for_timeout(1200)
+        check('Home has one Today card for Docket, no Up next, Now or People of its own', hf.locator('.todaycard').count() == 1 and 'Up next' not in hf.inner_text('#app'))
+        hf.click('.todaycard .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
-        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
+        check("Open Today on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)

@@ -85,8 +85,6 @@ ws.on('online', p => { if (p && p.online) setup.load(); });
 /* ---------- input ---------- */
 app.addEventListener('click', e => {
   const t = e.target;
-  const task = t.closest('[data-task]');
-  if (task) { ws.open({ app: 'prioritizer', path: 'task/' + task.dataset.task }); return; }
   const open = t.closest('[data-open]');
   if (open) { ws.open(open.dataset.path ? { app: open.dataset.open, path: open.dataset.path } : { app: open.dataset.open }); return; }
   const toggle = t.closest('[data-toggle-step]');
