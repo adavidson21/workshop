@@ -15,10 +15,11 @@ export const SITE = Object.freeze({
   apps: Object.freeze({
     prioritizer: DOCKET,
     runway: 'https://runway.alexisdavidson.org',
-    receipts: 'https://receipts.alexisdavidson.org'
+    receipts: 'https://receipts.alexisdavidson.org',
+    notes: 'https://notes.alexisdavidson.org'
   }),
   // Sites a new install allows to pair (config hosted.origins); each still needs a click in the pairing window.
-  allowedSites: Object.freeze([WORKSHOP, DISPATCH, DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org']),
+  allowedSites: Object.freeze([WORKSHOP, DISPATCH, DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org', 'https://notes.alexisdavidson.org']),
   // Breadcrumbs back to the owner's site, on pages whose host is `domain` or a subdomain of it.
   crumbs: Object.freeze({
     domain: 'alexisdavidson.org',
@@ -33,7 +34,8 @@ export const SITE = Object.freeze({
     'eng-agents': 'adavidson21/eng-agents',
     docket: 'adavidson21/docket',
     runway: 'adavidson21/runway',
-    receipts: 'adavidson21/receipts'
+    receipts: 'adavidson21/receipts',
+    notes: 'adavidson21/notes'
   })
 });
 

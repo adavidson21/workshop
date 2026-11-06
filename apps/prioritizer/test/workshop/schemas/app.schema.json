@@ -167,6 +167,24 @@
       "uniqueItems": true,
       "maxItems": 500
     },
+    "privateFiles": {
+      "description": "Files other apps may not list, read or watch: true for every file of this app, or a list of top folders (app-manifest.md, Private files).",
+      "oneOf": [
+        {
+          "const": true
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        }
+      ]
+    },
     "handoffs": {
       "type": "object",
       "additionalProperties": false,
