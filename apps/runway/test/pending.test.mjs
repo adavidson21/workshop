@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { data as sdkData } from '../shared/workshop-sdk.js';
 import { fromEnvelope } from '../js/model.js';
-import { acceptedIdeas, createPending, ideaToItem, writeToMap } from '../js/pending.js';
+import { acceptedIdeas, createPending, ideaToItem, workItemsFrom, writeToMap } from '../js/pending.js';
 
 const H = { id: 'c_1', updatedAt: 1, to: 'runway', date: '2026-11-04', createdAt: '2026-11-04T21:00:00Z', text: 'Dark mode for the docs site\nUsers keep asking',
   payload: { kind: 'idea' }, source: { app: 'home', id: 'c_1' }, accepted: true };
@@ -55,4 +55,20 @@ test('pickup: a named roadmap gets the item, the rest wait on Pending, each once
   assert.equal(added.parent, 'e1');
   assert.equal(added.notes, 'Users keep asking');
   assert.equal(await p.pickup(), 0, 'an assigned idea does not come back');
+});
+
+test('the work item app is found by its requests alias, never Runway itself', () => {
+  const apps = [{ id: 'home', name: 'Home' }, { id: 'slate', name: 'Slate', aliases: ['backlog', 'requests'], handoffs: { sends: ['runway'] } }];
+  assert.deepEqual(workItemsFrom(apps), { id: 'slate', name: 'Slate' });
+  assert.equal(workItemsFrom([{ id: 'runway', aliases: ['requests'] }]), null);
+  assert.equal(workItemsFrom([{ id: 'x', aliases: [{ name: 'requests', path: 'r' }] }]).id, 'x');
+  assert.equal(workItemsFrom(null), null);
+});
+
+test('Slate is a sender once its manifest says so', async () => {
+  const { sendersFrom } = await import('../js/pending.js');
+  const found = sendersFrom([{ id: 'slate', name: 'Slate', handoffs: { sends: ['runway', 'prioritizer'] } }]);
+  assert.equal(found.slate, 'Slate');
+  const ideas = acceptedIdeas('slate', { schema: 'slate.handoffs', version: 1, items: [{ id: 'h_w1_idea', to: 'runway', accepted: true, date: '2026-11-05', text: 'Export orders\nFor finance', payload: { kind: 'idea' }, source: { app: 'slate', id: 'w1' } }] });
+  assert.deepEqual(ideas.map(i => [i.title, i.notes]), [['Export orders', 'For finance']]);
 });

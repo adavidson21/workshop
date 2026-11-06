@@ -198,7 +198,7 @@ export function goalDialog(name, text) {
 
 /* ---------- the item panel ---------- */
 
-export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { addPerson = !readOnly } = {}) {
+export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { addPerson = !readOnly, workItems = null } = {}) {
   const it = doc.items.find(x => x.id === id && x.kind === 'item');
   if (!it) return '';
   const s = sched.get(id);
@@ -233,6 +233,7 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { ad
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
       ${it.afterMissing.length ? `<p class="hint">Not in this roadmap: ${esc(it.afterMissing.join(', '))}</p>` : ''}</fieldset>
     ${it.ado ? adoPanel(it, readOnly, { addPerson }) : ''}
+    ${workItems ? `<div class="pf"><span>Work item</span><div class="prow"><button type="button" class="btn" data-workitem>${esc(workItems)}</button></div><small class="hint">Triage it, define its stories and publish them to ADO, then delegate it or build it yourself.</small></div>` : ''}
     <label class="pf"><span>Description</span><textarea data-f="notes" rows="4" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
     ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
     <footer>${readOnly ? '' : `<button type="button" class="btn text-danger" data-delete>Delete</button>`}</footer>

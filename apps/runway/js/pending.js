@@ -22,6 +22,13 @@ export const SENDERS = { home: 'Home', agents: 'Dispatch' };
 export function sendersFrom(apps, self = APP, fallback = SENDERS) {
   return sharedSendersFrom(apps, self, fallback);
 }
+/* The app that manages work items, from the manifests (Workshop's Slate): one whose aliases include `requests`.
+   {id, name}, or null when there is none (outside Workshop's site, or Slate is off). */
+export function workItemsFrom(apps, self = APP) {
+  const a = (Array.isArray(apps) ? apps : []).find(x => x && x.id !== self && Array.isArray(x.aliases)
+    && x.aliases.some(al => (typeof al === 'string' ? al : al && al.name) === 'requests'));
+  return a ? { id: a.id, name: a.name || a.id } : null;
+}
 const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 

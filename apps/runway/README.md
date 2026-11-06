@@ -7,7 +7,8 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 ## Using it
 
 - **Roadmaps:** the list. New roadmap, Import Markdown, or start from the example.
-- **Pending assignment** (top of the list, when there is something in it): features, bugs and other thoughts captured on Workshop's Home (`p ...` in quick capture). **Assign** picks a roadmap, a lane and optionally an item to sit under; it lands there unscheduled, in the Unscheduled tray. A capture that names a roadmap (`p docs portal: ...`) skips Pending and goes straight to that roadmap's tray. Ideas show in their own color.
+- **Pending assignment** (top of the list, when there is something in it): features, bugs and other thoughts captured on Workshop's Home (`p ...` in quick capture), the Dispatch hub, or **Add to roadmap** in Slate. **Assign** picks a roadmap, a lane and optionally an item to sit under; it lands there unscheduled, in the Unscheduled tray. A capture that names a roadmap (`p docs portal: ...`) skips Pending and goes straight to that roadmap's tray. Ideas show in their own color.
+- **Work item** (in the item panel, inside Workshop with Slate on): **Open in Slate** takes the item to Slate, Workshop's request-to-decision board, where it is triaged, defined and published to ADO, then delegated or built. Slate also shows Runway in its Roadmap tab; there Runway works the same, and this button opens the item beside it.
 - **Levels:** an item can sit under another: epic, then feature, story and task (four levels). In the outline, indent a `- ` line under an item; in the panel, pick **Under**. Each level has its own color (an item's own color wins). On the timeline, items with no parent and no children share rows as before; each epic gets its own rows, one group per level under it. Moving an item to another lane takes everything under it along.
 - **Split, Outline, Timeline:** the outline and the timeline are two views of one roadmap. Editing either updates the other.
 - **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. Items with no dates wait in the Unscheduled tray; drag one onto the timeline.
@@ -124,7 +125,7 @@ Where it saves:
 | `js/timeline.js` | Layout and SVG, used on screen and for image export. Every text is escaped. |
 | `js/export.js` | Markdown (with the optional table), image SVG, PNG, file names. |
 | `js/store.js` | Loading and saving through the SDK. |
-| `js/pending.js` | Pending assignment: picking up captures from Home, assigning them to a roadmap. |
+| `js/pending.js` | Pending assignment: picking up captures from Home, Dispatch and Slate, assigning them to a roadmap; which app manages work items. |
 | `js/view.js` | HTML for the list, toolbar, panel and dialogs. |
 | `js/main.js` | The page: painting, pointer and keyboard, routes, commands. |
 

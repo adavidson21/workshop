@@ -14,7 +14,7 @@ import { dateAt, laneAt, layout, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
-import { SENDERS, createPending, ideaToItem, sendersFrom, writeToMap } from './pending.js';
+import { SENDERS, createPending, ideaToItem, sendersFrom, workItemsFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
@@ -61,13 +61,25 @@ const pending = createPending(ws, {
 });
 // Senders of captured ideas come from the manifests (ws.apps.list); SENDERS is updated in place. Not awaited, so
 // the route handler is in place before the shell's first route event; pickup runs again once they are known.
+// The app that manages work items (Workshop's Slate, found by its manifest: it sends Runway ideas and lists the
+// `requests` alias) gets a Work item button in the item panel. Null outside Workshop's site.
+let workItemsApp = null;
+const subscribed = new Set();
 (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
   const found = sendersFrom(apps);
   const before = Object.keys(SENDERS).join();
   for (const k of Object.keys(SENDERS)) delete SENDERS[k];
   Object.assign(SENDERS, found);
+  for (const app of Object.keys(SENDERS)) watchSender(app);
+  workItemsApp = workItemsFrom(apps);
+  if (workItemsApp && ui.selected) requestPaint();
   if (Object.keys(SENDERS).join() !== before && pending.pickup) pending.pickup();
 });
+function watchSender(app) {
+  if (subscribed.has(app)) return;
+  subscribed.add(app);
+  try { ws.data.subscribe('handoffs', () => pending.pickup(), { app }); } catch (e) { /* no data backend */ }
+}
 const prefMode = (() => { try { return localStorage.getItem('runway.mode'); } catch (e) { return null; } })();
 const ui = {
   mode: ['timeline', 'outline', 'split'].includes(prefMode) ? prefMode : 'split',
@@ -211,7 +223,7 @@ function paintMap() {
   const panel = app.querySelector('[data-r="panel"]');
   if (!panel.contains(document.activeElement) || ui.selected !== panel.dataset.for) {
     panel.dataset.for = ui.selected || '';
-    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly }) : '');
+    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly, workItems: workItemsApp ? `Open in ${workItemsApp.name}` : null }) : '');
   }
   app.querySelector('.body').classList.toggle('has-panel', !!ui.selected);
 }
@@ -515,6 +527,7 @@ app.addEventListener('click', async e => {
   else if ('adodiff' in t.dataset) { const it = v.doc.items.find(i => i.ado && i.ado.remote); if (it) select(it.id); }
   else if ('adoPerson' in t.dataset) { t.blur(); adoPerson(); }
   else if ('adoUse' in t.dataset || 'adoKeep' in t.dataset || 'adoUnlink' in t.dataset) adoItem(t.dataset);
+  else if ('workitem' in t.dataset) { if (workItemsApp && v.mapId && ui.selected) ws.open({ app: workItemsApp.id, path: `runway/${v.mapId}/${ui.selected}` }).catch(toastErr); }
   else if ('unschedule' in t.dataset) edit(d => { const it = d.items.find(i => i.id === ui.selected); if (it) { it.start = null; it.end = null; it.size = null; } });
 });
 
@@ -945,7 +958,7 @@ if (window.WorkshopTheme && WorkshopTheme.onChange) WorkshopTheme.onChange(() =>
 ws.on('online', () => { if (v.waiting) { v.waiting = false; store.load().then(() => route(ui.pendingRoute || v.mapId || '')); } pending.load().then(() => pending.pickup()).catch(() => {}); });
 ws.data.subscribe('index', () => store.reload('index'));
 ws.data.subscribe('pending', () => pending.load().catch(() => {}));
-for (const app of ['home', 'agents']) ws.data.subscribe('handoffs', () => pending.pickup(), { app });
+for (const app of ['home', 'agents']) watchSender(app);
 document.addEventListener('visibilitychange', () => { if (document.hidden) store.flush(); });
 window.addEventListener('beforeunload', e => { if (store.hasPending()) { store.flush(); e.preventDefault(); } });
 
