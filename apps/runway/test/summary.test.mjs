@@ -29,3 +29,19 @@ test('teamDefaults: area paths from Workshop settings.teams v1', () => {
   assert.equal(teamDefaults({ ...env, items: [{ id: 't_mine', name: 'Mine', areas: [] }] }), null);
   assert.equal(teamDefaults(null), null);
 });
+
+test('summary: the Pending assignment list as a list card, once Pending has loaded', async () => {
+  const { pendingCard } = await import('../js/summary.js');
+  const p = { loaded: true, readOnly: false, items: [{ id: 'p_1', title: 'Bulk export', notes: 'CSV and Excel', date: '2026-11-06' }, { id: 'p_2', title: 'Dark mode', notes: '', date: '' }] };
+  const card = pendingCard(p);
+  assert.deepEqual(card, { id: 'pending', kind: 'list', title: 'Pending assignment', count: 2, route: 'pending', rows: [
+    { id: 'p_1', title: 'Bulk export', route: 'pending', due: '2026-11-06', note: 'CSV and Excel' },
+    { id: 'p_2', title: 'Dark mode', route: 'pending' }] });
+  const schemas = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
+  assert.deepEqual(schemas.validate('summary-card', { ...card, updatedAt: 1 }), []);
+  assert.equal(pendingCard({ loaded: true, items: Array.from({ length: 60 }, (_, i) => ({ id: `p${i}`, title: 't' })) }).rows.length, 50);
+  const v = { loaded: true, list: [] };
+  assert.deepEqual(buildSummary(v, p).map(c => c.id), ['roadmaps', 'pending']);
+  assert.deepEqual(buildSummary(v, { loaded: false, items: [] }).map(c => c.id), ['roadmaps'], 'not loaded yet: no card, so readers do not see an empty list by mistake');
+  assert.deepEqual(buildSummary(v, { loaded: true, readOnly: true, items: [] }).map(c => c.id), ['roadmaps']);
+});

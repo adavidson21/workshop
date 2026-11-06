@@ -16,7 +16,7 @@ import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, workItemsFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
-import { createSummaryWriter } from '../shared/summary.js';
+import { createSummaryWriter, readCards } from '../shared/summary.js';
 import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
@@ -36,7 +36,7 @@ else {
 
 let painting = false;
 // Runway's summary for other apps (js/summary.js): written a moment after the roadmap list changes.
-const summary = createSummaryWriter({ data: ws.data, app: 'runway', build: () => buildSummary(store.v) });
+const summary = createSummaryWriter({ data: ws.data, app: 'runway', build: () => buildSummary(store.v, pending.v) });
 let summaryKey = '';
 const store = createStore(ws, { onChange: () => {
   const key = store.v.loaded ? JSON.stringify(store.v.list.map(r => [r.id, r.title])) : '';
@@ -47,8 +47,13 @@ const v = store.v;
 
 /* Pending assignment (js/pending.js): ideas captured on Home. The open roadmap takes them through the store,
    so its unsaved edits are kept; other roadmaps get them straight in their collection. */
+let pendingKey = '';
 const pending = createPending(ws, {
-  onChange: () => { if (!painting) requestPaint(); },
+  onChange: (pv) => {
+    const key = pv && pv.loaded ? JSON.stringify(pv.items) : '';
+    if (key && key !== pendingKey) { pendingKey = key; summary.schedule(); }
+    if (!painting) requestPaint();
+  },
   hasMap: id => v.list.some(r => r.id === id),
   async addToMap(mapId, idea, opts) {
     if (v.mapId === mapId && v.doc) {
@@ -72,9 +77,27 @@ const subscribed = new Set();
   Object.assign(SENDERS, found);
   for (const app of Object.keys(SENDERS)) watchSender(app);
   workItemsApp = workItemsFrom(apps);
+  if (workItemsApp) watchShaping(workItemsApp.id);
   if (workItemsApp && ui.selected) requestPaint();
   if (Object.keys(SENDERS).join() !== before && pending.pickup) pending.pickup();
 });
+/* Ideas the work items app (Slate) is shaping: its summary's `shaping` card, rows {id: a Pending idea id, route}.
+   The Pending list marks those "Shaping in Slate". Only for showing (docs/summaries.md); Pending is not changed. */
+let shaping = new Map();
+let shapingWatched = false;
+async function readShaping(app) {
+  let cards = null;
+  try { cards = readCards(await ws.data.get('summary', { app }), app); } catch (e) { cards = null; }
+  const card = cards && cards.get('shaping');
+  const next = new Map((card && Array.isArray(card.rows) ? card.rows : []).filter(r => r && typeof r.id === 'string').map(r => [r.id, typeof r.route === 'string' ? r.route : '']));
+  if (JSON.stringify([...next]) !== JSON.stringify([...shaping])) { shaping = next; requestPaint(); }
+}
+function watchShaping(app) {
+  if (shapingWatched) return;
+  shapingWatched = true;
+  readShaping(app);
+  try { ws.data.subscribe('summary', () => readShaping(app), { app }); } catch (e) { /* no data backend */ }
+}
 function watchSender(app) {
   if (subscribed.has(app)) return;
   subscribed.add(app);
@@ -158,7 +181,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent', pending: pending.v }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent', pending: pending.v, shaping, workItems: workItemsApp }));
 }
 
 function paintReports() {
@@ -293,6 +316,15 @@ async function route(path) {
   path = String(path || '').replace(/^\/+/, '');
   if (!v.loaded) { ui.pendingRoute = path; return; }
   ui.reports = path === 'reports';
+  if (path === 'pending') {
+    // Slate's Pending link: the list, scrolled to Pending assignment.
+    if (unsubMap) { unsubMap(); unsubMap = null; }
+    await store.flush();
+    store.close(); ui.selected = null; ui.opened = null; paint();
+    const el = document.getElementById('pending');
+    if (el) el.scrollIntoView({ block: 'start' });
+    return;
+  }
   if (!path || ui.reports) {
     if (unsubMap) { unsubMap(); unsubMap = null; }
     await store.flush();
@@ -501,6 +533,7 @@ app.addEventListener('click', async e => {
       const f = await showDialog(confirmDialog('Remove this roadmap?', `"${row ? row.title : ''}" leaves the list. Its file stays in your Workshop folder (runway/maps/${t.dataset.del}.json).`));
       if (f) store.remove(t.dataset.del).catch(toastErr);
     } else if (t.dataset.passign) assignIdea(t.dataset.passign);
+    else if (t.dataset.pshaping != null) { if (workItemsApp) ws.open({ app: workItemsApp.id, path: shaping.get(t.dataset.pshaping) || '' }).catch(toastErr); }
     else if (t.dataset.premove) {
       const idea = pending.v.items.find(x => x.id === t.dataset.premove);
       const f = await showDialog(confirmDialog('Remove this idea?', `"${idea ? idea.title : ''}" leaves Pending.`));
