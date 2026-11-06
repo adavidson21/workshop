@@ -7,7 +7,7 @@ import * as People from '../../../shared/people.js';
 import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, STAGE_TITLE, aboutText, backTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
+  APP, NO_AREA, STAGE_TITLE, aboutText, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, ownersFor, parseTriage,
   moveBack, pmColumn, publishPlan, roadmapIdea, setStage, summaryCards, waitingTask, winOffer
 } from './model.js';
 import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
@@ -23,7 +23,7 @@ if (!ws.embedded) mountBar('Slate');
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
 
 const ui = {
-  tab: 'board', lane: remember('lane') === 'dev' ? 'dev' : 'pm', q: '', level: '', open: null,
+  tab: 'board', lane: remember('lane') === 'dev' ? 'dev' : 'pm', q: '', level: '', area: remember('area') || '', open: null,
   editing: false, busy: false, error: '', roadmapRoute: ''
 };
 const TABS = ['board', 'roadmaps', 'sprints', 'health'];
@@ -168,10 +168,16 @@ function enrich(c) {
   return out;
 }
 
+/** The lane's cards before any filter: the PM lane is everything not yours to build; the Dev lane is the rest. */
+function laneCards() {
+  const dev = (c) => c.stage === 'dev' || c.stage === 'done';
+  return cards(store.v.items, s.backlog).filter(c => ui.lane === 'dev' ? dev(c) : !dev(c));
+}
+
 function columns() {
   const cols = {};
   const push = (k, c) => (cols[k] ||= []).push(c);
-  const list = filterCards(cards(store.v.items, s.backlog), { q: ui.q, level: ui.level });
+  const list = filterCards(laneCards(), { q: ui.q, level: ui.level, area: ui.area });
   if (ui.lane === 'pm') {
     for (const c of list) {
       if (['dev', 'done'].includes(c.stage)) continue;
@@ -220,6 +226,7 @@ function panelState(c) {
   return {
     item: c, lane, files, draft, editing: ui.editing,
     back: c.virtual || c.virtualRun ? [] : backTargets(c, column),
+    forward: c.virtualRun ? [] : forwardTargets(c),
     triage: parseTriage(filesOf(c.work && c.work.triage)['triage.md']),
     agent: agentOf(c.sessions && c.sessions.current),
     column,
@@ -257,7 +264,8 @@ function setHtml(el, html) {
 let host = null;
 function paint() {
   const focus = document.activeElement && document.activeElement.id;
-  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : []));
+  const board = ui.tab === 'board' && store.v.loaded;
+  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(laneCards(), s.team.areas, ui.area) : []));
   if (ui.tab !== 'roadmaps' && host) { host.stop(); host = null; }
   if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
   if (ui.tab === 'roadmaps') {
@@ -267,7 +275,7 @@ function paint() {
   } else if (ui.tab === 'sprints') {
     setHtml(mainEl, sprintsView());
   } else {
-    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote }) : '<p class="loading">Loading…</p>');
+    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
   const waiting = store.v.items.filter(it => { const a = agentOf(it.sessions.current); return a && a.waiting; }).length;
@@ -469,7 +477,8 @@ const ACT = {
   },
   async publish(c) {
     const files = filesOf(c.work.define);
-    const area = s.team.areas[0] || '';
+    // A new request goes to the area you are looking at, else your team's first area path.
+    const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
     const plan = publishPlan(c, files, { area });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
     showDialog(publishDialogHtml(plan, { area }), () => runPublish(c, plan));
@@ -525,7 +534,20 @@ const ACT = {
     const to = $('backTo') && $('backTo').value;
     if (!c || !to) return;
     const a = agentOf(c.sessions && c.sessions.current);
-    if (a && a.busy) return ws.toast('An agent is running on it. Move it back when the run stops.', { kind: 'warn' });
+    if (a && a.busy) return ws.toast('An agent is running on it. Move it when the run stops.', { kind: 'warn' });
+    if (forwardTargets(c).includes(to)) {
+      const skip = to === 'decide'
+        ? 'Slate skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
+        : 'Slate skips the steps before it. Start the draft from the panel when you are ready.';
+      const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it in Dispatch.' : '';
+      return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
+        const it = await ensureStored(c);
+        await store.update(it.id, x => setStage(x, to));
+        ui.open = it.id; ui.editing = false; ui.lane = 'pm'; remember('lane', 'pm');
+        paint();
+        ws.toast(`Moved to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
+      });
+    }
     const notes = [];
     if (c.stage === 'delegated') notes.push('It stays assigned in ADO, and any Docket task stays: change those yourself if needed.');
     if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it in Dispatch.');
@@ -617,6 +639,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
+  if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
   if (e.target.dataset.sprint || e.target.dataset.assign) { sprintChange(e.target); return; }
   const c = findCard(ui.open);
   if (!c || c.virtual) return;

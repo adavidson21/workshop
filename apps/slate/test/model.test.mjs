@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  backTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
-  pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
+  backTargets, forwardTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
+  areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
 } from '../js/model.js';
 
 const NOW = new Date('2026-11-05T15:00:00Z');
@@ -384,4 +384,54 @@ test('moveBack: Define holds an approved draft until you act; a forward move cle
   moveBack(pub, 'defining', new Date(2026, 10, 6));
   assert.equal(pub.history.length, 2);
   assert.equal(cleanItem({ stage: 'new', reopened: 'defining' }).reopened, undefined);
+});
+
+test('area paths: under, filter and the view tree', () => {
+  assert.equal(underArea('Proj\\Platform\\Wiki', 'proj\\platform'), true);
+  assert.equal(underArea('Proj\\Platform', 'Proj\\Platform'), true);
+  assert.equal(underArea('Proj\\PlatformX', 'Proj\\Platform'), false);
+  assert.equal(underArea('Proj', ''), false);
+  const backlog = [
+    { id: 1, rev: 1, type: 'User Story', title: 'A', area: 'Proj\\Platform\\Wiki\\Edge' },
+    { id: 2, rev: 1, type: 'Bug', title: 'B', area: 'Proj\\Platform\\Search' },
+    { id: 3, rev: 1, type: 'Bug', title: 'C', area: 'Proj\\Platform' },
+    { id: 4, rev: 1, type: 'Bug', title: 'D', area: 'Other\\Team' }
+  ];
+  const local = newItem({ title: 'Request' }, NOW);
+  const list = cards([local], backlog);
+  assert.equal(areaOf(list[0]), '');
+  assert.deepEqual(filterCards(list, { area: 'Proj\\Platform\\Wiki' }).map(c => c.id), ['ado_1']);
+  assert.deepEqual(filterCards(list, { area: 'Proj\\Platform' }).map(c => c.id), ['ado_1', 'ado_2', 'ado_3']);
+  assert.deepEqual(filterCards(list, { area: NO_AREA }).map(c => c.id), [local.id]);
+  assert.equal(filterCards(list, {}).length, 5);
+  assert.equal(inArea(list[1], ''), true);
+
+  const opts = areaOptions(list, ['Proj\\Platform']);
+  assert.deepEqual(opts.map(o => [o.path, o.label, o.depth, o.count]), [
+    ['Other\\Team', 'Other\\Team', 0, 1],
+    ['Proj\\Platform', 'Proj\\Platform', 0, 3],
+    ['Proj\\Platform\\Search', 'Search', 1, 1],
+    ['Proj\\Platform\\Wiki', 'Wiki', 1, 1],
+    ['Proj\\Platform\\Wiki\\Edge', 'Edge', 2, 1],
+    [NO_AREA, 'No area path', 0, 1]
+  ]);
+  // A saved view with nothing in it stays listed.
+  assert.ok(areaOptions([], ['Proj'], 'Proj\\Gone').some(o => o.path === 'Proj\\Gone' && o.count === 0));
+  // A stored item uses the area ADO has now.
+  const moved = cards([newItem({ title: 'x', ado: { id: 9, rev: 1, type: 'Bug', area: 'Proj\\Old' } }, NOW)], [{ id: 9, rev: 2, type: 'Bug', title: 'x', area: 'Proj\\New' }]);
+  assert.equal(areaOf(moved[0]), 'Proj\\New');
+});
+
+test('forwardTargets: skip ahead to Define or Who builds it? from the PM lane only', () => {
+  const at = (stage) => forwardTargets(cleanItem({ stage }));
+  assert.deepEqual(at('new'), ['defining', 'decide']);
+  assert.deepEqual(at('triaged'), ['defining', 'decide']);
+  assert.deepEqual(at('defining'), ['decide']);
+  assert.deepEqual(at('ready'), ['decide']);
+  for (const st of ['decide', 'delegated', 'dev', 'done']) assert.deepEqual(at(st), [], st);
+  const it = newItem({ title: 'Feature with stories' }, NOW);
+  it.stage = 'triaged'; it.reopened = 'triaged';
+  setStage(it, 'decide', NOW);
+  assert.equal(pmColumn(it), 'decide');
+  assert.equal(it.reopened, undefined);
 });

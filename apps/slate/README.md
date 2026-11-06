@@ -15,11 +15,17 @@ Four tabs: **Board** (the two lanes below), **Roadmaps** (Runway), **Sprints** a
 5. **Publish to ADO** shows every create and update first, then sends them with one confirm. A refined story on an existing ADO item updates its description and acceptance criteria; anything else is created, parents first, tagged `slate`. If a run stops part way, the next one skips what was already made.
 6. **Who builds it?** **Delegate**: pick someone from People. The owners of what the item touches (People, **Owns**, matched against triage's products and repos and the ADO area) come first, with what they own. Slate can run `/handoff` for a brief, assign the item in ADO (needs their ADO identity in People) and add a "waiting on" task to Docket. **Do it myself** moves the card to the Dev lane.
 
+**Area paths.** The board's **Area** select shows one area path and everything under it, so you are not looking at the whole backlog at once. It lists your team's area paths from People and every sub-area your cards sit in, as a tree with counts; requests not in ADO yet are under **No area path**. Your choice is remembered in this browser, and a new request you publish goes to the area you are looking at.
+
 Every card shows how many days it has been in its column; past a limit (3 days in New, Triage or Who builds it?, 5 waiting on the requester, 7 in Define, 2 in Publish) it is marked **Stale** and shows on Home's Needs you.
 
 **Dev lane:** Ready, Spec and plan, Build, Review and PR, Done. Only what you chose to build yourself, with its Tandem stage. **Start** runs Tandem on the ADO item; after that the panel offers the run's next step, or **Open in Dispatch**, where every run, prompt and review lives. When an agent asks you something, the card says **Waiting on you** and **Answer in Dispatch** opens it.
 
-**Moving back.** To pause and revise, pick an earlier stage under the panel and **Move back**. The choices are the stages the item went through (New always). It keeps its triage, drafts and history, and stays put until you act: back in New, a finished triage does not move it on; back in Define, an approved draft offers **Revise with my edits** or **Keep it approved** instead of going to Publish. Delegated and the Dev lane go back to Who builds it?. Off while an agent is running on the item. Moving back changes nothing in ADO, Docket or Tandem; the confirm says what stays.
+**Moving a card.** Under the panel, pick a stage and **Move**.
+
+**Skip ahead** is for work already done elsewhere, like a feature whose stories are already in ADO: from New, Triage, Waiting, Define or Publish, a card can go straight to **Define** or **Who builds it?**. Nothing is triaged, drafted or published on the way, and nothing changes in ADO. Works on ADO items you have not acted on yet too.
+
+**Moving back** is to pause and revise: pick an earlier stage. The choices are the stages the item went through (New always). It keeps its triage, drafts and history, and stays put until you act: back in New, a finished triage does not move it on; back in Define, an approved draft offers **Revise with my edits** or **Keep it approved** instead of going to Publish. Delegated and the Dev lane go back to Who builds it?. Off while an agent is running on the item. Moving back changes nothing in ADO, Docket or Tandem; the confirm says what stays.
 
 **When work closes.** When a delegated or own item leaves the open backlog, Slate reads it from ADO; closed means done. A delegated one offers Rapport a win about the person (an ordinary offer you accept there).
 

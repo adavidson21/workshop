@@ -8,7 +8,7 @@ const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = 
 
 /* ---------- top bar ---------- */
 
-export function topHtml(ui, notes) {
+export function topHtml(ui, notes, areas = []) {
   const tab = (key, label) => `<button type="button" class="tab${ui.tab === key ? ' on' : ''}" role="tab" aria-selected="${ui.tab === key}" data-act="tab" data-id="${key}">${label}</button>`;
   const lane = (key, label) => `<button type="button" class="seg${ui.lane === key ? ' on' : ''}" aria-pressed="${ui.lane === key}" data-act="lane" data-id="${key}">${label}</button>`;
   const board = ui.tab === 'board';
@@ -17,6 +17,7 @@ export function topHtml(ui, notes) {
     ${board ? `<div class="segs" role="group" aria-label="Lane">${lane('pm', 'PM')}${lane('dev', 'Dev')}</div>
     <label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
+    ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
     <span class="grow"></span>
     ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
     ${btn('refresh', 'Refresh', { title: 'Read ADO and Tandem again' })}
@@ -59,6 +60,9 @@ function card(c, s) {
 export function boardHtml(columns, s) {
   const defs = s.lane === 'dev' ? DEV_COLUMNS : PM_COLUMNS;
   const total = defs.reduce((n, d) => n + (columns[d.key] || []).length, 0);
+  if (!total && s.filtered) {
+    return `<div class="empty"><h2>Nothing here</h2><p>No cards in this lane match the area path, level or search you picked.</p></div>`;
+  }
   if (!total) {
     return `<div class="empty"><h2>${s.lane === 'dev' ? 'Nothing to build yet' : 'No requests yet'}</h2>
       <p>${s.lane === 'dev' ? 'Items you choose to build yourself, and Tandem runs from Dispatch, show here.' : s.backlogNote || 'Add a request, or set your team\'s area paths in People so Slate can list your ADO backlog.'}</p>
@@ -199,13 +203,15 @@ function nextHtml(p) {
   }
 }
 
-/** Move back: a select of earlier stages and a button. Off while an agent is running on the item. */
+/** Move to: a select of earlier stages (Move back) and later ones (Skip ahead), and a button. Off while an agent
+    is running on the item. */
 function backHtml(p) {
-  const targets = p.back || [];
-  if (!targets.length) return '';
+  const back = p.back || [], fwd = p.forward || [];
+  if (!back.length && !fwd.length) return '';
   const running = !!(p.agent && p.agent.busy);
-  const off = running ? ' disabled title="An agent is running on it. Move it back when the run stops."' : '';
-  return `<span class="back"><label class="sr" for="backTo">Move back to</label><select id="backTo"${off}>${targets.slice().reverse().map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('')}</select>${btn('back', 'Move back', { extra: off })}</span>`;
+  const off = running ? ' disabled title="An agent is running on it. Move it when the run stops."' : '';
+  const opts = (list) => list.map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('');
+  return `<span class="back"><label class="sr" for="backTo">Move to</label><select id="backTo"${off}>${fwd.length ? `<optgroup label="Skip ahead">${opts(fwd.slice().reverse())}</optgroup>` : ''}${back.length ? `<optgroup label="Move back">${opts(back.slice().reverse())}</optgroup>` : ''}</select>${btn('back', 'Move', { extra: off })}</span>`;
 }
 
 export function panelHtml(p) {
