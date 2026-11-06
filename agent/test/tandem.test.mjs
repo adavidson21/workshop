@@ -101,6 +101,14 @@ test('installTandem: first install moves to the tag and runs install.ps1; later 
     assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run }));
     assert.equal(path.basename(calls[0][5]), 'update.ps1');
     assert.deepEqual(calls[0].slice(6), ['-Tag', 'core-v2.1.0', '-Yes']);
+
+    // An update from an older checkout moves to the tag before running update.ps1, so the tag's script runs.
+    spawnSync('git', ['-C', ea, 'checkout', '-q', '--detach', 'core-v2.0.0']);
+    calls.length = 0;
+    const seen = [];
+    const run2 = (exe, args) => { seen.push(tandemVersionAt(ea)); s.install(tandemVersionAt(ea), ea); return { status: 0 }; };
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run: run2 }));
+    assert.deepEqual(seen, ['2.1.0']);
   } finally { rm(s.root); }
 });
 

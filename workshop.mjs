@@ -678,9 +678,9 @@ export function findPowerShell(platform = process.platform) {
 }
 
 /**
- * Install Tandem from its checkout into opencode at a release tag. With an earlier install, its update.ps1 does it
- * (it keeps the Personal and Company layers used last time and refuses local changes); otherwise the checkout is
- * moved to the tag and install.ps1 runs, with ~/.config/eng-agents/personal when it exists (as the installer does).
+ * Install Tandem from its checkout into opencode at a release tag. The checkout is moved to the tag first. With an
+ * earlier install, the tag's update.ps1 does it (it keeps the Personal and Company layers used last time);
+ * otherwise install.ps1 runs, with ~/.config/eng-agents/personal when it exists (as the installer does).
  * Returns true when opencode now has that tag's Core version.
  */
 export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync } = {}) {
@@ -688,10 +688,12 @@ export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = fin
   const want = tandemVersionAt(dir, `refs/tags/${tag}`);
   const before = installedTandem(userHome);
   const psArgs = file => ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(dir, file)];
+  // Move to the tag first in both cases, so the scripts that run are that release's own. An older checkout's
+  // update.ps1 can fail against a newer tag (Core 2.9's looked for the dashboard VERSION file removed in 2.11).
+  if (!checkoutTag(dir, tag, out)) return false;
   let args;
   if (before) args = [...psArgs('update.ps1'), '-Tag', tag, '-Yes'];
   else {
-    if (!checkoutTag(dir, tag, out)) return false;
     args = psArgs('install.ps1');
     const personal = path.join(userHome, '.config', 'eng-agents', 'personal');
     if (fs.existsSync(personal)) { args.push('-Personal', personal); out(`Using your personal layer at ${personal}.`); }
@@ -1061,6 +1063,26 @@ export function parseDataFolderArgs(rest) {
 }
 
 /**
+ * Copy every file under src into dest (made as needed), never writing over a file. Returns the number of files.
+ * fs.cpSync is not used: its errorOnExist check has thrown ERR_FS_CP_EEXIST for an empty destination on Windows
+ * (Node 22's native cpSync), and its error does not say which file. Symlinks are skipped.
+ */
+export function copyTree(src, dest) {
+  let n = 0;
+  fs.mkdirSync(dest, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, e.name), to = path.join(dest, e.name);
+    if (e.isDirectory()) n += copyTree(from, to);
+    else if (e.isFile()) {
+      try { fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL); }
+      catch (err) { throw new Error(`${err.code === 'EEXIST' ? 'already there' : err.code || err.message}: ${to}`); }
+      n++;
+    }
+  }
+  return n;
+}
+
+/**
  * workshop data-folder: say where the data is, or move it. Moving copies every file into the new folder (which
  * must be empty), points dataDir at it, and keeps the old folder untouched. Workshop is stopped for the copy and
  * started again afterwards if it was running.
@@ -1100,13 +1122,17 @@ async function runDataFolder(rest, io) {
     io.out('Stopped Workshop for the move.');
   }
   let copied = 0;
+  const existed = fs.existsSync(target);
   try {
     fs.mkdirSync(target, { recursive: true });
-    if (fs.existsSync(now)) {
-      fs.cpSync(now, target, { recursive: true, force: false, errorOnExist: true, filter: src => { if (fs.statSync(src).isFile()) copied++; return true; } });
-    }
+    if (fs.existsSync(now)) copied = copyTree(now, target);
   } catch (e) {
-    io.out(`Could not copy your data to ${target} (${e.code || e.message}). Nothing was changed: Workshop still uses ${now}.`);
+    // The target was empty (checked above), so what is in it now is a partial copy: remove it.
+    try {
+      if (existed) for (const n of fs.readdirSync(target)) fs.rmSync(path.join(target, n), { recursive: true, force: true });
+      else fs.rmSync(target, { recursive: true, force: true });
+    } catch { /* leave it; the message says what failed */ }
+    io.out(`Could not copy your data to ${target}: ${e.message}. Nothing was changed: Workshop still uses ${now}.`);
     if (wasRunning) await startBackground({ repo: REPO, port, probe, env: io.env, ...(io.control || {}) });
     return 1;
   }

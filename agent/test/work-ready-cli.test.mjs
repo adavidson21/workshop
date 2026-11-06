@@ -107,6 +107,20 @@ test('data-folder refuses a folder with files in it, and changes nothing', async
   } finally { rm(home); rm(target); }
 });
 
+test('copyTree copies nested files, refuses to write over one, and says which', async () => {
+  const { copyTree } = await import('../../workshop.mjs');
+  const src = tempDir('workshop-ct-src-'), dest = path.join(tempDir('workshop-ct-dest-'), 'Workshop');
+  try {
+    fs.mkdirSync(path.join(src, 'a', 'b'), { recursive: true });
+    fs.writeFileSync(path.join(src, 'a', 'b', 'x.json'), '1');
+    fs.writeFileSync(path.join(src, 'y.md'), '2');
+    fs.mkdirSync(dest);
+    assert.equal(copyTree(src, dest), 2, 'an existing empty destination is fine');
+    assert.equal(fs.readFileSync(path.join(dest, 'a', 'b', 'x.json'), 'utf8'), '1');
+    assert.throws(() => copyTree(src, dest), /already there: .*x\.json/);
+  } finally { rm(src); rm(path.dirname(dest)); }
+});
+
 test('data-folder --onedrive needs a company OneDrive', async () => {
   const home = tempDir('workshop-df3-home-');
   const out = [];
