@@ -19,6 +19,8 @@ Every card shows how many days it has been in its column; past a limit (3 days i
 
 **Dev lane:** Ready, Spec and plan, Build, Review and PR, Done. Only what you chose to build yourself, with its Tandem stage. **Start** runs Tandem on the ADO item; after that the panel offers the run's next step, or **Open in Dispatch**, where every run, prompt and review lives. When an agent asks you something, the card says **Waiting on you** and **Answer in Dispatch** opens it.
 
+**Moving back.** To pause and revise, pick an earlier stage under the panel and **Move back**. The choices are the stages the item went through (New always). It keeps its triage, drafts and history, and stays put until you act: back in New, a finished triage does not move it on; back in Define, an approved draft offers **Revise with my edits** or **Keep it approved** instead of going to Publish. Delegated and the Dev lane go back to Who builds it?. Off while an agent is running on the item. Moving back changes nothing in ADO, Docket or Tandem; the confirm says what stays.
+
 **When work closes.** When a delegated or own item leaves the open backlog, Slate reads it from ADO; closed means done. A delegated one offers Rapport a win about the person (an ordinary offer you accept there).
 
 **Decision log.** Each decision (delegated, building it myself, defined and published) adds a note to Notes' inbox with a link back to the item. Nothing is posted anywhere.
@@ -48,7 +50,7 @@ Where requests sit (items, median days and stale count per column), the median d
 
 ## Data
 
-- `items` (`slate.items` v1): the Fields settings in `meta.fields`, and one record per item you acted on: title, level (`epic`, `feature`, `story`, `bug`), stage, the ADO item (`id`, `rev`, `url`), the Runway item, the `.work` folders and Tandem sessions for triage, define and handoff, the route, who it is delegated to, what Publish created, and a stage history.
+- `items` (`slate.items` v1): the Fields settings in `meta.fields`, and one record per item you acted on: title, level (`epic`, `feature`, `story`, `bug`), stage, the ADO item (`id`, `rev`, `url`), the Runway item, the `.work` folders and Tandem sessions for triage, define and handoff, the route, who it is delegated to, what Publish created, a stage history, and `reopened` (the stage you moved it back to, until you act).
 - `handoffs` (`slate.handoffs` v1): offers to Runway (an idea, from **Add to roadmap**), Docket (a waiting-on task, from **Delegate**), Notes (the decision log) and Rapport (a win when delegated work closes), as Workshop `docs/handoffs.md` describes. All but the win are accepted offers.
 - `summary` (`slate.summary` v1, Workshop docs/summaries.md): `needs` (Home's Needs you), `delegated` (Rapport's 1:1 prep), `done-week` (Home's weekly status) and `ado` (Dispatch's From Slate link).
 

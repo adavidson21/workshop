@@ -1,6 +1,6 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
-import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, changedInAdo, detailRows, esc, parseRefine, parseTriage } from './model.js';
+import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, STAGE_TITLE, changedInAdo, detailRows, esc, parseRefine, parseTriage } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = {}) =>
@@ -188,6 +188,7 @@ function nextHtml(p) {
       const d = p.draft;
       if (!d.kind) return out('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' })]);
       if (d.step === 'approve' || d.step === 'approve-stories' || d.step === 'approve-milestones') return out('Read the draft. Approve it, or edit it and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
+      if (d.ready) return out('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
       if (d.step === 'slice') return out('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
       return out('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch')]);
     }
@@ -196,6 +197,15 @@ function nextHtml(p) {
     case 'delegated': return out(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`, [btn('myself', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [])]);
     default: return '';
   }
+}
+
+/** Move back: a select of earlier stages and a button. Off while an agent is running on the item. */
+function backHtml(p) {
+  const targets = p.back || [];
+  if (!targets.length) return '';
+  const running = !!(p.agent && p.agent.busy);
+  const off = running ? ' disabled title="An agent is running on it. Move it back when the run stops."' : '';
+  return `<span class="back"><label class="sr" for="backTo">Move back to</label><select id="backTo"${off}>${targets.slice().reverse().map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('')}</select>${btn('back', 'Move back', { extra: off })}</span>`;
 }
 
 export function panelHtml(p) {
@@ -221,7 +231,7 @@ export function panelHtml(p) {
     ${draftSection(p)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
     ${section('History', `<ol class="hist">${(it.history || []).slice().reverse().map(h => `<li><span class="mono">${esc(h.at)}</span> ${esc(h.stage)}</li>`).join('')}</ol>`)}
-    ${!it.virtual ? `<div class="acts foot">${it.stage !== 'done' ? btn('done', 'Mark done') : ''}${btn('remove', 'Remove from Slate')}</div>` : ''}`;
+    ${!it.virtual ? `<div class="acts foot">${backHtml(p)}${it.stage !== 'done' ? btn('done', 'Mark done') : ''}${btn('remove', 'Remove from Slate')}</div>` : ''}`;
 }
 
 /* ---------- dialogs ---------- */
