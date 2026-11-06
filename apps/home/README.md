@@ -7,7 +7,7 @@ The **Capture** button in the top bar (or Ctrl+. on any app) is the quick way in
 What it shows:
 
 - **Greeting** with your name and role. Use **Add your name** (or **Edit profile**) to set them.
-- **Needs you:** one list of everything waiting on you, from every app's summary (`needs` cards, docs/summaries.md): agents asking a question, Slate items to decide or approve, pull requests to review, 1:1s due, plus Docket's overdue tasks and tasks to triage. Urgent first. Each row opens the place to act.
+- **Needs you:** one list of everything waiting on you, from every app's summary (`needs` cards, docs/summaries.md): agents asking a question, Slate items to decide or approve, pull requests to review, 1:1s due. Urgent first. Docket's own counts are on the Today card instead. Each row opens the place to act.
 - **Weekly status:** the document button by your name drafts your status update from every app's `done-week` card (tasks finished in Docket, decisions in Slate, runs shipped with Dispatch, your wins in Rapport), with Next week and Risks headings to fill in. Edit, then Copy. It is the highlighted button on Friday afternoons.
 - **Your day:** buttons for Triage (with the count), Plan today (or Pick today's tasks when Today is empty) and Wrap up the day. The one that needs doing is highlighted. Wrap up the day is highlighted from an hour before your day ends (Docket's Day view settings; 15:00 if no sprint is set), on working days only. After Docket's Wrap up it reads **Day wrapped**. Its tooltip counts receipts offered to Receipts today. Reads Docket's `focus/days/<yyyy>` and `handoffs` at version 1 only.
 - **Get started:** a checklist for someone new, under the greeting. Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
@@ -17,15 +17,12 @@ What it shows:
   4. Add your first task in Docket (Docket's own tour takes over there).
   5. Log your first receipt.
   Later: Dispatch, and start at login. Any step can be skipped. **Hide** puts it away, and **Get started** next to the greeting brings it back. **Check again** re-reads everything at once; otherwise it follows the apps and connectors as they change.
-- **Today at a glance:** tasks on Today (done out of total), tasks to triage, overdue tasks, and tasks due in the next 7 days. Each opens the matching Docket view.
-- **Up next:** your top 3 open tasks in rank order, leaving out ones you're waiting on. Click one to open it in Prioritizer.
-- **Now:** the Day view's block on now (until when), the tasks planned in it, and the next block. Before the first block it shows the next one. Hidden with no sprint set, on a day off, and after the last block. Reads Docket's `dayplan/settings`, `dayplan/templates` and this year's `dayplan/days`, only at version 1.
-- **People:** open tasks and waiting tasks for each person on your board.
+- **Today:** Docket's day in counts, from its summary's `board` card: tasks on Today (done out of total, and open tasks), to triage, follow-ups due on work you handed over (and how many came back), and overdue (and due this week). **Open Today** and each count open Docket's Today, which is where the day happens: its Needs you strip handles each of these in place. Up next, the block on now and people live there, not on Home.
 - **Agents:** prompts waiting for you and agents working, from the opencode connector. Needs Workshop running on this computer with the connector on.
 
 ## Data
 
-Home reads Prioritizer's `tasks`, `lists` and `people` collections read-only, and updates when they change. It reads `prioritizer.tasks` version 3 only and says so if the board is newer.
+Home reads Docket only through its summary ([docs/summaries.md](../../docs/summaries.md)): today's entry of the `board` card (the Today card) and of the `day` card (Wrap up), and updates when it changes. No summary yet reads as an empty board; one with no entry for today says to open Docket; a newer version says to update Workshop.
 
 It never calls ADO itself.
 

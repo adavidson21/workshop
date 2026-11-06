@@ -1163,7 +1163,7 @@ def agents_checks(b, watch):
         top = af.evaluate("document.getElementById('item-41207').getBoundingClientRect().top")
         check('the stage chip opens that item in Agents', pg.url.endswith('#/agents') and 0 <= top < 800)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
-        pf.locator('.row', has_text='Brand new').first.click(); pg.wait_for_timeout(400)
+        pf.locator('.row', has_text='Brand new').first.locator('.title').click(); pg.wait_for_timeout(400)
         pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
         cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
@@ -1271,7 +1271,7 @@ def main():
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
         add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
         check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-        frame.locator('.row', has_text='Fix login').first.click(); pg.wait_for_timeout(300)
+        frame.locator('.row', has_text='Fix login').first.locator('.title').click(); pg.wait_for_timeout(300)
         check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
@@ -1313,10 +1313,10 @@ def main():
         check('a question in quick capture opens Dispatch', pg.url.endswith('#/agents'))
         pg.click('#rail .mark'); pg.wait_for_timeout(600)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        hf.locator('[data-task]').first.click(); pg.wait_for_timeout(1200)
+        check('Home has one Today card for Docket, no Up next, Now or People of its own', hf.locator('.todaycard').count() == 1 and 'Up next' not in hf.inner_text('#app'))
+        hf.click('.todaycard .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
-        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
+        check("Open Today on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)

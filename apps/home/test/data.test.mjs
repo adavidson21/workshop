@@ -88,7 +88,7 @@ test('on Allow (online turns true), profile, board and agents load again, once',
   assert.ok(paints > 0);
   const html = render(home.v);
   assert.match(html, /Good morning, Sam/);
-  assert.match(html, /Write the plan/);
+  assert.match(html, /1 open task/, 'the board loaded: the Today card counts it');
   assert.ok(!html.includes('Allow Workshop to use your folder'));
   // After the wait, the profile saves on top of the loaded revision.
   await home.saveProfile({ name: 'Sam R', role: 'EM' });
@@ -128,14 +128,14 @@ test('captureContext: directory people and groups, and list names from summaries
 
 // Docket's summary (docs/summaries.md) for 2026-10-28, a Wednesday.
 const summaryEnv = { schema: 'prioritizer.summary', version: 1, rev: 4, items: [
-  { id: 'board', kind: 'board', updatedAt: 1, days: { '2026-10-28': { total: 5, open: 4, focus: { total: 2, done: 1 }, triage: 1, overdue: 0, dueWeek: 2 } },
+  { id: 'board', kind: 'board', updatedAt: 1, days: { '2026-10-28': { total: 5, open: 4, focus: { total: 2, done: 1 }, triage: 1, overdue: 0, dueWeek: 2, nudges: 3, cameBack: 1 } },
     upNext: [{ id: 't9', title: 'From the summary', list: '', listId: 'l1', due: null, who: ['g_l'], triaged: true }], team: [{ id: 'p_j', name: 'Old name', open: 2, waiting: 1 }] },
   { id: 'day', kind: 'day', updatedAt: 1, days: { '2026-10-28': { blocks: [
     { name: 'Deep work', at: '09:00', until: '11:00', tasks: [{ id: 't9', title: 'From the summary', done: false }] },
     { name: 'Meetings', at: '13:00', until: '14:00', tasks: [] }], wrapAt: '16:00', wrapped: false, offered: 2 } } }
 ] };
 
-test('Docket\'s summary: the board, Now and Wrap up come from it, with no reads of Docket\'s own collections', async () => {
+test('Docket\'s summary: the board and Wrap up come from it, with no reads of Docket\'s own collections', async () => {
   const ws = fakeWs({ summary: summaryEnv }); ws.allowed = true;
   const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9, 30) });
   await home.loadBoard();
@@ -144,11 +144,11 @@ test('Docket\'s summary: the board, Now and Wrap up come from it, with no reads 
   assert.equal(home.v.board.team[0].name, 'John Smith');
   assert.equal(home.v.board.open, 4);
   assert.equal(home.v.board.upNext[0].title, 'From the summary');
-  assert.equal(home.v.dayNow.current.name, 'Deep work');
-  assert.equal(home.v.dayNow.current.until, '11:00');
-  assert.equal(home.v.dayNow.next.name, 'Meetings');
+  assert.deepEqual([home.v.board.nudges, home.v.board.cameBack], [3, 1], 'follow-ups due and came back');
   assert.deepEqual(home.v.wrap, { wrapped: false, due: false, receipts: 2 });
-  assert.match(render(home.v), /From the summary/);
+  const html = render(home.v);
+  assert.match(html, /Open Today/);
+  assert.ok(!html.includes('From the summary'), 'Up next is in Docket\'s Today, not on Home');
 });
 
 test('Docket\'s summary: a stale one (no entry for today) says to open Docket; none yet is an empty board', async () => {
@@ -169,13 +169,9 @@ test('Docket\'s summary: a stale one (no entry for today) says to open Docket; n
   assert.match(h3.v.boardNote, /newer Docket/);
 });
 
-test('nowFromDay and wrapFromDay: between blocks, after the last one, and Wrap up time', async () => {
-  const { nowFromDay, wrapFromDay } = await import('../js/view.js');
+test('wrapFromDay: Wrap up time from the day card', async () => {
+  const { wrapFromDay } = await import('../js/view.js');
   const day = summaryEnv.items[1].days['2026-10-28'];
-  assert.equal(nowFromDay(day, 12 * 60).current, null);
-  assert.equal(nowFromDay(day, 12 * 60).next.name, 'Meetings');
-  assert.equal(nowFromDay(day, 15 * 60), null);
-  assert.equal(nowFromDay({ blocks: [] }, 600), null);
   assert.deepEqual(wrapFromDay(day, 16 * 60), { wrapped: false, due: true, receipts: 2 });
   assert.deepEqual(wrapFromDay(Object.assign({}, day, { wrapAt: null }), 23 * 60), { wrapped: false, due: false, receipts: 2 }, 'a day off');
 });
