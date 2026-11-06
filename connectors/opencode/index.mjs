@@ -23,7 +23,7 @@ import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
-import { MAX_FILE, approveFolder, startHandoff, startRefine, startScope, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
+import { MAX_FILE, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 
 export const configSchema = {
   type: "object",
@@ -342,10 +342,24 @@ const actions = {
       return startTriage(args);
     },
   },
+  "shape.start": {
+    title: "Shape an idea with you, a round of questions at a time (/shape, writes questions.md and brief.md)",
+    write: true,
+    argsSchema: obj([], {
+      idea: str("The idea", { maxLength: 4000 }),
+      from: str("A triage-<name> folder to start from", { maxLength: 100 }),
+      folder: str("A shape-<name> folder: run the next round", { maxLength: 100 }),
+      mode: { type: "string", title: "With a folder: brief (write the brief now) or more (ask another round)", enum: ["brief", "more"] },
+    }),
+    async run(args) {
+      needReady();
+      return startShape(args);
+    },
+  },
   "scope.start": {
     title: "Scope an idea into an epic, features and stories (/scope)",
     write: true,
-    argsSchema: obj([], { idea: str("The idea", { maxLength: 4000 }), folder: str("A scope-<name> folder to revise", { maxLength: 100 }) }),
+    argsSchema: obj([], { idea: str("The idea", { maxLength: 4000 }), from: str("A shape-<name> folder whose brief to scope", { maxLength: 100 }), folder: str("A scope-<name> folder to revise", { maxLength: 100 }) }),
     async run(args) {
       needReady();
       return startScope(args);
@@ -367,6 +381,7 @@ const actions = {
       title: str("Title", { maxLength: 200 }),
       description: str("What is known so far", { maxLength: 4000 }),
       parent: str("Parent work item id", { pattern: "^[0-9]{1,10}$" }),
+      from: str("A shape-<name> folder whose brief to refine", { maxLength: 100 }),
       folder: str("A refine-<name> folder to revise", { maxLength: 100 }),
     }),
     async run(args) {
@@ -393,10 +408,10 @@ const actions = {
     },
   },
   "file.write": {
-    title: "Write a Markdown file in a triage, scope, refine or handoff folder",
+    title: "Write a Markdown file in a triage, shape, scope, refine or handoff folder",
     write: true,
     argsSchema: obj(["folder", "file", "text"], {
-      folder: str("A triage-, scope-, refine- or handoff- folder", { minLength: 1, maxLength: 100 }),
+      folder: str("A triage-, shape-, scope-, refine- or handoff- folder", { minLength: 1, maxLength: 100 }),
       file: str("File (.md, at the top of the folder)", { minLength: 4, maxLength: 85 }),
       text: str("The new text", { maxLength: MAX_FILE }),
       expected: str("The text you read (omit to create the file)", { maxLength: MAX_FILE }),

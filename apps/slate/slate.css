@@ -78,6 +78,14 @@ body.standalone .slate{height:auto;flex:1;min-height:0}
 .answers,.draft{width:100%;box-sizing:border-box;font-family:var(--mono);font-size:.82rem;line-height:1.5;margin-bottom:.6rem}
 .answers{min-height:7rem;background:var(--surface)}
 .draft{min-height:22rem}
+.interview{display:grid;gap:.7rem}
+.interview .answers{min-height:3.5rem}
+.iq{margin:0;padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);display:grid;gap:.25rem}
+.iq legend{font-weight:600;font-size:.88rem;padding:0 .2rem}
+.iq .opt{display:flex;gap:.45rem;align-items:flex-start;font-size:.86rem;cursor:pointer}
+.iq .opt input{margin-top:.2rem}
+.iq .qo{width:100%;box-sizing:border-box;font-size:.84rem;margin:.1rem 0 .1rem 1.4rem;max-width:calc(100% - 1.4rem)}
+.iq .soft.small{margin:.2rem 0 0}
 .ps{margin-top:1.1rem}
 .ps h3{margin:0 0 .4rem;font-family:var(--mono);font-size:.74rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .ps p,.ps li{font-size:.88rem}

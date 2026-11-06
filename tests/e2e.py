@@ -321,6 +321,19 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.select_option('#area', ''); pg.wait_for_timeout(300)
         check('the area path view picks which cards show (a request with no area under No area path)', areas == ['', '-'] and shown_none == 1 and shown_other == 0 and empty_msg
               and slf.locator('.col[aria-label=New] .card').count() == 1)
+        check('the board has Shape, PM and Dev lanes, Shape first', slf.locator('.top [data-act=lane]').evaluate_all('els => els.map(e => e.dataset.id)') == ['shape', 'pm', 'dev'])
+        slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('a new idea lands in New, marked Idea, with Shape it and Already shaped', slf.locator('.col[aria-label=New] .card').count() == 2
+              and slf.locator('.col[aria-label=New] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
+              and slf.locator('.panel [data-act=shape]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 1)
+        slf.click('.panel [data-act=skip]'); pg.wait_for_timeout(700)
+        skipped = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items.find(x => x.title === 'Bulk export'); return [it.kind, it.stage, it.history.at(-1).skipped === true]; }""")
+        check('Already shaped moves it to Who builds it? in the PM lane, marked skipped', skipped == ['idea', 'decide', True]
+              and slf.locator('.top [data-act=lane][data-id=pm].on').count() == 1 and slf.locator('.col[aria-label="Who builds it?"] .card').count() == 1)
+        slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('Move back undoes it, back in Shape', slf.locator('.top [data-act=lane][data-id=shape].on').count() == 1 and slf.locator('.col[aria-label=New] .card').count() == 2)
         slf.click('.top [data-act=tab][data-id=roadmaps]'); pg.wait_for_timeout(2500)
         rmf = next((f for f in pg.frames if '/apps/runway/' in f.url and f.parent_frame and '/apps/slate/' in f.parent_frame.url), None)
         check('the Roadmaps tab runs Runway inside Slate', rmf is not None)

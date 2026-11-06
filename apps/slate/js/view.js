@@ -1,6 +1,6 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
-import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, STAGE_TITLE, changedInAdo, detailRows, esc, parseRefine, parseTriage } from './model.js';
+import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, SHAPE_COLUMNS, SKIP_FROM, STAGE_TITLE, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = {}) =>
@@ -14,13 +14,14 @@ export function topHtml(ui, notes, areas = []) {
   const board = ui.tab === 'board';
   return `<div class="top">
     <div class="tabs" role="tablist" aria-label="Slate">${tab('board', 'Board')}${tab('roadmaps', 'Roadmaps')}${tab('sprints', 'Sprints')}${tab('health', 'Health')}</div>
-    ${board ? `<div class="segs" role="group" aria-label="Lane">${lane('pm', 'PM')}${lane('dev', 'Dev')}</div>
+    ${board ? `<div class="segs" role="group" aria-label="Lane">${lane('shape', 'Shape')}${lane('pm', 'PM')}${lane('dev', 'Dev')}</div>
     <label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
     <span class="grow"></span>
     ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
     ${btn('refresh', 'Refresh', { title: 'Read ADO and Tandem again' })}
+    ${btn('new-idea', 'New idea', { title: 'Your own idea: an agent interviews you to shape it' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
   </div>${notes.length ? `<div class="notes">${notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}</div>` : ''}`;
 }
@@ -37,6 +38,7 @@ function agentLine(a) {
 
 function card(c, s) {
   const meta = [];
+  if (c.fromRunway) meta.push('From Runway');
   if (c.ado) meta.push(`#${c.ado.id}`);
   if (c.triage && c.triage.size) meta.push(`Size ${c.triage.size}`);
   if (c.route) meta.push(c.route === 'delegate' ? 'Delegate' : 'Myself');
@@ -46,27 +48,35 @@ function card(c, s) {
   const flags = [];
   if (c.stale) flags.push(chip('Stale', 'warn'));
   if (changedInAdo(c)) flags.push(chip('Changed in ADO', 'warn'));
-  if (c.virtual) flags.push(chip('In ADO', 'soft'));
+  if (c.virtual && c.ado) flags.push(chip('In ADO', 'soft'));
+  if (c.kind === 'idea' || c.fromRunway || c.runwayPending) flags.push(chip('Idea', 'soft'));
+  if (c.skipped) flags.push(chip('Skipped shaping', 'soft'));
   return `<li><button type="button" class="card${s.open === c.id ? ' open' : ''}" data-act="open" data-id="${esc(c.id)}">
     <span class="row1">${chip(LEVEL_NAME[c.level] || 'Story', `lv-${c.level}`)}${flags.join('')}</span>
     <span class="title">${esc(c.title)}</span>
     <span class="meta">${esc(meta.join(' · '))}</span>
     ${c.facts && c.facts.facts.length ? `<span class="ado">${c.facts.facts.map(f => `<span class="f-${esc(f.key)}"${f.title ? ` title="${esc(f.title)}"` : ''}>${esc(f.text)}</span>`).join('')}</span>` : ''}
     ${c.facts && c.facts.tags.length ? `<span class="tags">${c.facts.tags.map(t => chip(t, 'tag')).join('')}</span>` : ''}
-    ${c.agent ? `<span class="agent">${agentLine(c.agent)}</span>` : ''}
+    ${c.agent ? `<span class="agent">${agentLine(c.agent)}</span>` : c.shapeAsking ? `<span class="agent"><span class="dot wait" aria-hidden="true"></span><span class="warn">Your turn: round ${esc(c.shapeRound || 1)}</span></span>` : ''}
   </button></li>`;
 }
 
+const EMPTY = {
+  shape: ['Nothing to shape yet', 'Add an idea or a request, or set your team\'s area paths in People so Slate can list your ADO backlog. Ideas waiting in Runway show here too.'],
+  pm: ['Nothing to define yet', 'Items move here from Shape when you send them to Define.'],
+  dev: ['Nothing to build yet', 'Items you choose to build yourself, and Tandem runs from Dispatch, show here.']
+};
 export function boardHtml(columns, s) {
-  const defs = s.lane === 'dev' ? DEV_COLUMNS : PM_COLUMNS;
+  const defs = s.lane === 'dev' ? DEV_COLUMNS : s.lane === 'pm' ? PM_COLUMNS : SHAPE_COLUMNS;
   const total = defs.reduce((n, d) => n + (columns[d.key] || []).length, 0);
   if (!total && s.filtered) {
     return `<div class="empty"><h2>Nothing here</h2><p>No cards in this lane match the area path, level or search you picked.</p></div>`;
   }
   if (!total) {
-    return `<div class="empty"><h2>${s.lane === 'dev' ? 'Nothing to build yet' : 'No requests yet'}</h2>
-      <p>${s.lane === 'dev' ? 'Items you choose to build yourself, and Tandem runs from Dispatch, show here.' : s.backlogNote || 'Add a request, or set your team\'s area paths in People so Slate can list your ADO backlog.'}</p>
-      ${s.lane === 'pm' ? btn('new', 'New request', { primary: true }) : ''}</div>`;
+    const [h, p] = EMPTY[s.lane] || EMPTY.shape;
+    return `<div class="empty"><h2>${h}</h2>
+      <p>${esc(s.lane === 'shape' && s.backlogNote ? s.backlogNote : p)}</p>
+      ${s.lane === 'shape' ? `${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}` : ''}</div>`;
   }
   return `<div class="board" style="--cols:${defs.length}">${defs.map(d => {
     const list = columns[d.key] || [];
@@ -104,6 +114,48 @@ function draftSection(p) {
     body = `<pre class="txt">${esc(file.length > 6000 ? file.slice(0, 6000) + '\n…' : file)}</pre>`;
   } else body = '<p class="soft">The agent has not written it yet.</p>';
   return section(`Draft: ${d.file}${d.status ? ` (${d.status.toLowerCase()})` : ''}`, `${body}${file ? `<div class="acts">${btn('edit-draft', 'Edit')}</div>` : ''}`);
+}
+
+/** The interview's running picture (understanding.md), with Edit. */
+function understandingSection(p) {
+  const text = p.files['understanding.md'];
+  if (p.shapeEditing === 'understanding.md') {
+    return section('What the agent understands', `<label class="sr" for="shapeEdit">understanding.md</label><textarea id="shapeEdit" class="draft" spellcheck="true">${esc(text || '')}</textarea>
+      <p class="soft small">Your lines win: the agent keeps them in the next round.</p>
+      <div class="acts">${btn('save-shape-file', 'Save', { primary: true })}${btn('cancel-edit', 'Cancel')}</div>`);
+  }
+  if (!text) return '';
+  return section('What the agent understands', `<pre class="txt">${esc(text.length > 6000 ? text.slice(0, 6000) + '\n…' : text)}</pre><div class="acts">${btn('edit-understanding', 'Edit')}</div>`);
+}
+
+/** The brief (brief.md), with Edit. */
+function briefSection(p) {
+  const text = p.files['brief.md'];
+  if (p.shapeEditing === 'brief.md') {
+    return section('Brief', `<label class="sr" for="shapeEdit">brief.md</label><textarea id="shapeEdit" class="draft" spellcheck="true">${esc(text || '')}</textarea>
+      <div class="acts">${btn('save-shape-file', 'Save', { primary: true })}${btn('cancel-edit', 'Cancel')}</div>`);
+  }
+  if (!text) return '';
+  const b = parseBrief(text);
+  const kv = [['Product', b.product], ['Level', b.level ? LEVEL_NAME[b.level] : ''], ['Size', b.size]].filter(([, v]) => v);
+  return section('Brief', `${kv.length ? `<dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+    <pre class="txt">${esc(text.length > 8000 ? text.slice(0, 8000) + '\n…' : text)}</pre><div class="acts">${btn('edit-brief', 'Edit')}</div>`);
+}
+
+/** A round of interview questions as a form: an option, Other with text, or Skip, per question, and notes. */
+function interviewForm(q) {
+  const qs = q.questions.map(x => {
+    const name = `qa-${x.n}`;
+    const opts = x.options.map(o => `<label class="opt"><input type="radio" name="${name}" value="${esc(o.key)}"${o.key === x.recommended ? ' data-rec' : ''}> <span><b>${esc(o.key)})</b> ${esc(o.text)}${o.key === x.recommended ? ' <span class="chip soft">Recommended</span>' : ''}</span></label>`).join('');
+    return `<fieldset class="iq" data-q="${x.n}"><legend>Q${x.n}. ${esc(x.text)}</legend>${opts}
+      <label class="opt"><input type="radio" name="${name}" value="other"> <span>Other</span></label>
+      <label class="sr" for="qo-${x.n}">Your answer to Q${x.n}</label><input id="qo-${x.n}" class="qo" data-other="${x.n}" placeholder="Your own answer, or a note on the option" maxlength="2000" autocomplete="off">
+      <label class="opt"><input type="radio" name="${name}" value="skip"> <span>Skip</span></label>
+      ${x.why ? `<p class="soft small">Why ${x.recommended ? `${esc(x.recommended)}` : 'this'}: ${esc(x.why)}</p>` : ''}</fieldset>`;
+  }).join('');
+  return `<div class="interview" id="interview">${qs}
+    <label class="lbl" for="qnotes">Anything else the agent should know</label><textarea id="qnotes" class="answers" rows="3" maxlength="8000"></textarea>
+    <div class="acts">${btn('send-answers', 'Send answers', { primary: true })}${btn('use-recommended', 'Use the recommendations')}${btn('write-brief', 'Write the brief now', { primary: (q.round || 1) >= 4 })}</div></div>`;
 }
 
 /* ---------- the ADO section of the panel ---------- */
@@ -228,22 +280,39 @@ function nextHtml(p) {
     bs.push(btn('dispatch', 'Open in Dispatch', { primary: !bs.length }));
     return out(esc(n.text || 'See where it is in Dispatch.'), bs);
   }
+  const skip = SKIP_FROM.includes(it.stage || 'new') ? [btn('skip', 'Already shaped: who builds it?', { title: 'Skip the rest of Shape and Define. Nothing changes in ADO.' })] : [];
   switch (p.column) {
-    case 'new': return out('Start with a triage: an agent reads the request and the code, and says what is missing and who should build it.', [
-      btn('triage', 'Triage', { primary: true }), btn('define', 'Skip to define'), btn('roadmap-add', 'Add to roadmap')]);
-    case 'triage': return p.triage ? out(p.triage.questions.length ? `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.` : 'Nothing is missing. Define it next.', [
-      ...(p.triage.questions.length ? [btn('ask', 'Copy questions and wait', { primary: true })] : []), btn('define', 'Define', { primary: !p.triage.questions.length })])
+    case 'new':
+      if (it.kind === 'idea' || it.fromRunway || it.runwayPending) return out('Your idea. An agent interviews you, a round of questions at a time, until it is understood, then writes a brief.', [
+        btn('shape', 'Shape it', { primary: true }), ...skip, ...(it.fromRunway ? [btn('dismiss', 'Hide from Slate', { title: 'Hides it here. It stays in Runway.' })] : [btn('roadmap-add', 'Add to roadmap')])]);
+      return out('Start with a triage: an agent reads the request and the code, and says what is missing and who should build it. Or skip to an interview with you.', [
+        btn('triage', 'Triage', { primary: true }), btn('shape', 'Interview me'), btn('define', 'Skip to define'), ...skip, btn('roadmap-add', 'Add to roadmap')]);
+    case 'triage': return p.triage ? out(p.triage.questions.length ? `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.` : 'Nothing is missing. Define it next, or dig in yourself first.', [
+      ...(p.triage.questions.length ? [btn('ask', 'Copy questions and wait', { primary: true })] : []), btn('define', 'Define', { primary: !p.triage.questions.length }), btn('shape', 'Interview me'), ...skip])
       : out('Waiting for triage.md.', [btn('dispatch', 'Open in Dispatch')]);
+    case 'interview': {
+      const sh = p.shape || {};
+      if (sh.asking) return `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}<div class="acts">${skip.join('')}</div></div>`;
+      if (sh.ready) return out('The brief is written.', [btn('to-brief', 'Read the brief', { primary: true })]);
+      return out('Waiting for the agent\'s questions.', [btn('dispatch', 'Open in Dispatch'), btn('write-brief', 'Write the brief now'), ...skip]);
+    }
+    case 'brief': {
+      const b = parseBrief(p.files['brief.md']);
+      const to = b && (b.level === 'story' || b.level === 'bug') ? 'refine (one story)' : 'scope and slice';
+      return `<div class="next"><p>${b ? `Read the brief. Send to Define runs ${to} from it, asking only what it leaves open.` : 'Waiting for brief.md.'}</p>
+        <label class="lbl" for="bnotes">To keep going, say what to dig into (optional)</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea>
+        <div class="acts">${b ? btn('send-define', 'Send to Define', { primary: true }) : ''}${btn('keep-going', 'Keep going')}${skip.join('')}</div></div>`;
+    }
     case 'waiting': return `<div class="next"><p>Paste the requester's answers. Triage runs again with them.</p>
       <label class="sr" for="answers">Answers</label><textarea id="answers" class="answers" placeholder="Their answers, in their words">${esc(p.files['answers.md'] || '')}</textarea>
       <div class="acts">${btn('answers', 'Save answers and triage again', { primary: true })}${btn('define', 'Define anyway')}</div></div>`;
     case 'define': {
       const d = p.draft;
-      if (!d.kind) return out('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' })]);
+      if (!d.kind) return out('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' }), ...skip]);
       if (d.step === 'approve' || d.step === 'approve-stories' || d.step === 'approve-milestones') return out('Read the draft. Approve it, or edit it and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
       if (d.ready) return out('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
       if (d.step === 'slice') return out('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
-      return out('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch')]);
+      return out('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch'), ...skip]);
     }
     case 'publish': return out(it.ado && p.draft.kind === 'refine' ? `Update #${it.ado.id} in ADO with the description and acceptance criteria.` : 'Create the work items in ADO.', [btn('publish', 'Publish to ADO', { primary: true })]);
     case 'decide': return out(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`, [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', 'Do it myself', { primary: p.item.route !== 'delegate' })]);
@@ -281,12 +350,14 @@ export function panelHtml(p) {
     ${agentSection(p)}
     ${it.requester || p.age ? `<p class="soft small meta-line">${it.requester ? `Asked by ${esc(it.requester)}. ` : ''}${p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''}</p>` : ''}
     ${adoSection(it, p.details, p.prefs)}
-    ${it.description && !it.ado ? section('Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}
-    ${p.owners && p.owners.length && p.lane === 'pm' ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''}
+    ${it.description && !it.ado ? section(it.kind === 'idea' || it.fromRunway ? 'Idea' : 'Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}
+    ${p.column === 'interview' || p.column === 'brief' || p.files['understanding.md'] ? understandingSection(p) : ''}
+    ${briefSection(p)}
+    ${p.owners && p.owners.length && p.lane !== 'dev' ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''}
     ${triageSection(p.triage)}
     ${draftSection(p)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
-    ${section('History', `<ol class="hist">${(it.history || []).slice().reverse().map(h => `<li><span class="mono">${esc(h.at)}</span> ${esc(h.stage)}</li>`).join('')}</ol>`)}
+    ${section('History', `<ol class="hist">${(it.history || []).slice().reverse().map(h => `<li><span class="mono">${esc(h.at)}</span> ${esc(STAGE_TITLE[h.stage] || h.stage)}${h.skipped ? ' (skipped shaping)' : ''}</li>`).join('')}</ol>`)}
     ${!it.virtual ? `<div class="acts foot">${backHtml(p)}${it.stage !== 'done' ? btn('done', 'Mark done') : ''}${btn('remove', 'Remove from Slate')}</div>` : ''}`;
 }
 
@@ -299,6 +370,14 @@ export function newDialogHtml(names = []) {
     <datalist id="slatePeople">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
     <label>What is being asked, and by whom<textarea name="description" rows="5" maxlength="32000"></textarea></label>
     <label>Level<select name="level">${LEVELS.map(l => `<option value="${l}"${l === 'story' ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Add</button></div></form>`;
+}
+
+export function newIdeaDialogHtml() {
+  return `<form method="dialog" class="dlg" data-form="idea"><h2>New idea</h2>
+    <p class="soft">Yours. An agent interviews you to shape it.</p>
+    <label>Idea<input name="title" required maxlength="255" autocomplete="off" placeholder="A few words"></label>
+    <label>What you have in mind so far<textarea name="description" rows="5" maxlength="32000"></textarea></label>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Add</button></div></form>`;
 }
 
