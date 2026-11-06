@@ -103,7 +103,7 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `review.session` | no | `id`, `repo` | (new) | The `ReviewSession` for one repo of a work item. See [Code review](#code-review). |
 | `review.file` | no | `id`, `repo`, `path`, `side` (`old`, `new` or `prev`) | (new) | `FileContent` for one file. |
 | `review.submit` | yes | `id`, `repo`, `feedback` (a `ReviewFeedback`) | (new) | Approve (records the verdict only, nothing is pushed) or request changes (the agent revises). `{ok, status, revision, submittedAt}`. |
-| `terminal` | no | `session` (optional) | `POST /api/terminal` | Opens the opencode TUI in a terminal window (Windows and macOS). Not marked write: it changes nothing outside this computer. |
+| `terminal` | no | `session` (optional) | `POST /api/terminal` | Opens the opencode TUI in a terminal window (Windows and macOS). On Windows it starts `powershell.exe -NoExit` directly in its own console (no encoded command, which endpoint security often blocks). Not marked write: it changes nothing outside this computer. |
 
 Errors are plain words with a code: `bad_request`, `not_found`, `conflict` (for example, autopilot is running the item), `unavailable` (opencode is not connected, or the connector is not ready). The live server's `501` becomes `bad_request` and its `502` becomes `unavailable`, since the agent API has no codes for those.
 

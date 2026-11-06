@@ -8,7 +8,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { APP, FRESH_SESSION, VERSION, httpError, isWin, log, opt, sameDir, workRoot } from "./context.mjs";
+import { APP, FRESH_SESSION, VERSION, commandError, httpError, isWin, log, opt, sameDir, workRoot } from "./context.mjs";
 import { model, modelError, refresh, scheduleRefresh } from "./model.mjs";
 import { currentSession, folderForSession, folderForToken, linkFrom, linkSession, links, saveLinks } from "./links.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
@@ -64,9 +64,9 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
     .runCommand(sid, cmd.name, cmd.args)
     .then((err) => {
       if (err) {
-        upsertSession(sid, { status: "idle", activity: null, error: `/${cmd.name} failed: ${err}` });
+        upsertSession(sid, { status: "idle", activity: null, error: commandError(cmd.name, err) });
         broadcastLive();
-        autoOnFail(sid, `/${cmd.name} failed: ${err}`);
+        autoOnFail(sid, commandError(cmd.name, err));
       }
     })
     .catch((e) => {
@@ -110,7 +110,7 @@ export async function startItem({ id, lane, project }) {
     .runCommand(sid, "start", args)
     .then((err) => {
       if (err) {
-        upsertSession(sid, { status: "idle", activity: null, error: `/start failed: ${err}` });
+        upsertSession(sid, { status: "idle", activity: null, error: commandError("start", err) });
         broadcastLive();
       }
       scheduleRefresh(0);
@@ -347,18 +347,31 @@ export function attachCommand(session) {
   return oc.api ? oc.api.attachCommand(session) : null;
 }
 
+/** The PowerShell -Command that runs the opencode TUI: & 'opencode' 'arg' ... (each part single-quoted). */
+export function terminalCommand(cmd, args) {
+  const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  return ["&", q(cmd), ...args.map(q)].join(" ");
+}
+
 // Opens a terminal window with the opencode TUI on a session (Windows and macOS).
 export function openTerminal({ session }) {
   needOpencode();
   if (session && !/^ses_[A-Za-z0-9]+$/.test(session)) throw httpError(400, "Bad session id.");
-  const tui = [opt.opencodeCmd, ...oc.api.terminalArgs(session)].join(" ");
+  const args = oc.api.terminalArgs(session);
+  const tui = [opt.opencodeCmd, ...args].join(" ");
   if (isWin) {
-    const ws = opt.workspace.replace(/'/g, "''");
-    const inner = tui.replace(/'/g, "''");
-    const script = `Start-Process -FilePath powershell.exe -WorkingDirectory '${ws}' -ArgumentList @('-NoExit','-Command','${inner}')`;
-    const enc = Buffer.from(script, "utf16le").toString("base64");
-    spawn("powershell.exe", ["-NoProfile", "-EncodedCommand", enc], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    return { ok: true };
+    // A detached child gets its own console window. No -EncodedCommand and no hidden launcher: endpoint security
+    // tools commonly block both, which left the button doing nothing.
+    return new Promise((resolve, reject) => {
+      let child;
+      try {
+        child = spawn("powershell.exe", ["-NoLogo", "-NoExit", "-Command", terminalCommand(opt.opencodeCmd, args)], { cwd: opt.workspace, detached: true, stdio: "ignore", windowsHide: false });
+      } catch (e) {
+        return reject(httpError(500, `Could not open a terminal (${e.message}). Copy the command instead.`));
+      }
+      child.once("error", (e) => reject(httpError(500, `Could not open a terminal (${e.message}). Copy the command instead.`)));
+      child.once("spawn", () => { child.unref(); resolve({ ok: true }); });
+    });
   }
   if (process.platform === "darwin") {
     const sh = `cd '${opt.workspace.replace(/'/g, "'\\''")}' && ${tui}`;
