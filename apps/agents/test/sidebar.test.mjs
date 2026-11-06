@@ -189,3 +189,14 @@ test('sidebar text is escaped', () => {
   addFolder(S.local, '<b>f</b>');
   assert.doesNotMatch(sidebarHtml(), /<b>f<\/b>/);
 });
+
+test('Chat is its own page: a Conversations entry in the sidebar, a slot for chat.js, and no runs in it', () => {
+  assert.match(sidebarHtml(), /<h3 id="sh-talk">Conversations<\/h3>.*data-side-scope="chat"/s);
+  S.ui.scope = { kind: 'chat' };
+  const html = render();
+  assert.match(html, /<div class="solo"><div id="chat-slot"><\/div><\/div>/);
+  assert.match(sidebarHtml(), /class="srow chatrow on" data-side-scope="chat"/);
+  assert.doesNotMatch(html, /id="item-/, 'automated runs never show on the Chat page');
+  assert.equal(inScope(item('41207-fix-login-timeout')), false);
+  assert.equal(scopeHeadHtml(), '');
+});

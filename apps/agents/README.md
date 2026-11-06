@@ -64,6 +64,9 @@ Before the connector is ready, the page says what is wrong: browser mode, the co
 | `js/state.js` | The state the view reads. |
 | `js/sidebar.js` | The sidebar, the scope line above the list, the project chip on run cards, and the project, folder and move sheets. HTML strings, tested in Node. |
 | `js/pr-reviews.js` | The Pull requests pages. To review: link box, Review all, Waiting on you (review cards and rows), Earlier reviews. My PRs. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
+| `js/hub.js`, `js/hub-model.js` | The hub at the top of the page ([docs/hub.md](../../docs/hub.md)), with reply threads under its cards ([docs/chat.md](../../docs/chat.md)). |
+| `js/chat.js` | The Chat tab: chats you started and hub threads you followed up on, with Tandem's read-only chat agent. Its own element, moved into the page by `main.js` so typing survives repaints. |
+| `js/thread.js` | Turns, the last answer, "5 min ago", and keeping focus through a repaint. Shared by the hub and Chat. Tested in Node. |
 | `js/local.js` | Folders, pins and collapsed groups in this browser: clean, load, save, prune. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
 | `review.html`, `review.css` | The code review page and its styles. |

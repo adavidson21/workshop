@@ -842,7 +842,8 @@ export function parsePinArgs(rest) {
   return { opts };
 }
 
-/** Build the pinned copy for a home. Returns {build, docketDir, dirs: {docket, runway}} or throws with plain words. */
+/** Build the pinned copy for a home. Returns {build, docketDir, dirs, off, skipped} or throws with plain words.
+ *  `skipped` lists apps left out because their app.json is not valid: [{id, problem}]. */
 export function pin({ home, repo = REPO, opts = {}, schemas = loadSchemas(), uiDir = uiDirOf(home) }) {
   // Apps turned off (workshop apps off, or Settings) stay out; --no-<key> leaves one out for this build only.
   const remotes = {};
@@ -851,7 +852,16 @@ export function pin({ home, repo = REPO, opts = {}, schemas = loadSchemas(), uiD
     else if (opts[a.key]) remotes[a.key] = opts[a.key];
   }
   const r = pinApps({ home, repo, schemas, uiDir, remotes, gitInfo: dir => gitInfo(dir) });
-  return { build: r.build, docketDir: r.dirs.docket, dirs: r.dirs, off: r.off };
+  return { build: r.build, docketDir: r.dirs.docket, dirs: r.dirs, off: r.off, skipped: r.skipped };
+}
+
+/** What pin says about apps it left out because their app.json is not valid. */
+export function skippedLines(skipped = []) {
+  return skipped.map(({ id, problem }) => {
+    const a = REMOTE_APPS.find(x => x.id === id);
+    const fix = a ? `Move ${a.name} to a release that fixes it (workshop update --latest), or fix ${findRemote(a.key) || a.key}/app.json` : `Fix apps/${id}/app.json`;
+    return `${a ? a.name : id} is not included: ${problem}. ${fix}, then run "workshop pin" again.`;
+  });
 }
 
 async function runPin(rest, io) {
@@ -865,6 +875,7 @@ async function runPin(rest, io) {
     if (r.off.has(a.id)) io.out(`${a.name} is turned off, so it is not included. Turn it on with: workshop apps on ${a.key}`);
     else if (!r.dirs[a.key] && !parsed.opts[`no${a.name}`]) io.out(`${a.name} is not included: it is not downloaded. Download it with: workshop apps on ${a.key}`);
   }
+  for (const l of skippedLines(r.skipped)) io.out(l);
   const offBuiltIn = [...r.off].filter(id => !REMOTE_APPS.some(a => a.id === id));
   if (offBuiltIn.length) io.out(`Turned off, so not included: ${offBuiltIn.join(', ')}. See "workshop apps".`);
   for (const [name, x] of [['Workshop', r.build.workshop], ...REMOTE_APPS.map(a => [a.name, r.build[a.key]])]) {
@@ -1009,6 +1020,7 @@ function switchLines(list) {
     let note = '';
     if (a.separate && a.on && list.workMode) {
       if (!a.downloaded) note = `not downloaded: run "workshop apps on ${a.key}"`;
+      else if (a.problem) note = `downloaded (${a.ref || 'unknown version'}), but left out of the pinned copy: ${a.problem}`;
       else if (!a.inWorkshop && !noCopy) note = `downloaded (${a.ref || 'unknown version'}), not in the pinned copy yet: run "workshop pin"`;
       else note = a.ref || '';
     } else if (list.workMode && !noCopy && a.on && !a.inWorkshop) note = 'not in the pinned copy yet: run "workshop pin"';
@@ -1051,6 +1063,7 @@ async function runApps(rest, io) {
   let r;
   try { r = pin({ home }); } catch (e) { io.out(`Could not rebuild the pinned copy: ${e.message}`); return 1; }
   io.out(`Rebuilt the pinned copy: ${describeBuild(r.build)}.`);
+  for (const l of skippedLines(r.skipped)) io.out(l);
   io.out(await agentHealth(info.config?.port ?? DEFAULT_PORT) ? 'Reload Workshop in your browser to see the change.' : 'Start Workshop with: workshop up');
   return 0;
 }

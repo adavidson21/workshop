@@ -44,6 +44,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 /* sections */
 .cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:2.25rem;align-items:start;animation:rise .6s ease-out .14s both}
 .stack{display:flex;flex-direction:column;gap:2.25rem}
+/* Today: Docket's counts in one card; each opens Docket's Today */
+.todaycard .ch .btn{margin-left:auto}
+.todaycard .tiles{animation:none}
 .card{padding:0}
 .card h2{display:flex;align-items:center;gap:14px;flex:1;margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .card h2::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -55,23 +58,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .card.note p:has(.btn){margin-top:1rem}
 
 /* up next */
-.next{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--rule)}
-.next li{border-bottom:1px solid var(--line)}
-.nrow{display:grid;grid-template-columns:2.2rem minmax(0,1fr);grid-template-rows:auto auto;column-gap:.4rem;width:100%;text-align:left;padding:.75rem .5rem;transition:background-color .2s}
-.nrow:hover{background:var(--surface)}
-.nrow:hover .tt{color:var(--accent)}
-.nrow .rk{grid-row:1/3;font-family:var(--serif);font-size:1.35rem;font-weight:500;color:var(--muted);line-height:1.1;font-variant-numeric:lining-nums tabular-nums}
-.nrow .tt{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .2s}
-.nrow .tm{font-size:.82rem;color:var(--muted)}
-.nrow .tm:empty{display:none}
-.nrow .late{color:var(--danger)}
 
 /* people */
-.team{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--rule)}
-.team li{display:flex;align-items:center;gap:.7rem;font-size:.92rem;padding:.6rem .1rem;border-bottom:1px solid var(--line)}
-.team .av{width:1.75rem;height:1.75rem;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font:600 .85rem/1 var(--serif);flex:none}
-.team .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.team .ct{color:var(--muted);font:400 .8rem/1.4 var(--mono);letter-spacing:.02em;white-space:nowrap}
 
 /* agents */
 .pair{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--rule);overflow:hidden}
@@ -143,10 +131,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .still,.card.note.still,.setup.still{animation:none}
 
 /* Now: the Day view's block on now, with its tasks */
-.now .blkname{margin:.2rem 0 .4rem;font-size:.95rem}
-.now .blk{list-style:none;margin:0 0 .4rem;padding:0}
-.now .blk .nrow{padding:.4rem .1rem;grid-template-columns:minmax(0,1fr)}
-.now .blk .nrow.done .tt{text-decoration:line-through;color:var(--muted)}
 
 /* ---------- symbols: header icon buttons, tile icons, row signals, pills (Docket's style) ---------- */
 /* Line icons in the page's ink; color only where something needs you. Lists keep Docket's dot colors. */
@@ -180,15 +164,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .sig.danger{background:var(--danger-soft);color:var(--danger)}
 .sig.soon{background:var(--warn-soft);color:var(--warn)}
 .sig.quiet{opacity:.7}
-.nrow{grid-template-columns:2.2rem minmax(0,1fr) auto;grid-template-rows:auto;align-items:center}
-.nrow .rk{grid-row:auto}
-.nrow .tm{display:flex;align-items:center;gap:.3rem;font-size:.8rem}
-.ppl{display:inline-flex;align-items:center;padding-left:5px}
-.av{display:inline-grid;place-items:center;width:21px;height:21px;margin-left:-5px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font:500 9.5px/1 var(--mono);font-style:normal;letter-spacing:.02em;color:var(--muted)}
-.lst{display:inline-grid;place-items:center;width:14px;height:22px}
-.lst i{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--muted))}
-.team .av{width:1.75rem;height:1.75rem;margin:0;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--muted);font:500 .74rem/1 var(--mono)}
-.team .ct{display:inline-flex;gap:.35rem;font:inherit}
 .pills{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding-top:.75rem;border-top:1px solid var(--rule)}
 .pill{display:inline-flex;align-items:center;gap:.4rem;height:2.1rem;padding:0 .8rem 0 .65rem;border-radius:1.05rem;border:1px solid var(--line);color:var(--muted);transition:background-color .15s,border-color .15s}
 .pill svg{width:16px;height:16px}
@@ -220,7 +195,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
   .hello .htools{width:100%;margin:0}
   .hbtn{width:2.75rem;height:2.75rem}
   .su-strip{margin-top:-.75rem}
-  .nrow .tm{grid-column:2;grid-row:2;margin-top:.15rem}
 }
 /* Recent notes (Notes' summary) */
 .notes-recent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--rule)}
@@ -244,3 +218,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .sd textarea{min-height:22rem;font:400 .84rem/1.5 var(--mono);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);padding:.6rem}
 .sd-acts{display:flex;justify-content:flex-end;gap:.5rem}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* big screens (a 27in monitor, Workshop full screen): use the room instead of a narrow centered column */
+@media (min-width:1600px){.wrap{max-width:1440px;padding-inline:2.5rem}#capture{max-width:960px}}
+@media (min-width:2100px){.wrap{max-width:1720px}}

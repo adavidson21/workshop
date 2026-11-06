@@ -19,6 +19,7 @@ import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults,
 import { INBOX, projectById, projectArgs, scopeProject } from './sidebar.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
+import { startChat } from './chat.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { useApps } from '../../../shared/capture.js';
 import { loadLocal, saveLocal, addFolder, renameFolder, removeFolder, placeProject, togglePin, toggleClosed, pruneLocal } from './local.js';
@@ -36,7 +37,12 @@ if (!ws.embedded) mountBar('Dispatch');
 /* ---------- the hub (hub.js): one input for asks and captures, drawn once above the page ---------- */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
 ws.apps.list().then(useApps).catch(() => {});
-const hub = startHub(ws, document.getElementById('hub'));
+let chat = null;
+const hub = startHub(ws, document.getElementById('hub'), {
+  openChat: session => { setScope('chat'); chat.open(session); },
+  onStatus: () => { if (chat) chat.refresh(); }
+});
+chat = startChat(ws, { noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------
    Progress, the port and the computer type are kept per browser. Pairing works like the shell's Connect
@@ -335,6 +341,8 @@ function wantFocus(path) {
   const p = String(path || '');
   // #/agents/hub/<text>: a question sent from Home's quick capture (Enter was pressed there).
   if (/^hub(\/|$)/.test(p)) { const text = p.replace(/^hub\/?/, '').trim(); if (text) hub.ask(text); else hub.focus(); return; }
+  // #/agents/chat[/<session>]: the Chat tab, on one conversation if given.
+  if (/^chat(\/|$)/.test(p)) { const sid = p.replace(/^chat\/?/, '').trim(); setScope('chat'); if (sid) chat.open(sid); return; }
   const id = p.split('/')[0];
   if (!id) return;
   S.ui.scope = { kind: /^pr-\d+$/.test(id) ? 'reviews' : 'all' }; // the item may be outside the project in view
@@ -354,18 +362,30 @@ const ENTERS = [
   ['.guide'],
 ];
 // Replace the page, keeping focus and the caret in whatever the user was typing in.
+let lastHtml = null, lastFirst = null;
 function paint() {
   S.now = Date.now();
   S.today = dayKey(new Date());
   S.yest = dayKey(new Date(S.now - 864e5));
   const html = render();
+  // Skip a repaint that would draw the same thing: rebuilding the view under the pointer drops and
+  // re-applies :hover, which flickers (repaints come with every agent event and on timers).
+  if (html === lastHtml && app.firstChild === lastFirst && app.firstChild && !focusWanted) return;
   let sh = app.querySelector('.sheet');
   const sheetTop = sh ? sh.scrollTop : 0;
   const a = document.activeElement;
   const key = a && a.getAttribute && a.getAttribute('data-draft');
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
+  const inChat = chat.el.contains(a) ? a : null;
+  const chatSel = inChat && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   app.innerHTML = html;
+  lastHtml = html; lastFirst = app.firstChild;
+  // The Chat tab is its own element (chat.js), moved in rather than redrawn, so typing survives.
+  const slot = app.querySelector('#chat-slot');
+  if (slot) slot.replaceWith(chat.el);
+  chat.show(!!slot);
+  if (slot && inChat) { inChat.focus(); if (chatSel) try { inChat.setSelectionRange(chatSel[0], chatSel[1]); } catch (e) { /* not a text field */ } }
   // Entry animations play once: an element that was already on screen keeps still through repaints.
   ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;

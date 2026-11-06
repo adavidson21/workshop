@@ -6,8 +6,8 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "2.2.0",
-        "description": "Today, triage, up next, your people and Dispatch, with a button for each part of the day.",
+        "version": "2.3.1",
+        "description": "Your day at a glance: Docket's Today in counts, what needs you across apps, and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 0,
@@ -52,7 +52,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "5.7.0",
+        "version": "5.8.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -185,6 +185,8 @@
           "js/dayplan-format.js",
           "js/dayplan-model.js",
           "js/dayplan.js",
+          "js/delegate-model.js",
+          "js/delegate.js",
           "js/directory-model.js",
           "js/directory.js",
           "js/display.js",
@@ -251,7 +253,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Slate",
-        "version": "1.2.0",
+        "version": "1.6.0",
         "description": "Your team's backlog from request to who builds it, with roadmaps, sprints and team health. Tandem does the legwork; you decide.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -317,6 +319,11 @@
             "route": ""
           },
           {
+            "id": "new-idea",
+            "title": "New idea (shape it with an agent)",
+            "route": ""
+          },
+          {
             "id": "refresh",
             "title": "Refresh from ADO and Tandem"
           },
@@ -369,7 +376,7 @@
         "manifestVersion": 1,
         "id": "agents",
         "name": "Dispatch",
-        "version": "1.6.0",
+        "version": "1.7.1",
         "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -387,6 +394,10 @@
           {
             "path": "hub/:text",
             "title": "Ask the hub"
+          },
+          {
+            "path": "chat",
+            "title": "Chat with Tandem"
           }
         ],
         "data": [
@@ -448,6 +459,8 @@
           "js/pr-reviews.js",
           "js/hub.js",
           "js/hub-model.js",
+          "js/chat.js",
+          "js/thread.js",
           "review.html",
           "review.css",
           "js/review.js",
@@ -756,7 +769,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "2.5.0",
+        "version": "2.6.1",
         "description": "Markdown notes: folders, links and backlinks, tags, search, images, templates and a daily note.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -824,6 +837,7 @@
           "js/records.js",
           "js/summary-cards.js",
           "js/templates.js",
+          "js/template-info.js",
           "js/vault.js",
           "js/view.js",
           "icons/app-192.png",
@@ -978,7 +992,7 @@
         "manifestVersion": 1,
         "id": "people",
         "name": "People",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "description": "Everyone you assign work to, groups of them, and your team's area paths. Import a list from a spreadsheet.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -1034,7 +1048,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "3.1.0",
+        "version": "3.1.2",
         "description": "Connectors, repos, apps, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",

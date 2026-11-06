@@ -301,6 +301,39 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.fill('dialog input[name=custom-feature]', 'Custom.Team, bad name!'); slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         fields = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const f = e.meta.fields; return [f.card.includes('tags'), f.detail.story.includes('severity'), f.custom.feature, e.items.length]; }""")
         check('Fields saves which ADO fields show in the items meta, dropping bad field names', fields == [False, True, ['Custom.Team'], 1])
+        skip_opts = slf.eval_on_selector_all('#backTo optgroup[label="Skip ahead"] option', 'os => os.map(o => o.value)')
+        check('a card in New can only skip ahead (to Who builds it? or Define)', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
+        slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('Skip ahead moves a card straight to Who builds it?', slf.locator('.col[aria-label="Who builds it?"] .card').count() == 1
+              and slf.locator('.panel [data-act=delegate]').count() == 1)
+        slf.click('.panel [data-act=done]'); pg.wait_for_timeout(600)
+        slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
+        check('Move back takes a done card back to New and holds it there', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.col[aria-label=New] .card').count() == 1)
+        areas = slf.eval_on_selector_all('#area option', 'os => os.map(o => o.value)')
+        slf.select_option('#area', '-'); pg.wait_for_timeout(300)
+        shown_none = slf.locator('.col[aria-label=New] .card').count()
+        slf.evaluate("() => { const s = document.getElementById('area'); const o = new Option('x', 'Proj\\\\Elsewhere'); s.add(o); s.value = o.value; s.dispatchEvent(new Event('change', {bubbles: true})); }"); pg.wait_for_timeout(300)
+        shown_other = slf.locator('.board .card').count()
+        empty_msg = 'match the area path' in slf.inner_text('#main')
+        slf.select_option('#area', ''); pg.wait_for_timeout(300)
+        check('the area path view picks which cards show (a request with no area under No area path)', areas == ['', '-'] and shown_none == 1 and shown_other == 0 and empty_msg
+              and slf.locator('.col[aria-label=New] .card').count() == 1)
+        check('the board has Shape, PM and Dev lanes, Shape first', slf.locator('.top [data-act=lane]').evaluate_all('els => els.map(e => e.dataset.id)') == ['shape', 'pm', 'dev'])
+        slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('a new idea lands in New, marked Idea, with Shape it and Already shaped', slf.locator('.col[aria-label=New] .card').count() == 2
+              and slf.locator('.col[aria-label=New] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
+              and slf.locator('.panel [data-act=shape]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 1)
+        slf.click('.panel [data-act=skip]'); pg.wait_for_timeout(700)
+        skipped = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items.find(x => x.title === 'Bulk export'); return [it.kind, it.stage, it.history.at(-1).skipped === true]; }""")
+        check('Already shaped moves it to Who builds it? in the PM lane, marked skipped', skipped == ['idea', 'decide', True]
+              and slf.locator('.top [data-act=lane][data-id=pm].on').count() == 1 and slf.locator('.col[aria-label="Who builds it?"] .card').count() == 1)
+        slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
+        check('Move back undoes it, back in Shape', slf.locator('.top [data-act=lane][data-id=shape].on').count() == 1 and slf.locator('.col[aria-label=New] .card').count() == 2)
         slf.click('.top [data-act=tab][data-id=roadmaps]'); pg.wait_for_timeout(2500)
         rmf = next((f for f in pg.frames if '/apps/runway/' in f.url and f.parent_frame and '/apps/slate/' in f.parent_frame.url), None)
         check('the Roadmaps tab runs Runway inside Slate', rmf is not None)
@@ -1157,7 +1190,8 @@ def agents_checks(b, watch):
         top = af.evaluate("document.getElementById('item-41207').getBoundingClientRect().top")
         check('the stage chip opens that item in Agents', pg.url.endswith('#/agents') and 0 <= top < 800)
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
-        pf.locator('.row', has_text='Brand new').first.click(); pg.wait_for_timeout(400)
+        # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
+        pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
         pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
         cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
@@ -1265,7 +1299,7 @@ def main():
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
         add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
         check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-        frame.locator('.row', has_text='Fix login').first.click(); pg.wait_for_timeout(300)
+        frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
         check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
@@ -1307,10 +1341,10 @@ def main():
         check('a question in quick capture opens Dispatch', pg.url.endswith('#/agents'))
         pg.click('#rail .mark'); pg.wait_for_timeout(600)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        hf.locator('[data-task]').first.click(); pg.wait_for_timeout(1200)
+        check('Home has one Today card for Docket, no Up next, Now or People of its own', hf.locator('.todaycard').count() == 1 and 'Up next' not in hf.inner_text('#app'))
+        hf.click('.todaycard .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('Up next on Home opens the task in Prioritizer', pg.url == HUB + '/#/prioritizer' and frame.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
-        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
+        check("Open Today on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
@@ -1325,10 +1359,10 @@ def main():
         # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
         # every app's files (Dispatch's code viewer among them) on this first visit.
         try:
-            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 5 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
         except Exception:
             pass
-        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 5)  # Today, Day, Triage, Prioritize, People (Reports moved to Runway)
+        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() in (4, 5))  # Docket 6.0: Today, Day, People, Done (before: Today, Day, Triage, Prioritize, People)
         check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
         tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
         before = sp.evaluate(tasks)

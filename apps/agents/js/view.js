@@ -10,7 +10,7 @@ import { S } from './state.js';
 import { SITE } from '../../../shared/site.js';
 import { sidebarHtml, scopeHeadHtml, inScope, scope, projectChip, projectList, projectsOn, projectSheetHtml, folderSheetHtml, moveSheetHtml, INBOX } from './sidebar.js';
 import { reviewsHtml, isReviewSession, mineHtml, askingReviews, askingStarts, reviewCard } from './pr-reviews.js';
-import { isHubCommand } from './hub-model.js';
+import { HUB_GIVE_UP_MS, isHubCommand } from './hub-model.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -1123,9 +1123,12 @@ export function looseSessions() {
   return L().others.map(o => ({ ...o, s: L().sessions[o.session] })).filter(o => o.s && !o.s.folder);
 }
 function looseHtml() {
-  // PR reviews show on their own page (pr-reviews.js). Hub sessions (hub.js) show only while they wait for you.
+  // PR reviews show on their own page (pr-reviews.js). Hub sessions (hub.js) show only while they wait for you,
+  // when they stopped with an error, or when they have run longer than the hub waits (10 minutes), so the
+  // session the hub card points to is always here.
   const waits = o => L().permissions.some(p => p.sessionID === o.session) || L().questions.some(q => q.sessionID === o.session);
-  const list = looseSessions().filter(o => !isReviewSession(o) && (!isHubCommand(o.command) || waits(o)));
+  const stuck = o => !!o.s.error || (isBusy(o.s) && Date.now() - (o.at || Date.now()) > HUB_GIVE_UP_MS);
+  const list = looseSessions().filter(o => !isReviewSession(o) && (!isHubCommand(o.command) || waits(o) || stuck(o)));
   if (!list.length) return '';
   return '<section class="group" aria-labelledby="gh-loose"><h3 id="gh-loose">Investigations and repo guides <span class="n">' + list.length + '</span></h3><div class="items">' +
     list.map(o => {
@@ -1153,6 +1156,8 @@ function mainHtml() {
   // Pull requests: one column, no side panels (the repos and activity are about runs).
   if (scope().kind === 'reviews') return headerHtml() + bannersHtml() + `<div class="solo">${waitingHtml()}${reviewsHtml()}</div>`;
   if (scope().kind === 'mine') return headerHtml() + bannersHtml() + `<div class="solo">${mineHtml()}</div>`;
+  // Chat: chat.js draws it; main.js moves its element into the slot.
+  if (scope().kind === 'chat') return headerHtml() + bannersHtml() + '<div class="solo"><div id="chat-slot"></div></div>';
   const all = (S.D.items || []).filter(it => it.kind !== 'pr'); // PR reviews have their own page
   const items = all.filter(inScope);
   const by = {};

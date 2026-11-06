@@ -55,6 +55,21 @@ export function makeV1(url) {
       const r = await call("/command");
       if (r.ok && Array.isArray(r.data)) oc.commands = new Set(r.data.map((c) => c.name));
     },
+    async loadAgents() {
+      const r = await call("/agent", { timeout: 5000 });
+      if (r.ok && Array.isArray(r.data)) oc.agents = new Set(r.data.map((a) => a && a.name).filter(Boolean));
+    },
+    /** The session's turns, oldest first: [{id, role: "user" | "assistant", text, at}]. Text parts only. */
+    async messages(id, limit = 100) {
+      const r = await call(`/session/${id}/message`, { query: { limit: String(limit) } });
+      if (!r.ok || !Array.isArray(r.data)) throw httpError(502, `opencode could not list the messages (${errText(r)}).`);
+      return r.data.map((m) => ({
+        id: (m.info && m.info.id) || "",
+        role: m.info && m.info.role === "user" ? "user" : "assistant",
+        text: (m.parts || []).filter((p) => p.type === "text" && !p.synthetic).map((p) => p.text).join("\n").trim(),
+        at: (m.info && m.info.time && (m.info.time.completed || m.info.time.created)) || null,
+      }));
+    },
     async loadProviders() {
       for (const p of ["/provider", "/config/providers"]) {
         const r = await call(p, { timeout: 5000 });
@@ -110,8 +125,10 @@ export function makeV1(url) {
       const r = await call(`/session/${id}/command`, { method: "POST", body: { command: name, arguments: args }, timeout: 0 });
       return r.ok ? null : errText(r);
     },
-    async prompt(id, text) {
-      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { parts: [{ type: "text", text }] } });
+    // `agent` names the agent for this message (chat.mjs always passes "chat"); without it opencode uses the
+    // session's last agent or its default.
+    async prompt(id, text, agent) {
+      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { ...(agent ? { agent } : {}), parts: [{ type: "text", text }] } });
       if (!r.ok) throw httpError(502, `opencode did not take the reply (${errText(r)}).`);
     },
     async abort(id) {

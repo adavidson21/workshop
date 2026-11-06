@@ -72,3 +72,7 @@ label.btn{cursor:pointer}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 @media (max-width:560px){.wrap{padding:1.8rem 1rem 3rem}.cfg-row>label{min-width:100%}}
+
+/* big screens (a 27in monitor, Workshop full screen): a wider page */
+@media (min-width:1600px){.wrap{max-width:68rem;padding-inline:2.5rem}}
+@media (min-width:2100px){.wrap{max-width:80rem}}

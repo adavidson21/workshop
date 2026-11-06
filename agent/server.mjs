@@ -149,8 +149,9 @@ export async function createAgent(o) {
     if (autoPinTried) return;
     autoPinTried = true;
     try {
-      pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir });
+      const { skipped } = pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir });
       log.for('work').info('Work mode: there was no pinned copy, so it was built from this install.');
+      for (const x of skipped) log.for('work').warn(`Work mode: ${x.id} is not in the pinned copy: ${x.problem}.`);
     } catch (e) { log.for('work').error(`Work mode: could not build the pinned copy: ${e.message}`); }
   };
   ensurePinned();
@@ -369,7 +370,10 @@ document.getElementById('allow').addEventListener('click', function () {
         await writeOff(home, off);
         log.for('apps').info(`${app.name} turned ${body.on ? 'on' : 'off'}.`);
         if (!workMode()) return;
-        try { pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir }); } catch (e) {
+        try {
+          const { skipped } = pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir });
+          for (const x of skipped) log.for('work').warn(`${x.id} is not in the pinned copy: ${x.problem}.`);
+        } catch (e) {
           log.for('work').error(`Could not rebuild the pinned copy: ${e.message}`);
           fail('internal', `${app.name} is ${body.on ? 'on' : 'off'}, but the pinned copy could not be rebuilt: ${e.message} Run "workshop pin" to see why.`);
         }

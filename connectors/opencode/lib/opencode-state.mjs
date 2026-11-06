@@ -22,6 +22,7 @@ export const oc = {
   error: null,
   started: false, // we started a 1.x `opencode serve`
   commands: new Set(),
+  agents: new Set(), // agent names opencode reported; empty when it did not say
   // Which AI providers opencode can use: { known: true, providers: ["Anthropic", ...] }, or
   // { known: false } when this opencode does not say (see parseProviders). Read on connect and on refresh.
   ai: { known: false, providers: [] },
@@ -48,7 +49,7 @@ export const permissions = new Map(); // id -> normalized request
 export const questions = new Map(); // id -> normalized request
 
 export function resetState() {
-  Object.assign(oc, { api: null, kind: null, url: null, connected: false, version: null, error: null, started: false, commands: new Set(), ai: { known: false, providers: [] } });
+  Object.assign(oc, { api: null, kind: null, url: null, connected: false, version: null, error: null, started: false, commands: new Set(), agents: new Set(), ai: { known: false, providers: [] } });
   sessions.clear();
   permissions.clear();
   questions.clear();

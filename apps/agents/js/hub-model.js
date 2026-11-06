@@ -59,6 +59,44 @@ export function checkRoute(r) {
   return out;
 }
 
+/* route.json as models really write it, made ready for checkRoute: keys the schema does not have are dropped
+   (never shown or acted on), `"version": "1"` becomes 1, only the field for the intent is kept, proposals that do
+   not fit are dropped one by one (the rest stay), and over-long strings and lists are cut to the schema's limits.
+   An ask without its repos list gets an empty one, so the answer still shows. It never changes an intent, target,
+   connector or action, so checkRoute still decides. */
+export function repairRoute(r) {
+  if (!isObj(r)) return r;
+  const pick = (o, keys) => isObj(o) ? Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]])) : o;
+  const cut = (s, max) => typeof s === 'string' ? s.slice(0, max) : s;
+  const intent = typeof r.intent === 'string' ? r.intent.trim().toLowerCase() : r.intent;
+  const out = { version: r.version === '1' ? 1 : r.version, intent };
+  if (intent === 'capture' && Array.isArray(r.proposals)) {
+    out.proposals = r.proposals.map(p => {
+      const q = pick(p, ['to', 'text', 'payload', 'confidence', 'reason']);
+      if (!isObj(q)) return q;
+      if (typeof q.confidence === 'string' && q.confidence.trim() && !isNaN(+q.confidence)) q.confidence = +q.confidence;
+      if (q.confidence === null) delete q.confidence;
+      if (q.reason === null) delete q.reason;
+      return { ...q, text: cut(q.text, 2000), ...(q.reason !== undefined ? { reason: cut(q.reason, 300) } : {}) };
+    }).map(cleanProposal).filter(Boolean).slice(0, 20).map(p => {
+      const q = { to: p.to, text: p.text, payload: p.payload };
+      if (p.confidence !== undefined) q.confidence = p.confidence;
+      if (p.reason) q.reason = p.reason;
+      return q;
+    });
+  } else if (intent === 'ask') {
+    const repos = isObj(r.ask) && Array.isArray(r.ask.repos) ? r.ask.repos.filter(x => str(x, 1, 100)).slice(0, 10) : [];
+    out.ask = { repos };
+  } else if (intent === 'go') out.go = pick(r.go, ['app', 'path']);
+  else if (intent === 'act') out.act = pick(r.act, ['connector', 'action', 'args', 'label']);
+  else if (intent === 'clarify' && isObj(r.clarify)) {
+    const c = pick(r.clarify, ['question', 'choices']);
+    out.clarify = { ...c, ...(Array.isArray(c.choices) ? { choices: c.choices.slice(0, 4) } : {}) };
+  }
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  return out;
+}
+
 /* Whether Dispatch offers this act as a button at all (ACTS). Other suggestions show as text only. */
 export const actAllowed = a => !!(a && ACTS[a.connector] && ACTS[a.connector].includes(a.action));
 
@@ -128,6 +166,9 @@ export function answerHtml(md) {
   if (list) out.push('</ul>');
   return out.join('');
 }
+
+/* How long the hub card waits for a result before it points to the session instead. */
+export const HUB_GIVE_UP_MS = 10 * 60 * 1000;
 
 /* Sessions the hub started (their command is /hub ...): Dispatch lists them only while they need you. */
 export const isHubCommand = c => /^\/hub\s/.test(String(c || ''));

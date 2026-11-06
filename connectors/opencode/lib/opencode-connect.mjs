@@ -166,6 +166,7 @@ export async function loadProviders() {
 
 export async function loadState() {
   await oc.api.loadCommands().catch(() => {});
+  await oc.api.loadAgents().catch(() => {});
   await loadProviders();
   const ids = await oc.api.loadSessions();
   // Drop links to sessions that no longer exist.

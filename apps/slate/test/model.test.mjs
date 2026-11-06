@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  cards, changedInAdo, cleanItem, devColumn, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
-  pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
+  backTargets, forwardTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
+  areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
 } from '../js/model.js';
 
 const NOW = new Date('2026-11-05T15:00:00Z');
@@ -354,4 +354,266 @@ test('the panel shows each level\'s fields, empty ones included', () => {
   const feat = detailRows(w, 'feature', prefs);
   assert.equal(feat.find(r => r.key === 'releaseNotes').value, 'Notes');
   assert.equal(detailRows(w, 'feature', cleanPrefs({ releaseNotesField: '' })).some(r => r.key === 'releaseNotes'), false);
+});
+
+test('backTargets: earlier stages from history, New always, never the other end of the decision', () => {
+  const at = '2026-11-01';
+  const it = cleanItem({ stage: 'decide', history: ['new', 'triaged', 'defining', 'decide'].map(stage => ({ stage, at })) });
+  assert.deepEqual(backTargets(it), ['new', 'triaged', 'defining']);
+  const dev = cleanItem({ stage: 'dev', history: ['new', 'decide', 'delegated', 'dev'].map(stage => ({ stage, at })) });
+  assert.deepEqual(backTargets(dev), ['new', 'decide']);
+  const del = cleanItem({ stage: 'delegated', history: [{ stage: 'decide', at }] });
+  assert.deepEqual(backTargets(del), ['new', 'decide']);
+  assert.deepEqual(backTargets(cleanItem({ stage: 'new' })), []);
+  const approved = cleanItem({ stage: 'defining', history: [{ stage: 'new', at }, { stage: 'defining', at }] });
+  assert.deepEqual(backTargets(approved, 'define'), ['new']);
+  assert.deepEqual(backTargets(approved, 'publish'), ['new', 'defining']);
+});
+
+test('moveBack: Define holds an approved draft until you act; a forward move clears it', () => {
+  const it = cleanItem({ stage: 'decide', work: { define: 'refine-x' }, history: [{ stage: 'defining', at: '2026-11-01' }] });
+  moveBack(it, 'defining', new Date(2026, 10, 6));
+  assert.equal(it.stage, 'defining');
+  assert.equal(it.reopened, 'defining');
+  assert.equal(it.history.at(-1).stage, 'defining');
+  assert.equal(pmColumn(it, { ready: true }), 'define');
+  assert.equal(cleanItem(it).reopened, 'defining');
+  setStage(it, 'decide');
+  assert.equal(it.reopened, undefined);
+  const pub = cleanItem({ stage: 'defining', history: [{ stage: 'defining', at: '2026-11-01' }] });
+  moveBack(pub, 'defining', new Date(2026, 10, 6));
+  assert.equal(pub.history.length, 2);
+  assert.equal(cleanItem({ stage: 'new', reopened: 'defining' }).reopened, undefined);
+});
+
+test('area paths: under, filter and the view tree', () => {
+  assert.equal(underArea('Proj\\Platform\\Wiki', 'proj\\platform'), true);
+  assert.equal(underArea('Proj\\Platform', 'Proj\\Platform'), true);
+  assert.equal(underArea('Proj\\PlatformX', 'Proj\\Platform'), false);
+  assert.equal(underArea('Proj', ''), false);
+  const backlog = [
+    { id: 1, rev: 1, type: 'User Story', title: 'A', area: 'Proj\\Platform\\Wiki\\Edge' },
+    { id: 2, rev: 1, type: 'Bug', title: 'B', area: 'Proj\\Platform\\Search' },
+    { id: 3, rev: 1, type: 'Bug', title: 'C', area: 'Proj\\Platform' },
+    { id: 4, rev: 1, type: 'Bug', title: 'D', area: 'Other\\Team' }
+  ];
+  const local = newItem({ title: 'Request' }, NOW);
+  const list = cards([local], backlog);
+  assert.equal(areaOf(list[0]), '');
+  assert.deepEqual(filterCards(list, { area: 'Proj\\Platform\\Wiki' }).map(c => c.id), ['ado_1']);
+  assert.deepEqual(filterCards(list, { area: 'Proj\\Platform' }).map(c => c.id), ['ado_1', 'ado_2', 'ado_3']);
+  assert.deepEqual(filterCards(list, { area: NO_AREA }).map(c => c.id), [local.id]);
+  assert.equal(filterCards(list, {}).length, 5);
+  assert.equal(inArea(list[1], ''), true);
+
+  const opts = areaOptions(list, ['Proj\\Platform']);
+  assert.deepEqual(opts.map(o => [o.path, o.label, o.depth, o.count]), [
+    ['Other\\Team', 'Other\\Team', 0, 1],
+    ['Proj\\Platform', 'Proj\\Platform', 0, 3],
+    ['Proj\\Platform\\Search', 'Search', 1, 1],
+    ['Proj\\Platform\\Wiki', 'Wiki', 1, 1],
+    ['Proj\\Platform\\Wiki\\Edge', 'Edge', 2, 1],
+    [NO_AREA, 'No area path', 0, 1]
+  ]);
+  // A saved view with nothing in it stays listed.
+  assert.ok(areaOptions([], ['Proj'], 'Proj\\Gone').some(o => o.path === 'Proj\\Gone' && o.count === 0));
+  // A stored item uses the area ADO has now.
+  const moved = cards([newItem({ title: 'x', ado: { id: 9, rev: 1, type: 'Bug', area: 'Proj\\Old' } }, NOW)], [{ id: 9, rev: 2, type: 'Bug', title: 'x', area: 'Proj\\New' }]);
+  assert.equal(areaOf(moved[0]), 'Proj\\New');
+});
+
+test('forwardTargets: skip ahead to Define or Who builds it? from the PM lane only', () => {
+  const at = (stage) => forwardTargets(cleanItem({ stage }));
+  assert.deepEqual(at('new'), ['defining', 'decide']);
+  assert.deepEqual(at('triaged'), ['defining', 'decide']);
+  assert.deepEqual(at('defining'), ['decide']);
+  assert.deepEqual(at('ready'), ['decide']);
+  for (const st of ['decide', 'delegated', 'dev', 'done']) assert.deepEqual(at(st), [], st);
+  const it = newItem({ title: 'Feature with stories' }, NOW);
+  it.stage = 'triaged'; it.reopened = 'triaged';
+  setStage(it, 'decide', NOW);
+  assert.equal(pmColumn(it), 'decide');
+  assert.equal(it.reopened, undefined);
+});
+
+test('asksFor: prompts from the item\'s sessions, folders and run, nothing else', async () => {
+  const { asksFor } = await import('../js/model.js');
+  const it = cleanItem({ id: 'w_1', title: 'X', sessions: { triage: 's1', current: 's2' }, work: { define: 'refine-x' } });
+  const live = {
+    permissions: [{ id: 'p1', sessionID: 's1', permission: 'bash' }, { id: 'p2', sessionID: 'other' }],
+    questions: [{ id: 'q1', sessionID: 'zz', folder: 'refine-x', questions: [] }, { id: 'q2', sessionID: 'zz', folder: '41207-run' }, { id: 'q3', sessionID: 's2' }]
+  };
+  const a = asksFor(it, live);
+  assert.deepEqual(a.permissions.map(x => x.id), ['p1']);
+  assert.deepEqual(a.questions.map(x => x.id), ['q1', 'q3']);
+  assert.equal(a.count, 3);
+  assert.deepEqual(asksFor(it, live, { folder: '41207-run' }).questions.map(x => x.id), ['q1', 'q2', 'q3']);
+  assert.equal(asksFor(it, null).count, 0);
+  assert.equal(asksFor(cleanItem({ id: 'w_2', title: 'Y' }), live).count, 0);
+});
+
+test('questionAnswers: picks plus typed text, null until every question has one', async () => {
+  const { questionAnswers } = await import('../js/model.js');
+  const q = { questions: [{ question: 'A?' }, { question: 'B?', multiple: true }] };
+  assert.equal(questionAnswers(q, { 0: ['Yes'] }, {}), null);
+  assert.deepEqual(questionAnswers(q, { 0: ['Yes'], 1: ['One', 'Two'] }, { 1: ' and three ' }), [['Yes'], ['One', 'Two', 'and three']]);
+  assert.deepEqual(questionAnswers(q, {}, { 0: 'typed', 1: 'also' }), [['typed'], ['also']]);
+  assert.equal(questionAnswers({ questions: [] }), null);
+});
+
+/* ---------- the Shape lane (Slate 1.6.0) ---------- */
+
+test('Shape lane: New, Triage, Waiting, Interview, Brief; PM: Define on; laneOf tells them apart', async () => {
+  const { SHAPE_COLUMNS, PM_COLUMNS, laneOf } = await import('../js/model.js');
+  assert.deepEqual(SHAPE_COLUMNS.map(c => c.key), ['new', 'triage', 'waiting', 'interview', 'brief']);
+  assert.deepEqual(PM_COLUMNS.map(c => c.key), ['define', 'publish', 'decide', 'delegated']);
+  for (const k of ['new', 'triage', 'waiting', 'interview', 'brief']) assert.equal(laneOf(k), 'shape', k);
+  for (const k of ['define', 'publish', 'decide', 'delegated']) assert.equal(laneOf(k), 'pm', k);
+  assert.equal(laneOf('build'), 'dev');
+  assert.equal(pmColumn(cleanItem({ stage: 'shaping' })), 'interview');
+  assert.equal(pmColumn(cleanItem({ stage: 'brief' })), 'brief');
+});
+
+test('ideas: kind and runwayPending are kept clean; own ideas are never stale in New', async () => {
+  const { isStale } = await import('../js/model.js');
+  const idea = newItem({ title: 'Bulk export', kind: 'idea', runwayPending: 'p_abc' }, new Date('2026-10-01T12:00:00'));
+  assert.equal(idea.kind, 'idea');
+  assert.equal(idea.runwayPending, 'p_abc');
+  assert.equal(cleanItem({ kind: 'other', runwayPending: '../x' }).kind, undefined);
+  assert.equal(cleanItem({ kind: 'other', runwayPending: '../x' }).runwayPending, undefined);
+  assert.equal(isStale(idea, 'new', new Date('2026-11-06T12:00:00')), false);
+  const req = newItem({ title: 'A request' }, new Date('2026-10-01T12:00:00'));
+  assert.equal(isStale(req, 'new', new Date('2026-11-06T12:00:00')), true);
+  const shaping = setStage(newItem({ title: 'x' }, new Date('2026-11-01T12:00:00')), 'shaping', new Date('2026-11-01T12:00:00'));
+  assert.equal(isStale(shaping, 'interview', new Date('2026-11-06T12:00:00')), false, '5 days is the limit');
+  assert.equal(isStale(shaping, 'interview', new Date('2026-11-07T12:00:00')), true);
+});
+
+const QUESTIONS = `# Shape: Bulk export
+
+Status: ASKING
+Round: 2
+
+<!-- Written by /shape. ## Q9: not a question -->
+
+## Q1: Who needs the export first?
+
+- A) Account managers
+- B) Customers, from the portal
+- C) Both
+
+Recommended: A
+Why: The reports page is internal today (\`portal/Reports.cs\`).
+
+## Q2: Which formats?
+
+- A) CSV
+- B) CSV and Excel
+
+Recommended: B
+Why: Finance asked for Excel.
+
+## Q3: <question>
+
+- A) <option>
+`;
+
+test('parseShapeQuestions reads the round, each question, its options and the recommendation', async () => {
+  const { parseShapeQuestions } = await import('../js/model.js');
+  const q = parseShapeQuestions(QUESTIONS);
+  assert.equal(q.status, 'ASKING');
+  assert.equal(q.round, 2);
+  assert.equal(q.questions.length, 2, 'template placeholders and comments are not questions');
+  assert.deepEqual(q.questions[0], { n: 1, text: 'Who needs the export first?', options: [{ key: 'A', text: 'Account managers' }, { key: 'B', text: 'Customers, from the portal' }, { key: 'C', text: 'Both' }], recommended: 'A', why: 'The reports page is internal today (`portal/Reports.cs`).' });
+  assert.equal(parseShapeQuestions(''), null);
+  const ready = parseShapeQuestions('# Shape: x\n\nStatus: READY\nRound: 3\n');
+  assert.deepEqual(ready, { status: 'READY', round: 3, questions: [] });
+  const odd = parseShapeQuestions('Status: maybe\n\n## Q1: Free text only?\n\nNo options here.\n\n## Q2: One\n\n- a. yes\nRecommended: Z\n');
+  assert.equal(odd.status, null);
+  assert.deepEqual(odd.questions.map(x => [x.n, x.options.length, x.recommended]), [[2, 1, null]], 'a question with no options is dropped; a recommendation that is not an option is ignored');
+});
+
+test('shapeState: asking only when the agent is idle and there are questions; ready needs READY and a brief', async () => {
+  const { shapeState } = await import('../js/model.js');
+  assert.equal(shapeState({ 'questions.md': QUESTIONS }).asking, true);
+  assert.equal(shapeState({ 'questions.md': QUESTIONS }, { busy: true }).asking, false);
+  assert.equal(shapeState({}).asking, false);
+  const r = '# Shape: x\nStatus: READY\nRound: 3\n';
+  assert.equal(shapeState({ 'questions.md': r }).ready, false, 'no brief yet');
+  assert.equal(shapeState({ 'questions.md': r, 'brief.md': '# Brief: x\n' }).ready, true);
+});
+
+test('answersBlock and appendAnswers: one block per round, options, Other and Skipped', async () => {
+  const { answersBlock, appendAnswers, notesBlock, parseShapeQuestions } = await import('../js/model.js');
+  const q = parseShapeQuestions(QUESTIONS);
+  const block = answersBlock(q.round, q.questions, { 1: { pick: 'B', other: 'only admins' }, 2: { pick: 'other', other: 'PDF too' } }, 'Ship before Q1.');
+  assert.equal(block, '## Round 2\n\n### Q1: Who needs the export first?\n\nAnswer: B) Customers, from the portal. only admins\n\n### Q2: Which formats?\n\nAnswer: PDF too\n\n### Notes\n\nShip before Q1.\n');
+  assert.match(answersBlock(1, q.questions, {}), /Answer: Skipped[\s\S]*Answer: Skipped/);
+  assert.match(answersBlock(1, q.questions, { 1: { pick: 'other', other: '  ' } }), /### Q1[^\n]*\n\nAnswer: Skipped/, 'Other with no text is a skip');
+  const first = appendAnswers(undefined, block);
+  assert.match(first, /^# Answers\n/);
+  assert.ok(first.endsWith('Ship before Q1.\n'));
+  const second = appendAnswers(first, notesBlock(3, 'Look at permissions'));
+  assert.ok(second.startsWith(first.trimEnd() + '\n\n## Round 3 notes, after the brief\n\nLook at permissions'));
+  assert.equal(notesBlock(3, '  '), '');
+});
+
+test('parseBrief reads the level, size and product', async () => {
+  const { parseBrief } = await import('../js/model.js');
+  const b = parseBrief('# Brief: Bulk export\n\nProduct: Reports\nRepos: portal\nLevel: User Story\nSize: M\n\n<!-- Level: Epic -->\n\n## Problem\n\nNo way to export.\n\n## Open questions\n\n- Who can export?\n- none\n');
+  assert.deepEqual(b, { title: 'Bulk export', product: 'Reports', level: 'story', size: 'M', problem: 'No way to export.', open: ['Who can export?'] });
+  assert.equal(parseBrief('Level: Feature').level, 'feature');
+  assert.equal(parseBrief('Level: <Epic | Feature>').level, null);
+  assert.equal(parseBrief(''), null);
+});
+
+test('skipToDecide: straight to Who builds it? from Shape or Define, marked skipped, and Move back can undo it', async () => {
+  const { skipToDecide } = await import('../js/model.js');
+  const it = newItem({ title: 'Known work' }, new Date('2026-11-01T12:00:00'));
+  setStage(it, 'triaged', new Date('2026-11-02T12:00:00'));
+  skipToDecide(it, new Date('2026-11-03T12:00:00'));
+  assert.equal(it.stage, 'decide');
+  assert.deepEqual(it.history.at(-1), { stage: 'decide', at: '2026-11-03', skipped: true });
+  assert.equal(pmColumn(it), 'decide');
+  assert.deepEqual(backTargets(it), ['new', 'triaged']);
+  assert.equal(cleanItem(it).history.at(-1).skipped, true, 'kept when stored');
+  assert.throws(() => skipToDecide(cleanItem({ stage: 'delegated' })), /Shape, Define or Publish/);
+  assert.doesNotThrow(() => skipToDecide(cleanItem({ stage: 'defining' })));
+});
+
+test('backTargets: a brief can go back to the interview, and Define back to the brief', () => {
+  const it = newItem({ title: 'x', kind: 'idea' });
+  setStage(it, 'shaping'); setStage(it, 'brief');
+  assert.deepEqual(backTargets(it), ['new', 'shaping']);
+  setStage(it, 'defining');
+  assert.deepEqual(backTargets(it, 'define'), ['new', 'shaping', 'brief']);
+});
+
+test('summary: interview and brief items need you, and Runway ideas being shaped are listed for Runway', async () => {
+  const { summaryCards } = await import('../js/model.js');
+  const a = { ...newItem({ title: 'Asking', kind: 'idea', runwayPending: 'p_1' }), stage: 'shaping', shapeAsking: true };
+  const b = { ...newItem({ title: 'Briefed', kind: 'idea' }), stage: 'brief' };
+  const cols = { [a.id]: 'interview', [b.id]: 'brief' };
+  const cards = summaryCards([a, b], { columnOf: it => cols[it.id] });
+  const needs = cards.find(c => c.id === 'needs');
+  assert.deepEqual(needs.rows.map(r => r.note), ['Answer the interview questions', 'Brief ready: send it to Define']);
+  const shaping = cards.find(c => c.id === 'shaping');
+  assert.deepEqual(shaping.rows, [{ id: 'p_1', title: 'Asking', route: `item/${a.id}` }]);
+  assert.equal(shaping.kind, 'list');
+});
+
+test('pendingIdeaCards: Runway ideas as New cards, minus taken and hidden ones', async () => {
+  const { pendingIdeaCards } = await import('../js/model.js');
+  const rows = [{ id: 'p_1', title: 'Bulk export', note: 'CSV', due: '2026-11-05', route: 'pending' }, { id: 'p_2', title: 'Dark mode' }, { id: 'p_3', title: 'Hidden' }, { id: '../bad', title: 'x' }, { id: 'p_4' }];
+  const items = [newItem({ title: 'Taken', kind: 'idea', runwayPending: 'p_2' })];
+  const out = pendingIdeaCards(rows, items, ['p_3'], new Date('2026-11-06T12:00:00'));
+  assert.deepEqual(out.map(c => [c.id, c.title, c.description, c.kind, c.virtual, c.fromRunway, c.createdAt, c.stage]), [['rw_p_1', 'Bulk export', 'CSV', 'idea', true, 'p_1', '2026-11-05', 'new']]);
+  assert.deepEqual(pendingIdeaCards(null), []);
+});
+
+test('forwardTargets: Interview and Brief can skip ahead to Define or Who builds it? too', async () => {
+  const { forwardTargets } = await import('../js/model.js');
+  assert.deepEqual(forwardTargets(cleanItem({ stage: 'shaping' })), ['defining', 'decide']);
+  assert.deepEqual(forwardTargets(cleanItem({ stage: 'brief' })), ['defining', 'decide']);
+  assert.deepEqual(forwardTargets(cleanItem({ stage: 'decide' })), []);
 });

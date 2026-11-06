@@ -97,6 +97,13 @@
               "string",
               "null"
             ]
+          },
+          "problem": {
+            "description": "Separate apps downloaded with an app.json that is not valid, so the pinned copy leaves them out: why, in plain words. Otherwise null.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
