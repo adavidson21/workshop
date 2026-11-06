@@ -1,8 +1,9 @@
-/* Dispatch: the hub (docs/hub.md). One input at the top of Dispatch for everything: captures, questions about your
+/* Dispatch: the hub (docs/hub.md). One input on the Chat tab (Ask or capture) for everything: captures, questions about your
    repos and work, places to go, and suggested actions. Each message goes to Tandem's /hub through the opencode
    connector (hub.run, write: true, Enter is the click) and the result is read back with hub.result.
 
-   Drawn once into #hub and never repainted by main.js, so typing is never lost.
+   Drawn once into #hub and never repainted by main.js, so typing is never lost. chat.js moves the element into its
+   Ask or capture pane; before Dispatch is connected, main.js moves it under the setup page instead.
 
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
      changed (Tab) or dismissed. Accepted captures go to Dispatch's own `handoffs` collection with accepted: true
@@ -36,7 +37,7 @@ const KEEP_CARDS = 12;
 
 const THREAD_MS = 1500;
 
-export function startHub(ws, root, { openChat = () => {}, onStatus = () => {} } = {}) {
+export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, asksHtml = () => '' } = {}) {
   const store = createCaptureStore(ws, { sender: 'agents' });
   const cards = [];             // newest first: {id, text, state, route, answer, error, session, rows, at, turns, tbusy, draft, replied}
   let restored = false;
@@ -279,6 +280,8 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {} } 
       body += `<p class="hub-ask">${esc(route.clarify.question)}</p><p class="hub-actions">${route.clarify.choices.map((c, i) => `<button class="btn" type="button" data-hub-choice="${i}">${esc(c)}</button>`).join('')}</p>`;
     }
     if (card.error && card.answer == null) body += `<p class="hub-error">${esc(card.error)}</p>`;
+    // Tandem asking something in this card's session: answer it here (same controls as the Inbox).
+    if (card.session) body += asksHtml(card.session);
     if (threadable(card)) {
       body += turnsHtml(card.turns, { busy: card.tbusy });
       if (card.terror) body += `<p class="hub-error">${esc(card.terror)}</p>`;
@@ -406,6 +409,13 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {} } 
     check,
     noteOf,
     /* Whether Tandem can be reached here, and why not: the Chat tab uses the same AI switch. */
-    status: () => status
+    status: () => status,
+    /* A hub thread's first question and answer, for the conversation view in Chat. */
+    intro(session) {
+      const c = cards.find(x => x.session === session);
+      return c ? { text: c.text, answer: c.answer != null ? c.answer : (c.said || '') } : null;
+    },
+    /* The agents' prompts changed: redraw, so a card shows (or drops) its question. */
+    redraw: () => draw()
   };
 }

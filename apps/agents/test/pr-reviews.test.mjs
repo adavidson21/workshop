@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/state.js';
 import { render } from '../js/view.js';
-import { sidebarHtml, inScope } from '../js/sidebar.js';
 import { reviewItems, reviewsHtml, reviewCard, reviewUrlCheck, startingReviews, toReviewCount, reviewAllList, prArg, queueHtml, mineItems, mineState, mineHtml, mineNeedsCount } from '../js/pr-reviews.js';
-import { emptyLocal } from '../js/local.js';
+import { emptyView } from '../js/local.js';
+import { inboxData, inboxCount } from '../js/pages.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -49,28 +49,22 @@ function load() {
   S.now = Date.parse('2026-10-21T12:00:00Z');
   S.today = '2026-10-21'; S.yest = '2026-10-20';
   S.copyStore = [];
-  S.local = emptyLocal();
+  S.view = emptyView();
   S.inbox = clone(INBOX_OK);
   resetUi();
 }
 beforeEach(load);
 
-test('PR reviews have their own page: not in All runs or the run counts, listed under Pull requests, To review', () => {
-  const pr = S.D.items.find(i => i.folder === 'pr-812');
-  assert.equal(inScope(pr), false, 'not in All runs');
-  const all = render();
-  assert.doesNotMatch(all, /id="item-pr-812"/);
-  assert.match(sidebarHtml(), /<h3 id="sh-prs">Pull requests<\/h3>/);
-  assert.match(sidebarHtml(), /data-side-scope="reviews" title="[^"]*"><span class="sl">To review<\/span><span class="cnt" title="1 PR waiting on you with no review yet">1<\/span>/);
-  S.ui.scope = { kind: 'reviews' };
-  assert.equal(inScope(pr), true);
+test('PR reviews have their own tab: not in Runs or the run counts; the Reviews tab counts PRs with no review yet', () => {
+  for (const t of ['inbox', 'runs', 'ship', 'research']) { S.ui.tab = t; assert.doesNotMatch(render(), /id="item-pr-812"/, t); }
+  assert.match(render(), /data-tab="reviews"><span>Reviews<\/span><span class="cnt" title="1 PR waiting on you with no review yet">1<\/span>/);
+  S.ui.tab = 'reviews';
   const page = render();
-  assert.match(page, /<h2>To review<\/h2>/);
-  assert.doesNotMatch(page, /<aside>/, 'no repos or activity panels on the PR pages');
+  assert.match(page, /<h2>Reviews<\/h2>/);
+  assert.doesNotMatch(page, /<aside>/, 'no side panels');
   assert.match(page, /id="item-pr-812"/);
   assert.equal(reviewItems().length, 1);
 });
-
 test('a review card: verdict, risk, comments with Copy, questions, files, and the PR link; drafts are escaped', () => {
   const html = reviewCard(S.D.items.find(i => i.folder === 'pr-812'));
   assert.match(html, /<span class="num">!812<\/span><a href="https:\/\/ado\.example\.test[^"]+812" target="_blank" rel="noopener">Add discount to cart total<\/a>/);
@@ -139,15 +133,14 @@ test('a /pr-review session with no folder yet shows at the top of Waiting on you
   S.L.sessions.ses_rv1 = { id: 'ses_rv1', status: 'idle', title: '/pr-review ' + LINK.replace('812', '913'), command: '/pr-review ' + LINK.replace('812', '913'), error: null, text: 'NOREPO: hooks is not cloned in the workspace.', folder: null };
   S.L.others = (S.L.others || []).concat([{ session: 'ses_rv1', command: '/pr-review ' + LINK.replace('812', '913'), at: S.now - 60e3 }]);
   assert.equal(startingReviews().length, 1);
-  S.ui.scope = { kind: 'reviews' };
+  S.ui.tab = 'reviews';
   const page = render();
   assert.match(page, /<span class="tag">Starting<\/span>/);
   assert.ok(page.indexOf('Fetching the pull request') < page.indexOf('!812'), 'above the inbox PRs');
   assert.match(page, /<span class="num">!913<\/span>Fetching the pull request/);
   assert.match(page, /NOREPO: hooks is not cloned/);
   assert.match(page, /data-dismiss="ses_rv1"/);
-  S.ui.scope = { kind: 'all' };
-  assert.doesNotMatch(render(), /Fetching the pull request/, 'not in the runs list');
+  for (const t of ['runs', 'research']) { S.ui.tab = t; assert.doesNotMatch(render(), /Fetching the pull request/, 'not on ' + t); }
 });
 
 test('a review in progress: its card shows the agent and Review again is disabled; a row being reviewed says Reviewing', () => {
@@ -256,33 +249,32 @@ test('a review of a PR no longer waiting on you is listed under Earlier reviews;
   assert.match(html, /<h3 id="gh-rvl">Reviews <span class="n">1<\/span>/);
 });
 
-test('a reviewer asking you something shows under Needs you, counted in the sidebar', () => {
+test('a reviewer asking you something shows in the Inbox with a link to Reviews, and on the Reviews tab count', () => {
   S.L.items['pr-812'] = { current: 'ses_rv3', sessions: [{ id: 'ses_rv3', command: '/pr-review ' + LINK }] };
   S.L.sessions.ses_rv3 = { id: 'ses_rv3', status: 'idle', command: '/pr-review ' + LINK, folder: 'pr-812' };
   S.L.questions.push({ id: 'q_rv', sessionID: 'ses_rv3', folder: 'pr-812', questions: [{ question: 'Which base branch?', options: [] }] });
-  const before = sidebarHtml().match(/data-side-scope="needs"><span class="sl">Needs you<\/span><span class="cnt">(\d+)/);
-  S.ui.scope = { kind: 'needs' };
+  assert.equal(inboxData().asks.length, 1);
   const page = render();
-  assert.match(page, /<h3 id="gh-prs">PR reviews <span class="n">1<\/span>/);
-  assert.match(page, /id="item-pr-812"/);
-  assert.match(page, /and 1 PR review waiting on you/);
-  assert.ok(before && Number(before[1]) >= 1);
+  assert.match(page, /<span class="tag">PR review<\/span><span class="st">Add discount to cart total<\/span><button type="button" class="lnk plain" data-open-item="pr-812">Open<\/button>/);
+  assert.match(page, /data-qsend="q_rv"/);
+  assert.match(page, /data-tab="reviews"><span>Reviews<\/span><span class="cnt gate" title="The reviewer is waiting for you">1<\/span>/);
+  assert.ok(inboxCount() >= 1);
 });
-
-test('My PRs: your runs at Ship with their PRs, grouped by whose turn it is, in the sidebar under Pull requests', () => {
+test('Ship: your runs at Ship with their PRs, grouped by whose turn it is, with Open run and Remove', () => {
   const it = S.D.items.find(i => i.folder === '41610-rate-limit-headers');
   assert.deepEqual(mineItems().map(i => i.folder), [it.folder]);
   assert.equal(mineState(it), 'review', 'branch only local, connected: review before you push');
   assert.equal(mineNeedsCount(), 1);
-  assert.match(sidebarHtml(), /data-side-scope="mine" title="[^"]*"><span class="sl">My PRs<\/span><span class="cnt"[^>]*>1<\/span>/);
-  S.ui.scope = { kind: 'mine' };
+  assert.match(render(), /data-tab="ship"><span>Ship<\/span><span class="cnt gate" title="1 code review to do">1<\/span>/);
+  S.ui.tab = 'ship';
   let page = render();
-  assert.match(page, /<h2>My PRs<\/h2>/);
+  assert.match(page, /<h2>Ship<\/h2>/);
   assert.match(page, /<h3 id="gh-mine-you">Your turn <span class="n">1<\/span>/);
-  assert.match(page, /id="mine-41610"/);
+  assert.match(page, /id="item-41610"/);
   assert.match(page, /Review before you push/);
-  assert.match(page, /href="review\.html\?id=41610&amp;repo=gateway"/, 'the code review link, same as on the run card');
-  assert.match(page, /data-side-run="41610-rate-limit-headers">Open run</);
+  assert.match(page, /href="review\.html\?id=41610&amp;repo=gateway"/, 'the code review link, same as on the run page');
+  assert.match(page, /data-open-run="41610-rate-limit-headers">Open run</);
+  assert.match(page, /data-remove="41610-rate-limit-headers"/, 'Remove once it merges');
   assert.doesNotMatch(page, /<aside>/);
 
   S.D.reviews = { [it.folder]: { gateway: { status: 'revising', revision: 2, run: { status: 'running' } } } };
@@ -300,9 +292,9 @@ test('My PRs: your runs at Ship with their PRs, grouped by whose turn it is, in 
   S.conn = 'off';
   assert.equal(mineState(it), 'push', 'not connected: push by hand');
 });
-
-test('My PRs with none yet says where they come from', () => {
+test('Ship with nothing yet says where it comes from', () => {
   S.D.items = S.D.items.filter(i => i.stage !== 'ship');
-  assert.match(mineHtml(), /When a run reaches Ship, its pull requests show here/);
-  assert.match(sidebarHtml(), /<span class="sl">My PRs<\/span><span class="n"><\/span>/);
+  S.ui.tab = 'ship';
+  assert.match(render(), /When a run writes its PR text, it shows here/);
+  assert.match(render(), /data-tab="ship" aria-current="page"><span>Ship<\/span><\/button>/);
 });
