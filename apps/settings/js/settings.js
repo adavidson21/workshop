@@ -421,6 +421,14 @@ async function appsCard() {
     view = { workMode: false, apps: ((reg && reg.apps) || []).map(a => a.manifest).sort((x, y) => (x.order ?? Infinity) - (y.order ?? Infinity))
       .map(m => ({ id: m.id, name: m.name, description: m.description || '', on: !off.has(m.id), canTurnOff: m.home !== true && m.id !== 'settings', inWorkshop: !off.has(m.id) })) };
   }
+  // Switches each app declares in its manifest (docs/app-settings.md), from the site's registry, with their values.
+  const decls = new Map(), values = new Map();
+  try {
+    for (const a of await ws.apps.list()) if (a.settings && a.settings.length) {
+      decls.set(a.id, a.settings);
+      try { values.set(a.id, await ws.appSettings.get({ app: a.id })); } catch (e) { values.set(a.id, null); }
+    }
+  } catch (e) { /* no registry: no app settings */ }
   if (view.workMode && view.pinned === false) box.insertAdjacentHTML('beforeend', `<p class="sub">There is no pinned copy yet. Run this on your computer: <code>workshop pin</code> ${copyBtn('workshop pin')}</p>`);
 
   const status = a => {
@@ -443,11 +451,33 @@ async function appsCard() {
           <div><h3>${esc(a.name)}</h3>${a.description ? `<p class="conn-about">${esc(a.description)}</p>` : ''}</div>
           <input type="checkbox" class="toggle" role="switch" aria-label="${esc(a.name)} on"${a.on ? ' checked' : ''}${locked ? ' disabled' : ''}>
         </div>
-        <p class="conn-status app-status">${status(a)}</p>`;
+        <p class="conn-status app-status">${status(a)}</p>${appSettingsHtml(a)}`;
       row.querySelector('.toggle').addEventListener('change', e => flip(a, e.target));
+      row.querySelectorAll('[data-app-setting]').forEach(el => el.addEventListener('change', e => setAppSetting(a, e.target)));
       box.appendChild(row);
     }
   };
+  function appSettingsHtml(a) {
+    const list = decls.get(a.id);
+    if (!list || !a.on) return '';
+    const vals = values.get(a.id);
+    if (!vals) return `<p class="sub">${esc(a.name)}'s settings could not be read. Update Workshop to change them.</p>`;
+    return `<div class="app-settings" role="group" aria-label="${esc(a.name)} settings">${list.map(d => `<label class="app-setting">
+        <span><b>${esc(d.title)}</b>${d.description ? `<span class="conn-about">${esc(d.description)}</span>` : ''}</span>
+        <input type="checkbox" class="toggle" role="switch" data-app-setting="${esc(d.id)}" aria-label="${esc(d.title)}"${vals[d.id] ? ' checked' : ''}>
+      </label>`).join('')}</div>`;
+  }
+  async function setAppSetting(a, input) {
+    const key = input.dataset.appSetting, on = input.checked, d = decls.get(a.id).find(x => x.id === key);
+    input.disabled = true;
+    try {
+      values.set(a.id, await ws.appSettings.set({ [key]: on }, { app: a.id }));
+      toast(`${d ? d.title : key}: ${on ? 'on' : 'off'} for ${a.name}`, 'success');
+    } catch (err) {
+      input.checked = !on;
+      toast(errText(err), 'error');
+    } finally { input.disabled = false; }
+  }
   async function flip(a, input) {
     const on = input.checked;
     input.disabled = true;

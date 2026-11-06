@@ -1,9 +1,10 @@
 {
   "bundle": 1,
-  "version": "2.6.1",
+  "version": "2.7.0",
   "files": {
+    "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
-    "docs/schemas/app.schema.json": "6044f87e89978423d80ec6c99e1128badbefdc42148467f213e89133d46effda",
+    "docs/schemas/app.schema.json": "b930c1746574182b87786614ec769e611f19895d80b69db1b53fa146e00a405d",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "docs/schemas/config-form.schema.json": "fd5a00cc1e4d58ce36079ebcd79c19520d816351f3243ef4678e6118349dbade",
@@ -49,6 +50,7 @@
     "icons/favicon-32.png": "0dcbcc87c5e0a0e476bf7379537213dcfdf365a5c934fadb37d5140c6008bc6b",
     "icons/favicon.svg": "3f9a71f623a8b998e151ea12b9a5f04008b0e4760d3ff9b2a46f9830c09b6539",
     "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
+    "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/capture-box.js": "cbd555315bf0cf6e771daeb86c3aba2c97b13e7850199b29201c03062251279a",
     "shared/capture.css": "45e1ae6975475a1e37be3eb71ddfa44a615ff71d38e3f567338e16cfc8acd24b",
@@ -84,7 +86,7 @@
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
+    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
     "tests/lib/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382"
   }
 }

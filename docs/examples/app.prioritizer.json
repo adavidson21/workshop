@@ -72,5 +72,14 @@
       "name": "today",
       "path": "today"
     }
+  ],
+  "settings": [
+    {
+      "id": "sprints",
+      "type": "boolean",
+      "title": "Use sprints",
+      "description": "Plan days by sprint day and add every-sprint tasks. Off: Day templates are by weekday.",
+      "default": true
+    }
   ]
 }

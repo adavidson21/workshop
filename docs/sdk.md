@@ -49,7 +49,7 @@ Events:
 
 | Method | Meaning |
 | --- | --- |
-| `ws.apps.list()` | The apps on this Workshop site: `[{id, name, version, order, handoffs, capture, aliases}]` from their manifests ([app-manifest.md](app-manifest.md)), sorted by `order`. Read once per page from the site's `apps/registry.json`. Resolves `[]` when the app is not running inside Workshop's site (Docket on its own site, for example); the app then uses its built-in fallback. |
+| `ws.apps.list()` | The apps on this Workshop site: `[{id, name, version, order, handoffs, capture, aliases, privateFiles, settings}]` from their manifests ([app-manifest.md](app-manifest.md)), sorted by `order`. Read once per page from the site's `apps/registry.json`. Resolves `[]` when the app is not running inside Workshop's site (Docket on its own site, for example); the app then uses its built-in fallback. |
 
 Apps use it to find each other instead of naming app ids in code: handoff senders, capture targets, places for `> <name>`.
 
@@ -95,6 +95,17 @@ Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `t
 | `ws.teams.get()` | Your team: `{name, areas, connection}`, with empty `areas` when not set up. Rejects with `unsupported` when another version wrote it. |
 | `ws.teams.subscribe(handler)` | Calls `handler(team)` after every change, from this page or anywhere else. Returns an unsubscribe function. |
 | `ws.teams.setMine({areas, connection})` | Saves your team's area paths (an array, or text with one per line; trimmed, no repeats, up to 20) and connection name. Resolves your team as saved. |
+
+### App settings
+
+The on/off switches an app declares in its manifest (`settings`, [app-settings.md](app-settings.md)), kept in Settings' `app-settings` collection and shown under the app on Settings' Apps tab. Bundle 2.7.0.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.appSettings.get(opts?)` | This app's values as `{<id>: true or false}`: each declared default, then what is saved. `{app}` reads another app's. Without a registry (an app's own site) only saved values. Rejects with `unsupported` when another version wrote it. |
+| `ws.appSettings.declared(opts?)` | The settings the manifest declares, cleaned: `[{id, type, title, description, default}]`. `[]` without a registry. |
+| `ws.appSettings.set(values, opts?)` | Saves some of this app's values (`{sprints: false}`; anything that is not a boolean is ignored). Resolves the values as saved. Only Settings may pass `{app}` for another app; others reject with `forbidden`. |
+| `ws.appSettings.subscribe(handler, opts?)` | Calls `handler(values)` after every change to this app's values (or `{app}`'s), from this page or anywhere else. Returns an unsubscribe function. |
 
 ### Files
 
