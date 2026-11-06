@@ -205,3 +205,11 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
 .ver-preview{overflow-y:auto;padding-right:.5rem}
 .renames{list-style:none;margin:0;padding:0;max-height:45vh;overflow-y:auto;font-size:.8rem;display:flex;flex-direction:column;gap:.3rem}
 @media (max-width:640px){.history{grid-template-columns:1fr}.history ul{border-right:0;border-bottom:1px solid var(--line);max-height:30vh}}
+
+/* Product notes (products.js): Tandem's changes since your last review. */
+.chip.tandem{display:inline-flex;align-items:center;margin-left:auto;color:var(--accent);flex:none}
+.chip.tandem svg{width:13px;height:13px}
+.products .review-link{font:inherit;margin-left:.35rem;text-transform:none;letter-spacing:0}
+.bar.tandem{background:var(--accent-soft, var(--warn-soft));color:var(--ink)}
+.bar.tandem .bar-msg svg{width:14px;height:14px;vertical-align:-2px;color:var(--accent)}
+.md .tandem-new{box-shadow:inset 3px 0 0 var(--accent);background:color-mix(in srgb, var(--accent) 9%, transparent);padding-left:.5rem;border-radius:2px}

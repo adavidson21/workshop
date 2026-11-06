@@ -4,6 +4,7 @@ import { esc, plainText } from './markdown.js';
 import { age, baseName, dirOf, stem } from './model.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
 import { actionItems, offerId, wins } from './offers.js';
+import { needsReview, productNotes, toReview } from './products.js';
 
 const ICON = {
   note: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M9.3 1.8V5h3.2"/></svg>',
@@ -11,6 +12,7 @@ const ICON = {
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
   pin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 1.8h4l-.6 4.2 2.4 2.4H4.2l2.4-2.4zM8 8.4v5.8"/></svg>',
   today: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.8v2.4M10.5 1.8v2.4"/><path d="M6.6 10.2l1.1 1.1 2-2.2"/></svg>',
+  tandem: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M8 1.8l1.6 3.6 3.6 1.6-3.6 1.6L8 12.2 6.4 8.6 2.8 7l3.6-1.6z"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -33,6 +35,7 @@ export function sidebar(state) {
       <input type="search" data-search value="${esc(q)}" placeholder="Search, tag:x, path:folder" autocomplete="off" spellcheck="false">
     </label>
     ${q.trim() ? '' : pinnedHtml(state)}
+    ${q.trim() ? '' : productsHtml(state)}
     <nav class="side-body" aria-label="${q.trim() ? 'Search results' : 'Notes'}">${body}</nav>
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}
     ${footHtml(state)}`;
@@ -61,6 +64,21 @@ function pinnedHtml(state) {
   }).join('')}</ul></nav>`;
 }
 
+/* Products: the product notes Tandem reads and writes (products.js), each marked when Tandem changed it since your
+   last review, and a link to the list of notes to review (search is:review). */
+const chip = '<span class="chip tandem" title="Changed by Tandem since your last review">' + ICON.tandem + '<span class="sr">Changed by Tandem</span></span>';
+function productsHtml(state) {
+  const { notes, ui } = state;
+  if (!notes.loaded) return '';
+  const list = productNotes(notes.index);
+  if (!list.length) return '';
+  const due = toReview(notes.index).length;
+  return `<nav class="pinned products" aria-label="Products"><p class="section-label">Products${due ? ` <button class="linkish review-link" data-act="review-list" title="Notes Tandem changed since your last review">${due} to review</button>` : ''}</p><ul class="tree">${list.map(n => {
+    const cur = ui.path === n.path;
+    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(n.path)}"><a class="row" href="#" data-open="${esc(n.path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(n.title)}</span>${needsReview(n.review) ? chip : ''}</a></li>`;
+  }).join('')}</ul></nav>`;
+}
+
 function treeHtml(state) {
   const { tree, ui, notes } = state;
   if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
@@ -85,7 +103,7 @@ function folderItems(dir, state, depth) {
     const title = n ? n.title : stem(p);
     const cur = ui.path === p;
     h += `<li role="treeitem" class="note${cur ? ' current' : ''}" data-path="${esc(p)}" draggable="true">
-      <a class="row" href="#" data-open="${esc(p)}" style="--d:${depth}"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(title)}</span></a></li>`;
+      <a class="row" href="#" data-open="${esc(p)}" style="--d:${depth}"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(title)}</span>${n && needsReview(n.review) ? chip : ''}</a></li>`;
   }
   return h;
 }
@@ -106,6 +124,9 @@ export function header(state) {
   const { ui, notes } = state;
   if (!ui.path) return '';
   const known = notes.files.get(ui.path);
+  const n = notes.index.notes.get(ui.path);
+  const review = n && needsReview(n.review) ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Changed by Tandem since your last review. Changed parts are highlighted in the preview; History has the earlier versions.</span>
+      <span class="bar-acts"><button class="btn" data-act="mark-reviewed">Mark reviewed</button></span></div>` : '';
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">${esc(dirOf(ui.path) ? dirOf(ui.path) + '/' : '')}${esc(baseName(ui.path))}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
@@ -119,7 +140,7 @@ export function header(state) {
       <button class="btn ghost" data-act="rename" title="Rename or move (F2)">Rename</button>
       <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
     </div></div>
-    ${conflictBar(ui)}`;
+    ${conflictBar(ui) || review}`;
 }
 function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
@@ -227,9 +248,10 @@ export function pickerHtml(items, pick) {
 }
 
 /** New note: the title, and a template when there are any (templates.js). */
-export function newNoteHtml({ folder, templates }) {
-  const pick = templates.length ? `<label>Template<select name="template"><option value="">Blank</option>${templates.map(t => `<option value="${esc(t.path)}">${esc(t.name)}</option>`).join('')}</select></label>`
-    : '<p class="soft small">No templates yet. <button class="linkish" type="submit" value="starters" formnovalidate>Add the starter set</button> (meeting, incident, ADR, runbook, retro, daily) to <code>templates/</code>.</p>';
+export function newNoteHtml({ folder, templates, productMissing = false }) {
+  const pick = templates.length ? `<label>Template<select name="template"><option value="">Blank</option>${templates.map(t => `<option value="${esc(t.path)}">${esc(t.name)}</option>`).join('')}</select></label>
+      ${productMissing ? '<p class="soft small"><button class="linkish" type="submit" value="product-template" formnovalidate>Add the product template</button> for notes Tandem reads and writes (they go in <code>products/</code>).</p>' : ''}`
+    : '<p class="soft small">No templates yet. <button class="linkish" type="submit" value="starters" formnovalidate>Add the starter set</button> (meeting, incident, ADR, runbook, retro, daily, product) to <code>templates/</code>.</p>';
   return promptHtml({ title: 'New note', label: 'Title', ok: 'Create', hint: folder ? `In ${folder}/. The file name comes from the title.` : 'The file name comes from the title.', extra: pick });
 }
 

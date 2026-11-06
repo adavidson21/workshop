@@ -26,16 +26,30 @@ Plan: `claude/notes-standalone-plan.md` in the personal toools Project.
 - **Action items and wins:** the side panel lists the open `- [ ] ...` items and the lines tagged `#win` in the note. **To Docket** adds an item as a Docket task right away (your click is the acceptance). **To Rapport** offers a win to Rapport, where you accept it and pick who it is about. Each shows *Sent* after; the same line is never sent twice. Ticking an item in the note does not close the task: Docket owns it after you send it. Shown inside Workshop, or when paired.
 - **History:** before a save replaces a note, its previous text is kept in `history/` (at most one version per 5 minutes, newest 20 per note). The side panel's **History** shows them and restores one; what it replaces goes into history first. `history/` is left out of the tree, search and backlinks.
 - **Import a folder:** in the sidebar's foot, pick a folder of Markdown (an Obsidian vault). Every file and its new name are listed before anything is written: names become Workshop-style slugs under one folder named after the vault, `[[wikilinks]]` and `![[embeds]]` become standard links to the new paths, and a note with no title keeps its old file name as its frontmatter title. Only notes and images come in; nothing already here changes.
+- **Product notes:** one note per product in `products/`, the memory Tandem (eng-agents) reads before working on that product and adds to as it learns. The **Products** list in the sidebar shows them. When Tandem changes one, it gets a **Changed by Tandem** mark and a bar with **Mark reviewed**; the preview highlights what changed since your last review, and History has every earlier version. **N to review** (or search `is:review`, or `#/notes/review`) lists them all. New ones come from `templates/product.md` (in the starter set; **New note** offers to add it when you have other templates), which tags the note `product/<name>`. Tag any other note `product/<name>` to file it with that product.
 - **Other apps' files are never shown.** Notes lists, reads and searches only its own folder. Rapport's 1:1 notes and goals stay in Rapport (and Rapport marks its files private, so other apps can't read them either; see `privateFiles` in Workshop's [docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md)).
 
 ## For other apps
 
 Other apps work with Notes through Workshop's contracts, never by reading its code:
 
-- **Summary** (`notes.summary`, Workshop [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): `count` (id `notes`), `list` (id `recent`: the 10 notes changed last), and `list` (id `mentions`: notes with a `ws:` link, newest 20, each row's `note` is the record, `<app>/<route>`, so that app can show "Notes about this"). Titles and paths only, never note text. Templates are left out.
+- **Summary** (`notes.summary`, Workshop [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): `count` (id `notes`), `list` (id `recent`: the 10 notes changed last), `list` (id `mentions`: notes with a `ws:` link, newest 20, each row's `note` is the record, `<app>/<route>`, so that app can show "Notes about this"), and `count` (id `review`: product notes Tandem changed since your last review, `route` `review`). Titles and paths only, never note text. Templates are left out.
 - **Handoffs out** (`notes.handoffs` v1, [docs/handoffs.md](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)): accepted `task` offers to `prioritizer` and ordinary `win` offers to `receipts`. Ids are `n-<kind>-<hash of the note path and text>`. `source` is `{app: 'notes', id: <note path>}`.
 - **Captures in:** Home's quick capture (`n ...`) and the Dispatch hub, as before (below).
 - **Routes:** `#/notes/<note path>` opens a note, `#/notes/today` today's note.
+
+### Tandem and product notes
+
+Tandem (eng-agents) is the one program outside Notes that writes notes, and only these. Its rules:
+
+- **Where:** `<Workshop folder>/notes/products/<slug>.md` (`dataDir` in `~/.workshop/config.json`), and snapshots in `notes/history/`. Nothing else in the folder. Never deletes, renames or moves a note. Skips product notes when Notes is switched off (`notes` in `~/.workshop/apps.json`'s `off` list).
+- **New notes** come from `templates/product.md` (or the copy in `js/products.js` if you deleted yours) with `{{title}}` and `{{slug}}` filled in.
+- **Before every edit**, Tandem keeps the current text as a snapshot, even inside Notes' 5-minute spacing, and trims the note's snapshots to the newest 20:
+  - Folder: `history/<key>/`, where `<key>` is the note path without `.md`, every run of characters outside `a-z0-9` made one `-`, `-` trimmed from both ends, cut to `39 - length(hash)` characters with trailing `-` removed, then `-<hash>`. `<hash>` is the 32-bit FNV-1a of the path's UTF-16 code units (start `0x811c9dc5`, multiply `0x01000193`), unsigned, in base 36. `products/wiki-edge.md` gives `products-wiki-edge-<hash>`. `js/history.js` `historyKey` is the reference.
+  - File: the UTC time as `YYYYMMDDtHHMMSSmmmz.md` (`20261105t171230123z.md`).
+- **The write:** read the note and its modified time, snapshot, write to a temp file in the same folder and rename it over the note. If the modified time changed in between, start again. Notes picks the change up; if you have unsaved edits it offers its usual conflict choices.
+- **Frontmatter:** set `tandem-changed:` to the UTC time of the write (`2026-11-05T22:14:00Z`). Never touch `reviewed:`: only Mark reviewed sets it. A note needs review while `tandem-changed` is later than `reviewed` (or there is no `reviewed`).
+- **Edits are small:** change or add the one line that is new, update a line instead of adding a second on the same subject, and end each line Tandem writes with its date and source (`(2026-11-05, PR 4812)`). No `- [ ]` lines: Notes would offer them to Docket.
 
 ## Files
 
@@ -44,6 +58,7 @@ Other apps work with Notes through Workshop's contracts, never by reading its co
   guide.md
   runbooks/deploy.md
   daily/2026-11-05.md
+  products/wiki-edge.md
   templates/meeting.md
   attachments/screen-shot-20261103-093015.png
   history/runbooks-deploy-1a2b3c/20261105t171230123z.md
@@ -71,6 +86,7 @@ Edit the files with any editor: Notes picks up changes made outside it.
 
 - `js/markdown.js`: Markdown to safe HTML, and a note's title, tags, links and headings. No DOM.
 - `js/model.js`: paths and name rules, the index (backlinks, tags, missing links), search, the tree, and link rewriting for renames and moves. No DOM.
+- `js/products.js`: product notes, the review fields, the version to compare with and the changed lines. Pure.
 - `js/templates.js`, `js/applinks.js`, `js/offers.js`, `js/history.js`, `js/vault.js`, `js/summary-cards.js`: templates and today's note, `ws:` links, action items and wins, history, importing a folder, and Notes' summary. Pure.
 - `js/data.js`: loading, saving (with history), outside changes and images through `ws.files`.
 - `js/pickup.js`: captures from Home and the Dispatch hub.

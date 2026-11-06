@@ -5,6 +5,7 @@
    rules (docs/data-format.md, Names): lowercase letters, digits and "-", at most 3 folders deep. Links in notes
    are standard Markdown links relative to the note, so the files work in any Markdown tool. */
 import { facts } from './markdown.js';
+import { needsReview } from './products.js';
 
 export const APP = 'notes';
 export const ATTACHMENTS = 'attachments';
@@ -89,7 +90,7 @@ export function buildIndex(list) {
   const notes = new Map();
   for (const n of list) {
     const f = facts(n.content, stem(n.path));
-    notes.set(n.path, { path: n.path, title: f.title || stem(n.path), tags: f.tags, headings: f.headings, raw: f, mtime: n.mtime, size: n.size });
+    notes.set(n.path, { path: n.path, title: f.title || stem(n.path), tags: f.tags, headings: f.headings, review: f.review, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();
@@ -147,9 +148,10 @@ export const wikiPath = (target) => `${slugify(String(target).split('#')[0])}.md
 
 /** Parse a query: free words, tag:x and path:folder. */
 export function parseQuery(q) {
-  const out = { words: [], tags: [], paths: [] };
+  const out = { words: [], tags: [], paths: [], review: false };
   for (const tok of String(q || '').match(/"[^"]*"|\S+/g) || []) {
     const t = tok.replace(/^"|"$/g, '');
+    if (/^is:review$/i.test(t)) { out.review = true; continue; }
     const m = /^(tag|path):(.*)$/i.exec(t);
     if (m && m[2]) (m[1].toLowerCase() === 'tag' ? out.tags : out.paths).push(m[2].replace(/^#/, '').toLowerCase());
     else if (/^#[\w/-]+$/.test(t)) out.tags.push(t.slice(1).toLowerCase());
@@ -164,9 +166,10 @@ export function parseQuery(q) {
  */
 export function search(index, contents, query, limit = 50) {
   const q = parseQuery(query);
-  if (!q.words.length && !q.tags.length && !q.paths.length) return [];
+  if (!q.words.length && !q.tags.length && !q.paths.length && !q.review) return [];
   const out = [];
   for (const n of index.notes.values()) {
+    if (q.review && !needsReview(n.review)) continue;
     if (q.tags.length && !q.tags.every(t => n.tags.some(nt => nt === t || nt.startsWith(t + '/')))) continue;
     if (q.paths.length && !q.paths.every(p => n.path === p || n.path.startsWith(p.replace(/\/$/, '') + '/'))) continue;
     const text = contents.get(n.path) || '';

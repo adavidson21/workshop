@@ -1,9 +1,13 @@
 /* Notes: templates and the daily note. Pure: no DOM and no SDK.
 
    Templates are ordinary notes under templates/, so they are edited like any other note. A new note made from
-   one gets {{title}}, {{date}} (YYYY-MM-DD) and {{time}} (HH:MM) filled in. The daily note is daily/<date>.md,
+   one gets {{title}}, {{slug}} (the title as a file name), {{date}} (YYYY-MM-DD) and {{time}} (HH:MM) filled in.
+   templates/product.md is the product note template (products.js), also used by Tandem. The daily note is daily/<date>.md,
    made from templates/daily.md when there is one. */
-import { isNote, stem } from './model.js';
+import { isNote, slugify, stem } from './model.js';
+import { PRODUCT_TEMPLATE } from './products.js';
+
+export const PRODUCT_TPL = 'templates/product.md';
 
 export const TEMPLATES = 'templates';
 export const DAILY = 'daily';
@@ -15,7 +19,8 @@ export const STARTERS = {
   'templates/adr.md': '# {{title}}\n\nStatus: proposed. Date: {{date}}.\n\n## Context\n\n## Decision\n\n## Consequences\n\n## Options considered\n',
   'templates/runbook.md': '# {{title}}\n\n## When to use this\n\n## Before you start\n\n## Steps\n\n1. \n\n## Check it worked\n\n## Roll back\n',
   'templates/retro.md': '# {{title}}\n\n{{date}}\n\n## Went well\n\n- \n\n## Could be better\n\n- \n\n## Try next\n\n- [ ] \n',
-  'templates/daily.md': '# {{date}}\n\n## Plan\n\n- [ ] \n\n## Notes\n\n## Wins\n\n'
+  'templates/daily.md': '# {{date}}\n\n## Plan\n\n- [ ] \n\n## Notes\n\n## Wins\n\n',
+  [PRODUCT_TPL]: PRODUCT_TEMPLATE
 };
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -30,10 +35,10 @@ export function templatesIn(paths) {
     .map(p => ({ path: p, name: stem(p) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** A template's text with {{title}}, {{date}} and {{time}} filled in. Unknown {{names}} stay as written. */
+/** A template's text with {{title}}, {{slug}}, {{date}} and {{time}} filled in. Unknown {{names}} stay as written. */
 export function fill(text, { title = '', now = new Date() } = {}) {
-  const v = { title, date: dayOf(now), time: timeOf(now) };
-  return String(text).replace(/\{\{\s*(title|date|time)\s*\}\}/g, (_, k) => v[k]);
+  const v = { title, slug: slugify(title), date: dayOf(now), time: timeOf(now) };
+  return String(text).replace(/\{\{\s*(title|slug|date|time)\s*\}\}/g, (_, k) => v[k]);
 }
 
 /** The daily note's path for a day. */

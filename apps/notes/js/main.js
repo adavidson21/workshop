@@ -3,7 +3,7 @@
    data.js reads and writes the folder through ws.files; model.js, markdown.js, templates.js, applinks.js,
    offers.js, history.js, vault.js and summary-cards.js are pure; view.js builds the HTML. This file owns the
    page: the editor, saving, the [[ picker, renames and moves, templates and today's note, sending action items
-   and wins, history, importing a folder, Notes' summary, and keys. */
+   and wins, history, importing a folder, product notes and their review (products.js), Notes' summary, and keys. */
 import { connect } from '../shared/workshop-sdk.js';
 import { mountBar } from '../shared/standalone-bar.js';
 import { saveFile } from '../shared/save-file.js';
@@ -12,7 +12,8 @@ import { QUICK, SENDERS, startPickup } from './pickup.js';
 import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
-import { dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
+import { PRODUCT_TPL, STARTERS, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
+import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
 import { actionItems, offerFor, readOffers, sentIds, wins, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
@@ -135,12 +136,45 @@ function paintPreview(now = false) {
       return p ? { path: p } : null;
     }
   });
+  markTandemLines(from, text);
   for (const img of preview.querySelectorAll('img[data-img]')) {
     notes.imageUrl(img.dataset.img).then(url => {
       if (url) img.src = url;
       else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` }));
     }, () => {});
   }
+}
+
+/* Product notes Tandem changed since your last review: highlight the changed blocks in the preview (products.js).
+   The version compared with is read once per note and snapshot. */
+const baselines = new Map(); // `${path}|${snapshot path}` -> text
+async function markTandemLines(path, text) {
+  const n = notes.index.notes.get(path);
+  if (!n || !needsReview(n.review)) return;
+  const base = baselineFor(n.review, notes.history(path));
+  if (base === null) return;
+  let before = '';
+  if (base) {
+    const key = `${path}|${base.path}`;
+    if (!baselines.has(key)) baselines.set(key, await notes.readSnapshot(base.path).catch(() => null));
+    before = baselines.get(key);
+    if (before === null) return;
+  }
+  if (ui.path !== path || editor.value !== text) return;
+  const els = [...preview.querySelectorAll('[data-line]')];
+  const marked = blocksToMark(els.map(e => Number(e.dataset.line)), changedLines(before, text));
+  for (const e of els) if (marked.has(Number(e.dataset.line))) { e.classList.add('tandem-new'); e.title = 'Changed by Tandem since your last review'; }
+}
+
+/* Mark reviewed: sets reviewed: in the note's frontmatter and saves (history keeps the text before). */
+async function markReviewedNow() {
+  if (!ui.path || ['conflict', 'gone'].includes(ui.status.kind)) return;
+  editor.value = markReviewed(editor.value);
+  setStatus('dirty');
+  await saveNow();
+  paintChrome();
+  paintPreview(true);
+  if (ui.status.kind === 'saved') ws.toast('Marked reviewed.', { kind: 'success' });
 }
 
 /* ---------- opening notes ---------- */
@@ -340,20 +374,26 @@ function notePathFrom(text) {
 
 async function newNote(folder = ui.path ? dirOf(ui.path) : '') {
   const templates = templatesIn(notes.texts.keys());
-  dlg.innerHTML = newNoteHtml({ folder, templates });
+  dlg.innerHTML = newNoteHtml({ folder, templates, productMissing: !notes.texts.has(PRODUCT_TPL) });
   dlg.returnValue = '';
   const form = dlg.querySelector('form');
   form.addEventListener('submit', (e) => {
     const v = e.submitter && e.submitter.value;
-    if (v === 'cancel' || v === 'starters') return;
+    if (v === 'cancel' || v === 'starters' || v === 'product-template') return;
     if (!String(new FormData(form).get('value')).trim()) { e.preventDefault(); const err = form.querySelector('.dlg-err'); err.textContent = 'Give it a title.'; err.hidden = false; }
   });
   const how = await new Promise(resolve => { dlg.addEventListener('close', () => resolve(dlg.returnValue), { once: true }); dlg.showModal(); form.querySelector('input[name="value"]').focus(); });
   if (how === 'starters') { await addStarters(); return newNote(folder); }
+  if (how === 'product-template') {
+    try { await notes.create(PRODUCT_TPL, STARTERS[PRODUCT_TPL]); ws.toast('Added templates/product.md. Edit it like any note.', { kind: 'success' }); }
+    catch (e) { if (e.code !== 'conflict') toastErr(e); }
+    return newNote(folder);
+  }
   if (how !== 'ok') return;
   const fd = new FormData(form);
   const title = String(fd.get('value')).trim();
   const tpl = String(fd.get('template') || '');
+  if (tpl === PRODUCT_TPL && !folder) folder = PRODUCTS; // product notes live in products/ (products.js)
   const path = freePath(new Set(notes.files.keys()), folder, slugify(title), 'md');
   const text = tpl && notes.texts.has(tpl) ? fill(notes.texts.get(tpl).content, { title }) : newNoteText(title);
   if (!(await leaveNote())) return;
@@ -778,6 +818,8 @@ document.addEventListener('click', async (e) => {
   else if (act === 'today') openToday();
   else if (act === 'send') send(x.dataset.kind, Number(x.dataset.line));
   else if (act === 'history') showHistory();
+  else if (act === 'mark-reviewed') markReviewedNow();
+  else if (act === 'review-list') { setQuery('is:review'); side.querySelector('[data-search]')?.focus(); }
   else if (act === 'import') pickFolder();
   else if (act === 'choose-folder') chooseFolder();
   else if (act === 'pair') askPair();
@@ -868,6 +910,7 @@ ws.on('route', (p) => {
   let path = '';
   try { path = decodeURIComponent(p.path || ''); } catch { path = p.path || ''; }
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
+  if (path === 'review') { setQuery('is:review'); return; }
   if (path && /\.md$/.test(path) && path !== ui.path) {
     if (notes.loaded) openNote(path); else pendingRoute = path;
   }

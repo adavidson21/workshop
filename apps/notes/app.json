@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Notes",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Markdown notes: folders, links and backlinks, tags, search, images, templates and a daily note.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -23,6 +23,10 @@
     {
       "path": "today",
       "title": "Today's note"
+    },
+    {
+      "path": "review",
+      "title": "Product notes to review"
     }
   ],
   "commands": [
@@ -60,6 +64,7 @@
     "js/markdown.js",
     "js/model.js",
     "js/offers.js",
+    "js/products.js",
     "js/pickup.js",
     "js/summary-cards.js",
     "js/templates.js",

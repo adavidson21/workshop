@@ -5,9 +5,12 @@
    - `list` (id `mentions`): notes that link to another app's record with a ws: link (applinks.js), newest 20.
      Each row's `note` is the record, '<app>/<route>' (for example 'prioritizer/task/t_k2f9'), so that app can
      show "Notes about this" by matching it. Its title is the note's title; `route` opens the note.
+   - `count` (id `review`): product notes Tandem changed since your last review (products.js); `route` is
+     `review`, which opens that list.
    Templates are left out. Pure: no DOM and no SDK. */
 import { appRefs } from './applinks.js';
 import { TEMPLATES } from './templates.js';
+import { toReview } from './products.js';
 
 const RECENT = 10;
 const MENTIONS = 20;
@@ -34,6 +37,7 @@ export function notesCards(index) {
     { id: 'notes', kind: 'count', title: 'Notes', count: notes.length },
     { id: 'recent', kind: 'list', title: 'Recent notes', count: notes.length,
       rows: byTime.slice(0, RECENT).map(n => ({ id: n.path, title: n.title.slice(0, 200), route: n.path })) },
-    { id: 'mentions', kind: 'list', title: 'Notes about other apps', count: seen.size, rows }
+    { id: 'mentions', kind: 'list', title: 'Notes about other apps', count: seen.size, rows },
+    { id: 'review', kind: 'count', title: 'Product notes to review', count: toReview(index).filter(n => !n.path.startsWith(`${TEMPLATES}/`)).length, route: 'review' }
   ];
 }

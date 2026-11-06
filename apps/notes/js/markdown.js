@@ -21,7 +21,8 @@ export function safeHref(raw) {
 
 /* ---------- frontmatter ---------- */
 
-/** {data: {title?, tags?: []}, body, offset} where offset is the number of lines the frontmatter took. */
+/** {data: {title?, tags?: [], reviewed?, tandemChanged?}, body, offset} where offset is the number of lines the
+    frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written. */
 export function frontmatter(text) {
   const src = String(text || '').replace(/^﻿/, '');
   const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
@@ -43,6 +44,8 @@ export function frontmatter(text) {
       const inner = /^\[(.*)\]$/.exec(val);
       data.tags = (inner ? inner[1] : val).split(/[,\s]+/).map(unquote).map(normTag).filter(Boolean);
     } else if (key === 'title') data.title = unquote(val);
+    else if (key === 'reviewed') data.reviewed = unquote(val);
+    else if (key === 'tandem-changed') data.tandemChanged = unquote(val);
   }
   return { data, body: src.slice(m[0].length), offset: m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) };
 }
@@ -340,7 +343,8 @@ const fin = (t, ctx) => finishInline(inline(t, ctx));
 
 /**
  * What a note says about itself: {title, tags, links: [{href, line, image}], wikilinks: [{target, line}],
- * headings: [{level, text, id, line}]}. Lines are 0-based in the whole file. Code is skipped.
+ * headings: [{level, text, id, line}], review: {reviewed, tandemChanged}}. Lines are 0-based in the whole file.
+ * Code is skipped.
  */
 export function facts(md, fallbackTitle = '') {
   const { data, body, offset } = frontmatter(md);
@@ -362,7 +366,8 @@ export function facts(md, fallbackTitle = '') {
   };
   walk(blocks(body));
   const h1 = headings.find(h => h.level === 1);
-  return { title: data.title || (h1 && h1.text) || fallbackTitle, tags: [...tags].sort(), links, wikilinks, headings };
+  return { title: data.title || (h1 && h1.text) || fallbackTitle, tags: [...tags].sort(), links, wikilinks, headings,
+    review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '' } };
 }
 
 function scanInline(text, line, acc) {
