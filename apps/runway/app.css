@@ -237,3 +237,22 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .p5{background:var(--line)}
 .rp-days{border:1px solid var(--line);border-radius:var(--r-sm);padding:.3rem .45rem;background:var(--surface);color:var(--ink);font:inherit;font-size:.84rem;min-height:2rem}
 @media (max-width:560px){.rp-bar{grid-template-columns:6.5rem 1fr 2rem}.rp-col span{font-size:.58rem}}
+
+/* ---------- big screens (a 27in monitor, Workshop full screen): use the room ---------- */
+@media (min-width:1600px){
+  .list{max-width:68rem}
+  .body{grid-template-columns:minmax(20rem,32rem) 1fr}
+  .body.has-panel{grid-template-columns:minmax(20rem,32rem) 1fr 24rem}
+  .body[data-mode=timeline].has-panel{grid-template-columns:1fr 24rem}
+  .body[data-mode=outline]{grid-template-columns:minmax(0,70rem)}
+  .rpage{max-width:88rem}
+  .reports{max-width:86rem}
+  .rp-insight{max-width:60rem}
+  .rp-bars,.rp-cols{max-width:60rem}
+}
+@media (min-width:2100px){
+  .list{max-width:80rem}
+  .body[data-mode=outline]{grid-template-columns:minmax(0,82rem)}
+  .rpage{max-width:104rem}
+  .reports{max-width:100rem}
+}
