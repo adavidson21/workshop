@@ -15,7 +15,7 @@ const OC = 'opencode';
 const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, dir: EMPTY, board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], board: null, dayNow: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -55,6 +55,19 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     changed();
   }
 
+  /* Recent notes, from Notes' summary (its `list` card id `recent`; docs/summaries.md): titles and paths only.
+     No summary, or one Home can't read, shows no card. */
+  async function loadNotes() {
+    try {
+      const cards = readCards(await ws.data.get('summary', { app: 'notes' }), 'notes');
+      const c = cards && cards.get('recent');
+      v.notes = c && c.kind === 'list' && Array.isArray(c.rows)
+        ? c.rows.filter(r => r && typeof r.id === 'string' && typeof r.title === 'string').slice(0, 5).map(r => ({ title: r.title, route: typeof r.route === 'string' ? r.route : r.id }))
+        : [];
+    } catch (e) { waitFor(e); v.notes = []; }
+    changed();
+  }
+
   async function loadAgents() {
     if (ws.backend !== 'agent') { v.agents = { state: 'browser' }; return changed(); }
     try {
@@ -83,7 +96,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   async function loadAll() {
     const was = v.waiting;
     v.waiting = false;
-    await Promise.all([loadProfile(), loadBoard(), loadAgents()]);
+    await Promise.all([loadProfile(), loadBoard(), loadAgents(), loadNotes()]);
     if (was && !v.waiting) changed();
   }
 
@@ -116,7 +129,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   ws.on('online', p => { if (p && p.online) loadAll(); });
 
   return {
-    v, loadAll, loadBoard, loadAgents, loadProfile, saveProfile,
+    v, loadAll, loadBoard, loadAgents, loadNotes, loadProfile, saveProfile,
     get waiting() { return v.waiting; }
   };
 }

@@ -81,7 +81,7 @@ test('on Allow (online turns true), profile, board and agents load again, once',
   ws.allow();
   await settle(); await settle();
   assert.equal(home.waiting, false);
-  assert.equal(ws.gets - before, 2, 'profile once and Docket\'s summary once');
+  assert.equal(ws.gets - before, 3, 'profile once, and Docket\'s and Notes\' summaries once each');
   assert.equal(home.v.board.open, 1);
   assert.deepEqual(home.v.profile, { name: 'Sam Rivera', role: 'EM' });
   assert.equal(home.v.agents.state, 'browser');
@@ -190,4 +190,22 @@ test('no Docket summary yet says to open Docket once, not "No tasks yet" or an e
   assert.match(html, /Nothing from Docket yet/);
   assert.match(html, /Open Docket once/);
   assert.ok(!html.includes('No tasks yet'));
+});
+
+test('Recent notes: from Notes\' summary, titles only, opening each note; no card without one', async () => {
+  const notesEnv = { schema: 'notes.summary', version: 1, rev: 1, items: [
+    { id: 'recent', kind: 'list', updatedAt: 1, title: 'Recent notes', count: 2, rows: [{ id: 'a.md', title: 'Deploy <runbook>', route: 'runbooks/a.md' }, { id: 'b.md', title: 'Retro' }] }] };
+  const ws = fakeWs();
+  const get = ws.data.get;
+  ws.data.get = async (c, o) => (o && o.app === 'notes' ? (ws.allowed ? (c === 'summary' ? notesEnv : null) : get(c, o)) : get(c, o));
+  ws.allowed = true;
+  const home = createHome(ws, { now: () => new Date(2026, 9, 28, 9) });
+  await home.loadAll();
+  assert.deepEqual(home.v.notes, [{ title: 'Deploy <runbook>', route: 'runbooks/a.md' }, { title: 'Retro', route: 'b.md' }]);
+  const html = render(home.v);
+  assert.match(html, /<h2>Recent notes<\/h2>/);
+  assert.match(html, /data-open="notes" data-path="runbooks\/a\.md">Deploy &lt;runbook&gt;</);
+  const none = createHome(Object.assign(fakeWs(), { allowed: true }), { now: () => new Date(2026, 9, 28, 9) });
+  await none.loadAll();
+  assert.doesNotMatch(render(none.v), /Recent notes/);
 });

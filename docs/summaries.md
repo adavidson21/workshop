@@ -28,7 +28,7 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 | `kind` | Fields | Read by |
 | --- | --- | --- |
 | `count` | `title`, `count` (integer), optional `route` (a path in the writer's app). | Home (Get started). |
-| `list` | `title`, `rows`: up to 20 of `{id, title, route?, due?, note?, flag?}`, optional `count` (the total, when `rows` is cut short) and `route`. `due` is `YYYY-MM-DD`; `flag` is `urgent`, `waiting` or `done`. | Any app that shows a list from another app. |
+| `list` | `title`, `rows`: up to 20 of `{id, title, route?, due?, note?, flag?}`, optional `count` (the total, when `rows` is cut short) and `route`. `due` is `YYYY-MM-DD`; `flag` is `urgent`, `waiting` or `done`. | Home (Notes' `recent`), any app that shows a list from another app. |
 | `targets` | `title`, `capture` (a capture kind, [app-manifest.md](app-manifest.md) `capture`), `rows`: up to 200 of `{id, title}`. Places a capture can name: Docket's lists for `task`, Runway's roadmaps for `idea`. | Home quick capture, the Dispatch hub. |
 | `board` | `days`: an object keyed by `YYYY-MM-DD` for today and the next 6 days, each `{total, open, focus: {total, done}, triage, overdue, dueWeek}`; `upNext`: up to 3 of `{id, title, list, listId, due, who, triaged}` (`who`: people and group ids, [people.md](people.md)); `team`: up to 50 of `{id, name, open, waiting}` (a person id and the counts of open and waiting tasks that involve them, through their groups too). | Home (Docket's numbers and Up next). |
 | `day` | `days`: an object keyed by `YYYY-MM-DD` for today and the next 6 days, each `{blocks, wrapAt, wrapped, offered}`. `blocks`: up to 24 of `{name, at, until, tasks}`, where `at` and `until` are `HH:MM` and `tasks` up to 10 of `{id, title, done}`. `wrapAt`: `HH:MM` when Wrap up is due that day, or `null` for a day off. `wrapped`: the day is wrapped. `offered`: receipts offered that day. A day with no plan has `blocks: []`. | Home (Now and Wrap up). |
@@ -49,3 +49,4 @@ Every card has `id` (unique in the collection), `updatedAt` and `kind`. The othe
 | `prioritizer` (Docket) | `board` (id `board`), `day` (id `day`), `targets` (id `lists`, `capture: "task"`), `people` (id `people`). |
 | `receipts` (Rapport) | `count` (id `entries`: receipts logged). |
 | `runway` (Runway) | `targets` (id `roadmaps`, `capture: "idea"`). |
+| `notes` (Notes) | `count` (id `notes`), `list` (id `recent`: the 10 notes changed last), `list` (id `mentions`: notes that link to another app's record with a `ws:` link; each row's `note` is the record, `<app>/<route>`). Titles and paths only. Home shows `recent`. |

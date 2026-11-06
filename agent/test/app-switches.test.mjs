@@ -31,9 +31,9 @@ test('apps.json keeps the apps turned off, and never Home or Settings', async ()
 
 test('the registry leaves out apps turned off', () => {
   const all = ids(buildRegistry(path.join(REPO, 'apps'), schemas));
-  assert.ok(all.includes('notes') && all.includes('home'));
-  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['notes'])));
-  assert.deepEqual(some, all.filter(id => id !== 'notes'));
+  assert.ok(all.includes('people') && all.includes('home'));
+  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['people'])));
+  assert.deepEqual(some, all.filter(id => id !== 'people'));
 });
 
 test('gitHead reads the commit and release tag from .git files, without running git', { skip: !hasGit && 'git is not installed' }, () => {
@@ -76,35 +76,36 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
   } finally { rmHome(home); }
 });
 
+// People (built in) is the app switched here: Notes and the other remote apps depend on their checkouts.
 test('GET and PUT /api/app-switches: changes come from this computer only, and work mode rebuilds the pinned copy', async () => {
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: ['https://workshop.example.org'], features: { hostedMode: false, workMode: true } }));
-  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null } });
+  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null, notes: null } });
   const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), uiDir });
   try {
     let r = await get(agent, '/api/app-switches');
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'GET');
     assert.equal(r.json.workMode, true);
-    assert.equal(r.json.apps.find(a => a.id === 'notes').inWorkshop, true);
+    assert.equal(r.json.apps.find(a => a.id === 'people').inWorkshop, true);
 
-    r = await put(agent, '/api/app-switches/notes', { on: false });
+    r = await put(agent, '/api/app-switches/people', { on: false });
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'PUT');
-    assert.equal(r.json.changed, 'notes');
-    assert.equal(r.json.apps.find(a => a.id === 'notes').inWorkshop, false);
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'), 'rebuilt without Notes');
-    assert.equal((await get(agent, '/apps/notes/index.html', { auth: 'cookie' })).status, 404, 'Notes is no longer served');
+    assert.equal(r.json.changed, 'people');
+    assert.equal(r.json.apps.find(a => a.id === 'people').inWorkshop, false);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('people'), 'rebuilt without People');
+    assert.equal((await get(agent, '/apps/people/index.html', { auth: 'cookie' })).status, 404, 'People is no longer served');
 
-    r = await put(agent, '/api/app-switches/notes', { on: true });
+    r = await put(agent, '/api/app-switches/people', { on: true });
     assert.equal(r.status, 200, r.text);
-    assert.equal((await get(agent, '/apps/notes/index.html', { auth: 'cookie' })).status, 200, 'Notes is back');
+    assert.equal((await get(agent, '/apps/people/index.html', { auth: 'cookie' })).status, 200, 'People is back');
 
     assert.equal((await put(agent, '/api/app-switches/home', { on: false })).status, 400, 'Home is always on');
     assert.equal((await put(agent, '/api/app-switches/nope', { on: false })).status, 404);
-    assert.equal((await put(agent, '/api/app-switches/notes', { on: 'yes' })).status, 400);
-    assert.equal((await put(agent, '/api/app-switches/notes', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
+    assert.equal((await put(agent, '/api/app-switches/people', { on: 'yes' })).status, 400);
+    assert.equal((await put(agent, '/api/app-switches/people', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
     // Turning on an app that is not downloaded saves the switch and says what to run; nothing is downloaded.
     r = await put(agent, '/api/app-switches/runway', { on: false });

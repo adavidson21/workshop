@@ -21,7 +21,7 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket, Runway and Rapport (DOCKET_TAG, RUNWAY_TAG and RECEIPTS_TAG, else their newest code) and builds
+#                         downloads Docket, Runway, Rapport and Notes (DOCKET_TAG, RUNWAY_TAG, RECEIPTS_TAG and NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
 #                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
@@ -39,11 +39,11 @@ $Site = '{{SITE}}'
 if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org' }
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
-$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket'; runway = 'https://github.com/adavidson21/runway'; receipts = 'https://github.com/adavidson21/receipts' }
+$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket'; runway = 'https://github.com/adavidson21/runway'; receipts = 'https://github.com/adavidson21/receipts'; notes = 'https://github.com/adavidson21/notes' }
 # /install-work.ps1 serves this file with {{WORK}} set to 1 (worker/index.js), so work mode needs no variable.
 $Work = ($env:WORKSHOP_WORK_MODE -eq '1') -or ('{{WORK}}' -eq '1')
-$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG; runway = $env:RUNWAY_TAG; receipts = $env:RECEIPTS_TAG }
-$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG'; runway = 'RUNWAY_TAG'; receipts = 'RECEIPTS_TAG' }
+$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG; runway = $env:RUNWAY_TAG; receipts = $env:RECEIPTS_TAG; notes = $env:NOTES_TAG }
+$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG'; runway = 'RUNWAY_TAG'; receipts = 'RECEIPTS_TAG'; notes = 'NOTES_TAG' }
 # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
 $Dispatch = if ($env:WORKSHOP_DISPATCH -eq '0') { $false } elseif ($env:WORKSHOP_DISPATCH -eq '1') { $true } else { -not $Work }
 $OcVersion = if ($env:OPENCODE_VERSION) { $env:OPENCODE_VERSION } else { 'latest' }
@@ -140,9 +140,9 @@ if (Test-Workshop) {
 # ---------------------------------------------------------------- 2. Workshop and Tandem
 $names = @('workshop')
 if ($Dispatch) { $names += 'eng-agents' }
-if ($Work) { $names += @('docket', 'runway', 'receipts') }
+if ($Work) { $names += @('docket', 'runway', 'receipts', 'notes') }
 foreach ($name in $names) {
-  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } elseif ($name -eq 'receipts') { 'Rapport (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
+  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } elseif ($name -eq 'receipts') { 'Rapport (for the pinned copy)' } elseif ($name -eq 'notes') { 'Notes (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
   $dir = Join-Path $Root $name
   $tag = $Tags[$name]
   if (Test-Path (Join-Path $dir '.git')) {
@@ -158,10 +158,10 @@ foreach ($name in $names) {
     continue
   }
   $ref = if ($tag) { "refs/tags/$tag" } else { 'refs/heads/main' }
-  # Runway and Rapport are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
+  # Runway, Rapport and Notes are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
   # pinned copy is built without it until there is a clone of it here.
-  if ($name -eq 'runway' -or $name -eq 'receipts') {
-    $label = if ($name -eq 'runway') { 'Runway' } else { 'Rapport' }
+  if ($name -eq 'runway' -or $name -eq 'receipts' -or $name -eq 'notes') {
+    $label = if ($name -eq 'runway') { 'Runway' } elseif ($name -eq 'notes') { 'Notes' } else { 'Rapport' }
     $reachable = $true
     try { Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$($Repos[$name])/archive/$ref.zip" | Out-Null } catch { $reachable = $false }
     if (-not $reachable) {
@@ -306,7 +306,8 @@ if ($Work) {
   Step 'Building the pinned copy (work mode)'
   $runwayArgs = if (Test-Path (Join-Path $Root 'runway\app.json')) { @('--runway', (Join-Path $Root 'runway')) } else { @('--no-runway') }
   $receiptsArgs = if (Test-Path (Join-Path $Root 'receipts\app.json')) { @('--receipts', (Join-Path $Root 'receipts')) } else { @('--no-receipts') }
-  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket') @runwayArgs @receiptsArgs
+  $notesArgs = if (Test-Path (Join-Path $Root 'notes\app.json')) { @('--notes', (Join-Path $Root 'notes')) } else { @('--no-notes') }
+  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket') @runwayArgs @receiptsArgs @notesArgs
   if ($LASTEXITCODE -ne 0) { Fail 'Building the pinned copy failed. See the messages above.' }
 }
 

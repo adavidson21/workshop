@@ -20,6 +20,9 @@ jobs:
       # Rapport (adavidson21/receipts) is served under /apps/receipts/ the same way, and checked the same way.
       - uses: actions/checkout@v4
         with: { repository: adavidson21/receipts, path: .remote/receipts }
+      # Notes (adavidson21/notes) is served under /apps/notes/ the same way, and checked the same way.
+      - uses: actions/checkout@v4
+        with: { repository: adavidson21/notes, path: .remote/notes }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/setup-python@v5

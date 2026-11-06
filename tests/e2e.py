@@ -4,6 +4,7 @@
   pip install playwright && python -m playwright install chromium
   git clone https://github.com/adavidson21/docket .remote/prioritizer   # Docket (apps/remote.json)
   git clone https://github.com/adavidson21/receipts .remote/receipts    # Rapport
+  git clone https://github.com/adavidson21/notes .remote/notes          # Notes
   python tests/e2e.py
 
 Docket's and Rapport's code live in their own repos and the Worker serves them under /apps/prioritizer/ and
@@ -45,7 +46,8 @@ DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scrip
 # Runway and Rapport (apps/remote.json) are served the same way from their checkouts.
 RUNWAY = os.environ.get('RUNWAY_DIR') or os.path.join(ROOT, '.remote', 'runway')
 RECEIPTS = os.environ.get('RECEIPTS_DIR') or os.path.join(ROOT, '.remote', 'receipts')
-REMOTE_DIRS = {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS}
+NOTES = os.environ.get('NOTES_DIR') or os.path.join(ROOT, '.remote', 'notes')
+REMOTE_DIRS = {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS, 'notes': NOTES}
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -149,14 +151,15 @@ PRIORITIZER_GLOBALS = """() => {
 }"""
 
 # Runs the SDK's browser backend (IndexedDB) in a page: the same rules as the agent's data API.
+# A scratch app id no real app uses, so the counts below do not depend on what the apps saved earlier.
 SDK_BROWSER = """async () => {
   const {connect} = await import('/shared/workshop-sdk.js');
-  const a = await connect({app: 'notes'}), b = await connect({app: 'notes'});
+  const a = await connect({app: 'scratch'}), b = await connect({app: 'scratch'});
   const out = {mode: a.mode, backend: a.backend, online: a.online};
   out.empty = await a.data.get('pages');
   let heard = null; b.data.subscribe('pages', e => { heard = e; });
   let self = null; a.data.subscribe('pages', e => { self = e; });
-  const first = a.data.stamp(null, {schema: 'notes.pages', version: 1, rev: 0, items: [{id: 'p1', title: 'One'}]});
+  const first = a.data.stamp(null, {schema: 'scratch.pages', version: 1, rev: 0, items: [{id: 'p1', title: 'One'}]});
   out.put1 = await a.data.put('pages', first);
   await new Promise(r => setTimeout(r, 300));
   out.heard = heard && heard.rev; out.self = self;
@@ -164,14 +167,14 @@ SDK_BROWSER = """async () => {
   out.readRev = read.rev; out.updatedAt = typeof read.updatedAt;
   try { await a.data.put('pages', first); out.conflict = 'none'; } catch (e) { out.conflict = e.code; out.currentRev = e.current && e.current.rev; }
   try { await a.data.put('pages', {...read, version: 0}); } catch (e) { out.badVersion = e.code; }
-  const v2 = await a.data.put('levels', {schema: 'notes.levels', version: 2, rev: 0, items: []});
-  try { await a.data.put('levels', {schema: 'notes.levels', version: 1, rev: v2.rev, items: []}); } catch (e) { out.downgrade = e.code; }
-  try { await a.data.put('pages', {...read, schema: 'notes.other'}); } catch (e) { out.badSchema = e.code; }
+  const v2 = await a.data.put('levels', {schema: 'scratch.levels', version: 2, rev: 0, items: []});
+  try { await a.data.put('levels', {schema: 'scratch.levels', version: 1, rev: v2.rev, items: []}); } catch (e) { out.downgrade = e.code; }
+  try { await a.data.put('pages', {...read, schema: 'scratch.other'}); } catch (e) { out.badSchema = e.code; }
   const edited = b.data.stamp(read, {...structuredClone(read), items: [...read.items, {id: 'p2', title: 'Two'}]});
   out.put2 = (await b.data.put('pages', edited)).rev;
-  const bundle = await a.data.export({apps: ['notes']});
+  const bundle = await a.data.export({apps: ['scratch']});
   out.bundle = [bundle.schema, bundle.collections.length, bundle.source.backend];
-  bundle.collections.push({app: 'notes', collection: 'drafts', envelope: {...structuredClone(bundle.collections[0].envelope), schema: 'notes.drafts'}});
+  bundle.collections.push({app: 'scratch', collection: 'drafts', envelope: {...structuredClone(bundle.collections[0].envelope), schema: 'scratch.drafts'}});
   out.imported = await a.data.import(bundle);
   out.connectors = await a.connectors.list();
   try { await a.connectors.call('ado', 'sync'); } catch (e) { out.callCode = e.code; }
@@ -209,6 +212,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
+    if nf: notes_ecosystem(pg, nf)
 
     # The running Docket task in the top bar (ws.status), on every app, with Pause asking for a breadcrumb.
     pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(1500)
@@ -374,7 +378,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     b1 = ctx.new_page(); watch(b1); b1.goto(HUB + '/apps/settings/'); b1.wait_for_timeout(500)
     b2 = ctx.new_page(); watch(b2); b2.goto(HUB + '/apps/settings/'); b2.wait_for_timeout(500)
-    b2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
+    b2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'scratch'});
       window.__heard = []; ws.data.subscribe('pages', e => window.__heard.push(e.rev)); }""")
     r = b1.evaluate(SDK_BROWSER)
     check('SDK picks browser mode with no agent', [r['mode'], r['backend'], r['online']] == ['browser', 'browser', False])
@@ -408,6 +412,34 @@ def notes_new(page, nf, title, folder_button=None):
     nf.fill('#dlg input[name=value]', title)
     nf.click('#dlg button[value=ok]')
     page.wait_for_timeout(600)
+
+
+def notes_ecosystem(pg, nf):
+    """Notes with the other apps: an action item sent to Docket, a ws: link that opens Docket, and Home's Recent notes."""
+    pg.evaluate("location.hash = '#/notes'"); pg.wait_for_timeout(1200)
+    nf = next(f for f in pg.frames if '/apps/notes/' in f.url)  # notes_flow reloaded the page
+    seen(nf, '.side')
+    notes_new(pg, nf, 'Team Sync')
+    nf.click('#editor'); nf.press('#editor', 'Control+End')
+    nf.type('#editor', '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:prioritizer/today)\n')
+    nf.press('#editor', 'Control+s'); pg.wait_for_timeout(1200)
+    check('Notes: the panel lists the action item and the win, each with a send button',
+          nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=win]').count() == 1)
+    check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'docket')
+    nf.click('[data-act=send][data-kind=task]'); pg.wait_for_timeout(1200)
+    check('Notes: a sent action item shows Sent', 'sent' in nf.inner_text('.sendables').lower())
+    nf.click('#preview .app-link'); pg.wait_for_timeout(1500)
+    # The shell opens Docket at the route, then tidies the address to #/prioritizer (shell.js, route).
+    check('Notes: clicking a ws: link opens that app', pg.url.endswith('#/prioritizer'))
+    df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    pg.wait_for_timeout(1500)
+    check('Docket adds the sent action item as a task, with no second click', 'Draft the rollout plan' in df.inner_text('body'))
+    pg.click('#rail .mark'); pg.wait_for_timeout(1500)
+    hf = next(f for f in pg.frames if '/apps/home/' in f.url)
+    home_text = hf.inner_text('#app').lower()
+    check('Home shows Recent notes from Notes\' summary', 'recent notes' in home_text and 'team sync' in home_text)
+    if 'recent notes' not in home_text: print('      Home:', home_text[:300].replace('\n', ' | '))
+    pg.evaluate("location.hash = '#/notes'"); pg.wait_for_timeout(800)
 
 
 def notes_flow(page, nf, where):
@@ -1127,6 +1159,8 @@ def main():
         sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
     if not os.path.isfile(os.path.join(RECEIPTS, 'app.json')):
         sys.exit(f'Rapport is not checked out at {RECEIPTS}. Run: git clone https://github.com/adavidson21/receipts .remote/receipts')
+    if not os.path.isfile(os.path.join(NOTES, 'app.json')):
+        sys.exit(f'Notes is not checked out at {NOTES}. Run: git clone https://github.com/adavidson21/notes .remote/notes')
     serve(8802, functools.partial(Static, directory=ROOT))
     serve(8803, functools.partial(Static, directory=ROOT))
     WithSamples.registry = samples_registry(tempfile.mkdtemp())
