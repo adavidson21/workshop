@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const VERSION = "1.3.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.3.1"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (docs/shell-api.md in eng-agents)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -239,4 +239,15 @@ export function httpError(status, message) {
 
 export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * A command's error as Dispatch shows it. opencode reads its agents when it starts, so an agent installed after
+ * that (a Tandem install or update) is "not found" until opencode restarts: say so.
+ */
+export function commandError(name, err) {
+  const msg = `/${name} failed: ${err}`;
+  return /agent not found/i.test(String(err))
+    ? `${msg}. opencode was probably started before this agent was installed. Restart it (opencode service restart, or close opencode and run workshop restart), then try again.`
+    : msg;
 }

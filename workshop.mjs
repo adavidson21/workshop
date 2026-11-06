@@ -662,6 +662,37 @@ export function installedTandem(userHome = os.homedir()) {
   } catch { return null; }
 }
 
+/** True when version a is newer than b (dotted numbers, like 2.10.0 and 2.9.1). False when either is missing. */
+export function newerVersion(a, b) {
+  if (!a || !b) return false;
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+
+/** opencode's major version (from opencode --version), or null when it does not run. */
+export function opencodeMajor(run = spawnSync) {
+  const r = run('opencode', ['--version'], { encoding: 'utf8', windowsHide: true, timeout: 15000, shell: process.platform === 'win32' });
+  const m = !r.error && r.status === 0 && /(\d+)\.\d+\.\d+/.exec(r.stdout || '');
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * opencode reads its agents when it starts, so after a Tandem install its background service (2.x) is restarted;
+ * Dispatch reconnects to it. 1.x has no service: an "opencode serve" Workshop started goes with "workshop restart".
+ */
+export function restartOpencode({ out, run = spawnSync } = {}) {
+  const major = opencodeMajor(run);
+  if (major === null) { out('opencode is not on PATH here, so it was not restarted. Restart it before using Dispatch.'); return false; }
+  if (major < 2) { out('opencode loads agents when it starts: run "workshop restart", and close any opencode you started yourself.'); return false; }
+  const o = { encoding: 'utf8', windowsHide: true, timeout: 60000, shell: process.platform === 'win32' };
+  run('opencode', ['service', 'stop'], o);
+  const r = run('opencode', ['service', 'start'], o);
+  if (r.error || r.status !== 0) { out('Could not restart opencode\'s background service. Run: opencode service stop, then opencode service start'); return false; }
+  out('Restarted opencode\'s background service so it loads the new agents. Close any opencode window you had open, then reload Dispatch.');
+  return true;
+}
+
 /** Tandem's Core version at a ref of its checkout (core/VERSION), or null. */
 export function tandemVersionAt(dir, ref = 'HEAD') {
   const r = git(dir, ['show', `${ref}:core/VERSION`]);
@@ -683,7 +714,9 @@ export function findPowerShell(platform = process.platform) {
  * otherwise install.ps1 runs, with ~/.config/eng-agents/personal when it exists (as the installer does).
  * Returns true when opencode now has that tag's Core version.
  */
-export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync } = {}) {
+export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync, allowOlder = false, restart = restartOpencode } = {}) {
+  { const w = tandemVersionAt(dir, `refs/tags/${tag}`), have = installedTandem(userHome)?.core;
+    if (!allowOlder && newerVersion(have, w)) { out(`opencode has Tandem Core ${have}, newer than ${tag}. Not installing an older version.`); return false; } }
   if (!ps) { out('Tandem needs PowerShell to install (pwsh, or Windows PowerShell). Install PowerShell 7, then run "workshop update" again.'); return false; }
   const want = tandemVersionAt(dir, `refs/tags/${tag}`);
   const before = installedTandem(userHome);
@@ -705,7 +738,8 @@ export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = fin
     out(`Tandem did not install${r.error ? ` (${r.error.message})` : ''}. See the messages above, then run "workshop update" again.`);
     return false;
   }
-  out(`Tandem ${after.core} is installed in opencode. opencode loads agents when it starts: run "workshop restart", and quit any opencode you started yourself.`);
+  out(`Tandem ${after.core} is installed in opencode.`);
+  restart({ out });
   return true;
 }
 
@@ -863,7 +897,7 @@ async function runUpdate(rest, io) {
   if (opts.engAgentsTag) {
     const ea = findEngAgents(REPO, { dir: opts.engAgents });
     if (!ea) { io.out('--eng-agents-tag needs an eng-agents clone: one next to Workshop, the one opencode installed from, or --eng-agents <folder>. Get one with: workshop apps on dispatch'); return 1; }
-    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: io.out });
+    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: io.out, allowOlder: !opts.latest });
   }
   if (!moved) io.out('Everything is already at its newest release.');
   if (info.config?.features?.workMode === true) {
@@ -906,6 +940,7 @@ export function planLatest(repo = REPO, out = () => {}, { userHome = os.homedir(
     const want = latest && tandemVersionAt(ea, `refs/tags/${latest}`);
     const inst = installedTandem(userHome);
     if (!latest) lines.push('Tandem (eng-agents): no release tags yet. Left as it is.');
+    else if (inst && want && newerVersion(inst.core, want)) lines.push(`Tandem (eng-agents): opencode has Core ${inst.core}, newer than the newest release (${latest}). Left as it is; release it from eng-agents (Actions, Release) for "workshop update" to manage it.`);
     else if (inst && want && inst.core === want && tagsAtHead(ea).includes(latest)) lines.push(`Tandem (eng-agents): already at ${latest}.`);
     else { tags.engAgentsTag = latest; lines.push(`Tandem (eng-agents${ea === tandemDir(repo) ? '' : `, ${ea}`}): ${inst ? `Core ${inst.core ?? 'unknown'} in opencode` : 'not installed in opencode'} -> ${latest}.`); }
   } else if (dispatchOn) lines.push('Tandem (eng-agents): not downloaded, so skipped. To add it: workshop apps on dispatch');

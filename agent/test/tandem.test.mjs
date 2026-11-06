@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installedTandem, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
+import { installedTandem, newerVersion, restartOpencode, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const rm = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -90,15 +90,17 @@ test('installTandem: first install moves to the tag and runs install.ps1; later 
     const personal = path.join(s.userHome, '.config', 'eng-agents', 'personal');
     fs.mkdirSync(personal, { recursive: true });
     const calls = [], out = [];
+    let restarts = 0;
+    const restart = () => { restarts++; };
     const run = (exe, args) => { calls.push([exe, ...args]); s.install(tandemVersionAt(ea), ea); return { status: 0 }; };
-    assert.ok(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run }), out.join('\n'));
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run, restart }), out.join('\n'));
     assert.equal(path.basename(calls[0][5]), 'install.ps1');
     assert.deepEqual(calls[0].slice(6), ['-Personal', personal]);
     assert.equal(tandemVersionAt(ea), '2.1.0', 'checked out the tag first');
-    assert.ok(out.some(l => /workshop restart/.test(l)), 'says opencode needs a restart');
+    assert.equal(restarts, 1, 'opencode is restarted so it loads the new agents');
 
     calls.length = 0;
-    assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run }));
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run, restart }));
     assert.equal(path.basename(calls[0][5]), 'update.ps1');
     assert.deepEqual(calls[0].slice(6), ['-Tag', 'core-v2.1.0', '-Yes']);
 
@@ -107,7 +109,7 @@ test('installTandem: first install moves to the tag and runs install.ps1; later 
     calls.length = 0;
     const seen = [];
     const run2 = (exe, args) => { seen.push(tandemVersionAt(ea)); s.install(tandemVersionAt(ea), ea); return { status: 0 }; };
-    assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run: run2 }));
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: () => {}, userHome: s.userHome, ps: 'pwsh', run: run2, restart }));
     assert.deepEqual(seen, ['2.1.0']);
   } finally { rm(s.root); }
 });
@@ -181,4 +183,33 @@ test('update --eng-agents parses, and does not go with --pull or --check', () =>
   assert.match(parseUpdateArgs(['--eng-agents']).error, /needs the folder/);
   assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--pull']).error);
   assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--check']).error);
+});
+
+test('update never moves Tandem back to an older release than opencode has', { skip: !hasGit && 'git is not installed' }, () => {
+  const s = setup();
+  try {
+    const ea = s.clone(s.eaOrigin, 'eng-agents');
+    s.install('2.10.0', ea);
+    const plan = planLatest(s.ws, () => {}, { userHome: s.userHome });
+    assert.equal(plan.tags.engAgentsTag, undefined, '2.10.0 is newer than core-v2.1.0');
+    assert.ok(plan.lines.some(l => /newer than the newest release \(core-v2\.1\.0\)/.test(l)), plan.lines.join('\n'));
+    const out = [];
+    assert.equal(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run: () => { throw new Error('ran'); }, restart: () => {} }), false);
+    assert.match(out.join('\n'), /Not installing an older version/);
+    assert.equal(newerVersion('2.10.0', '2.9.1'), true);
+    assert.equal(newerVersion('2.1.0', '2.1.0'), false);
+  } finally { rm(s.root); }
+});
+
+test('restartOpencode stops and starts the 2.x service, and only explains for 1.x or no opencode', () => {
+  const calls = [], out = [];
+  const fake = ver => (exe, args) => { calls.push(args.join(' ')); return args[0] === '--version' ? (ver ? { status: 0, stdout: ver } : { error: new Error('ENOENT') }) : { status: 0, stdout: '' }; };
+  assert.equal(restartOpencode({ out: l => out.push(l), run: fake('2.3.1') }), true);
+  assert.deepEqual(calls, ['--version', 'service stop', 'service start']);
+  calls.length = 0;
+  assert.equal(restartOpencode({ out: l => out.push(l), run: fake('1.14.0') }), false);
+  assert.deepEqual(calls, ['--version']);
+  assert.match(out.at(-1), /workshop restart/);
+  assert.equal(restartOpencode({ out: l => out.push(l), run: fake(null) }), false);
+  assert.match(out.at(-1), /not on PATH/);
 });

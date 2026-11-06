@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { httpError, log, opt, repoFolder, workRoot } from "./context.mjs";
+import { commandError, httpError, log, opt, repoFolder, workRoot } from "./context.mjs";
 import { model, refresh } from "./model.mjs";
 import { currentSession, folderForToken, linkFrom } from "./links.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
@@ -146,7 +146,7 @@ export async function runLoose(name, args, find) {
     .runCommand(sid, name, args)
     .then((err) => {
       if (err) {
-        upsertSession(sid, { status: "idle", activity: null, error: `/${name} failed: ${err}` });
+        upsertSession(sid, { status: "idle", activity: null, error: commandError(name, err) });
         broadcastLive();
       }
     })
