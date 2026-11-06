@@ -7,7 +7,11 @@
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
      changed (Tab) or dismissed. Accepted captures go to Dispatch's own `handoffs` collection with accepted: true
      (shared/capture-box.js); Docket, Rapport and Notes add them when they load. Nothing else is written.
-   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note.
+   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note. Under it, the card is a
+     thread: a reply box sends follow-ups to the same opencode session through chat.send (Tandem's read-only chat
+     agent, docs/chat.md), and the turns show below the answer. Once you reply, the thread is also in the Chat tab.
+     Asks come back after a reload (chat.list with hubs, then hub.result); captures do not, so nothing is accepted
+     twice.
    - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
    - clarify: chips that send the message again with the choice.
    Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
@@ -22,6 +26,7 @@
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
+import { keepFocus, lastTandem, turnsHtml } from './thread.js';
 
 const OC = 'opencode';
 /* A sparkle. The slash shows only when AI is off (agents.css, .hub-ai). */
@@ -29,9 +34,12 @@ const AI_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="tr
 const POLL_MS = 1500;
 const KEEP_CARDS = 12;
 
-export function startHub(ws, root) {
+const THREAD_MS = 1500;
+
+export function startHub(ws, root, { openChat = () => {}, onStatus = () => {} } = {}) {
   const store = createCaptureStore(ws, { sender: 'agents' });
-  const cards = [];             // newest first: {id, text, state, route, answer, error, session, rows, at}
+  const cards = [];             // newest first: {id, text, state, route, answer, error, session, rows, at, turns, tbusy, draft, replied}
+  let restored = false;
   let src = {}, status = { ready: false, why: 'Checking the hub...' };
   /* The AI button at the end of the input. state: checking | on | off | na (the hub cannot run here).
      canFlip: this page may change the Hub setting (Workshop on this computer, connector ready). */
@@ -63,12 +71,14 @@ export function startHub(ws, root) {
         try { const cfg = await ws.connectors.getConfig(OC); config = cfg && cfg.config; on = !!(config && config.hub === true); } catch (e) { on = false; }
         const local = ws.mode === 'local';
         ai = { ...ai, state: on ? 'on' : 'off', canFlip: local && !!config, config };
+        if (on && !restored) { restored = true; restore(); }
         status = on ? { ready: true, why: '' } : { ready: false, why: local
           ? 'AI is off. Captures still work here, with simple rules.'
           : 'AI is off. Turn it on from Dispatch in Workshop on this computer (hosted pages cannot change it). Captures still work here, with simple rules.' };
       }
     } catch (e) { status = { ready: false, why: "Couldn't reach Workshop on this computer." }; }
     draw();
+    onStatus(status);
   }
   async function readContext() {
     const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
@@ -141,6 +151,55 @@ export function startHub(ws, root) {
     draw();
   }
 
+  /* ---------- threads (docs/chat.md) ---------- */
+  const threadable = card => !!(card.session && status.ready && card.state !== 'running' && card.state !== 'rules' &&
+    !(card.route && card.route.intent === 'capture'));
+  async function sendReply(card) {
+    const text = String(card.draft || '').trim();
+    if (!text || card.tbusy || card.tsending) return;
+    card.tsending = true; draw();
+    try {
+      await ws.connectors.call(OC, 'chat.send', { session: card.session, text }, { confirm: true });
+      card.draft = ''; card.replied = true; card.tbusy = true; card.terror = '';
+      card.turns = [...(card.turns || []), { role: 'you', text }];
+      pollThread(card);
+    } catch (e) {
+      card.terror = /no chat agent/.test(e.message || '') ? 'Tandem has no chat agent yet. Run the Tandem install command again (eng-agents Core 2.14.0), then restart opencode.' : (e.message || "Couldn't send that.");
+    }
+    card.tsending = false; draw();
+  }
+  function pollThread(card) {
+    const tick = async () => {
+      try {
+        const r = await ws.connectors.call(OC, 'chat.messages', { session: card.session });
+        card.turns = r.turns || []; card.tbusy = !!r.busy; card.terror = r.error || '';
+      } catch (e) { /* try again */ }
+      draw();
+      if (card.tbusy) setTimeout(tick, THREAD_MS);
+    };
+    setTimeout(tick, 400);
+  }
+  // After a reload: the recent hub asks come back as cards (captures do not, so nothing is accepted twice).
+  async function restore() {
+    let items = [];
+    try { items = (await ws.connectors.call(OC, 'chat.list', { hubs: true })).items || []; } catch (e) { return; }
+    for (const it of items) {
+      if (!it.hub || cards.some(c => c.id === it.hub || c.session === it.session)) continue;
+      let r;
+      try { r = await ws.connectors.call(OC, 'hub.result', { id: it.hub }); } catch (e) { continue; }
+      if (!r || r.state === 'none' || r.state === 'running') continue;
+      const route = r.route ? checkRoute(repairRoute(r.route)) : null;
+      if (route && route.intent !== 'ask' && route.intent !== 'clarify') continue;
+      const card = { id: it.hub, text: it.title, at: it.at, session: it.session, rows: [], route, badRoute: !!(r.route && !route),
+        answer: r.answer, said: r.said, state: r.answer != null || r.state === 'done' ? 'done' : r.state === 'routed' ? 'noanswer' : 'failed',
+        error: r.error, replied: it.replies > 0, tbusy: !!it.busy, restored: true };
+      cards.push(card);
+      if (card.replied) pollThread(card);
+    }
+    cards.sort((a, b) => b.at - a.at); cards.length = Math.min(cards.length, KEEP_CARDS);
+    draw();
+  }
+
   /* ---------- review ---------- */
   async function accept(card, idxs) {
     const rows = idxs.map(i => card.rows[i]).filter(r => r && r.state === 'open' && isCapture(r.p));
@@ -173,8 +232,12 @@ export function startHub(ws, root) {
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
   async function saveNote(card) {
-    const body = `${card.text}\n\n${card.answer || card.said || ''}`.trim();
-    const p = { kind: 'note', to: 'notes', text: body.slice(0, 2000), title: card.text.slice(0, 120), payload: { kind: 'note', title: card.text.slice(0, 120) } };
+    await noteOf(card.text, lastTandem(card.turns) || card.answer || card.said || '');
+  }
+  /* A capture to Notes' inbox, from a hub card or the Chat tab (one handoffs store for Dispatch). */
+  async function noteOf(title, answer) {
+    const body = `${title}\n\n${answer || ''}`.trim();
+    const p = { kind: 'note', to: 'notes', text: body.slice(0, 2000), title: String(title).slice(0, 120), payload: { kind: 'note', title: String(title).slice(0, 120) } };
     try { await store.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
   }
 
@@ -216,11 +279,20 @@ export function startHub(ws, root) {
       body += `<p class="hub-ask">${esc(route.clarify.question)}</p><p class="hub-actions">${route.clarify.choices.map((c, i) => `<button class="btn" type="button" data-hub-choice="${i}">${esc(c)}</button>`).join('')}</p>`;
     }
     if (card.error && card.answer == null) body += `<p class="hub-error">${esc(card.error)}</p>`;
+    if (threadable(card)) {
+      body += turnsHtml(card.turns, { busy: card.tbusy });
+      if (card.terror) body += `<p class="hub-error">${esc(card.terror)}</p>`;
+      body += `<div class="hub-reply"><textarea rows="1" data-keep="hub:${esc(card.id)}" data-hub-replybox placeholder="Reply to Tandem (read only). Enter sends, Shift+Enter for a new line" aria-label="Reply to Tandem"${card.tbusy ? ' disabled' : ''}>${esc(card.draft || '')}</textarea>` +
+        `<button class="btn" type="button" data-hub-reply${card.tbusy || card.tsending ? ' disabled' : ''}>Send</button>` +
+        (card.replied ? '<button class="btn ghost" type="button" data-hub-openchat>Open in Chat</button>' : '') + '</div>';
+    }
     return `<article class="hub-card" data-card="${ci}">${head}${body}</article>`;
   }
   function draw() {
     drawAi();
+    const back = keepFocus(list);
     list.innerHTML = cards.map(cardHtml).join('');
+    back();
   }
 
   /* ---------- the AI button ---------- */
@@ -283,6 +355,8 @@ export function startHub(ws, root) {
     else if (d.hubAct != null) runAct(card);
     else if (d.hubSpike != null) spike(card);
     else if (d.hubNote != null) saveNote(card);
+    else if (d.hubReply != null) sendReply(card);
+    else if (d.hubOpenchat != null) openChat(card.session);
     else if (d.hubChoice != null) send(`${card.text} (${card.route.clarify.choices[+d.hubChoice]})`);
   });
   function saveEdit(card, i) {
@@ -299,7 +373,15 @@ export function startHub(ws, root) {
     r.state = 'open';
     draw();
   }
+  root.addEventListener('input', e => {
+    const box = e.target.closest && e.target.closest('[data-hub-replybox]');
+    if (!box) return;
+    const card = cards[+box.closest('[data-card]').dataset.card];
+    if (card) card.draft = box.value;
+  });
   root.addEventListener('keydown', e => {
+    const rb = e.target.closest && e.target.closest('[data-hub-replybox]');
+    if (rb && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const card = cards[+rb.closest('[data-card]').dataset.card]; if (card) sendReply(card); return; }
     const box = e.target.closest && e.target.closest('[data-hub-editbox]');
     if (box && e.key === 'Enter') { e.preventDefault(); const card = cards[+box.closest('[data-card]').dataset.card]; saveEdit(card, +box.dataset.hubEditbox); }
   });
@@ -316,6 +398,9 @@ export function startHub(ws, root) {
     focus: () => input.focus(),
     /* From Home (#/agents/hub/<text>): Enter was pressed there, so the message is sent. */
     async ask(text) { await check(); input.value = ''; send(text); input.focus(); },
-    check
+    check,
+    noteOf,
+    /* Whether Tandem can be reached here, and why not: the Chat tab uses the same AI switch. */
+    status: () => status
   };
 }

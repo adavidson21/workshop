@@ -54,6 +54,22 @@ export function makeV2(url, password) {
       const r = await call(`/api/command?${loc()}`);
       if (r.ok && r.data && Array.isArray(r.data.data)) oc.commands = new Set(r.data.data.map((c) => c.name));
     },
+    async loadAgents() {
+      const r = await call(`/api/agent?${loc()}`, { timeout: 5000 });
+      if (r.ok && r.data && Array.isArray(r.data.data)) oc.agents = new Set(r.data.data.map((a) => a && a.name).filter(Boolean));
+    },
+    /** The session's turns, oldest first: [{id, role: "user" | "assistant", text, at}]. Text parts only. */
+    async messages(id, limit = 100) {
+      const r = await call(`/api/session/${id}/message?limit=${limit}&order=desc`);
+      const list = r.ok && r.data && Array.isArray(r.data.data) ? r.data.data : null;
+      if (!list) throw httpError(502, `opencode could not list the messages (${errText(r)}).`);
+      return list.slice().reverse().filter((m) => m.type === "user" || m.type === "assistant").map((m) => ({
+        id: m.id || "",
+        role: m.type,
+        text: (m.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim(),
+        at: (m.time && (m.time.completed || m.time.created)) || null,
+      }));
+    },
     async loadProviders() {
       const r = await call(`/api/provider?${loc()}`, { timeout: 5000 });
       const list = r.ok ? parseProviders(r.data) : null;
@@ -111,8 +127,8 @@ export function makeV2(url, password) {
       const r = await call(`/api/session/${id}/command`, { method: "POST", body: { name, text: args }, timeout: 30000 });
       return r.ok ? null : errText(r);
     },
-    async prompt(id, text) {
-      const r = await call(`/api/session/${id}/prompt`, { method: "POST", body: { text } });
+    async prompt(id, text, agent) {
+      const r = await call(`/api/session/${id}/prompt`, { method: "POST", body: { text, ...(agent ? { agent } : {}) } });
       if (!r.ok) throw httpError(502, `opencode did not take the reply (${errText(r)}).`);
     },
     async abort(id) {

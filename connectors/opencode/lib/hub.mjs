@@ -12,6 +12,7 @@ import path from "node:path";
 import { ctx, httpError, log } from "./context.mjs";
 import { sessions } from "./opencode-state.mjs";
 import { runLoose } from "./workspace.mjs";
+import { recordHub } from "./chat.mjs";
 
 export const HUB_ID = /^[a-z0-9][a-z0-9_-]{2,59}$/;
 export const MAX_MESSAGE = 4000;
@@ -91,7 +92,7 @@ export function prune(root, keep = KEEP) {
 }
 
 /** Save the request and run /hub on it in a new session. Refused while the same id runs. */
-export async function runHub({ id, text, context }, { root = hubRoot(), start = runLoose, config, now = new Date() } = {}) {
+export async function runHub({ id, text, context }, { root = hubRoot(), start = runLoose, config, now = new Date(), record = recordHub } = {}) {
   needHub(config);
   const dir = folderFor(id, root);
   const msg = String(text || "");
@@ -105,6 +106,7 @@ export async function runHub({ id, text, context }, { root = hubRoot(), start = 
   fs.rmSync(path.join(dir, "answer.md"), { force: true });
   const r = await start("hub", file, null);
   runs.set(id, r.session);
+  record(r.session, id, msg);
   log(`hub ${id} started in ${r.session}`);
   prune(root);
   return { session: r.session, id };
