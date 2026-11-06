@@ -12,7 +12,9 @@
       },
       "triage": 2,
       "overdue": 1,
-      "dueWeek": 3
+      "dueWeek": 3,
+      "nudges": 1,
+      "cameBack": 0
     },
     "2026-11-05": {
       "total": 12,
@@ -23,7 +25,9 @@
       },
       "triage": 2,
       "overdue": 1,
-      "dueWeek": 3
+      "dueWeek": 3,
+      "nudges": 1,
+      "cameBack": 0
     }
   },
   "upNext": [
