@@ -80,8 +80,8 @@ export function boardHtml(columns, s) {
   }
   return `<div class="board" style="--cols:${defs.length}">${defs.map(d => {
     const list = columns[d.key] || [];
-    return `<section class="col" aria-label="${esc(d.title)}"><header><h2>${esc(d.title)}</h2><span class="count">${list.length}</span></header>
-      <p class="hint">${esc(d.hint)}</p><ul>${list.map(c => card(c, s)).join('')}</ul></section>`;
+    return `<section class="col" aria-label="${esc(d.title)}"><header><h2>${esc(d.title)}${d.hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key, d.hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
+      <ul>${list.map(c => card(c, s)).join('')}</ul></section>`;
   }).join('')}</div>`;
 }
 

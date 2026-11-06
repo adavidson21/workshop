@@ -24,7 +24,7 @@ export function healthHtml(h, { names = {}, reports = true } = {}) {
       <table class="htable"><thead><tr><th>Column</th><th class="num">Items</th><th class="num">Median days</th><th class="num">Stale</th><th class="num">Stale after</th></tr></thead><tbody>${rows}</tbody></table></section>
     <section class="hcard"><h2>Waiting longest</h2>${oldest}</section>
     <section class="hcard"><h2>Delegated, by person</h2>${load.length ? `<ul class="load">${load.map(([id, n]) => `<li><span>${esc(names[id] || 'Someone')}</span><span class="num">${n}</span></li>`).join('')}</ul>` : '<p class="soft">Nothing delegated right now.</p>'}</section>
-    ${reports ? `<section class="hcard full"><h2>Team reports</h2><p class="soft">Sprint health from Azure DevOps: priority churn, carryover, scope churn, load by person, aging and throughput.</p>
+    ${reports ? `<section class="hcard full"><h2>Team reports${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.reports', 'Sprint health from Azure DevOps: priority churn, carryover, scope churn, load by person, aging and throughput.', 'About Team reports') : ''}</h2>
       <iframe id="reports" class="reports" title="Team reports" src="../runway/index.html"></iframe></section>` : ''}
   </div>`;
 }

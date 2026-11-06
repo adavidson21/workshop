@@ -39,7 +39,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 .cmdk{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center}
 .cmdk-backdrop{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 22%,transparent);z-index:-1}
 .cmdk-box{margin-top:12vh;width:min(560px,92vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-top:1px solid var(--ink);border-radius:2px 2px var(--r-md) var(--r-md);box-shadow:var(--shadow-lg);overflow:hidden;animation:pop .14s ease}
-.cmdk-input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;padding:1rem 1.1rem;font:400 19px var(--serif);font-variation-settings:"opsz" 24;outline:none}
+.cmdk-input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;padding:1rem 1.1rem;font:400 19px var(--serif);outline:none}
 .cmdk-input::placeholder{color:var(--muted)}
 .cmdk-list{list-style:none;margin:0;padding:.35rem;max-height:46vh;overflow:auto}
 .cmdk-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem .75rem;border-radius:var(--r-sm);cursor:pointer}
@@ -49,7 +49,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 .cmdk-empty{color:var(--muted);cursor:default}
 .cmdk-empty:hover{background:none}
 .cmdk-box.pair{padding:1.3rem 1.4rem}
-.cmdk-box.pair h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.cmdk-box.pair h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);letter-spacing:-.015em}
 .cmdk-box.pair p{margin:0 0 .9rem;color:var(--muted);font-size:.9rem}
 .cmdk-box.pair label{display:flex;align-items:center;gap:.6rem;font-size:.88rem}
 .cmdk-box.pair input{width:7rem;padding:.4rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit}
@@ -57,8 +57,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 
 /* a pane that cannot load its app (a required connector is missing), or an empty app list */
 .notice{margin:12vh auto 0;max-width:32rem;padding:0 1.5rem;text-align:center}
-.notice h2{margin:0 0 .5rem;font:600 1.9rem/1.15 var(--serif);font-variation-settings:"opsz" 72;letter-spacing:-.02em}
-.notice h2::after{content:".";color:var(--eyebrow)}
+.notice h2{margin:0 0 .5rem;font:600 1.9rem/1.15 var(--serif);letter-spacing:-.02em}
 .notice p{color:var(--muted);margin:.3rem 0 1rem}
 .notice code{font-family:var(--mono);font-size:.82rem;color:var(--ink)}
 .notice a.btn{text-decoration:none}

@@ -1,18 +1,18 @@
 /* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css.
-   Editorial, like tools.alexisdavidson.org: serif title, sections on an ink rule, mono labels. */
+   Serif title, sections on hairlines (not boxed), mono labels, explanations behind a quiet ? hint. */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
 
 .wrap{max-width:46rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
 .shead{margin-bottom:2rem;animation:rise .6s ease-out both}
-.shead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;font-variation-settings:"opsz" 144;letter-spacing:-.03em;line-height:1.04}
-.shead h1::after{content:".";color:var(--eyebrow)}
-.shead .sub{margin:.7rem 0 0;max-width:38rem;font-family:var(--serif);font-variation-settings:"opsz" 24;font-size:1.12rem;line-height:1.5;color:var(--muted)}
+.shead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;letter-spacing:-.02em;line-height:1.04}
+.shead .sub{margin:.5rem 0 0;max-width:38rem;font-size:.92rem;line-height:1.5;color:var(--muted)}
 .shead .sub:empty{display:none}
 
-.card{background:var(--surface);border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);padding:1.3rem 1.4rem 1.4rem;margin:0 0 1.5rem;animation:rise .6s ease-out .08s both}
-.card h2{margin:0 0 .35rem;font:600 1.45rem/1.2 var(--serif);font-variation-settings:"opsz" 48;letter-spacing:-.015em}
+.card{border-top:1px solid var(--rule);padding:1.2rem 0 1.5rem;margin:0;animation:rise .6s ease-out .08s both}
+.card h2{margin:0 0 .5rem;font:600 1.35rem/1.2 var(--serif);letter-spacing:-.01em}
+.card:first-child{border-top:0;padding-top:.3rem}
 .card>.sub{margin:0 0 1rem;color:var(--muted);font-size:.9rem}
 .err{color:var(--danger);font-size:.88rem}
 
@@ -49,7 +49,7 @@ label.btn{cursor:pointer}
 .conn:first-of-type{border-top:0;padding-top:.3rem}
 .conn-head{display:flex;align-items:flex-start;gap:1rem}
 .conn-head>div{flex:1;min-width:0}
-.conn h3{margin:0;font:600 1.15rem/1.25 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em}
+.conn h3{margin:0;font:600 1.15rem/1.25 var(--serif);letter-spacing:-.01em}
 .conn-about{margin:.15rem 0 0;color:var(--muted);font-size:.86rem}
 .conn-status{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem;margin:.45rem 0 0;font-size:.82rem}
 .state{display:inline-flex;align-items:center;gap:.4rem;font:500 12px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
@@ -175,7 +175,7 @@ label.btn{cursor:pointer}
    (.conn) without that class, which tests and connector code count. */
 .app-row{border-top:1px solid var(--line);padding:1rem 0 .8rem}
 .app-row:first-of-type{border-top:0;padding-top:.3rem}
-.app-row h3{margin:0;font:600 1.15rem/1.25 var(--serif);font-variation-settings:"opsz" 32;letter-spacing:-.01em}
+.app-row h3{margin:0;font:600 1.15rem/1.25 var(--serif);letter-spacing:-.01em}
 .app-status{display:block;margin:.45rem 0 0;font-size:.82rem;color:var(--muted)}
 .app-status code{font-size:.8rem;white-space:nowrap}
 .app-copy{margin-left:.3rem;padding:.1rem .55rem;font-size:.78rem}

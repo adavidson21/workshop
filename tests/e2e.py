@@ -347,7 +347,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     if sf: stab(sf, 'data')
     check('Settings in browser mode shows the data folder: this browser, with Choose folder', sf is not None and sf.locator('[data-folder=indexeddb]').count() == 1
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
-    check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Inter') && f.status === 'loaded'))"))
+    check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
     check('Settings has no People tab (People is its own app)', sf is not None and sf.locator('[role=tab][data-tab="people"]').count() == 0)
 
@@ -1395,7 +1395,8 @@ def main():
         check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
         # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-        check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Inter', 'JetBrains Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
+        # Docket's copy of the fonts follows Workshop's bundle; until its sync lands it still has the earlier pair.
+        check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => [['Figtree', 'DM Mono'], ['Inter', 'JetBrains Mono']].some(pair => pair.every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded'))))"))
         check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
         with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
         xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)

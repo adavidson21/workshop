@@ -87,7 +87,7 @@ test('on Allow (online turns true), profile, board and agents load again, once',
   assert.equal(home.v.agents.state, 'browser');
   assert.ok(paints > 0);
   const html = render(home.v);
-  assert.match(html, /Good morning, Sam/);
+  assert.match(html, /Morning, Sam/);
   assert.match(html, /1 open task/, 'the board loaded: the Today card counts it');
   assert.ok(!html.includes('Allow Workshop to use your folder'));
   // After the wait, the profile saves on top of the loaded revision.

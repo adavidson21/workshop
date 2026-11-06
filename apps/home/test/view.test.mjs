@@ -32,6 +32,7 @@ test('greeting by time of day', () => {
   assert.equal(greeting(new Date(2026, 9, 21, 8)), 'Good morning');
   assert.equal(greeting(new Date(2026, 9, 21, 13)), 'Good afternoon');
   assert.equal(greeting(new Date(2026, 9, 21, 19)), 'Good evening');
+  assert.equal(greeting(new Date(2026, 9, 21, 19), true), 'Evening', 'with a name it is just the time of day');
 });
 
 test('the page: profile, empty board, and escaping', () => {
@@ -42,7 +43,7 @@ test('the page: profile, empty board, and escaping', () => {
   assert.match(empty, /No tasks yet/);
   assert.ok(!empty.includes('<h2>Dispatch</h2>'), 'no Dispatch card until it is connected');
   const html = render({ now, profile: { name: 'Test User', role: 'EM <b>' }, board: board({ total: 1, open: 1, upNext: [row('x', { title: '<img src=x onerror=alert(1)>' })] }), agents: { state: 'ready', needYou: 2, working: 1 } });
-  assert.match(html, /Good morning, Test</);
+  assert.match(html, /Morning, Test</);
   assert.ok(!html.includes('<img') && !html.includes('<b>'));
   assert.match(html, /Need you/);
   assert.ok(!profileForm({ name: '"><script>' }).includes('<script>'));

@@ -84,9 +84,11 @@ export function wrapFromDay(day, nowMin) {
   return { wrapped: !!(day && day.wrapped), due: !!(day && isTime(day.wrapAt) && nowMin >= toMin(day.wrapAt)), receipts: day && Number.isInteger(day.offered) ? day.offered : 0 };
 }
 
-export function greeting(now) {
+// "Morning, Sam" with a name; "Good morning" without one.
+export function greeting(now, named = false) {
   const h = now.getHours();
-  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  return named ? part[0].toUpperCase() + part.slice(1) : 'Good ' + part;
 }
 
 const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}" title="${esc(tip)}">
@@ -176,7 +178,7 @@ export function render(v) {
   const head = `<header class="hello">
     <div class="who">
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-      <h1>${greeting(v.now)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
+      <h1>${greeting(v.now, !!name)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
     ${v.waiting ? '' : `<div class="htools">${dayTools}${statusTool}${hbtn(ICON.pencil, name ? 'Edit profile' : 'Add your name', 'data-edit-profile')}</div>`}
   </header>`;
