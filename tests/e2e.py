@@ -1272,7 +1272,7 @@ def main():
         add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
         add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
         check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-        frame.locator('.row', has_text='Fix login').first.locator('.title').click(); pg.wait_for_timeout(300)
+        frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
         check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
