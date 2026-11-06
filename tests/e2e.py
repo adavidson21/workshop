@@ -1395,8 +1395,7 @@ def main():
         check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
         # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-        # Docket's copy of the fonts follows Workshop's bundle; until its sync lands it still has the earlier pair.
-        check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => [['Figtree', 'DM Mono'], ['Inter', 'JetBrains Mono']].some(pair => pair.every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded'))))"))
+        check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Figtree', 'DM Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
         check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
         with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
         xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
