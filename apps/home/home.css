@@ -218,3 +218,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .sd textarea{min-height:22rem;font:400 .84rem/1.5 var(--mono);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);padding:.6rem}
 .sd-acts{display:flex;justify-content:flex-end;gap:.5rem}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* big screens (a 27in monitor, Workshop full screen): use the room instead of a narrow centered column */
+@media (min-width:1600px){.wrap{max-width:1440px;padding-inline:2.5rem}#capture{max-width:960px}}
+@media (min-width:2100px){.wrap{max-width:1720px}}
