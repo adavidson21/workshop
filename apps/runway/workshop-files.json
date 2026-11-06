@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "dca0b9b28de3d6b3a34172929789c27563292431",
+  "commit": "5263e4b65f2fabbd93896c65f07fe7a7a9719475",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -43,7 +43,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.4.1",
+  "bundle": "2.5.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -79,7 +79,7 @@
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
     "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
-    "test/workshop/schemas/app.schema.json": "194cbabd29fdafba7f92afddd0b3d14cf15978037fb25084fc838cfe46e9dd55",
+    "test/workshop/schemas/app.schema.json": "6044f87e89978423d80ec6c99e1128badbefdc42148467f213e89133d46effda",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "test/workshop/schemas/data-bundle.schema.json": "18f46205693248fe5317dc21919b23d45dbd1e12964dffcd98eab3ee5065d3de",
     "test/workshop/schemas/data-envelope.schema.json": "457b2e586e2fc5522e7eb01b3b3cb9a21eca2a6b7a1b5e1755afbc572f5dff7a",
