@@ -12,7 +12,7 @@ import { QUICK, SENDERS, startPickup } from './pickup.js';
 import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
-import { PRODUCT_TPL, STARTERS, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
+import { DAILY, PRODUCT_TPL, STARTERS, TEMPLATES, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
 import { actionItems, offerFor, readOffers, sentIds, wins, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
@@ -372,7 +372,13 @@ function notePathFrom(text) {
 
 /* ---------- making notes and folders ---------- */
 
-async function newNote(folder = ui.path ? dirOf(ui.path) : '') {
+/* New notes go in the open note's folder, except daily/ and templates/: a note made while today's note or a
+   template is open goes at the top. */
+const defaultFolder = () => {
+  const d = ui.path ? dirOf(ui.path) : '';
+  return d === DAILY || d === TEMPLATES ? '' : d;
+};
+async function newNote(folder = defaultFolder()) {
   const templates = templatesIn(notes.texts.keys());
   dlg.innerHTML = newNoteHtml({ folder, templates, productMissing: !notes.texts.has(PRODUCT_TPL) });
   dlg.returnValue = '';
@@ -906,15 +912,23 @@ ws.on('command', (p) => {
   else if (p.id === 'today') openToday();
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
 });
-ws.on('route', (p) => {
+function route(raw) {
   let path = '';
-  try { path = decodeURIComponent(p.path || ''); } catch { path = p.path || ''; }
+  try { path = decodeURIComponent(raw || ''); } catch { path = raw || ''; }
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
   if (path === 'review') { setQuery('is:review'); return; }
   if (path && /\.md$/.test(path) && path !== ui.path) {
     if (notes.loaded) openNote(path); else pendingRoute = path;
   }
-});
+}
+ws.on('route', (p) => route(p.path));
+// On Notes' own site the address is the route: notes.alexisdavidson.org/#/today, #/runbooks/deploy.md.
+// Inside Workshop the shell sends routes instead.
+if (!ws.embedded) {
+  const fromHash = () => location.hash.replace(/^#\/?/, '');
+  if (fromHash()) route(fromHash());
+  window.addEventListener('hashchange', () => route(fromHash()));
+}
 ws.on('online', async (p) => {
   if (!p.online) return;
   await notes.load();

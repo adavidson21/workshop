@@ -5,7 +5,7 @@
      - an action item becomes a Docket task. The click is the acceptance (handoffs.md, rule 4), so it is an
        accepted offer, payload.kind 'task', and Docket adds it with no second click.
      - a win becomes an ordinary offer to Rapport (app id `receipts`), payload.kind 'win'. You accept it in
-       Rapport, where you pick who it is about.
+       Rapport, where it lands as your own win: Rapport takes who it is about only from payload.about.
    Offers go in Notes' own `handoffs` collection (notes.handoffs v1); Notes never writes another app's data.
    The same line sent again keeps its id, so a receiver never sees it twice. Ticking the item in the note does
    not close the task: after you send it, Docket owns it.
