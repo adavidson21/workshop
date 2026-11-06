@@ -389,19 +389,22 @@ const runFor = since => {
   const m = Math.max(0, Math.floor((Date.now() - Date.parse(since)) / 60000));
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 };
+let statusHtml = null;
 function renderStatus() {
   const el = $('#wstatus');
   if (!el) return;
   const s = shownStatus();
   document.body.classList.toggle('has-status', !!s);
-  if (!s) { el.hidden = true; el.innerHTML = ''; setTitle(); return; }
+  if (!s) { el.hidden = true; el.innerHTML = ''; statusHtml = null; setTitle(); return; }
   const { app, st } = s;
   el.hidden = false;
   el.dataset.app = app.id;
-  el.innerHTML = `<span class="ws-dot" aria-hidden="true"></span>`
+  const html = `<span class="ws-dot" aria-hidden="true"></span>`
     + `<button class="ws-text" data-status-open title="${esc(st.detail ? `${st.text}\n${st.detail}` : st.text)}"><span class="ws-app">${esc(app.manifest.name)}</span><span class="ws-main">${esc(st.text)}</span>${st.detail ? `<span class="ws-detail">${esc(st.detail)}</span>` : ''}</button>`
     + (st.since ? `<span class="ws-time" title="Since ${esc(new Date(st.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}">${runFor(st.since)}</span>` : '')
     + `<span class="ws-acts">${st.actions.map((a, i) => `<button class="ws-act${a.primary ? ' primary' : ''}${a.icon && !a.primary && a.icon !== 'pause' ? ' icon' : ''}" data-status-act="${i}" aria-label="${esc(a.label)}" title="${esc(a.label)}">${a.icon && STATUS_ICONS[a.icon] ? STATUS_ICONS[a.icon] : ''}${a.primary || (a.icon && a.icon !== 'pause') ? '' : `<span>${esc(a.label)}</span>`}</button>`).join('')}</span>`;
+  // Same markup: leave it, so a button under the pointer keeps its hover (no flicker every 30s).
+  if (html !== statusHtml || !el.firstChild) { el.innerHTML = html; statusHtml = html; }
   setTitle();
 }
 // The tab title: the current app, with the status in front of it when there is one.

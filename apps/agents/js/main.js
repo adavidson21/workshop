@@ -362,11 +362,15 @@ const ENTERS = [
   ['.guide'],
 ];
 // Replace the page, keeping focus and the caret in whatever the user was typing in.
+let lastHtml = null, lastFirst = null;
 function paint() {
   S.now = Date.now();
   S.today = dayKey(new Date());
   S.yest = dayKey(new Date(S.now - 864e5));
   const html = render();
+  // Skip a repaint that would draw the same thing: rebuilding the view under the pointer drops and
+  // re-applies :hover, which flickers (repaints come with every agent event and on timers).
+  if (html === lastHtml && app.firstChild === lastFirst && app.firstChild && !focusWanted) return;
   let sh = app.querySelector('.sheet');
   const sheetTop = sh ? sh.scrollTop : 0;
   const a = document.activeElement;
@@ -376,6 +380,7 @@ function paint() {
   const inChat = chat.el.contains(a) ? a : null;
   const chatSel = inChat && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   app.innerHTML = html;
+  lastHtml = html; lastFirst = app.firstChild;
   // The Chat tab is its own element (chat.js), moved in rather than redrawn, so typing survives.
   const slot = app.querySelector('#chat-slot');
   if (slot) slot.replaceWith(chat.el);
