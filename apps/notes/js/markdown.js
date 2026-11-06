@@ -21,8 +21,9 @@ export function safeHref(raw) {
 
 /* ---------- frontmatter ---------- */
 
-/** {data: {title?, tags?: [], reviewed?, tandemChanged?}, body, offset} where offset is the number of lines the
-    frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written. */
+/** {data: {title?, tags?: [], reviewed?, tandemChanged?, template?, description?}, body, offset} where offset is the number of lines the
+    frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written; `template` and
+    `description` name a template and say what it is for (template-info.js). */
 export function frontmatter(text) {
   const src = String(text || '').replace(/^﻿/, '');
   const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
@@ -46,6 +47,8 @@ export function frontmatter(text) {
     } else if (key === 'title') data.title = unquote(val);
     else if (key === 'reviewed') data.reviewed = unquote(val);
     else if (key === 'tandem-changed') data.tandemChanged = unquote(val);
+    else if (key === 'template') data.template = unquote(val);
+    else if (key === 'description') data.description = unquote(val);
   }
   return { data, body: src.slice(m[0].length), offset: m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) };
 }

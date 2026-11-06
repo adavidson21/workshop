@@ -6,6 +6,7 @@
    are standard Markdown links relative to the note, so the files work in any Markdown tool. */
 import { facts } from './markdown.js';
 import { needsReview } from './products.js';
+import { isTemplate, templateInfo } from './template-info.js';
 
 export const APP = 'notes';
 export const ATTACHMENTS = 'attachments';
@@ -90,7 +91,9 @@ export function buildIndex(list) {
   const notes = new Map();
   for (const n of list) {
     const f = facts(n.content, stem(n.path));
-    notes.set(n.path, { path: n.path, title: f.title || stem(n.path), tags: f.tags, headings: f.headings, review: f.review, raw: f, mtime: n.mtime, size: n.size });
+    // Templates go by their name (template-info.js), not their "# {{title}}" heading.
+    const tpl = isTemplate(n.path) ? templateInfo(n.path, n.content) : null;
+    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, review: f.review, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();

@@ -13,10 +13,14 @@ const ICON = {
   pin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 1.8h4l-.6 4.2 2.4 2.4H4.2l2.4-2.4zM8 8.4v5.8"/></svg>',
   today: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.8v2.4M10.5 1.8v2.4"/><path d="M6.6 10.2l1.1 1.1 2-2.2"/></svg>',
   tandem: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M8 1.8l1.6 3.6 3.6 1.6-3.6 1.6L8 12.2 6.4 8.6 2.8 7l3.6-1.6z"/></svg>',
+  trash: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2.5 4.2h11M6.2 4.2V2.6h3.6v1.6M3.8 4.2l.7 9.4h7l.7-9.4M6.6 6.8v4.4M9.4 6.8v4.4"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
 /* ---------- sidebar ---------- */
+
+/* The trash button on a note's row: shows on hover or focus, beside the link (a button cannot go inside it). */
+const trashBtn = (p, title) => `<button class="ibtn mini row-trash" data-act="trash-path" data-path="${esc(p)}" title="Move to the trash" aria-label="Move ${esc(title)} to the trash">${ICON.trash}</button>`;
 
 export function sidebar(state) {
   const { notes, ui } = state;
@@ -75,7 +79,7 @@ function productsHtml(state) {
   const due = toReview(notes.index).length;
   return `<nav class="pinned products" aria-label="Products"><p class="section-label">Products${due ? ` <button class="linkish review-link" data-act="review-list" title="Notes Tandem changed since your last review">${due} to review</button>` : ''}</p><ul class="tree">${list.map(n => {
     const cur = ui.path === n.path;
-    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(n.path)}"><a class="row" href="#" data-open="${esc(n.path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(n.title)}</span>${needsReview(n.review) ? chip : ''}</a></li>`;
+    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(n.path)}"><a class="row" href="#" data-open="${esc(n.path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(n.title)}</span>${needsReview(n.review) ? chip : ''}</a>${trashBtn(n.path, n.title)}</li>`;
   }).join('')}</ul></nav>`;
 }
 
@@ -103,7 +107,7 @@ function folderItems(dir, state, depth) {
     const title = n ? n.title : stem(p);
     const cur = ui.path === p;
     h += `<li role="treeitem" class="note${cur ? ' current' : ''}" data-path="${esc(p)}" draggable="true">
-      <a class="row" href="#" data-open="${esc(p)}" style="--d:${depth}"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(title)}</span>${n && needsReview(n.review) ? chip : ''}</a></li>`;
+      <a class="row" href="#" data-open="${esc(p)}" style="--d:${depth}"${cur ? ' aria-current="page"' : ''}${n && n.use ? ` title="${esc(n.use)}"` : ''}><span class="name">${esc(title)}</span>${n && needsReview(n.review) ? chip : ''}</a>${trashBtn(p, title)}</li>`;
   }
   return h;
 }
@@ -127,6 +131,7 @@ export function header(state) {
   const n = notes.index.notes.get(ui.path);
   const review = n && needsReview(n.review) ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Changed by Tandem since your last review. Changed parts are highlighted in the preview; History has the earlier versions.</span>
       <span class="bar-acts"><button class="btn" data-act="mark-reviewed">Mark reviewed</button></span></div>` : '';
+  const tpl = n && n.use !== undefined ? `<div class="bar template" role="note"><span class="bar-msg"><strong>Template: ${esc(n.title)}.</strong> ${n.use ? esc(n.use) + ' ' : ''}<span class="soft">Set its name and use with <code>template:</code> and <code>description:</code> in the frontmatter; new notes leave those out.</span></span></div>` : '';
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">${esc(dirOf(ui.path) ? dirOf(ui.path) + '/' : '')}${esc(baseName(ui.path))}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
@@ -140,7 +145,7 @@ export function header(state) {
       <button class="btn ghost" data-act="rename" title="Rename or move (F2)">Rename</button>
       <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
     </div></div>
-    ${conflictBar(ui) || review}`;
+    ${conflictBar(ui) || review || tpl}`;
 }
 function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
@@ -264,7 +269,8 @@ export function pickerHtml(items, pick) {
 
 /** New note: the title, and a template when there are any (templates.js). */
 export function newNoteHtml({ folder, templates, productMissing = false }) {
-  const pick = templates.length ? `<label>Template<select name="template"><option value="">Blank</option>${templates.map(t => `<option value="${esc(t.path)}">${esc(t.name)}</option>`).join('')}</select></label>
+  const pick = templates.length ? `<label>Template<select name="template" data-tpl-pick><option value="" data-use="An empty note with just the title.">Blank</option>${templates.map(t => `<option value="${esc(t.path)}" data-use="${esc(t.use || '')}">${esc(t.name)}</option>`).join('')}</select></label>
+      <p class="soft small tpl-use" data-tpl-use aria-live="polite">An empty note with just the title.</p>
       ${productMissing ? '<p class="soft small"><button class="linkish" type="submit" value="product-template" formnovalidate>Add the product template</button> for notes Tandem reads and writes (they go in <code>products/</code>).</p>' : ''}`
     : '<p class="soft small">No templates yet. <button class="linkish" type="submit" value="starters" formnovalidate>Add the starter set</button> (meeting, incident, ADR, runbook, retro, daily, product) to <code>templates/</code>.</p>';
   return promptHtml({ title: 'New note', label: 'Title', ok: 'Create', hint: folder ? `In ${folder}/. The file name comes from the title.` : 'The file name comes from the title.', extra: pick });

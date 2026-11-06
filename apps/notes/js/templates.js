@@ -5,12 +5,14 @@
    {{docket}}: the day's tasks from Docket as links (daily.js docketPlan), or an empty checkbox without Docket.
    templates/product.md is the product note template (products.js), also used by Tandem. The daily note is daily/<date>.md,
    made from templates/daily.md when there is one. */
-import { isNote, slugify, stem } from './model.js';
+import { isNote, slugify } from './model.js';
 import { PRODUCT_TEMPLATE } from './products.js';
+import { TEMPLATES, isTemplate, stripTemplateFields, templateInfo } from './template-info.js';
+
+export { TEMPLATES, TEMPLATE_INFO, isTemplate, templateInfo } from './template-info.js';
 
 export const PRODUCT_TPL = 'templates/product.md';
 
-export const TEMPLATES = 'templates';
 export const DAILY = 'daily';
 
 /* The starter set, written by "Add starter templates". 1:1 notes stay in Rapport, so there is no 1:1 template. */
@@ -30,19 +32,21 @@ export function dayOf(d = new Date()) { return `${d.getFullYear()}-${pad(d.getMo
 const timeOf = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 export const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 
-/** The templates among these paths: [{path, name}], sorted by name. */
-export function templatesIn(paths) {
-  return [...paths].filter(p => isNote(p) && p.startsWith(`${TEMPLATES}/`) && !p.slice(TEMPLATES.length + 1).includes('/'))
-    .map(p => ({ path: p, name: stem(p) })).sort((a, b) => a.name.localeCompare(b.name));
+/** The templates among these paths: [{path, name, use}], sorted by name. contentOf(path) gives a template's text, for
+    the name and use in its frontmatter (template-info.js). */
+export function templatesIn(paths, contentOf = () => '') {
+  return [...paths].filter(p => isNote(p) && isTemplate(p))
+    .map(p => ({ path: p, ...templateInfo(p, contentOf(p)) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /* What {{docket}} becomes with no tasks from Docket: one empty checkbox to plan by hand. */
 export const NO_PLAN = '- [ ] ';
 
-/** A template's text with {{title}}, {{slug}}, {{date}}, {{time}} and {{docket}} filled in. Unknown {{names}} stay. */
+/** A template's text with {{title}}, {{slug}}, {{date}}, {{time}} and {{docket}} filled in. Unknown {{names}} stay.
+    The template's own `template:` and `description:` frontmatter lines are left out. */
 export function fill(text, { title = '', now = new Date(), docket = '' } = {}) {
   const v = { title, slug: slugify(title), date: dayOf(now), time: timeOf(now), docket: docket || NO_PLAN };
-  return String(text).replace(/\{\{\s*(title|slug|date|time|docket)\s*\}\}/g, (_, k) => v[k]);
+  return stripTemplateFields(text).replace(/\{\{\s*(title|slug|date|time|docket)\s*\}\}/g, (_, k) => v[k]);
 }
 
 /** The daily note's path for a day. */

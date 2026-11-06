@@ -67,6 +67,8 @@ def main():
             pg.click('button[value=starters]'); pg.wait_for_timeout(800)
             check('the starter templates are added and New note offers them', pg.locator('select[name=template] option').count() == STARTERS + 1)  # plus Blank
             pg.fill('input[name=value]', 'Team Sync'); pg.select_option('select[name=template]', 'templates/meeting.md')
+            check('the template list shows names, and the picked one says what it is for',
+                  'Meeting notes' in pg.inner_text('select[name=template]') and 'meeting' in pg.inner_text('[data-tpl-use]').lower())
             pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
             txt = pg.input_value('#editor')
             check('a note from the meeting template has its title filled in', txt.startswith('# Team Sync') and '## Action items' in txt)
@@ -84,6 +86,14 @@ def main():
             check('restoring brings back the earlier text', '## Attendees' in pg.input_value('#editor'))
             check('restoring keeps the replaced text: two versions now', '2 earlier versions' in pg.inner_text('#panel'))
             check('history/ is not in the tree', pg.locator('#side [data-folder="history"]').count() == 0)
+            check('templates show by name in the tree, not {{title}}', 'Meeting notes' in pg.inner_text('#side') and '{{title}}' not in pg.inner_text('#side'))
+
+            pg.click('[data-act=new-note]'); pg.wait_for_selector('dialog[open]')
+            pg.fill('input[name=value]', 'Scratch'); pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
+            pg.hover('#side li.note[data-path="scratch.md"]')
+            pg.click('#side li.note[data-path="scratch.md"] [data-act=trash-path]'); pg.wait_for_selector('dialog[open]')
+            pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
+            check('a note can be trashed from its row in the sidebar', pg.locator('#side li.note[data-path="scratch.md"]').count() == 0)
 
             vault = write_vault(tmp)
             with pg.expect_file_chooser() as fc:

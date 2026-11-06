@@ -397,10 +397,12 @@ const defaultFolder = () => {
   return d === DAILY || d === TEMPLATES ? '' : d;
 };
 async function newNote(folder = defaultFolder()) {
-  const templates = templatesIn(notes.texts.keys());
+  const templates = templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '');
   dlg.innerHTML = newNoteHtml({ folder, templates, productMissing: !notes.texts.has(PRODUCT_TPL) });
   dlg.returnValue = '';
   const form = dlg.querySelector('form');
+  const tplPick = form.querySelector('[data-tpl-pick]'), tplUse = form.querySelector('[data-tpl-use]');
+  if (tplPick && tplUse) tplPick.addEventListener('change', () => { tplUse.textContent = tplPick.selectedOptions[0]?.dataset.use || ''; });
   form.addEventListener('submit', (e) => {
     const v = e.submitter && e.submitter.value;
     if (v === 'cancel' || v === 'starters' || v === 'product-template') return;
@@ -884,6 +886,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'folder-menu') renameFolder(x.dataset.folder);
   else if (act === 'rename') renameNote();
   else if (act === 'trash') trashNote();
+  else if (act === 'trash-path') trashNote(x.dataset.path);
   else if (act === 'copy') copyMarkdown();
   else if (act === 'copy-wiki') copyForWiki();
   else if (act === 'download') download();
@@ -904,6 +907,8 @@ function showSearch(q) {
 }
 side.addEventListener('input', (e) => { if (e.target.matches('[data-search]')) setQuery(e.target.value); });
 side.addEventListener('keydown', (e) => {
+  // Delete on a focused note in the sidebar trashes it (with the usual confirm).
+  if (e.key === 'Delete' && e.target.matches('a.row[data-open]')) { e.preventDefault(); trashNote(e.target.dataset.open); return; }
   if (!e.target.matches('[data-search]')) return;
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ui.pick = Math.max(0, Math.min(found.length - 1, ui.pick + (e.key === 'ArrowDown' ? 1 : -1))); paintChrome(); }
   else if (e.key === 'Enter' && found[ui.pick]) { e.preventDefault(); const r = found[ui.pick]; openNote(r.path, { line: r.line }); }

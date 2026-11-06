@@ -44,6 +44,13 @@ input[type=checkbox]{min-height:0;width:1rem;height:1rem;accent-color:var(--acce
 .ibtn.mini{width:1.5rem;height:1.5rem;opacity:0;font-size:.9rem}
 .ibtn.mini svg{width:13px;height:13px}
 .tree .row:hover .ibtn.mini,.ibtn.mini:focus-visible{opacity:1}
+.tree li.note{position:relative}
+.tree li.note>.row{padding-right:1.9rem}
+.tree .row-trash{position:absolute;right:.3rem;top:.17rem}
+.tree li.note:hover>.row-trash{opacity:1}
+.tree .row-trash:hover{color:var(--danger)}
+.bar.template{background:var(--hover);color:var(--ink)}
+.tpl-use{margin:-.3rem 0 .2rem;min-height:1.2em}
 .results{list-style:none;margin:0;padding:0}
 .result{display:flex;flex-direction:column;gap:.1rem;padding:.45rem .55rem;border-radius:var(--r-sm);text-decoration:none;color:var(--ink)}
 .result:hover,.result.picked{background:var(--hover)}
