@@ -7,6 +7,7 @@ import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, sco
 import { fmtDay, todayStr, uid } from './util.js';
 import { focusTaskClosed } from './focus.js';
 import { assign } from './directory.js';
+import { followDate } from './delegate.js';
 /* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
 /* ---------- task actions ---------- */
 function addTask(text, attrs = {}){
@@ -28,6 +29,8 @@ function addTask(text, attrs = {}){
   if (attrs.quad) applyDrop(t, attrs.quad.zone, attrs.quad.kind);
   t.who = [];
   assign(t, [...(attrs.who || []), ...p.people]);
+  // >@name: handed over, so waiting on them with a follow-up date (delegate-model.js).
+  if (p.delegate){ t.waiting = true; t.nudgeOn = followDate(); }
   if (ado) t.ado = ado;
   state.tasks.push(t);
   commit();
@@ -38,6 +41,7 @@ function toggleDone(id){
   t.done = !t.done;
   t.doneAt = t.done ? todayStr() : null;
   if (!t.done) t.wontDo = false;
+  if (t.done) delete t.cameBack;
   if (t.done) focusTaskClosed(id);
   commit();
 }
@@ -53,6 +57,7 @@ function toggleFocus(id){
   const t = findTask(id); if (!t || t.done) return;
   const on = t.focusOn === todayStr();
   t.focusOn = on ? null : todayStr();
+  if (!on) delete t.cameBack;   // picked for Today: the Came back chip is handled
   commit();
   if (!on && state.view !== 'today') toast('Added to Today');
 }

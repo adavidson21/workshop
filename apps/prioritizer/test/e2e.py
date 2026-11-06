@@ -411,7 +411,7 @@ def main():
         pg.wait_for_timeout(200)
         pg.hover(f'main .row[data-id="{fa}"]'); pg.click(f'main .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         check('Start on a Today row makes it the task in the now bar', pg.is_visible('#nowbar') and pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').title") in pg.inner_text('#nowbar .ntitle')
-              and pg.locator(f'main .row.active[data-id="{fa}"]').count() == 1)
+              and pg.locator(f'main .fmain .row.active[data-id="{fa}"]').count() == 1)
         check('the focus band sits above the page header, with a timer, Pause and the tab title',
               pg.evaluate("() => document.querySelector('#nowbar').nextElementSibling.id") == 'phead'
               and pg.inner_text('#nowbar .ntime').strip() == '0m' and pg.locator('#nowbar .npause').count() == 1
@@ -455,6 +455,79 @@ def main():
             next: P.dayModel.nextWorkday(P.dp.sprint, d), active: P.focusModel.activeOf(P.focusLog, d)}}; }}""")
         check('wrapping up lines the pick up for the next working day, saves the breadcrumb and stops the task',
               res['focusOn'] == res['next'] and res['crumb'] == 'pick up at the date edge case' and res['wrapped'] and res['active'] is None)
+
+        # ---------- delegating: quick add >@, the Assign picker, follow-ups, Got it back, People tray ----------
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+        pg.evaluate(f"() => {{ {P}.state.view = 'today'; {P}.commit(); }}"); pg.wait_for_timeout(200)
+        dg = pg.evaluate(f"""async () => {{ const P = {P}, m = await import('/js/actions.js'), M = await import('/js/delegate-model.js');
+          const t = m.addTask('Draft the RFC >@leadership'); await new Promise(r => setTimeout(r, 300));
+          const d = new Date().toLocaleDateString('en-CA');
+          return {{waiting: t.waiting, who: t.who.length, nudge: t.nudgeOn, want: M.addWorkdays(d, 2, P.dp.sprint), parsed: P.parseQuick('x >@sam @kim')}}; }}""")
+        check('Quick add >@name delegates: waiting, with a follow-up 2 working days out', dg['waiting'] and dg['who'] == 1 and dg['nudge'] == dg['want'])
+        check('Quick add: @name involves, >@name delegates', dg['parsed']['people'] == ['sam', 'kim'] and dg['parsed']['delegate'] is True)
+        tid = pg.evaluate(f"""async () => {{ const m = await import('/js/actions.js'); const t = m.addTask('Hand this over'); return t.id; }}""")
+        pg.evaluate(f"() => {{ {P}.state.view = 'rank'; {P}.commit(); }}"); pg.wait_for_timeout(200)
+        pg.click(f'main .row[data-id="{tid}"] .title'); pg.wait_for_timeout(150)
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+        pg.keyboard.press('a'); pg.wait_for_timeout(200)
+        check('A opens the Assign picker with the box focused', pg.locator('.menu .apick-body').count() == 1 and pg.evaluate("document.activeElement.id") == 'apickQ')
+        pg.keyboard.type('Dev'); pg.wait_for_timeout(100)
+        check('typing filters people and groups', pg.locator('.menu .apk').count() >= 1 and all('Dev' in x for x in pg.locator('.menu .apk .nm').all_inner_texts()))
+        pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('Enter delegates to the first match: waiting with a follow-up date', len(t['who']) == 1 and t['waiting'] and t['nudgeOn'] is not None)
+        check('a toast offers Undo and Just involve them', 'Delegated to' in pg.inner_text('#toast') and 'Just involve them' in pg.inner_text('#toast'))
+        pg.click('#toast button:has-text("Just involve them")'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('Just involve them keeps the person and stops waiting', len(t['who']) == 1 and not t['waiting'] and t['nudgeOn'] is None)
+        pg.keyboard.press('w'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('W turns waiting on, with a follow-up date', t['waiting'] and t['nudgeOn'] is not None)
+        # Due follow-up: Today shows it in Needs you, Nudged pushes it, Got it back ends the wait and marks it came back.
+        pg.evaluate(f"""() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{tid}'); const d = new Date(); d.setDate(d.getDate() - 1);
+          t.nudgeOn = d.toLocaleDateString('en-CA'); P.state.view = 'today'; P.commit(); }}"""); pg.wait_for_timeout(200)
+        check('Today: Needs you shows follow-ups due', pg.locator('.needs [data-need=nudges]').count() == 1)
+        pg.click('.needs [data-need=nudges]'); pg.wait_for_timeout(150)
+        check('the follow-ups panel lists the task with Nudged and Got it back', pg.locator(f'.needp .row[data-id="{tid}"] [data-act=nudged]').count() == 1)
+        pg.click(f'.needp .row[data-id="{tid}"] [data-act=nudged]'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('Nudged moves the follow-up forward and leaves a breadcrumb', t['nudgeOn'] > pg.evaluate("new Date().toLocaleDateString('en-CA')") and t['crumbs'][-1]['text'].startswith('Nudged'))
+        check('Waiting on others groups by person, with the follow-up buttons', pg.locator(f'aside .wgrp .row[data-id="{tid}"] [data-act=gotback]').count() == 1)
+        pg.click(f'aside .wgrp .row[data-id="{tid}"] [data-act=gotback]'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('Got it back stops waiting and marks it came back', not t['waiting'] and t['nudgeOn'] is None and t.get('cameBack'))
+        check('Today: Needs you shows it came back', pg.locator('.needs [data-need=back]').count() == 1)
+        pg.click('.needs [data-need=back]'); pg.wait_for_timeout(150)
+        pg.click(f'.needp .row[data-id="{tid}"] [data-act=today]'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
+        check('picking it for Today handles Came back', 'cameBack' not in t and pg.locator('.needs [data-need=back]').count() == 0)
+        # Inline triage on Today: the chip opens a card, keys work, Esc closes it.
+        n0 = pg.evaluate(f"() => {P}.triageQueue().length")
+        pg.click('.needs [data-need=triage]'); pg.wait_for_timeout(200)
+        check('Needs you: to triage opens an inline triage card on Today', pg.evaluate(f"{P}.state.view") == 'today' and pg.locator('main .needtri .tri-card').count() == 1)
+        pg.keyboard.press('3'); pg.keyboard.press('w'); pg.wait_for_timeout(100); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+        check('triage keys work inline and save to the next one', pg.evaluate(f"{P}.triageQueue().length") == n0 - 1 and pg.evaluate(f"{P}.state.view") == 'today')
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
+        check('Esc closes the inline card', pg.locator('main .needtri').count() == 0)
+        check('the sidebar has Today on top and the review views under it', pg.inner_text('#snav .snav-h') .strip().lower() == 'review')
+        # People: the Unassigned tray, drag a task onto a card to delegate it.
+        uid = pg.evaluate(f"""async () => {{ const m = await import('/js/actions.js'); return m.addTask('Tray task').id; }}""")
+        pg.keyboard.press('5'); pg.wait_for_timeout(300)
+        check('People has an Unassigned tray with tasks that have no one on them', pg.locator(f'.ptray .row[data-id="{uid}"]').count() == 1)
+        pg.fill('#ptrayQ', 'zzz-no-match'); pg.wait_for_timeout(100)
+        check('the tray filter narrows it', pg.locator('.ptray .row').count() == 0)
+        pg.fill('#ptrayQ', 'Tray task'); pg.wait_for_timeout(100)
+        target = pg.locator('.pcard').first.get_attribute('data-person')
+        pg.drag_and_drop(f'.ptray .row[data-id="{uid}"]', f'.pcard[data-person="{target}"]'); pg.wait_for_timeout(300)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{uid}')")
+        check('dragging from the tray onto a person delegates it to them', t['who'] == [target] and t['waiting'] and t['nudgeOn'] is not None)
+        check('their card lists it under Waiting on them', pg.locator(f'.pcard[data-person="{target}"] .row[data-id="{uid}"]').count() == 1)
+        pg.click('[data-pfilter=team]'); pg.wait_for_timeout(150)
+        check('My team and Everyone filter the cards', pg.evaluate("window.__prioritizer.ui.peopleFilter") == 'team')
+        pg.click('[data-pfilter=all]'); pg.wait_for_timeout(150)
+        pg.fill('#ptrayQ', '')
+        pg.evaluate(f"""() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !['{tid}', '{uid}'].includes(t.id) && t.title !== 'Draft the RFC'); P.state.view = 'today'; P.commit(); return P.saved(); }}""")
+        pg.wait_for_timeout(200)
 
         # ---------- row fields: hide optional fields on rows, alerts still show ----------
         rf = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA');

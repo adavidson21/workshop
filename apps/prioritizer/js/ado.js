@@ -9,6 +9,7 @@ import { PR_GONES, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById,
 import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
 import { embedded, ready } from './ws.js';
 import { assign } from './directory.js';
+import { followDate } from './delegate.js';
 import { PR_HOLD_MAX, PR_HOLD_MIN, commitOf, holdsNew } from './pr-ai-model.js';
 import { prAiActive, prAiAfterSync, prAiOnSync } from './pr-ai.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector. */
@@ -164,7 +165,7 @@ function prNewTask(it, link, rank, ai){
   const nt = {id: uid(), title: `Review: ${it.title || 'PR ' + link.id}`, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank,
     value: tier.value, effort: 'S', due: null, urgentFlag: tier.urgent, listId: prList().id,
     done: false, doneAt: null, wontDo: false, createdAt: todayStr(), ageFrom: isDate(it.created) ? it.created : todayStr(),
-    waiting: link.waiting, nudgeOn: null, focusOn: null, who: []};
+    waiting: link.waiting, nudgeOn: link.waiting ? followDate() : null, focusOn: null, who: []};
   if (link.waiting && link.author) assign(nt, [link.author], {ado: true});
   if (ai) link.ai = ai;
   nt.pr = link;
@@ -210,10 +211,11 @@ function prApply(prs, n, opts = {}){
     }
     if (link.waiting && !t.pr.waiting){
       t.waiting = true;
+      if (!t.nudgeOn) t.nudgeOn = followDate();
       if (link.author) assign(t, [link.author], {add: true, ado: true});
       adoNote(t, `You voted Waiting for author on ${on}.`);
     } else if (!link.waiting && t.pr.waiting && !t.done){
-      t.waiting = false; t.nudgeOn = null;
+      t.waiting = false; t.nudgeOn = null; t.cameBack = todayStr();
       adoNote(t, `Back to you for review on ${on}.`); n.prBack++;
     }
     // Tandem's review: kept across syncs; a new commit starts it over (the connector queues it again).

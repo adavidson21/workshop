@@ -9,14 +9,15 @@ import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { openDisplay } from './display.js';
-import { app, drawer, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
+import { app, drawer, main, openQuad, render, sel, setDoneOpen, setOpenQuad, setScope, setSel, setShowAllPick, setView, setWeekOff, showAllPick, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
 import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
 import { addPerson } from './directory.js';
+import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
-import { copyText, exitTriage, fitTriage, recapData, recapText, renderTriage, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { closeNeed, inlineTri, openNeed, triRender, setPeopleFilter, setTrayQ, copyText, exitTriage, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -59,10 +60,10 @@ document.addEventListener('click', e => {
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }
   if (t.closest('[data-add]')){ openCmd(); return; }
   if (t.closest('[data-suggest]')){ suggestPreview(); return; }
-  const tv = t.closest('[data-tv]'); if (tv && tri.draft){ const n = +tv.dataset.tv; tri.draft.value = tri.draft.value === n ? null : n; renderTriage(); return; }
-  const te = t.closest('[data-te]'); if (te && tri.draft){ tri.draft.effort = tri.draft.effort === te.dataset.te ? null : te.dataset.te; renderTriage(); return; }
-  const tt = t.closest('[data-tt]'); if (tt && tri.draft){ tri.draft[tt.dataset.tt] = !tri.draft[tt.dataset.tt]; renderTriage(); return; }
-  if (t.closest('[data-tdue-clear]') && tri.draft){ tri.draft.due = null; renderTriage(); return; }
+  const tv = t.closest('[data-tv]'); if (tv && tri.draft){ const n = +tv.dataset.tv; tri.draft.value = tri.draft.value === n ? null : n; triRender(); return; }
+  const te = t.closest('[data-te]'); if (te && tri.draft){ tri.draft.effort = tri.draft.effort === te.dataset.te ? null : te.dataset.te; triRender(); return; }
+  const tt = t.closest('[data-tt]'); if (tt && tri.draft){ tri.draft[tt.dataset.tt] = !tri.draft[tt.dataset.tt]; triRender(); return; }
+  if (t.closest('[data-tdue-clear]') && tri.draft){ tri.draft.due = null; triRender(); return; }
   const ta = t.closest('[data-tact]'); if (ta){ ({save: triageSave, skip: triageSkip, wont: triageWont})[ta.dataset.tact](); return; }
   const chk = t.closest('[data-act="done"]'); if (chk){ toggleDone(chk.closest('[data-id]').dataset.id); return; }
   const st = t.closest('[data-act="start"]'); if (st){ toggleStart(st.closest('[data-id]').dataset.id); return; }
@@ -80,6 +81,10 @@ document.addEventListener('click', e => {
   }
   if (t.closest('[data-shutdown]')){ openShutdown(); return; }
   const fb = t.closest('[data-act="today"]'); if (fb){ toggleFocus(fb.closest('[data-id]').dataset.id); return; }
+  const as = t.closest('[data-act="assign"]'); if (as){ openAssign(as.closest('[data-id]').dataset.id, as); return; }
+  const ng = t.closest('[data-act="nudged"]'); if (ng){ nudgedTask(ng.closest('[data-id]').dataset.id); return; }
+  const gb = t.closest('[data-act="gotback"]'); if (gb){ gotBackTask(gb.closest('[data-id]').dataset.id); return; }
+  const db = t.closest('[data-act="dismissback"]'); if (db){ dismissBack(db.closest('[data-id]').dataset.id); return; }
   const su = t.closest('[data-act="still"]'); if (su){ downgradeUrgent(su.closest('[data-id]').dataset.id); return; }
   const ec = t.closest('[data-act="eng"]'); if (ec){ engOpen(ec.dataset.ado); return; }
   const pa = t.closest('[data-act="prai"]'); if (pa){ const x = findTask(pa.closest('[data-id]').dataset.id); if (x && x.pr) prAiOpen(x); return; }
@@ -90,6 +95,8 @@ document.addEventListener('click', e => {
     commit(); return;
   }
   if (t.closest('[data-pickall]')){ setShowAllPick(!showAllPick); render(); return; }
+  const pf = t.closest('[data-pfilter]'); if (pf){ setPeopleFilter(pf.dataset.pfilter); return; }
+  const nd = t.closest('[data-need]'); if (nd){ openNeed(nd.dataset.need); return; }
   const dp = t.closest('[data-dir-person]');
   if (dp){ const id = dp.dataset.dirPerson; askText(`Add a task for ${nameOf(id)}`, '', v => addTask(v, {who: [id]}), 'Add'); return; }
   if (t.closest('[data-addperson]')){
@@ -114,11 +121,12 @@ document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDon
 document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
   if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); } commit(); }
-  if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; renderTriage(); }
+  if (e.target.id === 'triDue' && tri.draft){ tri.draft.due = isDate(e.target.value) ? e.target.value : null; triRender(); }
   if (e.target.id === 'triList' && tri.draft){ tri.draft.listId = e.target.value; }
 });
 // Triage title and notes: typed text lives in the draft until Save and next.
 document.addEventListener('input', e => {
+  if (e.target.id === 'ptrayQ'){ setTrayQ(e.target.value); return; }
   const f = e.target.dataset && e.target.dataset.tf;
   if (f && tri.draft){ tri.draft[f] = e.target.value; fitTriage(); }
 });
@@ -168,6 +176,7 @@ document.addEventListener('keydown', e => {
     if (drawerId) return closeDrawer();
     if (typing){ ae.blur(); return; }
     if (state.view === 'triage') return exitTriage();
+    if (closeNeed()) return;
     return;
   }
   if (tri.draft && e.key === 'Enter' && !e.isComposing && ((ae.id === 'triTitle' && !e.shiftKey) || (ae.id === 'triNotes' && (e.ctrlKey || e.metaKey)))){ e.preventDefault(); triageSave(); return; }
@@ -183,7 +192,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const onButton = ae.tagName === 'BUTTON' || ae.tagName === 'A' || (ae.getAttribute && ae.getAttribute('role') === 'button');
-  if (state.view === 'triage' && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
+  if ((state.view === 'triage' || inlineTri()) && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
   else if (/^[1-5]$/.test(k)){ const nav = NAV_KEYS[k]; setView(nav === 'prio' ? state.lens : nav); }
@@ -197,6 +206,8 @@ document.addEventListener('keydown', e => {
   else if (k === ' ' && ae.dataset && ae.dataset.scope){ e.preventDefault(); setScope(ae.dataset.scope); }
   else if (k === 'x' && sel){ toggleDone(sel); requestAnimationFrame(focusSel); }
   else if (k === 't' && sel){ toggleFocus(sel); requestAnimationFrame(focusSel); }
+  else if (k === 'a' && sel){ e.preventDefault(); openAssign(sel, main.querySelector(`.row[data-id="${CSS.escape(sel)}"] .twho`) || main.querySelector(`.row[data-id="${CSS.escape(sel)}"]`)); }
+  else if (k === 'w' && sel){ e.preventDefault(); toggleWaiting(sel); requestAnimationFrame(focusSel); }
   else if (k === 's' && (sel || activeTask())){ e.preventDefault(); toggleStart(sel || activeTask().id); }
   else if (k === 's' && state.view !== 'triage'){ e.preventDefault(); startNext(); }
   else if (k === 'i'){ e.preventDefault(); logInterrupt(); }

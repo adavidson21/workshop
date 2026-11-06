@@ -50,7 +50,7 @@ function body(name){
   if (name === 'tasks') return `<h3>Add a few tasks</h3>
     <p>Type a task and press Enter. Tags are optional; ${TOUCH ? 'tap' : 'click'} one to try it.</p>
     <form class="tadd" id="tourAdd"><input id="tourIn" placeholder="Review design doc @Teammate !3 ~s ^fri" autocomplete="off" aria-label="New task" enterkeyhint="done"><button class="btn primary">Add</button></form>
-    <div class="ttags">${[['@name', 'person', '@Teammate'], ['!1 to !4', 'value', '!3'], ['!!', 'urgent', '!!'], ['~xs to ~xl', 'effort', '~s'], ['^fri', 'due', '^fri'], ['#list', 'list', `#${state.lists[0].name.toLowerCase()}`]].map(([t, d, ex]) => `<button type="button" class="chip" data-tag="${esc(ex)}" data-tip="Adds ${esc(ex)}">${esc(t)} <span>${d}</span></button>`).join('')}</div>
+    <div class="ttags">${[['@name', 'person', '@Teammate'], ['>@name', 'delegate', '>@Teammate'], ['!1 to !4', 'value', '!3'], ['!!', 'urgent', '!!'], ['~xs to ~xl', 'effort', '~s'], ['^fri', 'due', '^fri'], ['#list', 'list', `#${state.lists[0].name.toLowerCase()}`]].map(([t, d, ex]) => `<button type="button" class="chip" data-tag="${esc(ex)}" data-tip="Adds ${esc(ex)}">${esc(t)} <span>${d}</span></button>`).join('')}</div>
     <div class="tadded">${added.map(t => `<div>${ICON.check}<span>${esc(t)}</span></div>`).join('')}</div>
     ${state.lists.some(l => l.name === 'Samples') ? '' : `<p class="tsmall">Just looking? <button class="lnk" data-samples>Load ${SAMPLES.length} sample tasks</button> in a "Samples" list. Delete the list to remove them all.</p>`}`;
   if (name === 'decide') return `<h3>How Docket decides</h3>

@@ -15,6 +15,7 @@ import { focusDrawerClick, focusDrawerHtml } from './focus.js';
 import { notesFor, shown, taskLink } from './notes-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
+import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
 /* ---------- selection + keyboard navigation ---------- */
 function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
@@ -92,15 +93,16 @@ function renderDrawer(){
         <button data-d="urgent" data-fk="urg" aria-pressed="${t.urgentFlag}"${t.urgentFlag ? ' class="on"' : ''}>Urgent</button>
         <button data-d="today" data-fk="tday" aria-pressed="${fon}"${fon ? ' class="on"' : ''}${t.done ? ' disabled' : ''}>Today</button>
         <button data-d="waiting" data-fk="wait" aria-pressed="${t.waiting}"${t.waiting ? ' class="on"' : ''}>Waiting on someone</button></div></div>
-      ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div></div>` : ''}
-      <div class="dfld"><label for="dPeople">People</label><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">
+      ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div>
+        ${t.done ? '' : `<div class="drow dfollow"><button class="btn" data-d="nudged" data-fk="nudged" data-tip="You followed up: move the date and leave a breadcrumb">${ICON.nudge}<span>Nudged</span></button><button class="btn" data-d="gotback" data-fk="gotback" data-tip="It came back: stop waiting and put it back on your list">${ICON.back}<span>Got it back</span></button></div>`}</div>` : ''}
+      <div class="dfld"><label for="dPeople">People</label><div class="drow"><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">${t.done ? '' : `<button class="btn" data-d="assign" data-fk="assign" data-tip="Pick someone and hand it over (A)">${ICON.addPerson}<span>Delegate</span></button>`}</div>
         <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
       ${t.pr || (t.ado && !t.ado.pasted) ? '' : repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
         ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
-        ${ek ? `<span>${EQ[ek].title}</span>` : ''}${vk ? `<span>${VQ[vk].title}</span>` : ''}${isStale(t) ? '<span class="chip">Stale</span>' : ''}</div>
+        ${ek ? `<span>${EQ[ek].title}</span>` : ''}${vk ? `<span>${VQ[vk].title}</span>` : ''}${isStale(t) ? '<span class="chip">Stale</span>' : ''}${t.cameBack && !t.done ? `<span class="chip acc">Came back ${esc(dayLabel(t.cameBack).toLowerCase())}</span>` : ''}</div>
     </div>
     <div class="dfoot">
       ${!t.done && idx > 0 ? `<button class="btn ghost" data-d="top" data-fk="top" aria-label="Move to top" data-tip="Move to top">${ICON.top}<span class="hide-sm">Top</span></button><button class="btn ghost" data-d="up" data-fk="up" aria-label="Move up" data-tip="Move up (Alt+Up)">${ICON.up}<span class="hide-sm">Up</span></button>` : ''}
@@ -119,7 +121,7 @@ function aboutHtml(t){
   const {list, more} = shown(embedded ? notesFor(t.id) : []);
   const titles = list.map((n, i) => `<button class="lnk d-note" data-d="open-note" data-path="${esc(n.route)}" data-fk="note${i}" title="Open in Notes">${esc(n.title)}</button>`).join('<span class="dot" aria-hidden="true">·</span>');
   return `<div class="d-about">${list.length ? `<span class="lbl">Notes</span><span class="d-notelist">${titles}${more ? `<span class="dot" aria-hidden="true">·</span><button class="lnk" data-d="more-notes" data-fk="morenotes" title="Show them all in Notes">+${more}</button>` : ''}</span>` : '<span class="grow"></span>'}
-    <button class="lnk" data-d="copy-link" data-fk="copylink" data-tip="A link to this task for any note (L)">Copy link</button></div>`;
+    <button class="lnk" data-d="copy-handoff" data-fk="copyhandoff" data-tip="The task as text to paste into chat when you hand it over">Copy hand-off</button><span class="dot" aria-hidden="true">·</span><button class="lnk" data-d="copy-link" data-fk="copylink" data-tip="A link to this task for any note (L)">Copy link</button></div>`;
 }
 /* Put a task's link on the clipboard (L, or Copy link). The Clipboard API, with a fallback for frames that block it. */
 function copyTaskLink(t){
@@ -188,7 +190,15 @@ drawer.addEventListener('click', e => {
   if (a === 'clear-nudge'){ t.nudgeOn = null; return commit(); }
   if (a === 'urgent'){ t.urgentFlag = !t.urgentFlag; return commit(); }
   if (a === 'today') return toggleFocus(t.id);
-  if (a === 'waiting'){ t.waiting = !t.waiting; if (!t.waiting) t.nudgeOn = null; return commit(); }
+  if (a === 'waiting'){
+    t.waiting = !t.waiting;
+    if (t.waiting){ if (!t.nudgeOn) t.nudgeOn = followDate(); delete t.cameBack; } else t.nudgeOn = null;
+    return commit();
+  }
+  if (a === 'nudged') return nudgedTask(t.id);
+  if (a === 'gotback') return gotBackTask(t.id);
+  if (a === 'assign') return openAssign(t.id, b);
+  if (a === 'copy-handoff') return copyHandoff(t);
   if (a === 'top' || a === 'up') return moveTask(t.id, a);
   if (a === 'wont') return wontDo(t.id);
   if (a === 'delete') return deleteTask(t.id);

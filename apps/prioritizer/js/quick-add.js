@@ -1,6 +1,6 @@
 import { orderedLists } from './state.js';
 import { addDays, dateStr, isDate, parseD, today } from './util.js';
-/* Prioritizer: Quick add syntax: @person !value !! ~effort ^due #list. */
+/* Prioritizer: Quick add syntax: @person >@person (delegated: waiting on them) !value !! ~effort ^due #list. */
 /* ---------- quick add syntax (Build spec: Command bar syntax) ---------- */
 const DOW = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 function parseDue(x){
@@ -21,7 +21,7 @@ function findListPrefix(x){
   return orderedLists().find(l => l.name.toLowerCase().startsWith(x) || l.name.toLowerCase().replace(/\s+/g, '').startsWith(x.replace(/\s+/g, ''))) || null;
 }
 function parseQuick(text){
-  const out = {people: [], value: null, effort: null, due: null, urgentFlag: false, listId: null};
+  const out = {people: [], delegate: false, value: null, effort: null, due: null, urgentFlag: false, listId: null};
   const keep = [];
   String(text || '').split(/\s+/).filter(Boolean).forEach(tok => {
     let m;
@@ -30,7 +30,7 @@ function parseQuick(text){
     if ((m = tok.match(/^~(xs|s|m|l|xl)$/i))){ out.effort = m[1].toUpperCase(); return; }
     if ((m = tok.match(/^\^(.+)$/))){ const d = parseDue(m[1]); if (d){ out.due = d; return; } }
     if ((m = tok.match(/^#(.+)$/))){ const L = findListPrefix(m[1]); if (L){ out.listId = L.id; return; } }
-    if ((m = tok.match(/^@([\p{L}\p{N}_'-]+(?:\.[\p{L}\p{N}_'-]+)*)$/u))){ out.people.push(m[1]); return; }
+    if ((m = tok.match(/^(>)?@([\p{L}\p{N}_'-]+(?:\.[\p{L}\p{N}_'-]+)*)$/u))){ out.people.push(m[2]); if (m[1]) out.delegate = true; return; }
     keep.push(tok);
   });
   out.title = keep.join(' ').trim();

@@ -37,11 +37,19 @@ function editName(id){
 function openPersonMenu(id, anchor){
   const it = getDirectory().byId.get(id);
   const settings = '<button data-pm="settings">Edit in People</button>';
-  popMenu(`${it ? '<button data-pm="rename">Rename</button>' : ''}${it && it.kind === 'group' ? settings : ''}<button data-pm="off" class="danger">Take ${esc(nameOf(id))} off these tasks</button>`, anchor, 'right')
+  // Reports and your manager have a page in Rapport (1:1 prep and receipts), inside Workshop.
+  const rapport = it && it.kind === 'person' && (it.relation === 'report' || it.relation === 'manager') ? '<button data-pm="rapport">Open in Rapport</button>' : '';
+  popMenu(`${rapport}${it ? '<button data-pm="rename">Rename</button>' : ''}${it && it.kind === 'group' ? settings : ''}<button data-pm="off" class="danger">Take ${esc(nameOf(id))} off these tasks</button>`, anchor, 'right')
     .addEventListener('click', async e => {
       const b = e.target.closest('[data-pm]'); if (!b) return;
       closeMenu();
       if (b.dataset.pm === 'off') return takeOff(id);
+      if (b.dataset.pm === 'rapport'){
+        const ws = await ready;
+        if (ws && ws.embedded) ws.open({app: 'receipts', path: it.relation === 'manager' ? 'up' : `team/${it.id}`}).catch(() => {});
+        else toast('Open Workshop to see them in Rapport.');
+        return;
+      }
       if (b.dataset.pm === 'settings'){ const ws = await ready; if (ws && ws.embedded) ws.open({app: 'people'}); else toast('Edit groups in Workshop: People.'); return; }
       editName(id);
     });

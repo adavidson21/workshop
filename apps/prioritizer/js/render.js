@@ -11,7 +11,7 @@ import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
 import { dp } from './dayplan.js';
 import { fmt12, repeatLabel } from './dayplan-model.js';
-import { renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
+import { peopleFilter, renderArchive, renderMatrix, renderPeople, renderRank, renderToday, renderTriage } from './views.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
 import { rowShown } from './row-fields-model.js';
@@ -73,7 +73,8 @@ function renderSide(){
     today: state.tasks.filter(t => !t.done && inScope(t) && t.focusOn === todayStr()).length,
     triage: triageQueue().length
   };
-  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${label}. Shortcut: ${key}">${ic}<span class="lbl">${label}</span>${
+  // Today is where the day happens; the rest are for planning and review.
+  $('#snav').innerHTML = NAV.map(([k, label, ic, key], i) => `${i === 1 ? '<div class="ssec snav-h"><span>Review</span></div>' : ''}<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${label}. Shortcut: ${key}">${ic}<span class="lbl">${label}</span>${
     k === 'triage' && counts.triage ? `<span class="badge" aria-label="${counts.triage} to triage">${counts.triage}</span>`
     : k === 'today' && counts.today ? `<span class="n">${counts.today}</span>` : ''}</button>`).join('');
   // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of
@@ -123,7 +124,11 @@ function renderHead(){
       ${open > 1 ? hbtn(ICON.wand, 'Suggest an order by score (you preview it first)', 'data-suggest') : ''}`;
   }
   if (v === 'triage') sub += ` · ${plural(triageQueue().length, 'task')} to sort`;
-  if (v === 'people') tools = hbtn(ICON.addPerson, 'Add a person', 'data-addperson');
+  if (v === 'people'){
+    const f = peopleFilter();
+    tools = `<div class="lens" role="tablist" aria-label="Show">${[['all', 'Everyone'], ['team', 'My team']].map(([k, n]) => `<button data-pfilter="${k}" role="tab" aria-selected="${f === k}"${f === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>`
+      + hbtn(ICON.addPerson, 'Add a person', 'data-addperson');
+  }
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
     <div class="ptitle"><h1>${title}</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
     ${tools ? `<div class="htools${v === 'today' || v === 'people' ? ' icons' : ''}">${tools}</div>` : ''}${v !== 'archive' ? `<div class="hadd">${addBtn()}</div>` : ''}`;
@@ -166,7 +171,8 @@ function row(t, o = {}){
   }
   if (!t.done){
     if (nudgeDue(t)) meta += sig(ICON.bell, `Time to nudge. Follow-up date ${fmtLong(t.nudgeOn)}`, 'acc');
-    else if (t.waiting && on('waiting')) meta += sig(ICON.wait, 'Waiting on someone');
+    else if (t.waiting && on('waiting')) meta += t.nudgeOn ? sig(ICON.wait, `Waiting. Follow up ${fmtLong(t.nudgeOn)}`, '', fmtDay(t.nudgeOn)) : sig(ICON.wait, 'Waiting on someone');
+    if (t.cameBack && !t.waiting && on('waiting')) meta += sig(ICON.back, `Came back ${fmtLong(t.cameBack)}`, 'acc');
     const d = t.due ? daysBetween(today(), t.due) : 0;
     if (t.due && (d < 0 || on('due'))){   // overdue shows even with due dates hidden
       meta += sig(ICON.cal, `${d < 0 ? 'Overdue. ' : ''}Due ${fmtLong(t.due)}`, d < 0 ? 'warn' : d <= 3 ? 'soon' : '', fmtDay(t.due));
@@ -195,6 +201,9 @@ function row(t, o = {}){
     + (meta ? `<span class="meta">${meta}</span>` : '')
     + scoreHtml
     + (o.start && !t.done && (on('start') || act) ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
+    + (o.follow && t.waiting && !t.done && !pv ? `<button class="tfol" data-act="nudged" aria-label="Nudged" data-tip="Nudged: follow up again later">${ICON.nudge}</button><button class="tfol" data-act="gotback" aria-label="Got it back" data-tip="Got it back: stop waiting">${ICON.back}</button>` : '')
+    + (o.back && t.cameBack && !t.done && !pv ? `<button class="tfol" data-act="dismissback" aria-label="Dismiss" data-tip="Seen it. Keep it where it is in your list">${ICON.x}</button>` : '')
+    + (t.done || pv || o.noAssign ? '' : `<button class="twho${o.assignOn ? ' on' : ''}" data-act="assign" aria-label="Delegate or add people" data-tip="Delegate or add people. Shortcut: A">${ICON.addPerson}</button>`)
     + (t.done || o.noToday || !on('today') ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;
 }

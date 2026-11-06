@@ -42,10 +42,11 @@ test('summary: board counts per day, Up next and the team', () => {
   const [b] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
   assert.deepEqual(Object.keys(b.days), horizon(TODAY));
   assert.equal(Object.keys(b.days).length, HORIZON);
-  assert.deepEqual(b.days[TODAY], {total: 4, open: 3, triage: 2, overdue: 1, dueWeek: 1,
+  assert.deepEqual(b.days[TODAY], {total: 4, open: 3, triage: 2, overdue: 1, dueWeek: 1, nudges: 0, cameBack: 0,
     focus: {total: 2, done: 1, tasks: [{id: 't3', title: 'Plan the sprint', done: false}, {id: 't4', title: 'Done today', done: true}]}},
     "Today's tasks by rank, titles and ids only (Notes' daily note)");
   assert.equal(b.days['2026-11-10'].overdue, 2, 'the 11-09 task is overdue by then');
+  assert.equal(b.days['2026-11-05'].nudges, 1, 'the follow-up on 11-05 is due that day');
   assert.deepEqual(b.upNext.map(t => t.id), ['t1', 't3'], 'waiting and done tasks are not up next');
   assert.equal(b.upNext[0].list, 'Inbox');
   assert.deepEqual(b.upNext[0].who, ['p_one']);
@@ -85,4 +86,11 @@ test('done-week: tasks finished in the last 7 days, newest first, never won\'t d
   assert.equal(c.kind, 'list');
   assert.deepEqual(c.rows.map(r => [r.title, r.due, r.note, r.route]), [['Done today', TODAY, 'Team', 'task/t4'], ['Six days ago', '2026-10-30', 'Inbox', 'task/t8']]);
   assert.equal(c.count, 2);
+});
+
+test('summary: tasks that came back count until handled', () => {
+  const bd = board();
+  bd.tasks[0].cameBack = TODAY;
+  const [b] = buildSummary({board: bd, dir, dp: plan(), log, today: TODAY});
+  assert.equal(b.days[TODAY].cameBack, 1);
 });

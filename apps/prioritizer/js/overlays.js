@@ -52,7 +52,7 @@ function confirmBox(title, msg, okLabel, cb){
 const LEGEND = [
   ['block', 'warn', 'Blocking: a PR waits on you'], ['eye', 'acc', 'Asked to review'], ['bell', 'acc', 'Time to nudge'],
   ['cal', 'soon', 'Due soon (red when overdue)'], ['alert', 'warn', 'Still urgent? Click to calm it'], ['stale', 'stale', 'Untouched a while'],
-  ['wait', '', 'Waiting on someone'], ['repeat', '', 'Every sprint'], ['item', 'ado', 'ADO work item'], ['pr', 'ado', 'Pull request'],
+  ['wait', '', 'Waiting on someone (with the follow-up date)'], ['back', 'acc', 'Came back from someone'], ['addPerson', '', 'Delegate or add people (A)'], ['repeat', '', 'Every sprint'], ['item', 'ado', 'ADO work item'], ['pr', 'ado', 'Pull request'],
   ['sun', '', 'On Today (T)'], ['play', '', 'Start (S)'], ['bolt', '', 'Interrupted (I)'], ['swap', '', 'Switched tasks'],
   ['day', '', 'Plan the day'], ['moon', '', 'Wrap up'], ['wand', '', 'Suggest order'], ['gauge', '', 'Weekly capacity']
 ];
@@ -72,6 +72,8 @@ function showHelp(){
       ${r('<kbd>I</kbd>', 'Log an interruption')}
       ${r('<kbd>X</kbd>', 'Complete or reopen')}
       ${r('<kbd>T</kbd>', 'Toggle Today')}
+      ${r('<kbd>A</kbd>', 'Delegate or add people')}
+      ${r('<kbd>W</kbd>', 'Waiting on someone, on or off')}
       ${r('<kbd>L</kbd>', 'Copy a link to the task, for a note')}
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}

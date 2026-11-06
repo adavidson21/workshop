@@ -10,12 +10,13 @@ import { cleanCrumbs } from './focus-model.js';
 import { isRef } from '../shared/people.js';
 import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
 import { cleanRowFields } from './row-fields-model.js';
+import { cleanFollow } from './delegate-model.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 const PR_SHOW = ['all', 'mine', 'none'];   // the PR filter's values (see shown)
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}, follow: cleanFollow()};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -35,6 +36,8 @@ function migrateTask(t){
   if (!isDate(t.ageFrom)) t.ageFrom = t.createdAt;
   if (!isDate(t.due)) t.due = null;
   if (!isDate(t.nudgeOn)) t.nudgeOn = null;
+  // Came back from someone you waited on (delegate-model.js): shown once on Today until handled.
+  if ('cameBack' in t && (!isDate(t.cameBack) || t.done)) delete t.cameBack;
   t.done = t.done === true;
   if (!t.done) t.doneAt = null;
   t.wontDo = t.wontDo === true && t.done;
@@ -135,6 +138,7 @@ function sanitize(s){
   s.ado.prHeld = cleanHeld(s.ado.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
   s.ado.prHoldMinutes = cleanHoldMinutes(s.ado.prHoldMinutes);
   s.rowFields = cleanRowFields(s.rowFields);   // which optional row fields are hidden (row-fields-model.js)
+  s.follow = cleanFollow(s.follow);            // follow-up days for delegated tasks (delegate-model.js)
   normalizeRanks(s);
   return s;
 }

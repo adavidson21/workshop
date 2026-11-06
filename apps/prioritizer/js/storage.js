@@ -29,6 +29,7 @@ import { focusBoot, focusLog, importFocus } from './focus.js';
 import { offersBoot } from './offers.js';
 import { buildSummary } from './summary.js';
 import { createSummaryWriter } from '../shared/summary.js';
+import { fillFollowUps } from './delegate.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
 let store = null, dstore = null, fstore = null, ws = null, booted = false, status = {state: 'saved'};
@@ -138,6 +139,7 @@ async function boot(){
   addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
   booted = true;
   summaryBoot();
+  fillFollowUps();   // once per board: waiting tasks without a follow-up date get one (delegate.js)
   if (store.isNew && ws.backend === 'agent'){
     toast('Moving from the old Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
   }

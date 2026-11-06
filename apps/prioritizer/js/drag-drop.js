@@ -5,7 +5,9 @@ import { render } from './render.js';
 import { commit, findTask, listById, state } from './state.js';
 import { todayStr } from './util.js';
 import { dayDrop } from './day-view.js';
-/* Prioritizer: Drag and drop between lists, quadrants and people, plus inline rename. */
+import { dropDelegate } from './delegate.js';
+/* Prioritizer: Drag and drop between lists, quadrants and people (the People view's Unassigned tray delegates),
+   plus inline rename. */
 /* ---------- drag and drop (desktop) ---------- */
 let dragId = null, dragFromPerson = null, overEl = null, lastTouch = 0;
 function setOver(el){
@@ -66,11 +68,21 @@ document.addEventListener('drop', e => {
     if (state.view === 'today' && t.focusOn !== todayStr()){ t.focusOn = todayStr(); commit(); return; }
     applyOrder([...z.querySelectorAll(':scope > .row')].map(n => n.dataset.id)); return;
   }
+  if (zone === 'untray'){                          // off a person's card into Unassigned: take them off
+    if (!from || !t.who.includes(from)) return render();
+    const before = {who: [...t.who], waiting: t.waiting, nudgeOn: t.nudgeOn};
+    t.who = t.who.filter(x => x !== from);
+    if (!t.who.length && t.waiting){ t.waiting = false; t.nudgeOn = null; }
+    commit();
+    toast(t.who.length ? 'Took them off' : 'Unassigned', 'Undo', () => { Object.assign(t, before); commit(); });
+    return;
+  }
   if (zone === 'unfocus'){ if (t.focusOn === todayStr()){ t.focusOn = null; commit(); } else render(); return; }
   if (zone === 'person'){
     const p = z.dataset.person;
     if (from === p) return render();
-    if (from) t.who = t.who.filter(x => x !== from); // dragged between people: move it
+    if (!from) return dropDelegate(t, p);              // from the Unassigned tray (or another view): delegate it
+    t.who = t.who.filter(x => x !== from);            // dragged between people: move it, waiting or not
     if (!t.who.includes(p)) t.who.push(p);
     commit(); return;
   }

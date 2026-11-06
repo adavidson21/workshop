@@ -4,7 +4,8 @@
    the cards with the shared writer (shared/summary.js).
 
    Cards (prioritizer.summary v1):
-     board    counts per day for today and the next 6 days, Up next and the team (Home)
+     board    counts per day for today and the next 6 days (Today, triage, overdue, due this week, follow-ups
+              due, came back), Up next and the team (Home)
      day      the day plan's blocks per day for the same days, and Wrap up (Home's Now and Wrap up cards)
      lists    targets for capture: "task" (Home quick capture, the Dispatch hub)
      people   open and waiting tasks per person and group in Workshop's people directory, a person's through
@@ -41,7 +42,10 @@ export function boardDay(board, date){
       tasks: [...focus].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).slice(0, 10).map(t => ({id: t.id, title: str(t.title, 300), done: !!t.done}))},
     triage: open.filter(t => !isTriaged(t) || isStaleOn(t, date)).length,
     overdue: open.filter(t => isDate(t.due) && t.due < date).length,
-    dueWeek: open.filter(t => isDate(t.due) && t.due >= date && t.due <= weekEnd).length
+    dueWeek: open.filter(t => isDate(t.due) && t.due >= date && t.due <= weekEnd).length,
+    // Delegated work: follow-ups due by that day, and tasks that came back and are not handled yet.
+    nudges: open.filter(t => t.waiting === true && isDate(t.nudgeOn) && t.nudgeOn <= date).length,
+    cameBack: open.filter(t => isDate(t.cameBack)).length
   };
 }
 /* Who an open task involves: for each id in any task's `who`, and each active person reached through a group,

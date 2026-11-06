@@ -9,6 +9,7 @@ import { commit, isWaiting, state, topLists } from './state.js';
 import { todayStr, uid } from './util.js';
 import { toast } from './overlays.js';
 import { embedded } from './ws.js';
+import { followDate } from './delegate.js';
 
 const envs = {};
 const watched = new Set();
@@ -34,6 +35,7 @@ function pickUp(app){
   for (const o of todo){
     const t = taskFromOffer(o, {id: uid(), listId: listFor(o, state.lists, fallback), rank: ++rank,
       color: COLORS[state.colorIdx++ % COLORS.length], today: todayStr()});
+    if (t.waiting && !t.nudgeOn) t.nudgeOn = followDate();   // handed over elsewhere (Slate's Delegate): follow up
     state.tasks.push(t);
   }
   setHandled(markHandled(dp.handled, todo.map(o => o.key)));

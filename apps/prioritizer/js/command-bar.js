@@ -33,6 +33,7 @@ function cmdPreview(){
   if (p.effort) bits.push(`<span class="chip acc">Effort ${p.effort}</span>`);
   if (p.due) bits.push(`<span class="chip acc">Due ${fmtLong(p.due)}</span>`);
   if (p.urgentFlag) bits.push(`<span class="chip acc">Urgent</span>`);
+  if (p.delegate) bits.push(`<span class="chip acc">Waiting on them</span>`);
   p.people.forEach(n => { const id = refOf(n); bits.push(`<span class="chip acc">${id ? esc(nameOf(id)) : `@${esc(n)} (new contact)`}</span>`); });
   const where = `Adds to <b>${esc(L ? L.name : '')}</b>${state.view === 'today' ? ' and Today' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
