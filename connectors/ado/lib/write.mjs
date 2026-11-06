@@ -78,6 +78,9 @@ export function patchOps(changes, currentFields = {}) {
     if (!String(changes.iteration).trim()) throw new SettingsError('Sprint cannot be empty.');
     set('System.IterationPath', String(changes.iteration));
   }
+  // Long text: plain text or Markdown as written, sent as escaped HTML with line breaks kept (what ADO stores).
+  if (changes.description !== undefined) set('System.Description', textToHtml(changes.description));
+  if (changes.acceptance !== undefined) set('Microsoft.VSTS.Common.AcceptanceCriteria', textToHtml(changes.acceptance));
   if ((changes.tagsAdd && changes.tagsAdd.length) || (changes.tagsRemove && changes.tagsRemove.length)) {
     set('System.Tags', mergeTags(get(currentFields, 'System.Tags'), changes.tagsAdd || [], changes.tagsRemove || []));
   }
@@ -86,7 +89,7 @@ export function patchOps(changes, currentFields = {}) {
 
 /**
  * "workitem.update". args: {id, rev, connection?, changes: {title?, state?, assignedTo?, priority?, iteration?, area?,
- * startDate?, targetDate?, tagsAdd?, tagsRemove?}}
+ * startDate?, targetDate?, description?, acceptance?, tagsAdd?, tagsRemove?}}
  * Returns the item as ADO now has it, in the itemShape shape.
  */
 export async function updateWorkItem(d, args) {
@@ -114,6 +117,40 @@ export async function updateWorkItem(d, args) {
 }
 
 
+export const CREATE_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Task', 'Issue'];
+
+/**
+ * "workitem.create" (Slate's Publish). args: {type, title, project?, connection?, parent?, fields: {description?,
+ * acceptance?, area?, iteration?, assignedTo?, priority?, tags?}}. Creates one item, with a parent link when
+ * `parent` is given, and returns it in the itemShape shape. The project is `project`, else the parent's, else the
+ * connection's. Nothing is created when a field is refused: ADO validates the whole patch first.
+ */
+export async function createWorkItem(d, args) {
+  const conn = itemConnection(d.cfg, args);
+  const ado = clientFor(conn, d.env, d.signal);
+  const type = String(args.type || '');
+  if (!CREATE_TYPES.includes(type)) throw new SettingsError(`Type must be one of: ${CREATE_TYPES.join(', ')}.`);
+  const f = args.fields || {};
+  let parent = null;
+  if (args.parent) parent = await fetchItem(ado, args.parent);
+  const project = String(args.project || (parent && get(parent.fields || {}, 'System.TeamProject')) || conn.project || '').trim();
+  if (!project) throw new SettingsError(`Set a project on the ${conn.name} connection in Settings, or pass one, to create work items.`);
+  const ops = patchOps({
+    title: args.title,
+    ...(f.description !== undefined ? { description: f.description } : {}),
+    ...(f.acceptance !== undefined ? { acceptance: f.acceptance } : {}),
+    ...(f.area ? { area: f.area } : {}),
+    ...(f.iteration ? { iteration: f.iteration } : {}),
+    ...(f.assignedTo ? { assignedTo: f.assignedTo } : {}),
+    ...(f.priority ? { priority: f.priority } : {}),
+    ...(f.tags && f.tags.length ? { tagsAdd: f.tags } : {})
+  }, {});
+  if (parent) {
+    ops.push({ op: 'add', path: '/relations/-', value: { rel: 'System.LinkTypes.Hierarchy-Reverse', url: parent.url || `${ado.base}/_apis/wit/workItems/${parent.id}` } });
+  }
+  const w = await ado.call('POST', `wit/workitems/$${encodeURIComponent(type)}`, { project, body: ops, contentType: PATCH, need: NEED });
+  return itemShape(ado, w, conn.name);
+}
 
 /**
  * For `doctor ado --write-check`: adds a tag to one item the person picks and removes it again, to prove the

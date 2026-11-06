@@ -22,6 +22,7 @@ import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
+import { MAX_FILE, approveFolder, startHandoff, startRefine, startScope, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 
 export const configSchema = {
   type: "object",
@@ -327,6 +328,80 @@ const actions = {
     async run(args) {
       needReady();
       return startSpike(args);
+    },
+  },
+  // Slate's PM steps (lib/slate.mjs). Each runs a Tandem command in a new session, like a spike.
+  "triage.start": {
+    title: "Triage a request (/triage, writes triage.md, never posts)",
+    write: true,
+    argsSchema: obj([], { id: str("ADO work item id", { pattern: "^[0-9]{1,10}$" }), text: str("The request in words (when there is no ADO item)", { maxLength: 2000 }) }),
+    async run(args) {
+      needReady();
+      return startTriage(args);
+    },
+  },
+  "scope.start": {
+    title: "Scope an idea into an epic, features and stories (/scope)",
+    write: true,
+    argsSchema: obj([], { idea: str("The idea", { maxLength: 4000 }), folder: str("A scope-<name> folder to revise", { maxLength: 100 }) }),
+    async run(args) {
+      needReady();
+      return startScope(args);
+    },
+  },
+  "slice.start": {
+    title: "Slice approved stories into build-ordered milestones (/slice)",
+    write: true,
+    argsSchema: obj(["folder"], { folder: str("The scope-<name> folder", { minLength: 1, maxLength: 100 }) }),
+    async run(args) {
+      needReady();
+      return startSlice(args);
+    },
+  },
+  "refine.start": {
+    title: "Define one story or bug (/refine, writes refine.md)",
+    write: true,
+    argsSchema: obj([], {
+      title: str("Title", { maxLength: 200 }),
+      description: str("What is known so far", { maxLength: 4000 }),
+      parent: str("Parent work item id", { pattern: "^[0-9]{1,10}$" }),
+      folder: str("A refine-<name> folder to revise", { maxLength: 100 }),
+    }),
+    async run(args) {
+      needReady();
+      return startRefine(args);
+    },
+  },
+  "handoff.start": {
+    title: "Write a brief for the person work is delegated to (/handoff, posts nothing)",
+    write: true,
+    argsSchema: obj(["id", "assignee"], { id: workItemId, assignee: str("Who it goes to", { minLength: 1, maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      return startHandoff(args);
+    },
+  },
+  approve: {
+    title: "Approve a scope's stories or milestones, or a refined story (/approve)",
+    write: true,
+    argsSchema: obj(["folder"], { folder: str("A scope-<name> or refine-<name> folder", { minLength: 1, maxLength: 100 }), what: { type: "string", title: "For a scope: which file", enum: ["stories", "milestones"] } }),
+    async run(args) {
+      needReady();
+      return approveFolder(args);
+    },
+  },
+  "file.write": {
+    title: "Write a Markdown file in a triage, scope, refine or handoff folder",
+    write: true,
+    argsSchema: obj(["folder", "file", "text"], {
+      folder: str("A triage-, scope-, refine- or handoff- folder", { minLength: 1, maxLength: 100 }),
+      file: str("File (.md, at the top of the folder)", { minLength: 4, maxLength: 85 }),
+      text: str("The new text", { maxLength: MAX_FILE }),
+      expected: str("The text you read (omit to create the file)", { maxLength: MAX_FILE }),
+    }),
+    async run(args) {
+      needReady();
+      return writePmFile(args);
     },
   },
   "pr.review": {

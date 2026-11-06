@@ -112,3 +112,34 @@ export async function roadmapList(d, args = {}) {
 
   return { connection: conn.name, items, total: ids.length, truncated, childrenTruncated, fetchedAt: new Date().toISOString() };
 }
+
+export const BACKLOG_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Issue'];
+export const MAX_BACKLOG = 500;
+
+/**
+ * "backlog" (Slate): open work items of BACKLOG_TYPES under the areas, in the roadmap shape, newest change first,
+ * at most MAX_BACKLOG. Unlike roadmap, stories and bugs come whatever their parent, so a new request that sits
+ * on its own shows. args: {connection?, areas[], types?}. `types` narrows BACKLOG_TYPES.
+ */
+export async function backlogList(d, args = {}) {
+  const conn = itemConnection(d.cfg, args);
+  const ado = clientFor(conn, d.env, d.signal);
+  const areas = checkAreas(args.areas, 'Slate');
+  const types = Array.isArray(args.types) && args.types.length ? BACKLOG_TYPES.filter(t => args.types.includes(t)) : BACKLOG_TYPES;
+  const ended = [...d.cfg.closedStates, ...d.cfg.removedStates];
+  const where = [
+    `[System.WorkItemType] IN (${wiqlList(types)})`,
+    `(${areas.map(a => `[System.AreaPath] UNDER ${wiqlList([a])}`).join(' OR ')})`
+  ];
+  if (ended.length) where.push(`[System.State] NOT IN (${wiqlList(ended)})`);
+  const ids = await ado.wiql(where.join(' AND '));
+  const wanted = ids.slice(0, MAX_BACKLOG);
+  const details = await ado.details(wanted);
+  const items = [];
+  for (const id of wanted) {
+    const w = details.get(id);
+    if (w) items.push(roadmapItem(ado, w));
+  }
+  items.sort((a, b) => String(b.changed || '').localeCompare(String(a.changed || '')));
+  return { connection: conn.name, items, total: ids.length, truncated: ids.length > MAX_BACKLOG, fetchedAt: new Date().toISOString() };
+}

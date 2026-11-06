@@ -11,7 +11,7 @@ import ado from '../index.mjs';
 import { normalize } from '../lib/config.mjs';
 import { iterationsList } from '../lib/items.mjs';
 import { getWorkItem } from '../lib/workitem.mjs';
-import { mergeTags, patchOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
+import { createWorkItem, mergeTags, patchOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
 import { startFakeAdo } from './fake-ado.mjs';
 import { PAT, itemsScenario } from './fixtures/items.mjs';
 import { REPO } from './harness.mjs';
@@ -124,6 +124,34 @@ test('workitem.update: a rev test that fails at ADO (changed between read and wr
   assert.equal(srv.requests.filter(r => r.startsWith('PATCH')).length, 2);
 }));
 
+test('workitem.update sends description and acceptance criteria as HTML', () => withAdo(async ({ d, srv }) => {
+  await updateWorkItem(d, { id: 501, rev: 4, changes: { description: 'As a user\nI want <x>', acceptance: 'Scenario: one' } });
+  const patch = srv.requests.find(r => r.startsWith('PATCH'));
+  assert.match(patch, /"path":"\/fields\/System\.Description","value":"As a user<br>I want &lt;x&gt;"/);
+  assert.match(patch, /"path":"\/fields\/Microsoft\.VSTS\.Common\.AcceptanceCriteria","value":"Scenario: one"/);
+}));
+
+test('workitem.create makes an item under a parent, in the parent\'s project, with its fields', () => withAdo(async ({ d, srv }) => {
+  const out = await createWorkItem(d, { type: 'User Story', title: '  Export   orders ', parent: 501, fields: { description: 'As a buyer\nI want a CSV', acceptance: 'Given orders\nThen a file', area: TEAM_A, tags: ['slate'] } });
+  assert.equal(out.type, 'User Story');
+  assert.equal(out.title, 'Export orders');
+  assert.equal(out.project, 'Web App');
+  assert.equal(out.area, TEAM_A);
+  assert.deepEqual(out.tags, ['slate']);
+  const post = srv.requests.find(r => r.startsWith('POST') && r.includes('$User%20Story'));
+  assert.ok(post, 'POST to wit/workitems/$User Story');
+  assert.match(post, /^POST \/Main\/Web%20App\/_apis\/wit\/workitems\/\$User%20Story\?api-version=6\.0 /);
+  assert.match(post, /"path":"\/relations\/-","value":\{"rel":"System\.LinkTypes\.Hierarchy-Reverse"/);
+  assert.match(post, /"path":"\/fields\/System\.Description","value":"As a buyer<br>I want a CSV"/);
+}));
+
+test('workitem.create refuses an unknown type and a missing project before calling ADO', () => withAdo(async ({ d, srv }) => {
+  await assert.rejects(createWorkItem(d, { type: 'Spaceship', title: 'x' }), /Type must be one of/);
+  const noProject = { ...d, cfg: { ...d.cfg, connections: d.cfg.connections.map(c => ({ ...c, project: '' })) } };
+  await assert.rejects(createWorkItem(noProject, { type: 'Bug', title: 'x' }), /Set a project/);
+  assert.equal(srv.requests.filter(r => r.startsWith('POST')).length, 0);
+}));
+
 test('a read-only PAT gets a message naming the write scope', () => withAdo(async ({ d }) => {
   await assert.rejects(updateWorkItem(d, { connection: 'ro', id: 601, rev: 1, changes: { state: 'Active' } }), /Work Items \(Read & Write\)/);
 }));
@@ -142,7 +170,7 @@ test('writeCheck proves writes and the server revision check, then removes its t
 
 test('module: write actions are marked write, reads are not', () => {
   const writes = Object.entries(ado.actions).filter(([, a]) => a.write).map(([k]) => k).sort();
-  assert.deepEqual(writes, ['workitem.update']);
+  assert.deepEqual(writes, ['workitem.create', 'workitem.update']);
 });
 
 test('through the agent: write actions need confirm, and a conflict comes back as 409 conflict', async () => {
