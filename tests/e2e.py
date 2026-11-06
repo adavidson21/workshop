@@ -473,11 +473,33 @@ def notes_ecosystem(pg, nf):
     today = nf.input_value('#editor')
     check('Notes: today\'s note has the wrap-up from Docket', '## Wrap-up' in today and '- Day: ' in today)
     if '## Wrap-up' not in today: print('      today:', today[:300].replace('\n', ' | '))
+    # Plan 1: the [[ picker offers Docket's tasks; the task's details list the note.
+    nf.click('#editor'); nf.press('#editor', 'Control+End')
+    nf.type('#editor', '\nFollow up on [[Draft the')
+    pg.wait_for_timeout(1500)
+    picker_text = nf.inner_text('#picker') if nf.locator('#picker').count() else ''
+    check('Notes: the [[ picker lists Docket tasks under In other apps', 'in other apps' in picker_text.lower() and 'Draft the rollout plan' in picker_text)
+    nf.press('#editor', 'Enter'); nf.press('#editor', 'Control+s'); pg.wait_for_timeout(1500)
+    m = re.search(r'\[Draft the rollout plan\]\(ws:prioritizer/task/([^)]+)\)', nf.input_value('#editor'))
+    check('Notes: choosing a task writes its ws: link', bool(m))
+    if m:
+        pg.evaluate(f"location.hash = '#/prioritizer/task/{m.group(1)}'"); pg.wait_for_timeout(2500)
+        df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        about = df.inner_text('.d-about') if df.locator('.d-about').count() else ''
+        check("Docket: the task's details list the note that links to it, and Copy link", 'Copy link' in about and today.split('\n')[0].lstrip('# ') in about)
+        if 'Copy link' not in about or today.split('\n')[0].lstrip('# ') not in about: print('      about:', about)
     pg.click('#rail .mark'); pg.wait_for_timeout(1500)
     hf = next(f for f in pg.frames if '/apps/home/' in f.url)
     home_text = hf.inner_text('#app').lower()
     check('Home shows Recent notes from Notes\' summary', 'recent notes' in home_text and 'team sync' in home_text)
     if 'recent notes' not in home_text: print('      Home:', home_text[:300].replace('\n', ' | '))
+    # Plan 5: "n today: ..." in Home's quick capture lands in today's note.
+    hf.fill('.cap-in', 'n today: Priya asked about the offsite')
+    check('quick capture: n today: says it goes to today\'s note', "today's note" in hf.inner_text('.cap-preview').lower())
+    hf.press('.cap-in', 'Enter'); pg.wait_for_timeout(600)
+    pg.evaluate("location.hash = '#/notes/today'"); pg.wait_for_timeout(2500)
+    nf = next(f for f in pg.frames if '/apps/notes/' in f.url)
+    check('Notes: the capture is a bullet under ## Notes in today\'s note', '- Priya asked about the offsite' in nf.input_value('#editor'))
     pg.evaluate("location.hash = '#/notes'"); pg.wait_for_timeout(800)
 
 
