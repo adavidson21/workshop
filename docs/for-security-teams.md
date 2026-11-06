@@ -38,6 +38,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 
 - All data is plain JSON and Markdown files in the data folder. Nothing is encrypted by Workshop beyond what the disk provides; use the company's disk encryption.
 - **Rapport** (formerly Receipts, with 1:1s inside) holds performance notes, 1:1 notes and goals (OKRs) about the user, their direct reports, their manager and anyone else they meet with. Treat that folder as HR-sensitive: keep it in storage only the user can read, never a shared folder, and follow your company's rules on where manager notes may live. The review form sections a company uses are typed in on the device and never committed to the repo.
+- **Notes** product notes (`notes/products/`) hold what the user's team knows about each product they work on: business rules, gotchas, who to ask. They are internal work knowledge; keep them where the company allows work notes. When Dispatch is on, Tandem's agents on this computer read them and add lines to them (Notes keeps each earlier version in `notes/history/` and marks the note for the user to review). Nothing else outside Notes writes them, and they never leave the data folder except as the prompts Dispatch already sends to the approved AI provider.
 - Nothing from the user's work computer goes into the Workshop repos.
 
 ## What endpoint security may notice
