@@ -45,7 +45,8 @@
       "prioritizer",
       "receipts",
       "notes",
-      "runway"
+      "runway",
+      "slate"
     ]
   },
   "aliases": [
@@ -214,6 +215,7 @@
     "vendor/monaco/vs/workers-BeMslOxK.js",
     "vendor/monaco/vs/xml-DHCggo_L.js",
     "vendor/monaco/vs/yaml-C-RIivnc.js",
-    "js/summary.js"
+    "js/summary.js",
+    "js/slate-handoff.js"
   ]
 }

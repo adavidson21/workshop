@@ -15,11 +15,13 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 - **Inbox** (the default): everything waiting on you. **Agents asking you**: every permission and question from any session (runs, spikes, repo guides, PR reviews, the hub, conversations), answered in place, each with where it came from and **Open**. **Runs waiting on you** (a gate to approve, autopilot waiting), **Code reviews to do** (with **Review**), **Stopped or blocked**, and one line for teammates' PRs with no review yet. With nothing waiting it says so and shows **Pick up here** (the most recently moving run). The getting-set-up checklist shows here until done.
 - **Chat:** see [Conversations](#conversations) below.
 - **Runs:** work items in progress as rows (status dot, title, stage, the next step and its main button, project chip), grouped Needs you, In progress, Paused. A row opens the **run page**: the track, the next step, autopilot, the agent session with its reply box, where it left off, then **Brief**, **Tasks**, **Repos** (with the terminal command), **Files** and **Activity**.
-- **Ship:** runs that wrote their PR text (see My PRs below), plus runs at Ship with no `pr.md` yet. **Open run** opens the run page on this tab; **Remove** cleans up once the PR merges.
+- **Ship:** runs that wrote their PR text (see My PRs below), plus runs at Ship with no `pr.md` yet. Runs Slate saw merge (its summary's `runs` card) come first, under **Merged**. **Open run** opens the run page on this tab; **Remove** cleans up once the PR merges.
 - **Reviews:** teammates' PRs (see To review below).
 - **Research:** spikes, docs and TSDs as rows, and spikes before their folder exists and repo guides under **Running** with their session. A folder opens a reader: its state, summary and next step, its main file (`findings.md`, or the document) rendered as escaped Markdown, **Start work from this** (Start work, Describe it, filled in from the findings) and **Save as note**.
 
 **Projects** come from the connector (`state.projects`; `project.create`, `project.update`, `project.delete`, `run.assign`). Once you have one, Runs and Ship show a filter (All projects, then each project with its count) and each run a chip that moves it. Runs with no project are in the built-in project, shown as **No project**. The filter is kept in this browser (`localStorage` key `dispatch.view`, `js/local.js`); Dispatch 1.x's `dispatch.sidebar` key (folders and pins) is removed on load. **Projects** in the menu lists them with Edit and New project. Start work starts in the project filtered to. With an older connector that has no projects, the project controls are hidden.
+
+**Slate tracks every run.** Starting work (Describe it, an ADO work item, or **Start work from this** in Research) sends Slate an accepted `work` handoff (`js/slate-handoff.js`, Workshop docs/handoffs.md), so the run has a card on Slate's board from Building to Resolved. Investigate does not. Each run shows **From Slate** when Slate knows it, by ADO id or run folder. Starting a spike from Chat or the hub, or an action the hub suggests, needs only its button: the click is the approval (no second confirm).
 
 **Using Dispatch on its own** (no Docket, no terminal):
 
@@ -77,6 +79,7 @@ The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or
 | `js/chat.js` | The Chat tab: Ask or capture (the hub's element), and conversations with Tandem's read-only chat agent. Its own element, moved into the page by `main.js` so typing survives repaints. |
 | `js/thread.js` | Turns, the last answer, "5 min ago", and keeping focus through a repaint. Shared by the hub and Chat. Tested in Node. |
 | `js/local.js` | The project filter in this browser: clean, load, save, prune. |
+| `js/slate-handoff.js` | The `work` handoff to Slate for a started run: the offer (tested in Node) and the write to Dispatch's `handoffs`. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
 | `review.html`, `review.css` | The code review page and its styles. |
 | `js/review.js` | Code review: SDK connection, Monaco, line selection, comment boxes, drafts, submit. |

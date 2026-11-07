@@ -28,11 +28,24 @@ export function summaryCards({ items = [], prompts = [], prs = [], now = Date.no
   ];
 }
 
-/** Slate's `ado` card (its summary) as a Map of ADO id -> {route, note, title}: where a run's request came from. */
+/**
+ * Slate's summary as a Map of ADO id or run folder -> {route, note, title, merged}: where a run's request came from,
+ * and whether Slate saw everything for it merge. Reads the `runs` card (ADO ids and run folders, Slate 1.7.0) and
+ * the older `ado` card (ADO ids only), so either Slate works.
+ */
 export function slateLinks(env) {
   const out = new Map();
   if (!env || env.schema !== 'slate.summary' || env.version !== 1 || !Array.isArray(env.items)) return out;
-  const c = env.items.find(x => x && x.id === 'ado' && x.kind === 'list' && Array.isArray(x.rows));
-  for (const r of (c && c.rows) || []) if (r && /^\d+$/.test(String(r.id))) out.set(String(r.id), { route: typeof r.route === 'string' ? r.route : '', note: typeof r.note === 'string' ? r.note : '', title: typeof r.title === 'string' ? r.title : '' });
+  const str = (v) => (typeof v === 'string' ? v : '');
+  const card = (id) => env.items.find(x => x && x.id === id && x.kind === 'list' && Array.isArray(x.rows));
+  const ado = card('ado');
+  for (const r of (ado && ado.rows) || []) if (r && /^\d+$/.test(String(r.id))) out.set(String(r.id), { route: str(r.route), note: str(r.note), title: str(r.title), merged: false });
+  const runs = card('runs');
+  for (const r of (runs && runs.rows) || []) {
+    if (!r || typeof r.id !== 'string' || !r.id) continue;
+    const v = { route: str(r.route), note: str(r.note), title: str(r.title), merged: r.flag === 'done' };
+    out.set(r.id, v);
+    if (str(r.folder)) out.set(r.folder, v);
+  }
   return out;
 }

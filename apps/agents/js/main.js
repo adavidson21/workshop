@@ -22,6 +22,7 @@ import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
 import { startChat } from './chat.js';
 import { slateLinks, summaryCards } from './summary.js';
+import { sendWork, workOffer } from './slate-handoff.js';
 import { useApps } from '../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
 import { notebookRoute } from './doc.js';
@@ -494,6 +495,8 @@ async function startGo() {
   st.busy = true; st.error = null; paint();
   try {
     const res = await write(r.action, r.args);
+    // Slate tracks every run from start to resolved: tell it about this one (Start was the person's click).
+    try { await sendWork(ws, workOffer({ action: r.action, args: r.args, res, from: st.from })); } catch (e) { /* Slate is optional */ }
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
     lastMode = st.mode; lastLane = st.lane;
     closeOverlays();
@@ -555,6 +558,7 @@ function startFromDoc(folder) {
   ui().drafts['start:title'] = String(it.title || '').slice(0, 200);
   ui().drafts['start:desc'] = [it.summary || '', d && d.text ? `From .work/${it.folder}/${d.name}:\n\n${d.text}` : `See .work/${it.folder}.`].filter(Boolean).join('\n\n').slice(0, 8000);
   openStart('describe');
+  if (ui().start) ui().start.from = it.folder;
 }
 function draftGuide(folder) {
   closeOverlays();

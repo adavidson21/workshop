@@ -26,3 +26,14 @@ test('Slate links: only a readable slate.summary with an ado card', () => {
   assert.equal(slateLinks({ ...env, version: 2 }).size, 0);
   assert.equal(slateLinks(null).size, 0);
 });
+
+test('slateLinks reads the runs card by ADO id and run folder, with merged', () => {
+  const env = { schema: 'slate.summary', version: 1, items: [
+    { id: 'ado', kind: 'list', rows: [{ id: '41207', route: 'item/w_1', title: 'Login' }] },
+    { id: 'runs', kind: 'list', rows: [{ id: 'L3-local', folder: 'L3-local', route: 'item/w_2', title: 'Local' }, { id: '41300', route: 'item/w_3', title: 'Export', flag: 'done' }] }
+  ] };
+  const m = slateLinks(env);
+  assert.equal(m.get('L3-local').route, 'item/w_2');
+  assert.equal(m.get('41300').merged, true);
+  assert.equal(m.get('41207').merged, false);
+});

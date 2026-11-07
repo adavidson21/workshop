@@ -151,13 +151,15 @@ test('PM and Dev columns', () => {
   }
   it.stage = 'defining';
   assert.equal(pmColumn(it, { ready: true }), 'publish');
-  assert.equal(devColumn(null), 'ready');
-  assert.equal(devColumn({ next: { stage: 'spec' } }), 'spec');
-  assert.equal(devColumn({ next: { stage: 'plan' } }), 'spec');
-  assert.equal(devColumn({ next: { stage: 'build' } }), 'build');
-  assert.equal(devColumn({ next: { stage: 'review' } }), 'ship');
-  assert.equal(devColumn({ next: { stage: 'ship' } }), 'ship');
-  assert.equal(devColumn({ bucket: 'done' }), 'done');
+  assert.equal(devColumn(null), 'building');
+  assert.equal(devColumn({ next: { stage: 'spec' } }), 'building');
+  assert.equal(devColumn({ next: { stage: 'plan' } }), 'building');
+  assert.equal(devColumn({ next: { stage: 'build' } }), 'building');
+  assert.equal(devColumn({ next: { stage: 'review' } }), 'review');
+  assert.equal(devColumn({ next: { stage: 'ship' } }), 'review');
+  assert.equal(devColumn({ bucket: 'done' }), 'review');
+  assert.equal(devColumn({ next: { stage: 'build' } }, { stage: 'dev', merged: '2026-11-05' }), 'merged');
+  assert.equal(devColumn(null, { stage: 'resolved', merged: '2026-11-05' }), 'resolved');
 });
 
 test('triage.md: route, size, summary and the questions for the requester', () => {
@@ -463,13 +465,16 @@ test('questionAnswers: picks plus typed text, null until every question has one'
 
 /* ---------- the Shape lane (Slate 1.6.0) ---------- */
 
-test('Shape lane: New, Triage, Waiting, Interview, Brief; PM: Define on; laneOf tells them apart', async () => {
-  const { SHAPE_COLUMNS, PM_COLUMNS, laneOf } = await import('../js/model.js');
-  assert.deepEqual(SHAPE_COLUMNS.map(c => c.key), ['new', 'triage', 'waiting', 'interview', 'brief']);
-  assert.deepEqual(PM_COLUMNS.map(c => c.key), ['define', 'publish', 'decide', 'delegated']);
-  for (const k of ['new', 'triage', 'waiting', 'interview', 'brief']) assert.equal(laneOf(k), 'shape', k);
+test('Board: Shape is New, Shaping, Brief; PM is Define, Who builds it?, Delegated; Dev is Building to Resolved; steps map to columns', async () => {
+  const { SHAPE_COLUMNS, PM_COLUMNS, DEV_COLUMNS, laneOf, boardColumn, STEP_CHIP } = await import('../js/model.js');
+  assert.deepEqual(SHAPE_COLUMNS.map(c => c.key), ['new', 'shaping', 'brief']);
+  assert.deepEqual(PM_COLUMNS.map(c => c.key), ['define', 'decide', 'delegated']);
+  assert.deepEqual(DEV_COLUMNS.map(c => c.key), ['building', 'review', 'merged', 'resolved']);
+  for (const k of ['new', 'triage', 'waiting', 'interview', 'shaping', 'brief']) assert.equal(laneOf(k), 'shape', k);
   for (const k of ['define', 'publish', 'decide', 'delegated']) assert.equal(laneOf(k), 'pm', k);
-  assert.equal(laneOf('build'), 'dev');
+  for (const k of ['building', 'review', 'merged', 'resolved']) assert.equal(laneOf(k), 'dev', k);
+  assert.deepEqual(['triage', 'waiting', 'interview', 'publish', 'brief', 'decide'].map(boardColumn), ['shaping', 'shaping', 'shaping', 'define', 'brief', 'decide']);
+  assert.equal(STEP_CHIP.publish, 'Approved: not in ADO');
   assert.equal(pmColumn(cleanItem({ stage: 'shaping' })), 'interview');
   assert.equal(pmColumn(cleanItem({ stage: 'brief' })), 'brief');
 });
@@ -616,4 +621,84 @@ test('forwardTargets: Interview and Brief can skip ahead to Define or Who builds
   assert.deepEqual(forwardTargets(cleanItem({ stage: 'shaping' })), ['defining', 'decide']);
   assert.deepEqual(forwardTargets(cleanItem({ stage: 'brief' })), ['defining', 'decide']);
   assert.deepEqual(forwardTargets(cleanItem({ stage: 'decide' })), []);
+});
+
+/* ---------- Slate 1.7.0: idea to resolved (claude/slate-dispatch-e2e-v1-plan.md) ---------- */
+
+test('cleanItem keeps the run folder, merged, the pull request check and after; drops bad values', async () => {
+  const it = cleanItem({ title: 'x', run: { folder: 'L3-thing', id: 'L3' }, merged: '2026-11-05', mergedHow: 'manual', after: 'build',
+    prs: { status: 'open', at: 't', list: [{ id: 1, status: 'active', url: 'javascript:alert(1)', title: 't' }, { id: 'x' }] } });
+  assert.deepEqual(it.run, { folder: 'L3-thing', id: 'L3' });
+  assert.equal(it.merged, '2026-11-05');
+  assert.equal(it.mergedHow, 'manual');
+  assert.equal(it.after, 'build');
+  assert.deepEqual(it.prs.list.map(p => [p.id, p.url]), [[1, '']]);
+  const bad = cleanItem({ title: 'x', run: { folder: '../up' }, merged: 'soon', prs: { status: 'weird' }, after: 'later' });
+  for (const k of ['run', 'merged', 'mergedHow', 'prs', 'after']) assert.equal(k in bad, false, k);
+  assert.equal(cleanItem({ stage: 'resolved' }).stage, 'resolved');
+});
+
+test('runStep names what a Building card is at', async () => {
+  const { runStep } = await import('../js/model.js');
+  assert.equal(runStep(null), 'Not started');
+  assert.equal(runStep({ next: { stage: 'spec', needsYou: true } }), 'Waiting on you');
+  assert.deepEqual(['spec', 'plan', 'build'].map(st => runStep({ next: { stage: st } })), ['Spec', 'Plan', 'Build']);
+});
+
+test('applyWork: a run started in Dispatch adds a card in Building, or links the card it belongs to', async () => {
+  const { applyWork } = await import('../js/model.js');
+  const list = [];
+  const offer = (payload, id = 'h1') => ({ id, to: 'slate', accepted: true, text: payload.title || 'x', payload: { kind: 'work', ...payload }, source: { app: 'agents' } });
+  const id = applyWork(list, offer({ title: 'Local thing', folder: 'L4-local-thing', id: 'L4', lane: 'bug' }), NOW);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, id);
+  assert.equal(list[0].stage, 'dev');
+  assert.equal(list[0].level, 'bug');
+  assert.equal(list[0].route, 'myself');
+  assert.deepEqual(list[0].run, { folder: 'L4-local-thing', id: 'L4' });
+  assert.equal(list[0].history[0].from, 'dispatch');
+  // An ADO start links the card already on the board and moves it to Building.
+  const req = cleanItem({ ...newItem({ title: 'Req', ado: { id: 77, type: 'User Story' } }, NOW), stage: 'decide' });
+  list.push(req);
+  assert.equal(applyWork(list, offer({ title: 'Req', ado: 77 }, 'h2'), NOW), req.id);
+  assert.equal(list.length, 2);
+  assert.equal(req.stage, 'dev');
+  assert.equal(req.history[req.history.length - 1].from, 'dispatch');
+  // Not for Slate, or nothing to find the run by: ignored.
+  assert.equal(applyWork(list, { ...offer({ folder: 'L5-x' }), to: 'notes' }), null);
+  assert.equal(applyWork(list, offer({ title: 'nothing' }, 'h3')), null);
+  assert.equal(list.length, 2);
+});
+
+test('releaseGroups and releaseNotesMd: resolved items by area path, notes as Markdown', async () => {
+  const { releaseGroups, releaseNotesMd } = await import('../js/model.js');
+  const r = (id, area, adoId, title) => cleanItem({ id, title, stage: 'resolved', ado: { id: adoId, url: `https://ado.example.com/${adoId}`, area } });
+  const groups = releaseGroups([r('a', 'Web\\B', 2, 'Two'), r('b', 'Web\\A', 1, 'One'), r('c', '', 3, 'Three'), cleanItem({ id: 'd', stage: 'dev' })]);
+  assert.deepEqual(groups.map(g => g.label), ['Web\\A', 'Web\\B', 'No area path']);
+  const md = releaseNotesMd(groups[0], { b: 'Faster *renewals*\nSecond line' });
+  assert.equal(md, '## Web\\A\n\n- **One** ([#1](https://ado.example.com/1))\n  Faster *renewals*\n  Second line\n');
+});
+
+test('summary: runs card links runs by ADO id or folder and flags merged; needs asks to resolve what merged', async () => {
+  const { summaryCards } = await import('../js/model.js');
+  const a = cleanItem({ id: 'w_a', title: 'Local', stage: 'dev', run: { folder: 'L1-local', id: 'L1' } });
+  const b = cleanItem({ id: 'w_b', title: 'In ADO', stage: 'dev', merged: '2026-11-05', ado: { id: 5 } });
+  const c = cleanItem({ id: 'w_c', title: 'Released', stage: 'resolved', ado: { id: 6 } });
+  const cards = summaryCards([a, b, c], { columnOf: () => 'building', now: NOW });
+  const runs = cards.find(x => x.id === 'runs');
+  assert.deepEqual(runs.rows.map(r => [r.id, r.folder || '', r.flag || '']), [['L1-local', 'L1-local', ''], ['5', '', 'done'], ['6', '', 'done']]);
+  assert.deepEqual(cards.find(x => x.id === 'needs').rows.map(r => r.note), ['Merged: mark it resolved']);
+});
+
+test('health: request to resolved and closed items', async () => {
+  const { health } = await import('../js/model.js');
+  const it = cleanItem({ title: 'x', createdAt: '2026-11-01', stage: 'done', history: [{ stage: 'new', at: '2026-11-01' }, { stage: 'resolved', at: '2026-11-04' }, { stage: 'done', at: '2026-11-06' }] });
+  const h = health([it], () => 'new', NOW);
+  assert.equal(h.toResolved.median, 3);
+  assert.equal(h.closed, 1);
+});
+
+test('backTargets: a resolved item goes back to Building, never to Resolved itself', () => {
+  const it = cleanItem({ title: 'x', stage: 'resolved', history: [{ stage: 'new', at: '2026-11-01' }, { stage: 'dev', at: '2026-11-02' }, { stage: 'resolved', at: '2026-11-03' }] });
+  assert.deepEqual(backTargets(it), ['new', 'dev']);
 });

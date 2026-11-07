@@ -30,38 +30,46 @@ export const levelOfType = (type) => ADO_LEVEL[type] || 'story';
 /* ---------- stages ---------- */
 
 // Stored stages. The column a card shows in also depends on what its agent is doing (pmColumn).
-export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'done'];
+// 'resolved': the ADO item is Resolved (merged to main, waiting for a release); the card stays until it closes.
+// 'done': closed in ADO (or marked done). Off the board; Health and history keep it.
+export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'resolved', 'done'];
 export const SHAPE_COLUMNS = [
   { key: 'new', title: 'New', hint: 'Requests and ideas nobody has looked at yet.' },
-  { key: 'triage', title: 'Triage', hint: 'An agent takes a first look: what it touches, what is missing, who should build it.' },
-  { key: 'waiting', title: 'Waiting on requester', hint: 'Questions sent. Paste the answers to triage again.' },
-  { key: 'interview', title: 'Interview', hint: 'An agent asks you a round of questions at a time until the idea is understood.' },
+  { key: 'shaping', title: 'Shaping', hint: 'Triage, waiting on the requester, or an interview with you. The card says which.' },
   { key: 'brief', title: 'Brief', hint: 'Understood. Read the brief, then send it to Define.' }
 ];
 export const PM_COLUMNS = [
-  { key: 'define', title: 'Define', hint: 'Stories and acceptance criteria: /refine for one story, /scope and /slice for more.' },
-  { key: 'publish', title: 'Publish', hint: 'Approved. Create or update the work items in ADO.' },
-  { key: 'decide', title: 'Who builds it?', hint: 'Delegate it with a brief, or build it yourself in the Dev lane.' },
+  { key: 'define', title: 'Define', hint: 'Stories and acceptance criteria, approved and published to ADO from here.' },
+  { key: 'decide', title: 'Who builds it?', hint: 'Delegate it with a brief, or build it yourself.' },
   { key: 'delegated', title: 'Delegated', hint: 'With a teammate. Docket tracks it as waiting on them.' }
 ];
 export const DEV_COLUMNS = [
-  { key: 'ready', title: 'Ready', hint: 'Yours to build. Start runs Tandem from the ADO item.' },
-  { key: 'spec', title: 'Spec and plan', hint: 'Approve the spec and the plan.' },
-  { key: 'build', title: 'Build', hint: 'Tasks running, or Approve and build with autopilot.' },
-  { key: 'ship', title: 'Review and PR', hint: 'Review the code, push and open the PR.' },
-  { key: 'done', title: 'Done', hint: 'Shipped.' }
+  { key: 'building', title: 'Building', hint: 'Spec, plan and build in Tandem. The card says which; click it for the run in Dispatch.' },
+  { key: 'review', title: 'Review and PR', hint: 'Review the code, push and open the PR.' },
+  { key: 'merged', title: 'Merged', hint: 'Every linked pull request is completed. Mark it resolved.' },
+  { key: 'resolved', title: 'Resolved', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
 ];
 
-/** Which lane a column is in: 'shape', 'pm' or 'dev'. */
+/**
+ * The steps that share a board column: pmColumn says the step (what the panel offers, how long it may wait), the
+ * board shows the column, and the card names the step.
+ */
+export const STEP_COLUMN = { triage: 'shaping', waiting: 'shaping', interview: 'shaping', publish: 'define' };
+export const STEP_CHIP = { triage: 'Triage', waiting: 'Waiting on requester', interview: 'Interview', publish: 'Approved: not in ADO' };
+export const boardColumn = (step) => STEP_COLUMN[step] || step;
+
+/** Which lane a column (or step) is in: 'shape', 'pm' or 'dev'. */
 export function laneOf(column) {
-  if (SHAPE_COLUMNS.some(c => c.key === column)) return 'shape';
-  if (PM_COLUMNS.some(c => c.key === column)) return 'pm';
+  const c = boardColumn(column);
+  if (SHAPE_COLUMNS.some(x => x.key === c)) return 'shape';
+  if (PM_COLUMNS.some(x => x.key === c)) return 'pm';
   return 'dev';
 }
 
 /**
- * Where a Shape or PM card goes (one of SHAPE_COLUMNS or PM_COLUMNS). `work` is what the drafts say (draftState),
- * `agent` its session ({busy, waiting} or null).
+ * The step a Shape or PM card is at: new, triage, waiting, interview, brief, define, publish, decide or delegated.
+ * The board column is boardColumn(step). `work` is what the drafts say (draftState), `agent` its session
+ * ({busy, waiting} or null).
  */
 export function pmColumn(item, work = {}, agent = null) {
   const s = item.stage || 'new';
@@ -77,15 +85,26 @@ export function pmColumn(item, work = {}, agent = null) {
   return 'new';
 }
 
-/** Dev column for a Tandem item (the opencode connector's `state` model item), or 'ready' when not started. */
-export function devColumn(run) {
-  if (!run) return 'ready';
-  if (run.bucket === 'done' || run.bucket === 'shipped') return 'done';
+/**
+ * Dev column for an item you build: Resolved (ADO says so), Merged (every linked PR completed, or marked), else from
+ * its Tandem run (the opencode connector's `state` model item): Review and PR from review on, Building before.
+ */
+export function devColumn(run, item = null) {
+  if (item && item.stage === 'resolved') return 'resolved';
+  if (item && item.merged) return 'merged';
+  if (!run) return 'building';
+  if (run.bucket === 'done' || run.bucket === 'shipped') return 'review';
   const st = (run.next && run.next.stage) || run.stage || '';
-  if (st === 'build') return 'build';
-  if (['review', 'ship', 'pr', 'push'].includes(st)) return 'ship';
-  if (st === 'done' || st === 'shipped') return 'done';
-  return 'spec';
+  if (['review', 'ship', 'pr', 'push', 'done', 'shipped'].includes(st)) return 'review';
+  return 'building';
+}
+
+/** What a Building card says about its run: Not started, Waiting on you, Spec, Plan, Build. */
+export function runStep(run) {
+  if (!run) return 'Not started';
+  if (run.next && run.next.needsYou) return 'Waiting on you';
+  const st = (run.next && run.next.stage) || run.stage || '';
+  return { brief: 'Brief', spec: 'Spec', plan: 'Plan', build: 'Build', bug: 'Bug fix', review: 'Review', ship: 'Ship' }[st] || 'In progress';
 }
 
 /* ---------- records ---------- */
@@ -93,6 +112,7 @@ export function devColumn(run) {
 export const newId = (p = 'w') => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const str = (v, max) => String(v ?? '').slice(0, max);
 const oneLine = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+const RUN_FOLDER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 export const today = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -121,9 +141,23 @@ export function cleanItem(raw = {}) {
   it.published = {};
   for (const [k, v] of Object.entries(raw.published || {})) if (Number.isInteger(v)) it.published[k] = v;
   if (raw.reopened !== it.stage) delete it.reopened;
+  // The Tandem run this item is built in, when it is not found by ADO id (local work started from Slate or Dispatch).
+  if (raw.run && typeof raw.run.folder === 'string' && RUN_FOLDER.test(raw.run.folder)) it.run = { folder: raw.run.folder, id: str(raw.run.id, 20) };
+  else delete it.run;
+  if (isDay(raw.merged)) { it.merged = raw.merged; it.mergedHow = raw.mergedHow === 'manual' ? 'manual' : 'prs'; } else { delete it.merged; delete it.mergedHow; }
+  it.prs = cleanPrs(raw.prs); if (!it.prs) delete it.prs;
+  if (['publish', 'build'].includes(raw.after)) it.after = raw.after; else delete it.after;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
   return it;
+}
+
+/** The last pull request check (workitem.prs): {status, at, list: [{id, status, title, repository, url}]}, or null. */
+export function cleanPrs(raw) {
+  if (!raw || typeof raw !== 'object' || !['none', 'open', 'merged', 'abandoned'].includes(raw.status)) return null;
+  const list = (Array.isArray(raw.list) ? raw.list : []).filter(p => p && Number.isInteger(p.id)).slice(0, 20)
+    .map(p => ({ id: p.id, status: oneLine(p.status, 20), title: oneLine(p.title, 200), repository: oneLine(p.repository, 100), url: /^https?:\/\//i.test(String(p.url || '')) ? str(p.url, 1000) : '' }));
+  return { status: raw.status, at: str(raw.at, 30), list };
 }
 
 /** A new item from a request typed into Slate, or from an ADO backlog item. */
@@ -150,7 +184,7 @@ export function setStage(it, stage, now = new Date()) {
 
 /* ---------- moving back ---------- */
 
-export const STAGE_TITLE = { new: 'New', triaged: 'Triage', waiting: 'Waiting on requester', shaping: 'Interview', brief: 'Brief', defining: 'Define', ready: 'Publish', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Dev lane', done: 'Done' };
+export const STAGE_TITLE = { new: 'New', triaged: 'Shaping: triage', waiting: 'Shaping: waiting on requester', shaping: 'Shaping: interview', brief: 'Brief', defining: 'Define', ready: 'Define: approved', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Building', resolved: 'Resolved', done: 'Closed' };
 
 /**
  * Earlier stages an item can go back to: the ones its history went through (New always), before where it is
@@ -164,8 +198,8 @@ export function backTargets(it, column = null) {
   const before = STAGES.slice(0, STAGES.indexOf(cur));
   const out = before.filter(st => seen.has(st) && st !== 'ready');
   if (cur === 'defining' && column === 'publish') out.push('defining');
-  const skip = cur === 'dev' ? 'delegated' : cur === 'delegated' ? 'dev' : null;
-  return out.filter(st => st !== skip);
+  const skip = cur === 'dev' || cur === 'resolved' ? 'delegated' : cur === 'delegated' ? 'dev' : null;
+  return out.filter(st => st !== skip && st !== 'resolved');
 }
 
 /**
@@ -701,7 +735,7 @@ export function health(items, columnOf, now = new Date()) {
     if (isStale(it, k, now)) c.stale++;
   }
   for (const c of Object.values(cols)) { const s = c.days.sort((a, b) => a - b); c.medianDays = s.length ? s[Math.floor((s.length - 1) / 2)] : 0; delete c.days; }
-  const oldest = open.filter(it => it.stage !== 'dev' && it.stage !== 'delegated').map(it => ({ it, days: daysInStage(it, now), column: columnOf(it) }))
+  const oldest = open.filter(it => !['dev', 'delegated', 'resolved'].includes(it.stage)).map(it => ({ it, days: daysInStage(it, now), column: columnOf(it) }))
     .sort((a, b) => b.days - a.days).slice(0, 8);
   const load = {};
   for (const it of items) if (it.stage === 'delegated' && it.assignee) load[it.assignee] = (load[it.assignee] || 0) + 1;
@@ -711,7 +745,15 @@ export function health(items, columnOf, now = new Date()) {
     const a = dayNum(it.createdAt), b = d && dayNum(d.at);
     return a != null && b != null ? b - a : null;
   }).filter(x => x != null).sort((a, b) => a - b);
-  return { cols, oldest, load, toDecision: { n: toDecision.length, median: toDecision.length ? toDecision[Math.floor((toDecision.length - 1) / 2)] : null } };
+  // Request to resolved: days from created to the first resolved line (merged to main), for what you built or delegated.
+  const toResolved = items.map(it => {
+    const d = (it.history || []).find(h => h.stage === 'resolved');
+    const a = dayNum(it.createdAt), b = d && dayNum(d.at);
+    return a != null && b != null ? b - a : null;
+  }).filter(x => x != null).sort((a, b) => a - b);
+  const closed = items.filter(it => it.stage === 'done').length;
+  const median = (l) => (l.length ? l[Math.floor((l.length - 1) / 2)] : null);
+  return { cols, oldest, load, closed, toDecision: { n: toDecision.length, median: median(toDecision) }, toResolved: { n: toResolved.length, median: median(toResolved) } };
 }
 
 /* ---------- sprints ---------- */
@@ -748,7 +790,9 @@ const row = (it, note, flag) => ({ id: it.id, title: `${it.ado ? `#${it.ado.id} 
 export function summaryCards(items, { columnOf, agentOf = () => null, now = new Date() } = {}) {
   const needs = [];
   for (const it of items) {
-    if (['dev', 'done', 'delegated'].includes(it.stage)) continue;
+    if (it.stage === 'dev' && it.merged && it.ado) { needs.push(row(it, 'Merged: mark it resolved')); continue; }
+    if (it.stage === 'dev' && it.merged && !it.ado) { needs.push(row(it, 'Merged: link its ADO item', 'waiting')); continue; }
+    if (['dev', 'done', 'delegated', 'resolved'].includes(it.stage)) continue;
     const a = agentOf(it), col = columnOf(it);
     if (a && a.waiting) needs.push(row(it, 'An agent is asking you something', 'urgent'));
     else if (col === 'decide') needs.push(row(it, 'Decide who builds it'));
@@ -769,14 +813,18 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   const week = today(new Date(now.getTime() - 7 * 864e5));
   const done = [];
   for (const it of items) {
-    const h = [...(it.history || [])].reverse().find(x => ['delegated', 'dev', 'decide', 'done'].includes(x.stage) && x.at >= week);
+    const h = [...(it.history || [])].reverse().find(x => ['delegated', 'dev', 'decide', 'resolved', 'done'].includes(x.stage) && x.at >= week);
     if (!h) continue;
-    const what = h.stage === 'delegated' ? 'Delegated' : h.stage === 'dev' ? 'Taking it on myself' : h.stage === 'decide' ? 'Defined and published' : 'Closed';
+    const what = h.stage === 'delegated' ? 'Delegated' : h.stage === 'dev' ? 'Taking it on myself' : h.stage === 'decide' ? 'Defined and published' : h.stage === 'resolved' ? 'Resolved: merged to main' : 'Closed';
     done.push({ ...row(it, what), due: h.at });
   }
   done.sort((a, b) => b.due.localeCompare(a.due));
   const ado = items.filter(it => it.ado && ['dev', 'delegated', 'decide'].includes(it.stage)).slice(-20)
     .map(it => ({ id: String(it.ado.id), title: it.title.slice(0, 200), route: `item/${it.id}`, ...(it.requester ? { note: `Asked by ${it.requester}`.slice(0, 200) } : {}) }));
+  // Every run Slate tracks, by ADO id and by run folder, so Dispatch links local runs too and knows which merged.
+  const runs = items.filter(it => (it.ado || it.run) && ['dev', 'resolved'].includes(it.stage)).slice(-50)
+    .map(it => ({ id: it.ado ? String(it.ado.id) : it.run.folder, ...(it.run ? { folder: it.run.folder } : {}), title: it.title.slice(0, 200), route: `item/${it.id}`,
+      note: it.stage === 'resolved' ? 'Resolved' : it.merged ? 'Merged' : it.requester ? `Asked by ${it.requester}`.slice(0, 200) : 'Building', ...(it.merged || it.stage === 'resolved' ? { flag: 'done' } : {}) }));
   // Runway pending ideas Slate has taken (Runway marks them "Shaping in Slate"). Only for showing.
   const shaping = items.filter(it => it.runwayPending).slice(-50)
     .map(it => ({ id: it.runwayPending, title: it.title.slice(0, 200), route: `item/${it.id}` }));
@@ -785,8 +833,101 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
     card('shaping', 'list', 'Runway ideas in Slate', { rows: shaping }),
     card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
     card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
-    card('ado', 'list', 'ADO items in Slate', { rows: ado })
+    card('ado', 'list', 'ADO items in Slate', { rows: ado }),
+    card('runs', 'list', 'Runs in Slate', { rows: runs })
   ];
+}
+
+/* ---------- work started in Dispatch (handoffs to Slate, kind `work`) ---------- */
+
+/**
+ * Apply a `work` handoff (Workshop docs/handoffs.md, Receivers: slate) to the items list in place: link it to the
+ * card for the same run folder or ADO id, or add a card in Building. Returns the item's id, or null when the offer
+ * is not one Slate reads. The person started the run in Dispatch, so it is accepted-ready (rule 4).
+ */
+export function applyWork(list, offer, now = new Date()) {
+  const p = (offer && offer.payload) || {};
+  if (!offer || offer.to !== APP || p.kind !== 'work') return null;
+  const folder = typeof p.folder === 'string' && RUN_FOLDER.test(p.folder) ? p.folder : '';
+  const adoId = Number.isInteger(p.ado) ? p.ado : /^\d{1,10}$/.test(String(p.ado || '')) ? Number(p.ado) : null;
+  if (!folder && !adoId) return null;
+  const mark = (x) => {
+    if (folder) x.run = { folder, id: str(p.id, 20) };
+    if (adoId && !x.ado) x.ado = { id: adoId, rev: 0, type: p.lane === 'bug' ? 'Bug' : '', url: '', connection: '', area: '', state: '' };
+    if (!['dev', 'resolved', 'done'].includes(x.stage)) {
+      x.route = 'myself'; x.assignee = null;
+      setStage(x, 'dev', now);
+      x.history[x.history.length - 1].from = 'dispatch';
+    }
+  };
+  const found = list.find(x => (folder && x.run && x.run.folder === folder) || (adoId && x.ado && x.ado.id === adoId));
+  if (found) { mark(found); return found.id; }
+  const title = oneLine(p.title || offer.text, 255) || (adoId ? `#${adoId}` : folder);
+  const it = newItem({ title, description: str(p.description, 32000), level: p.lane === 'bug' ? 'bug' : 'story' }, now);
+  it.history = [{ stage: 'dev', at: today(now), from: 'dispatch' }];
+  it.stage = 'dev';
+  it.route = 'myself';
+  if (folder) it.run = { folder, id: str(p.id, 20) };
+  if (adoId) it.ado = { id: adoId, rev: 0, type: p.lane === 'bug' ? 'Bug' : '', url: '', connection: '', area: '', state: '' };
+  list.push(it);
+  return it.id;
+}
+
+/* ---------- release planning (the Resolved column) ---------- */
+
+/** Resolved items grouped by area path, for planning a release: [{area, label, items}], areas A to Z, none last. */
+export function releaseGroups(items) {
+  const m = new Map();
+  for (const it of items) {
+    if (it.stage !== 'resolved') continue;
+    const a = areaOf(it);
+    const k = a.toLowerCase();
+    if (!m.has(k)) m.set(k, { area: a, label: a || 'No area path', items: [] });
+    m.get(k).items.push(it);
+  }
+  return [...m.values()].sort((x, y) => (!x.area) - (!y.area) || x.area.toLowerCase().localeCompare(y.area.toLowerCase()));
+}
+
+/** Release notes for a group as Markdown: one line per item (title, ADO link) and its release notes field when set. */
+export function releaseNotesMd(group, notes = {}) {
+  const lines = [`## ${group.label}`, ''];
+  for (const it of group.items) {
+    const id = it.ado ? `#${it.ado.id}` : '';
+    const link = it.ado && /^https?:\/\//i.test(it.ado.url || '') ? ` ([${id}](${it.ado.url}))` : id ? ` (${id})` : '';
+    lines.push(`- **${it.title.replace(/\*/g, '')}**${link}`);
+    const n = String(notes[it.id] || '').trim();
+    if (n) for (const l of n.split(/\r?\n/).filter(x => x.trim())) lines.push(`  ${l.trim()}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
+/* ---------- the item's timeline ---------- */
+
+const STEP_TEXT = { new: 'Captured', triaged: 'Triaged', waiting: 'Questions sent to the requester', shaping: 'Interview', brief: 'Brief written', defining: 'Defining', ready: 'Draft approved', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Building it myself', resolved: 'Resolved in ADO (merged to main)', done: 'Closed' };
+
+/**
+ * The whole journey, oldest first: [{at, text, url?}] from the history (with where it came from, skips and moves
+ * back), what was published, the Tandem run's stage now, the pull requests and merged. Read only.
+ */
+export function timeline(it, { run = null, assigneeName = '' } = {}) {
+  const out = [];
+  const hist = it.history || [];
+  hist.forEach((h, i) => {
+    let text = STEP_TEXT[h.stage] || h.stage;
+    if (i === 0 && h.stage === 'new') text = it.kind === 'idea' ? 'Idea captured' : it.requester ? `Request from ${it.requester}` : it.ado ? `From ADO #${it.ado.id}` : 'Captured';
+    if (h.from === 'dispatch') text = 'Started in Dispatch';
+    if (h.skipped) text += ' (skipped shaping)';
+    if (h.stage === 'delegated' && assigneeName) text = `Delegated to ${assigneeName}`;
+    const prev = hist.slice(0, i).map(x => STAGES.indexOf(x.stage));
+    if (prev.length && STAGES.indexOf(h.stage) < Math.max(...prev) && !h.from) text = `Moved back: ${text}`;
+    out.push({ at: h.at, text });
+  });
+  const pub = Object.values(it.published || {});
+  if (pub.length && it.ado) out.push({ at: '', text: `Published to ADO: ${pub.map(n => `#${n}`).join(', ')}`, url: it.ado.url || '' });
+  if (run && it.stage === 'dev') out.push({ at: '', text: `Tandem: ${runStep(run)}${run.next && run.next.text ? `. ${run.next.text}` : ''}`, run: run.id || run.folder || '' });
+  for (const p of (it.prs && it.prs.list) || []) out.push({ at: '', text: `Pull request ${p.id}${p.repository ? ` in ${p.repository}` : ''}: ${p.status === 'completed' ? 'merged' : p.status}`, url: p.url });
+  if (it.merged) out.push({ at: it.merged, text: it.mergedHow === 'manual' ? 'Marked merged' : 'All pull requests merged' });
+  return out;
 }
 
 /* ---------- other offers ---------- */

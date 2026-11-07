@@ -1,15 +1,18 @@
 /* Slate: the Health and Sprints tabs. Pure HTML builders, like view.js. */
-import { LEVEL_NAME, PM_COLUMNS, SHAPE_COLUMNS, STALE_DAYS, esc, sprintLoad } from './model.js';
+import { LEVEL_NAME, STALE_DAYS, esc, sprintLoad } from './model.js';
+
+// One row per step, in board order: Shaping's three steps and Define's approved step get their own rows.
+const ROWS = [['new', 'New'], ['triage', 'Shaping: triage'], ['waiting', 'Shaping: waiting on requester'], ['interview', 'Shaping: interview'], ['brief', 'Brief'], ['define', 'Define'], ['publish', 'Define: approved, not in ADO'], ['decide', 'Who builds it?'], ['delegated', 'Delegated'], ['building', 'Building'], ['review', 'Review and PR'], ['merged', 'Merged'], ['resolved', 'Resolved']];
 
 const btn = (act, label, { id = '', primary = false } = {}) =>
   `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${esc(act)}"${id ? ` data-id="${esc(id)}"` : ''}>${esc(label)}</button>`;
 
 /** Health: where requests are and how long they sit, who holds delegated work, and Runway's team reports below. */
 export function healthHtml(h, { names = {}, reports = true } = {}) {
-  const rows = [...SHAPE_COLUMNS, ...PM_COLUMNS].map(c => {
-    const x = h.cols[c.key] || { count: 0, stale: 0, medianDays: 0 };
-    const limit = STALE_DAYS[c.key];
-    return `<tr><th scope="row">${esc(c.title)}</th><td class="num">${x.count}</td><td class="num">${x.count ? x.medianDays : ''}</td>
+  const rows = ROWS.map(([key, title]) => {
+    const x = h.cols[key] || { count: 0, stale: 0, medianDays: 0 };
+    const limit = STALE_DAYS[key];
+    return `<tr><th scope="row">${esc(title)}</th><td class="num">${x.count}</td><td class="num">${x.count ? x.medianDays : ''}</td>
       <td class="num${x.stale ? ' warn' : ''}">${x.stale || ''}</td><td class="num soft">${limit != null ? `${limit} days` : ''}</td></tr>`;
   }).join('');
   const oldest = h.oldest.length
@@ -20,6 +23,9 @@ export function healthHtml(h, { names = {}, reports = true } = {}) {
     <section class="hcard"><h2>Request to decision</h2>
       <p class="big">${h.toDecision.median == null ? 'No decisions yet' : `${h.toDecision.median} day${h.toDecision.median === 1 ? '' : 's'}`}</p>
       <p class="soft">Median days from a request coming in to deciding who builds it${h.toDecision.n ? `, over ${h.toDecision.n} item${h.toDecision.n === 1 ? '' : 's'}` : ''}.</p></section>
+    <section class="hcard"><h2>Request to resolved</h2>
+      <p class="big">${!h.toResolved || h.toResolved.median == null ? 'Nothing resolved yet' : `${h.toResolved.median} day${h.toResolved.median === 1 ? '' : 's'}`}</p>
+      <p class="soft">Median days from a request coming in to merged and resolved${h.toResolved && h.toResolved.n ? `, over ${h.toResolved.n} item${h.toResolved.n === 1 ? '' : 's'}` : ''}.${h.closed ? ` ${h.closed} closed and off the board.` : ''}</p></section>
     <section class="hcard wide"><h2>Where requests sit</h2>
       <table class="htable"><thead><tr><th>Column</th><th class="num">Items</th><th class="num">Median days</th><th class="num">Stale</th><th class="num">Stale after</th></tr></thead><tbody>${rows}</tbody></table></section>
     <section class="hcard"><h2>Waiting longest</h2>${oldest}</section>

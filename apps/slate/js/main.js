@@ -5,13 +5,14 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { readCards } from '../../../shared/summary.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
-import { connectorState, createStore, ado, readFiles, tandem } from './data.js';
+import { sendersFrom } from '../../../shared/handoffs.js';
+import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, aboutText, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, laneOf, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
+  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, laneOf, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer
 } from './model.js';
-import { boardHtml, confirmHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
+import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
@@ -54,9 +55,11 @@ async function refresh({ backlog = true } = {}) {
   refreshing = (async () => {
     s.conn = await connectorState(ws);
     try { s.team = await ws.teams.get(); } catch { s.team = { areas: [], connection: '' }; }
+    await readWork();
     if (backlog) await readBacklog();
     await readPending();
     await readTandem();
+    if (backlog) await checkPrs();
     paint();
     publishSummary();
   })().finally(() => { refreshing = null; });
@@ -71,6 +74,17 @@ async function readPending() {
   try { c = readCards(await ws.data.get('summary', { app: 'runway' }), 'runway'); } catch { c = null; }
   const card = c && c.get('pending');
   s.pending = (card && Array.isArray(card.rows) ? card.rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string');
+}
+
+/* Work started in Dispatch (handoffs to Slate, kind `work`): a card in Building for each, or linked to the card
+   for the same run. Dispatch sets `accepted` from the person's Start click, so Slate adds them without asking. */
+async function readWork() {
+  if (!store.v.loaded) return;
+  const senders = sendersFrom(s.apps, APP, { agents: 'Dispatch' });
+  let offers = [];
+  try { offers = await readWorkOffers(ws, senders); } catch { offers = []; }
+  if (!offers.length) return;
+  try { await store.takeWork(offers); } catch { /* next refresh tries again */ }
 }
 
 async function readBacklog() {
@@ -89,18 +103,51 @@ async function readBacklog() {
 }
 
 /**
- * Delegated and own items whose ADO item left the open backlog: read it, and if it is closed, the work is done.
- * A delegated one offers Rapport a win about the person (once). Runs only on a complete backlog read.
+ * Delegated, own and resolved items whose ADO item is not in the open backlog (which leaves out Resolved and Closed):
+ * read each one's state. Resolved: the Resolved column (a delegated one offers Rapport a win about the person, once).
+ * Closed, Done or Removed: off the board. The oldest checked go first, up to 15 a read, so a long Resolved column is
+ * covered over a few refreshes. Runs only on a complete backlog read.
  */
+const stateChecked = new Map(); // item id -> ms of the last read
 async function closeFinished() {
   const open = new Set(s.backlog.map(b => b.id));
-  const gone = store.v.items.filter(it => it.ado && ['delegated', 'dev'].includes(it.stage) && !open.has(it.ado.id)).slice(0, 10);
+  const gone = store.v.items.filter(it => it.ado && ['delegated', 'dev', 'resolved'].includes(it.stage) && !open.has(it.ado.id))
+    .sort((a, b) => (stateChecked.get(a.id) || 0) - (stateChecked.get(b.id) || 0)).slice(0, 15);
   for (const it of gone) {
     let w = null;
-    try { w = await ado(ws, 'workitem.get', { id: it.ado.id, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch { continue; }
-    if (!w || !/^(closed|done|resolved|removed)$/i.test(w.state || '')) continue;
-    if (it.stage === 'delegated' && !it.offered.win && !/removed/i.test(w.state)) await store.offer(winOffer(it, it.assignee)).catch(() => {});
-    await store.update(it.id, x => { setStage(x, 'done'); if (x.stage === 'done' && it.stage === 'delegated') x.offered = { ...x.offered, win: today() }; }).catch(() => {});
+    stateChecked.set(it.id, Date.now());
+    try { w = await ado(ws, 'workitem.get', { id: it.ado.id, details: true, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch { continue; }
+    if (!w) continue;
+    const resolved = /^resolved$/i.test(w.state || '');
+    const closed = /^(closed|done|removed)$/i.test(w.state || '');
+    const win = it.stage === 'delegated' && !it.offered.win && (resolved || /^(closed|done)$/i.test(w.state || ''));
+    if (win) await store.offer(winOffer(it, it.assignee)).catch(() => {});
+    await store.update(it.id, x => {
+      x.ado = { ...x.ado, state: w.state || x.ado.state, rev: w.rev || x.ado.rev, url: x.ado.url || w.url || '', area: w.area || x.ado.area, type: x.ado.type || w.type || '' };
+      if (closed) setStage(x, 'done');
+      else if (resolved && x.stage !== 'resolved') setStage(x, 'resolved');
+      if (win) x.offered = { ...x.offered, win: today() };
+    }).catch(() => {});
+  }
+}
+
+/**
+ * The pull requests linked to what you build (workitem.prs, read only): once every linked PR has completed, the card
+ * moves to Merged. Each item at most every 15 minutes, up to 10 a read.
+ */
+const prsChecked = new Map(); // item id -> ms of the last check
+async function checkPrs({ only = null } = {}) {
+  if (s.conn.ado !== true) return;
+  const due = (it) => only ? it.id === only : Date.now() - (prsChecked.get(it.id) || 0) > 15 * 60000;
+  const list = store.v.items.filter(it => it.stage === 'dev' && it.ado && !it.merged && due(it)).slice(0, 10);
+  for (const it of list) {
+    prsChecked.set(it.id, Date.now());
+    let r = null;
+    try { r = await ado(ws, 'workitem.prs', { id: it.ado.id, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch (e) { if (only) throw e; continue; }
+    const prs = { status: r.status, at: new Date().toISOString(), list: (r.prs || []).filter(p => p.status !== 'missing').map(p => ({ id: p.id, status: p.status, title: p.title, repository: p.repository, url: p.url })) };
+    const same = JSON.stringify({ ...(it.prs || {}), at: '' }) === JSON.stringify({ ...prs, at: '' });
+    if (same && r.status !== 'merged') continue;
+    await store.update(it.id, x => { x.prs = prs; if (r.status === 'merged' && !x.merged) { x.merged = today(); x.mergedHow = 'prs'; } }).catch(() => {});
   }
 }
 const today = () => new Date().toISOString().slice(0, 10);
@@ -128,7 +175,7 @@ function agentOf(sid) {
 }
 
 /** What the agents are asking about an item, from any of its sessions, folders or its Tandem run. */
-const asksOf = (it) => asksFor(it, live(), it.run || runFor(it));
+const asksOf = (it) => asksFor(it, live(), runFor(it) || it.run || null);
 
 /** The item's agent state for cards, badges and the panel: its current session, and waiting when anything asks. */
 function itemAgent(it) {
@@ -175,6 +222,15 @@ async function advance() {
     if (it.stage === 'shaping' && it.reopened !== 'shaping' && shapeState(filesOf(it.work.shape), agentOf(it.sessions.shape)).ready && !agentOf(it.sessions.shape)) moves.push([it.id, 'brief', null]);
   }
   if (moves.length) await store.change(list => { for (const [id, stage, route] of moves) { const it = list.find(x => x.id === id); if (it) { setStage(it, stage); if (route && route !== 'undecided' && !it.route) it.route = route; } } }).catch(() => {});
+  // Approve and publish (or build): the draft is approved now, so show the publish confirm. Only while you are here.
+  if (document.visibilityState !== 'visible' || dlg.open || ui.busy) return;
+  const next = store.v.items.find(it => it.after && it.stage === 'defining' && draftState(it, filesOf(it.work.define)).ready && !(agentOf(it.sessions.define) || {}).busy);
+  if (!next) return;
+  const then = next.after;
+  await store.update(next.id, x => { delete x.after; }).catch(() => {});
+  ui.open = next.id; ui.tab = 'board'; showLane(next);
+  if (then === 'build') ACT['publish-build'](next);
+  else ACT.publish(next);
 }
 
 /* ---------- what the board shows ---------- */
@@ -183,6 +239,7 @@ function personName(id) { return id ? People.label(s.people, id, '') : ''; }
 
 function runFor(it) {
   const items = (s.tstate && s.tstate.items) || [];
+  if (it.run && it.run.folder) { const r = items.find(x => x.kind === 'item' && x.folder === it.run.folder); if (r) return r; }
   if (it.ado) return items.find(x => x.kind === 'item' && String(x.id) === String(it.ado.id)) || null;
   return null;
 }
@@ -197,6 +254,7 @@ function enrich(c) {
   if (c.stage === 'shaping' && !out.agent) { const sh = shapeState(filesOf(c.work && c.work.shape)); out.shapeAsking = sh.asking; out.shapeRound = sh.round; }
   const last = (c.history || [])[(c.history || []).length - 1];
   out.skipped = !!(last && last.skipped && c.stage === 'decide');
+  out.fromDispatch = !!(last && last.from === 'dispatch' && c.stage === 'dev');
   return out;
 }
 
@@ -215,16 +273,26 @@ function columns() {
   const list = filterCards(laneCards(), { q: ui.q, level: ui.level, area: ui.area });
   if (ui.lane !== 'dev') {
     for (const c of list) {
-      if (['dev', 'done'].includes(c.stage)) continue;
+      if (['dev', 'resolved', 'done'].includes(c.stage)) continue;
       const e = enrich(c);
-      const col = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
-      if (laneOf(col) !== ui.lane) continue;
-      e.stale = !c.virtual && isStale(c, col);
-      push(col, e);
+      const step = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
+      if (laneOf(step) !== ui.lane) continue;
+      e.stale = !c.virtual && isStale(c, step);
+      e.step = STEP_CHIP[step] || '';
+      push(boardColumn(step), e);
     }
   } else {
-    // Only what you chose to build yourself. Every Tandem run, with its prompts and review, is Dispatch's.
-    for (const c of list.filter(x => x.stage === 'dev' || x.stage === 'done')) push(c.stage === 'done' ? 'done' : devColumn(runFor(c)), enrich(c));
+    // What you build yourself (and resolved work, delegated or not), with its Tandem stage. Every run's prompts and
+    // code review stay Dispatch's. Closed items are off the board.
+    for (const c of list.filter(x => x.stage === 'dev' || x.stage === 'resolved')) {
+      const run = runFor(c);
+      const col = devColumn(run, c);
+      const e = enrich(c);
+      if (col === 'building') e.step = runStep(run);
+      if (['review', 'merged'].includes(col) && !c.ado) e.noAdo = true;
+      if (col === 'review' && c.prs && c.prs.list.length) e.step = `${c.prs.list.filter(p => p.status === 'completed').length} of ${c.prs.list.length} PRs merged`;
+      push(col, e);
+    }
   }
   return cols;
 }
@@ -241,7 +309,7 @@ function findCard(id) {
 /** The lane a card shows in. */
 function laneFor(c) {
   if (!c) return 'shape';
-  if (c.virtualRun || ['dev', 'done'].includes(c.stage)) return 'dev';
+  if (c.virtualRun || ['dev', 'resolved', 'done'].includes(c.stage)) return 'dev';
   return laneOf(pmColumn(c, draftState(c, filesOf(c.work && c.work.define)), agentOf(c.sessions && c.sessions.current)));
 }
 function showLane(c) { ui.lane = laneFor(c); remember('lane', ui.lane); }
@@ -252,7 +320,11 @@ function ownersOf(c) {
   return ownersFor(list, aboutText(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])));
 }
 
-function columnOf(it) { return ['dev', 'done'].includes(it.stage) ? it.stage : pmColumn(it, draftState(it, filesOf(it.work.define)), agentOf(it.sessions.current)); }
+function columnOf(it) {
+  if (it.stage === 'done') return 'done';
+  if (['dev', 'resolved'].includes(it.stage)) return devColumn(runFor(it), it);
+  return pmColumn(it, draftState(it, filesOf(it.work.define)), agentOf(it.sessions.current));
+}
 
 let summaryTimer = null;
 function publishSummary() {
@@ -268,8 +340,9 @@ const sessionOf = (sid) => { const x = sid && (live().sessions || {})[sid]; retu
 function panelState(c) {
   const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.shape), ...filesOf(c.work && c.work.define) };
   const draft = draftState(c, filesOf(c.work && c.work.define));
-  const dev = c.virtualRun || c.stage === 'dev' || c.stage === 'done';
-  const column = dev ? null : pmColumn(c, draft, agentOf(c.sessions && c.sessions.current));
+  const dev = c.virtualRun || ['dev', 'resolved', 'done'].includes(c.stage);
+  const run = c.virtualRun ? c.run : runFor(c);
+  const column = dev ? (c.stage === 'done' ? 'done' : devColumn(run, c)) : pmColumn(c, draft, agentOf(c.sessions && c.sessions.current));
   const lane = dev ? 'dev' : laneOf(column);
   return {
     item: c, lane, files, draft, editing: ui.editing, shapeEditing: ui.shapeEditing,
@@ -283,7 +356,10 @@ function panelState(c) {
     ui: { picks: ui.picks, drafts: ui.drafts, agentOpen: ui.agentOpen },
     wide: ui.wide,
     column,
-    run: c.run || runFor(c),
+    run,
+    timeline: c.virtual ? [] : timeline(c, { run, assigneeName: personName(c.assignee) }),
+    canLocal: s.conn.opencode === true,
+    canAdo: s.conn.ado === true,
     assigneeName: personName(c.assignee),
     owners: ownersOf(c),
     age: daysInStage(c),
@@ -345,7 +421,7 @@ function paintPanel() {
   const c = findCard(ui.open);
   if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; return; }
   // Keep text the person is typing, and the interview's picks and notes for the same item.
-  const keep = ['draft', 'answers'].map(id => [id, $(id) && $(id).value]);
+  const keep = ['draft', 'answers', 'linkAdo'].map(id => [id, $(id) && $(id).value]);
   const same = panelEl.dataset.item === c.id;
   const shapeKeep = same ? [...panelEl.querySelectorAll('#qnotes, #bnotes, #shapeEdit, .iq .qo')].map(el => [el.id, el.value]) : [];
   const picked = same ? [...panelEl.querySelectorAll('.iq input[type=radio]:checked')].map(el => [el.name, el.value]) : [];
@@ -618,6 +694,9 @@ const ACT = {
     await startSession(it, 'define', 'scope.start', { idea: idea.slice(0, 4000) });
     await store.update(it.id, x => setStage(x, 'defining'));
   },
+  /** Approve, then publish (or publish and build it myself) as soon as the draft is approved: one click and the publish confirm. */
+  async 'approve-publish'(c) { await store.update(c.id, x => { x.after = 'publish'; }); return ACT.approve(store.v.items.find(x => x.id === c.id) || c); },
+  async 'approve-build'(c) { await store.update(c.id, x => { x.after = 'build'; }); return ACT.approve(store.v.items.find(x => x.id === c.id) || c); },
   async approve(c) {
     const d = draftState(c, filesOf(c.work.define));
     await startSession(c, 'define', 'approve', { folder: c.work.define, ...(d.step === 'approve-stories' ? { what: 'stories' } : d.step === 'approve-milestones' ? { what: 'milestones' } : {}) });
@@ -646,6 +725,13 @@ const ACT = {
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
     showDialog(publishDialogHtml(plan, { area }), () => runPublish(c, plan));
   },
+  /** Publish, then build it myself: one confirm that lists both. */
+  async 'publish-build'(c) {
+    const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
+    const plan = publishPlan(c, filesOf(c.work.define), { area });
+    if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
+    showDialog(publishDialogHtml(plan, { area, build: true }), () => runPublish(c, plan, { then: 'build' }));
+  },
   async delegate(c) {
     const owners = ownersOf(c);
     const base = People.team(s.people).concat(People.withRelation(s.people, 'peer')).filter(p => p.relation !== 'self');
@@ -668,20 +754,95 @@ const ACT = {
       ws.toast(`Delegated to ${person.name}.`, { kind: 'success' });
     });
   },
+  /**
+   * Build it myself: from Who builds it?, or skipping ahead from New, Brief or Define. In ADO already: starts Tandem on
+   * it. An approved draft not in ADO yet: publish first (one confirm), then start. Otherwise: local work, no ADO.
+   */
   async myself(c) {
     const it = await ensureStored(c);
-    await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; setStage(x, 'dev'); });
-    await logDecision(it, 'Building it myself');
-    ui.lane = 'dev'; remember('lane', 'dev'); paint();
+    if (!it.ado && draftState(it, filesOf(it.work.define)).ready) return ACT['publish-build'](it);
+    if (!it.ado) return ACT['build-local'](it);
+    await buildMyself(it);
+  },
+  /** Take it back from a teammate: the Dev lane, without starting Tandem (Start is in the panel). */
+  async 'take-back'(c) {
+    await store.update(c.id, x => { x.route = 'myself'; x.assignee = null; setStage(x, 'dev'); });
+    await logDecision(c, 'Took it back to build myself');
+    ui.lane = 'dev'; remember('lane', 'dev');
+  },
+  /** Build it myself, skip ADO: local work in Tandem (start.local) from the brief, triage or request. Link an ADO item later. */
+  async 'build-local'(c) {
+    const it = await ensureStored(c);
+    if (s.conn.opencode !== true) return ws.toast('Turn on the opencode connector to start local work.', { kind: 'warn' });
+    const brief = parseBrief(filesOf(it.work.shape)['brief.md']);
+    const t = parseTriage(filesOf(it.work.triage)['triage.md']);
+    const text = [it.description, t && t.summary, filesOf(it.work.shape)['brief.md'] ? `Brief: .work/${it.work.shape}/brief.md` : '', it.work.define ? `Defined in .work/${it.work.define}` : ''].filter(Boolean).join('\n\n');
+    const lane = it.level === 'bug' || (brief && brief.level === 'bug') ? 'bug' : 'feature';
+    const r = await tandem(ws, 'start.local', { title: it.title.slice(0, 200), lane, ...(text ? { description: text.slice(0, 20000) } : {}) }, { confirm: true });
+    await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; if (r && r.folder) x.run = { folder: r.folder, id: String(r.id || '') }; setStage(x, 'dev'); });
+    await logDecision(it, 'Building it myself (local work, no ADO item yet)');
+    ui.lane = 'dev'; remember('lane', 'dev');
+    ws.toast(`Started ${r && r.id ? r.id : 'it'} as local work. Link an ADO item when you have one.`, { kind: 'success' });
   },
   async start(c) {
     const it = await ensureStored(c);
-    if (!it.ado) return ws.toast('Publish it to ADO first.', { kind: 'warn' });
+    if (!it.ado) return ACT['build-local'](it);
     await tandem(ws, 'start', { id: String(it.ado.id), lane: it.level === 'bug' ? 'bug' : 'feature' }, { confirm: true });
     ws.toast('Started in Tandem. Follow it here or in Dispatch.', { kind: 'success' });
   },
+  /** Link an ADO item to a card that has none: look it up, show title, type and project, then save. */
+  async 'link-ado'(c) {
+    const raw = String(($('linkAdo') && $('linkAdo').value) || '').trim().replace(/^#/, '');
+    if (!/^\d{1,10}$/.test(raw)) return ws.toast('Type the work item number, like 12345.', { kind: 'warn' });
+    if (s.conn.ado !== true) return ws.toast('Turn on the Azure DevOps connector to link an item.', { kind: 'warn' });
+    const conn = s.team.connection ? { connection: s.team.connection } : {};
+    const w = await ado(ws, 'workitem.get', { id: Number(raw), details: true, ...conn });
+    const other = store.v.items.find(x => x.id !== c.id && x.ado && x.ado.id === w.id);
+    if (other) return ws.toast(`#${w.id} is already on the card "${other.title}".`, { kind: 'warn' });
+    showDialog(linkAdoDialogHtml(w), async () => {
+      await store.update(c.id, x => { x.ado = { id: w.id, rev: 0, type: w.type || '', url: w.url || '', connection: w.connection || '', area: w.area || '', state: w.state || '' }; });
+      prsChecked.delete(c.id);
+      ws.toast(`Linked #${w.id}.`, { kind: 'success' });
+      refresh().catch(() => {});
+    });
+  },
+  async 'check-prs'(c) {
+    await checkPrs({ only: c.id });
+    const it = store.v.items.find(x => x.id === c.id);
+    ws.toast(it && it.merged ? 'Everything is merged.' : it && it.prs ? `Pull requests: ${it.prs.status === 'none' ? 'none linked yet' : it.prs.status}.` : 'Checked.', { kind: 'success' });
+  },
+  async 'mark-merged'(c) { await store.update(c.id, x => { x.merged = today(); x.mergedHow = 'manual'; }); },
+  async unmerge(c) { await store.update(c.id, x => { delete x.merged; delete x.mergedHow; }); prsChecked.delete(c.id); },
+  /** Mark resolved: the ADO item's state to Resolved (merged to main, waiting for a release), after a confirm. */
+  'mark-resolved': (c) => {
+    if (!c.ado) return ws.toast('Link an ADO item first.', { kind: 'warn' });
+    showDialog(confirmHtml(`Resolve #${c.ado.id} in Azure DevOps?`, `Sets its state to Resolved: merged to main and waiting for a release. The card moves to Resolved under ${areaOf(c) || 'No area path'}.`, 'Resolve it'), async () => {
+      const out = await setAdoState(c, 'Resolved');
+      await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev, state: 'Resolved' }; setStage(x, 'resolved'); });
+      ws.toast(`#${c.ado.id} is resolved.`, { kind: 'success' });
+    });
+  },
+  /** Close one resolved item as released (panel). */
+  'close-one': (c) => closeAsReleased([c], `#${c.ado ? c.ado.id : ''} ${c.title}`),
+  /** Close as released: every ADO item in a Resolved group, one confirm. */
+  'close-group': (c, b) => { const g = groupOf(b && b.dataset.area); if (g) closeAsReleased(g.items, g.label); },
+  /** Copy release notes for a Resolved group as Markdown (titles, ADO links, and each item's release notes field). */
+  async 'copy-notes'(c, b) {
+    const g = groupOf(b && b.dataset.area);
+    if (!g) return;
+    const ref = store.v.prefs.releaseNotesField;
+    const notes = {};
+    if (ref && s.conn.ado === true) {
+      for (const it of g.items.filter(x => x.ado).slice(0, 50)) {
+        try { const w = await ado(ws, 'workitem.get', { id: it.ado.id, extras: true, fields: [ref], ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); notes[it.id] = (w.custom || {})[ref] || ''; } catch { /* the title still goes in */ }
+      }
+    }
+    const md = releaseNotesMd(g, notes);
+    try { await navigator.clipboard.writeText(md); ws.toast(`Release notes for ${g.label} copied.`, { kind: 'success' }); }
+    catch { ws.toast('Could not copy to the clipboard.', { kind: 'warn' }); }
+  },
   async 'run-next'(c) {
-    const run = c.run || runFor(c);
+    const run = runFor(c);
     if (!run || !run.next || !run.next.command) return;
     await tandem(ws, 'run', { folder: run.folder, command: run.next.command }, { confirm: true });
   },
@@ -715,14 +876,14 @@ const ACT = {
     ws.toast('Sent to the agent.', { kind: 'success' });
     await refresh({ backlog: false });
   },
-  dispatch: (c) => { const run = c && (c.run || runFor(c)); return ws.open({ app: 'agents', path: run ? String(run.id || '') : '' }); },
+  dispatch: (c) => { const run = c && (runFor(c) || c.run); return ws.open({ app: 'agents', path: run ? String(run.id || run.folder || '') : '' }); },
   ado: (c) => { if (c.ado && c.ado.url) window.open(c.ado.url, '_blank', 'noopener'); },
   async 'roadmap-add'(c) {
     const it = await ensureStored(c);
     await store.offer(roadmapIdea(it));
     ws.toast('Sent to Runway. Assign it to a roadmap from its Pending list.', { kind: 'success' });
   },
-  async done(c) { await store.update(c.id, x => setStage(x, 'done')); },
+  async done(c) { await store.update(c.id, x => setStage(x, 'done')); ws.toast('Marked closed. It is off the board; Move back brings it back.', { kind: 'success' }); },
   back(c) {
     const to = $('backTo') && $('backTo').value;
     if (!c || !to) return;
@@ -760,6 +921,52 @@ const ACT = {
   })
 };
 
+/** Build it myself, for an item in ADO: the decision, the Dev lane, and Tandem started on it (the click is the approval). */
+async function buildMyself(it) {
+  await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; delete x.after; setStage(x, 'dev'); });
+  await logDecision(it, 'Building it myself');
+  ui.lane = 'dev'; remember('lane', 'dev');
+  if (s.conn.opencode !== true || runFor(it)) { paint(); return; }
+  try {
+    await tandem(ws, 'start', { id: String(it.ado.id), lane: it.level === 'bug' ? 'bug' : 'feature' }, { confirm: true });
+    ws.toast(`Building #${it.ado.id}: Tandem started on it.`, { kind: 'success' });
+  } catch (e) { ws.toast(`In the Dev lane, but Tandem did not start: ${e.message}. Use Start in the panel.`, { kind: 'warn' }); }
+}
+
+/** The Resolved group for an area key (lower case area path, or '' for none). */
+function groupOf(key) {
+  const k = String(key || '');
+  return releaseGroups(filterCards(store.v.items, { q: ui.q, level: ui.level, area: ui.area })).find(g => g.area.toLowerCase() === k) || null;
+}
+
+/** Change an ADO item's state, with the rev read just before (someone may have changed it since the board loaded). */
+async function setAdoState(it, state) {
+  const conn = it.ado.connection ? { connection: it.ado.connection } : {};
+  let rev = it.ado.rev;
+  try { const w = await ado(ws, 'workitem.get', { id: it.ado.id, extras: true, ...conn }); rev = w.rev || rev; } catch { /* try with what we have */ }
+  if (!rev) { const w = await ado(ws, 'workitem.get', { id: it.ado.id, ...conn }); rev = w.rev; }
+  return ado(ws, 'workitem.update', { id: it.ado.id, rev, changes: { state }, ...conn }, { confirm: true });
+}
+
+/** Close resolved items in ADO, one at a time, after one confirm. A failure stops there and says what closed. */
+function closeAsReleased(list, label) {
+  const items = list.filter(it => it.ado);
+  if (!items.length) return ws.toast('Nothing here is linked to ADO.', { kind: 'warn' });
+  showDialog(closeGroupDialogHtml(items, label), async () => {
+    const closed = [];
+    for (const it of items) {
+      try {
+        const out = await setAdoState(it, 'Closed');
+        await store.update(it.id, x => { x.ado = { ...x.ado, rev: out.rev, state: 'Closed' }; setStage(x, 'done'); });
+        closed.push(it.ado.id);
+      } catch (e) {
+        throw new Error(`Closed ${closed.length ? closed.map(n => `#${n}`).join(', ') : 'nothing'}. #${it.ado.id} failed: ${e.message}`);
+      }
+    }
+    ws.toast(`Closed ${closed.length} item${closed.length === 1 ? '' : 's'} as released.`, { kind: 'success' });
+  });
+}
+
 function forgetQuestion(id) {
   delete ui.picks[id];
   for (const k of Object.keys(ui.drafts)) if (k.startsWith(`q:${id}:`)) delete ui.drafts[k];
@@ -777,7 +984,7 @@ async function logDecision(it, decision) {
   try { await store.offer(decisionNote(it, decision)); } catch { /* the board still has it */ }
 }
 
-async function runPublish(c, plan) {
+async function runPublish(c, plan, { then = null } = {}) {
   const ids = { ...(c.published || {}) };
   const conn = c.ado && c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
   let first = null;
@@ -795,9 +1002,11 @@ async function runPublish(c, plan) {
     // Saved after each one, so a run that stops part way resumes without making the same item twice.
     await store.update(c.id, x => { x.published = { ...x.published, [p.ref]: out.id }; if (!x.ado && (p.ref === 'item' || p.ref === 'epic')) x.ado = { id: out.id, rev: out.rev, type: out.type, url: out.url, connection: out.connection, area: out.area, state: out.state }; });
   }
-  await store.update(c.id, x => { if (!x.ado && first) x.ado = { id: first.id, rev: first.rev, type: first.type, url: first.url, connection: first.connection, area: first.area, state: first.state }; setStage(x, 'decide'); });
+  await store.update(c.id, x => { if (!x.ado && first) x.ado = { id: first.id, rev: first.rev, type: first.type, url: first.url, connection: first.connection, area: first.area, state: first.state }; delete x.after; setStage(x, 'decide'); });
   await logDecision(store.v.items.find(x => x.id === c.id) || c, `Defined and published to ADO (${Object.keys(ids).length} item${Object.keys(ids).length === 1 ? '' : 's'})`);
   ws.toast('Published to ADO.', { kind: 'success' });
+  const now = store.v.items.find(x => x.id === c.id);
+  if (then === 'build' && now && now.ado) await buildMyself(now);
   refresh().catch(() => {});
 }
 
@@ -959,4 +1168,5 @@ await store.load();
 paint();
 if (!ws.embedded) route(location.hash.replace(/^#\/?/, ''));
 refresh().catch(() => {});
-setInterval(() => { if (document.visibilityState === 'visible') refresh({ backlog: false }).catch(() => {}); }, 60000);
+// Every minute while visible: Tandem and handoffs; pull requests too (each item at most every 15 minutes).
+setInterval(() => { if (document.visibilityState === 'visible') refresh({ backlog: false }).then(() => checkPrs()).catch(() => {}); }, 60000);
