@@ -80,6 +80,12 @@ class WithSamples(Static):
 def samples_registry(tmp):
     """apps/registry.json with the sample apps added (Board after the repo's apps, so Docket stays first)."""
     with open(os.path.join(ROOT, 'apps', 'registry.json')) as f: reg = json.load(f)
+    # Like the Worker, list Docket with its live app.json (here, the checkout's) instead of the snapshot.
+    live = os.path.join(DOCKET, 'app.json')
+    if os.path.isfile(live):
+        with open(live) as f: dm = json.load(f)
+        for a in reg['apps']:
+            if a['manifest'].get('id') == 'prioritizer': a['manifest'] = dm
     for app, order in (('pages', None), ('board', 50)):
         with open(os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, 'app.json')) as f: m = json.load(f)
         if order is not None: m['order'] = order
@@ -87,6 +93,12 @@ def samples_registry(tmp):
     out = os.path.join(tmp, 'registry.json')
     with open(out, 'w') as f: json.dump(reg, f)
     return out
+
+
+def docket_declares(setting):
+    try:
+        with open(os.path.join(DOCKET, 'app.json')) as f: return any(x.get('id') == setting for x in json.load(f).get('settings', []))
+    except OSError: return False
 
 
 def pair(ctx, site, url, token):
@@ -769,6 +781,17 @@ def agent_checks(b, watch):
         check(f'one event stream for every app and window of the site, not one each ({len(streams)} opened)', len(streams) == 1)
         with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
+        # App settings (docs/app-settings.md): Docket's Use sprints, declared in its app.json, under it on Settings' Apps tab.
+        stab(p1, 'apps'); p1.wait_for_timeout(300)
+        sw = p1.locator('.app-row[data-app=prioritizer] [data-app-setting=sprints]')
+        if not docket_declares('sprints'): print('SKIP  app settings (the Docket checkout declares no sprints setting yet)')
+        else:
+            check('Settings shows the switch an app declares in its manifest, at its default', sw.count() == 1 and sw.is_checked())
+            sw.click(); p1.wait_for_timeout(600)
+            got = p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.appSettings.get(); }""")
+            check('turning it off saves it where the app reads it (ws.appSettings)', got.get('sprints') is False)
+            with open(os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')) as f:
+                check('app settings are a file in Settings\' folder', any(i['id'] == 'prioritizer' and i['values'] == {'sprints': False} for i in json.load(f)['items']))
         p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           window.__files = []; ws.files.subscribe('summaries', e => window.__files.push([e.path, typeof e.mtime])); await new Promise(r => setTimeout(r, 300)); }""")
         wrote = p1.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
