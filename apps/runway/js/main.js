@@ -14,6 +14,7 @@ import { dateAt, laneAt, layout, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
+import { roadmapItemOffer, sendOffer } from './offers.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, workItemsFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
 import { createSummaryWriter, readCards } from '../shared/summary.js';
@@ -69,6 +70,15 @@ const pending = createPending(ws, {
 // The app that manages work items (Workshop's Slate, found by its manifest: it sends Runway ideas and lists the
 // `requests` alias) gets a Work item button in the item panel. Null outside Workshop's site.
 let workItemsApp = null;
+
+/* Work item: offer the roadmap item to the work items app (Slate), then open its card there. The offer carries
+   what Slate needs, so Slate never reads this roadmap (Workshop docs/handoffs.md, roadmap-item). */
+async function openWorkItem(to, mapId, itemId) {
+  const offer = roadmapItemOffer(v.doc, mapId, itemId, to);
+  if (!offer) return;
+  try { await sendOffer(ws, offer); await ws.open({ app: to, path: `runway/${mapId}/${itemId}` }); }
+  catch (e) { toastErr(e); }
+}
 const subscribed = new Set();
 (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
   const found = sendersFrom(apps);
@@ -560,7 +570,7 @@ app.addEventListener('click', async e => {
   else if ('adodiff' in t.dataset) { const it = v.doc.items.find(i => i.ado && i.ado.remote); if (it) select(it.id); }
   else if ('adoPerson' in t.dataset) { t.blur(); adoPerson(); }
   else if ('adoUse' in t.dataset || 'adoKeep' in t.dataset || 'adoUnlink' in t.dataset) adoItem(t.dataset);
-  else if ('workitem' in t.dataset) { if (workItemsApp && v.mapId && ui.selected) ws.open({ app: workItemsApp.id, path: `runway/${v.mapId}/${ui.selected}` }).catch(toastErr); }
+  else if ('workitem' in t.dataset) { if (workItemsApp && v.mapId && ui.selected) openWorkItem(workItemsApp.id, v.mapId, ui.selected); }
   else if ('unschedule' in t.dataset) edit(d => { const it = d.items.find(i => i.id === ui.selected); if (it) { it.start = null; it.end = null; it.size = null; } });
 });
 

@@ -8,7 +8,7 @@ Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/ap
 
 - **Roadmaps:** the list. New roadmap, Import Markdown, or start from the example.
 - **Pending assignment** (top of the list, when there is something in it): features, bugs and other thoughts captured on Workshop's Home (`p ...` in quick capture), the Dispatch hub, or **Add to roadmap** in Slate. **Assign** picks a roadmap, a lane and optionally an item to sit under; it lands there unscheduled, in the Unscheduled tray. A capture that names a roadmap (`p docs portal: ...`) skips Pending and goes straight to that roadmap's tray. Ideas show in their own color. Pending ideas also show in Slate's Shape lane (New); one Slate is shaping is marked **Shaping in Slate**, which opens it there.
-- **Work item** (in the item panel, inside Workshop with Slate on): **Open in Slate** takes the item to Slate, Workshop's request-to-decision board, where it is triaged, defined and published to ADO, then delegated or built. Slate also shows Runway in its Roadmap tab; there Runway works the same, and this button opens the item beside it.
+- **Work item** (in the item panel, inside Workshop with Slate on): **Open in Slate** takes the item to Slate, Workshop's request-to-decision board, where it is triaged, defined and published to ADO, then delegated or built. Runway sends the item's title, notes, level and ADO link as an offer (`handoffs`, below), so Slate never reads your roadmaps.
 - **Levels:** an item can sit under another: epic, then feature, story and task (four levels). In the outline, indent a `- ` line under an item; in the panel, pick **Under**. Each level has its own color (an item's own color wins). On the timeline, items with no parent and no children share rows as before; each epic gets its own rows, one group per level under it. Moving an item to another lane takes everything under it along.
 - **Split, Outline, Timeline:** the outline and the timeline are two views of one roadmap. Editing either updates the other.
 - **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. Items with no dates wait in the Unscheduled tray; drag one onto the timeline.
@@ -94,9 +94,10 @@ App id `runway`. All collections are version 1 and follow Workshop's `docs/data-
 | `index` | One item per roadmap: `{id, title}` ([index-item](schemas/index-item.schema.json)). Removing a roadmap tombstones it here; its file stays in the folder. |
 | `maps/<id>` | One roadmap. `meta` is its settings and goals (`goals: [{date, text}]`, date in the period) ([map-meta](schemas/map-meta.schema.json)); items are lanes ([map-lane](schemas/map-lane.schema.json)), items ([map-item](schemas/map-item.schema.json)) and outline lines that are not items ([map-text](schemas/map-text.schema.json)), told apart by `kind`. |
 | `settings` | `meta.lastOpen`. |
-| `pending` | Ideas waiting for a roadmap: `{id, title, notes, date, from}` ([pending-item](schemas/pending-item.schema.json)). |
+| `pending` | Ideas waiting for a roadmap: `{id, title, notes, date, from, app}` (`from` the sender's name, `app` its id, from 1.15.0) ([pending-item](schemas/pending-item.schema.json)). |
 | `taken` | Captures already handled, so each is taken once: `{id: '<app>:<offer id>', to: 'pending' or a roadmap id}` ([taken-item](schemas/taken-item.schema.json)). |
-| `summary` | Runway's summary for other apps (`runway.summary` v1, Workshop's [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): a `targets` card (id `roadmaps`), the roadmaps for capture `idea`, so Home and the Dispatch hub can name one without reading `index`; and a `list` card (id `pending`), the Pending assignment ideas (newest 50: `id`, `title`, `due` the day it came in, `note` its description), which Slate shows in its Shape lane. Runway reads Slate's `shaping` card (Pending idea ids it is shaping) to mark them. |
+| `summary` | Runway's summary for other apps (`runway.summary` v1, Workshop's [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): a `targets` card (id `roadmaps`), the roadmaps for capture `idea`, so Home and the Dispatch hub can name one without reading `index`; and a `list` card (id `pending`), the Pending assignment ideas (newest 50: `id`, `title`, `due` the day it came in, `note` its description, `from` the sender's app id when known), which Slate shows in its Shape lane. Runway reads Slate's `shaping` card (Pending idea ids it is shaping) to mark them. |
+| `handoffs` | Runway's offers to other apps (`runway.handoffs` v1, Workshop's [docs/handoffs.md](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)): `roadmap-item`, accepted, to the work items app (Slate) when you click **Work item**: payload `{kind, map, item, title, notes, level, ado?}`. Kept 60 days. |
 
 Captures: the `handoffs` collections of every app whose manifest lists `runway` in `handoffs.sends` (`ws.apps.list()`; Home and Dispatch when there is no app list), read only, offers with `to: 'runway'`, `accepted: true` and payload `{kind: 'idea', map?}` (Workshop `docs/handoffs.md`). Runway reads them when it loads and when they change.
 
@@ -125,6 +126,7 @@ Where it saves:
 | `js/timeline.js` | Layout and SVG, used on screen and for image export. Every text is escaped. |
 | `js/export.js` | Markdown (with the optional table), image SVG, PNG, file names. |
 | `js/store.js` | Loading and saving through the SDK. |
+| `js/offers.js` | Runway's own offers: the `roadmap-item` offer the Work item button sends. |
 | `js/pending.js` | Pending assignment: picking up captures from Home, Dispatch and Slate, assigning them to a roadmap; which app manages work items. |
 | `js/view.js` | HTML for the list, toolbar, panel and dialogs. |
 | `js/main.js` | The page: painting, pointer and keyboard, routes, commands. |

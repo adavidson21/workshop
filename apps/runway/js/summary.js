@@ -2,7 +2,8 @@
      roadmaps  the roadmaps, as targets for capture "idea", so Home's quick capture and the Dispatch hub can name one
                without reading Runway's index.
      pending   the ideas on the Pending assignment list (newest first, up to 50), so Slate can show them in its Shape
-               lane's New column. Rows: {id, title, due: the day it came in, note: its description, route}.
+               lane's New column. Rows: {id, title, due: the day it came in, note: its description, route, from: the
+               sender's app id, when known (Runway 1.15.0)}.
    main.js writes it with the shared writer (shared/summary.js) whenever the roadmap list or Pending changes. */
 export const roadmapsCard = list => ({
   id: 'roadmaps', kind: 'targets', title: 'Roadmaps', capture: 'idea',
@@ -18,6 +19,7 @@ export const pendingCard = p => {
     if (isDay(x.date)) r.due = x.date;
     const note = String(x.notes || '').trim();
     if (note) r.note = note.slice(0, 1000);
+    if (/^[a-z][a-z0-9-]{0,39}$/.test(String(x.app || ''))) r.from = x.app;
     return r;
   });
   return { id: 'pending', kind: 'list', title: 'Pending assignment', count: items.length, route: 'pending', rows };

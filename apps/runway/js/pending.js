@@ -8,7 +8,7 @@
        to sit under (it then becomes an ordinary item there, unscheduled), or removed.
 
    Collections (version 1, docs/data-format.md):
-     pending   ideas: {id, title, notes, date, from}
+     pending   ideas: {id, title, notes, date, from, app} (from: the sender's name; app: its id, Runway 1.15.0)
      taken     captures already handled: {id: '<app>:<offer id>', to: 'pending' | <roadmap id>}. A capture is
                taken once: an idea removed later does not come back.
    Runway never writes another app's data. */
@@ -85,7 +85,7 @@ export function createPending(ws, { onChange = () => {}, addToMap, hasMap = () =
   const show = (e) => {
     env = e;
     v.items = (e.items || []).filter(x => x && x.id && x.title)
-      .map(x => ({ id: x.id, title: String(x.title).slice(0, 200), notes: String(x.notes || '').slice(0, 4000), date: isDay(x.date) ? x.date : '', from: String(x.from || '') }))
+      .map(x => ({ id: x.id, title: String(x.title).slice(0, 200), notes: String(x.notes || '').slice(0, 4000), date: isDay(x.date) ? x.date : '', from: String(x.from || ''), app: String(x.app || '') }))
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     onChange(v);
   };
@@ -133,7 +133,7 @@ export function createPending(ws, { onChange = () => {}, addToMap, hasMap = () =
           record.push({ id: o.key, to: 'pending' });
         }
       }
-      if (toPending.length) await change(e => { for (const o of toPending) e.items.push({ id: newId('p'), title: o.title, notes: o.notes, date: o.date, from: o.from }); });
+      if (toPending.length) await change(e => { for (const o of toPending) e.items.push({ id: newId('p'), title: o.title, notes: o.notes, date: o.date, from: o.from, app: o.app }); });
       const after = structuredClone(taken);
       after.items.push(...record);
       await write('taken', taken, after);
