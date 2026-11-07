@@ -11,7 +11,7 @@ import { hostFrame } from './host.js';
 import {
   APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
-  levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope
+  levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
 } from './model.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
@@ -230,11 +230,13 @@ async function readAllFiles() {
   for (const it of store.v.items) {
     if (it.work.triage) want.set(it.work.triage, FILES.triage);
     if (it.work.shape) want.set(it.work.shape, SHAPE_FILES);
-    if (it.work.define) want.set(it.work.define, it.work.define.startsWith('refine-') ? FILES.refine : FILES.scope);
+    if (it.work.define && !(it.manual && it.manual.folder === it.work.define)) want.set(it.work.define, it.work.define.startsWith('refine-') ? FILES.refine : FILES.scope);
   }
   await Promise.all([...want].map(async ([folder, names]) => s.files.set(folder, await readFiles(ws, folder, names))));
 }
-const filesOf = (folder) => (folder && s.files.get(folder)) || {};
+// A draft you wrote yourself (item.manual) is read from Slate's own data, never through Tandem.
+const manualFiles = (folder) => { const it = folder && store.v.items.find(x => x.manual && x.manual.folder === folder); return it ? it.manual.files : null; };
+const filesOf = (folder) => (folder && (manualFiles(folder) || s.files.get(folder))) || {};
 
 /** Stages the files settle: a triage that finished moves its item on, and so does an interview that wrote its brief. */
 async function advance() {
@@ -357,7 +359,7 @@ const sessionOf = (sid) => { const x = sid && (live().sessions || {})[sid]; retu
 
 function panelState(c) {
   const files = { ...filesOf(c.work && c.work.triage), ...filesOf(c.work && c.work.shape), ...filesOf(c.work && c.work.define) };
-  const draft = draftState(c, filesOf(c.work && c.work.define));
+  const draft = { ...draftState(c, filesOf(c.work && c.work.define)), manual: !!(c.manual && c.work && c.manual.folder === c.work.define) };
   const dev = c.virtualRun || ['dev', 'resolved', 'done'].includes(c.stage);
   const run = c.virtualRun ? c.run : runFor(c);
   const column = dev ? (c.stage === 'done' ? 'done' : devColumn(run, c)) : pmColumn(c, draft, agentOf(c.sessions && c.sessions.current));
@@ -376,7 +378,7 @@ function panelState(c) {
     run,
     timeline: c.virtual ? [] : timeline(c, { run, assigneeName: personName(c.assignee) }),
     canLocal: s.conn.opencode === true,
-    tandemOff: s.conn.opencode !== true && s.conn.opencode !== 'Checking…' ? String(s.conn.opencode || 'Tandem is not ready.') : '',
+    tandemOff: agentsOff(),
     suggestScope: suggestsScope(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])),
     canAdo: s.conn.ado === true,
     assigneeName: personName(c.assignee),
@@ -390,10 +392,24 @@ function panelState(c) {
 
 /* ---------- painting ---------- */
 
+/* Plain words for the agents being off: not set up (no connector, or turned off) or set up but not ready. '' when they are on. */
+function agentsOff() {
+  const oc = s.conn.opencode;
+  if (oc === true || oc === 'Checking…') return '';
+  return /not installed|Turn on|Connect Workshop/i.test(String(oc)) ? 'Dispatch is not set up on this computer.' : `Dispatch is not ready: ${oc}`;
+}
+// Azure DevOps that is simply not set up (versus set up and failing): Slate works without it, so say so once.
+const adoNotSetUp = () => /not installed|Turn on|Connect Workshop/i.test(String(s.conn.ado));
+let adoNoteSeen = remember('adoNoteSeen') === '1';
+
 function notes() {
   const n = [];
-  if (s.conn.ado !== true && s.conn.ado !== 'Checking…') n.push(`Azure DevOps: ${s.conn.ado}`);
-  if (s.conn.opencode !== true && s.conn.opencode !== 'Checking…') n.push(`Tandem: ${s.conn.opencode} Without it, the agent steps (triage, define, handoff, build) are off.`);
+  if (s.conn.ado !== true && s.conn.ado !== 'Checking…') {
+    if (!adoNotSetUp()) n.push(`Azure DevOps: ${s.conn.ado}`);
+    else if (!adoNoteSeen) n.push({ text: 'Slate works without Azure DevOps: requests and ideas you add stay here. Connect it in Settings to see your team\'s backlog and publish to it.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] });
+  }
+  const off = agentsOff();
+  if (off) n.push({ text: `Agent steps (triage, interview, drafting, building) need Dispatch. ${off} You can still write drafts yourself and delegate.`, acts: [{ act: 'setup-dispatch', label: 'How to set it up' }] });
   if (store.v.error) n.push(store.v.error);
   if (s.backlogNote) n.push(s.backlogNote);
   return n;
@@ -412,13 +428,14 @@ function setHtml(el, html) {
 function paint() {
   const focus = document.activeElement && document.activeElement.id;
   const board = ui.tab === 'board' && store.v.loaded;
+  ui.noAdo = s.conn.ado !== true && s.conn.ado !== 'Checking…';
   setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
   if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
     if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
   } else {
-    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
+    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
   const waiting = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); }).length;
@@ -734,11 +751,37 @@ const ACT = {
     const d = draftState(c, filesOf(c.work.define));
     const before = filesOf(c.work.define)[d.file];
     const text = $('draft').value;
+    if (c.manual && c.manual.folder === c.work.define) {
+      await store.update(c.id, x => { x.manual = { ...x.manual, files: { ...x.manual.files, [d.file]: text } }; });
+      ui.editing = false; paint(); return;
+    }
     try { await tandem(ws, 'file.write', { folder: c.work.define, file: d.file, text, expected: before }, { confirm: true }); }
     catch (e) { if (e.code === 'conflict') { await readTandem(); throw new Error('The agent changed the file since you opened it. Your edit is still in the box: copy it, then try again.'); } throw e; }
     s.files.set(c.work.define, { ...filesOf(c.work.define), [d.file]: text });
     ui.editing = false; paint();
   },
+  /* ---------- Write it myself: the drafts an agent would write, written by you and kept in Slate ---------- */
+  async 'write-myself'(c) {
+    const it = await ensureStored(c);
+    await store.update(it.id, x => setStage(x, 'defining'));
+    ws.toast('In Define: write one story, or an epic with stories.', { kind: 'success' });
+  },
+  async 'write-refine'(c) { return writeMyself(c, 'refine'); },
+  async 'write-scope'(c) { return writeMyself(c, 'scope'); },
+  async 'approve-manual'(c) { return approveManual(c); },
+  async 'approve-manual-publish'(c) { await approveManual(c); return ACT.publish(store.v.items.find(x => x.id === c.id) || c); },
+  async 'unapprove-manual'(c) {
+    const d = draftState(c, filesOf(c.work.define));
+    await store.update(c.id, x => { x.manual = { ...x.manual, files: { ...x.manual.files, [d.file]: withStatus(x.manual.files[d.file], 'DRAFT') } }; delete x.reopened; });
+    ui.editing = true; paint();
+  },
+  /** Straight to Who builds it? (also after a draft approved with no Azure DevOps to publish to). */
+  async 'to-decide'(c) {
+    const it = await ensureStored(c);
+    await store.update(it.id, x => setStage(x, 'decide'));
+  },
+  'ado-note-seen': () => { adoNoteSeen = true; try { localStorage.setItem('slate.adoNoteSeen', '1'); } catch { /* storage off */ } paint(); },
+  'setup-dispatch': () => ws.open({ app: 'home' }),
   async publish(c) {
     const files = filesOf(c.work.define);
     // A new request goes to the area you are looking at, else your team's first area path.
@@ -795,7 +838,7 @@ const ACT = {
   /** Build it myself, skip ADO: local work in Tandem (start.local) from the brief, triage or request. Link an ADO item later. */
   async 'build-local'(c) {
     const it = await ensureStored(c);
-    if (s.conn.opencode !== true) return ws.toast('Turn on the opencode connector to start local work.', { kind: 'warn' });
+    if (s.conn.opencode !== true) return ws.toast('Building needs Dispatch, which is not set up on this computer.', { kind: 'warn' });
     const brief = parseBrief(filesOf(it.work.shape)['brief.md']);
     const t = parseTriage(filesOf(it.work.triage)['triage.md']);
     const text = [it.description, t && t.summary, filesOf(it.work.shape)['brief.md'] ? `Brief: .work/${it.work.shape}/brief.md` : '', it.work.define ? `Defined in .work/${it.work.define}` : ''].filter(Boolean).join('\n\n');
@@ -837,7 +880,8 @@ const ACT = {
   async unmerge(c) { await store.update(c.id, x => { delete x.merged; delete x.mergedHow; }); prsChecked.delete(c.id); },
   /** Mark resolved: the ADO item's state to Resolved (merged to main, waiting for a release), after a confirm. */
   'mark-resolved': (c) => {
-    if (!c.ado) return ws.toast('Link an ADO item first.', { kind: 'warn' });
+    // No ADO item: resolved here only (done, waiting for a release).
+    if (!c.ado) return store.update(c.id, x => { setStage(x, 'resolved'); }).then(() => ws.toast('Resolved here. Mark it closed when it ships.', { kind: 'success' }));
     showDialog(confirmHtml(`Resolve #${c.ado.id} in Azure DevOps?`, `Sets its state to Resolved: merged to main and waiting for a release. The card moves to Resolved under ${areaOf(c) || 'No area path'}.`, 'Resolve it'), async () => {
       const out = await setAdoState(c, 'Resolved');
       await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev, state: 'Resolved' }; setStage(x, 'resolved'); });
@@ -914,7 +958,7 @@ const ACT = {
     if (forwardTargets(c).includes(to)) {
       const skip = to === 'decide'
         ? 'Slate skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
-        : 'Slate skips the steps before it. Start the draft from the panel when you are ready.';
+        : agentsOff() ? 'Slate skips the steps before it. In Define, write the story or stories yourself (Dispatch is not set up, so no agent drafts them).' : 'Slate skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
       const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it in Dispatch.' : '';
       return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
@@ -1003,6 +1047,26 @@ async function writeShapeFile(c, file, text, before) {
 /** The decision log: one note in Notes for each decision (Notes' inbox), never posted anywhere. */
 async function logDecision(it, decision) {
   try { await store.offer(decisionNote(it, decision)); } catch { /* the board still has it */ }
+}
+
+/** Start a draft you write yourself: the template in Slate's own data, the editor open. */
+async function writeMyself(c, kind) {
+  const it = await ensureStored(c);
+  const folder = `${kind}-manual-${String(it.id).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 50)}`;
+  await store.update(it.id, x => {
+    x.manual = { folder, files: manualDraft(kind, x) };
+    x.work = { ...(x.work || {}), define: folder };
+    setStage(x, 'defining');
+  });
+  ui.editing = true; paint();
+}
+
+/** Approve a draft you wrote: its Status line to APPROVED (for an epic, milestones.md; the stories file is approved already). */
+async function approveManual(c) {
+  const d = draftState(c, filesOf(c.work.define));
+  if (!d.file) return;
+  await store.update(c.id, x => { x.manual = { ...x.manual, files: { ...x.manual.files, [d.file]: withStatus(x.manual.files[d.file], 'APPROVED') } }; delete x.reopened; });
+  ws.toast('Approved.', { kind: 'success' });
 }
 
 async function runPublish(c, plan, { then = null } = {}) {
