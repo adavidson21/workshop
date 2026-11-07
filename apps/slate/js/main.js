@@ -396,7 +396,8 @@ function panelState(c) {
 function agentsOff() {
   const oc = s.conn.opencode;
   if (oc === true || oc === 'Checking…') return '';
-  return /not installed|Turn on|Connect Workshop/i.test(String(oc)) ? 'Dispatch is not set up on this computer.' : `Dispatch is not ready: ${oc}`;
+  if (/Connect Workshop/i.test(String(oc))) return 'Connect Workshop on this computer to use Dispatch.';
+  return /not installed|Turn on/i.test(String(oc)) ? 'Dispatch is not set up on this computer.' : `Dispatch is not ready: ${oc}`;
 }
 // Azure DevOps that is simply not set up (versus set up and failing): Slate works without it, so say so once.
 const adoNotSetUp = () => /not installed|Turn on|Connect Workshop/i.test(String(s.conn.ado));

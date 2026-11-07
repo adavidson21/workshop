@@ -282,7 +282,6 @@ test('Write it myself: Define offers both drafts; a manual draft approves, and p
 test('without ADO: board hints and search say nothing about ADO; delegated and merged resolve here', () => {
   const b = topHtml({ tab: 'board', q: '', level: '', noAdo: true }, [{ text: 'Slate works without Azure DevOps.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] }]);
   assert.match(b, /placeholder="Search titles"/);
-  assert.doesNotMatch(b, /data-act="fields"/);
   assert.match(b, /data-act="ado-note-seen"[^>]*>Got it</);
   const del = cleanItem({ ...newItem({ title: 'With Sam' }), stage: 'delegated' });
   assert.ok(acts(nextOf(base(del, { column: 'delegated' })).shown).includes('mark-resolved'));

@@ -21,7 +21,7 @@ export function topHtml(ui, notes, areas = []) {
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
     <span class="grow"></span>
-    ${ui.noAdo ? '' : btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
+    ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
     ${btn('refresh', 'Refresh', { title: 'Read Azure DevOps and Dispatch again' })}
     ${btn('new-idea', 'New idea', { title: 'Your own idea: an agent interviews you to shape it' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
