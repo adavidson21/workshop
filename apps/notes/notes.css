@@ -318,3 +318,26 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .send-all{font:500 11px/1 var(--mono);text-transform:none;letter-spacing:0;margin-left:.5rem}
 .panel .hint .linkish{align-self:flex-start}
 .bar-msg>svg{display:inline-block}
+
+/* Diagrams: ```mermaid blocks drawn by diagrams.js */
+.md figure.diagram{position:relative;margin:0 0 1em;padding:.75rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);overflow-x:auto}
+.md figure.diagram .diagram-src{margin:0}
+.md figure.diagram.drawn .diagram-src{display:none}
+.md figure.diagram.drawing .diagram-src{opacity:.55}
+.md .diagram-out{display:flex;justify-content:center}
+.md .diagram-out svg{max-width:100%;height:auto}
+.md figure.diagram.stale .diagram-out{opacity:.45}
+.md .diagram-err{margin:.6rem 0 0;padding:.5rem .7rem;border:1px solid color-mix(in srgb,var(--warn) 50%,transparent);border-radius:var(--r-sm);background:color-mix(in srgb,var(--warn) 9%,transparent);color:var(--ink);font:400 .78rem/1.45 var(--mono);white-space:pre-wrap}
+.md figure.diagram.at-cursor{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent)}
+.md .diagram-tools{position:absolute;top:.35rem;right:.35rem;z-index:1;display:flex;gap:.2rem;opacity:0;transition:opacity .12s}
+.md figure.diagram:hover .diagram-tools,.md figure.diagram:focus-within .diagram-tools{opacity:1}
+.md .diagram-tools .ibtn{width:auto;height:auto;padding:.2rem .45rem;font:500 .72rem/1.2 var(--sans,inherit);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--muted)}
+.md .diagram-tools .ibtn:hover{color:var(--ink);background:var(--hover)}
+@media (hover:none){.md .diagram-tools{opacity:1;position:static;justify-content:flex-end;margin-bottom:.4rem}}
+.ver-preview figure.diagram .diagram-tools{display:none}
+/* Insert diagram */
+.kit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(12rem,1fr));gap:.5rem}
+.kit{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;padding:.6rem .75rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);cursor:pointer;font:inherit}
+.kit:hover,.kit:focus-visible{background:var(--hover);border-color:var(--accent)}
+.kit .small{line-height:1.35}
+.md .diagram-tools .ibtn{min-width:0;min-height:0}

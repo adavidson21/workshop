@@ -206,6 +206,7 @@ export function header(state) {
       <span class="bar-acts"><button class="btn" data-act="mark-reviewed">Mark reviewed</button></span></div>` : '';
   const tpl = n && n.use !== undefined ? templateBar(state, n) : '';
   const items = [
+    ['insert-diagram', 'Insert diagram'],
     ['copy-wiki', 'Copy for wiki'],
     ['copy', 'Copy Markdown'],
     ['download', 'Download .md'],
@@ -430,4 +431,12 @@ export function importHtml(plan) {
     <ul class="renames">${shown.map(i => `<li><span class="mono soft">${esc(i.from)}</span> <span aria-hidden="true">&rarr;</span> <span class="mono">${esc(i.to)}</span></li>`).join('')}${plan.items.length > shown.length ? `<li class="soft">and ${plan.items.length - shown.length} more</li>` : ''}</ul>
     ${plan.skipped.length ? `<p class="soft small">${plan.skipped.length} file${plan.skipped.length === 1 ? ' is' : 's are'} left out (not notes or images, hidden, or over 10 MB).</p>` : ''}
     <div class="dlg-actions"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok"${plan.items.length ? '' : ' disabled'}>Import</button></div></form>`;
+}
+
+/* Insert diagram: one button per kind (diagram-kits.js KITS); the dialog closes with the kind's id. */
+export function diagramPickerHtml(kits) {
+  return `<form method="dialog" class="dlg wide"><h2>Insert diagram</h2>
+    <p class="soft small">A Mermaid starter goes in at the cursor as a <code>\`\`\`mermaid</code> block. Change the text and the preview redraws it.</p>
+    <div class="kit-grid">${kits.map(k => `<button class="kit" value="${esc(k.id)}" data-kit="${esc(k.id)}"><b>${esc(k.name)}</b><span class="soft small">${esc(k.about)}</span></button>`).join('')}</div>
+    <div class="dlg-actions"><button class="btn" value="cancel">Cancel</button></div></form>`;
 }

@@ -329,6 +329,13 @@ function renderBlocks(list, ctx, ids) {
       if (n) id = `${id}-${n}`;
       h += `<h${b.level} id="h-${esc(id)}" data-line="${b.line}">${fin(b.text, ctx)}</h${b.level}>`;
     } else if (b.type === 'para') h += `<p data-line="${b.line}">${fin(b.text, ctx)}</p>`;
+    else if (b.type === 'code' && b.lang.toLowerCase() === 'mermaid') {
+      // A diagram: the source stays in the page, and diagrams.js draws it (or shows it with the error).
+      // ctx.diagramImage(src) gives a ready image instead (Copy for wiki's HTML).
+      const img = ctx.diagramImage ? ctx.diagramImage(b.text) : null;
+      h += img ? `<p data-line="${b.line}"><img src="${esc(img)}" alt="Diagram"></p>`
+        : `<figure class="diagram" data-line="${b.line}"><pre class="diagram-src"><code data-lang="mermaid">${esc(b.text)}</code></pre></figure>`;
+    }
     else if (b.type === 'code') h += `<pre data-line="${b.line}"><code${b.lang ? ` data-lang="${esc(b.lang)}"` : ''}>${esc(b.text)}</code></pre>`;
     else if (b.type === 'rule') h += '<hr>';
     else if (b.type === 'quote') h += `<blockquote>${renderBlocks(b.children, ctx, ids)}</blockquote>`;

@@ -20,6 +20,9 @@ SITE = f'http://127.0.0.1:{PORT}/'
 with open(os.path.join(ROOT, 'js', 'templates.js')) as _f:
     STARTERS = len(re.findall(r"^\s+(?:'templates/[a-z0-9-]+\.md'|\[PRODUCT_TPL\]):", _f.read(), re.M))
 EXPECTED_404 = ('/api/health', '/apps/registry.json')
+# The diagram starters in js/diagram-kits.js (KITS), as [id, code], read from the source.
+with open(os.path.join(ROOT, 'js', 'diagram-kits.js')) as _f:
+    KITS = re.findall(r"\{ id: '([a-z0-9-]+)'.*?code: '((?:[^'\\]|\\.)*)' \}", _f.read(), re.S)
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -30,6 +33,14 @@ failed = []
 def check(name, ok):
     print(('PASS  ' if ok else 'FAIL  ') + name)
     if not ok: failed.append(name)
+
+
+def wait_js(pg, expr, timeout=15000):
+    """Poll a JS expression until it is truthy. (wait_for_function evaluates a string, which the page's CSP refuses.)"""
+    for _ in range(timeout // 100):
+        if pg.evaluate(expr): return True
+        pg.wait_for_timeout(100)
+    return False
 
 
 def write_vault(root):
@@ -143,6 +154,38 @@ def main():
             ed = pg.input_value('#editor')
             check('an imported wikilink now points at the new path', '[the plan](projects/q4-plan.md#big-goals)' in ed)
             if '[the plan]' not in ed: print('      head:', pg.inner_text('#head')[:80].replace('\n', ' '), '| editor:', ed[:120].replace('\n', ' '))
+
+            # Diagrams: every starter draws under the page's CSP; a broken one shows its error; the toolbar exports.
+            pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
+            body = '# Diagrams\n\n' + ''.join('```mermaid\n' + code.encode().decode('unicode_escape') + '\n```\n\n' for _, code in KITS) + '```mermaid\nflowchart LR\n  A -->\n```\n'
+            pg.fill('#editor', body)
+            wait_js(pg, f"document.querySelectorAll('#preview figure.diagram.drawn').length >= {len(KITS)}", 30000)
+            drawn = pg.evaluate("[...document.querySelectorAll('#preview figure.diagram')].map(f => f.classList.contains('drawn') && !!f.querySelector('.diagram-out svg'))")
+            check(f'all {len(KITS)} diagram starters draw as SVG', drawn[:len(KITS)] == [True] * len(KITS))
+            if drawn[:len(KITS)] != [True] * len(KITS): print('      not drawn:', [k for (k, _), d in zip(KITS, drawn) if not d], pg.evaluate("[...document.querySelectorAll('.diagram-err')].map(e => e.textContent.slice(0, 120))"))
+            pg.wait_for_selector('#preview figure.diagram.has-error', timeout=15000)
+            check('a broken diagram shows its source and the error', pg.locator('#preview figure.diagram.has-error .diagram-err').count() == 1
+                  and pg.locator('#preview figure.diagram.has-error .diagram-src').is_visible())
+            first = pg.locator('#preview figure.diagram').first
+            first.hover()
+            with pg.expect_download() as dl:
+                first.locator('[data-diagram-act=png]').click()
+            check('a diagram downloads as a PNG', dl.value.suggested_filename.endswith('.png') and open(dl.value.path(), 'rb').read(8) == b'\x89PNG\r\n\x1a\n')
+            with pg.expect_download() as dl:
+                first.locator('[data-diagram-act=svg]').click()
+            check('a diagram downloads as an SVG', open(dl.value.path()).read().lstrip().startswith('<?xml') and '<svg' in open(dl.value.path()).read())
+            line = body.split('\n').index('sequenceDiagram')
+            pg.evaluate(f"(() => {{ const e = document.getElementById('editor'); const at = e.value.split('\\n').slice(0, {line + 2}).join('\\n').length; e.focus(); e.setSelectionRange(at, at); e.dispatchEvent(new KeyboardEvent('keyup')); }})()")
+            pg.wait_for_timeout(200)
+            check('Split view highlights the diagram the cursor is in', pg.evaluate("document.querySelector('#preview figure.diagram.at-cursor')?.textContent.includes('Click save') || document.querySelector('#preview figure.diagram.at-cursor .diagram-src')?.textContent.includes('sequenceDiagram')") is True)
+            pg.fill('#editor', '# Diagrams\n\nBefore.\n')
+            pg.evaluate("(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()")
+            pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
+            pg.click('#head [data-act=menu]'); pg.click('.menu [data-act=insert-diagram]'); pg.wait_for_selector('dialog[open] .kit-grid')
+            pg.click('dialog[open] [data-kit=erd]'); pg.wait_for_timeout(300)
+            check('Insert diagram puts a starter in on lines of its own', '\nBefore.\n\n```mermaid\nerDiagram\n' in pg.input_value('#editor'))
+            pg.wait_for_selector('#preview figure.diagram.drawn', timeout=15000)
+            check('the inserted diagram draws', pg.locator('#preview figure.diagram.drawn svg').count() >= 1)
 
             pg.goto(SITE + '#/today'); pg.reload(); pg.wait_for_selector('.side-head'); pg.wait_for_timeout(1000)
             check("the address #/today opens today's note on Notes' own site", 'daily/' in pg.inner_text('#head'))

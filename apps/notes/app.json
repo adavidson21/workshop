@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Folio",
-  "version": "3.0.0",
-  "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Links and backlinks, tags, search and images.",
+  "version": "3.1.0",
+  "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Mermaid diagrams, links and backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 45,
@@ -45,6 +45,10 @@
     {
       "id": "today",
       "title": "Open today's note"
+    },
+    {
+      "id": "diagram",
+      "title": "Insert diagram"
     }
   ],
   "handoffs": {
@@ -63,6 +67,8 @@
     "js/applinks.js",
     "js/daily.js",
     "js/data.js",
+    "js/diagram-kits.js",
+    "js/diagrams.js",
     "js/edits.js",
     "js/export.js",
     "js/history.js",
@@ -111,7 +117,8 @@
     "shared/theme.js",
     "shared/themes.css",
     "shared/ui.css",
-    "shared/workshop-sdk.js"
+    "shared/workshop-sdk.js",
+    "vendor/mermaid.min.js"
   ],
   "aliases": [
     "folio",

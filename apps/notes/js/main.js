@@ -25,11 +25,13 @@ import { docketPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, wikiHtml } from './export.js';
 import { facts, render, headingId } from './markdown.js';
+import { markDiagram, paintDiagrams, pngBytes, svgFile } from './diagrams.js';
+import { KITS, blockInsert, fenceAt, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
+import { confirmHtml, diagramPickerHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), editor = $('editor'), preview = $('preview');
@@ -178,6 +180,8 @@ function paintPreview(now = false) {
   if (isTandem(from)) {
     // A Tandem page: its links are to code and other .work files, so only web links are links.
     preview.innerHTML = render(text, { noLinks: true, imageUrl: () => null, tasks: !editor.readOnly });
+    paintDiagrams(preview, { key: from });
+    markCursorDiagram();
     return;
   }
   const tpl = sectionOf(from) === 'templates';
@@ -207,6 +211,8 @@ function paintPreview(now = false) {
       return p ? { path: p } : null;
     }
   });
+  paintDiagrams(preview, { key: from });
+  markCursorDiagram();
   markTandemLines(from, text);
   // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
   for (const box of preview.querySelectorAll('input[data-task]')) {
@@ -219,6 +225,53 @@ function paintPreview(now = false) {
       else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` }));
     }, () => {});
   }
+}
+
+/* Split view: the diagram whose fence holds the cursor is highlighted in the preview (diagram-kits.js fenceAt). */
+function markCursorDiagram() {
+  if (ui.mode !== 'split' || !ui.path) { markDiagram(preview, null); return; }
+  const f = fenceAt(editor.value, lineOf(editor.value, editor.selectionStart));
+  markDiagram(preview, f ? f.line : null);
+}
+// Light or dark: diagrams are drawn in the theme's colors, so draw them again.
+new MutationObserver(() => paintPreview(true)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* Insert diagram: pick a kind, and its starter goes in at the cursor on lines of its own. */
+async function pickDiagram() {
+  if (!ui.path || editor.readOnly) return;
+  dlg.innerHTML = diagramPickerHtml(KITS);
+  dlg.returnValue = '';
+  const id = await new Promise(resolve => { dlg.addEventListener('close', () => resolve(dlg.returnValue), { once: true }); dlg.showModal(); dlg.querySelector('[data-kit]')?.focus(); });
+  const k = kit(id);
+  if (k) insertBlock(kitBlock(k));
+}
+/** A block (a diagram, a table) at the cursor on lines of its own, the cursor on its second line. */
+function insertBlock(block) {
+  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); }
+  const s = editor.selectionStart, e = editor.selectionEnd;
+  const r = blockInsert(editor.value, s, e, block);
+  editor.focus();
+  editor.setRangeText(r.insert, s, e, 'start');
+  editor.setSelectionRange(s + r.cursor, s + r.cursor);
+  editor.dispatchEvent(new Event('input'));
+  paintPreview(true);
+}
+/* A diagram's toolbar in the preview: edit it, or take it away as SVG or PNG (drawn light, on white). */
+async function diagramAct(act, fig) {
+  const src = fig.querySelector('.diagram-src code')?.textContent ?? '';
+  const line = Number(fig.dataset.line);
+  if (act === 'edit') {
+    if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+    goToLine(line + 1);
+    return;
+  }
+  const n = [...preview.querySelectorAll('figure.diagram')].indexOf(fig) + 1;
+  const name = `${stem(ui.path || 'diagram').slice(0, 60)}-diagram-${n || 1}`;
+  try {
+    if (act === 'copy-svg') { await navigator.clipboard.writeText(await svgFile(src)); ws.toast('Copied the diagram as SVG.', { kind: 'success' }); }
+    else if (act === 'svg') await saveFile(`${name}.svg`, await svgFile(src), 'image/svg+xml');
+    else if (act === 'png') await saveFile(`${name}.png`, await pngBytes(src), 'image/png');
+  } catch (e) { toastErr(e); }
 }
 
 /* Product notes Tandem changed since your last review: highlight the changed blocks in the preview (products.js).
@@ -707,6 +760,7 @@ async function showHistory() {
   const paint = async () => {
     const t = await textOf(pick);
     dlg.innerHTML = historyHtml({ path, versions, pick, previewHtml: t === null ? '<p class="soft">This version could not be read.</p>' : render(t, { noLinks: true, imageUrl: () => null }) });
+    paintDiagrams(dlg.querySelector('.ver-preview'), { key: `history:${path}`, tools: false });
   };
   await paint();
   dlg.returnValue = '';
@@ -951,7 +1005,15 @@ async function copyForWiki() {
     if (!notes.files.has(p)) return null;
     const f = await ws.files.read(p).catch(() => null);
     return f ? dataUrl(f.content.type, new Uint8Array(await f.content.arrayBuffer())) : null;
-  }).then(r => ({ ...r, html: wikiHtml(r.markdown) }));
+  }).then(async r => {
+    // Diagrams: a picture in the HTML; the Markdown keeps each ```mermaid block for editors that draw it.
+    const pngs = new Map();
+    for (const f of mermaidFences(text)) {
+      if (pngs.has(f.src)) continue;
+      try { pngs.set(f.src, dataUrl('image/png', await pngBytes(f.src))); } catch { /* stays as its code */ }
+    }
+    return { ...r, html: wikiHtml(r.markdown, pngs) };
+  });
   const done = (r) => {
     const n = r.embedded.length;
     const msg = `Copied for the wiki${n ? ` with ${n} image${n === 1 ? '' : 's'}` : ''}.`;
@@ -1074,6 +1136,7 @@ editor.addEventListener('keydown', (e) => {
   if (pk.open && e.key === 'Escape') { e.preventDefault(); closePicker(); return; }
   if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); insertAtCursor('  '); }
 });
+for (const ev of ['keyup', 'click']) editor.addEventListener(ev, () => markCursorDiagram());
 editor.addEventListener('blur', () => { setTimeout(closePicker, 150); if (ui.status.kind === 'dirty') saveNow(); });
 editor.addEventListener('paste', (e) => {
   const imgs = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
@@ -1091,6 +1154,7 @@ document.addEventListener('click', async (e) => {
   let x;
   // The ⋯ menu closes on any click outside it (its own items act below).
   if (ui.menu && !el('.menu-wrap')) { ui.menu = false; paintHead(); }
+  if ((x = el('[data-diagram-act]'))) { e.preventDefault(); const fig = x.closest('figure.diagram'); if (fig) diagramAct(x.dataset.diagramAct, fig); return; }
   if ((x = el('[data-section]'))) { showSection(x.dataset.section); ui.query = ''; ui.drawer = isPhone(); paintChrome(); if (ui.section === 'tandem') tandem.refresh(); return; }
   if ((x = el('input[data-task]'))) { e.preventDefault(); toggleTaskAt(Number(x.dataset.task)); return; }
   if ((x = el('[data-edit-template]'))) { e.preventDefault(); editTemplate(x.dataset.editTemplate); return; }
@@ -1138,6 +1202,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'trash-path') trashNote(x.dataset.path);
   else if (act === 'copy') copyMarkdown();
   else if (act === 'copy-wiki') copyForWiki();
+  else if (act === 'insert-diagram') pickDiagram();
   else if (act === 'download') download();
   else if (act === 'retry') { ui.status = { kind: 'dirty' }; saveNow(); }
   else if (['take-theirs', 'keep-copy', 'overwrite', 'restore'].includes(act)) resolveConflict(act);
@@ -1253,11 +1318,13 @@ window.addEventListener('beforeunload', (e) => {
 ws.commands.register({ id: 'new', title: 'New note' });
 ws.commands.register({ id: 'search', title: 'Search notes' });
 ws.commands.register({ id: 'today', title: "Open today's note" });
+ws.commands.register({ id: 'diagram', title: 'Insert diagram' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
   if (p.id === 'undo-trash') { undoTrash(); return; }
   if (p.id === 'new') newNote();
   else if (p.id === 'today') openToday();
+  else if (p.id === 'diagram') pickDiagram();
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
 });
 function route(raw) {
