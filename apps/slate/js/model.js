@@ -867,6 +867,15 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   const runs = items.filter(it => (it.ado || it.run) && ['dev', 'resolved'].includes(it.stage)).slice(-50)
     .map(it => ({ id: it.ado ? String(it.ado.id) : it.run.folder, ...(it.run ? { folder: it.run.folder } : {}), title: it.title.slice(0, 200), route: `item/${it.id}`,
       note: it.stage === 'resolved' ? 'Resolved' : it.merged ? 'Merged' : it.requester ? `Asked by ${it.requester}`.slice(0, 200) : 'Building', ...(it.merged || it.stage === 'resolved' ? { flag: 'done' } : {}) }));
+  // Every ADO item on the board, with its column, and the items Publish linked as a source (Docket's In Slate chip).
+  const colTitle = Object.fromEntries(BOARD_COLUMNS.map(c => [c.key, c.title]));
+  const tracked = [];
+  for (const it of items) {
+    if (it.stage === 'done') continue;
+    const col = colTitle[boardColumn(columnOf ? columnOf(it) : it.stage)] || '';
+    if (it.ado) tracked.push({ id: String(it.ado.id), title: it.title.slice(0, 200), route: `item/${it.id}`, note: col });
+    if (it.source && it.ado) tracked.push({ id: String(it.source.id), title: it.title.slice(0, 200), route: `item/${it.id}`, note: `Source of #${it.ado.id}` });
+  }
   // Runway pending ideas Slate has taken (Runway marks them "Shaping in Slate"). Only for showing.
   const shaping = items.filter(it => it.runwayPending).slice(-50)
     .map(it => ({ id: it.runwayPending, title: it.title.slice(0, 200), route: `item/${it.id}` }));
@@ -876,7 +885,8 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
     card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
     card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
     card('ado', 'list', 'ADO items in Slate', { rows: ado }),
-    card('runs', 'list', 'Runs in Slate', { rows: runs })
+    card('runs', 'list', 'Runs in Slate', { rows: runs }),
+    card('tracked', 'list', 'ADO items on Slate\'s board', { rows: tracked.slice(-200) })
   ];
 }
 
