@@ -89,11 +89,13 @@ The person reviews each proposal in the hub (or quick capture on Home) and accep
 
 Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
 
+Requests (`s <text>`, `s #<id> <note>`, or a line that starts with `#<id>`) are rules only too. They go to Slate's New: with an ADO id, to the card for that item (made if Slate has none yet); otherwise a new request card. The review line says `Slate · New` or `Slate · #<id>`.
+
 Notes go to Quick Notes (Home) or Notes' `inbox/` (Dispatch). `n <folder>: <text>` with one of Notes' folders makes a new note in that folder, and `n today: <text>` adds the text under `## Notes` in today's note. The folder names come from Notes' `targets` card ([summaries.md](summaries.md)); case and a dash versus a space don't matter, and the start of exactly one folder name is enough. A name no folder has is part of the text, so `n Remember: call the vendor` stays as typed. The review line says where it goes (`Notes · runbooks/ · new note "..."`, `Notes · today's note`).
 
 ### Which app takes a capture
 
-Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`) goes to the app whose manifest lists it in `capture` ([app-manifest.md](app-manifest.md)), first by `order`. Quick capture and the hub find them with `ws.apps.list()` ([sdk.md](sdk.md)). The parsing rules for each kind stay in `shared/capture.js`; an app takes a kind by accepting that payload as a handoff ([handoffs.md](handoffs.md), Receivers). When no app takes a kind, its prefix is not recognized and the line is a task. Outside Workshop's site (no app list) the built-in targets are used: `task` and `waiting` to Docket, `receipt` to Rapport, `note` to Notes, `idea` to Runway.
+Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`, `request`) goes to the app whose manifest lists it in `capture` ([app-manifest.md](app-manifest.md)), first by `order`. Quick capture and the hub find them with `ws.apps.list()` ([sdk.md](sdk.md)). The parsing rules for each kind stay in `shared/capture.js`; an app takes a kind by accepting that payload as a handoff ([handoffs.md](handoffs.md), Receivers). When no app takes a kind, its prefix is not recognized and the line is a task. Outside Workshop's site (no app list) the built-in targets are used: `task` and `waiting` to Docket, `receipt` to Rapport, `note` to Notes, `idea` to Runway, `request` to Slate.
 
 `> <place>` matches an app's `id`, `name` or one of its `aliases`.
 
