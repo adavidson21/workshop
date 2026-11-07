@@ -4,7 +4,7 @@
    escaped first; the only markup is what this file writes. Supported: headings, paragraphs, fenced code, block
    quotes, bullet, numbered and task lists (one level of nesting by indent), pipe tables, rules, `code`, **bold**,
    *italic*, ~~strike~~ and [text](https://...) links, which open in a new tab. Any other link is plain text.
-   HTML comments are dropped. The full renderer is Notebook's (the Notes app): Open in Notebook.
+   HTML comments are dropped. The full renderer is Folio's (app id notes): Open in Folio.
 
    lockReason says why the open file can't be edited right now (Tandem is working on it). */
 import { h, safeUrl } from './view.js';
@@ -108,7 +108,7 @@ export function lockReason({ busy, auto }) {
   return '';
 }
 
-/** The Notebook route for a .work file (Notes' manifest route tandem/:folder/:file). */
+/** The Folio route for a .work file (Notes' manifest route tandem/:folder/:file). */
 export function notebookRoute(folder, file) {
   return 'tandem/' + encodeURIComponent(folder) + '/' + encodeURIComponent(file);
 }
