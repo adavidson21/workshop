@@ -11,7 +11,7 @@ import ado from '../index.mjs';
 import { normalize } from '../lib/config.mjs';
 import { iterationsList } from '../lib/items.mjs';
 import { getWorkItem } from '../lib/workitem.mjs';
-import { createWorkItem, mergeTags, patchOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
+import { createWorkItem, mergeTags, patchOps, relatedOps, textToHtml, updateWorkItem, writeCheck } from '../lib/write.mjs';
 import { startFakeAdo } from './fake-ado.mjs';
 import { PAT, itemsScenario } from './fixtures/items.mjs';
 import { REPO } from './harness.mjs';
@@ -148,6 +148,25 @@ test('workitem.update sends description and acceptance criteria as HTML', () => 
   assert.match(patch, /"path":"\/fields\/System\.Description","value":"As a user<br>I want &lt;x&gt;"/);
   assert.match(patch, /"path":"\/fields\/Microsoft\.VSTS\.Common\.AcceptanceCriteria","value":"Scenario: one"/);
 }));
+
+test('workitem.update adds a comment to the Discussion and Related links, skipping ones already there', () => withAdo(async ({ d, srv }) => {
+  const out = await updateWorkItem(d, { id: 501, rev: 4, changes: { comment: 'Shaped in Slate\ninto <Epic>', related: [9100, 9100, 501] } });
+  assert.equal(out.rev, 5);
+  const get = srv.requests.find(r => r.startsWith('GET') && r.includes('/workitems/501'));
+  assert.match(get, /\$expand=relations/, 'reads the links it has');
+  const patch = srv.requests.find(r => r.startsWith('PATCH'));
+  assert.match(patch, /"path":"\/fields\/System\.History","value":"Shaped in Slate<br>into &lt;Epic&gt;"/);
+  assert.equal((patch.match(/System\.LinkTypes\.Related/g) || []).length, 1, 'one link: no repeats, never itself');
+  assert.match(patch, /\/_apis\/wit\/workItems\/9100"/);
+  // Linked now: asking again changes nothing.
+  await assert.rejects(updateWorkItem(d, { id: 501, rev: 5, changes: { related: [9100] } }), /already linked/);
+  await assert.rejects(updateWorkItem(d, { id: 501, rev: 5, changes: { comment: '  ' } }), /cannot be empty/);
+}));
+
+test('relatedOps skips items linked by any link type', () => {
+  const item = { id: 7, relations: [{ rel: 'System.LinkTypes.Hierarchy-Reverse', url: 'https://ado/Main/_apis/wit/workItems/8' }] };
+  assert.deepEqual(relatedOps([8, 9, 7, 'x'], item, 'https://ado/Main').map(o => o.value.url), ['https://ado/Main/_apis/wit/workItems/9']);
+});
 
 test('workitem.create makes an item under a parent, in the parent\'s project, with its fields', () => withAdo(async ({ d, srv }) => {
   const out = await createWorkItem(d, { type: 'User Story', title: '  Export   orders ', parent: 501, fields: { description: 'As a buyer\nI want a CSV', acceptance: 'Given orders\nThen a file', area: TEAM_A, tags: ['slate'] } });

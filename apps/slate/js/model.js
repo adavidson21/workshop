@@ -139,6 +139,10 @@ export function cleanItem(raw = {}) {
   if (isDay(raw.merged)) { it.merged = raw.merged; it.mergedHow = raw.mergedHow === 'manual' ? 'manual' : 'prs'; } else { delete it.merged; delete it.mergedHow; }
   it.prs = cleanPrs(raw.prs); if (!it.prs) delete it.prs;
   if (['publish', 'build'].includes(raw.after)) it.after = raw.after; else delete it.after;
+  // The ADO item the work came from, once Publish made new items for it (it was linked to them), and when the
+  // triage questions were posted on the ADO item (Read replies reads comments after that).
+  if (raw.source && Number.isInteger(raw.source.id)) it.source = { id: raw.source.id, url: /^https?:\/\//i.test(String(raw.source.url || '')) ? str(raw.source.url, 1000) : '', type: str(raw.source.type, 60) }; else delete it.source;
+  if (raw.asked && Number.isInteger(raw.asked.id) && typeof raw.asked.at === 'string' && raw.asked.at.length <= 30) it.asked = { id: raw.asked.id, at: raw.asked.at }; else delete it.asked;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
   return it;
@@ -622,8 +626,39 @@ export function publishPlan(item, files = {}, { area = '', storyType = 'User Sto
       step(fref, { type: 'Feature', title: f.title, parentRef: epicRef, parentId: epicRef ? null : epicId, fields: fields(f.description) });
       for (const s of f.stories) step(`story ${s.ref}`, { type: storyType, title: s.title, parentRef: fref, fields: fields(s.description, s.acceptance) });
     }
+    // The card's own ADO item (an Issue, say) is not part of what was made: link it to the top item made and
+    // say so on it, so whoever asked can follow the work. Once, by the `source` ref in published.
+    const top = epicRef ? 'epic' : m.features.length ? `feature ${m.features[0].num}` : null;
+    if (item.ado && top && item.ado.id !== epicId && item.ado.id !== m.epic.id) {
+      const what = epicRef ? m.epic.title : m.features[0].title;
+      plan.push(published.source ? { ref: 'source', op: 'skip', id: item.ado.id, type: item.ado.type, title: item.title, to: top }
+        : { ref: 'source', op: 'link', id: item.ado.id, rev: item.ado.rev, type: item.ado.type, title: item.title, to: top, toTitle: what, toType: epicRef ? 'Epic' : 'Feature' });
+    }
   }
   return plan;
+}
+
+/** The comment Publish adds to the source item: what it became. `made` is the top item's {id, type, title}. */
+export function sourceComment(made) {
+  return `Shaped in Slate into ${made.type || 'a work item'} #${made.id}: ${made.title || ''}. That is where the work is tracked now; this item is linked to it as Related.`.replace(/: \./, '.');
+}
+
+/** Scope (scope and slice) rather than refine: an epic or feature, or a triage that sized it L or XL. */
+export function suggestsScope(item, triage) {
+  return !!(item && (item.level === 'epic' || item.level === 'feature')) || !!(triage && (triage.size === 'L' || triage.size === 'XL'));
+}
+
+/** The triage questions as one message for the requester (copied, or posted on the ADO item). */
+export function questionsText(item, triage) {
+  const qs = (triage && triage.questions) || [];
+  return `${item.title}${item.ado ? ` (#${item.ado.id})` : ''}\n\nA few questions before we start:\n${qs.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+}
+
+/** Comments on the ADO item since the questions were posted (`asked.at`), oldest first, as answers.md text. */
+export function repliesSince(comments, at) {
+  const t = Date.parse(at || '');
+  const rows = (comments || []).filter(c => c && c.text && String(c.text).trim() && (!Number.isFinite(t) || Date.parse(c.date || '') > t) && !/^A few questions before we start:/m.test(String(c.text)));
+  return rows.map(c => `${c.by && c.by.name ? c.by.name : 'Someone'} (${String(c.date || '').slice(0, 10)}):\n${String(c.text).trim()}`).join('\n\n');
 }
 
 /**
@@ -880,6 +915,40 @@ export function applyWork(list, offer, now = new Date()) {
   return it.id;
 }
 
+/**
+ * A request captured on Home or in the Dispatch hub (handoffs to Slate, kind `request`, docs/handoffs.md): with an
+ * ADO id, the card for that item gets the note (or a card in New is made, titled `#<id>` until Slate reads the
+ * item); without one, a request card in New. Returns the item's id, or null when the offer is not one Slate reads.
+ */
+export function applyRequest(list, offer, now = new Date()) {
+  const p = (offer && offer.payload) || {};
+  if (!offer || offer.to !== APP || p.kind !== 'request') return null;
+  const adoId = Number.isInteger(p.ado) && p.ado > 0 ? p.ado : /^\d{1,10}$/.test(String(p.ado || '')) ? Number(p.ado) : null;
+  const note = str(p.note, 4000).trim();
+  const day = today(now);
+  if (adoId) {
+    const found = list.find(x => x.ado && x.ado.id === adoId);
+    if (found) {
+      if (note && !String(found.description || '').includes(note)) found.description = str(`${found.description ? found.description + '\n\n' : ''}Note (${day}): ${note}`, 32000);
+      return found.id;
+    }
+    const it = newItem({ title: `#${adoId}`, description: note ? `Note (${day}): ${note}` : '', ado: { id: adoId, rev: 0, type: '', url: '', connection: '', area: '', state: '' } }, now);
+    it.history = [{ stage: 'new', at: day, from: 'capture' }];
+    list.push(it);
+    return it.id;
+  }
+  const text = note || str(offer.text, 4000).trim();
+  if (!text) return null;
+  const [first, ...rest] = text.split('\n');
+  const it = newItem({ title: oneLine(first, 255) || 'Untitled', description: rest.join('\n').trim() || (first.length > 255 ? text : '') }, now);
+  it.history = [{ stage: 'new', at: day, from: 'capture' }];
+  list.push(it);
+  return it.id;
+}
+
+/** A card made from `#<id>` before Slate read the item: its title is still the id. */
+export const needsAdoTitle = (it) => !!(it && it.ado && (it.title === `#${it.ado.id}` || !it.ado.type));
+
 /* ---------- release planning (the Resolved column) ---------- */
 
 /** Resolved items grouped by area path, for planning a release: [{area, label, items}], areas A to Z, none last. */
@@ -923,14 +992,16 @@ export function timeline(it, { run = null, assigneeName = '' } = {}) {
     let text = STEP_TEXT[h.stage] || h.stage;
     if (i === 0 && h.stage === 'new') text = it.kind === 'idea' ? 'Idea captured' : it.requester ? `Request from ${it.requester}` : it.ado ? `From ADO #${it.ado.id}` : 'Captured';
     if (h.from === 'dispatch') text = 'Started in Dispatch';
+    if (h.from === 'capture') text = it.ado ? `Captured on Home: ADO #${it.ado.id}` : 'Captured on Home';
     if (h.skipped) text += ' (skipped shaping)';
     if (h.stage === 'delegated' && assigneeName) text = `Delegated to ${assigneeName}`;
     const prev = hist.slice(0, i).map(x => STAGES.indexOf(x.stage));
     if (prev.length && STAGES.indexOf(h.stage) < Math.max(...prev) && !h.from) text = `Moved back: ${text}`;
     out.push({ at: h.at, text });
   });
-  const pub = Object.values(it.published || {});
+  const pub = Object.entries(it.published || {}).filter(([k]) => k !== 'source').map(([, v]) => v);
   if (pub.length && it.ado) out.push({ at: '', text: `Published to ADO: ${pub.map(n => `#${n}`).join(', ')}`, url: it.ado.url || '' });
+  if (it.source) out.push({ at: '', text: `Came from #${it.source.id}${it.source.type ? ` (${it.source.type})` : ''}, linked to the new items`, url: it.source.url || '' });
   if (run && it.stage === 'dev') out.push({ at: '', text: `Tandem: ${runStep(run)}${run.next && run.next.text ? `. ${run.next.text}` : ''}`, run: run.id || run.folder || '' });
   for (const p of (it.prs && it.prs.list) || []) out.push({ at: '', text: `Pull request ${p.id}${p.repository ? ` in ${p.repository}` : ''}: ${p.status === 'completed' ? 'merged' : p.status}`, url: p.url });
   if (it.merged) out.push({ at: it.merged, text: it.mergedHow === 'manual' ? 'Marked merged' : 'All pull requests merged' });

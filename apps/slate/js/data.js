@@ -3,7 +3,7 @@
 
    Writes stamp against what was read and merge on a conflict (docs/data-format.md), so two windows, or Slate and
    a Workshop data import, never lose each other's changes. */
-import { APP, VERSION, applyWork, cleanItem, cleanPrefs, sentIdeaTitles } from './model.js';
+import { APP, VERSION, applyRequest, applyWork, cleanItem, cleanPrefs, sentIdeaTitles } from './model.js';
 
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
@@ -85,8 +85,9 @@ export function createStore(ws, { onChange = () => {} } = {}) {
   }
 
   /**
-   * Work started in Dispatch (handoffs to Slate, kind `work`): add or link a card for each offer not handled yet,
-   * and record its id in items' `meta.handled` (docs/handoffs.md, rule 2) in the same write. Returns the ids added.
+   * Offers to Slate (docs/handoffs.md): `work` started in Dispatch, and `request` captured on Home or in the hub.
+   * Add or link a card for each offer not handled yet, and record its id in items' `meta.handled` (rule 2) in the
+   * same write. Returns the ids added or linked.
    */
   async function takeWork(offers) {
     if (v.readOnly || !v.loaded) return [];
@@ -101,7 +102,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     const added = [];
     for (const o of fresh) {
       if (done.has(key(o))) continue;
-      const id = applyWork(after.items, o);
+      const id = o.payload && o.payload.kind === 'request' ? applyRequest(after.items, o) : applyWork(after.items, o);
       if (id) added.push(id);
       handled.push(key(o));
       done.add(key(o));
@@ -152,16 +153,17 @@ export function createStore(ws, { onChange = () => {} } = {}) {
 /* ---------- connectors ---------- */
 
 /**
- * Offers to Slate from every sender (`senders`: {app id: name}, from the manifests): accepted `work` items only.
+ * Offers to Slate from every sender (`senders`: {app id: name}, from the manifests): accepted `work` and `request`
+ * items only (`kinds`).
  * A sender with no collection, or one Slate cannot read, has none.
  */
-export async function readWorkOffers(ws, senders) {
+export async function readWorkOffers(ws, senders, kinds = ['work', 'request']) {
   const out = [];
   for (const app of Object.keys(senders)) {
     let e = null;
     try { e = await ws.data.get('handoffs', { app }); } catch { e = null; }
     if (!e || e.schema !== `${app}.handoffs` || e.version !== 1 || !Array.isArray(e.items)) continue;
-    for (const o of e.items) if (o && o.to === APP && o.accepted === true && o.payload && o.payload.kind === 'work' && o.source && o.source.app === app) out.push(o);
+    for (const o of e.items) if (o && o.to === APP && o.accepted === true && o.payload && kinds.includes(o.payload.kind) && o.source && o.source.app === app) out.push(o);
   }
   return out;
 }

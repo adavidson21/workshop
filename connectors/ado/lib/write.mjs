@@ -36,9 +36,9 @@ function isRevConflict(e) {
   return e.upstream === 400 && /\b(rev|revision|TF26071|TF401289)\b/i.test(e.message);
 }
 
-async function fetchItem(ado, id) {
+async function fetchItem(ado, id, relations = false) {
   try {
-    return await ado.call('GET', `wit/workitems/${id}`);
+    return await ado.call('GET', `wit/workitems/${id}`, relations ? { query: { $expand: 'relations' } } : undefined);
   } catch (e) {
     if (e instanceof AdoError && e.upstream === 404) throw new AdoError(`Work item ${id} was not found.`, 404);
     throw e;
@@ -84,24 +84,41 @@ export function patchOps(changes, currentFields = {}) {
   if ((changes.tagsAdd && changes.tagsAdd.length) || (changes.tagsRemove && changes.tagsRemove.length)) {
     set('System.Tags', mergeTags(get(currentFields, 'System.Tags'), changes.tagsAdd || [], changes.tagsRemove || []));
   }
+  // A comment: setting System.History adds it to the item's Discussion (ADO Server 2020 and later).
+  if (changes.comment !== undefined) {
+    if (!String(changes.comment).trim()) throw new SettingsError('A comment cannot be empty.');
+    set('System.History', textToHtml(changes.comment));
+  }
+  return ops;
+}
+
+/** Related links to add: ids not already linked from the item (any link type), and never the item itself. */
+export function relatedOps(ids, item, base) {
+  const have = new Set((item.relations || []).map(r => (/\/workItems\/(\d+)$/i.exec(String(r.url || '')) || [])[1]).filter(Boolean).map(Number));
+  const ops = [];
+  for (const id of [...new Set((ids || []).map(Number))]) {
+    if (!Number.isInteger(id) || id < 1 || id === Number(item.id) || have.has(id)) continue;
+    ops.push({ op: 'add', path: '/relations/-', value: { rel: 'System.LinkTypes.Related', url: `${base}/_apis/wit/workItems/${id}` } });
+  }
   return ops;
 }
 
 /**
  * "workitem.update". args: {id, rev, connection?, changes: {title?, state?, assignedTo?, priority?, iteration?, area?,
- * startDate?, targetDate?, description?, acceptance?, tagsAdd?, tagsRemove?}}
+ * startDate?, targetDate?, description?, acceptance?, tagsAdd?, tagsRemove?, comment?, related?}}. `comment` goes to
+ * the Discussion; `related` is work item ids to add Related links to (ids already linked are skipped).
  * Returns the item as ADO now has it, in the itemShape shape.
  */
 export async function updateWorkItem(d, args) {
   const conn = itemConnection(d.cfg, args);
   const ado = clientFor(conn, d.env, d.signal);
   const changes = args.changes || {};
-  const current = await fetchItem(ado, args.id);
+  const current = await fetchItem(ado, args.id, changes.related && changes.related.length);
   if (Number(current.rev) !== Number(args.rev)) {
     throw new ConflictError(`Work item ${args.id} changed in ADO since you loaded it. Review the change and try again.`, itemShape(ado, current, conn.name));
   }
-  const ops = patchOps(changes, current.fields || {});
-  if (!ops.length) throw new SettingsError('Nothing to change.');
+  const ops = [...patchOps(changes, current.fields || {}), ...relatedOps(changes.related, current, ado.base)];
+  if (!ops.length) throw new SettingsError(changes.related && changes.related.length ? 'Those items are already linked.' : 'Nothing to change.');
   ops.unshift({ op: 'test', path: '/rev', value: Number(args.rev) });
   let w;
   try {

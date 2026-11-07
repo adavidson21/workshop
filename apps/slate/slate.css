@@ -212,3 +212,5 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .fold[open] > summary{margin-bottom:.4rem}
 .fold .ps{margin-top:.8rem}
 #sprintsBox .sprints{padding:0}
+
+.dlg .pre-line { white-space: pre-line; }

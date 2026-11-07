@@ -2,7 +2,7 @@
 
 Your day at a glance. The Workshop logo at the top of the rail opens it, and so does the plain address. It has no rail button of its own (`"home": true` in `app.json`, see [docs/app-manifest.md](../../docs/app-manifest.md)).
 
-The **Capture** button in the top bar (or Ctrl+. on any app) is the quick way in from anywhere: type a task, a note, a receipt or a question for the agents, and send it where it belongs.
+The **Capture** button in the top bar (or Ctrl+. on any app) is the quick way in from anywhere: type a task, a note, a receipt, a request for Slate (`s <text>`, or `#1234` for an ADO item) or a question for the agents, and send it where it belongs.
 
 What it shows:
 
@@ -14,8 +14,9 @@ What it shows:
   1. Connect Workshop on this computer (the installer command for your system, then Connect).
   2. Add your name.
   3. Connect Azure DevOps: the PAT scopes, `workshop pat`, then Settings on this computer (or Import settings from a file). It names the PAT variable when only the token is missing.
-  4. Add your first task in Docket (Docket's own tour takes over there).
-  5. Log your first receipt.
+  4. Set your team's area paths (Settings, People and teams, Team area paths): Slate's Inbox lists your team's ADO backlog from them. Needs Azure DevOps; skipped with it.
+  5. Add your first task in Docket (Docket's own tour takes over there).
+  6. Log your first receipt.
   Later: Dispatch, and start at login. Any step can be skipped. **Hide** puts it away, and **Get started** next to the greeting brings it back. **Check again** re-reads everything at once; otherwise it follows the apps and connectors as they change.
 - **Today:** Docket's day in counts, from its summary's `board` card: tasks on Today (done out of total, and open tasks), to triage, follow-ups due on work you handed over (and how many came back), and overdue (and due this week). **Open Today** and each count open Docket's Today, which is where the day happens: its Needs you strip handles each of these in place. Up next, the block on now and people live there, not on Home.
 - **Agents:** prompts waiting for you and agents working, from the opencode connector. Needs Workshop running on this computer with the connector on.
