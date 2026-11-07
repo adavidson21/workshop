@@ -518,9 +518,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "notes",
-        "name": "Notes",
-        "version": "2.8.0",
-        "description": "Markdown notes: folders, links and backlinks, tags, search, images, templates and a daily note.",
+        "name": "Notebook",
+        "version": "3.0.0",
+        "description": "Your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 45,
@@ -536,6 +536,10 @@
           {
             "path": ":note",
             "title": "Open a note"
+          },
+          {
+            "path": "tandem/:folder/:file",
+            "title": "Open a Tandem document"
           },
           {
             "path": "today",
@@ -576,6 +580,7 @@
           "js/applinks.js",
           "js/daily.js",
           "js/data.js",
+          "js/edits.js",
           "js/export.js",
           "js/history.js",
           "js/main.js",
@@ -585,7 +590,9 @@
           "js/pickup.js",
           "js/products.js",
           "js/records.js",
+          "js/sections.js",
           "js/summary-cards.js",
+          "js/tandem.js",
           "js/template-info.js",
           "js/templates.js",
           "js/vault.js",
@@ -599,16 +606,16 @@
           "shared/app-sw.js",
           "shared/device-fs.js",
           "shared/fonts/fonts.css",
-          "shared/fonts/gelasio-latin-ext-wght-normal.woff2",
-          "shared/fonts/gelasio-latin-wght-normal.woff2",
-          "shared/fonts/figtree-latin-ext-wght-italic.woff2",
-          "shared/fonts/figtree-latin-ext-wght-normal.woff2",
-          "shared/fonts/figtree-latin-wght-italic.woff2",
-          "shared/fonts/figtree-latin-wght-normal.woff2",
           "shared/fonts/dm-mono-latin-400-normal.woff2",
           "shared/fonts/dm-mono-latin-500-normal.woff2",
           "shared/fonts/dm-mono-latin-ext-400-normal.woff2",
           "shared/fonts/dm-mono-latin-ext-500-normal.woff2",
+          "shared/fonts/figtree-latin-ext-wght-italic.woff2",
+          "shared/fonts/figtree-latin-ext-wght-normal.woff2",
+          "shared/fonts/figtree-latin-wght-italic.woff2",
+          "shared/fonts/figtree-latin-wght-normal.woff2",
+          "shared/fonts/gelasio-latin-ext-wght-normal.woff2",
+          "shared/fonts/gelasio-latin-wght-normal.woff2",
           "shared/handoffs.js",
           "shared/pair.js",
           "shared/people.js",
@@ -622,6 +629,16 @@
           "shared/themes.css",
           "shared/ui.css",
           "shared/workshop-sdk.js"
+        ],
+        "aliases": [
+          "notebook",
+          "notes"
+        ],
+        "connectors": [
+          {
+            "id": "opencode",
+            "required": false
+          }
         ]
       }
     }

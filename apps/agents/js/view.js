@@ -6,6 +6,7 @@
    - .work files open in a sheet here (the `file.read` action) instead of a /files/ link.
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
+import { docHtml, lockReason } from './doc.js';
 import { S } from './state.js';
 import { SITE } from '../../../shared/site.js';
 import { projectChip, projectList, projectsOn, projectName, projectSheetHtml, projectsSheetHtml, moveSheetHtml, INBOX } from './projects.js';
@@ -500,14 +501,48 @@ export function removeSheetHtml() {
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rm-h">${out}<footer>${foot}</footer></div></div>`;
 }
 
-// ------------------------------------------------------------- a .work file, read through file.read
+// ------------------------------------------------------------- a .work file: read, preview and edit (doc.js)
+// Read through file.read, saved through file.write with the text it was read at, so nothing Tandem wrote since is
+// overwritten. Read-only while Tandem or autopilot works on the item. Open in Notebook shows it in the Notes app.
+export function fileDraftKey(f) { return 'file:' + f.folder + '/' + f.name; }
+export function fileDraft(f) { const d = S.ui.drafts[fileDraftKey(f)]; return d == null ? f.text : d; }
+export function fileDirty(f) { return !!f && f.text != null && fileDraft(f) !== f.text; }
+export function fileLock(f) {
+  const it = (S.D && S.D.items || []).find(x => x.folder === f.folder);
+  return it ? lockReason({ busy: isBusy(itemSession(it)), auto: autoIs(it, 'running') }) : '';
+}
 function fileSheetHtml() {
   const f = S.ui.file;
-  const body = f.error ? `<p class="err">${h(f.error)}</p>` : f.text == null ? '<p>Loading.</p>' : `<pre class="filetext">${h(f.text)}</pre>`;
-  const foot = '<span class="grow"></span>' + (f.text ? copyBtn(f.text, 'Copy') : '') + '<button type="button" class="btn" data-close-sheet="1">Close</button>';
-  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="file-h">` +
-    `<div class="sheet-head"><h3 id="file-h"><code>.work/${h(f.folder)}/${h(f.name)}</code></h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>` +
-    `${body}<footer>${foot}</footer></div></div>`;
+  const lock = f.text == null ? '' : fileLock(f);
+  const mode = lock ? 'preview' : (f.mode || 'preview');
+  const cur = fileDraft(f);
+  const dirty = fileDirty(f);
+  const key = fileDraftKey(f);
+  let body;
+  if (f.error && f.text == null) body = `<p class="err">${h(f.error)}</p>`;
+  else if (f.text == null) body = '<p>Loading.</p>';
+  else if (mode === 'edit') body = `<textarea class="doc-edit" data-draft="${h(key)}" spellcheck="true" aria-label="Edit ${h(f.name)}">${h(cur)}</textarea>`;
+  else body = cur.trim() ? `<div class="doc">${docHtml(cur)}</div>` : '<p class="dim">This file is empty.</p>';
+  const tabs = f.text == null ? '' :
+    `<div class="doc-tabs" role="tablist" aria-label="View">` +
+    `<button type="button" role="tab" class="doc-tab${mode === 'preview' ? ' on' : ''}" aria-selected="${mode === 'preview'}" data-file-mode="preview">Preview</button>` +
+    `<button type="button" role="tab" class="doc-tab${mode === 'edit' ? ' on' : ''}" aria-selected="${mode === 'edit'}" data-file-mode="edit"${lock ? ` disabled title="${h(lock)}"` : ''}>Edit</button></div>`;
+  let notes = '';
+  if (lock) notes += `<p class="doc-note">${h(lock)}${dirty ? ' Your edits are kept here.' : ''}</p>`;
+  if (f.conflict) notes += `<div class="ovr"><p>${h(f.name)} changed since you opened it, so nothing was saved.</p>` +
+    `<button type="button" class="btn" data-file-reload="1">Load the new version</button> ${copyBtn(cur, 'Copy my text')}</div>`;
+  else if (f.error) notes += `<p class="err">${h(f.error)}</p>`;
+  const foot = f.confirmClose
+    ? `<span class="grow dim">Discard your changes to ${h(f.name)}?</span><button type="button" class="btn" data-file-keep="1">Keep editing</button><button type="button" class="btn danger" data-file-discard="1">Discard</button>`
+    : `<span class="grow dim" data-file-state="1">${f.saving ? 'Saving.' : dirty ? 'Unsaved changes' : f.saved ? 'Saved' : ''}</span>` +
+      (S.hasNotes && f.text != null ? `<button type="button" class="btn" data-open-notebook="1" title="Open in Notebook">Open in Notebook</button>` : '') +
+      (f.text ? copyBtn(cur, 'Copy') : '') +
+      (f.text != null ? `<button type="button" class="btn" data-file-revert="1"${dirty ? '' : ' hidden'}>Revert</button>` +
+        `<button type="button" class="btn primary" data-file-save="1"${!dirty || lock || f.saving ? ' disabled' : ''}>Save</button>` : '') +
+      '<button type="button" class="btn" data-close-sheet="1">Close</button>';
+  return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet wide doc-sheet" role="dialog" aria-modal="true" aria-labelledby="file-h">` +
+    `<div class="sheet-head"><h3 id="file-h"><code>.work/${h(f.folder)}/${h(f.name)}</code></h3>${tabs}<button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>` +
+    `${notes}${body}<footer>${foot}</footer></div></div>`;
 }
 
 // ------------------------------------------------------------- the brief (brief.md, from /start)

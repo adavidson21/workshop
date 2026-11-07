@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -79,6 +79,7 @@
   "files": [
     "agents.css",
     "js/main.js",
+    "js/doc.js",
     "js/state.js",
     "js/view.js",
     "js/projects.js",

@@ -600,7 +600,8 @@ def notes_flow(page, nf, where):
     check(f'Notes ({where}): search finds text with its line', 'Steps for a release' in nf.inner_text('.results'))
     nf.press('.side [data-search]', 'Escape'); page.wait_for_timeout(200)
 
-    nf.click('[data-act=rename]')
+    # Notebook 3.0: Rename, Copy and Download are in the note's ⋯ menu.
+    nf.click('.note-head [data-act=menu]'); nf.click('.menu [data-act=rename]')
     nf.fill('#dlg input[name=value]', 'runbooks/deploy'); nf.click('#dlg button[value=ok]'); page.wait_for_timeout(400)
     check(f'Notes ({where}): a rename lists the notes whose links it will update', 'guide.md' in nf.inner_text('#dlg .updates'))
     nf.click('#dlg button[value=ok]'); page.wait_for_timeout(1500)
@@ -611,7 +612,7 @@ def notes_flow(page, nf, where):
     check(f'Notes ({where}): links to the renamed note are updated', '[Deploy Runbook](runbooks/deploy.md)' in nf.input_value('#editor'))
     nf.click('#preview a.note-link'); page.wait_for_timeout(500)
     check(f'Notes ({where}): a link in the preview opens the note', nf.input_value('#editor').startswith('# Deploy Runbook'))
-    nf.click('.note-head [data-act=copy]')
+    nf.click('.note-head [data-act=menu]'); nf.click('.menu [data-act=copy]')
     check(f'Notes ({where}): Copy puts the Markdown on the clipboard', toast_has(page, 'Copied the Markdown'))
     page.context.grant_permissions(['clipboard-read', 'clipboard-write'], origin=page.url.split('/#')[0].rstrip('/'))
     nf.click('.note-head [data-act=copy-wiki]')
@@ -1209,7 +1210,11 @@ def agents_checks(b, watch):
 
         # A file opens in the app.
         run.locator('.rtab-body [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
-        check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.filetext') and af.locator('.sheet h3').inner_text() == '.work/41300-export-retry-fails/bug.md')
+        check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
+        check('the file sheet offers Open in Notebook', af.locator('.sheet [data-open-notebook]').count() == 1)
+        # Approve just started a session on this run, so the sheet is read-only until Tandem stops (lib/docs.mjs refuses too).
+        check('while Tandem works on the run, Edit is off and the sheet says why',
+              af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
         af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
         af.click('[data-close-run]')
         check('Back from a run page returns to its list', seen(af, '.page .rrow#item-41207') and af.get_attribute('.tab.on', 'data-tab') == 'runs')

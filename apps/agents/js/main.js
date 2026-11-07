@@ -15,7 +15,7 @@ if (window.parent === window && location.hostname === hostOf(SITE.workshop)) loc
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
+import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, inboxCount, docFile, sessionAsksHtml } from './pages.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
@@ -25,6 +25,7 @@ import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { useApps } from '../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
+import { notebookRoute } from './doc.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -40,7 +41,7 @@ if (!ws.embedded) mountBar('Dispatch');
    The hub is drawn once into #hub; chat.js keeps it in its Ask or capture pane, and before Dispatch is connected
    paint() moves it under the setup page (#hub-slot), so captures always work. */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
-ws.apps.list().then(useApps).catch(() => {});
+ws.apps.list().then(list => { useApps(list); S.hasNotes = list.some(a => a.id === 'notes'); schedule(); }).catch(() => {});
 let chat = null;
 const hubEl = document.getElementById('hub');
 const hub = startHub(ws, hubEl, {
@@ -421,6 +422,7 @@ function paint() {
   const a = document.activeElement;
   const key = a && a.getAttribute && a.getAttribute('data-draft');
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
+  const draftTop = key ? a.scrollTop : 0;
   const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
   const inChat = chat.el.contains(a) || hubEl.contains(a) ? a : null;
   const chatSel = inChat && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
@@ -443,7 +445,7 @@ function paint() {
   app.querySelectorAll('[data-follow]').forEach(el => { el.scrollTop = el.scrollHeight; });
   if (key) {
     const el = app.querySelector(`[data-draft="${CSS.escape(key)}"]`);
-    if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } }
+    if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } el.scrollTop = draftTop; }
   }
 }
 // Coalesce bursts of updates into one paint per frame. Never repaint mid-click: the button under the
@@ -466,7 +468,10 @@ document.addEventListener('pointerup', () => {
 
 /* ---------- input ---------- */
 const ui = () => S.ui;
-function closeOverlays() {
+function closeOverlays(force) {
+  // An edited .work file asks before its changes are dropped (view.js fileSheetHtml).
+  if (!force && ui().file && fileDirty(ui().file)) { ui().file.confirmClose = true; ui().menu = null; return; }
+  if (ui().file) delete ui().drafts[fileDraftKey(ui().file)];
   ui().menu = null; ui().remove = null; ui().file = null; ui().start = null; ui().repo = null; ui().repos = false; ui().move = null; ui().projects = false;
   if (ui().project) { ui().project = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('proj:')) delete ui().drafts[k]; }
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
@@ -702,11 +707,33 @@ function sendQuestion(id) {
   if (answers.some(a => !a.length)) { toast('Pick or type an answer for each question.', true); return; }
   act(() => write('answer', { kind: 'question', id, answers }), () => { delete ui().picks[id]; });
 }
-async function openFile(folder, name) {
-  ui().file = { folder, name, text: null, error: null }; ui().menu = null; schedule();
+async function openFile(folder, name, mode) {
+  ui().file = { folder, name, text: null, error: null, mode: mode || 'preview', saving: false, conflict: false, saved: false, confirmClose: false };
+  ui().menu = null; schedule();
   try { const r = await read('file.read', { folder, file: name }); if (ui().file && ui().file.name === name) ui().file.text = r.text; }
   catch (e) { if (ui().file) ui().file.error = errText(e); }
   schedule();
+}
+// Save the open .work file with the text it was read at (file.write answers 409 if Tandem changed it since).
+async function saveFile() {
+  const f = ui().file;
+  if (!f || f.saving || !fileDirty(f) || fileLock(f)) return;
+  const text = fileDraft(f);
+  f.saving = true; f.error = null; f.conflict = false; schedule();
+  try {
+    await write('file.write', { folder: f.folder, file: f.name, text, expected: f.text });
+    if (ui().file === f) { f.text = text; delete ui().drafts[fileDraftKey(f)]; f.saved = true; }
+    toast('Saved ' + f.name);
+  } catch (e) {
+    if (ui().file === f) { if (e && (e.status === 409 || e.code === 'conflict') && !/working|Autopilot/.test(errText(e))) f.conflict = true; else f.error = errText(e); }
+  }
+  f.saving = false; schedule();
+}
+async function reloadFile() {
+  const f = ui().file;
+  if (!f) return;
+  delete ui().drafts[fileDraftKey(f)];
+  openFile(f.folder, f.name, f.mode);
 }
 
 async function copy(b) {
@@ -830,6 +857,20 @@ app.addEventListener('click', ev => {
   if (ac) { act(() => read('refresh'), () => toast('Checked opencode for AI providers.'), 'ai'); return; }
   if (t.closest('[data-cfg-save]')) { saveSettings(); return; }
   if (t.closest('[data-close-sheet]')) { closeOverlays(); paint(); return; }
+  const fm = t.closest('[data-file-mode]');
+  if (fm && ui().file) { ui().file.mode = fm.getAttribute('data-file-mode'); ui().file.saved = false; paint(); if (ui().file.mode === 'edit') focusFirst('.doc-edit'); return; }
+  if (t.closest('[data-file-save]')) { saveFile(); return; }
+  if (t.closest('[data-file-revert]') && ui().file) { delete ui().drafts[fileDraftKey(ui().file)]; paint(); return; }
+  if (t.closest('[data-file-reload]')) { reloadFile(); return; }
+  if (t.closest('[data-file-keep]') && ui().file) { ui().file.confirmClose = false; paint(); return; }
+  if (t.closest('[data-file-discard]')) { closeOverlays(true); paint(); return; }
+  if (t.closest('[data-open-notebook]') && ui().file) {
+    const f = ui().file;
+    if (fileDirty(f)) { toast('Save or revert your changes first.', true); return; }
+    closeOverlays(true); paint();
+    ws.open({ app: 'notes', path: notebookRoute(f.folder, f.name) }).catch(() => toast("Couldn't open Notebook.", true));
+    return;
+  }
   const fb = t.closest('[data-file]');
   if (fb) { openFile(fb.getAttribute('data-file'), fb.getAttribute('data-name')); return; }
   const rm = t.closest('[data-remove]');
@@ -882,6 +923,14 @@ app.addEventListener('toggle', ev => {
 app.addEventListener('input', ev => {
   const k = ev.target.getAttribute('data-draft');
   if (k) ui().drafts[k] = ev.target.value;
+  if (k && k.startsWith('file:') && ui().file) {
+    const dirty = fileDirty(ui().file), f = ui().file;
+    const save = app.querySelector('[data-file-save]'), rev = app.querySelector('[data-file-revert]'), st = app.querySelector('[data-file-state]');
+    if (save) save.disabled = !dirty || !!fileLock(f) || f.saving;
+    if (rev) rev.hidden = !dirty;
+    if (st) st.textContent = dirty ? 'Unsaved changes' : '';
+    f.saved = false;
+  }
   if (k && k.startsWith('rm:')) {
     const go = app.querySelector('[data-remove-go]');
     if (go) go.disabled = ev.target.value.trim() !== go.getAttribute('data-confirm');
@@ -916,6 +965,7 @@ document.addEventListener('keydown', ev => {
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && dk && dk.startsWith('file:')) { ev.preventDefault(); saveFile(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
   if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('start:')) { ev.preventDefault(); startGo(); return; }

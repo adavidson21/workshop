@@ -6,12 +6,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { VERSION, configure, current, findPs, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
-import { modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
-import { loadLinks } from "./lib/links.mjs";
-import { oc, resetState } from "./lib/opencode-state.mjs";
+import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
+import { currentSession, loadLinks } from "./lib/links.mjs";
+import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs";
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
-import { autopilotAction, loadAuto } from "./lib/autopilot.mjs";
+import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startReview, startSpike } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
@@ -23,7 +23,8 @@ import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
-import { MAX_FILE, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
+import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
+import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 
 export const configSchema = {
   type: "object",
@@ -196,6 +197,16 @@ function readWorkFile({ folder, file }) {
   } catch {
     throw httpError(404, `.work/${folder}/${file} not found.`);
   }
+}
+
+// Why Tandem's .work folder must not be edited right now, or null: its session is working or autopilot runs it.
+function busyFor(folder) {
+  const a = autopilot[folder];
+  if (a && a.status === "running") return "Autopilot is running this item";
+  const sid = currentSession(folder);
+  const s = sid ? sessions.get(sid) : null;
+  if (s && s.status && s.status !== "idle" && s.status !== "error") return "Tandem is working on this item";
+  return null;
 }
 
 const str = (title, extra = {}) => ({ type: "string", title, maxLength: 4000, ...extra });
@@ -409,17 +420,27 @@ const actions = {
     },
   },
   "file.write": {
-    title: "Write a Markdown file in a triage, shape, scope, refine or handoff folder",
+    title: "Write a Markdown file at the top of a .work folder",
     write: true,
     argsSchema: obj(["folder", "file", "text"], {
-      folder: str("A triage-, shape-, scope-, refine- or handoff- folder", { minLength: 1, maxLength: 100 }),
+      folder: str("A .work folder", { minLength: 1, maxLength: 200 }),
       file: str("File (.md, at the top of the folder)", { minLength: 4, maxLength: 85 }),
       text: str("The new text", { maxLength: MAX_FILE }),
       expected: str("The text you read (omit to create the file)", { maxLength: MAX_FILE }),
     }),
     async run(args) {
       needReady();
-      return writePmFile(args);
+      // Slate's PM folders keep their own rules; any other folder is Notebook's and Dispatch's editor (lib/docs.mjs).
+      if (PM_FOLDER.test(String(args.folder || ""))) return writePmFile(args);
+      return writeWorkFile(args, { root: workRoot, busyFor });
+    },
+  },
+  "docs.list": {
+    title: "List Tandem's .work documents",
+    write: false,
+    async run() {
+      needReady();
+      return listDocs(model, busyFor, workRoot);
     },
   },
   "pr.review": {
