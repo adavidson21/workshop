@@ -1,6 +1,6 @@
 // opencode connector: the work model. Runs New-Dashboard.ps1 -AsJson and watches .work.
 //
-// Copied from eng-agents core/scripts/dashboard/server/model.mjs. Changes: the parser is the copy in
+// Copied from eng-agents core/scripts/dashboard/server/model.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: the parser is the copy in
 // connectors/opencode/parser/; the watcher and poll stop with the connector; the static page snapshot
 // (.work/dashboard.html) is not written, because its template is the eng-agents page (see README.md).
 

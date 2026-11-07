@@ -1,7 +1,7 @@
 // opencode connector: shared context. Settings from the connector config, paths, timers that stop with
 // the connector, logging through ctx, and finding PowerShell.
 //
-// Copied from eng-agents core/scripts/dashboard/server/context.mjs. The live server read command-line
+// Copied from eng-agents core/scripts/dashboard/server/context.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). The live server read command-line
 // options once at import and exited on a bad one; a connector is started and stopped by the agent, so
 // here configure() sets the same values from ctx.config on every start and reports problems instead.
 // The values are `export let` bindings, so the other modules always see the current ones.
@@ -14,8 +14,8 @@ import { fileURLToPath } from "node:url";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const VERSION = "1.5.1"; // the connector's version (index.mjs exports it)
-export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (docs/shell-api.md in eng-agents)
+export const VERSION = "1.5.2"; // the connector's version (index.mjs exports it)
+export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
 export const V1_DEFAULT_URL = "http://127.0.0.1:4096";

@@ -1,6 +1,6 @@
 // opencode connector: live opencode state shared by both server APIs (sessions, prompts, replies) and HTTP helpers.
 //
-// Copied from eng-agents core/scripts/dashboard/server/opencode-state.mjs. Changes: resetState() for a
+// Copied from eng-agents core/scripts/dashboard/server/opencode-state.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: resetState() for a
 // restart, `agent.done` events, timers and requests that stop with the connector, and sessionEvents
 // for the code review revision runner (review.mjs).
 

@@ -1,6 +1,6 @@
 // opencode connector: the code review API for Dispatch's review screen (README.md, Code review).
 //
-// Copied from eng-agents core/scripts/dashboard/server/code-review.mjs on branch dev/feature/review-api
+// Copied from eng-agents core/scripts/dashboard/server/code-review.mjs (gone from eng-agents since Core 2.11.0; this is the only copy) on branch dev/feature/review-api
 // at 2626601. Changes: errors carry the agent API's codes and no extra fields (Dispatch reloads the
 // review on any conflict); the live server's HTTP route helpers are gone (index.mjs has actions).
 //

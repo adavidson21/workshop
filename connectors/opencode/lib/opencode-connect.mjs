@@ -1,6 +1,6 @@
 // opencode connector: finding and connecting to opencode, loading its state, and following its event stream.
 //
-// Copied from eng-agents core/scripts/dashboard/server/opencode-connect.mjs. Changes: the 2.x password
+// Copied from eng-agents core/scripts/dashboard/server/opencode-connect.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: the 2.x password
 // comes from the environment variable named in the config (ctx.env); opencode must be on this computer;
 // reconnects, the event stream and a 1.x `opencode serve` this connector started all stop with it.
 
