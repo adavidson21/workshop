@@ -3,9 +3,9 @@
    keyboard help (?). Every step can be skipped; it never deletes anything. */
 import { addTask } from './actions.js';
 import { ICON, TOUCH } from './constants.js';
-import { cleanSprint, sprintDayDate, sprintInfo } from './dayplan-model.js';
+import { cleanSprint, sprintDayDate, sprintInfo, sprintsOn } from './dayplan-model.js';
 import { dp, setRecurring, setSprint, setTemplates } from './dayplan.js';
-import { exampleTemplates } from './day-view.js';
+import { exampleTemplates, useNoSprints } from './day-view.js';
 import { closeModal, modal, showModal, toast } from './overlays.js';
 import { setView } from './render.js';
 import { commit, isWaiting, state } from './state.js';
@@ -63,6 +63,9 @@ function body(name){
     ${state.tasks.some(t => !t.done && (t.value == null || t.effort == null)) ? `<div class="tcard">You have tasks without a value or effort. <button class="btn" data-triage>Triage them now</button> <span class="tsmall">(ends the tour)</span></div>` : ''}`;
   if (name === 'days') {
     const sp = dp.sprint;
+    if (!sprintsOn(sp)) return `<h3>Plan your days <span class="topt">optional</span></h3>
+    <p>Sprints are off. Day gives each workday time blocks from a template, picked by weekday, like Deep focus, Meetings and Admin.</p>
+    <p class="tsmall">Workdays, holidays and templates are in Day, under the gear. <button class="lnk" data-usesprints>Use sprints instead</button></p>`;
     return `<h3>Plan your days <span class="topt">optional</span></h3>
     <p>Docket counts sprint days and gives each day time blocks from a template, like Deep focus, Meetings and Admin. Skip this if you don't work in sprints.</p>
     <form class="tsprint" id="tourSprint">
@@ -71,9 +74,11 @@ function body(name){
       ${dp.templates.length ? '' : '<label class="chk"><input type="checkbox" name="example" checked> Example templates</label>'}
       <button class="btn primary">${sp.anchor ? 'Update sprint' : 'Save sprint'}</button>
     </form>
-    ${sp.anchor ? `<p class="tsmall">Sprint set: one started ${esc(sp.anchor)}. Workdays, holidays and templates are in Day, under the gear.</p>` : ''}`;
+    ${sp.anchor ? `<p class="tsmall">Sprint set: one started ${esc(sp.anchor)}. Workdays, holidays and templates are in Day, under the gear.</p>` : ''}
+    <p class="tsmall">Don't work in sprints? <button class="lnk" data-nosprints>I don't work in sprints</button> Day templates then go by weekday. Turn sprints on any time in Day, under the gear.</p>`;
   }
   if (name === 'sprint') {
+    if (!sprintsOn(dp.sprint)) return `<h3>Repeating tasks <span class="topt">optional</span></h3><p>You don't use sprints, so there are no every-sprint tasks. Daily and weekly repeating tasks, like checking logs, are in Day, under the gear, or on any task under <b>Repeat</b>.</p>`;
     if (!dp.sprint.anchor) return `<h3>Every-sprint tasks <span class="topt">optional</span></h3><p>Set a sprint in the last step first, or add these later in Day, under the gear.</p>`;
     const sp = cleanSprint(dp.sprint), start = sprintInfo(sp, todayStr()).start, total = sp.workdays.length * sp.lengthWeeks;
     const day = n => { const d = sprintDayDate(sp, start, n); return d ? new Date(d + 'T12:00').toLocaleDateString(undefined, {weekday: 'short'}) : ''; };
@@ -119,6 +124,12 @@ function onClick(e, sh){
   }
   if (b.dataset.tag){ const i = sh.querySelector('#tourIn'); i.value = (i.value.trim() + ' ' + b.dataset.tag).trim(); i.focus(); return; }
   if (b.hasAttribute('data-samples')){ loadSamples(); draw(sh); return; }
+  if (b.hasAttribute('data-nosprints')){
+    const f = sh.querySelector('#tourSprint');
+    useNoSprints(!f || !f.example || f.example.checked);
+    draw(sh); return;
+  }
+  if (b.hasAttribute('data-usesprints')){ setSprint(Object.assign({}, dp.sprint, {enabled: true})); draw(sh); return; }
   if (b.hasAttribute('data-triage')){ closeModal(); setView('triage'); return; }
 }
 function onSubmit(e, sh){

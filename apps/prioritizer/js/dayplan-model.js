@@ -2,10 +2,12 @@
    Pure functions with no DOM, so Node tests can import them (test/dayplan.test.mjs).
 
    The day plan board (dp) has these parts, saved as collections (dayplan-format.js):
-     sprint     {anchor, lengthWeeks, workdays, holidays, dayStart, dayEnd}
+     sprint     {enabled, anchor, lengthWeeks, workdays, holidays, dayStart, dayEnd}. enabled false: no sprints;
+                templates match weekdays and every-sprint items make nothing (paused, kept)
      handled    keys of offers from other apps already accepted or dismissed (offers-model.js), saved with sprint
      recurring  every-sprint items (below)
-     templates  [{id, name, days: [2, 3, ...], last, sections: [section]}]
+     templates  [{id, name, days: [2, 3, ...], last, weekdays: [1, 2, ...], sections: [section]}]; days and last are
+                for sprints, weekdays (0 Sunday) for no sprints. A template keeps both, so turning sprints back on loses nothing
      days       {<yyyy-mm-dd>: record}, only for dates that were edited
    A section is {id, name, kind, color, around, minutes, capacity}; on a day it can also have lost: true.
    A day record is {id: date, template, sections, slots: [{taskId, sectionId, order}], shift, carry}.
@@ -42,7 +44,7 @@ function parseTime(v){
 }
 
 const COLORS = ['slate', 'sage', 'sky', 'butter', 'peach', 'blush', 'lavender', 'stone'];
-const DEFAULT_SPRINT = {anchor: null, lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [], dayStart: '09:00', dayEnd: '17:00'};
+const DEFAULT_SPRINT = {enabled: true, anchor: null, lengthWeeks: 2, workdays: [1, 2, 3, 4, 5], holidays: [], dayStart: '09:00', dayEnd: '17:00'};
 const MAX_UNDO = 50;
 
 /* ---------- cleaning (anything malformed is dropped or defaulted, unknown fields kept) ---------- */
@@ -50,6 +52,7 @@ const str = (v, n = 80) => typeof v === 'string' ? v.slice(0, n) : '';
 const num = v => Number.isFinite(+v) && v !== '' && v !== null && +v >= 0 ? Math.round(+v * 10) / 10 : null;
 function cleanSprint(s){
   const o = Object.assign({}, clone(s) || {});
+  o.enabled = o.enabled !== false;
   o.anchor = isDate(o.anchor) ? o.anchor : null;
   o.lengthWeeks = Number.isInteger(+o.lengthWeeks) && +o.lengthWeeks >= 1 && +o.lengthWeeks <= 8 ? +o.lengthWeeks : 2;
   o.workdays = Array.isArray(o.workdays) ? [...new Set(o.workdays.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort() : [1, 2, 3, 4, 5];
@@ -80,6 +83,7 @@ function cleanTemplate(t){
   o.name = str(o.name).trim() || 'Template';
   o.days = Array.isArray(o.days) ? [...new Set(o.days.map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 60))].sort((a, b) => a - b) : [];
   o.last = o.last === true;
+  o.weekdays = Array.isArray(o.weekdays) ? [...new Set(o.weekdays.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort() : [];
   o.sections = cleanSections(o.sections);
   return o;
 }
@@ -116,6 +120,10 @@ function cleanDayplan(dp){
 const freshDayplan = () => cleanDayplan({});
 
 /* ---------- sprint math ---------- */
+/* Sprints are on unless turned off (Day settings, the tour, or Workshop's Settings). */
+const sprintsOn = sp => !sp || sp.enabled !== false;
+/* The Day view has what it needs: with sprints, a sprint start date; without, nothing more. */
+const dayReady = sp => !!sp && (!sprintsOn(sp) || !!sp.anchor);
 const isWorkday = (sp, date) => sp.workdays.includes(pd(date).getDay()) && !sp.holidays.includes(date);
 const sprintLen = sp => sp.lengthWeeks * 7;
 const sprintIndex = (sp, date) => Math.floor(daysBetween(sp.anchor, date) / sprintLen(sp));
@@ -140,6 +148,14 @@ function sprintInfo(sp, date){
   }
   return {index: idx, id: sprintId(sp, idx), start, end, day, total, off: day == null, last: day != null && day === total, holiday: sp.holidays.includes(date)};
 }
+/* Where a date sits, either way: sprintInfo with sprints on; with them off {weekday, off, holiday} and no sprint
+   fields (id, day, total are null, last false). null when sprints are on and no start date is set. */
+function dayInfo(sp, date){
+  if (sprintsOn(sp)) return sprintInfo(sp, date);
+  if (!sp || !isDate(date)) return null;
+  const off = !isWorkday(sp, date);
+  return {weekday: pd(date).getDay(), id: null, day: null, total: null, off, last: false, holiday: sp.holidays.includes(date), noSprint: true};
+}
 function nextWorkday(sp, date, dir = 1){
   let d = date;
   for (let i = 0; i < 370; i++){ d = addDays(d, dir); if (isWorkday(sp, d)) return d; }
@@ -150,15 +166,28 @@ function nextWorkday(sp, date, dir = 1){
 /* The template for a date. A Last day template beats a numbered one on the sprint's last working day, so a
    holiday that shortens a sprint does not make "days 1 to 9" and "Last day" collide. */
 function templateFor(dp, date){
-  const info = sprintInfo(dp.sprint, date);
+  const info = dayInfo(dp.sprint, date);
   if (!info || info.off) return {template: null, info, conflict: []};
+  if (info.noSprint){
+    const pool = dp.templates.filter(t => (t.weekdays || []).includes(info.weekday));
+    return {template: pool[0] || null, info, conflict: pool.length > 1 ? pool : []};
+  }
   const lasts = info.last ? dp.templates.filter(t => t.last) : [];
   const nums = dp.templates.filter(t => t.days.includes(info.day));
   const pool = lasts.length ? lasts : nums;
   return {template: pool[0] || null, info, conflict: pool.length > 1 ? pool : []};
 }
 /* Problems Settings shows: two templates on the same sprint day number, or two Last day templates. */
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function templateErrors(templates, sp){
+  if (!sprintsOn(sp)){
+    const errs = [];
+    for (let d = 0; d < 7; d++){
+      const hit = templates.filter(t => (t.weekdays || []).includes(d));
+      if (hit.length > 1) errs.push(`${WEEKDAY_NAMES[d]} is in ${hit.map(t => `"${t.name}"`).join(' and ')}. Each day can use one template.`);
+    }
+    return errs;
+  }
   const errs = [], max = sprintLen(cleanSprint(sp));
   for (let d = 1; d <= max; d++){
     const hit = templates.filter(t => t.days.includes(d));
@@ -442,7 +471,7 @@ function recurDue(dp, today){
   for (const item of dp.recurring){
     if (item.paused) continue;
     if ((item.repeat || 'sprint') === 'sprint'){
-      if (!info || !first || today < first || item.made.includes(info.start)) continue;
+      if (!sprintsOn(sp) || !info || !first || today < first || item.made.includes(info.start)) continue;
       const due = sprintDayDate(dp.sprint, info.start, item.dueDay, item.last);
       if (!due || today > due) continue;
       out.push({item, id: recurTaskId(item, info.start), start: info.start, due, sprint: info.id});
@@ -506,7 +535,7 @@ function createHistory(max = MAX_UNDO){
 }
 
 export {
-  REPEATS, autoPlan, cleanRecurring, recurDue, recurTaskId, repeatLabel, repeatsOn, sprintDayDate,
+  REPEATS, WEEKDAY_NAMES, autoPlan, dayInfo, dayReady, sprintsOn, cleanRecurring, recurDue, recurTaskId, repeatLabel, repeatsOn, sprintDayDate,
   COLORS, DEFAULT_SPRINT, addDays, addSection, carryCandidates, carryOver, carryPending, cleanDayplan, cleanRecord, cleanSection,
   cleanSprint, cleanTemplate, createHistory, currentSection, dayView, daysBetween, dismissCarry, editDay, formatDays, freshDayplan,
   fmt12, fromMin, isDate, isTime, parseTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,

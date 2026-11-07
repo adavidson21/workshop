@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "82aef39fc0c11f12abb0be19d9c656567f3cada0",
+  "commit": "e48d066bacdd3cc83c3dd3342a7f47084623ed4b",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -9,6 +9,7 @@
     "icons/favicon-32.png": "icons/favicon-32.png",
     "icons/favicon.svg": "icons/favicon.svg",
     "scripts/sync-workshop.mjs": "scripts/sync-workshop.mjs",
+    "shared/app-settings.js": "shared/app-settings.js",
     "shared/app-sw.js": "shared/app-sw.js",
     "shared/device-fs.js": "shared/device-fs.js",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "shared/fonts/dm-mono-latin-400-normal.woff2",
@@ -52,7 +53,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.6.0",
+  "bundle": "2.7.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -61,6 +62,7 @@
     "icons/favicon-32.png": "0dcbcc87c5e0a0e476bf7379537213dcfdf365a5c934fadb37d5140c6008bc6b",
     "icons/favicon.svg": "3f9a71f623a8b998e151ea12b9a5f04008b0e4760d3ff9b2a46f9830c09b6539",
     "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
+    "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "e1896b13b2b1bb112fac2f9571bd6c40e118746e77a4511edbf43fbb41bf3e1e",
@@ -92,9 +94,9 @@
     "shared/vendor/LICENSE-SheetJS.txt": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64",
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
+    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
-    "test/workshop/schemas/app.schema.json": "6044f87e89978423d80ec6c99e1128badbefdc42148467f213e89133d46effda",
+    "test/workshop/schemas/app.schema.json": "b930c1746574182b87786614ec769e611f19895d80b69db1b53fa146e00a405d",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "test/workshop/schemas/data-bundle.schema.json": "18f46205693248fe5317dc21919b23d45dbd1e12964dffcd98eab3ee5065d3de",
     "test/workshop/schemas/data-envelope.schema.json": "457b2e586e2fc5522e7eb01b3b3cb9a21eca2a6b7a1b5e1755afbc572f5dff7a",

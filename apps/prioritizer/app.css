@@ -605,6 +605,16 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .dtpl-h .dtname{flex:1 1 12rem;font:600 1rem var(--serif);width:auto}
 .dtpl-h label{display:flex;align-items:center;gap:.4rem;font-size:.84rem;white-space:nowrap}
 .dtpl-h label input:not([type=checkbox]){width:6.5rem}
+.dtwd{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.3rem .7rem}
+.dsprints{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;cursor:pointer}
+.dsprints b{display:block;font:600 1.1rem/1.2 var(--serif);font-variation-settings:"opsz" 32}
+.dsprints .dhelp{display:block;margin:.2rem 0 0}
+/* an on/off switch, like Workshop Settings' */
+.dsettings input.toggle,.sheet input.toggle,.toggle{appearance:none;-webkit-appearance:none;flex:none;position:relative;width:2.5rem;height:1.4rem;min-height:0;padding:0;border:0;margin:.1rem 0 0;border-radius:999px;background:var(--line);cursor:pointer;transition:background-color .2s}
+.toggle::after{content:"";position:absolute;top:.2rem;left:.2rem;width:1rem;height:1rem;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgb(0 0 0/.25);transition:transform .2s}
+.sheet input.toggle:checked,.toggle:checked{background:var(--accent)}
+.toggle:checked::after{transform:translateX(1.1rem)}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .doffers{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-md);padding:.55rem .75rem;margin:.6rem 0;background:var(--bg)}
 .doffers h5{margin:0 0 .3rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .doffer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.4rem .8rem;padding:.4rem 0;border-top:1px solid var(--line)}

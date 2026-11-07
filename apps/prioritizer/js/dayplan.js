@@ -1,7 +1,7 @@
 /* Docket: the day plan's state and saving. The day plan is its own small board (dayplan-model.js), saved through
    the same write loop as the board (store.js) as the dayplan/* collections (dayplan-format.js). Every change the
    Day view makes goes through dpChange, which records it for undo and saves. */
-import { autoPlan, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue } from './dayplan-model.js';
+import { autoPlan, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue, sprintsOn } from './dayplan-model.js';
 import { COLORS } from './constants.js';
 import { commit, isWaiting, listById, state, topLists } from './state.js';
 import { todayStr } from './util.js';
@@ -24,6 +24,7 @@ async function dayplanBoot(ws, {render, status}){
   });
   await dstore.load();
   dstore.start();
+  await linkWorkshop(ws);
   recurTick();
   setInterval(recurTick, 60000);
   return dstore;
@@ -79,7 +80,41 @@ function dpChange(dates, fn){
 }
 function dpUndo(){ const d = history.undo(dp); if (d){ save(); return true; } return false; }
 function dpRedo(){ const d = history.redo(dp); if (d){ save(); return true; } return false; }
-function setSprint(sp){ dp.sprint = cleanSprint(sp); save(); }
+function setSprint(sp){
+  const was = sprintsOn(dp.sprint);
+  dp.sprint = cleanSprint(sp);
+  save();
+  if (sprintsOn(dp.sprint) !== was){ tellWorkshop(); recurTick(); }
+}
+
+/* Use sprints, inside Workshop: Workshop's Settings shows it as Docket's `sprints` switch (app.json settings,
+   Workshop docs/app-settings.md). There Workshop's value counts and dp.sprint.enabled follows it; a change made
+   here is sent to Workshop. On Docket's own site there is no registry, and dp.sprint.enabled is all there is. */
+let wsLinked = null;
+const SETTING = 'sprints';
+async function linkWorkshop(ws){
+  if (!ws || !ws.appSettings) return;
+  try {
+    if (!(await ws.appSettings.declared()).some(d => d.id === SETTING)) return; // not on a Workshop site
+    wsLinked = ws;
+    // Never set in Workshop yet: Docket's own choice (made before this Workshop knew about it) goes there.
+    const env = await ws.data.get('app-settings', {app: 'settings'}).catch(() => null);
+    const item = env && Array.isArray(env.items) ? env.items.find(x => x && x.id === 'prioritizer') : null;
+    if (!item || !item.values || typeof item.values[SETTING] !== 'boolean'){ if (!sprintsOn(dp.sprint)) tellWorkshop(); }
+    else fromWorkshop(item.values);
+    ws.appSettings.subscribe(fromWorkshop);
+  } catch (e) { /* Workshop's settings can't be read: Docket's own choice stands */ }
+}
+function fromWorkshop(values){
+  const on = values && values[SETTING];
+  if (typeof on !== 'boolean' || on === sprintsOn(dp.sprint)) return;
+  dp.sprint = cleanSprint(Object.assign({}, dp.sprint, {enabled: on}));
+  save(); recurTick();
+}
+const workshopLinked = () => !!wsLinked;
+function tellWorkshop(){
+  if (wsLinked) wsLinked.appSettings.set({[SETTING]: sprintsOn(dp.sprint)}).catch(() => {});
+}
 function setTemplates(ts){ dp.templates = ts.map(cleanTemplate).filter(Boolean); save(); }
 function setRecurring(rs){
   // Keep what each item already made, so editing an item doesn't make this sprint's task again.
@@ -101,4 +136,4 @@ async function importDayplan(bundle){
   return cols.length;
 }
 
-export { recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };
+export { workshopLinked, recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };

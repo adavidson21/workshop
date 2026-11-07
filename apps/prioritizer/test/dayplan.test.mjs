@@ -344,6 +344,9 @@ test('unknown fields are kept and day plan collections come back from a backup',
 
 test('saved day plan items match the JSON Schemas in schemas/', () => {
   const ds = SchemaSet.fromDir(path.join(HERE, '..', 'schemas'));
+  const no0 = (name, v) => assert.deepEqual(ds.validate(name, v), [], name);
+  no0('dayplan-settings.schema.json', M.cleanSprint({enabled: false}));
+  no0('dayplan-template.schema.json', M.cleanTemplate({name: 'Weekdays', weekdays: [1, 2, 3]}));
   const dp = board({sprint: {...SPRINT, holidays: ['2026-11-11']}}), byId = tasks([{id: 'a'}, {id: 'b'}]);
   M.slotTask(dp, '2026-11-05', 'a', 'am'); M.loseSection(dp, '2026-11-05', 'am', 'next', byId); M.shiftDay(dp, '2026-11-05', 15);
   M.carryOver(dp, '2026-11-06', 'tray', byId); M.moveInSection(dp, '2026-11-05', 'a', 1, byId);
@@ -353,6 +356,42 @@ test('saved day plan items match the JSON Schemas in schemas/', () => {
   for (const d of dpEnvelopeFromBoard('dayplan/days/2026', dp, null).items) no('dayplan-day.schema.json', d);
   dp.recurring = [M.cleanRecurring({title: 'Refinement', dueDay: 4, made: ['2026-11-04']}), M.cleanRecurring({title: 'Check logs', repeat: 'weekly', weekday: 1, at: '09:15', made: ['2026-11-09']})];
   for (const r of dpEnvelopeFromBoard('dayplan/recurring', dp, null).items) no('dayplan-recurring.schema.json', r);
+});
+
+/* ---------- sprints off ---------- */
+test('sprints off: on by default; off, templates match weekdays and keep their sprint days', () => {
+  assert.equal(M.cleanSprint({}).enabled, true, 'on by default');
+  assert.equal(M.cleanSprint({enabled: 'no'}).enabled, true);
+  assert.equal(M.sprintsOn(M.cleanSprint({enabled: false})), false);
+  assert.equal(M.dayReady(M.cleanSprint({})), false, 'sprints on with no start date: not ready');
+  assert.equal(M.dayReady(M.cleanSprint({enabled: false})), true, 'sprints off: ready without a start date');
+  const wk = [
+    {id: 'mt', name: 'Mon to Thu', days: [2, 3], weekdays: [1, 2, 3, 4], sections: [sec('f', 'Focus', 'focus', '09:00', 120)]},
+    {id: 'fr', name: 'Friday', days: [], last: true, weekdays: [5], sections: [sec('w', 'Wrap', 'review', '15:00', 60)]}
+  ];
+  const dp = M.cleanDayplan(clone({sprint: {enabled: false, holidays: ['2026-11-11']}, templates: wk, days: {}}));
+  assert.equal(M.templateFor(dp, '2026-11-05').template.id, 'mt', 'Thursday');
+  assert.equal(M.templateFor(dp, '2026-11-06').template.id, 'fr', 'Friday');
+  assert.equal(M.templateFor(dp, '2026-11-07').template, null, 'Saturday is off');
+  const hol = M.dayInfo(dp.sprint, '2026-11-11');
+  assert.equal(hol.off, true); assert.equal(hol.holiday, true); assert.equal(hol.id, null);
+  assert.deepEqual(M.dayView(dp, '2026-11-05').rec.sections.map(s => s.id), ['f']);
+  assert.deepEqual(M.templateErrors(dp.templates, dp.sprint), []);
+  assert.match(M.templateErrors([...dp.templates, {name: 'Again', days: [], weekdays: [5]}].map(M.cleanTemplate), dp.sprint)[0], /Friday is in "Friday" and "Again"/);
+  // Turning sprints back on uses the sprint days the templates kept.
+  dp.sprint = M.cleanSprint({...dp.sprint, enabled: true, anchor: '2026-11-04'});
+  assert.equal(M.templateFor(dp, '2026-11-05').template.id, 'mt', 'sprint day 2');
+  assert.equal(M.templateFor(dp, '2026-11-17').template.id, 'fr', 'last day');
+});
+
+test('sprints off: every-sprint items make nothing and are kept; daily and weekly ones still repeat', () => {
+  const dp = board({recurring: [{id: 'ref', title: 'Backlog refinement', dueDay: 4}, {id: 'log', title: 'Check logs', repeat: 'workdays'}]});
+  assert.deepEqual(M.recurDue(dp, '2026-11-04').map(d => d.item.id), ['ref', 'log']);
+  dp.sprint = M.cleanSprint({...dp.sprint, enabled: false});
+  assert.deepEqual(M.recurDue(dp, '2026-11-04').map(d => d.item.id), ['log']);
+  assert.equal(dp.recurring.length, 2, 'kept');
+  dp.sprint = M.cleanSprint({...dp.sprint, enabled: true});
+  assert.deepEqual(M.recurDue(dp, '2026-11-04').map(d => d.item.id), ['ref', 'log'], 'back on: they resume');
 });
 
 /* ---------- every-sprint tasks ---------- */

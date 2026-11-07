@@ -6,7 +6,7 @@ import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, 
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayStr } from './util.js';
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
 import { dp } from './dayplan.js';
-import { currentSection, dayView, fmt12, isWorkday, sectionTasks } from './dayplan-model.js';
+import { currentSection, dayReady, dayView, fmt12, isWorkday, sectionTasks } from './dayplan-model.js';
 import { adoReview } from './ado.js';
 /* Prioritizer: The views: Today (three columns: Inbox, Ranked, Today), Done with the weekly recap, People.
 
@@ -27,7 +27,7 @@ function closeNeed(){ if (!need) return false; need = null; render(); return tru
 const blockingPr = t => !t.done && t.pr && t.pr.tier === 'blocking' && !t.pr.waiting;
 function unplannedToday(){
   const sp = dp.sprint, d = todayStr();
-  if (!sp || !sp.anchor || !isWorkday(sp, d)) return 0;
+  if (!dayReady(sp) || !isWorkday(sp, d)) return 0;
   const rec = dayView(dp, d).rec;
   if (!rec.sections.some(x => !x.lost)) return 0;
   const slotted = new Set(rec.slots.map(x => x.taskId));
@@ -171,7 +171,7 @@ function rankCol(lens){
 /* The Day view's block on now, its tasks and the next block. Plan the day when today has blocks but nothing planned. */
 function nowCard(){
   const sp = dp.sprint, d = todayStr();
-  if (!sp || !sp.anchor || !isWorkday(sp, d)) return '';
+  if (!dayReady(sp) || !isWorkday(sp, d)) return '';
   const rec = dayView(dp, d).rec, open = rec.sections.filter(x => !x.lost);
   if (!open.length) return `<section class="panel nowcard"><header><h3>Now</h3></header><div class="pempty">No blocks today. <button class="lnk" data-view="day">Plan the day</button></div></section>`;
   const now = new Date(), {current, next} = currentSection(rec, now.getHours() * 60 + now.getMinutes());

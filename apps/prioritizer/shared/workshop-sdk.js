@@ -20,6 +20,7 @@
 import { deviceAvailable, openDeviceRoot } from './device-fs.js';
 import * as People from './people.js';
 import * as Teams from './teams.js';
+import * as AppSettings from './app-settings.js';
 
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
@@ -1432,6 +1433,9 @@ export async function connect(options) {
     people: peopleService(data),
     /* your team's area paths (docs/teams.md): the People app edits them here, everyone reads them with data.get */
     teams: teamsService(data),
+    /* switches apps declare in their manifest (docs/app-settings.md): an app reads and changes its own here,
+       Settings changes any app's */
+    appSettings: appSettingsService(data, app, async (id) => { const a = (await appsOnSite()).find(x => x.id === id); return a ? a.settings : []; }),
 
     /* files (docs/sdk.md, Files): this app writes only its own files. Another app's files can be read, except
        the ones its manifest marks private (privateFiles, docs/app-manifest.md): those reads reject with
@@ -1657,6 +1661,60 @@ function teamsService(data) {
   };
 }
 
+/* ws.appSettings (docs/app-settings.md): the switches an app declares in its manifest (`settings`), Settings'
+   `app-settings` collection (shared/app-settings.js). An app reads and changes its own values; only Settings
+   changes another app's. declOf(id) resolves an app's declared settings from the site's registry ([] without one). */
+function appSettingsService(data, app, declOf) {
+  const { APP, COLLECTION } = AppSettings;
+  const local = new Set();
+  const target = (opts) => {
+    const id = (opts && opts.app) || app;
+    if (!AppSettings.isAppId(id)) throw new WorkshopError('bad_request', 'Not an app id.');
+    return id;
+  };
+  const unsupported = (env) => new WorkshopError('unsupported', `App settings were saved by a newer Workshop (version ${env.version}). Update Workshop to change them.`);
+  const read = async (id) => {
+    const env = await data.get(APP, COLLECTION);
+    if (!AppSettings.readable(env)) throw unsupported(env);
+    return AppSettings.valuesFor(env, id, await declOf(id).catch(() => []));
+  };
+  return {
+    /** This app's values (or opts.app's): each declared default, then what is saved. */
+    get(opts) { return read(target(opts)); },
+    /** The settings an app declares in its manifest, cleaned. [] when the site has no registry. */
+    async declared(opts) { return AppSettings.declared(await declOf(target(opts)).catch(() => [])); },
+    subscribe(handler, opts) {
+      const id = target(opts);
+      const h = (changed, values) => { if (changed === id) handler(values); };
+      local.add(h);
+      const off = data.subscribe(APP, COLLECTION, async () => { try { handler(await read(id)); } catch (e) { console.error(e); } });
+      return () => { local.delete(h); off(); };
+    },
+    /** Saves some of this app's values ({key: boolean}), or opts.app's from Settings. Resolves the values as saved. */
+    async set(values, opts) {
+      const id = target(opts);
+      if (id !== app && app !== APP) throw new WorkshopError('forbidden', 'Only Settings changes another app\'s settings.', 403);
+      for (let attempt = 0; ; attempt++) {
+        const stored = await data.get(APP, COLLECTION);
+        if (!AppSettings.readable(stored)) throw unsupported(stored);
+        const before = stored || AppSettings.blank();
+        let items;
+        try { items = AppSettings.withValues(clone(before.items || []), id, values); }
+        catch (e) { throw new WorkshopError('bad_request', e.message); }
+        const after = stampEnvelope(before, { ...clone(before), schema: AppSettings.SCHEMA, version: AppSettings.VERSION, items });
+        try {
+          await data.put(APP, COLLECTION, after);
+          const out = AppSettings.valuesFor(after, id, await declOf(id).catch(() => []));
+          for (const h of local) { try { h(id, out); } catch (e) { console.error(e); } }
+          return out;
+        } catch (e) {
+          if (!(e instanceof WorkshopError && e.code === 'conflict') || attempt >= 4) throw e;
+        }
+      }
+    }
+  };
+}
+
 async function putWithRetry(data, app, collection, envelope) {
   try {
     return await data.put(app, collection, envelope);
@@ -1733,7 +1791,8 @@ export function appsFromRegistry(reg) {
       handoffs: m.handoffs && Array.isArray(m.handoffs.sends) ? { sends: m.handoffs.sends.filter(s => typeof s === 'string') } : { sends: [] },
       capture: Array.isArray(m.capture) ? m.capture.filter(s => typeof s === 'string') : [],
       aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : [],
-      privateFiles: privateFilesSpec(m.privateFiles)
+      privateFiles: privateFilesSpec(m.privateFiles),
+      settings: AppSettings.declared(m.settings)
     }))
     .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
 }
@@ -1748,7 +1807,7 @@ function appsOnSite() {
       } catch (e) { return []; }
     })();
   }
-  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases], privateFiles: Array.isArray(a.privateFiles) ? [...a.privateFiles] : a.privateFiles })));
+  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases], privateFiles: Array.isArray(a.privateFiles) ? [...a.privateFiles] : a.privateFiles, settings: a.settings.map(x => ({ ...x })) })));
 }
 
 async function agentAppIds(ctx) {
@@ -1764,6 +1823,6 @@ export const data = { merge: mergeEnvelopes, stamp: stampEnvelope };
 export { pickBackend as detectBackend };
 
 // Internals for tests (shared/test/): the stores against any directory handle, and the move from IndexedDB.
-export const _internals = { filesApi, makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService, teamsService };
+export const _internals = { filesApi, makeFolderStore, makeIdbStore, moveIntoFolder, openBrowserStore, peopleService, teamsService, appSettingsService };
 
 export default { connect, WorkshopError, data, detectBackend: pickBackend, folderState, allowFolder };

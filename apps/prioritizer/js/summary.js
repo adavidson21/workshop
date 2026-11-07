@@ -16,7 +16,7 @@
 import { WINDOW } from './constants.js';
 import { isTriaged } from './model.js';
 import { addDays, daysBetween, isDate } from './util.js';
-import { dayView, fromMin, isTime, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
+import { dayReady, dayView, fromMin, isTime, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
 import { HORIZON, horizon } from '../shared/summary.js';
 import * as D from '../shared/people.js';
 
@@ -84,7 +84,7 @@ export function tasksCard(board){
 
 /* ---------- day plan and Wrap up ---------- */
 export function dayBlocks(dp, date, tasksById){
-  if (!dp || !dp.sprint || !dp.sprint.anchor) return [];
+  if (!dp || !dayReady(dp.sprint)) return [];
   const rec = dayView(dp, date).rec;
   const timed = (rec.sections || []).filter(s => s && !s.lost && isTime(s.around)).map(s => ({s, at: toMin(s.around)})).sort((a, b) => a.at - b.at);
   return timed.slice(0, 24).map(({s, at}, i) => {
@@ -95,7 +95,7 @@ export function dayBlocks(dp, date, tasksById){
 }
 export function wrapAt(dp, date){
   const sp = dp && dp.sprint;
-  if (!sp || !sp.anchor) return WRAP_NO_SPRINT;
+  if (!dayReady(sp)) return WRAP_NO_SPRINT;
   if (!isWorkday(sp, date)) return null;
   return fromMin((toMin(sp.dayEnd) ?? 17 * 60) - WRAP_BEFORE_END);
 }

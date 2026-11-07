@@ -5,10 +5,10 @@ import { ICON, POINTS, TOUCH } from './constants.js';
 import {
   COLORS, addDays, addSection, carryCandidates, carryOver, carryPending, cleanSprint, cleanTemplate, currentSection, dayView, dismissCarry,
   daysBetween, formatDays, isDate, sprintDayDate, isTime, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection, removeSection,
-  resetDay, restFrom, restoreSection, sectionLoad, sectionOf, sectionTasks, shiftDay, slotOf, slotTask, sprintInfo, templateErrors,
+  resetDay, restFrom, restoreSection, sectionLoad, sectionOf, sectionTasks, shiftDay, slotOf, slotTask, sprintInfo, templateErrors, dayReady, sprintsOn, WEEKDAY_NAMES,
   toMin, unslotTask, updateSection, fmt12, parseTime, repeatLabel, repeatsOn
 } from './dayplan-model.js';
-import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setRecurring, setSprint, setTemplates } from './dayplan.js';
+import { dp, dpChange, dpRedo, dpUndo, ensureYear, history, setRecurring, setSprint, setTemplates, workshopLinked } from './dayplan.js';
 import { cmdOpen } from './command-bar.js';
 import { acceptOffer, dismissOffer, offers } from './offers.js';
 import { SENDERS, applyOffer, matchFor } from './offers-model.js';
@@ -41,8 +41,9 @@ function setDate(d){
 
 /* ---------- header ---------- */
 function dayHead(){
-  const d = curDate(), info = sprintInfo(dp.sprint, d);
-  const where = info ? (info.off ? `Sprint ${info.id} · ${info.holiday ? 'Holiday' : 'Day off'}` : `Sprint ${info.id}, day ${info.day} of ${info.total}`) : 'No sprint set';
+  const d = curDate(), on = sprintsOn(dp.sprint), info = on ? sprintInfo(dp.sprint, d) : null;
+  const where = !on ? (dayView(dp, d).info.off ? (dp.sprint.holidays.includes(d) ? 'Holiday' : 'Day off') : 'Workday')
+    : info ? (info.off ? `Sprint ${info.id} · ${info.holiday ? 'Holiday' : 'Day off'}` : `Sprint ${info.id}, day ${info.day} of ${info.total}`) : 'No sprint set';
   const sub = `${esc(where)} · ${esc(fmtLong(d))} · ${esc(scopeLabel())}`;
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
     <div class="ptitle"><h1>Day</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
@@ -54,20 +55,20 @@ function dayHead(){
       ${history.canUndo ? `<button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)">${I.undo}</button>` : ''}
       ${history.canRedo ? `<button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)">${I.redo}</button>` : ''}
       <button class="ibtn" data-dp="daymenu" aria-haspopup="menu" aria-label="This day" data-tip="This day: add a block, shift, reset">${ICON.dots}</button>
-      ${(() => { const n = offers().length; return `<button class="ibtn${n ? ' has-dot' : ''}" data-dp="settings" aria-label="Day plan settings${n ? `, ${plural(n, 'offer')} waiting` : ''}" data-tip="${n ? `Sprint and templates. ${plural(n, 'offer')} waiting` : 'Sprint and templates'}">${I.gear}</button>`; })()}
+      ${(() => { const n = offers().length; return `<button class="ibtn${n ? ' has-dot' : ''}" data-dp="settings" aria-label="Day plan settings${n ? `, ${plural(n, 'offer')} waiting` : ''}" data-tip="${n ? `${settingsTitle()}. ${plural(n, 'offer')} waiting` : settingsTitle()}">${I.gear}</button>`; })()}
     </div>`;
 }
 
 /* ---------- main ---------- */
 function renderDay(){
-  if (!dp.sprint.anchor) return renderSetup();
+  if (!dayReady(dp.sprint)) return renderSetup();
   const d = curDate(), byId = tasksById();
   const {rec, info, template, conflict, saved} = dayView(dp, d);
   const isToday = d === todayStr();
   const now = isToday ? currentSection(rec, nowMin()) : {current: null, next: null};
   lastNow = now.current ? now.current.id : null;
   let banners = '';
-  if (info.off) banners += `<div class="banner"><span>${info.holiday ? 'Holiday' : 'Day off'}. Not a sprint day.</span>${rec.sections.length ? '' : `<button class="btn" data-dp="addsec">Plan it anyway</button>`}</div>`;
+  if (info.off) banners += `<div class="banner"><span>${info.holiday ? 'Holiday' : 'Day off'}. Not a ${info.noSprint ? 'workday' : 'sprint day'}.</span>${rec.sections.length ? '' : `<button class="btn" data-dp="addsec">Plan it anyway</button>`}</div>`;
   if (conflict.length) banners += `<div class="banner warn"><span>${conflict.map(t => `"${esc(t.name)}"`).join(' and ')} both match this day. The first one is used.</span><button class="btn" data-dp="settings">Templates</button></div>`;
   if (!info.off && carryPending(dp, d, byId)){
     const c = carryCandidates(dp, d, byId);
@@ -75,7 +76,7 @@ function renderDay(){
       <button class="btn ghost" data-dp="carry-skip">Dismiss</button><button class="btn" data-dp="carry-tray">Put in the tray</button><button class="btn primary" data-dp="carry-sections">Same blocks today</button></div>`;
   }
   const secs = rec.sections.map(s => section(rec, s, byId, now)).join('');
-  const empty = !rec.sections.length && !info.off ? `<div class="focus-empty"><b>No blocks yet.</b>${template ? 'This day\'s template has no blocks.' : dp.templates.length ? `No template covers day ${info.day}.` : 'Templates give each sprint day its blocks.'}
+  const empty = !rec.sections.length && !info.off ? `<div class="focus-empty"><b>No blocks yet.</b>${template ? 'This day\'s template has no blocks.' : dp.templates.length ? `No template covers ${info.noSprint ? WEEKDAY_NAMES[info.weekday] + 's' : 'day ' + info.day}.` : `Templates give each ${info.noSprint ? 'workday' : 'sprint day'} its blocks.`}
       <div class="acts"><button class="btn" data-dp="addsec">Add a block</button><button class="btn primary" data-dp="settings">${dp.templates.length ? 'Edit templates' : 'Set up templates'}</button></div></div>` : '';
   main.innerHTML = `${banners}<div class="focus dayplan">
     <div class="fmain"><div class="dsecs">${secs}</div>${empty}
@@ -132,12 +133,27 @@ function renderSetup(){
       <label>Length <select name="len">${[1, 2, 3, 4].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${plural(n, 'week')}</option>`).join('')}</select></label>
       <label class="chk"><input type="checkbox" name="example" checked> Add example templates</label>
       <button class="btn primary">Save sprint</button>
-    </form><p class="dhelp">Workdays, holidays and templates are under the gear.</p></div>`;
+    </form><p class="dhelp">Workdays, holidays and templates are under the gear.</p>
+    <p class="dhelp">Don't work in sprints? <button class="lnk" data-dp="nosprints">Skip, I don't use sprints</button> Day templates then go by weekday. You can turn sprints on any time under the gear.</p></div>`;
+}
+const settingsTitle = () => sprintsOn(dp.sprint) ? 'Sprint and templates' : 'Workdays and templates';
+/* Turn sprints off from the setup screen or the tour: weekday templates, every-sprint tasks paused. */
+export function useNoSprints(example = true){
+  setSprint(Object.assign({}, dp.sprint, {enabled: false}));
+  if (example && !dp.templates.length) setTemplates(exampleTemplates(dp.sprint));
 }
 
 /* Example templates so the first day is usable at once. Edit or delete them in settings. */
 export function exampleTemplates(sp){
   const len = sp.lengthWeeks * 5, s = (name, kind, color, around, minutes, capacity = null) => ({name, kind, color, around, minutes, capacity});
+  const fix = list => list.map(t => cleanTemplate(Object.assign(t, {sections: t.sections.map(x => Object.assign(x, {id: Math.random().toString(36).slice(2, 9)}))})));
+  if (!sprintsOn(sp)){
+    const wd = sp.workdays || [1, 2, 3, 4, 5], last = wd.includes(5) ? 5 : wd[wd.length - 1];
+    return fix([
+      {name: 'Workday', days: [], last: false, weekdays: wd.filter(n => n !== last), sections: [s('Warm up: inbox and plan', 'admin', 'butter', '09:00', 30, 2), s('Deep focus', 'focus', 'sage', '09:30', 150, 5), s('Meetings', 'meetings', 'sky', '13:00', 120), s('Shallow work', 'admin', 'peach', '15:00', 90, 3), s('Wrap up', 'review', 'lavender', '16:30', 30, 1)]},
+      {name: 'Last workday of the week', days: [], last: false, weekdays: [last], sections: [s('Focus', 'focus', 'sage', '09:00', 150, 5), s('Meetings', 'meetings', 'sky', '13:00', 90), s('Review the week and plan the next', 'review', 'lavender', '15:00', 60, 2)]}
+    ]);
+  }
   return [
     {name: 'Planning day', days: [1], last: false, sections: [s('Plan the sprint', 'meetings', 'sky', '09:30', 120), s('Focus', 'focus', 'sage', '12:30', 120, 5), s('Admin and inbox', 'admin', 'butter', '15:00', 60, 3)]},
     {name: 'Sprint day', days: Array.from({length: Math.max(0, len - 1)}, (_, i) => i + 2), last: false, sections: [s('Warm up: inbox and plan', 'admin', 'butter', '09:00', 30, 2), s('Deep focus', 'focus', 'sage', '09:30', 150, 5), s('Meetings', 'meetings', 'sky', '13:00', 120), s('Shallow work', 'admin', 'peach', '15:00', 90, 3), s('Wrap up', 'review', 'lavender', '16:30', 30, 1)]},
@@ -203,7 +219,7 @@ function sectionMenu(secId, anchor){
 function dayMenu(anchor){
   const d = curDate(), v = dayView(dp, d);
   popMenu(`<button data-dm="addsec">Add a block</button><button data-dm="shift">Shift the rest of the day</button><div class="sep"></div>
-    ${v.saved ? '<button data-dm="reset" class="danger">Reset to template</button>' : ''}<button data-dm="settings">Sprint and templates</button>`, anchor, 'right')
+    ${v.saved ? '<button data-dm="reset" class="danger">Reset to template</button>' : ''}<button data-dm="settings">${settingsTitle()}</button>`, anchor, 'right')
     .addEventListener('click', e => {
       const b = e.target.closest('[data-dm]'); if (!b) return;
       closeMenu(true);
@@ -306,7 +322,7 @@ const WD = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat
 let draft = null;
 function openSettings(focus){
   draft = {sprint: JSON.parse(JSON.stringify(dp.sprint)), templates: JSON.parse(JSON.stringify(dp.templates)), recurring: JSON.parse(JSON.stringify(dp.recurring))};
-  showModal(`<div class="sheet wide dsettings" role="dialog" aria-modal="true" aria-label="Sprint and templates"></div>`, sh => {
+  showModal(`<div class="sheet wide dsettings" role="dialog" aria-modal="true" aria-label="${settingsTitle()}"></div>`, sh => {
     drawSettings(sh);
     if (focus === 'recurring'){ const r = sh.querySelector('.drec'); if (r) r.scrollIntoView({block: 'start'}); }
     sh.addEventListener('input', e => readSettingsField(e.target));
@@ -315,23 +331,25 @@ function openSettings(focus){
   });
 }
 function drawSettings(sh){
-  const sp = draft.sprint;
-  sh.innerHTML = `<h3>Sprint and templates</h3>
-    <section class="dset"><h4>Sprint</h4><div class="dgrid">
-      <label>A sprint starts on <input type="date" data-s="anchor" value="${esc(sp.anchor || '')}"></label>
-      <label>Length (weeks) <input type="number" min="1" max="8" data-s="lengthWeeks" value="${sp.lengthWeeks}" data-redraw></label>
+  const sp = draft.sprint, on = sprintsOn(sp);
+  sh.innerHTML = `<h3>${on ? 'Sprint and templates' : 'Workdays and templates'}</h3>
+    <section class="dset"><label class="dsprints"><span><b>Use sprints</b><span class="dhelp">${on ? 'Days count sprint days, templates are for sprint days, and every-sprint tasks are added each sprint.' : 'Off: templates are for weekdays, and every-sprint tasks are paused until sprints are back on.'}${workshopLinked() ? ' Also in Workshop\'s Settings, under Apps.' : ''}</span></span>
+        <input type="checkbox" class="toggle" role="switch" data-s="enabled" data-redraw aria-label="Use sprints"${on ? ' checked' : ''}></label></section>
+    <section class="dset"><h4>${on ? 'Sprint' : 'Workdays'}</h4><div class="dgrid">
+      ${on ? `<label>A sprint starts on <input type="date" data-s="anchor" value="${esc(sp.anchor || '')}"></label>
+      <label>Length (weeks) <input type="number" min="1" max="8" data-s="lengthWeeks" value="${sp.lengthWeeks}" data-redraw></label>` : ''}
       <label>Day starts <input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="9:00 AM" data-s="dayStart" value="${esc(fmt12(sp.dayStart))}"></label>
       <label>Day ends <input type="text" class="tin" inputmode="text" autocomplete="off" placeholder="5:00 PM" data-s="dayEnd" value="${esc(fmt12(sp.dayEnd))}"></label>
-      <fieldset class="wide"><legend>Workdays</legend>${WD.map(([n, l]) => `<label class="chk"><input type="checkbox" data-wd="${n}"${sp.workdays.includes(n) ? ' checked' : ''}> ${l}</label>`).join('')}</fieldset>
+      <fieldset class="wide"><legend>Workdays</legend>${WD.map(([n, l]) => `<label class="chk"><input type="checkbox" data-wd="${n}"${on ? '' : ' data-redraw'}${sp.workdays.includes(n) ? ' checked' : ''}> ${l}</label>`).join('')}</fieldset>
       <div class="wide"><span class="lbl">Holidays</span><div class="dhol">${sp.holidays.map(h => `<span class="chip">${esc(fmtLong(h))} <button class="lnk" data-delhol="${esc(h)}" aria-label="Remove ${esc(h)}">${ICON.x}</button></span>`).join('') || '<span class="mut">None</span>'}
         <input type="date" id="dpHol" aria-label="Holiday to add"><button class="btn" data-addhol>Add</button></div></div>
     </div></section>
-    <section class="dset"><h4>Templates</h4><p class="dhelp">Each template is a list of blocks for some sprint days, like <code>2-8</code>. <b>Last day</b> matches the final working day, even when a holiday shortens the sprint.</p>
+    <section class="dset"><h4>Templates</h4><p class="dhelp">${on ? 'Each template is a list of blocks for some sprint days, like <code>2-8</code>. <b>Last day</b> matches the final working day, even when a holiday shortens the sprint.' : 'Each template is a list of blocks for some weekdays. A workday no template covers starts empty.'}</p>
       <div class="derr" role="alert"></div>
-      ${draft.templates.map((t, ti) => templateCard(t, ti)).join('')}
+      ${draft.templates.map((t, ti) => templateCard(t, ti, on)).join('')}
       <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
-    <section class="dset drec"><h4>Repeating tasks</h4><p class="dhelp">Tasks you do every day, every week or once a sprint, like checking logs or a release. A daily or weekly one is added that morning, due that day and on your Today list; an every-sprint one is added on day 1, due on its sprint day. With a time, the task shows it and goes into the block on at that time. With <b>Plan into</b>, it goes into that kind of block instead.</p>
+    <section class="dset drec"><h4>Repeating tasks</h4><p class="dhelp">Tasks you do every day, every week${on ? ' or once a sprint' : ''}, like checking logs${on ? ' or a release' : ''}. A daily or weekly one is added that morning, due that day and on your Today list${on ? '; an every-sprint one is added on day 1, due on its sprint day' : ''}.${on ? '' : ' Every-sprint ones are paused while sprints are off.'} With a time, the task shows it and goes into the block on at that time. With <b>Plan into</b>, it goes into that kind of block instead.</p>
       ${offersHtml()}
       ${draft.recurring.length ? `<div class="dtable"><table><thead><tr><th>Task</th><th>Repeats</th><th>At</th><th>Plan into</th><th>Value</th><th>Effort</th><th>List</th><th></th></tr></thead><tbody>${draft.recurring.map(recurRow).join('')}</tbody></table></div>` : ''}
       <div class="acts"><button class="btn" data-addrec>${ICON.plus} Repeating task</button></div>
@@ -339,7 +357,7 @@ function drawSettings(sh){
     <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-savesettings>Save</button></footer>`;
   showErrors(sh);
 }
-function templateCard(t, ti){
+function templateCard(t, ti, on){
   const row = (s, si) => `<tr data-si="${si}">
     <td><input data-sf="name" value="${esc(s.name)}" maxlength="80" aria-label="Block name"></td>
     <td><input data-sf="kind" value="${esc(s.kind)}" maxlength="40" list="dpKinds" aria-label="Kind"></td>
@@ -350,8 +368,9 @@ function templateCard(t, ti){
     <td class="dact"><button class="ibtn" data-secup aria-label="Move up">${ICON.up}</button><button class="ibtn" data-secdel aria-label="Remove block">${ICON.x}</button></td></tr>`;
   return `<div class="dtpl" data-ti="${ti}"><div class="dtpl-h">
       <input data-tf="name" value="${esc(t.name)}" maxlength="80" aria-label="Template name" class="dtname">
-      <label>Sprint days <input data-tf="days" value="${esc(formatDays(t.days))}" placeholder="2-8" aria-label="Sprint days"></label>
-      <label class="chk"><input type="checkbox" data-tf="last"${t.last ? ' checked' : ''}> Last day</label>
+      ${on ? `<label>Sprint days <input data-tf="days" value="${esc(formatDays(t.days))}" placeholder="2-8" aria-label="Sprint days"></label>
+      <label class="chk"><input type="checkbox" data-tf="last"${t.last ? ' checked' : ''}> Last day</label>`
+      : `<fieldset class="dtwd"><legend class="sr-only">Weekdays</legend>${WD.filter(([n]) => draft.sprint.workdays.includes(n) || (t.weekdays || []).includes(n)).map(([n, l]) => `<label class="chk"><input type="checkbox" data-tf="wd" data-n="${n}"${(t.weekdays || []).includes(n) ? ' checked' : ''}> ${l}</label>`).join('')}</fieldset>`}
       <button class="btn text-danger" data-deltpl>Delete</button></div>
     <div class="dtable"><table><thead><tr><th>Block</th><th>Kind</th><th>Color</th><th>Around</th><th>Min</th><th>Pts</th><th></th></tr></thead>
       <tbody>${t.sections.map(row).join('')}</tbody></table></div>
@@ -375,13 +394,14 @@ function offersHtml(){
 function recurRow(r, ri){
   const sp = cleanSprint(draft.sprint), max = sp.lengthWeeks * 7;
   const when = info => info ? ` (${info})` : '';
-  const dayName = n => { if (!sp.anchor) return ''; const d = sprintDayDate(sp, sprintInfo(sp, todayStr()).start, n); return d ? new Date(d + 'T12:00').toLocaleDateString(undefined, {weekday: 'short'}) + ' wk ' + (Math.floor(daysBetween(sprintInfo(sp, todayStr()).start, d) / 7) + 1) : ''; };
+  const dayName = n => { if (!sp.anchor || !sprintsOn(sp)) return ''; const d = sprintDayDate(sp, sprintInfo(sp, todayStr()).start, n); return d ? new Date(d + 'T12:00').toLocaleDateString(undefined, {weekday: 'short'}) + ' wk ' + (Math.floor(daysBetween(sprintInfo(sp, todayStr()).start, d) / 7) + 1) : ''; };
   const rep = r.repeat || 'sprint', on = (cond) => cond ? ' selected' : '';
   const sprintOpts = [`<option value="last"${on(rep === 'sprint' && r.last)}>Last day</option>`].concat(Array.from({length: max}, (_, i) => i + 1)
     .filter(n => n <= sp.workdays.length * sp.lengthWeeks).map(n => `<option value="${n}"${on(rep === 'sprint' && !r.last && r.dueDay === n)}>Day ${n}${when(dayName(n))}</option>`));
   const opts = [`<optgroup label="Every day"><option value="workdays"${on(rep === 'workdays')}>Every workday</option><option value="daily"${on(rep === 'daily')}>Every day</option></optgroup>`,
     `<optgroup label="Every week">${WD.map(([n, d]) => `<option value="w${n}"${on(rep === 'weekly' && r.weekday === n)}>${d}</option>`).join('')}</optgroup>`,
-    `<optgroup label="Every sprint">${sprintOpts.join('')}</optgroup>`];
+    sprintsOn(sp) ? `<optgroup label="Every sprint">${sprintOpts.join('')}</optgroup>`
+      : rep === 'sprint' ? `<optgroup label="Every sprint (paused while sprints are off)"><option value="${r.last ? 'last' : r.dueDay}" selected>${esc(repeatLabel(r))}</option></optgroup>` : ''];
   return `<tr data-ri="${ri}">
     <td><input data-rf="title" value="${esc(r.title)}" maxlength="300" placeholder="Backlog refinement" aria-label="Task">${r.from ? `<span class="mut dfrom">From ${esc(SENDERS[r.from.app] || r.from.app)}</span>` : ''}</td>
     <td><select data-rf="due" aria-label="Repeats">${opts.join('')}</select></td>
@@ -412,6 +432,7 @@ function readSettingsField(el){
     if (f === 'planKind') r.planKind = el.value;
     return;
   }
+  if (el.dataset.s === 'enabled'){ sp.enabled = el.checked; return; }
   if (el.dataset.s){ const v = el.value; sp[el.dataset.s] = el.dataset.s === 'lengthWeeks' ? Math.max(1, Math.min(8, Math.round(+v) || 2)) : /^day(Start|End)$/.test(el.dataset.s) ? parseTime(v) || sp[el.dataset.s] : v || null; return; }
   if (el.dataset.wd != null){ const n = +el.dataset.wd; sp.workdays = el.checked ? [...new Set([...sp.workdays, n])] : sp.workdays.filter(x => x !== n); return; }
   const tEl = el.closest('[data-ti]'); if (!tEl) return;
@@ -419,6 +440,7 @@ function readSettingsField(el){
   if (el.dataset.tf === 'name') t.name = el.value;
   if (el.dataset.tf === 'days'){ const p = parseDays(el.value); t.days = p || t.days; el.classList.toggle('bad', !p); }
   if (el.dataset.tf === 'last') t.last = el.checked;
+  if (el.dataset.tf === 'wd'){ const n = +el.dataset.n; t.weekdays = el.checked ? [...new Set([...(t.weekdays || []), n])].sort() : (t.weekdays || []).filter(x => x !== n); }
   const rEl = el.closest('[data-si]');
   if (rEl && el.dataset.sf){
     const s = t.sections[+rEl.dataset.si], f = el.dataset.sf, v = el.value;
@@ -453,7 +475,7 @@ function settingsClick(e, sh){
   if (b.hasAttribute('data-addrec')){ draft.recurring.push({id: Math.random().toString(36).slice(2, 9), title: '', repeat: 'workdays', weekday: 1, dueDay: 1, last: false, planKind: '', value: 2, effort: 'S', listId: (orderedLists()[0] || {}).id || null, paused: false, made: []}); drawSettings(sh); const t = sh.querySelectorAll('[data-rf=title]'); if (t.length) t[t.length - 1].focus(); return; }
   const reEl = b.closest('[data-ri]');
   if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }
-  if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, sections: [blank()]}); drawSettings(sh); return; }
+  if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, weekdays: [], sections: [blank()]}); drawSettings(sh); return; }
   if (b.hasAttribute('data-example')){ draft.templates = exampleTemplates(cleanSprint(draft.sprint)); drawSettings(sh); return; }
   if (b.hasAttribute('data-deltpl') && t){ draft.templates.splice(+tEl.dataset.ti, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addsec') && t){ t.sections.push(blank()); drawSettings(sh); const r = sh.querySelectorAll(`[data-ti="${tEl.dataset.ti}"] [data-sf=name]`); if (r.length) r[r.length - 1].select(); return; }
@@ -461,7 +483,7 @@ function settingsClick(e, sh){
   if (b.hasAttribute('data-secup') && t && rEl){ const i = +rEl.dataset.si; if (i > 0){ const [s] = t.sections.splice(i, 1); t.sections.splice(i - 1, 0, s); } drawSettings(sh); return; }
   if (b.hasAttribute('data-savesettings')){
     if (showErrors(sh).length){ sh.querySelector('.derr').scrollIntoView({block: 'nearest'}); return; }
-    if (!isDate(draft.sprint.anchor)){ toast('Pick the day a sprint starts.'); sh.querySelector('[data-s=anchor]').focus(); return; }
+    if (sprintsOn(draft.sprint) && !isDate(draft.sprint.anchor)){ toast('Pick the day a sprint starts.'); sh.querySelector('[data-s=anchor]').focus(); return; }
     setSprint(draft.sprint); setTemplates(draft.templates); setRecurring(draft.recurring.filter(r => r.title.trim()));
     closeModal(); toast('Saved');
   }
@@ -481,7 +503,7 @@ function dayDrop(taskId, zone, y){
 /* ---------- the drawer's "Plan for" field ---------- */
 let drawerDate = null;
 function planFieldHtml(t){
-  if (!dp.sprint.anchor || t.done) return '';
+  if (!dayReady(dp.sprint) || t.done) return '';
   const d = drawerDate || curDate(), rec = dayView(dp, d).rec, slot = slotOf(rec, t.id);
   const open = rec.sections.filter(s => !s.lost);
   return `<div class="dfld"><label for="dPlanDate">Plan for</label><div class="drow dplan">
@@ -573,6 +595,7 @@ function onClick(e){
   if (a === 'redo') return redo();
   if (a === 'daymenu') return dayMenu(b);
   if (a === 'settings') return openSettings();
+  if (a === 'nosprints'){ useNoSprints(); toast('Sprints off. Templates go by weekday.', 'Undo', () => setSprint(Object.assign({}, dp.sprint, {enabled: true}))); return; }
   if (a === 'addsec') return editSection(null);
   if (a === 'reset') return resetDialog();
   if (a === 'pick' || a === 'rowmenu') return r && pickSection(r.dataset.id, b);

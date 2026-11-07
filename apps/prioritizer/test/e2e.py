@@ -658,6 +658,40 @@ def main():
         check('skip closes it', p2.locator('.sheet.tour').count() == 0)
         ctx2.close()
 
+        # ---------- Use sprints off: the setup screen's skip, weekday templates, the gear switch ----------
+        ctx3 = b.new_context(viewport={'width': 1280, 'height': 800})
+        # A Workshop site's registry declares Docket's settings (Workshop docs/app-settings.md), so Docket links them.
+        with open(os.path.join(ROOT, 'app.json')) as f: manifest = json.load(f)
+        ctx3.route('**/apps/registry.json', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps({'apps': [{'base': '/apps/prioritizer/', 'manifest': manifest}]})))
+        p3 = ctx3.new_page()
+        p3.on('pageerror', lambda e: errors.append('sprints: ' + str(e)))
+        p3.goto(SITE + '/'); p3.wait_for_function('window.__prioritizer', timeout=15000); p3.wait_for_timeout(1200)
+        if p3.locator('.sheet.tour').count(): p3.click('.tour [data-skip]'); p3.wait_for_timeout(150)
+        Q = 'window.__prioritizer'
+        p3.keyboard.press('2'); p3.wait_for_timeout(300)
+        check('sprints are on by default: Day asks when a sprint starts', p3.locator('#dpSetup').count() == 1 and p3.evaluate(f'{Q}.dp.sprint.enabled') is True)
+        p3.click('[data-dp=nosprints]'); p3.wait_for_timeout(300)
+        tpls = p3.evaluate(f'{Q}.dp.templates.map(t => [t.name, t.weekdays])')
+        check('"Skip, I don\'t use sprints" turns sprints off and adds weekday templates', p3.evaluate(f'{Q}.dp.sprint.enabled') is False and len(tpls) == 2 and tpls[0][1] == [1, 2, 3, 4] and tpls[1][1] == [5])
+        check('Day shows blocks without a sprint, and the header has no sprint', p3.locator('#dpSetup').count() == 0 and 'sprint' not in p3.inner_text('#phead').lower())
+        app_set = """() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
+          const q = r.result.transaction('data').objectStore('data').get('settings/app-settings'); q.onsuccess = () => res(q.result ? q.result.items : null); }; })"""
+        p3.wait_for_timeout(300)
+        items = p3.evaluate(app_set)
+        check('inside a Workshop site, turning sprints off is saved to Workshop\'s app settings', items is not None and any(i['id'] == 'prioritizer' and i['values'].get('sprints') is False for i in items))
+        p3.click('[data-dp=settings]'); p3.wait_for_timeout(200)
+        check('settings show Use sprints off, weekday checkboxes, and no sprint start date', p3.locator('.dsettings [data-s=enabled]').is_checked() is False
+              and p3.locator('.dsettings [data-tf=wd]').count() > 0 and p3.locator('.dsettings [data-s=anchor]').count() == 0 and 'Workshop' in p3.inner_text('.dsprints'))
+        p3.locator('.dsettings [data-ti="1"] [data-tf=wd][data-n="1"]').check(); p3.wait_for_timeout(100)
+        check('two templates on one weekday show an error', 'Monday is in' in p3.inner_text('.dsettings .derr'))
+        p3.locator('.dsettings [data-ti="1"] [data-tf=wd][data-n="1"]').uncheck(); p3.wait_for_timeout(100)
+        p3.click('.dsettings [data-close]'); p3.wait_for_timeout(200)
+        # Settings (the Workshop app) turns sprints back on: Docket follows.
+        p3.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'}); await ws.appSettings.set({sprints: true}, {app: 'prioritizer'}); }""")
+        p3.wait_for_timeout(1500)
+        check('Workshop\'s Settings turning sprints on is followed by Docket', p3.evaluate(f'{Q}.dp.sprint.enabled') is True and p3.locator('#dpSetup').count() == 1)
+        ctx3.close()
+
         check('no errors on the page', errors == [])
         if errors: print('\n'.join('  ' + e for e in errors))
         b.close()
