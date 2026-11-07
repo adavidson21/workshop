@@ -13,7 +13,7 @@ test('blocks: headings, paragraphs, lists, tasks, quotes, tables, code and rules
   const html = render('# Title\n\nText *em* **strong** ~~gone~~ `code`.\n\n- a\n  - nested\n- [x] done\n\n1. one\n2. two\n\n> quoted\n\n| h | n |\n|---|--:|\n| x | 2 |\n\n```js\nlet a = 1;\n```\n\n---\n', ctx);
   assert.match(html, /<h1 id="h-title" data-line="0">Title<\/h1>/);
   assert.match(html, /<em>em<\/em> <strong>strong<\/strong> <del>gone<\/del> <code>code<\/code>/);
-  assert.match(html, /<ul class="tasks"><li data-line="4">a<ul><li data-line="5">nested<\/li><\/ul><\/li><li data-line="6"><input type="checkbox" disabled checked> done<\/li><\/ul>/);
+  assert.match(html, /<ul class="tasks"><li data-line="4">a<ul><li data-line="5">nested<\/li><\/ul><\/li><li data-line="6" class="task"><input type="checkbox" disabled checked> done<\/li><\/ul>/);
   assert.match(html, /<ol><li data-line="8">one<\/li><li data-line="9">two<\/li><\/ol>/);
   assert.match(html, /<blockquote><p data-line="11">quoted<\/p><\/blockquote>/);
   assert.match(html, /<th style="text-align:right">n<\/th>/);

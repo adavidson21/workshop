@@ -5,6 +5,9 @@ import { age, baseName, dirOf, stem } from './model.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
 import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
 import { needsReview, productNotes, toReview } from './products.js';
+import { SECTIONS, dailyGroups, visibleSections } from './sections.js';
+import { PLACEHOLDERS, placeholdersFor, templatesIn } from './templates.js';
+import { docName, findDoc, groupItems, itemLabel, parseTandem, tandemPath } from './tandem.js';
 
 const ICON = {
   note: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M9.3 1.8V5h3.2"/></svg>',
@@ -14,6 +17,10 @@ const ICON = {
   today: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.8v2.4M10.5 1.8v2.4"/><path d="M6.6 10.2l1.1 1.1 2-2.2"/></svg>',
   tandem: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M8 1.8l1.6 3.6 3.6 1.6-3.6 1.6L8 12.2 6.4 8.6 2.8 7l3.6-1.6z"/></svg>',
   trash: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2.5 4.2h11M6.2 4.2V2.6h3.6v1.6M3.8 4.2l.7 9.4h7l.7-9.4M6.6 6.8v4.4M9.4 6.8v4.4"/></svg>',
+  pencil: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M10.8 2.6l2.6 2.6-7.6 7.6-3.2.6.6-3.2z"/></svg>',
+  menu: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>',
+  drawer: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>',
+  refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -22,29 +29,68 @@ const ICON = {
 /* The trash button on a note's row: shows on hover or focus, beside the link (a button cannot go inside it). */
 const trashBtn = (p, title) => `<button class="ibtn mini row-trash" data-act="trash-path" data-path="${esc(p)}" title="Move to the trash" aria-label="Move ${esc(title)} to the trash">${ICON.trash}</button>`;
 
+/* ---------- section tabs (sections.js) ---------- */
+
+export function sectionsHtml(state) {
+  const { ui, notes, tandem } = state;
+  const shown = visibleSections({ tandem: tandem.available });
+  const badge = (id) => {
+    if (id === 'products' && notes.loaded) { const n = toReview(notes.index).length; return n ? `<span class="sec-badge" title="${n} changed by Tandem since your last review">${n}</span>` : ''; }
+    if (id === 'tandem') { const n = tandem.items.filter(i => i.review).length; return n ? `<span class="sec-badge" title="${n} waiting on your review">${n}</span>` : ''; }
+    return '';
+  };
+  return `<button class="ibtn drawer-btn" data-act="drawer" aria-label="Pages" title="Pages">${ICON.drawer}</button>
+    <p class="nb-name">Notebook</p>
+    <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>`;
+}
+
+/* ---------- sidebar: the open section's pages ---------- */
+
 export function sidebar(state) {
   const { notes, ui } = state;
   const q = ui.query;
-  const body = q.trim() ? results(state) : treeHtml(state);
+  const sec = SECTIONS.find(s => s.id === ui.section) || SECTIONS[0];
+  const body = q.trim() ? results(state) : sectionBody(state);
   return `
     <div class="side-head">
-      <p class="eyebrow">Notes</p>
-      <div class="side-actions">
-        <button class="ibtn" data-act="today" title="Today's note (T)" aria-label="Today's note">${ICON.today}</button>
-        <button class="ibtn" data-act="new-note" title="New note (N)" aria-label="New note">${ICON.note}</button>
-        <button class="ibtn" data-act="new-folder" title="New folder" aria-label="New folder">${ICON.folder}</button>
-      </div>
+      <p class="eyebrow">${esc(sec.name)}</p>
+      <div class="side-actions">${sideActions(ui.section)}</div>
     </div>
     <label class="search"><span class="sr">Search notes</span>
-      <input type="search" data-search value="${esc(q)}" placeholder="Search, tag:x, path:folder" autocomplete="off" spellcheck="false">
+      <input type="search" data-search value="${esc(q)}" placeholder="Search" autocomplete="off" spellcheck="false">
     </label>
-    ${q.trim() ? '' : pinnedHtml(state)}
-    ${q.trim() ? '' : productsHtml(state)}
-    <nav class="side-body" aria-label="${q.trim() ? 'Search results' : 'Notes'}">${body}</nav>
+    ${q.trim() || ui.section !== 'notes' ? '' : pinnedHtml(state)}
+    <nav class="side-body" aria-label="${q.trim() ? 'Search results' : esc(sec.name)}">${body}</nav>
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}
-    ${footHtml(state)}`;
+    ${ui.section === 'notes' ? footHtml(state) : ''}`;
 }
+function sideActions(section) {
+  const b = (act, title, icon, extra = '') => `<button class="ibtn" data-act="${act}" title="${esc(title)}" aria-label="${esc(title)}"${extra}>${icon}</button>`;
+  if (section === 'daily') return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.note);
+  if (section === 'products') return b('new-product', 'New product note', ICON.plus);
+  if (section === 'templates') return b('new-template', 'New template', ICON.plus);
+  if (section === 'tandem') return b('tandem-refresh', 'Read .work again', ICON.refresh);
+  return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.note) + b('new-folder', 'New folder', ICON.folder);
+}
+function sectionBody(state) {
+  const { ui } = state;
+  if (ui.section === 'daily') return dailyHtml(state);
+  if (ui.section === 'products') return productsHtml(state);
+  if (ui.section === 'templates') return templatesHtml(state);
+  if (ui.section === 'tandem') return tandemHtml(state);
+  return treeHtml(state);
+}
+const pageRow = (path, title, cur, extra = '', trash = true) => `<li class="note${cur ? ' current' : ''}" data-path="${esc(path)}"><a class="row" href="#" data-open="${esc(path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(title)}</span>${extra}</a>${trash ? trashBtn(path, title) : ''}</li>`;
 
+function dailyHtml(state) {
+  const { notes, ui, today } = state;
+  if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
+  const groups = dailyGroups(notes.texts.keys());
+  const has = groups.some(g => g.days.some(d => d.day === today));
+  const todayRow = has ? '' : `<ul class="tree"><li class="note"><a class="row" href="#" data-act="today" style="--d:0"><span class="name">Today</span><span class="soft small">new</span></a></li></ul>`;
+  if (!groups.length) return `${todayRow}<p class="side-note">One note per day, made from the daily template. Press <kbd>T</kbd> any time.</p>`;
+  return todayRow + groups.map(g => `<p class="section-label month">${esc(g.month)}</p><ul class="tree">${g.days.map(d => pageRow(d.path, d.day === today ? `${d.label} · Today` : d.label, ui.path === d.path)).join('')}</ul>`).join('');
+}
 /* The sidebar's foot: bring in a folder of Markdown, and on Notes' own site, where notes are saved. */
 function footHtml(state) {
   const { where } = state;
@@ -73,14 +119,40 @@ function pinnedHtml(state) {
 const chip = '<span class="chip tandem" title="Changed by Tandem since your last review">' + ICON.tandem + '<span class="sr">Changed by Tandem</span></span>';
 function productsHtml(state) {
   const { notes, ui } = state;
-  if (!notes.loaded) return '';
+  if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
   const list = productNotes(notes.index);
-  if (!list.length) return '';
+  if (!list.length) return '<p class="side-note">One note per product, the memory Tandem reads before it works on that product. Make one with +.</p>';
   const due = toReview(notes.index).length;
-  return `<nav class="pinned products" aria-label="Products"><p class="section-label">Products${due ? ` <button class="linkish review-link" data-act="review-list" title="Notes Tandem changed since your last review">${due} to review</button>` : ''}</p><ul class="tree">${list.map(n => {
-    const cur = ui.path === n.path;
-    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(n.path)}"><a class="row" href="#" data-open="${esc(n.path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(n.title)}</span>${needsReview(n.review) ? chip : ''}</a>${trashBtn(n.path, n.title)}</li>`;
-  }).join('')}</ul></nav>`;
+  return `${due ? `<p class="section-label"><button class="linkish review-link" data-act="review-list" title="Notes Tandem changed since your last review">${due} to review</button></p>` : ''}<ul class="tree">${list.map(n => pageRow(n.path, n.title, ui.path === n.path, needsReview(n.review) ? chip : '')).join('')}</ul>`;
+}
+
+/* Templates: every template by name, the starter set included before its files exist (templates.js). */
+function templatesHtml(state) {
+  const { notes, ui } = state;
+  if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
+  const list = templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '', { starters: true });
+  return `<ul class="tree">${list.map(t => {
+    const cur = ui.path === t.path;
+    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(t.path)}"><a class="row" href="#" data-${t.builtIn ? 'edit-template' : 'open'}="${esc(t.path)}" style="--d:0" title="${esc(t.use || '')}"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(t.name)}</span>${t.builtIn ? '<span class="soft small">starter</span>' : ''}</a>${t.builtIn ? '' : trashBtn(t.path, t.name)}</li>`;
+  }).join('')}</ul><p class="side-note">Edit one to change what new notes start with. A starter becomes a file in <code>templates/</code> the first time you change it.</p>`;
+}
+
+/* Tandem: each run's documents, waiting-on-you first (tandem.js). */
+function tandemHtml(state) {
+  const { tandem, ui } = state;
+  if (!tandem.loaded) return '<p class="side-note">Reading .work.</p>';
+  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Dispatch.</p>';
+  const { review, rest } = groupItems(tandem.items);
+  const group = (it) => {
+    const open = ui.path && ui.path.startsWith(tandemPath(it.folder, ''));
+    return `<li class="run${it.review ? ' waiting' : ''}"><details${open || it.review ? ' open' : ''}><summary class="row" style="--d:0"><span class="name" title="${esc(itemLabel(it))}">${esc(itemLabel(it))}</span>${it.busy ? `<span class="pill working" title="${esc(it.busy)}">Working</span>` : ''}</summary>
+      <ul>${it.files.map(f => {
+        const p = tandemPath(it.folder, f.file), cur = ui.path === p;
+        return `<li class="note${cur ? ' current' : ''}"><a class="row" href="#" data-open="${esc(p)}" style="--d:1"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(docName(f.file))}</span>${it.review === f.file ? '<span class="pill review" title="Waiting on your review">Review</span>' : ''}</a></li>`;
+      }).join('')}</ul></details></li>`;
+  };
+  return `${review.length ? `<p class="section-label">Waiting on you <span class="count">${review.length}</span></p><ul class="tree runs">${review.map(group).join('')}</ul>` : ''}
+    ${rest.length ? `<p class="section-label">Runs <span class="count">${rest.length}</span></p><ul class="tree runs">${rest.map(group).join('')}</ul>` : ''}`;
 }
 
 function treeHtml(state) {
@@ -114,7 +186,7 @@ function folderItems(dir, state, depth) {
 
 function results(state) {
   const { found, ui } = state;
-  if (!found.length) return '<p class="side-note">Nothing matches.</p>';
+  if (!found.length) return '<p class="side-note">Nothing matches. Narrow a search with <code>tag:ops</code>, <code>path:runbooks</code> or <code>is:review</code>.</p>';
   return `<ol class="results">${found.map((r, k) => `
     <li><a href="#" class="result${k === ui.pick ? ' picked' : ''}" data-open="${esc(r.path)}" data-line="${r.line}">
       <span class="r-title">${esc(r.title)}</span>
@@ -127,50 +199,90 @@ function results(state) {
 export function header(state) {
   const { ui, notes } = state;
   if (!ui.path) return '';
+  if (state.doc) return tandemHeader(state);
   const known = notes.files.get(ui.path);
   const n = notes.index.notes.get(ui.path);
   const review = n && needsReview(n.review) ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Changed by Tandem since your last review. Changed parts are highlighted in the preview; History has the earlier versions.</span>
       <span class="bar-acts"><button class="btn" data-act="mark-reviewed">Mark reviewed</button></span></div>` : '';
-  const tpl = n && n.use !== undefined ? `<div class="bar template" role="note"><span class="bar-msg"><strong>Template: ${esc(n.title)}.</strong> ${n.use ? esc(n.use) + ' ' : ''}<span class="soft">Set its name and use with <code>template:</code> and <code>description:</code> in the frontmatter; new notes leave those out.</span></span></div>` : '';
+  const tpl = n && n.use !== undefined ? templateBar(state, n) : '';
+  const items = [
+    ['copy-wiki', 'Copy for wiki'],
+    ['copy', 'Copy Markdown'],
+    ['download', 'Download .md'],
+    ['rename', 'Rename or move', 'F2'],
+    ...(n && n.use === undefined ? [['save-template', 'Save as template']] : []),
+    ...(state.isStarter ? [['reset-template', 'Reset to starter']] : []),
+    ...(state.versions ? [['history', 'History']] : []),
+    ['trash', 'Move to the trash']
+  ];
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">${esc(dirOf(ui.path) ? dirOf(ui.path) + '/' : '')}${esc(baseName(ui.path))}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
     <div class="head-actions">
-      <div class="seg" role="group" aria-label="View">
-        ${['edit', 'split', 'preview'].map(m => `<button data-mode="${m}" aria-pressed="${ui.mode === m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}
-      </div>
+      ${segHtml(state)}
       <button class="btn ghost" data-act="copy-wiki" title="Copy with images, to paste into the wiki or any editor">Copy for wiki</button>
-      <button class="btn ghost" data-act="copy" title="Copy the Markdown only">Copy</button>
-      <button class="btn ghost" data-act="download" title="Download as .md">Download</button>
-      <button class="btn ghost" data-act="rename" title="Rename or move (F2)">Rename</button>
       <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
+      ${menuHtml(ui, items)}
     </div></div>
     ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
 }
-/* A fresh, empty note (main.js newNote): its templates, or the starter set when there are none. */
+function segHtml(state) {
+  const modes = state.phone ? ['edit', 'preview'] : ['edit', 'split', 'preview'];
+  return `<div class="seg" role="group" aria-label="View">${modes.map(m => `<button data-mode="${m}" aria-pressed="${state.ui.mode === m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}</div>`;
+}
+/* The note's ⋯ menu: actions used less often than the ones in the header. Keyboard: arrows, Enter, Escape. */
+function menuHtml(ui, items) {
+  return `<div class="menu-wrap"><button class="ibtn" data-act="menu" aria-haspopup="menu" aria-expanded="${!!ui.menu}" aria-label="More" title="More">${ICON.menu}</button>
+    ${ui.menu ? `<div class="menu" role="menu">${items.map(([act, label, key]) => `<button role="menuitem" data-act="${act}">${esc(label)}${key ? `<kbd>${esc(key)}</kbd>` : ''}</button>`).join('')}</div>` : ''}</div>`;
+}
+/* A template's bar: its name and use as plain boxes (written to the frontmatter), and the placeholders to insert. */
+function templateBar(state, n) {
+  const f = state.tplFields || { name: '', description: '' };
+  return `<div class="bar template tpl-edit" role="group" aria-label="Template">
+    <label class="tpl-f"><span>Name</span><input data-tpl-field="name" value="${esc(f.name)}" placeholder="${esc(n.title)}" autocomplete="off"></label>
+    <label class="tpl-f grow"><span>Description</span><input data-tpl-field="description" value="${esc(f.description)}" placeholder="What it is for" autocomplete="off"></label>
+    <span class="ph-chips" aria-label="Insert a placeholder">${placeholdersFor(state.ui.path).map(k => `<button class="ph" data-act="insert-ph" data-ph="${k}" title="${esc(PLACEHOLDERS[k])}">${k}</button>`).join('')}</span></div>`;
+}
+/* A Tandem document (tandem.js): read and edited in place in .work; Tandem's run owns it. */
+function tandemHeader(state) {
+  const { ui, doc } = state;
+  const d = parseTandem(ui.path);
+  const it = doc.item;
+  const lock = doc.busy ? `<div class="bar warn" role="status"><span class="bar-msg">${esc(doc.busy)}. This page is read-only until it stops.</span></div>` : '';
+  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Dispatch.</span>
+      <span class="bar-acts"><button class="btn" data-act="open-dispatch">Open in Dispatch</button></span></div>` : '';
+  return `<div class="note-head">
+    <div class="crumbs"><span class="mono soft">Tandem / ${esc(it ? itemLabel(it) : d.folder)} / ${esc(d.file)}</span>
+      <span class="status ${ui.status.kind}" role="status">${esc(ui.status.kind === 'saved' ? (doc.busy ? 'Read-only' : 'In .work') : statusText(ui.status, null))}</span></div>
+    <div class="head-actions">
+      ${segHtml(state)}
+      <button class="btn ghost" data-act="open-dispatch" title="This run in Dispatch">Open in Dispatch</button>
+      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md']])}
+    </div></div>
+    ${conflictBar(ui, true) || lock || gate}`;
+}
+/* A fresh, empty note (main.js newNote): its templates, the starter set included, each with a pencil to change it. */
 function startBar(start) {
   if (!start) return '';
-  if (!start.templates.length) return `<div class="bar template" role="note"><span class="bar-msg soft">Type a title on the first line. The file is named from it when you leave the note.</span>
-      <span class="bar-acts"><button class="btn ghost small" data-act="starters">Add starter templates</button></span></div>`;
   return `<div class="bar template" role="note"><span class="bar-msg">Start from a template, or just write.</span>
-      <span class="bar-acts">${start.templates.map(t => `<button class="btn ghost small" data-act="use-template" data-tpl="${esc(t.path)}" title="${esc(t.use || '')}">${esc(t.name)}</button>`).join('')}</span></div>`;
+      <span class="bar-acts">${start.templates.map(t => `<span class="tpl-pick"><button class="btn ghost small" data-act="use-template" data-tpl="${esc(t.path)}" title="${esc(t.use || '')}">${esc(t.name)}</button><button class="ibtn mini-on" data-act="edit-template" data-tpl="${esc(t.path)}" title="Change the ${esc(t.name)} template" aria-label="Change the ${esc(t.name)} template">${ICON.pencil}</button></span>`).join('')}</span></div>`;
 }
 function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
   if (s.kind === 'dirty') return 'Edited';
   if (s.kind === 'failed') return `Not saved yet. ${s.message || ''}`.trim();
-  if (s.kind === 'conflict') return 'Changed outside Notes';
-  if (s.kind === 'gone') return 'Moved or trashed outside Notes';
+  if (s.kind === 'conflict') return 'Changed outside Notebook';
+  if (s.kind === 'gone') return 'Moved or trashed outside Notebook';
   return known ? `Saved ${age(known.mtime)}` : '';
 }
-function conflictBar(ui) {
+function conflictBar(ui, tandem = false) {
   if (ui.status.kind === 'failed') return `<div class="bar warn"><span class="bar-msg">Your edits are kept here.</span>
       <span class="bar-acts"><button class="btn" data-act="retry">Retry now</button></span></div>`;
-  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This note changed outside Notes since you opened it. Your edits are still here.</span>
+  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This page changed outside Notebook since you opened it. Your edits are still here.</span>
       <span class="bar-acts"><button class="btn" data-act="take-theirs">Load the new version</button>
-      <button class="btn" data-act="keep-copy">Save mine as a copy</button>
+      ${tandem ? '' : '<button class="btn" data-act="keep-copy">Save mine as a copy</button>'}
       <button class="btn ghost" data-act="overwrite">Overwrite with mine</button></span></div>`;
-  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This note was moved or trashed outside Notes. Your text is still here.</span>
+  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This page was moved or trashed outside Notebook. Your text is still here.</span>
       <span class="bar-acts"><button class="btn" data-act="restore">Save it again</button></span></div>`;
   return '';
 }
@@ -180,6 +292,7 @@ function conflictBar(ui) {
 export function panel(state) {
   const { notes, ui } = state;
   if (!ui.path) return '';
+  if (state.doc) return tandemPanel(state);
   const n = notes.index.notes.get(ui.path);
   const backs = notes.index.backlinks.get(ui.path) || [];
   const heads = n ? n.headings.filter(h => h.level <= 3) : [];
@@ -201,11 +314,30 @@ export function panel(state) {
       ${tags.length ? `<ul class="all-tags">${tags.map(([t, ps]) => `<li><a href="#" class="tag${n && n.tags.includes(t) ? ' on' : ''}" data-tag="${esc(t)}"${n && n.tags.includes(t) ? ' title="On this note"' : ''}>#${esc(t)}</a> <span class="count">${ps.length}</span></li>`).join('')}</ul>` : '<p class="soft small">Add tags with <code>#tag</code> or <code>tags: [a, b]</code> in frontmatter.</p>'}</section>`;
 }
 
+/* A Tandem page's panel: its outline and the run's other documents. */
+function tandemPanel(state) {
+  const { ui, doc, outline } = state;
+  const it = doc.item;
+  const heads = (outline || []).filter(h => h.level <= 3);
+  return `
+    <section><h2 class="section-label">Outline</h2>
+      ${heads.length ? `<ul class="outline">${heads.map(h => `<li style="--l:${h.level}"><a href="#" data-line="${h.line}" data-anchor="${esc(h.id)}">${esc(h.text)}</a></li>`).join('')}</ul>` : '<p class="soft small">No headings.</p>'}</section>
+    ${it ? `<section><h2 class="section-label">In this run <span class="count">${it.files.length}</span></h2>
+      <ul class="backlinks">${it.files.map(f => {
+        const p = tandemPath(it.folder, f.file);
+        return `<li><a href="#" data-open="${esc(p)}"${p === ui.path ? ' aria-current="page"' : ''}><span class="r-title">${esc(docName(f.file))}</span><span class="r-line mono">${esc(f.file)}</span></a></li>`;
+      }).join('')}</ul></section>
+    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Dispatch.</p></section>` : ''}`;
+}
+
 /* Action items and wins in the open note, each with a button that sends it (offers.js). Only where the receivers
    can read Notes' offers: inside Workshop, or paired with Workshop on this computer. */
 function sendHtml(state, n) {
   const { ui, notes, sent, canSend, dir } = state;
-  if (!canSend) return '';
+  if (!canSend) {
+    const text = notes.texts.get(ui.path)?.content || '';
+    return actionItems(text).some(i => !i.done) && !state.hintSeen ? '<section class="hint"><h2 class="section-label">Action items</h2><p class="soft small">Paired with Workshop on this computer, these go to Docket in one click. Pair from <b>Use Workshop on this computer</b> at the foot of the Notes section.</p><button class="linkish small" data-act="hint-seen">Got it</button></section>' : '';
+  }
   const text = notes.texts.get(ui.path)?.content || '';
   const items = actionItems(text).filter(i => !i.done);
   const rapport = forRapport(text);
@@ -229,9 +361,11 @@ function sendHtml(state, n) {
     const why = !reports.length && others.length ? ` (${others[0].name.split(/\s+/)[0]} isn't a report)` : '';
     return row(it, `${names} · ${it.kind}${why}`, offers.map(o => o.offer.id), 'rapport', offers.length > 1 ? `To Rapport (${offers.length})` : 'To Rapport');
   };
-  return `${items.length ? `<section><h2 class="section-label">Action items <span class="count">${items.length}</span></h2>
+  const open = (list, kind) => list.filter(it => kind === 'task' ? !sent.has(offerId('task', ui.path, it.text)) : rapportOffers(note, it, { day: '2000-01-01', dir }).some(o => !sent.has(o.offer.id))).length;
+  const all = (list, kind, to) => { const n = open(list, kind); return n > 1 ? ` <button class="linkish send-all" data-act="send-all" data-kind="${kind}" title="Send every open one ${to}">Send all (${n})</button>` : ''; };
+  return `${items.length ? `<section><h2 class="section-label">Action items <span class="count">${items.length}</span>${all(items, 'task', 'to Docket')}</h2>
       <ul class="sendables">${items.map(taskRow).join('')}</ul></section>` : ''}
-    ${rapport.length ? `<section><h2 class="section-label">For Rapport <span class="count">${rapport.length}</span></h2>
+    ${rapport.length ? `<section><h2 class="section-label">For Rapport <span class="count">${rapport.length}</span>${all(rapport, 'rapport', 'to Rapport')}</h2>
       <ul class="sendables">${rapport.map(rapportRow).join('')}</ul></section>` : ''}`;
 }
 
@@ -241,6 +375,8 @@ export function empty(state) {
   const { notes } = state;
   if (!notes.loaded && !notes.error) return '<p class="loading">Loading notes.</p>';
   if (!notes.loaded) return `<div class="engcard"><h1 class="page-title">Waiting for your notes</h1><p>${esc(notes.error)}</p></div>`;
+  if (state.ui.section === 'tandem') return `<div class="engcard"><h1 class="page-title">Plans, specs and reviews</h1>
+    <p>Everything Tandem writes in <code>.work</code>, by run. Open a page to read or edit it; saves go straight back to the file Tandem reads. Runs waiting on your review are at the top.</p></div>`;
   return `<div class="engcard"><h1 class="page-title">Write it down</h1>
     <p>Markdown notes, as plain <code>.md</code> files. Link notes with <kbd>[[</kbd>, tag them with <code>#tag</code>, paste images straight in.</p>
     <div class="acts"><button class="btn primary" data-act="new-note">New note <kbd>N</kbd></button><button class="btn" data-act="today">Today's note <kbd>T</kbd></button></div></div>`;

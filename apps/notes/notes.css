@@ -1,8 +1,9 @@
 /* Notes styles. Colors and fonts come from ../../shared/themes.css, buttons and type helpers from
    ../../shared/ui.css. Editorial like the other tools: paper backgrounds, serif headings, mono labels,
-   hairline rules. Three columns: tree, note, and the outline, backlinks and tags. */
+   hairline rules. A notebook: section tabs along the top (OneNote style), then the section's pages, the page,
+   and the outline, backlinks and tags. */
 html{font-size:clamp(14px,.25vw + 12px,16px)}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 var(--sans);-webkit-font-smoothing:antialiased;height:100vh;overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 var(--sans);-webkit-font-smoothing:antialiased;height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
 .loading{color:var(--muted);font-family:var(--mono);font-size:.86rem;padding:2rem 28px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .soft{color:var(--muted)}
@@ -13,8 +14,29 @@ input,textarea{border:1px solid var(--line);border-radius:var(--r-sm);background
 input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
 input[type=checkbox]{min-height:0;width:1rem;height:1rem;accent-color:var(--accent);margin:0}
 
-.notes{--side-w:16.5rem;--panel-w:15rem;--gut:1.75rem;--measure:46rem;display:grid;grid-template-columns:var(--side-w) minmax(0,1fr) var(--panel-w);height:100vh}
-.notes:has(> .panel[hidden]){grid-template-columns:var(--side-w) minmax(0,1fr)}
+.notes{--side-w:16.5rem;--panel-w:15rem;--gut:1.75rem;--measure:46rem;flex:1;min-height:0;display:grid;grid-template-columns:var(--side-w) minmax(0,1fr) var(--panel-w);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"tabs tabs tabs" "side main panel"}
+.notes:has(> .panel[hidden]){grid-template-columns:var(--side-w) minmax(0,1fr);grid-template-areas:"tabs tabs" "side main"}
+.sections{grid-area:tabs}.side{grid-area:side}.main{grid-area:main}.panel{grid-area:panel}
+.scrim{display:none}
+
+/* section tabs: one colour per section, the open one joined to the page below */
+.notes{--sec-notes:var(--accent);--sec-daily:var(--eyebrow);--sec-products:#5E7A4F;--sec-templates:var(--warn);--sec-tandem:#71609A}
+:root[data-theme=dark] .notes{--sec-products:#A9C49A;--sec-tandem:#BFB2E0}
+.sections{display:flex;align-items:flex-end;gap:.75rem;padding:.55rem var(--gut) 0 1rem;border-bottom:1px solid var(--line);background:var(--panel,var(--surface));min-width:0}
+.nb-name{margin:0 .5rem .55rem 0;font:600 1.05rem/1 var(--serif);letter-spacing:-.01em;flex:none}
+.drawer-btn{display:none;margin-bottom:.35rem}
+.sec-tabs{display:flex;gap:.2rem;min-width:0;overflow-x:auto;scrollbar-width:none}
+.sec-tabs::-webkit-scrollbar{display:none}
+.sec{--c:var(--sec-notes);display:inline-flex;align-items:center;gap:.45rem;flex:none;min-height:2.3rem;padding:.35rem .85rem .4rem;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);font:500 .86rem/1 var(--sans);cursor:pointer;position:relative;top:1px;box-shadow:inset 0 3px 0 transparent}
+.sec:hover{color:var(--ink);background:color-mix(in srgb,var(--c) 8%,transparent)}
+.sec.on{background:var(--bg);color:var(--ink);border-color:var(--line);box-shadow:inset 0 3px 0 var(--c);font-weight:600}
+.sec-dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--c);flex:none}
+.sec-badge{font:600 10.5px/1 var(--mono);padding:.2rem .35rem;border-radius:999px;background:var(--c);color:var(--bg)}
+.sec-daily{--c:var(--sec-daily)}.sec-products{--c:var(--sec-products)}.sec-templates{--c:var(--sec-templates)}.sec-tandem{--c:var(--sec-tandem)}
+.notes[data-sec=daily]{--sec:var(--sec-daily)}.notes[data-sec=products]{--sec:var(--sec-products)}.notes[data-sec=templates]{--sec:var(--sec-templates)}.notes[data-sec=tandem]{--sec:var(--sec-tandem)}
+.notes{--sec:var(--sec-notes)}
+.side .eyebrow{color:var(--sec)}
+.tree .note.current>.row{box-shadow:inset 3px 0 0 var(--sec)}
 
 /* sidebar */
 .side{border-right:1px solid var(--line);background:var(--panel,var(--surface));display:flex;flex-direction:column;min-height:0}
@@ -105,8 +127,10 @@ input[type=checkbox]{min-height:0;width:1rem;height:1rem;accent-color:var(--acce
 .md p,.md ul,.md ol,.md blockquote,.md pre,.md .table-wrap{margin:0 0 1em}
 .md ul,.md ol{padding-left:1.4rem}
 .md li+li{margin-top:.2em}
-.md ul.tasks{list-style:none;padding-left:.3rem}
-.md ul.tasks input{margin-right:.4rem;vertical-align:-.1em}
+.md li.task{list-style:none;margin-left:-1.15rem}
+.md li.task>input{margin-right:.4rem;vertical-align:-.1em}
+.md li.task>input:not(:disabled){cursor:pointer}
+.md li.task:has(>input:checked){color:var(--muted)}
 .md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
 .md a.note-link{text-decoration-style:solid}
 .md a.missing{color:var(--warn);text-decoration-style:dashed}
@@ -166,19 +190,33 @@ dialog::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 .engcard .acts{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)}
 .engcard code{word-break:normal;white-space:nowrap}
 
-@media (max-width:1100px){.notes,.notes:has(> .panel[hidden]){--side-w:14rem;grid-template-columns:var(--side-w) minmax(0,1fr)}.panel{display:none}}
+@media (max-width:1100px){.notes,.notes:has(> .panel[hidden]){--side-w:14rem;grid-template-columns:var(--side-w) minmax(0,1fr);grid-template-areas:"tabs tabs" "side main"}.panel{display:none}}
+/* Phone: the pages list is a drawer over the page (the button left of the tabs), one header row, no Split. */
 @media (max-width:760px){
-  body{overflow:auto;height:auto}
   /* :has() outranks a plain .notes, so both are listed or the hidden-panel layout keeps two columns */
-  .notes,.notes:has(> .panel[hidden]){--gut:1rem;grid-template-columns:minmax(0,1fr);height:auto}
-  .side{border-right:0;border-bottom:1px solid var(--line);max-height:40vh}
+  .notes,.notes:has(> .panel[hidden]){--gut:1rem;grid-template-columns:minmax(0,1fr);grid-template-areas:"tabs" "main";position:relative}
+  .sections{padding-left:.4rem;gap:.35rem}
+  .nb-name{display:none}
+  .drawer-btn{display:grid;width:44px;height:44px}
+  .sec{min-height:44px;padding-inline:.7rem}
+  .side{position:absolute;z-index:20;top:calc(44px + .55rem);bottom:0;left:0;width:min(20rem,86vw);box-shadow:var(--shadow-lg);transform:translateX(-105%);transition:transform .18s ease;visibility:hidden}
+  .drawer-open .side{transform:none;visibility:visible}
+  .drawer-open .scrim{display:block;position:absolute;inset:calc(44px + .55rem) 0 0 0;z-index:19;background:color-mix(in srgb,#000 30%,transparent)}
+  .tree .row,.result{min-height:44px}
+  .ibtn{min-width:44px;min-height:44px}
   .side-head{padding-left:var(--gut)}
   .search{padding-inline:var(--gut)}
   .body.mode-split{grid-template-columns:minmax(0,1fr)}
   .body.mode-split .md{display:none}
   .mode-split .editor{border-right:0}
-  .editor,.md{min-height:60vh}
-  .crumbs{min-width:0;flex-basis:100%}
+  .note-head{flex-wrap:nowrap;gap:.4rem;padding-inline:var(--gut)}
+  .crumbs{min-width:0;flex:1}
+  .crumbs .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .crumbs .status{display:none}
+  .head-actions{flex-wrap:nowrap}
+  .head-actions [data-act=copy-wiki],.head-actions [data-act=trash],.head-actions [data-act=open-dispatch]{display:none}
+  .menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-dispatch]{display:flex}
+  .tpl-edit{flex-direction:column;align-items:stretch}
   .engcard{margin-top:1.5rem;padding:1.25rem 1.25rem 1.1rem}
 }
 
@@ -234,3 +272,49 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
    :has() outranks a plain .notes, so both are listed. */
 @media (min-width:1600px){.notes,.notes:has(> .panel[hidden]){--side-w:19rem;--panel-w:18rem;--gut:2.25rem;--measure:60rem}}
 @media (min-width:2100px){.notes,.notes:has(> .panel[hidden]){--side-w:21rem;--panel-w:20rem;--measure:72rem}}
+
+/* ---------- Notebook additions ---------- */
+/* Month headings in Daily; Tandem runs as open groups of their documents */
+.section-label.month{padding:.7rem .55rem .2rem}
+.side-body>.section-label{padding:.6rem .55rem .2rem;margin:0}
+.runs>li.run>details>summary{list-style:none;cursor:pointer;font-weight:500}
+.runs>li.run>details>summary::-webkit-details-marker{display:none}
+.runs>li.run>details>summary::before{content:"";width:.45rem;height:.45rem;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);margin:0 .5rem 0 .15rem;flex:none;transition:transform .15s}
+.runs>li.run>details[open]>summary::before{transform:rotate(45deg)}
+.runs ul{list-style:none;margin:0;padding:0}
+.runs .note .row{padding-left:calc(1.8rem + var(--d) * .6rem)}
+.pill.working{color:var(--sec-tandem);border-color:currentColor;font-size:10px;padding:.2rem .35rem;margin-left:auto}
+.pill.review{color:var(--bg);background:var(--sec-tandem);border-color:var(--sec-tandem);font-size:10px;padding:.2rem .35rem;margin-left:auto}
+.side-note code{font-size:.78rem}
+
+/* The note's ⋯ menu */
+.menu-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + .3rem);z-index:10;min-width:13rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:.3rem;display:flex;flex-direction:column}
+.menu button{display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:left;padding:.5rem .65rem;border-radius:var(--r-sm);font-size:.86rem;color:var(--ink);background:none;border:0;cursor:pointer;min-height:2.2rem}
+.menu button:hover,.menu button:focus-visible{background:var(--hover);outline:none}
+.menu kbd{font:500 10.5px/1 var(--mono);color:var(--muted)}
+.menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-dispatch]{display:none}
+
+/* Template bar: name and use as boxes, and the placeholders to insert */
+.tpl-edit{gap:.5rem .8rem;align-items:flex-end}
+.tpl-f{display:flex;flex-direction:column;gap:.2rem;font:500 10.5px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.tpl-f input{font:400 .86rem var(--sans);text-transform:none;letter-spacing:0;min-width:10rem}
+.tpl-f.grow{flex:1 1 14rem}.tpl-f.grow input{width:100%}
+.ph-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.ph{font:500 11px/1 var(--mono);padding:.3rem .45rem;border-radius:999px;border:1px dashed var(--sec-templates);color:var(--sec-templates);background:color-mix(in srgb,var(--sec-templates) 8%,transparent)}
+button.ph{cursor:pointer}button.ph:hover{border-style:solid}
+.md .ph{display:inline-block;vertical-align:.05em}
+.tpl-pick{display:inline-flex;align-items:center}
+.ibtn.mini-on{width:1.6rem;height:1.6rem;opacity:.6}
+.ibtn.mini-on:hover{opacity:1}
+.ibtn.mini-on svg{width:12px;height:12px}
+
+/* The faint "Title" on a new note's empty first line, over the editor's first line */
+.title-hint{position:absolute;top:1.5rem;left:calc(var(--gut) + 2ch);font:400 .9rem/1.65 var(--mono);color:var(--muted);opacity:.55;pointer-events:none}
+.mode-edit .title-hint{left:calc(max(var(--gut),calc((100% - var(--measure)) / 2)) + 2ch)}
+.editor[readonly]{color:var(--muted)}
+
+/* Send all, and the hint about pairing */
+.send-all{font:500 11px/1 var(--mono);text-transform:none;letter-spacing:0;margin-left:.5rem}
+.panel .hint .linkish{align-self:flex-start}
+.bar-msg>svg{display:inline-block}

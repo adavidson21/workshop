@@ -8,6 +8,7 @@
 import { isNote, slugify } from './model.js';
 import { PRODUCT_TEMPLATE } from './products.js';
 import { TEMPLATES, isTemplate, stripTemplateFields, templateInfo } from './template-info.js';
+import { frontmatter } from './markdown.js';
 
 export { TEMPLATES, TEMPLATE_INFO, isTemplate, templateInfo } from './template-info.js';
 
@@ -34,9 +35,58 @@ export const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(
 
 /** The templates among these paths: [{path, name, use}], sorted by name. contentOf(path) gives a template's text, for
     the name and use in its frontmatter (template-info.js). */
-export function templatesIn(paths, contentOf = () => '') {
-  return [...paths].filter(p => isNote(p) && isTemplate(p))
-    .map(p => ({ path: p, ...templateInfo(p, contentOf(p)) })).sort((a, b) => a.name.localeCompare(b.name));
+export function templatesIn(paths, contentOf = () => '', { starters = false } = {}) {
+  const have = [...paths].filter(p => isNote(p) && isTemplate(p));
+  const list = have.map(p => ({ path: p, ...templateInfo(p, contentOf(p)), builtIn: false, starter: Object.prototype.hasOwnProperty.call(STARTERS, p) }));
+  // With starters: the starter set is always offered; a file of the same name wins over the built-in one.
+  if (starters) for (const p of Object.keys(STARTERS)) if (!have.includes(p)) list.push({ path: p, ...templateInfo(p, STARTERS[p]), builtIn: true, starter: true });
+  return list.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A template's text: its file's, or the starter's when there is no file yet. null for neither. */
+export function templateText(path, contentOf = () => null) {
+  const t = contentOf(path);
+  if (typeof t === 'string') return t;
+  return Object.prototype.hasOwnProperty.call(STARTERS, path) ? STARTERS[path] : null;
+}
+
+/* The placeholders a template can use, with what each becomes (the template bar's chips, the preview's tooltips). */
+export const PLACEHOLDERS = {
+  title: 'The title you type for the new note',
+  date: "The day the note is made, YYYY-MM-DD",
+  time: 'The time the note is made, HH:MM',
+  slug: 'The title as a file name, like deploy-plan',
+  docket: "Today's tasks from Docket (daily template only)"
+};
+/** The placeholder names to offer for a template: docket only on the daily template. */
+export const placeholdersFor = (path) => Object.keys(PLACEHOLDERS).filter(k => k !== 'docket' || path === 'templates/daily.md');
+
+/** The frontmatter `template:` and `description:` of a text, as written (empty when missing). */
+export function templateFields(text) {
+  const { data } = frontmatter(text);
+  return { name: data.template || '', description: data.description || '' };
+}
+
+/** The text with `template:` and `description:` set (an empty value removes the line). Other frontmatter stays. */
+export function setTemplateFields(text, { name = '', description = '' } = {}) {
+  const src = String(text || '');
+  const clean = (v) => String(v).replace(/[\r\n]+/g, ' ').trim();
+  const add = [];
+  if (clean(name)) add.push(`template: ${clean(name)}`);
+  if (clean(description)) add.push(`description: ${clean(description)}`);
+  const m = /^(\uFEFF?)---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
+  if (!m) return add.length ? `---\n${add.join('\n')}\n---\n${src}` : src;
+  const kept = m[2].split(/\r?\n/).filter(l => !/^(template|description)\s*:/i.test(l));
+  const lines = [...add, ...kept.filter(l => l.trim())];
+  const rest = src.slice(m[0].length);
+  return lines.length ? `${m[1]}---\n${lines.join('\n')}\n---\n${rest}` : m[1] + rest;
+}
+
+/** A note turned into a template: its first "# " heading becomes "# {{title}}" and `template:` names it. */
+export function asTemplate(text, name) {
+  const body = stripTemplateFields(String(text || ''));
+  const titled = /^#[ \t]+.*$/m.test(body) ? body.replace(/^#[ \t]+.*$/m, '# {{title}}') : `# {{title}}\n\n${body}`;
+  return setTemplateFields(titled, { name });
 }
 
 /* What {{docket}} becomes with no tasks from Docket: one empty checkbox to plan by hand. */

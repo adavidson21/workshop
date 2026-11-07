@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Notes",
-  "short_name": "Notes",
+  "name": "Notebook",
+  "short_name": "Notebook",
   "description": "Markdown notes: folders, links and backlinks, tags, search and images.",
   "start_url": "./",
   "scope": "./",

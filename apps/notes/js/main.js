@@ -13,9 +13,12 @@ import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { RELATION_LABEL } from '../shared/people.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
-import { DAILY, PRODUCT_TPL, TEMPLATES, dailyPath, dailyText, dayOf, fill, missingStarters, templatesIn } from './templates.js';
+import { DAILY, PLACEHOLDERS, PRODUCT_TPL, STARTERS, TEMPLATES, asTemplate, dailyPath, dailyText, dayOf, fill, setTemplateFields, templateFields, templateText, templatesIn } from './templates.js';
+import { SECTION_IDS, notesPaths, sectionOf, visibleSections } from './sections.js';
+import { createTandem, findDoc, isTandem, parseTandem, tandemPath } from './tandem.js';
+import { collapseTitle, taskText, titleEmpty, toggleTask } from './edits.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
-import { actionItems, forRapport, offerFor, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
+import { actionItems, forRapport, offerFor, offerId, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
 import { docketPlan } from './daily.js';
@@ -26,15 +29,20 @@ import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sidebar } from './view.js';
+import { confirmHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), editor = $('editor'), preview = $('preview');
 const emptyEl = $('empty'), panelEl = $('panel'), picker = $('picker'), dlg = $('dlg');
+const sectionsEl = $('sections'), shell = $('notes'), titleHint = $('title-hint');
+// Phone width: the pages list is a drawer, and there is no Split (it would be Edit). Its own remembered view.
+const phoneQuery = window.matchMedia('(max-width: 760px)');
+const isPhone = () => phoneQuery.matches;
+const modeKey = () => (isPhone() ? 'mode-phone' : 'mode');
 
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Notes');
+if (!ws.embedded) mountBar('Notebook');
 // On Notes' own site: install as an app and work offline (shared/sw-register.js). Inside Workshop, Workshop's does.
 let swReload = null;
 if (!ws.embedded && window.WorkshopSw) WorkshopSw.register((msg, label, fn) => { swReload = fn; ws.toast(msg, { action: { label, command: 'reload-new' } }).catch(() => {}); });
@@ -44,17 +52,31 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 const ui = {
   path: null,                 // the open note
   base: null,                 // {content, mtime}: the open note as last read or saved
-  mode: ['edit', 'split', 'preview'].includes(store('mode')) ? store('mode') : 'split',
+  mode: 'split',
+  section: SECTION_IDS.includes(store('section')) ? store('section') : 'notes',
+  menu: false,                // the note's ⋯ menu is open
+  drawer: false,              // phone: the pages drawer is open
   query: '', pick: 0,
   closed: new Set(),
   extraFolders: new Set(),    // folders made here that hold no note yet (hidden after a reload)
   status: { kind: 'saved' },  // saved, dirty, saving, failed, conflict, gone
   current: null               // the newer file on a conflict
 };
+ui.mode = savedMode();
+function savedMode() {
+  const m = store(modeKey());
+  if (isPhone()) return ['edit', 'preview'].includes(m) ? m : 'preview';
+  return ['edit', 'split', 'preview'].includes(m) ? m : 'split';
+}
+phoneQuery.addEventListener('change', () => { ui.mode = savedMode(); ui.drawer = false; paintChrome(); paintPreview(true); });
+function setMode(m) { ui.mode = m; store(modeKey(), m); }
 let found = [];
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
+// The Tandem section (tandem.js): .work documents through the opencode connector, where it runs.
+const tandem = createTandem(ws, { onChange: () => { if (ui.path && isTandem(ui.path)) doc.item = (findDoc(tandem.state.items, ui.path) || {}).item || doc.item; paintChrome(); }, onModel: () => onTandemModel() });
+let doc = null; // the open Tandem page: {item, busy}
 // Notes' summary for Home and other apps (summary-cards.js): titles and paths, never note text.
 const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (notes.loaded ? notesCards(notes.index) : null) });
 // App names for ws: link chips (applinks.js), from the manifests on this site.
@@ -91,8 +113,12 @@ const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wr
 /* ---------- painting ---------- */
 
 function state() {
-  return { notes, ui, found, tree: tree([...notes.texts.keys()], [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
-    versions: ui.path ? notes.history(ui.path).length : 0, start: startOffer() };
+  const tdoc = ui.path && isTandem(ui.path) ? { item: doc && doc.item, busy: tandem.busy(ui.path) } : null;
+  const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
+  return { notes, ui, found, tree: tree(notesPaths(notes.texts.keys()), [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
+    versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
+    doc: tdoc, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
+    isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
 }
 
 /* Where notes are saved, for the sidebar's foot on Notes' own site (inside Workshop, Workshop says). */
@@ -109,9 +135,11 @@ function paintChrome() {
   const active = document.activeElement;
   const inSearch = active && active.matches && active.matches('[data-search]');
   const pos = inSearch ? active.selectionStart : null;
+  if (!visibleSections({ tandem: tandem.state.available }).some(x => x.id === ui.section)) ui.section = 'notes';
+  sectionsEl.innerHTML = sectionsHtml(st);
   side.innerHTML = sidebar(st);
   if (inSearch) { const s = side.querySelector('[data-search]'); s.focus(); s.setSelectionRange(pos, pos); }
-  head.innerHTML = header(st);
+  paintHead(st);
   panelEl.innerHTML = panel(st);
   const showing = Boolean(ui.path);
   emptyEl.hidden = showing;
@@ -119,6 +147,23 @@ function paintChrome() {
   if (!showing) emptyEl.innerHTML = empty(st);
   bodyEl.className = `body mode-${ui.mode}`;
   panelEl.hidden = !ui.path;
+  shell.classList.toggle('drawer-open', ui.drawer);
+  shell.dataset.sec = ui.section;
+  editor.readOnly = Boolean(st.doc && st.doc.busy);
+  paintHint();
+}
+/* The header, keeping focus and the caret in a template field being typed in. */
+function paintHead(st = state()) {
+  const a = document.activeElement;
+  const field = a && a.dataset && a.dataset.tplField;
+  const pos = field ? [a.selectionStart, a.selectionEnd] : null;
+  head.innerHTML = header(st);
+  if (field) { const el = head.querySelector(`[data-tpl-field="${field}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos[0], pos[1]); } catch { /* fine */ } } }
+  if (ui.menu) head.querySelector('.menu [role=menuitem]')?.focus();
+}
+/* The faint "Title" on a new note's empty first line. */
+function paintHint() {
+  titleHint.hidden = !(ui.path && !isTandem(ui.path) && ui.mode !== 'preview' && titleEmpty(editor.value));
 }
 
 let previewTimer = null;
@@ -130,7 +175,15 @@ function paintPreview(now = false) {
   if (!from) { preview.innerHTML = ''; return; }
   const text = editor.value;
   const ix = notes.index;
+  if (isTandem(from)) {
+    // A Tandem page: its links are to code and other .work files, so only web links are links.
+    preview.innerHTML = render(text, { noLinks: true, imageUrl: () => null, tasks: !editor.readOnly });
+    return;
+  }
+  const tpl = sectionOf(from) === 'templates';
   preview.innerHTML = render(text, {
+    tasks: true,
+    placeholders: tpl ? PLACEHOLDERS : null,
     appName: (id) => appNames[id] || id,
     person: (h) => { const it = dir && dir.items.find(x => !x.archived && x.handle === h); return it ? it.name : null; },
     resolveLink(href) {
@@ -155,6 +208,11 @@ function paintPreview(now = false) {
     }
   });
   markTandemLines(from, text);
+  // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
+  for (const box of preview.querySelectorAll('input[data-task]')) {
+    const t = taskText(text, Number(box.dataset.task));
+    if (t !== null && sent.has(offerId('task', from, t))) { box.disabled = true; box.title = 'Sent to Docket, which owns whether it is done'; }
+  }
   for (const img of preview.querySelectorAll('img[data-img]')) {
     notes.imageUrl(img.dataset.img).then(url => {
       if (url) img.src = url;
@@ -198,18 +256,22 @@ async function markReviewedNow() {
 /* ---------- opening notes ---------- */
 
 async function openNote(path, { line = null, anchor = null, focus = false } = {}) {
-  if (path === ui.path) { if (line !== null) goToLine(line); if (anchor) goToAnchor(anchor); return; }
+  ui.drawer = false;
+  if (ui.query.trim()) ui.query = ''; // a search result was opened: the pages come back
+  if (path === ui.path) { if (line !== null) goToLine(line); if (anchor) goToAnchor(anchor); paintChrome(); return; }
   if (!(await leaveNote())) return;
+  if (isTandem(path)) { await openTandem(path, { line, anchor }); return; }
   let t = notes.texts.get(path);
   if (!t) {
     try { const f = await notes.readNote(path); if (!f) { ws.toast(`There is no note ${path}.`, { kind: 'warn' }); return; } t = notes.texts.get(path); }
     catch (e) { toastErr(e); return; }
   }
-  ui.path = path; ui.current = null;
+  ui.path = path; ui.current = null; ui.menu = false; doc = null;
   ui.base = { content: t.content, mtime: t.mtime };
   ui.status = { kind: 'saved' };
   editor.value = t.content;
   store('last', path);
+  showSection(sectionOf(path));
   for (let d = dirOf(path); d; d = dirOf(d)) ui.closed.delete(d);
   paintChrome();
   paintPreview(true);
@@ -217,6 +279,39 @@ async function openNote(path, { line = null, anchor = null, focus = false } = {}
   else if (anchor) goToAnchor(anchor);
   else { editor.setSelectionRange(0, 0); editor.scrollTop = 0; preview.scrollTop = 0; }
   if (focus && ui.mode !== 'preview') editor.focus();
+}
+
+/* A Tandem page: read through the connector (tandem.js). base.mtime is the text it was read at. */
+async function openTandem(path, { line = null, anchor = null } = {}) {
+  let text;
+  try { text = await tandem.read(path); } catch (e) { toastErr(e); return; }
+  if (!tandem.state.loaded) await tandem.refresh();
+  ui.path = path; ui.current = null; ui.menu = false;
+  doc = { item: (findDoc(tandem.state.items, path) || {}).item || null };
+  ui.base = { content: text, mtime: text };
+  ui.status = { kind: 'saved' };
+  editor.value = text;
+  store('last', path);
+  showSection('tandem');
+  paintChrome();
+  paintPreview(true);
+  if (line !== null) goToLine(line); else if (anchor) goToAnchor(anchor);
+  else { editor.setSelectionRange(0, 0); editor.scrollTop = 0; preview.scrollTop = 0; }
+}
+/* .work changed: if the open Tandem page changed and has no edits here, load it; with edits, a conflict. */
+async function onTandemModel() {
+  const path = ui.path;
+  if (!path || !isTandem(path)) return;
+  let text;
+  try { text = await tandem.read(path); } catch { if (ui.path === path) setStatus('gone'); return; }
+  if (ui.path !== path || text === ui.base.content) return;
+  const mine = editor.value !== ui.base.content || ['dirty', 'saving', 'failed'].includes(ui.status.kind);
+  if (!mine) { editor.value = text; ui.base = { content: text, mtime: text }; setStatus('saved'); paintPreview(true); }
+  else { ui.current = { content: text, mtime: text }; setStatus('conflict'); }
+}
+function showSection(id) {
+  if (ui.section === id) return;
+  ui.section = id; store('section', id);
 }
 
 /** Save before leaving the open note. False if the user should stay (a conflict or failure to look at). */
@@ -277,7 +372,11 @@ async function saveNow() {
   setStatus('saving');
   saving = (async () => {
     try {
-      const r = await notes.save(path, text, ui.base.mtime);
+      if (isTandem(path)) {
+        if (tandem.busy(path)) throw Object.assign(new Error(`${tandem.busy(path)}. Wait until it stops.`), { code: 'busy' });
+        await tandem.save(path, text, ui.base.content);
+      }
+      const r = isTandem(path) ? { mtime: text } : await notes.save(path, text, ui.base.mtime);
       if (ui.path !== path) return;
       ui.base = { content: text, mtime: r.mtime };
       clearTimeout(retryTimer);
@@ -286,7 +385,11 @@ async function saveNow() {
       else if (path === QUICK) pickup.run(); // captures that waited while Quick Notes had edits
     } catch (e) {
       if (ui.path !== path) return;
-      if (e.code === 'conflict') {
+      if (isTandem(path) && e.code === 'conflict' && !/working|Autopilot/.test(e.message || '')) {
+        const now = await tandem.read(path).catch(() => null);
+        ui.current = now === null ? null : { content: now, mtime: now };
+        setStatus(now === null ? 'gone' : 'conflict');
+      } else if (e.code === 'conflict' && !isTandem(path)) {
         ui.current = e.current;
         setStatus(e.current ? 'conflict' : 'gone');
       } else {
@@ -301,7 +404,7 @@ async function saveNow() {
 }
 function setStatus(kind, message = '') {
   ui.status = { kind, message };
-  head.innerHTML = header(state());
+  paintHead();
 }
 
 function onExternal({ path, gone }) {
@@ -325,6 +428,14 @@ function onExternal({ path, gone }) {
 
 async function resolveConflict(how) {
   const path = ui.path, cur = ui.current, mine = editor.value;
+  if (isTandem(path)) {
+    try {
+      if (how === 'take-theirs') { const t = await tandem.read(path); editor.value = t; ui.base = { content: t, mtime: t }; }
+      else if (how === 'overwrite' || how === 'restore') { await tandem.save(path, mine, how === 'restore' ? undefined : cur.content); ui.base = { content: mine, mtime: mine }; }
+      ui.current = null; setStatus('saved'); paintChrome(); paintPreview(true);
+    } catch (e) { toastErr(e); }
+    return;
+  }
   try {
     if (how === 'take-theirs') {
       const f = await notes.readNote(path);
@@ -411,7 +522,7 @@ async function newNote(folder = defaultFolder()) {
   try {
     await notes.create(path, BLANK);
     if (folder) ui.extraFolders.delete(folder);
-    if (ui.mode === 'preview') { ui.mode = 'split'; store('mode', 'split'); }
+    if (ui.mode === 'preview') setMode(isPhone() ? 'edit' : 'split');
     fresh = { path, folder };
     await openNote(path);
     editor.focus();
@@ -422,14 +533,15 @@ async function newNote(folder = defaultFolder()) {
 /** The template offer for the open note while it is fresh and has nothing below its title, or null. */
 function startOffer() {
   if (!fresh || fresh.path !== ui.path || !bodyBlank(editor.value)) return null;
-  return { templates: templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '') };
+  return { templates: templatesIn(notes.texts.keys(), (p) => notes.texts.get(p)?.content || '', { starters: true }) };
 }
 
 /* Replace the fresh note's text with a template, keeping the title typed so far. */
 function useTemplate(tpl) {
-  if (!fresh || fresh.path !== ui.path || !notes.texts.has(tpl)) return;
+  const src = templateText(tpl, (p) => notes.texts.get(p)?.content ?? null);
+  if (!fresh || fresh.path !== ui.path || src === null) return;
   if (tpl === PRODUCT_TPL && !fresh.folder) fresh.folder = PRODUCTS; // product notes live in products/ (products.js)
-  editor.value = fill(notes.texts.get(tpl).content, { title: facts(editor.value).title || '' });
+  editor.value = fill(src, { title: facts(editor.value).title || '' });
   editor.dispatchEvent(new Event('input'));
   paintChrome();
   const m = /^# .*$/m.exec(editor.value);
@@ -461,12 +573,71 @@ async function settleFresh() {
   } catch (e) { toastErr(e); }
 }
 
-/* The starter templates (templates.js) that are not there yet. */
-async function addStarters() {
-  const todo = missingStarters(new Set(notes.files.keys()));
-  let n = 0;
-  for (const t of todo) { try { await notes.create(t.path, t.content); n++; } catch (e) { if (e.code !== 'conflict') { toastErr(e); break; } } }
-  if (n) ws.toast(`Added ${n} template${n === 1 ? '' : 's'} to templates/. Edit them like any note.`, { kind: 'success' });
+/* ---------- templates (templates.js) ---------- */
+
+/* Open a template to change it; a starter with no file yet is written first. */
+async function editTemplate(path) {
+  if (!notes.files.has(path)) {
+    if (!Object.prototype.hasOwnProperty.call(STARTERS, path)) return;
+    if (!(await leaveNote())) return;
+    try { await notes.create(path, STARTERS[path]); } catch (e) { if (e.code !== 'conflict') { toastErr(e); return; } }
+  }
+  if (ui.mode === 'preview') setMode(isPhone() ? 'edit' : 'split');
+  await openNote(path, { focus: true });
+}
+async function newTemplate() {
+  const form = await showDialog(promptHtml({ title: 'New template', label: 'Name', value: '', ok: 'Create', hint: 'Shown in the bar on every new note, for example Interview notes.' }), (fd) => (String(fd.get('value')).trim() ? '' : 'Give it a name.'));
+  if (!form) return;
+  const name = String(form.get('value')).trim();
+  const path = freePath(new Set(notes.files.keys()), TEMPLATES, slugify(name, 'template'), 'md');
+  if (!(await leaveNote())) return;
+  try { await notes.create(path, setTemplateFields('# {{title}}\n\n{{date}}\n\n', { name })); await editTemplate(path); }
+  catch (e) { toastErr(e); }
+}
+/* Save as template: the open note, with its title line as {{title}}, under templates/. */
+async function saveAsTemplate() {
+  if (!ui.path || isTandem(ui.path)) return;
+  const title = notes.index.notes.get(ui.path)?.title || stem(ui.path);
+  const form = await showDialog(promptHtml({ title: 'Save as template', label: 'Template name', value: title, ok: 'Save template', hint: 'New notes can start from it. This note stays as it is.' }), (fd) => (String(fd.get('value')).trim() ? '' : 'Give it a name.'));
+  if (!form) return;
+  const name = String(form.get('value')).trim();
+  const path = freePath(new Set(notes.files.keys()), TEMPLATES, slugify(name, 'template'), 'md');
+  try { await notes.create(path, asTemplate(editor.value, name)); ws.toast(`Saved the template ${name}.`, { kind: 'success', action: undefined }); paintChrome(); }
+  catch (e) { toastErr(e); }
+}
+/* Reset to starter: the starter's text back, the current text kept in history first. */
+async function resetTemplate() {
+  if (!ui.path || !Object.prototype.hasOwnProperty.call(STARTERS, ui.path)) return;
+  const ok = await showDialog(confirmHtml({ title: 'Reset to starter', ok: 'Reset', body: '<p>The template goes back to the starter version. What it says now is kept in History.</p>' }));
+  if (!ok) return;
+  if (ui.status.kind === 'dirty' || ui.status.kind === 'saving') await saveNow();
+  try {
+    const r = await notes.save(ui.path, STARTERS[ui.path], ui.base.mtime, { keep: true });
+    editor.value = STARTERS[ui.path]; ui.base = { content: editor.value, mtime: r.mtime }; setStatus('saved');
+    paintChrome(); paintPreview(true);
+    ws.toast('Reset. The text it replaced is in History.', { kind: 'success' });
+  } catch (e) { if (e.code === 'conflict') { ui.current = e.current; setStatus(e.current ? 'conflict' : 'gone'); } else toastErr(e); }
+}
+/* The template bar's Name and Description boxes write the frontmatter as you type. */
+function setTemplateField(field, value) {
+  const cur = templateFields(editor.value);
+  cur[field] = value;
+  const pos = editor.selectionStart, before = editor.value.length;
+  editor.value = setTemplateFields(editor.value, cur);
+  const p = Math.max(0, pos + editor.value.length - before);
+  editor.setSelectionRange(p, p);
+  if (ui.status.kind !== 'dirty' && ui.status.kind !== 'saving') ui.status = { kind: 'dirty' };
+  scheduleSave(); paintPreview();
+}
+function insertPlaceholder(name) {
+  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+  editor.focus();
+  insertAtCursor(`{{${name}}}`);
+}
+/* A new product note: in products/, from the product template. */
+async function newProduct() {
+  await newNote(PRODUCTS);
+  useTemplate(PRODUCT_TPL);
 }
 
 /* Today's note: daily/<date>.md, made from templates/daily.md (or the starter) the first time. */
@@ -499,12 +670,15 @@ async function readSent() {
 async function send(kind, line) {
   if (!ui.path) return;
   const text = editor.value;
-  const it = (kind === 'task' ? actionItems(text).filter(x => !x.done) : forRapport(text)).find(x => x.line === line);
-  if (!it) { ws.toast('That line changed. Try again.', { kind: 'warn' }); return; }
+  const list = (kind === 'task' ? actionItems(text).filter(x => !x.done) : forRapport(text));
+  // line null: Send all, every one not sent yet.
+  const picked = line === null ? list : list.filter(x => x.line === line);
+  if (!picked.length) { ws.toast('That line changed. Try again.', { kind: 'warn' }); return; }
   const note = { path: ui.path, title: notes.index.notes.get(ui.path)?.title || stem(ui.path) };
   const day = dayOf(new Date());
   // A task: one accepted offer to Docket. For Rapport: one offer per report named, or one as yours.
-  const items = kind === 'task' ? [offerFor('task', note, it.text, { day, dir })] : rapportOffers(note, it, { day, dir }).map(o => o.offer);
+  const items = picked.flatMap(it => (kind === 'task' ? [offerFor('task', note, it.text, { day, dir })] : rapportOffers(note, it, { day, dir }).map(o => o.offer))).filter(o => line !== null || !sent.has(o.id));
+  if (!items.length) return;
   try {
     for (let tries = 0; ; tries++) {
       const before = readOffers(await ws.data.get('handoffs'));
@@ -514,7 +688,7 @@ async function send(kind, line) {
       try { await ws.data.put('handoffs', after); sent = sentIds(after); break; }
       catch (e) { if (e.code !== 'conflict' || tries >= 2) throw e; }
     }
-    ws.toast(kind === 'task' ? 'Sent to Docket as a task.' : `Sent to Rapport${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.`, { kind: 'success' });
+    ws.toast(kind === 'task' ? (items.length > 1 ? `Sent ${items.length} tasks to Docket.` : 'Sent to Docket as a task.') : `Sent to Rapport${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.`, { kind: 'success' });
     paintChrome();
   } catch (e) { toastErr(e); }
 }
@@ -638,7 +812,7 @@ async function newFolder(base = ui.path ? dirOf(ui.path) : '') {
 
 /** Apply moves (old note path -> new): write each note at its new place with its links fixed, fix links in the
     notes the user ticked, then trash the old files. Nothing is trashed until its copy is written. */
-async function applyMoves(moves, label) {
+async function applyMoves(moves, label, { quiet = false } = {}) {
   const ix = notes.index;
   const taken = new Set(notes.files.keys());
   for (const [from, to] of moves) {
@@ -655,10 +829,11 @@ async function applyMoves(moves, label) {
     if (r.count) updates.push({ path: p, count: r.count, content: r.content, mtime: t.mtime });
   }
   const list = [...moves].map(([a, b]) => `<li><span class="mono">${a}</span> to <span class="mono">${b}</span></li>`).join('');
-  const form = await showDialog(confirmHtml({ title: label, ok: 'Move',
+  // Nothing to choose (no links change): the first dialog was the confirm.
+  const form = quiet && !updates.length ? null : await showDialog(confirmHtml({ title: label, ok: 'Move',
     body: `<ul class="moves">${list}</ul>${linkUpdatesHtml(updates, ix)}` }));
-  if (!form) return;
-  const chosen = new Set(form.getAll('update'));
+  if (!form && !(quiet && !updates.length)) return;
+  const chosen = new Set(form ? form.getAll('update') : []);
   const problems = [];
   const opened = ui.path;
   for (const [from, to] of moves) {
@@ -683,8 +858,9 @@ async function applyMoves(moves, label) {
 }
 
 async function renameNote(path = ui.path) {
-  if (!path) return;
-  const form = await showDialog(promptHtml({ title: 'Rename or move', label: 'Path in notes/', value: path.replace(/\.md$/, ''), ok: 'Next',
+  if (!path || isTandem(path)) return;
+  const linked = (notes.index.backlinks.get(path) || []).length > 0;
+  const form = await showDialog(promptHtml({ title: 'Rename or move', label: 'Path in notes/', value: path.replace(/\.md$/, ''), ok: linked ? 'Next' : 'Rename',
     hint: 'Lowercase, digits and dashes. Use / for folders, for example runbooks/deploy.' }), (fd) => {
     const r = notePathFrom(fd.get('value'));
     if (r.error) return r.error;
@@ -693,7 +869,7 @@ async function renameNote(path = ui.path) {
   });
   if (!form) return;
   const to = notePathFrom(form.get('value')).path;
-  await applyMoves(new Map([[path, to]]), 'Rename or move note');
+  await applyMoves(new Map([[path, to]]), 'Rename or move note', { quiet: true });
 }
 
 async function renameFolder(folder) {
@@ -720,17 +896,35 @@ async function moveFolder(folder, to) {
   await applyMoves(moves, 'Move folder');
 }
 
+/* Trash right away, with Undo in the toast (it writes the note back). Asks first only when other notes link to it. */
 async function trashNote(path = ui.path) {
-  if (!path) return;
+  if (!path || isTandem(path)) return;
   const backs = (notes.index.backlinks.get(path) || []).length;
-  const ok = await showDialog(confirmHtml({ title: 'Move to the trash', ok: 'Move to trash', danger: true,
-    body: `<p>${path} goes to the Workshop folder's <code>.trash/</code>. Nothing is deleted; you can move it back by hand.</p>${backs ? `<p class="warn">${backs} link${backs === 1 ? '' : 's'} in other notes will stop working.</p>` : ''}` }));
-  if (!ok) return;
+  if (backs) {
+    const ok = await showDialog(confirmHtml({ title: 'Move to the trash', ok: 'Move to trash', danger: true,
+      body: `<p>${backs} link${backs === 1 ? '' : 's'} in other notes will stop working. ${path} goes to the Workshop folder's <code>.trash/</code>; nothing is deleted.</p>` }));
+    if (!ok) return;
+  }
+  if (path === ui.path && (ui.status.kind === 'dirty' || ui.status.kind === 'saving')) await saveNow();
+  const text = path === ui.path ? editor.value : notes.texts.get(path)?.content;
   try {
     await notes.trash(path);
-    if (ui.path === path) { ui.path = null; ui.base = null; ui.status = { kind: 'saved' }; editor.value = ''; }
+    if (ui.path === path) { ui.path = null; ui.base = null; ui.status = { kind: 'saved' }; editor.value = ''; if (fresh && fresh.path === path) fresh = null; }
     paintChrome();
-    ws.toast('Moved to the trash.', { kind: 'success' });
+    lastTrashed = text === undefined ? null : { path, text };
+    ws.toast(`Moved ${baseName(path)} to the trash.`, { kind: 'success', action: lastTrashed ? { label: 'Undo', command: 'undo-trash' } : undefined }).catch(() => {});
+  } catch (e) { toastErr(e); }
+}
+let lastTrashed = null;
+async function undoTrash() {
+  const t = lastTrashed;
+  lastTrashed = null;
+  if (!t) return;
+  try {
+    const path = notes.files.has(t.path) ? freePath(new Set(notes.files.keys()), dirOf(t.path), stem(t.path), 'md') : t.path;
+    await notes.create(path, t.text);
+    await openNote(path);
+    ws.toast('Put it back.', { kind: 'success' });
   } catch (e) { toastErr(e); }
 }
 
@@ -859,6 +1053,13 @@ function choosePicker(k = pk.pick) {
 
 editor.addEventListener('input', () => {
   if (!ui.path) return;
+  if (editor.readOnly) return;
+  // "# # Title" on a new note's first line (it starts with "# "): one heading marker.
+  if (!isTandem(ui.path) && editor.selectionStart < 40) {
+    const c = collapseTitle(editor.value);
+    if (c.shift !== null) { const pos = editor.selectionStart; editor.value = c.text; const p = Math.max(2, pos - c.shift); editor.setSelectionRange(p, p); }
+  }
+  paintHint();
   if (['conflict', 'gone'].includes(ui.status.kind)) { paintPreview(); updatePicker(); return; }
   if (ui.status.kind !== 'dirty' && ui.status.kind !== 'saving') setStatus('dirty');
   scheduleSave();
@@ -888,6 +1089,11 @@ picker.addEventListener('mousedown', (e) => { const li = e.target.closest('[data
 document.addEventListener('click', async (e) => {
   const el = (sel) => e.target.closest(sel);
   let x;
+  // The ⋯ menu closes on any click outside it (its own items act below).
+  if (ui.menu && !el('.menu-wrap')) { ui.menu = false; paintHead(); }
+  if ((x = el('[data-section]'))) { showSection(x.dataset.section); ui.query = ''; ui.drawer = isPhone(); paintChrome(); if (ui.section === 'tandem') tandem.refresh(); return; }
+  if ((x = el('input[data-task]'))) { e.preventDefault(); toggleTaskAt(Number(x.dataset.task)); return; }
+  if ((x = el('[data-edit-template]'))) { e.preventDefault(); editTemplate(x.dataset.editTemplate); return; }
   if ((x = el('[data-open]'))) { e.preventDefault(); await openNote(x.dataset.open, { line: x.dataset.line !== undefined ? Number(x.dataset.line) : null }); return; }
   if ((x = el('[data-note]'))) { e.preventDefault(); await openNote(x.dataset.note, { anchor: x.dataset.anchor || null }); return; }
   if ((x = el('[data-missing]'))) { e.preventDefault(); createAt(wikiPath(x.dataset.missing), x.dataset.missing); return; }
@@ -895,12 +1101,26 @@ document.addEventListener('click', async (e) => {
   if ((x = el('[data-anchor]'))) { e.preventDefault(); if (x.dataset.line !== undefined) goToLine(Number(x.dataset.line)); else goToAnchor(x.dataset.anchor); return; }
   if ((x = el('[data-tag]'))) { e.preventDefault(); setQuery(`tag:${x.dataset.tag}`); side.querySelector('[data-search]')?.focus(); return; }
   if ((x = el('[data-app]'))) { e.preventDefault(); ws.open({ app: x.dataset.app, path: x.dataset.appPath || '' }).catch(toastErr); return; }
-  if ((x = el('[data-mode]'))) { ui.mode = x.dataset.mode; store('mode', ui.mode); paintChrome(); paintPreview(true); return; }
+  if ((x = el('[data-mode]'))) { setMode(x.dataset.mode); paintChrome(); paintPreview(true); return; }
+  if (e.target.classList && e.target.classList.contains('scrim')) { ui.drawer = false; paintChrome(); return; }
   if (!(x = el('[data-act]'))) return;
   const act = x.dataset.act;
+  if (x.closest('.menu')) ui.menu = false;
+  if (act === 'menu') { ui.menu = !ui.menu; paintHead(); return; }
+  if (act === 'drawer') { ui.drawer = !ui.drawer; paintChrome(); return; }
   if (act === 'new-note') newNote();
   else if (act === 'today') openToday();
   else if (act === 'send') send(x.dataset.kind, Number(x.dataset.line));
+  else if (act === 'send-all') send(x.dataset.kind, null);
+  else if (act === 'edit-template') editTemplate(x.dataset.tpl);
+  else if (act === 'new-template') newTemplate();
+  else if (act === 'save-template') saveAsTemplate();
+  else if (act === 'reset-template') resetTemplate();
+  else if (act === 'insert-ph') insertPlaceholder(x.dataset.ph);
+  else if (act === 'new-product') newProduct();
+  else if (act === 'tandem-refresh') tandem.refresh().then(() => ws.toast('Read .work again.'));
+  else if (act === 'open-dispatch') openDispatch();
+  else if (act === 'hint-seen') { store('hint-send', '1'); paintChrome(); }
   else if (act === 'history') showHistory();
   else if (act === 'mark-reviewed') markReviewedNow();
   else if (act === 'review-list') { setQuery('is:review'); side.querySelector('[data-search]')?.focus(); }
@@ -910,7 +1130,6 @@ document.addEventListener('click', async (e) => {
   else if (act === 'unpair') forgetPairing();
   else if (act === 'new-note-in') newNote(x.dataset.folder);
   else if (act === 'use-template') useTemplate(x.dataset.tpl);
-  else if (act === 'starters') { await addStarters(); paintChrome(); editor.focus(); }
   else if (act === 'new-folder') newFolder();
   else if (act === 'toggle') { const f = x.dataset.folder; if (ui.closed.has(f)) ui.closed.delete(f); else ui.closed.add(f); paintChrome(); }
   else if (act === 'folder-menu') renameFolder(x.dataset.folder);
@@ -925,7 +1144,41 @@ document.addEventListener('click', async (e) => {
 });
 
 // The template offer keeps focus in the editor: a blur would save, repaint the header and lose the click.
-head.addEventListener('mousedown', (e) => { if (e.target.closest('[data-act=use-template], [data-act=starters]')) e.preventDefault(); });
+head.addEventListener('mousedown', (e) => { if (e.target.closest('[data-act=use-template], [data-act=insert-ph]')) e.preventDefault(); });
+head.addEventListener('input', (e) => { const f = e.target.dataset && e.target.dataset.tplField; if (f) setTemplateField(f, e.target.value); });
+head.addEventListener('keydown', (e) => {
+  // The ⋯ menu: arrows move, Escape closes and returns to its button.
+  const items = [...head.querySelectorAll('.menu [role=menuitem]')];
+  if (!items.length) return;
+  const k = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(k + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ui.menu = false; paintHead(); head.querySelector('[data-act=menu]')?.focus(); }
+});
+// Double-click the preview to write there: Edit (or Split on a wide screen), the cursor on that line.
+preview.addEventListener('dblclick', (e) => {
+  if (!ui.path || e.target.closest('a, input, button')) return;
+  const blk = e.target.closest('[data-line]');
+  const line = blk ? Number(blk.dataset.line) : 0;
+  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+  window.getSelection()?.removeAllRanges();
+  goToLine(line);
+});
+/* A box ticked in the preview: flip that line and save like any edit (history, conflict check). */
+function toggleTaskAt(line) {
+  if (!ui.path || editor.readOnly || ['conflict', 'gone'].includes(ui.status.kind)) return;
+  const next = toggleTask(editor.value, line);
+  if (next === null) return;
+  editor.value = next;
+  if (ui.status.kind !== 'dirty' && ui.status.kind !== 'saving') setStatus('dirty');
+  saveNow();
+  paintPreview(true);
+}
+function openDispatch() {
+  const d = parseTandem(ui.path);
+  if (!d) return;
+  const it = doc && doc.item;
+  ws.open({ app: 'agents', path: it && it.id ? String(it.id) : d.folder }).catch(toastErr);
+}
 
 function setQuery(q) {
   ui.query = q; ui.pick = 0;
@@ -980,9 +1233,10 @@ side.addEventListener('drop', async (e) => {
 document.addEventListener('keydown', (e) => {
   const typing = e.target.closest && e.target.closest('input, textarea, select, [contenteditable]');
   const mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape' && (ui.menu || ui.drawer) && !dlg.open) { ui.menu = false; ui.drawer = false; paintChrome(); return; }
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); return; }
   if (mod && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); side.querySelector('[data-search]')?.focus(); return; }
-  if (mod && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); const order = ['edit', 'split', 'preview']; ui.mode = order[(order.indexOf(ui.mode) + 1) % 3]; store('mode', ui.mode); paintChrome(); paintPreview(true); return; }
+  if (mod && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); const order = isPhone() ? ['edit', 'preview'] : ['edit', 'split', 'preview']; setMode(order[(order.indexOf(ui.mode) + 1) % order.length]); paintChrome(); paintPreview(true); return; }
   if (e.key === 'F2' && ui.path) { e.preventDefault(); renameNote(); return; }
   if (typing || dlg.open || mod || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); side.querySelector('[data-search]')?.focus(); }
@@ -1001,6 +1255,7 @@ ws.commands.register({ id: 'search', title: 'Search notes' });
 ws.commands.register({ id: 'today', title: "Open today's note" });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
+  if (p.id === 'undo-trash') { undoTrash(); return; }
   if (p.id === 'new') newNote();
   else if (p.id === 'today') openToday();
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
@@ -1009,7 +1264,9 @@ function route(raw) {
   let path = '';
   try { path = decodeURIComponent(raw || ''); } catch { path = raw || ''; }
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
-  if (path === 'review') { setQuery('is:review'); return; }
+  if (path === 'review') { showSection('products'); setQuery('is:review'); return; }
+  // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook).
+  if (path.startsWith('tandem/')) { const d = parseTandem(path.slice(7)); if (d) { const t = tandemPath(d.folder, d.file); if (notes.loaded) openNote(t); else pendingRoute = t; } return; }
   // search/<words>: Notes opened on a search (Docket's "+N" opens the notes that link to a task).
   if (path.startsWith('search/')) { const q = path.slice(7); if (notes.loaded) showSearch(q); else pendingSearch = q; return; }
   if (path && /\.md$/.test(path) && path !== ui.path) {
@@ -1039,6 +1296,7 @@ paintChrome();
 await notes.load();
 pickup.run();
 summary.schedule();
+tandem.refresh();
 readSent().then(() => paintChrome());
 if (canSend) ws.data.subscribe('handoffs', () => readSent().then(() => paintChrome()));
 ws.apps.list().then(apps => { for (const a of apps) appNames[a.id] = a.name; paintPreview(true); }).catch(() => {});
@@ -1058,7 +1316,7 @@ async function openLast() {
   const first = pendingRoute || store('last');
   pendingRoute = null;
   if (first === 'today') { await openToday(); return; }
-  if (first && notes.texts.has(first)) await openNote(first);
+  if (first && (notes.texts.has(first) || isTandem(first))) await openNote(first);
   else paintChrome();
 }
 await openLast();

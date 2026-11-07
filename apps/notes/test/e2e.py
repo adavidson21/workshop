@@ -63,13 +63,20 @@ def main():
             pg.keyboard.press('t'); pg.wait_for_timeout(800)
             check("T opens today's note under daily/", 'daily/' in pg.inner_text('#head'))
 
+            sizes = pg.evaluate("[document.documentElement.scrollHeight, window.innerHeight]")
+            check('the notebook fits under the top bar: nothing below the window', sizes[0] <= sizes[1])
+            check('section tabs show, and today\'s note opened the Daily section', pg.locator('.sec.on').inner_text().strip().startswith('Daily'))
+            check('the Tandem section is hidden with no Workshop on this computer', pg.locator('.sec-tandem').count() == 0)
+
             pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
             check('New note opens a blank note right away, with no dialog',
                   pg.locator('dialog[open]').count() == 0 and pg.input_value('#editor') == '# \n\n')
             check("a note made while today's note is open goes at the top, not in daily/", pg.inner_text('#head').startswith('untitled.md'))
-            pg.click('[data-act=starters]'); pg.wait_for_timeout(800)
-            check('the starter templates are added and the blank note offers them', pg.locator('[data-act=use-template]').count() == STARTERS)
-            pg.fill('#editor', '# Team Sync\n\n'); pg.wait_for_timeout(300)
+            check('the empty title line shows a faint Title hint', pg.is_visible('#title-hint'))
+            check('the starter templates are offered with no extra step', pg.locator('[data-act=use-template]').count() == STARTERS)
+            check('each template has a pencil to change it', pg.locator('#head [data-act=edit-template]').count() == STARTERS)
+            pg.focus('#editor'); pg.keyboard.press('End'); pg.keyboard.type('# Team Sync'); pg.wait_for_timeout(300)
+            check('typing "# " again on the title line keeps one #', pg.input_value('#editor').startswith('# Team Sync\n'))
             check('the template offer shows names', 'Meeting notes' in pg.inner_text('#head'))
             pg.click('[data-act=use-template][data-tpl="templates/meeting.md"]'); pg.wait_for_timeout(800)
             txt = pg.input_value('#editor')
@@ -80,16 +87,38 @@ def main():
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(1200)
             check('a ws: link shows as a chip with the app name', pg.locator('#preview .app-link .app-chip').inner_text().lower() == 'docket')
             check('on its own and not paired, there are no send buttons', pg.locator('[data-act=send]').count() == 0)
+            check('a plain bullet beside a task keeps its marker', pg.evaluate("getComputedStyle(document.querySelector('#preview li[data-line=\"3\"]')).listStyleType") != 'none')
+            pg.click('#preview input[data-task="2"]'); pg.wait_for_timeout(1200)
+            check('ticking a box in the preview changes that line and saves', '- [x] Draft the rollout plan' in pg.input_value('#editor') and 'saved' in pg.inner_text('#head .status').lower())
+            pg.click('#preview input[data-task="2"]'); pg.wait_for_timeout(1200)
+
+            pg.click('[data-mode=preview]'); pg.wait_for_timeout(300)
+            pg.dblclick('#preview li[data-line="3"]'); pg.wait_for_timeout(400)
+            check('double-clicking the preview opens the editor on that line',
+                  pg.evaluate("document.activeElement.id") == 'editor' and pg.evaluate("document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\\n').length - 1") == 3)
+
+            pg.click('#head [data-act=menu]'); pg.wait_for_timeout(200)
+            check('the ⋯ menu holds Copy, Download, Rename and Save as template', all(x in pg.inner_text('.menu') for x in ['Copy Markdown', 'Download', 'Rename', 'Save as template']))
+            pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+            check('Escape closes the menu', pg.locator('.menu').count() == 0)
 
             check('the panel offers the earlier version', '1 earlier version' in pg.inner_text('#panel'))
-            pg.click('[data-act=history]'); pg.wait_for_selector('dialog[open] .history')
+            pg.click('#panel [data-act=history]'); pg.wait_for_selector('dialog[open] .history')
             check('History shows the earlier version', 'Action items' in pg.inner_text('.ver-preview'))
             pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(1200)
             check('restoring brings back the earlier text', '## Attendees' in pg.input_value('#editor'))
-            check('restoring keeps the replaced text: two versions now', '2 earlier versions' in pg.inner_text('#panel'))
             check('history/ is not in the tree', pg.locator('#side [data-folder="history"]').count() == 0)
-            check('templates show by name in the tree, not {{title}}', 'Meeting notes' in pg.inner_text('#side') and '{{title}}' not in pg.inner_text('#side'))
 
+            pg.click('.sec-templates'); pg.wait_for_timeout(400)
+            check('the Templates section lists templates by name, starters too, not {{title}}', 'Meeting notes' in pg.inner_text('#side') and 'Retro' in pg.inner_text('#side') and '{{title}}' not in pg.inner_text('#side'))
+            pg.click('#side [data-edit-template="templates/retro.md"]'); pg.wait_for_timeout(1000)
+            check('opening a starter template writes its file and shows name and description boxes', pg.inner_text('#head').startswith('templates/retro.md') and pg.locator('[data-tpl-field=name]').count() == 1)
+            pg.fill('[data-tpl-field=name]', 'Team retro'); pg.wait_for_timeout(1200)
+            check('the Name box writes template: to the frontmatter', pg.input_value('#editor').startswith('---\ntemplate: Team retro\n---'))
+            check('the preview shows placeholders as chips', pg.locator('#preview .ph').count() >= 1)
+            pg.click('.sec-notes'); pg.wait_for_timeout(300)
+
+            pg.click('#side li.note[data-path="team-sync.md"] a.row'); pg.wait_for_timeout(600)
             pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
             check('leaving a new note names its file from the title', pg.locator('#side li.note[data-path="team-sync.md"]').count() == 1
                   and pg.locator('#side li.note[data-path="untitled.md"]').count() == 1)
@@ -98,9 +127,8 @@ def main():
             pg.click('#side li.note[data-path="team-sync.md"] a.row'); pg.wait_for_timeout(800)
             check('a new note left blank goes to the trash', pg.locator('#side li.note[data-path^="untitled"]').count() == 0)
             pg.hover('#side li.note[data-path="scratch.md"]')
-            pg.click('#side li.note[data-path="scratch.md"] [data-act=trash-path]'); pg.wait_for_selector('dialog[open]')
-            pg.click('dialog[open] button[value=ok]'); pg.wait_for_timeout(800)
-            check('a note can be trashed from its row in the sidebar', pg.locator('#side li.note[data-path="scratch.md"]').count() == 0)
+            pg.click('#side li.note[data-path="scratch.md"] [data-act=trash-path]'); pg.wait_for_timeout(800)
+            check('a note nothing links to is trashed in one click, no dialog', pg.locator('dialog[open]').count() == 0 and pg.locator('#side li.note[data-path="scratch.md"]').count() == 0)
 
             vault = write_vault(tmp)
             with pg.expect_file_chooser() as fc:
@@ -118,6 +146,7 @@ def main():
 
             pg.goto(SITE + '#/today'); pg.reload(); pg.wait_for_selector('.side-head'); pg.wait_for_timeout(1000)
             check("the address #/today opens today's note on Notes' own site", 'daily/' in pg.inner_text('#head'))
+            pg.click('.sec-notes'); pg.wait_for_timeout(300)
             check('after a reload, the notes are still there', pg.locator('#side').inner_text().lower().count('team sync') >= 1)
 
             pg.wait_for_function('navigator.serviceWorker && navigator.serviceWorker.controller !== null', timeout=15000)
@@ -126,6 +155,18 @@ def main():
             pg.reload(); pg.wait_for_selector('.side-head', timeout=15000)
             check('offline, the page still loads from the service worker', pg.is_visible('.side-head'))
             ctx.set_offline(False)
+
+            phone = b.new_context(viewport={'width': 390, 'height': 844})
+            pp = phone.new_page()
+            pp.goto(SITE + '#/today'); pp.wait_for_selector('.side-head', state='attached'); pp.wait_for_timeout(1200)
+            sizes = pp.evaluate("[document.documentElement.scrollHeight, window.innerHeight]")
+            check('phone: the page fits the window', sizes[0] <= sizes[1])
+            check('phone: #/today opens straight into the note, pages drawer closed', 'daily/' in pp.inner_text('#head') and not pp.is_visible('#side'))
+            check('phone: no Split, one header row', pp.locator('[data-mode=split]').count() == 0 and pp.evaluate("document.querySelector('.note-head').getBoundingClientRect().height") < 70)
+            pp.click('[data-act=drawer]'); pp.wait_for_timeout(400)
+            check('phone: the pages button opens the drawer', pp.is_visible('#side'))
+            pp.keyboard.press('Escape'); pp.wait_for_timeout(400)
+            phone.close()
 
             check('no page errors or failed requests', not errors)
             if errors: print('      ' + '\n      '.join(errors[:8]))

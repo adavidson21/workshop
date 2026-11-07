@@ -309,7 +309,15 @@ function finishInline(html) {
 export function render(md, ctx = {}) {
   const { body, offset } = frontmatter(md);
   const ids = new Map();
-  return renderBlocks(parseBlocks(String(body).split(/\r?\n/), offset), ctx, ids);
+  const html = renderBlocks(parseBlocks(String(body).split(/\r?\n/), offset), ctx, ids);
+  return ctx.placeholders ? placeholderChips(html, ctx.placeholders) : html;
+}
+
+/** {{name}} placeholders in a template's preview as labeled chips, in text only (never inside a tag). names:
+    {name: tip}. Unknown names stay as written. */
+export function placeholderChips(html, names) {
+  return String(html).split(/(<[^>]*>)/).map((part, k) => (k % 2 ? part : part.replace(/\{\{\s*([a-z]+)\s*\}\}/g, (m, n) => (
+    Object.prototype.hasOwnProperty.call(names, n) ? `<span class="ph" title="${esc(names[n])}">${esc(n)}</span>` : m)))).join('');
 }
 function renderBlocks(list, ctx, ids) {
   let h = '';
@@ -331,10 +339,11 @@ function renderBlocks(list, ctx, ids) {
       h += `<${tag}${start}${task}>`;
       for (const it of b.items) {
         const tight = it.children.length && it.children[0].type === 'para';
-        const box = it.task === null ? '' : `<input type="checkbox" disabled${it.task ? ' checked' : ''}> `;
+        // Task boxes are clickable when ctx.tasks is set (main.js flips that line); otherwise shown only.
+        const box = it.task === null ? '' : `<input type="checkbox"${ctx.tasks ? ` data-task="${it.line}" aria-label="Done"` : ' disabled'}${it.task ? ' checked' : ''}> `;
         let inner = renderBlocks(it.children, ctx, ids);
         if (tight) inner = inner.replace(/^<p data-line="\d+">([\s\S]*?)<\/p>/, '$1');
-        h += `<li data-line="${it.line}">${box}${inner}</li>`;
+        h += `<li data-line="${it.line}"${it.task === null ? '' : ' class="task"'}>${box}${inner}</li>`;
       }
       h += `</${tag}>`;
     } else if (b.type === 'table') {
