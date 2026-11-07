@@ -366,6 +366,7 @@ def main():
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         pg.wait_for_function(f'() => {R}.ado && {R}.ado.state.checked && !{R}.ado.state.ready', timeout=8000)
         check('connector off: no From Azure DevOps on the list', pg.query_selector('[data-fromado]') is None)
+        check('connector off: no Team reports link on the list (it needs Azure DevOps)', pg.query_selector('[data-reports]') is None)
         pg.evaluate(f'() => {R}.route("reports")'); pg.wait_for_selector('.rpage .engcard', timeout=5000)
         check('connector off: Team reports explains it needs the connector', 'Connect Azure DevOps' in pg.inner_text('.rpage'))
         pg.evaluate(f'() => {R}.route("")'); pg.wait_for_timeout(200)

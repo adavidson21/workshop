@@ -181,7 +181,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent', pending: pending.v, shaping, workItems: workItemsApp }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent' && adoReady(), pending: pending.v, shaping, workItems: workItemsApp }));
 }
 
 function paintReports() {
