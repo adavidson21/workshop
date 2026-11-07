@@ -257,8 +257,8 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Slate",
-        "version": "1.7.0",
-        "description": "Your team's backlog from request to who builds it, with roadmaps, sprints and team health. Tandem does the legwork; you decide.",
+        "version": "2.0.0",
+        "description": "Your team's backlog on one board, from request to who builds it to resolved, with sprints and team health. Tandem does the legwork; you decide.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 15,
@@ -304,16 +304,12 @@
             "title": "Open an item"
           },
           {
-            "path": "roadmaps",
-            "title": "Roadmaps"
-          },
-          {
             "path": "health",
             "title": "Team health"
           },
           {
             "path": "sprints",
-            "title": "Sprints"
+            "title": "Sprints (in Health)"
           }
         ],
         "commands": [
@@ -330,16 +326,6 @@
           {
             "id": "refresh",
             "title": "Refresh from ADO and Tandem"
-          },
-          {
-            "id": "roadmaps",
-            "title": "Open roadmaps",
-            "route": "roadmaps"
-          },
-          {
-            "id": "new-roadmap",
-            "title": "New roadmap",
-            "route": "roadmaps"
           },
           {
             "id": "health",
@@ -365,12 +351,6 @@
           "js/view.js",
           "js/host.js",
           "js/health.js"
-        ],
-        "hosts": [
-          {
-            "app": "runway",
-            "path": "roadmaps"
-          }
         ]
       }
     },

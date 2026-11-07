@@ -1,5 +1,5 @@
-/* Slate: your ADO backlog as a board, from request to "who builds it?". model.js is pure, data.js talks to
-   Workshop, view.js builds HTML, host.js runs Runway in the Roadmap tab. This file owns the page: state,
+/* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
+   view.js builds HTML, host.js frames Runway's team reports in Health. This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { readCards } from '../../../shared/summary.js';
@@ -9,10 +9,10 @@ import { sendersFrom } from '../../../shared/handoffs.js';
 import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, laneOf, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
+  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer
 } from './model.js';
-import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, roadmapHtml, topHtml } from './view.js';
+import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
@@ -25,14 +25,15 @@ if (!ws.embedded) mountBar('Slate');
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
 
 const ui = {
-  tab: 'board', lane: ['shape', 'pm', 'dev'].includes(remember('lane')) ? remember('lane') : 'shape', q: '', level: '', area: remember('area') || '', open: null,
-  editing: false, shapeEditing: null, busy: false, error: '', roadmapRoute: '',
+  tab: 'board', q: '', level: '', area: remember('area') || '', open: null,
+  editing: false, shapeEditing: null, busy: false, error: '',
   wide: remember('wide') === '1',
   picks: {},       // question id -> {index: [labels]}: what is ticked in the panel, kept across repaints
   drafts: {},      // typed answers (q:<id>:<i>) and replies (r:<session>), kept across repaints
-  agentOpen: {}    // session id -> whether its Agent section is open, once you open or close it
+  agentOpen: {},   // session id -> whether its Agent section is open, once you open or close it
+  folds: Object.fromEntries(['details', 'timeline'].map(k => [k, remember(`fold.${k}`)]).filter(([, v]) => v === '1' || v === '0').map(([k, v]) => [k, v === '1']))
 };
-const TABS = ['board', 'roadmaps', 'sprints', 'health'];
+const TABS = ['board', 'health'];
 const s = {
   conn: { ado: 'Checking…', opencode: 'Checking…' },
   team: { areas: [], connection: '' },
@@ -228,7 +229,7 @@ async function advance() {
   if (!next) return;
   const then = next.after;
   await store.update(next.id, x => { delete x.after; }).catch(() => {});
-  ui.open = next.id; ui.tab = 'board'; showLane(next);
+  ui.open = next.id; ui.tab = 'board';
   if (then === 'build') ACT['publish-build'](next);
   else ACT.publish(next);
 }
@@ -259,41 +260,43 @@ function enrich(c) {
 }
 
 /** Runway's pending ideas not taken or hidden, as cards in New (not stored until you act on one). */
-const pendingCards = () => pendingIdeaCards(s.pending, store.v.items, store.v.dismissed);
+const pendingCards = () => pendingIdeaCards(s.pending, store.v.items, store.v.dismissed, new Date(), store.v.sentIdeas || []);
 
-/** The lane's cards before any filter: Shape (with Runway's pending ideas), PM, or Dev (what is yours to build). */
-function laneCards() {
-  const all = [...cards(store.v.items, s.backlog), ...(ui.lane === 'shape' ? pendingCards() : [])];
-  return all.filter(c => laneFor(c) === ui.lane);
+/** Every card before any filter: stored items, ADO backlog items nobody has acted on, and Runway's pending ideas. */
+function allCards() {
+  return [...cards(store.v.items, s.backlog), ...pendingCards()];
 }
 
+/** The board: each card in its column (BOARD_COLUMNS), with the step on its chip. Closed items are off the board. */
 function columns() {
   const cols = {};
   const push = (k, c) => (cols[k] ||= []).push(c);
-  const list = filterCards(laneCards(), { q: ui.q, level: ui.level, area: ui.area });
-  if (ui.lane !== 'dev') {
-    for (const c of list) {
-      if (['dev', 'resolved', 'done'].includes(c.stage)) continue;
-      const e = enrich(c);
-      const step = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
-      if (laneOf(step) !== ui.lane) continue;
-      e.stale = !c.virtual && isStale(c, step);
-      e.step = STEP_CHIP[step] || '';
-      push(boardColumn(step), e);
-    }
-  } else {
-    // What you build yourself (and resolved work, delegated or not), with its Tandem stage. Every run's prompts and
-    // code review stay Dispatch's. Closed items are off the board.
-    for (const c of list.filter(x => x.stage === 'dev' || x.stage === 'resolved')) {
+  const list = filterCards(allCards(), { q: ui.q, level: ui.level, area: ui.area });
+  const inflight = [];
+  for (const c of list) {
+    if (c.stage === 'done') continue;
+    const e = enrich(c);
+    if (c.stage === 'dev' || c.stage === 'resolved' || c.virtualRun) {
+      // What you build yourself (and resolved work, delegated or not), with its Tandem stage. Every run's prompts and
+      // code review stay Dispatch's.
       const run = runFor(c);
-      const col = devColumn(run, c);
-      const e = enrich(c);
-      if (col === 'building') e.step = runStep(run);
-      if (['review', 'merged'].includes(col) && !c.ado) e.noAdo = true;
-      if (col === 'review' && c.prs && c.prs.list.length) e.step = `${c.prs.list.filter(p => p.status === 'completed').length} of ${c.prs.list.length} PRs merged`;
-      push(col, e);
+      const st = devColumn(run, c);
+      if (st === 'building') e.step = runStep(run);
+      else e.step = STEP_CHIP[st] || '';
+      if (['review', 'merged'].includes(st) && !c.ado) e.noAdo = true;
+      if (st === 'review' && c.prs && c.prs.list.length) e.step = `${c.prs.list.filter(p => p.status === 'completed').length} of ${c.prs.list.length} PRs merged`;
+      if (boardColumn(st) === 'inflight') inflight.push([e, e.step === 'Waiting on you' || (e.agent && e.agent.waiting) ? 0 : 1]);
+      else push(boardColumn(st), e);
+      continue;
     }
+    const st = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
+    e.stale = !c.virtual && isStale(c, st);
+    e.step = st === 'delegated' ? (e.assigneeName ? `With ${e.assigneeName}` : 'Delegated') : (STEP_CHIP[st] || '');
+    if (boardColumn(st) === 'inflight') inflight.push([e, e.agent && e.agent.waiting ? 0 : 2]);
+    else push(boardColumn(st), e);
   }
+  // In flight: waiting on you first, then your own builds, then delegated work.
+  for (const [e] of inflight.sort((a, b) => a[1] - b[1])) push('inflight', e);
   return cols;
 }
 
@@ -305,14 +308,6 @@ function findCard(id) {
   if (id.startsWith('rw_')) return pendingCards().find(x => x.id === id) || null;
   return null;
 }
-
-/** The lane a card shows in. */
-function laneFor(c) {
-  if (!c) return 'shape';
-  if (c.virtualRun || ['dev', 'resolved', 'done'].includes(c.stage)) return 'dev';
-  return laneOf(pmColumn(c, draftState(c, filesOf(c.work && c.work.define)), agentOf(c.sessions && c.sessions.current)));
-}
-function showLane(c) { ui.lane = laneFor(c); remember('lane', ui.lane); }
 
 /** People who own what the item touches (People's `owns`), best match first. */
 function ownersOf(c) {
@@ -343,9 +338,8 @@ function panelState(c) {
   const dev = c.virtualRun || ['dev', 'resolved', 'done'].includes(c.stage);
   const run = c.virtualRun ? c.run : runFor(c);
   const column = dev ? (c.stage === 'done' ? 'done' : devColumn(run, c)) : pmColumn(c, draft, agentOf(c.sessions && c.sessions.current));
-  const lane = dev ? 'dev' : laneOf(column);
   return {
-    item: c, lane, files, draft, editing: ui.editing, shapeEditing: ui.shapeEditing,
+    item: c, dev, files, draft, editing: ui.editing, shapeEditing: ui.shapeEditing,
     shape: shapeState(filesOf(c.work && c.work.shape), agentOf(c.sessions && c.sessions.current)),
     back: c.virtual || c.virtualRun ? [] : backTargets(c, column),
     forward: c.virtualRun ? [] : forwardTargets(c),
@@ -353,7 +347,7 @@ function panelState(c) {
     agent: itemAgent(c),
     asks: asksOf(c),
     session: sessionOf(c.sessions && c.sessions.current),
-    ui: { picks: ui.picks, drafts: ui.drafts, agentOpen: ui.agentOpen },
+    ui: { picks: ui.picks, drafts: ui.drafts, agentOpen: ui.agentOpen, folds: ui.folds },
     wide: ui.wide,
     column,
     run,
@@ -376,7 +370,7 @@ function notes() {
   if (s.conn.ado !== true && s.conn.ado !== 'Checking…') n.push(`Azure DevOps: ${s.conn.ado}`);
   if (s.conn.opencode !== true && s.conn.opencode !== 'Checking…') n.push(`Tandem: ${s.conn.opencode} Without it, the agent steps (triage, define, handoff, build) are off.`);
   if (store.v.error) n.push(store.v.error);
-  if (s.backlogNote && ui.lane === 'shape') n.push(s.backlogNote);
+  if (s.backlogNote) n.push(s.backlogNote);
   return n;
 }
 
@@ -390,21 +384,16 @@ function setHtml(el, html) {
   drawn.set(el, { html, first: el.firstChild });
 }
 
-let host = null;
 function paint() {
   const focus = document.activeElement && document.activeElement.id;
   const board = ui.tab === 'board' && store.v.loaded;
-  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(laneCards(), s.team.areas, ui.area) : []));
-  if (ui.tab !== 'roadmaps' && host) { host.stop(); host = null; }
+  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
   if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
-  if (ui.tab === 'roadmaps') {
-    if (!mainEl.querySelector('#runway') && !mainEl.querySelector('.empty')) mountRoadmap();
-  } else if (ui.tab === 'health') {
+  if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
-  } else if (ui.tab === 'sprints') {
-    setHtml(mainEl, sprintsView());
+    if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
   } else {
-    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { lane: ui.lane, open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
+    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()) }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
   const waiting = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); }).length;
@@ -484,14 +473,7 @@ async function loadSprints() {
     s.sprintNote = s.sprints.length ? '' : 'No sprints in this project yet.';
   } catch (e) { s.sprints = []; s.sprintNote = `Could not read sprints: ${e.message}`; }
   s.loadingSprints = false;
-  if (ui.tab === 'sprints') paint();
-}
-
-function mountRoadmap() {
-  mainEl.innerHTML = roadmapHtml(runwayOn() ? 'on' : 'off');
-  const frame = $('runway');
-  if (!frame) return;
-  host = hostFrame(frame, { ws, onOpenSlate: (path) => route(path), getRoute: () => ui.roadmapRoute });
+  if (ui.tab === 'health') paint();
 }
 
 /* ---------- actions ---------- */
@@ -528,8 +510,7 @@ async function startSession(it, kind, action, args) {
 
 const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
-  'open-item': (c) => { if (c) { ui.open = c.id; showLane(c); paint(); } },
-  lane: (id) => { ui.lane = id; remember('lane', id); ui.open = null; paint(); },
+  'open-item': (c) => { if (c) { ui.open = c.id; ui.tab = 'board'; paint(); } },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
   fields: () => {
     showDialog(fieldsDialogHtml(store.v.prefs), async (form) => {
@@ -563,7 +544,7 @@ const ACT = {
   'new-idea': () => showDialog(newIdeaDialogHtml(), async (form) => {
     const it = newItem({ title: form.title.value, description: form.description.value, kind: 'idea' });
     await store.change(list => list.push(it));
-    ui.open = it.id; ui.lane = 'shape'; remember('lane', 'shape'); paint();
+    ui.open = it.id; paint();
   }),
   open: (id) => { ui.open = ui.open === id ? null : id; ui.editing = false; ui.shapeEditing = null; ui.error = ''; paint(); },
   close: () => { ui.open = null; ui.editing = false; ui.shapeEditing = null; paint(); },
@@ -579,7 +560,7 @@ const ACT = {
       await startSession(it, 'shape', 'shape.start', { idea: idea.slice(0, 4000) });
     }
     await store.update(it.id, x => setStage(x, 'shaping'));
-    ui.lane = 'shape'; remember('lane', 'shape');
+   
     ws.toast('The interview started. Its first questions show here when the agent is done.', { kind: 'success' });
   },
   'use-recommended': () => {
@@ -627,16 +608,8 @@ const ACT = {
     const one = b.level === 'story' || b.level === 'bug';
     await startSession(c, 'define', one ? 'refine.start' : 'scope.start', { from: c.work.shape });
     await store.update(c.id, x => { if (b.level && !x.ado) x.level = b.level; setStage(x, 'defining'); });
-    ui.lane = 'pm'; remember('lane', 'pm');
+   
     ws.toast(`Sent to Define: ${one ? 'refining one story' : 'scoping'} from the brief.`, { kind: 'success' });
-  },
-  async skip(c) {
-    const a = agentOf(c.sessions && c.sessions.current);
-    if (a && a.busy) return ws.toast('An agent is running on it. Try again when the run stops.', { kind: 'warn' });
-    const it = await ensureStored(c);
-    await store.update(it.id, x => skipToDecide(x));
-    ui.lane = 'pm'; remember('lane', 'pm');
-    ws.toast('Moved to Who builds it?. Nothing changed in ADO. Move back undoes it.', { kind: 'success' });
   },
   async dismiss(c) {
     if (!c || !c.fromRunway) return;
@@ -764,11 +737,11 @@ const ACT = {
     if (!it.ado) return ACT['build-local'](it);
     await buildMyself(it);
   },
-  /** Take it back from a teammate: the Dev lane, without starting Tandem (Start is in the panel). */
+  /** Take it back from a teammate: In flight as your own build, without starting Tandem (Start is in the panel). */
   async 'take-back'(c) {
     await store.update(c.id, x => { x.route = 'myself'; x.assignee = null; setStage(x, 'dev'); });
     await logDecision(c, 'Took it back to build myself');
-    ui.lane = 'dev'; remember('lane', 'dev');
+   
   },
   /** Build it myself, skip ADO: local work in Tandem (start.local) from the brief, triage or request. Link an ADO item later. */
   async 'build-local'(c) {
@@ -781,7 +754,7 @@ const ACT = {
     const r = await tandem(ws, 'start.local', { title: it.title.slice(0, 200), lane, ...(text ? { description: text.slice(0, 20000) } : {}) }, { confirm: true });
     await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; if (r && r.folder) x.run = { folder: r.folder, id: String(r.id || '') }; setStage(x, 'dev'); });
     await logDecision(it, 'Building it myself (local work, no ADO item yet)');
-    ui.lane = 'dev'; remember('lane', 'dev');
+   
     ws.toast(`Started ${r && r.id ? r.id : 'it'} as local work. Link an ADO item when you have one.`, { kind: 'success' });
   },
   async start(c) {
@@ -897,7 +870,7 @@ const ACT = {
       return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
         await store.update(it.id, x => (to === 'decide' ? skipToDecide(x) : setStage(x, to)));
-        ui.open = it.id; ui.editing = false; ui.shapeEditing = null; showLane(store.v.items.find(x => x.id === it.id));
+        ui.open = it.id; ui.editing = false; ui.shapeEditing = null;
         paint();
         ws.toast(`Moved to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
       });
@@ -909,7 +882,6 @@ const ACT = {
     showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Slate moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
       await store.update(c.id, x => moveBack(x, to));
       ui.editing = false; ui.shapeEditing = null;
-      showLane(store.v.items.find(x => x.id === c.id));
       paint();
       ws.toast(`Moved back to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
     });
@@ -921,16 +893,16 @@ const ACT = {
   })
 };
 
-/** Build it myself, for an item in ADO: the decision, the Dev lane, and Tandem started on it (the click is the approval). */
+/** Build it myself, for an item in ADO: the decision, In flight, and Tandem started on it (the click is the approval). */
 async function buildMyself(it) {
   await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; delete x.after; setStage(x, 'dev'); });
   await logDecision(it, 'Building it myself');
-  ui.lane = 'dev'; remember('lane', 'dev');
+ 
   if (s.conn.opencode !== true || runFor(it)) { paint(); return; }
   try {
     await tandem(ws, 'start', { id: String(it.ado.id), lane: it.level === 'bug' ? 'bug' : 'feature' }, { confirm: true });
     ws.toast(`Building #${it.ado.id}: Tandem started on it.`, { kind: 'success' });
-  } catch (e) { ws.toast(`In the Dev lane, but Tandem did not start: ${e.message}. Use Start in the panel.`, { kind: 'warn' }); }
+  } catch (e) { ws.toast(`In flight, but Tandem did not start: ${e.message}. Use Start in the panel.`, { kind: 'warn' }); }
 }
 
 /** The Resolved group for an area key (lower case area path, or '' for none). */
@@ -1037,8 +1009,10 @@ document.addEventListener('click', async (e) => {
   const fn = ACT[act];
   if (!fn) return;
   const inPanel = panelEl.contains(b);
-  const target = b.dataset.id && !['tab', 'lane', 'open'].includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
-  if (['tab', 'lane', 'open'].includes(act)) return fn(b.dataset.id);
+  const target = b.dataset.id && !['tab', 'open'].includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
+  const menu = b.closest('details.more');
+  if (menu) menu.open = false;
+  if (['tab', 'open'].includes(act)) return fn(b.dataset.id);
   if (ui.busy) return;
   ui.busy = true; ui.error = ''; b.disabled = true;
   try { await fn(target || findCard(ui.open), b); }
@@ -1087,7 +1061,7 @@ function sprintChange(sel) {
     await ado(ws, 'workitem.update', { id: it.ado.id, rev, changes, ...conn }, { confirm: true });
     await readBacklog(); paint();
   });
-  dlg.addEventListener('close', () => { if (ui.tab === 'sprints') paint(); }, { once: true });
+  dlg.addEventListener('close', () => { if (ui.tab === 'health') paint(); }, { once: true });
 }
 
 document.addEventListener('keydown', (e) => {
@@ -1101,26 +1075,27 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.open && !dlg.open && !['TEXTAREA', 'INPUT', 'SELECT'].includes(document.activeElement && document.activeElement.tagName)) { ui.open = null; ui.editing = false; paint(); }
 });
 
-// Remember an Agent section you opened or closed, so a refresh does not undo it.
+// Remember an Agent, Details or Timeline section you opened or closed, so a refresh does not undo it.
 document.addEventListener('toggle', (e) => {
   const d = e.target;
   if (d && d.classList && d.classList.contains('agent-box') && d.dataset.sid) ui.agentOpen[d.dataset.sid] = d.open;
+  // Details and Timeline: remembered in this browser, open or closed.
+  if (d && d.classList && d.classList.contains('fold') && d.dataset.fold && panelEl.contains(d)) { ui.folds[d.dataset.fold] = d.open; remember(`fold.${d.dataset.fold}`, d.open ? '1' : '0'); }
 }, true);
 
-/* ---------- routes: item/<id>, roadmap, runway/<map>/<item> (Runway's Work item button) ---------- */
+/* ---------- routes: item/<id>, health (sprints), runway/<map>/<item> (Runway's Open in Slate button) ---------- */
 
 async function route(path) {
   let raw = String(path || '');
   try { raw = decodeURIComponent(raw); } catch { /* keep it as it came */ }
   const parts = raw.split('/').filter(Boolean);
-  if (parts[0] === 'roadmaps' || parts[0] === 'roadmap') {
-    ui.tab = 'roadmaps'; ui.roadmapRoute = parts.slice(1).join('/');
-    if (host && host.ready) host.route(ui.roadmapRoute);
-    paint(); return;
-  }
-  if (parts[0] === 'health' || parts[0] === 'sprints' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
-  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; const c = findCard(parts[1]); if (c) showLane(c); paint(); return; }
+  // Roadmaps lived in Slate until 2.0.0: old links open Runway itself.
+  if (parts[0] === 'roadmaps' || parts[0] === 'roadmap') { ws.open({ app: 'runway', path: parts.slice(1).join('/') }).catch(() => {}); return; }
+  if (parts[0] === 'sprints') { ui.tab = 'health'; paint(); const el = $('sprints'); if (el) el.scrollIntoView({ block: 'start' }); return; }
+  if (parts[0] === 'health' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
+  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; paint(); return; }
   if (parts[0] === 'runway' && parts[1] && parts[2]) { await fromRunway(parts[1], parts[2]); return; }
+  if (parts[0] === 'runway') { ws.open({ app: 'runway', path: parts.slice(1).join('/') }).catch(() => {}); }
 }
 
 /** Runway's Work item button: the Slate item for a roadmap item, made the first time. */
@@ -1140,7 +1115,7 @@ async function fromRunway(map, item) {
     await store.change(list => list.push(fresh));
     it = store.v.items.find(x => x.id === fresh.id);
   }
-  ui.tab = 'board'; showLane(it); ui.open = it.id;
+  ui.tab = 'board'; ui.open = it.id;
   paint();
 }
 
@@ -1149,9 +1124,7 @@ ws.on('command', (p) => {
   if (p.id === 'new') ACT.new();
   if (p.id === 'new-idea') ACT['new-idea']();
   if (p.id === 'refresh') ACT.refresh();
-  if (p.id === 'roadmaps' || p.id === 'roadmap') route('roadmaps');
   if (p.id === 'health' || p.id === 'sprints') route(p.id);
-  if (p.id === 'new-roadmap') { route('roadmaps'); setTimeout(() => host && host.command('new-roadmap'), 50); }
 });
 ws.on('visible', (p) => { if (p && p.visible) refresh({ backlog: false }).catch(() => {}); });
 ws.on('online', () => { store.load().then(() => refresh()).catch(() => {}); });

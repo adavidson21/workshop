@@ -1,43 +1,124 @@
-// view.js is pure HTML builders: check the Shape lane's panel parts render and escape what comes from files.
+// view.js is pure HTML builders: check the board, the panel's steps and More render, and escape what comes from files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boardHtml, closeGroupDialogHtml, linkAdoDialogHtml, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
+import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, linkAdoDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
 import { cleanItem, cleanPrefs, newItem, setStage, shapeState, timeline } from '../js/model.js';
 
 const base = (item, extra = {}) => ({
-  item, lane: 'shape', files: {}, draft: { kind: null }, editing: false, shapeEditing: null, shape: shapeState({}), back: [], triage: null,
+  item, dev: false, files: {}, draft: { kind: null }, editing: false, shapeEditing: null, shape: shapeState({}), back: [], triage: null,
   agent: null, column: 'new', run: null, assigneeName: '', owners: [], age: 0, details: null, prefs: cleanPrefs(), error: '', ...extra
 });
 
-test('top bar: three lanes and both New buttons', () => {
-  const h = topHtml({ tab: 'board', lane: 'shape', q: '', level: '' }, []);
-  assert.deepEqual([...h.matchAll(/data-act="lane" data-id="(\w+)"/g)].map(m => m[1]), ['shape', 'pm', 'dev']);
+test('top bar: Board and Health tabs, no lane switcher, both New buttons', () => {
+  const h = topHtml({ tab: 'board', q: '', level: '' }, []);
+  assert.deepEqual([...h.matchAll(/data-act="tab" data-id="(\w+)"/g)].map(m => m[1]), ['board', 'health']);
+  assert.doesNotMatch(h, /data-act="lane"/);
   assert.match(h, /data-act="new-idea"/);
   assert.match(h, /data-act="new"/);
 });
 
-test('board: Shape has three columns, PM three, Dev four; a Shaping card names its step', () => {
+test('board: one board of six columns; cards name their step', () => {
   const it = { ...newItem({ title: 'An idea', kind: 'idea' }), age: 0, facts: null };
-  const h = boardHtml({ new: [it], shaping: [{ ...it, id: 'w_2', step: 'Waiting on requester' }] }, { lane: 'shape', open: null });
-  assert.deepEqual([...h.matchAll(/<section class="col" aria-label="([^"]+)"/g)].map(m => m[1]), ['New', 'Shaping', 'Brief']);
+  const h = boardHtml({ inbox: [it], shape: [{ ...it, id: 'w_2', step: 'Waiting on requester' }], inflight: [{ ...it, id: 'w_3', stage: 'delegated', step: 'With Sam' }] }, { open: null });
+  assert.deepEqual([...h.matchAll(/<section class="col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
   assert.match(h, />Idea</);
   assert.match(h, /class="chip step">Waiting on requester</);
-  const pm = boardHtml({ define: [it] }, { lane: 'pm', open: null });
-  assert.deepEqual([...pm.matchAll(/aria-label="([^"]+)"/g)].map(m => m[1]), ['Define', 'Who builds it?', 'Delegated']);
-  const dev = boardHtml({ building: [{ ...it, id: 'w_3', stage: 'dev', step: 'Spec' }] }, { lane: 'dev', open: null });
-  assert.deepEqual([...dev.matchAll(/<section class="col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Building', 'Review and PR', 'Merged', 'Resolved']);
+  assert.match(h, /class="chip step">With Sam</);
+  assert.match(h, /--cols:6/);
 });
 
-test('panel: an idea in New offers Shape it and Already shaped; a request offers Triage and Interview me', () => {
+test('panel: an idea in Inbox offers Shape it; a request offers Triage and Interview me, the rest in More', () => {
   const idea = newItem({ title: 'An idea', kind: 'idea' });
   const h = panelHtml(base(idea));
   assert.match(h, /data-act="shape"[^>]*>Shape it</);
-  assert.match(h, /data-act="skip"/);
-  const req = panelHtml(base(newItem({ title: 'A request' })));
-  assert.match(req, /data-act="triage"/);
-  assert.match(req, /data-act="shape"[^>]*>Interview me</);
-  const delegated = panelHtml(base(setStage(newItem({ title: 'x' }), 'delegated'), { column: 'delegated', lane: 'pm' }));
-  assert.doesNotMatch(delegated, /data-act="skip"/, 'only Shape and Define items can skip');
+  assert.doesNotMatch(h, /data-act="skip"/, 'Already shaped is gone: Move to in More does it');
+  const req = panelHtml(base(newItem({ title: 'A request' }), { canLocal: true, forward: ['defining', 'decide'] }));
+  const next = req.slice(req.indexOf('<div class="next">'));
+  assert.match(next, /data-act="triage"/);
+  assert.match(next, /data-act="shape"[^>]*>Interview me</);
+  const more = req.slice(req.indexOf('<details class="more">'), req.indexOf('</details>'));
+  assert.match(more, /data-act="define"[^>]*>Define now</);
+  assert.match(more, /data-act="build-local"/);
+  assert.match(more, /data-act="roadmap-add"/);
+  assert.match(more, /<optgroup label="Skip ahead"><option value="decide">Who builds it\?<\/option><option value="defining">Define<\/option>/);
+  assert.match(more, /data-act="done"[^>]*>Mark closed</);
+  assert.match(more, /data-act="remove"/);
+});
+
+/* Every step the panel can show, as panel state: no "next" box shows more than MAX_SHOWN buttons. */
+const STEPS = () => {
+  const ado = { id: 42, type: 'User Story', url: 'https://ado.example.com/_workitems/edit/42' };
+  const plain = (stage, extra = {}) => cleanItem({ ...newItem({ title: 'x' }), stage, ...extra });
+  const triage = (questions) => ({ summary: 's', route: 'delegate', size: 'S', repos: [], questions });
+  const run = { folder: 'f', next: { stage: 'review', command: '/ship', needsYou: true, text: 'Ship it' } };
+  return [
+    ['inbox request', base(newItem({ title: 'r' }), { canLocal: true })],
+    ['inbox idea', base(newItem({ title: 'i', kind: 'idea' }), { canLocal: true })],
+    ['inbox ADO item', base(newItem({ title: 'a', ado }), { canLocal: true })],
+    ['triage, questions', base(plain('triaged'), { column: 'triage', triage: triage(['q1']), canLocal: true })],
+    ['triage, none', base(plain('triaged'), { column: 'triage', triage: triage([]), canLocal: true })],
+    ['triage, waiting for file', base(plain('triaged'), { column: 'triage', canLocal: true })],
+    ['waiting', base(plain('waiting'), { column: 'waiting' })],
+    ['interview, waiting', base(plain('shaping'), { column: 'interview', canLocal: true })],
+    ['brief', base(plain('brief'), { column: 'brief', files: { 'brief.md': '# Brief\n\nLevel: Feature\n' }, canLocal: true })],
+    ['define, pick', base(plain('defining'), { column: 'define', canLocal: true })],
+    ['define, approve', base(plain('defining'), { column: 'define', draft: { kind: 'refine', file: 'refine.md', step: 'approve' } })],
+    ['define, approve stories', base(plain('defining'), { column: 'define', draft: { kind: 'scope', file: 'stories.md', step: 'approve-stories' } })],
+    ['define, approved again', base(plain('defining'), { column: 'define', draft: { kind: 'refine', file: 'refine.md', ready: true } })],
+    ['define, slice', base(plain('defining'), { column: 'define', draft: { kind: 'scope', file: 'stories.md', step: 'slice' } })],
+    ['publish', base(plain('ready'), { column: 'publish', draft: { kind: 'refine', file: 'refine.md', ready: true } })],
+    ['decide', base(plain('decide', { ado }), { column: 'decide' })],
+    ['delegated', base(plain('delegated', { ado }), { column: 'delegated' })],
+    ['building, not started', base(plain('dev', { ado }), { dev: true, column: 'building' })],
+    ['building, run', base(plain('dev', { ado }), { dev: true, column: 'building', run })],
+    ['review, ADO', base(plain('dev', { ado }), { dev: true, column: 'review', run })],
+    ['review, local', base(plain('dev'), { dev: true, column: 'review', run })],
+    ['merged, ADO', base(plain('dev', { ado, merged: '2026-11-05' }), { dev: true, column: 'merged' })],
+    ['merged, local', base(plain('dev', { merged: '2026-11-05' }), { dev: true, column: 'merged' })],
+    ['resolved', base(resolved('w_r', 'Done', 'Web', 9), { dev: true, column: 'resolved' })],
+    ['agent busy', base(plain('triaged'), { column: 'triage', agent: { busy: true } })]
+  ];
+};
+
+test(`panel: no step shows more than ${MAX_SHOWN} buttons; the rest are in More`, () => {
+  for (const [name, p] of STEPS()) {
+    const n = nextOf(p);
+    assert.ok((n.shown || []).length <= MAX_SHOWN, `${name}: ${(n.shown || []).length} shown`);
+    const h = panelHtml(p);
+    const box = /<div class="next">[\s\S]*?<div class="acts">([\s\S]*?)<\/div><\/div>/.exec(h);
+    if (box) assert.ok((box[1].match(/<button/g) || []).length <= MAX_SHOWN, `${name}: next box`);
+    if (!p.item.virtual) assert.match(h, /<details class="more">/, `${name}: More`);
+  }
+});
+
+test('panel: Define approve shows Approve and publish and Revise; the other two approvals are in More', () => {
+  const p = STEPS().find(([n]) => n === 'define, approve')[1];
+  const n = nextOf(p);
+  assert.deepEqual(n.shown.map(b => /data-act="([^"]+)"/.exec(b)[1]), ['approve-publish', 'revise']);
+  assert.deepEqual(n.more.map(b => /data-act="([^"]+)"/.exec(b)[1]), ['approve-build', 'approve']);
+});
+
+test('panel: an agent question takes the box over and Open in Dispatch moves to More', () => {
+  const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'triaged' });
+  const asks = { count: 1, permissions: [{ id: 'p1', permission: 'bash', patterns: ['ls'] }], questions: [] };
+  const h = panelHtml(base(it, { column: 'triage', asks, ui: {} }));
+  const box = h.slice(h.indexOf('<div class="next asking">'));
+  assert.equal((box.slice(0, box.indexOf('</div></div>')).match(/<button/g) || []).length, 3, 'Allow once, Always allow, Reject');
+  const more = h.slice(h.indexOf('<details class="more">'), h.indexOf('</details>'));
+  assert.match(more, /data-act="dispatch"/);
+});
+
+test('panel: the current step\'s file is open; Details and Timeline fold, closed until opened', () => {
+  const it = cleanItem({ ...newItem({ title: 'x', requester: 'Ops' }), stage: 'triaged', history: [{ stage: 'new', at: '2026-11-01' }, { stage: 'triaged', at: '2026-11-02' }] });
+  const t = { summary: 'Needs export', route: 'delegate', size: 'S', repos: [], questions: [] };
+  const h = panelHtml(base(it, { column: 'triage', triage: t, timeline: timeline(it) }));
+  assert.match(h, /<details class="ps fold" open><summary><h3>Triage<\/h3>/);
+  assert.match(h, /<details class="ps fold" data-fold="details"><summary><h3>Details<\/h3>/);
+  assert.match(h, /<details class="ps fold" data-fold="timeline"><summary><h3>Timeline<\/h3>/);
+  const opened = panelHtml(base(it, { column: 'triage', triage: t, timeline: timeline(it), ui: { folds: { details: true } } }));
+  assert.match(opened, /data-fold="details" open>/, 'remembered open');
+  const later = panelHtml(base(setStage(it, 'decide'), { column: 'decide', triage: t }));
+  assert.match(later, /<details class="ps fold"><summary><h3>Triage<\/h3>/, 'an earlier step\'s file is closed');
 });
 
 const Q = `Status: ASKING\nRound: 2\n\n## Q1: Who <b>needs</b> it?\n\n- A) Account managers\n- B) <script>x</script>\n\nRecommended: A\nWhy: internal today\n`;
@@ -81,7 +162,7 @@ test('panel: the brief offers Send to Define, Keep going and Edit', () => {
 
 test('panel: a skipped item says so in its history', () => {
   const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'decide', history: [{ stage: 'new', at: '2026-11-01' }, { stage: 'decide', at: '2026-11-02', skipped: true }] });
-  assert.match(panelHtml(base(it, { column: 'decide', lane: 'pm', timeline: timeline(it) })), /Who builds it\? \(skipped shaping\)/);
+  assert.match(panelHtml(base(it, { column: 'decide', timeline: timeline(it) })), /Who builds it\? \(skipped shaping\)/);
 });
 
 /* ---------- Slate 1.7.0: idea to resolved (claude/slate-dispatch-e2e-v1-plan.md) ---------- */
@@ -92,13 +173,13 @@ test('board: Resolved groups by area path, each with Copy release notes and Clos
   const a = { ...resolved('w_a', 'Feature A', 'Web\\Team A', 11), age: 0, facts: null };
   const b = { ...resolved('w_b', 'Feature B', 'Web\\Team B', 12), age: 0, facts: null };
   const c = { ...resolved('w_c', 'Feature C', 'Web\\Team A', 13), age: 0, facts: null };
-  const h = boardHtml({ resolved: [b, a, c] }, { lane: 'dev', open: null });
+  const h = boardHtml({ resolved: [b, a, c] }, { open: null });
   assert.deepEqual([...h.matchAll(/class="rarea"[^>]*>([^<]+)</g)].map(m => m[1]), ['Team A', 'Team B']);
   assert.deepEqual([...h.matchAll(/data-act="close-group"[^>]*data-area="([^"]+)"/g)].map(m => m[1]), ['web\\team a', 'web\\team b']);
   assert.equal([...h.matchAll(/data-act="copy-notes"/g)].length, 2);
 });
 
-test('panel: Build it myself as a skip ahead; skip ADO when it has no ADO item', () => {
+test('panel: Build it myself as a skip ahead (in More); skip ADO when it has no ADO item', () => {
   const req = newItem({ title: 'A request', requester: 'Ops' });
   assert.match(panelHtml(base(req, { canLocal: true })), /data-act="build-local"[^>]*>Build it myself, skip ADO</);
   assert.doesNotMatch(panelHtml(base(req, { canLocal: false })), /build-local/);
@@ -108,29 +189,29 @@ test('panel: Build it myself as a skip ahead; skip ADO when it has no ADO item',
 
 test('panel: Define offers Approve and publish; the approved step offers Publish and build', () => {
   const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'defining', work: { define: 'refine-x' } });
-  const h = panelHtml(base(it, { lane: 'pm', column: 'define', draft: { kind: 'refine', file: 'refine.md', step: 'approve', ready: false } }));
+  const h = panelHtml(base(it, { column: 'define', draft: { kind: 'refine', file: 'refine.md', step: 'approve', ready: false } }));
   assert.match(h, /data-act="approve-publish"[^>]*>Approve and publish</);
   assert.match(h, /data-act="approve-build"/);
   assert.match(h, /data-act="approve"[^>]*>Approve only</);
-  const pub = panelHtml(base(it, { lane: 'pm', column: 'publish', draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
+  const pub = panelHtml(base(it, { column: 'publish', draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
   assert.match(pub, /data-act="publish-build"/);
   assert.match(pub, /data-act="build-local"/);
   assert.match(publishDialogHtml([{ op: 'create', type: 'User Story', title: 'x' }], { area: '', build: true }), /Publish and build/);
 });
 
-test('panel: the Dev lane by column, with Link ADO item when there is none', () => {
+test('panel: In flight and Resolved by step, with Link ADO item when there is none', () => {
   const local = cleanItem({ ...newItem({ title: 'Local work' }), stage: 'dev', run: { folder: 'L3-local-work', id: 'L3' } });
-  const review = panelHtml(base(local, { lane: 'dev', column: 'review', canAdo: true, run: { folder: 'L3-local-work', next: { stage: 'ship' } } }));
+  const review = panelHtml(base(local, { dev: true, column: 'review', canAdo: true, run: { folder: 'L3-local-work', next: { stage: 'ship' } } }));
   assert.match(review, /id="linkAdo"/);
   assert.match(review, /data-act="mark-merged"/);
   assert.doesNotMatch(review, /data-act="check-prs"/);
   const merged = cleanItem({ ...newItem({ title: 'Merged', ado: { id: 7, type: 'Feature' } }), stage: 'dev', merged: '2026-11-05' });
-  const m = panelHtml(base(merged, { lane: 'dev', column: 'merged' }));
+  const m = panelHtml(base(merged, { dev: true, column: 'merged' }));
   assert.match(m, /data-act="mark-resolved"[^>]*>Mark resolved</);
   assert.doesNotMatch(m, /id="linkAdo"/);
-  const r = panelHtml(base(resolved('w_r', 'Done', 'Web', 9), { lane: 'dev', column: 'resolved' }));
+  const r = panelHtml(base(resolved('w_r', 'Done', 'Web', 9), { dev: true, column: 'resolved' }));
   assert.match(r, /data-act="close-one"[^>]*>Close as released</);
-  const start = panelHtml(base(cleanItem({ ...newItem({ title: 'No run' }), stage: 'dev' }), { lane: 'dev', column: 'building' }));
+  const start = panelHtml(base(cleanItem({ ...newItem({ title: 'No run' }), stage: 'dev' }), { dev: true, column: 'building' }));
   assert.match(start, /data-act="start"[^>]*>Start as local work</);
 });
 
@@ -145,7 +226,7 @@ test('dialogs: Link ADO item shows what was found; Close as released lists every
 
 test('panel: the timeline links the pull requests and says where the work came from', () => {
   const it = cleanItem({ ...newItem({ title: 'From Dispatch' }), stage: 'dev', history: [{ stage: 'dev', at: '2026-11-06', from: 'dispatch' }], prs: { status: 'merged', at: 'x', list: [{ id: 9, status: 'completed', repository: 'web-api', url: 'https://ado.example.com/pr/9' }] }, merged: '2026-11-07' });
-  const h = panelHtml(base(it, { lane: 'dev', column: 'merged', timeline: timeline(it) }));
+  const h = panelHtml(base(it, { dev: true, column: 'merged', timeline: timeline(it) }));
   assert.match(h, /Started in Dispatch/);
   assert.match(h, /href="https:\/\/ado.example.com\/pr\/9"[^>]*>Pull request 9 in web-api: merged</);
   assert.match(h, /All pull requests merged/);

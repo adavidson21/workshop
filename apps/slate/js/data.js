@@ -3,7 +3,7 @@
 
    Writes stamp against what was read and merge on a conflict (docs/data-format.md), so two windows, or Slate and
    a Workshop data import, never lose each other's changes. */
-import { APP, VERSION, applyWork, cleanItem, cleanPrefs } from './model.js';
+import { APP, VERSION, applyWork, cleanItem, cleanPrefs, sentIdeaTitles } from './model.js';
 
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
@@ -33,6 +33,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     v.prefs = cleanPrefs(env.items && env.items.meta && env.items.meta.fields);
     const d = env.items && env.items.meta && env.items.meta.dismissed;
     v.dismissed = Array.isArray(d) ? d.filter(x => typeof x === 'string' && x.length <= 80).slice(-500) : [];
+    v.sentIdeas = sentIdeaTitles(env.handoffs);
     onChange(v);
   };
 
@@ -129,6 +130,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     const cut = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
     after.items = after.items.filter(x => !x.date || x.date >= cut);
     env.handoffs = await write('handoffs', before, after);
+    show();
   }
 
   /** Rewrite Slate's summary (Workshop docs/summaries.md): the cards replace what was there. Skipped when unchanged. */
