@@ -163,7 +163,9 @@ function inboxCard(rows) {
    waiting = true while the browser's folder store needs Allow (data.js); embedded = inside the shell. */
 export function render(v) {
   const p = v.profile || {};
-  const name = (p.name || '').trim(), role = (p.role || '').trim();
+  // Your name from People (relation You) first: every app knows it. Home's own profile name is the fallback.
+  const me = v.dir && Array.isArray(v.dir.people) ? v.dir.people.find(x => !x.archived && x.relation === 'self') : null;
+  const name = ((me && me.name) || p.name || '').trim(), role = (p.role || (me && me.role) || '').trim();
   const b = v.board && v.board.total ? v.board : null;
   // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
   // before the Day view's day end, from Docket's summary; a check once wrapped). Triage is its tile.
@@ -194,7 +196,10 @@ export function render(v) {
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + inboxCard(v.inbox || []) + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b) {
-    return head + inboxCard(v.inbox || []) + `<section class="card note"><h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>
+    const empty = v.adoReady
+      ? '<h2>Your ADO work items are waiting in Docket</h2><p>Azure DevOps is connected. Open Docket to bring in the items assigned to you; they show up here after that.</p>'
+      : '<h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>';
+    return head + inboxCard(v.inbox || []) + `<section class="card note">${empty}
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
 
@@ -242,7 +247,7 @@ export function profileForm(p) {
     <h2>Your profile</h2>
     <label>Name<input name="name" maxlength="80" autocomplete="name" value="${esc(p.name || '')}"></label>
     <label>Role<input name="role" maxlength="80" placeholder="Engineering Manager" value="${esc(p.role || '')}"></label>
-    <p class="soft">Only used on this page.</p>
+    <p class="soft">Your name in People (Settings) wins everywhere; this one is used on this page when People has no "you". Role shows above the greeting.</p>
     <div class="acts"><button type="button" class="btn ghost" data-cancel>Cancel</button><button class="btn primary">Save</button></div>
   </form>`;
 }

@@ -22,7 +22,8 @@ const v = home.v;
 
 /* ---------- Get started checklist (setup.js) ---------- */
 const setup = createSetup(ws, { onChange: () => paint(), extra: () => ({ name: v.profile.name, tasks: v.board ? v.board.total : null }) });
-let openStep = null, copies = [], setupOpen = false, showDone = false;
+// setupOpen: null follows the saved state (open until set up, unless you folded it); true or false for this window.
+let openStep = null, copies = [], setupOpen = null, showDone = false;
 const platform = (() => { const p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ''); return /win/i.test(p) ? 'win' : /mac/i.test(p) ? 'mac' : 'linux'; })();
 // Where connector settings can be changed: in Workshop when this page is Workshop on this computer
 // (ws.mode local), otherwise on that page, at the address this site paired with (Settings is read only here).
@@ -41,8 +42,9 @@ function setupPart() {
     const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
     return { into: 'tools', html: hbtn(ICON.ring, label, 'data-setup-show', view.complete ? '' : 'acc'), copies: [] };
   }
-  if (!setupOpen) return { into: 'after', html: setupStrip(view), copies: [] };
-  const out = setupCard(view, openStep, { facts: setup.s.facts, platform, origin: location.origin, settings: settingsTarget(), showDone });
+  const open = setupOpen !== null ? setupOpen : !(view.complete || setup.s.folded);
+  if (!open) return { into: 'after', html: setupStrip(view), copies: [] };
+  const out = setupCard(view, openStep, { facts: { ...setup.s.facts, name: v.profile.name }, platform, origin: location.origin, settings: settingsTarget(), showDone, machine: setup.s.machine });
   return { into: 'after', html: out.html, copies: out.copies };
 }
 function placeSetup(part) {
@@ -60,6 +62,7 @@ const ENTERS = ['.hello', '.setup', '.su-strip', '.tiles', '.cols', '.card.note'
 let lastKey = null, lastFirst = null;
 function paint() {
   if (home.waiting) editing = false;
+  v.adoReady = !!(setup.s.facts && setup.s.facts.ado && setup.s.facts.ado.state === 'ready');
   const html = editing ? profileForm(v.profile) : render(v);
   const part = editing ? null : setupPart();
   // Skip a repaint that would draw the same thing: rebuilding the page under the pointer drops and
@@ -108,8 +111,11 @@ app.addEventListener('click', e => {
   if (t.closest('[data-unskip]')) { const id = t.closest('[data-unskip]').dataset.unskip; openStep = id; saving(() => setup.unskip(id)); return; }
   if (t.closest('[data-setup-hide]')) { saving(setup.hide); return; }
   if (t.closest('[data-setup-show]')) { openStep = null; setupOpen = true; saving(setup.show); setup.load(); return; }
-  if (t.closest('[data-setup-expand]')) { setupOpen = true; paint(); return; }
-  if (t.closest('[data-setup-collapse]')) { setupOpen = false; openStep = null; paint(); return; }
+  if (t.closest('[data-setup-expand]')) { setupOpen = true; paint(); if (setup.s.folded) saving(() => setup.fold(false)); return; }
+  if (t.closest('[data-setup-collapse]')) { setupOpen = false; openStep = null; paint(); saving(() => setup.fold(true)); return; }
+  const mach = t.closest('[data-machine]');
+  if (mach) { saving(() => setup.setMachine(mach.dataset.machine)); return; }
+  if (t.closest('[data-apps-ok]')) { openStep = null; saving(setup.appsOk); return; }
   if (t.closest('[data-setup-done]')) { showDone = !showDone; paint(); return; }
   if (t.closest('[data-setup-check]')) { setup.load().then(() => ws.toast('Checked', { kind: 'success' })); home.loadBoard(); return; }
   if (t.closest('[data-status]')) { openStatus(); return; }

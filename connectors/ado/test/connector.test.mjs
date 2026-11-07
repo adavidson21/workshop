@@ -117,6 +117,17 @@ test('the settings Test field works through the agent (connector info and argsSc
   });
 });
 
+test('areas.mine lists the area paths of my open items, most first (read only)', async () => {
+  await withAgent(async ({ agent }) => {
+    const r = expectJson(await call(agent, 'areas.mine', {}), 200).result;
+    assert.ok(Array.isArray(r.areas));
+    for (const a of r.areas) assert.ok(typeof a.path === 'string' && a.path && Number.isInteger(a.count) && a.count > 0);
+    const counts = r.areas.map(a => a.count);
+    assert.deepEqual(counts, [...counts].sort((x, y) => y - x));
+    assert.equal(ado.actions['areas.mine'].write, false);
+  });
+});
+
 test('sync, sync.prs and dataset run through the agent', async () => {
   await withAgent(async ({ agent }) => {
     const s = expectJson(await call(agent, 'sync', { known: [101, '201', 'x', -1] }), 200).result;

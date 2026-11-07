@@ -37,6 +37,7 @@ function loadXlsx() {
 export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   let dir = D.EMPTY;
   let editing = null;          // id being edited, 'new-person', 'new-group', or null
+  let preset = null;           // fields for the new person form (Home's Add your name: relation You and the name)
   let query = '', filter = 'all';
   let pending = null;          // {name, plan} while an import waits for Import or Cancel
   let team = { name: 'My team', areas: [], connection: '' };
@@ -118,7 +119,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     const html = `
       <p class="count">${plural(all.length, 'person', 'people')}${filtered ? ` · ${people.length} shown` : ''}</p>
       ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : `<p class="sub">${all.length ? 'No one matches.' : 'No one yet. Add yourself, your manager and your reports, or import a spreadsheet.'}</p>`}
-      ${editing === 'new-person' ? `<div class="person editing">${personForm({ relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
+      ${editing === 'new-person' ? `<div class="person editing">${personForm(preset || { relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
       ${filter === 'all' || filter === 'groups' ? `<h3 class="people-sub">Groups${qh('people.groups', 'Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.')}</h3>
       ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">No groups yet. A group like @leadership is assigned like a person.</p>'}` : ''}
       ${editing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
@@ -193,7 +194,9 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     if (!body || body.contains(document.activeElement) && document.activeElement.matches('textarea, input')) return;
     body.innerHTML = `<form class="cfg" data-team-form>
       <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(team.areas.join('\n'))}</textarea>
-        <p class="cfg-help">One per line. Includes everything under each.</p></div>
+        <p class="cfg-help">One per line. Includes everything under each.</p>
+        <p class="acts left"><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
+        <div class="areas-suggest" data-areas-list></div></div>
       <div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(team.connection)}" placeholder="Default">
         <p class="cfg-help">The Azure DevOps connection to use, by its name in Connections. Empty uses the default.</p></div>
       <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div></form>`;
@@ -217,12 +220,12 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     </section>`);
   teamEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="team">
-      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Runway fills them in for an ADO roadmap, and the Dispatch hub knows them.')}</h2>
+      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Dispatch hub use them too.')}</h2>
       <p class="sub">Plain text, so you can fill them in before Azure DevOps is connected.</p>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`);
 
-  const done = text => { editing = null; toast(text, 'success'); paintPeople(); };
+  const done = text => { editing = null; preset = null; toast(text, 'success'); paintPeople(); };
 
   peopleEl.addEventListener('input', e => {
     if (e.target.id === 'q') { query = e.target.value.trim(); if (!editing) paintPeople(); }
@@ -231,10 +234,10 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   peopleEl.addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t) return;
-    if (t.matches('[data-person-new]')) { editing = 'new-person'; return paintPeople(); }
+    if (t.matches('[data-person-new]')) { editing = 'new-person'; preset = null; return paintPeople(); }
     if (t.matches('[data-group-new]')) { editing = 'new-group'; return paintPeople(); }
     if (t.matches('[data-item-edit]')) { editing = t.dataset.itemEdit; return paintPeople(); }
-    if (t.matches('[data-item-cancel]')) { editing = null; return paintPeople(); }
+    if (t.matches('[data-item-cancel]')) { editing = null; preset = null; return paintPeople(); }
     if (t.matches('[data-item-archive]')) {
       const it = dir.byId.get(t.dataset.itemArchive);
       if (!it) return;
@@ -308,6 +311,35 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     } catch (err) { form.querySelector('.msg').textContent = errText(err); }
   });
 
+  /* Suggest from Azure DevOps: the area paths of your open work items (the ADO connector's read-only areas.mine),
+     as checkboxes that add to the box. Nothing is saved until Save. */
+  teamEl.addEventListener('click', async e => {
+    const b = e.target.closest('[data-areas-suggest]');
+    if (b) {
+      const msg = teamEl.querySelector('[data-areas-msg]'), list = teamEl.querySelector('[data-areas-list]');
+      msg.textContent = 'Reading your work items...'; b.disabled = true;
+      try {
+        const r = await ws.connectors.call('ado', 'areas.mine', {});
+        const areas = (r && r.areas) || [];
+        const box = teamEl.querySelector('#tAreas');
+        const have = new Set(String(box.value).split('\n').map(x => x.trim()).filter(Boolean));
+        msg.textContent = areas.length ? 'Your open work items sit in these area paths. Tick the ones that are your team\'s, then Save.' : 'None of your open work items has an area path.';
+        list.innerHTML = areas.map(a => `<label class="member"><input type="checkbox" data-area="${esc(a.path)}"${have.has(a.path) ? ' checked' : ''}> <span class="mono">${esc(a.path)}</span> <span class="state">${plural(a.count, 'item')}</span></label>`).join('');
+      } catch (err) {
+        msg.textContent = /not (on|enabled)|disabled|not ready|connector/i.test(errText(err)) ? 'Connect Azure DevOps first (Azure DevOps, Connections), or type the paths in.' : errText(err);
+      } finally { b.disabled = false; }
+      return;
+    }
+  });
+  teamEl.addEventListener('change', e => {
+    const c = e.target.closest('[data-area]');
+    if (!c) return;
+    const box = teamEl.querySelector('#tAreas');
+    const lines = String(box.value).split('\n').map(x => x.trim()).filter(Boolean);
+    const next = c.checked ? [...new Set([...lines, c.dataset.area])] : lines.filter(x => x !== c.dataset.area);
+    box.value = next.join('\n');
+  });
+
   teamEl.addEventListener('submit', async e => {
     const tf = e.target.closest('[data-team-form]');
     if (!tf) return;
@@ -328,8 +360,13 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   ws.teams.subscribe(next => { team = next; paintTeam(); });
 
   return {
-    command(id) {
-      if (id === 'add-person') editing = 'new-person';
+    command(id, arg) {
+      // add-you (Home's Add your name): your own person, to edit if there is one, else a new one set to You.
+      if (id === 'add-you') {
+        const me = (dir.people || []).find(p => p.relation === 'self' && !p.archived);
+        if (me) { editing = me.id; preset = null; }
+        else { editing = 'new-person'; preset = { relation: 'self', name: String(arg || '').slice(0, 200) }; }
+      } else if (id === 'add-person') { editing = 'new-person'; preset = null; }
       else if (id === 'add-group') editing = 'new-group';
       else return false;
       paintPeople();
