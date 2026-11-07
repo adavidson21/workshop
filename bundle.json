@@ -1,10 +1,10 @@
 {
   "bundle": 1,
-  "version": "2.7.0",
+  "version": "2.7.1",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
-    "docs/schemas/app.schema.json": "b930c1746574182b87786614ec769e611f19895d80b69db1b53fa146e00a405d",
+    "docs/schemas/app.schema.json": "aacb2c69036863b58854d651416d8681c20808f83e7c14c011796c5cab904e6a",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "docs/schemas/config-form.schema.json": "fd5a00cc1e4d58ce36079ebcd79c19520d816351f3243ef4678e6118349dbade",

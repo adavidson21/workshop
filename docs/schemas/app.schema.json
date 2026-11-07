@@ -210,7 +210,8 @@
           "waiting",
           "receipt",
           "note",
-          "idea"
+          "idea",
+          "request"
         ]
       },
       "description": "Capture kinds this app takes from quick capture and the hub (hub.md)."
