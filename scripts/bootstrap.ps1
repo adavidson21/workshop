@@ -21,7 +21,7 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket, Runway, Rapport and Notes (DOCKET_TAG, RUNWAY_TAG, RECEIPTS_TAG and NOTES_TAG, else their newest code) and builds
+#                         downloads Docket, Runway, Rapport and Folio (DOCKET_TAG, RUNWAY_TAG, RECEIPTS_TAG and NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
 #                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
@@ -142,7 +142,7 @@ $names = @('workshop')
 if ($Dispatch) { $names += 'eng-agents' }
 if ($Work) { $names += @('docket', 'runway', 'receipts', 'notes') }
 foreach ($name in $names) {
-  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } elseif ($name -eq 'receipts') { 'Rapport (for the pinned copy)' } elseif ($name -eq 'notes') { 'Notes (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
+  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } elseif ($name -eq 'receipts') { 'Rapport (for the pinned copy)' } elseif ($name -eq 'notes') { 'Folio (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
   $dir = Join-Path $Root $name
   $tag = $Tags[$name]
   if (Test-Path (Join-Path $dir '.git')) {
@@ -158,10 +158,10 @@ foreach ($name in $names) {
     continue
   }
   $ref = if ($tag) { "refs/tags/$tag" } else { 'refs/heads/main' }
-  # Runway, Rapport and Notes are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
+  # Runway, Rapport and Folio are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
   # pinned copy is built without it until there is a clone of it here.
   if ($name -eq 'runway' -or $name -eq 'receipts' -or $name -eq 'notes') {
-    $label = if ($name -eq 'runway') { 'Runway' } elseif ($name -eq 'notes') { 'Notes' } else { 'Rapport' }
+    $label = if ($name -eq 'runway') { 'Runway' } elseif ($name -eq 'notes') { 'Folio' } else { 'Rapport' }
     $reachable = $true
     try { Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$($Repos[$name])/archive/$ref.zip" | Out-Null } catch { $reachable = $false }
     if (-not $reachable) {

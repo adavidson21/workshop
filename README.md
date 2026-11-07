@@ -1,6 +1,6 @@
 # Workshop
 
-An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Rapport, Notes, Runway, Slate, and Tandem, the agent scaffolding Dispatch runs on.
+An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Rapport, Folio, Runway, Slate, and Tandem, the agent scaffolding Dispatch runs on.
 
 - **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
 - **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next (work items assigned to you and pull requests waiting on your review become tasks when the ADO connector is on), Its code lives in its own repo, [adavidson21/docket](https://github.com/adavidson21/docket), and its own site, https://docket.alexisdavidson.org; Workshop shows it inside the shell by serving that site under `apps/prioritizer/` (see Apps from another site below). User guide: [Docket's README](https://github.com/adavidson21/docket#readme).
