@@ -813,3 +813,41 @@ test('summary: tracked lists every ADO item on the board with its column, and li
   assert.deepEqual(t.rows.map(r => [r.id, r.note]), [['7', 'Shape'], ['90', 'Who builds it?'], ['77', 'Source of #90']]);
   assert.equal(t.rows[0].route, `item/${a.id}`);
 });
+
+test('pendingIdeaCards: rows from Slate itself are left out by `from`; titles only matter for rows with no `from`', async () => {
+  const { pendingIdeaCards } = await import('../js/model.js');
+  const NOW = new Date('2026-11-07T12:00:00');
+  const rows = [
+    { id: 'p_1', title: 'Mine, new Runway', from: 'slate' },
+    { id: 'p_2', title: 'Mine, old Runway' },
+    { id: 'p_3', title: 'Mine, old Runway', from: 'home' },
+    { id: 'p_4', title: 'From Home', from: 'home' }
+  ];
+  assert.deepEqual(pendingIdeaCards(rows, [], [], NOW, ['Mine, old Runway']).map(c => c.fromRunway), ['p_3', 'p_4']);
+});
+
+test('applyRoadmapItem: a card from Runway\'s roadmap-item offer, once per roadmap item', async () => {
+  const { applyRoadmapItem } = await import('../js/model.js');
+  const NOW = new Date('2026-11-07T12:00:00');
+  const offer = { id: 'h_m_a_f1_slate', to: 'slate', text: 'Refunds', accepted: true, source: { app: 'runway', id: 'f1' },
+    payload: { kind: 'roadmap-item', map: 'm_a', item: 'f1', title: 'Refunds', notes: 'Partial too', level: 'feature', ado: { id: 42, rev: 3, type: 'Feature', url: 'https://example.test/42', connection: 'work', state: 'New' } } };
+  const list = [];
+  const id = applyRoadmapItem(list, offer, NOW);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, id);
+  assert.equal(list[0].title, 'Refunds');
+  assert.equal(list[0].description, 'Partial too');
+  assert.equal(list[0].level, 'feature');
+  assert.equal(list[0].stage, 'new');
+  assert.deepEqual(list[0].runway, { map: 'm_a', item: 'f1' });
+  assert.deepEqual(list[0].ado, { id: 42, rev: 3, type: 'Feature', url: 'https://example.test/42', connection: 'work', area: '', state: 'New' });
+  assert.equal(applyRoadmapItem(list, offer, NOW), id);
+  assert.equal(list.length, 1);
+  assert.equal(applyRoadmapItem(list, { ...offer, source: { app: 'home' } }, NOW), null);
+  assert.equal(applyRoadmapItem(list, { ...offer, payload: { ...offer.payload, kind: 'work' } }, NOW), null);
+  assert.equal(applyRoadmapItem(list, { ...offer, payload: { ...offer.payload, map: '' } }, NOW), null);
+  const noAdo = { ...offer, payload: { kind: 'roadmap-item', map: 'm_a', item: 's9', title: 'Story', level: 'weird' } };
+  applyRoadmapItem(list, noAdo, NOW);
+  assert.equal(list[1].level, 'story');
+  assert.equal(list[1].ado, null);
+});

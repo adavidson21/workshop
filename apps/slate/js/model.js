@@ -259,14 +259,14 @@ export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Dat
   const taken = new Set(items.map(it => it.runwayPending).filter(Boolean));
   const hidden = new Set(dismissed);
   const mine = new Set(sent);
-  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string' && !taken.has(r.id) && !hidden.has(r.id) && !mine.has(r.title))
+  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string' && !taken.has(r.id) && !hidden.has(r.id) && r.from !== APP && !(r.from == null && mine.has(r.title)))
     .map(r => ({ ...newItem({ title: r.title, description: r.note || '', kind: 'idea' }, now), id: `rw_${r.id}`, virtual: true, fromRunway: r.id, createdAt: isDay(r.due) ? r.due : today(now) }));
 }
 
 /**
  * Titles of the ideas Slate itself sent to Runway (Add to roadmap), as Runway titles them (the first line of the
- * offer's text). Runway's pending rows do not say who sent them, so Slate leaves these out of Inbox: the card is
- * already on the board. `env` is Slate's handoffs envelope.
+ * offer's text). Since Runway 1.14.0 pending rows say who sent them (`from`), and Slate leaves out rows from itself
+ * by that; this title match is only for rows from before, with no `from`. `env` is Slate's handoffs envelope.
  */
 export function sentIdeaTitles(env) {
   const list = (env && Array.isArray(env.items)) ? env.items : [];
@@ -921,6 +921,27 @@ export function applyWork(list, offer, now = new Date()) {
   it.route = 'myself';
   if (folder) it.run = { folder, id: str(p.id, 20) };
   if (adoId) it.ado = { id: adoId, rev: 0, type: p.lane === 'bug' ? 'Bug' : '', url: '', connection: '', area: '', state: '' };
+  list.push(it);
+  return it.id;
+}
+
+/**
+ * A roadmap item from Runway's Work item button (handoffs to Slate, kind `roadmap-item`, docs/handoffs.md): the card
+ * already made for that roadmap item, or a new one in New from the offer (title, notes, level, ADO link). Returns the
+ * card id, or null when the offer is not a roadmap-item from Runway. Slate never reads Runway's roadmaps.
+ */
+export function applyRoadmapItem(list, offer, now = new Date()) {
+  const p = (offer && offer.payload) || {};
+  if (!offer || offer.to !== APP || p.kind !== 'roadmap-item' || !offer.source || offer.source.app !== 'runway') return null;
+  const map = str(p.map, 80), item = str(p.item, 120);
+  if (!map || !item) return null;
+  const found = list.find(x => x.runway && x.runway.map === map && x.runway.item === item);
+  if (found) return found.id;
+  const level = ['epic', 'feature', 'story'].includes(p.level) ? p.level : 'story';
+  const a = p.ado && Number.isInteger(p.ado.id) ? p.ado : null;
+  const it = newItem({ title: oneLine(p.title || offer.text, 255) || 'Untitled', description: str(p.notes, 32000), level }, now);
+  if (a) it.ado = { id: a.id, rev: Number(a.rev) || 0, type: str(a.type, 60), url: str(a.url, 2000), connection: str(a.connection, 120), area: '', state: str(a.state, 60) };
+  it.runway = { map, item };
   list.push(it);
   return it.id;
 }

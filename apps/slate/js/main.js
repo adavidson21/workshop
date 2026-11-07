@@ -9,7 +9,7 @@ import { sendersFrom } from '../../../shared/handoffs.js';
 import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
 import { hostFrame } from './host.js';
 import {
-  APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
+  APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
   levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope
 } from './model.js';
@@ -1166,22 +1166,19 @@ async function route(path) {
   if (parts[0] === 'runway') { ws.open({ app: 'runway', path: parts.slice(1).join('/') }).catch(() => {}); }
 }
 
-/** Runway's Work item button: the Slate item for a roadmap item, made the first time. */
+/** Runway's Work item button: the Slate item for a roadmap item, made the first time from Runway's `roadmap-item`
+    offer (docs/handoffs.md). Slate never reads Runway's roadmaps. */
 async function fromRunway(map, item) {
   let it = store.v.items.find(x => x.runway && x.runway.map === map && x.runway.item === item);
   if (!it) {
-    let doc = null;
-    try { doc = await ws.data.get(`maps/${map}`, { app: 'runway' }); } catch { doc = null; }
-    const items = (doc && doc.items) || [];
-    const ri = items.find(x => x.id === item && x.kind === 'item');
-    if (!ri) return ws.toast('That roadmap item is not there any more.', { kind: 'warn' });
-    let depth = 0, p = ri;
-    while (p && p.parent && depth < 4) { p = items.find(x => x.id === p.parent); depth++; }
-    const fresh = newItem({ title: ri.title, description: ri.notes || '', level: ['epic', 'feature', 'story', 'story'][depth] || 'story' });
-    fresh.runway = { map, item };
-    if (ri.ado && Number.isInteger(ri.ado.id)) fresh.ado = { id: ri.ado.id, rev: ri.ado.rev || 0, type: ri.ado.type || '', url: ri.ado.url || '', connection: ri.ado.connection || '', area: '', state: ri.ado.state || '' };
-    await store.change(list => list.push(fresh));
-    it = store.v.items.find(x => x.id === fresh.id);
+    let offers = [];
+    try { offers = await readWorkOffers(ws, { runway: 'Runway' }, ['roadmap-item']); } catch { offers = []; }
+    const offer = offers.find(o => o.payload.map === map && o.payload.item === item);
+    if (!offer) return ws.toast('Runway did not send that roadmap item. Update Runway and click Work item again.', { kind: 'warn' });
+    let id = null;
+    await store.change(list => { id = applyRoadmapItem(list, offer); });
+    it = store.v.items.find(x => x.id === id);
+    if (!it) return ws.toast('That roadmap item is not there any more.', { kind: 'warn' });
   }
   ui.tab = 'board'; ui.open = it.id;
   paint();
