@@ -1,8 +1,9 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "82aef39fc0c11f12abb0be19d9c656567f3cada0",
+  "commit": "c5f1a89bf51606a0c301d47fa808a576e552e58c",
   "files": {
     "scripts/sync-workshop.mjs": "scripts/sync-workshop.mjs",
+    "shared/app-settings.js": "shared/app-settings.js",
     "shared/app-sw.js": "shared/app-sw.js",
     "shared/device-fs.js": "shared/device-fs.js",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "shared/fonts/dm-mono-latin-400-normal.woff2",
@@ -34,7 +35,7 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "2.6.0",
+  "bundle": "2.7.2",
   "sha256": {
     "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
@@ -63,9 +64,10 @@
     "shared/theme.js": "2663fe78a3492d4948cfa19b0904b718b0587bab94d16539df8377d78a29bf0e",
     "shared/themes.css": "2e749c9679766b04a95a3302470df20432713ceea056716d285008eed011c83e",
     "shared/ui.css": "94f6001c8c7bd5d0d0bcff5ad8b76ed881e921377026beebeb7504221a9bf35a",
-    "shared/workshop-sdk.js": "d71875fc53fc9744f8deae31f0eb317524d47d9c448458cfa4fdb609d445bbd3",
+    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
-    "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e"
+    "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e",
+    "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85"
   }
 }
