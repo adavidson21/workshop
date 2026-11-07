@@ -72,7 +72,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 
 ## Hosted apps
 
-An app can show another app inside itself with `hosts`. Slate does it for Runway: `"hosts": [{"app": "runway", "path": "roadmaps"}]`. Its Roadmaps tab frames Runway's own page and stands in for the shell for it (Slate's `js/host.js`): it answers `ready`, keeps Runway's routes inside the tab, and passes `toast`, `notify` and `open` to other apps on to the shell.
+An app can show another app inside itself with `hosts`, for example `"hosts": [{"app": "runway", "path": "roadmaps"}]`. The host frames the hosted app's own page in one of its tabs and stands in for the shell for it: it answers `ready`, keeps the hosted app's routes inside the tab, and passes `toast`, `notify` and `open` to other apps on to the shell. No app uses `hosts` today (Slate hosted Runway until Slate 2.0.0); Slate's `js/host.js` still frames Runway's team reports in Health, which shows how to stand in for the shell.
 
 While the host and the hosted app are both on:
 
