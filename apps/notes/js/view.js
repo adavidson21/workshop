@@ -207,6 +207,7 @@ export function header(state) {
   const tpl = n && n.use !== undefined ? templateBar(state, n) : '';
   const items = [
     ['insert-diagram', 'Insert diagram'],
+    ['format-table', 'Format table', 'Ctrl+Alt+T'],
     ['copy-wiki', 'Copy for wiki'],
     ['copy', 'Copy Markdown'],
     ['download', 'Download .md'],

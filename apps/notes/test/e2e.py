@@ -43,6 +43,12 @@ def wait_js(pg, expr, timeout=15000):
     return False
 
 
+def fill_editor(pg, text):
+    """Replace the note's text, as typing would (CodeMirror's editable element)."""
+    pg.fill('.cm-content', text)
+    pg.wait_for_timeout(150)
+
+
 def write_vault(root):
     """A small Obsidian-style vault: spaces and capitals in names, a wikilink, an embed and a hidden folder."""
     v = os.path.join(root, 'My Vault')
@@ -86,7 +92,7 @@ def main():
             check('the empty title line shows a faint Title hint', pg.is_visible('#title-hint'))
             check('the starter templates are offered with no extra step', pg.locator('[data-act=use-template]').count() == STARTERS)
             check('each template has a pencil to change it', pg.locator('#head [data-act=edit-template]').count() == STARTERS)
-            pg.focus('#editor'); pg.keyboard.press('End'); pg.keyboard.type('# Team Sync'); pg.wait_for_timeout(300)
+            pg.focus('.cm-content'); pg.keyboard.press('End'); pg.keyboard.type('# Team Sync'); pg.wait_for_timeout(300)
             check('typing "# " again on the title line keeps one #', pg.input_value('#editor').startswith('# Team Sync\n'))
             check('the template offer shows names', 'Meeting notes' in pg.inner_text('#head'))
             pg.click('[data-act=use-template][data-tpl="templates/meeting.md"]'); pg.wait_for_timeout(800)
@@ -94,7 +100,7 @@ def main():
             check('a note from the meeting template keeps the title typed', txt.startswith('# Team Sync') and '## Action items' in txt)
             check('once the note has a body, the template offer goes away', pg.locator('[data-act=use-template]').count() == 0)
 
-            pg.fill('#editor', '# Team Sync\n\n- [ ] Draft the rollout plan\n- Shipped the cache #win\n\nSee [the task](ws:prioritizer/task/t_1)\n')
+            fill_editor(pg, '# Team Sync\n\n- [ ] Draft the rollout plan\n- Shipped the cache #win\n\nSee [the task](ws:prioritizer/task/t_1)\n')
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(1200)
             check('a ws: link shows as a chip with the app name', pg.locator('#preview .app-link .app-chip').inner_text().lower() == 'docket')
             check('on its own and not paired, there are no send buttons', pg.locator('[data-act=send]').count() == 0)
@@ -106,7 +112,7 @@ def main():
             pg.click('[data-mode=preview]'); pg.wait_for_timeout(300)
             pg.dblclick('#preview li[data-line="3"]'); pg.wait_for_timeout(400)
             check('double-clicking the preview opens the editor on that line',
-                  pg.evaluate("document.activeElement.id") == 'editor' and pg.evaluate("document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\\n').length - 1") == 3)
+                  pg.evaluate("document.activeElement.classList.contains('cm-content')") and pg.evaluate("(e => e.value.slice(0, e.selectionStart).split('\\n').length - 1)(document.getElementById('editor').editor)") == 3)
 
             pg.click('#head [data-act=menu]'); pg.wait_for_timeout(200)
             check('the ⋯ menu holds Copy, Download, Rename and Save as template', all(x in pg.inner_text('.menu') for x in ['Copy Markdown', 'Download', 'Rename', 'Save as template']))
@@ -133,7 +139,7 @@ def main():
             pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
             check('leaving a new note names its file from the title', pg.locator('#side li.note[data-path="team-sync.md"]').count() == 1
                   and pg.locator('#side li.note[data-path="untitled.md"]').count() == 1)
-            pg.fill('#editor', '# Scratch\n\nA line.\n'); pg.wait_for_timeout(300)
+            fill_editor(pg, '# Scratch\n\nA line.\n'); pg.wait_for_timeout(300)
             pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
             pg.click('#side li.note[data-path="team-sync.md"] a.row'); pg.wait_for_timeout(800)
             check('a new note left blank goes to the trash', pg.locator('#side li.note[data-path^="untitled"]').count() == 0)
@@ -158,7 +164,7 @@ def main():
             # Diagrams: every starter draws under the page's CSP; a broken one shows its error; the toolbar exports.
             pg.click('[data-act=new-note]'); pg.wait_for_timeout(800)
             body = '# Diagrams\n\n' + ''.join('```mermaid\n' + code.encode().decode('unicode_escape') + '\n```\n\n' for _, code in KITS) + '```mermaid\nflowchart LR\n  A -->\n```\n'
-            pg.fill('#editor', body)
+            fill_editor(pg, body)
             wait_js(pg, f"document.querySelectorAll('#preview figure.diagram.drawn').length >= {len(KITS)}", 30000)
             drawn = pg.evaluate("[...document.querySelectorAll('#preview figure.diagram')].map(f => f.classList.contains('drawn') && !!f.querySelector('.diagram-out svg'))")
             check(f'all {len(KITS)} diagram starters draw as SVG', drawn[:len(KITS)] == [True] * len(KITS))
@@ -175,11 +181,11 @@ def main():
                 first.locator('[data-diagram-act=svg]').click()
             check('a diagram downloads as an SVG', open(dl.value.path()).read().lstrip().startswith('<?xml') and '<svg' in open(dl.value.path()).read())
             line = body.split('\n').index('sequenceDiagram')
-            pg.evaluate(f"(() => {{ const e = document.getElementById('editor'); const at = e.value.split('\\n').slice(0, {line + 2}).join('\\n').length; e.focus(); e.setSelectionRange(at, at); e.dispatchEvent(new KeyboardEvent('keyup')); }})()")
+            pg.evaluate(f"(() => {{ const e = document.getElementById('editor').editor; const at = e.value.split('\\n').slice(0, {line + 2}).join('\\n').length; e.focus(); e.setSelectionRange(at, at); e.dispatchEvent(new KeyboardEvent('keyup')); }})()")
             pg.wait_for_timeout(200)
             check('Split view highlights the diagram the cursor is in', pg.evaluate("document.querySelector('#preview figure.diagram.at-cursor')?.textContent.includes('Click save') || document.querySelector('#preview figure.diagram.at-cursor .diagram-src')?.textContent.includes('sequenceDiagram')") is True)
-            pg.fill('#editor', '# Diagrams\n\nBefore.\n')
-            pg.evaluate("(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()")
+            fill_editor(pg, '# Diagrams\n\nBefore.\n')
+            pg.evaluate("(() => { const e = document.getElementById('editor').editor; e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()")
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
             pg.click('#head [data-act=menu]'); pg.click('.menu [data-act=insert-diagram]'); pg.wait_for_selector('dialog[open] .kit-grid')
             pg.click('dialog[open] [data-kit=erd]'); pg.wait_for_timeout(300)
@@ -188,12 +194,12 @@ def main():
             check('the inserted diagram draws', pg.locator('#preview figure.diagram.drawn svg').count() >= 1)
 
             # Developer docs: syntax colors and Copy on code, callouts, footnotes, [[# heading links, search filters.
-            pg.fill('#editor', '# Dev\n\n## Setup steps\n\n```sql\nselect id from users\n```\n\n> [!WARNING]\n> Careful.\n\nText[^1].\n\n[^1]: A foot note.\n\n')
+            fill_editor(pg, '# Dev\n\n## Setup steps\n\n```sql\nselect id from users\n```\n\n> [!WARNING]\n> Careful.\n\nText[^1].\n\n[^1]: A foot note.\n\n')
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(900)
             check('code blocks get syntax colors and a Copy button', pg.locator('#preview pre .tok-k').count() >= 2 and pg.locator('#preview pre .code-copy').count() == 1)
             check('a > [!WARNING] block is a callout', pg.locator('#preview .callout-warning .callout-title').inner_text() == 'Warning')
             check('footnotes are numbered and listed at the end', pg.locator('#preview sup.fn-ref').inner_text() == '1' and 'A foot note.' in pg.inner_text('#preview .footnotes'))
-            pg.evaluate("(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()")
+            pg.evaluate("(() => { const e = document.getElementById('editor').editor; e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()")
             pg.keyboard.type('See [[#setup'); pg.wait_for_timeout(300)
             check('[[# lists this note\'s headings', pg.is_visible('#picker') and 'Setup steps' in pg.inner_text('#picker'))
             pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
@@ -204,6 +210,31 @@ def main():
             pg.fill('#side [data-search]', 'lang:sql'); pg.wait_for_timeout(400)
             check('search lang:sql finds the note with a sql block', 'Dev' in pg.inner_text('#side'))
             pg.fill('#side [data-search]', ''); pg.wait_for_timeout(300)
+
+            # The editor (CodeMirror): Enter continues a list, the slash menu, Ctrl+B, Format table and undo, Ctrl+F.
+            to_end = "(() => { const e = document.getElementById('editor').editor; e.focus(); e.setSelectionRange(e.value.length, e.value.length); })()"
+            check('the editor is CodeMirror', pg.locator('#body .cm-editor .cm-content').count() == 1 and not pg.is_visible('textarea#editor'))
+            fill_editor(pg, '# Keys\n\n- one'); pg.evaluate(to_end)
+            pg.keyboard.press('Enter'); pg.keyboard.type('two'); pg.wait_for_timeout(200)
+            check('Enter continues a list', pg.input_value('#editor').endswith('- one\n- two'))
+            pg.keyboard.press('Enter'); pg.keyboard.press('Enter'); pg.keyboard.type('/tab'); pg.wait_for_timeout(300)
+            check('/ at the start of a line opens the slash menu', pg.is_visible('#picker') and 'Table' in pg.inner_text('#picker'))
+            pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+            check('choosing Table puts a table in', '| Column | Column |\n| --- | --- |' in pg.input_value('#editor') and '/tab' not in pg.input_value('#editor'))
+            fill_editor(pg, '# Keys\n\nmake this bold\n')
+            pg.evaluate("(() => { const e = document.getElementById('editor').editor; e.focus(); e.setSelectionRange(13, 17); })()")
+            pg.keyboard.press('Control+b'); pg.wait_for_timeout(200)
+            check('Ctrl+B makes the selection bold', 'make **this** bold' in pg.input_value('#editor'))
+            fill_editor(pg, '# Keys\n\n|a|bb|\n|-|-|\n|ccc|d|\n')
+            pg.evaluate("(() => { const e = document.getElementById('editor').editor; e.focus(); e.setSelectionRange(10, 10); })()")
+            pg.keyboard.press('Control+Alt+t'); pg.wait_for_timeout(200)
+            check('Ctrl+Alt+T lines up the table', '| a   | bb  |\n| --- | --- |\n| ccc | d   |' in pg.input_value('#editor'))
+            pg.keyboard.press('Control+z'); pg.wait_for_timeout(200)
+            check('Ctrl+Z undoes it', '|a|bb|\n|-|-|' in pg.input_value('#editor'))
+            pg.keyboard.press('Control+f'); pg.wait_for_timeout(300)
+            check('Ctrl+F opens find and replace in the note', pg.locator('.cm-search').count() == 1)
+            pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+            pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
 
             pg.goto(SITE + '#/today'); pg.reload(); pg.wait_for_selector('.side-head'); pg.wait_for_timeout(1000)
             check("the address #/today opens today's note on Notes' own site", 'daily/' in pg.inner_text('#head'))
@@ -228,6 +259,19 @@ def main():
             check('phone: the pages button opens the drawer', pp.is_visible('#side'))
             pp.keyboard.press('Escape'); pp.wait_for_timeout(400)
             phone.close()
+
+            # Without the editor bundle, notes open in the plain textarea and still save.
+            plain = b.new_context()
+            pl = plain.new_page()
+            plain_errors = []
+            pl.on('pageerror', lambda e: plain_errors.append(str(e)))
+            pl.route('**/vendor/codemirror.js', lambda r: r.abort())
+            pl.goto(SITE); pl.wait_for_selector('.side-head', timeout=15000)
+            pl.click('[data-act=new-note]'); pl.wait_for_timeout(800)
+            pl.focus('#editor'); pl.keyboard.press('End'); pl.keyboard.type('Plain'); pl.keyboard.press('Control+s'); pl.wait_for_timeout(800)
+            check('without the editor bundle, the textarea is the editor', pl.locator('.cm-editor').count() == 0 and pl.input_value('#editor').startswith('# Plain')
+                  and 'saved' in pl.inner_text('#head .status').lower() and not plain_errors)
+            plain.close()
 
             check('no page errors or failed requests', not errors)
             if errors: print('      ' + '\n      '.join(errors[:8]))

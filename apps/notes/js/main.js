@@ -16,7 +16,10 @@ import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared
 import { DAILY, PLACEHOLDERS, PRODUCT_TPL, STARTERS, TEMPLATES, asTemplate, dailyPath, dailyText, dayOf, fill, setTemplateFields, templateFields, templateText, templatesIn } from './templates.js';
 import { SECTION_IDS, notesPaths, sectionOf, visibleSections } from './sections.js';
 import { createTandem, findDoc, isTandem, parseTandem, tandemPath } from './tandem.js';
-import { collapseTitle, taskText, titleEmpty, toggleTask } from './edits.js';
+import { collapseTitle, makeLink, taskText, titleEmpty, toggleTask, toggleWrap } from './edits.js';
+import { createEditor } from './editor.js';
+import { applySlash, slashAt, slashItems } from './slash.js';
+import { formatTable } from './tables.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
 import { actionItems, forRapport, offerFor, offerId, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
@@ -34,7 +37,9 @@ import {
 import { confirmHtml, diagramPickerHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
-const side = $('side'), head = $('head'), bodyEl = $('body'), editor = $('editor'), preview = $('preview');
+const side = $('side'), head = $('head'), bodyEl = $('body'), preview = $('preview');
+// The editor: CodeMirror behind a textarea-shaped object (editor.js), or the plain textarea if it can't load.
+const editor = await createEditor($('editor'));
 const emptyEl = $('empty'), panelEl = $('panel'), picker = $('picker'), dlg = $('dlg');
 const sectionsEl = $('sections'), shell = $('notes'), titleHint = $('title-hint');
 // Phone width: the pages list is a drawer, and there is no Split (it would be Edit). Its own remembered view.
@@ -333,7 +338,7 @@ async function openNote(path, { line = null, anchor = null, focus = false } = {}
   ui.path = path; ui.current = null; ui.menu = false; doc = null;
   ui.base = { content: t.content, mtime: t.mtime };
   ui.status = { kind: 'saved' };
-  editor.value = t.content;
+  editor.reset(t.content);
   store('last', path);
   showSection(sectionOf(path));
   for (let d = dirOf(path); d; d = dirOf(d)) ui.closed.delete(d);
@@ -354,7 +359,7 @@ async function openTandem(path, { line = null, anchor = null } = {}) {
   doc = { item: (findDoc(tandem.state.items, path) || {}).item || null };
   ui.base = { content: text, mtime: text };
   ui.status = { kind: 'saved' };
-  editor.value = text;
+  editor.reset(text);
   store('last', path);
   showSection('tandem');
   paintChrome();
@@ -396,8 +401,7 @@ function goToLine(line) {
   if (ui.mode !== 'preview') {
     editor.focus();
     editor.setSelectionRange(at, at);
-    const lh = parseFloat(getComputedStyle(editor).lineHeight) || 20;
-    editor.scrollTop = Math.max(0, line * lh - editor.clientHeight / 3);
+    editor.revealPos(at);
   }
   if (ui.mode !== 'edit') {
     requestAnimationFrame(() => {
@@ -1081,6 +1085,18 @@ function insertAtCursor(text) {
 const pk = { open: false, start: 0, items: [], pick: 0 };
 function updatePicker() {
   const before = editor.value.slice(0, editor.selectionStart);
+  // / at the start of a line: the slash menu (slash.js).
+  const sl = editor.selectionStart === editor.selectionEnd && !isTandem(ui.path || '') ? slashAt(editor.value, editor.selectionStart) : null;
+  if (sl) {
+    pk.start = sl.start;
+    pk.items = slashItems(sl.query).map(x => ({ title: x.title, path: x.hint, slash: x }));
+    if (!pk.items.length) { closePicker(); return; }
+    pk.pick = Math.min(pk.pick, pk.items.length - 1);
+    pk.open = true;
+    picker.innerHTML = pickerHtml(pk.items, pk.pick);
+    picker.hidden = false;
+    return;
+  }
   // @: people from Workshop's People directory, to name who a line is about (plan 2).
   const at = dir && /(^|[\s(])@([a-z0-9._-]{0,40})$/i.exec(before);
   if (at) {
@@ -1142,6 +1158,14 @@ function peopleFor(q) {
 function choosePicker(k = pk.pick) {
   const n = pk.items[k];
   if (!n) { closePicker(); return; }
+  if (n.slash) {
+    const r = applySlash(editor.value, pk.start, editor.selectionStart, n.slash, { day: dayOf(new Date()) });
+    editor.setRangeText(r.insert, r.from, r.to, 'start');
+    editor.setSelectionRange(r.cursor, r.cursor);
+    closePicker();
+    editor.dispatchEvent(new Event('input'));
+    return;
+  }
   const md = n.handle ? `@${n.handle} ` : n.href ? recordLink(n)
     : n.heading ? `[${n.heading.text.replace(/[[\]]/g, '')}](${n.heading.here ? '' : relativeLink(ui.path, n.heading.path)}#${n.heading.id})`
     : `[${n.title.replace(/[[\]]/g, '')}](${relativeLink(ui.path, n.path)})`;
@@ -1173,8 +1197,36 @@ editor.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); choosePicker(); return; }
   }
   if (pk.open && e.key === 'Escape') { e.preventDefault(); closePicker(); return; }
-  if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); insertAtCursor('  '); }
+  // The plain textarea's Tab (CodeMirror indents and outdents lists itself).
+  if (!editor.isCodeMirror && e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); insertAtCursor('  '); return; }
+  const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
+  if (!mod || editor.readOnly) return;
+  if (!e.shiftKey && !e.altKey && key === 'b') { e.preventDefault(); applyEdit(toggleWrap(editor.value, editor.selectionStart, editor.selectionEnd, '**')); }
+  else if (!e.shiftKey && !e.altKey && key === 'i') { e.preventDefault(); applyEdit(toggleWrap(editor.value, editor.selectionStart, editor.selectionEnd, '*')); }
+  else if (!e.shiftKey && !e.altKey && key === 'k') { e.preventDefault(); applyEdit(makeLink(editor.value, editor.selectionStart, editor.selectionEnd)); }
+  else if (e.shiftKey && !e.altKey && key === 'k') { e.preventDefault(); applyEdit(toggleWrap(editor.value, editor.selectionStart, editor.selectionEnd, '`')); }
+  else if (e.altKey && !e.shiftKey && (key === 't' || e.code === 'KeyT')) { e.preventDefault(); formatTableNow(); }
 });
+/** An edit from edits.js ({from, to, insert, selFrom, selTo}), undoable in CodeMirror. */
+function applyEdit(r) {
+  editor.setRangeText(r.insert, r.from, r.to, 'start');
+  editor.setSelectionRange(r.selFrom, r.selTo);
+  editor.dispatchEvent(new Event('input'));
+}
+/* Format table: line up the columns of the table the cursor is in (tables.js). */
+function formatTableNow() {
+  if (!ui.path || editor.readOnly) return;
+  const line = lineOf(editor.value, editor.selectionStart);
+  const next = formatTable(editor.value, line);
+  if (next === null) { ws.toast('Put the cursor in a table first.', { kind: 'warn' }); return; }
+  if (next === editor.value) return;
+  const col = editor.selectionStart - (editor.value.lastIndexOf('\n', editor.selectionStart - 1) + 1);
+  editor.value = next;
+  const lines = next.split('\n');
+  const at = lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0) + Math.min(col, lines[line].length);
+  editor.setSelectionRange(at, at);
+  editor.dispatchEvent(new Event('input'));
+}
 for (const ev of ['keyup', 'click']) editor.addEventListener(ev, () => markCursorDiagram());
 editor.addEventListener('blur', () => { setTimeout(closePicker, 150); if (ui.status.kind === 'dirty') saveNow(); });
 editor.addEventListener('paste', (e) => {
@@ -1248,6 +1300,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'copy') copyMarkdown();
   else if (act === 'copy-wiki') copyForWiki();
   else if (act === 'insert-diagram') pickDiagram();
+  else if (act === 'format-table') formatTableNow();
   else if (act === 'download') download();
   else if (act === 'retry') { ui.status = { kind: 'dirty' }; saveNow(); }
   else if (['take-theirs', 'keep-copy', 'overwrite', 'restore'].includes(act)) resolveConflict(act);

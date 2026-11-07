@@ -32,3 +32,29 @@ export function collapseTitle(text) {
 
 /** True while the first line is just "#" and spaces: show the faint "Title" hint. */
 export const titleEmpty = (text) => /^#[ \t]*(\n|$)/.test(String(text));
+
+/**
+ * Bold, italic, inline code: wrap the selection [s, e) in a marker, or take it off when it is already wrapped.
+ * With nothing selected, the word at the cursor; with no word, an empty pair with the cursor inside.
+ * {from, to, insert, selFrom, selTo}: replace [from, to) with insert, then select [selFrom, selTo).
+ */
+export function toggleWrap(text, s, e, marker) {
+  const t = String(text), m = marker.length;
+  if (s === e) {
+    const word = /[\w'-]*$/.exec(t.slice(0, s))[0].length, after = /^[\w'-]*/.exec(t.slice(s))[0].length;
+    if (word || after) { s -= word; e += after; }
+  }
+  const sel = t.slice(s, e);
+  if (t.slice(s - m, s) === marker && t.slice(e, e + m) === marker) return { from: s - m, to: e + m, insert: sel, selFrom: s - m, selTo: e - m };
+  if (sel.length >= 2 * m && sel.startsWith(marker) && sel.endsWith(marker)) return { from: s, to: e, insert: sel.slice(m, -m), selFrom: s, selTo: e - 2 * m };
+  return { from: s, to: e, insert: marker + sel + marker, selFrom: s + m, selTo: e + m };
+}
+
+/** A link around the selection: [text](url) with the url selected to type over. A selection that is a URL
+    becomes the url, with the text selected instead. */
+export function makeLink(text, s, e) {
+  const sel = String(text).slice(s, e);
+  if (/^https?:\/\/\S+$/.test(sel)) return { from: s, to: e, insert: `[](${sel})`, selFrom: s + 1, selTo: s + 1 };
+  const label = sel || 'text';
+  return { from: s, to: e, insert: `[${label}](url)`, selFrom: s + label.length + 3, selTo: s + label.length + 6 };
+}
