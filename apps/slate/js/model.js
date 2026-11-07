@@ -265,7 +265,7 @@ export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Dat
 
 /**
  * Titles of the ideas Slate itself sent to Runway (Add to roadmap), as Runway titles them (the first line of the
- * offer's text). Since Runway 1.14.0 pending rows say who sent them (`from`), and Slate leaves out rows from itself
+ * offer's text). Since Runway 1.15.0 pending rows say who sent them (`from`), and Slate leaves out rows from itself
  * by that; this title match is only for rows from before, with no `from`. `env` is Slate's handoffs envelope.
  */
 export function sentIdeaTitles(env) {

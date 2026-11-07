@@ -95,7 +95,7 @@ Where requests sit (items, median days and stale count per board column), the me
 
 ## Roadmaps
 
-In Runway, on its own rail button. Runway's **Open in Slate** button still opens the roadmap item here (`#/slate/runway/<map>/<item>`), made the first time from Runway's `roadmap-item` offer (Runway 1.14.0, `docs/handoffs.md`). Slate never reads Runway's roadmaps. Runway's Pending ideas that Slate sent are left out of Inbox by the row's `from` (titles only for older rows).
+In Runway, on its own rail button. Runway's **Open in Slate** button still opens the roadmap item here (`#/slate/runway/<map>/<item>`), made the first time from Runway's `roadmap-item` offer (Runway 1.15.0, `docs/handoffs.md`). Slate never reads Runway's roadmaps. Runway's Pending ideas that Slate sent are left out of Inbox by the row's `from` (titles only for older rows).
 
 ## Data
 
