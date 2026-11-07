@@ -2,6 +2,7 @@ import { PR_TIER, prTip } from './ado.js';
 import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, TOUCH, VIEWS, initials, listColor } from './constants.js';
 import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
+import { slateFor, slateLabel } from './slate-link.js';
 import { prAiChip } from './pr-ai.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
@@ -179,6 +180,8 @@ function row(t, o = {}){
       ? `<a class="sig ado txt" href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${ICON.item}<b>${t.ado.id}</b></a>`
       : sig(ICON.item, tip, 'ado', String(t.ado.id));
   }
+  // Also on Slate's board (slate-link.js): where it stands there. Inside Workshop only; the drawer opens it.
+  if (t.ado && !t.done && on('ado') && embedded && !pv){ const sl = slateFor(t.ado.id); if (sl) meta += sig(ICON.board, `${slateLabel(sl)}. Open the task to go there.`, 'slate'); }
   if (t.ado && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.ado.id);
   if (t.recur && on('repeat')){
     const item = dp.recurring.find(r => r.id === t.recur.id);

@@ -29,6 +29,7 @@ import { offers, watchSender } from './offers.js';
 import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
 import { startNotesLink } from './notes-link.js';
+import { startSlateLink } from './slate-link.js';
 import { findTask } from './state.js';
 import { ready, embedded } from './ws.js';
 import { mountBar } from '../shared/standalone-bar.js';
@@ -47,6 +48,8 @@ ready.then(ws => {
   if (!ws) return;
   // Notes about each task, for the drawer's Notes line (notes-link.js). Inside Workshop only.
   startNotesLink(ws, embedded, () => loaded.then(syncDrawer));
+  // Where ADO tasks stand on Slate's board, for the In Slate chip and the drawer (slate-link.js).
+  startSlateLink(ws, embedded, () => loaded.then(() => { render(); syncDrawer(); }));
   ws.on('route', ({path}) => loaded.then(() => {
     const m = /^task\/(.+)$/.exec(path || '');
     if (m && findTask(m[1])) openDrawer(m[1]);

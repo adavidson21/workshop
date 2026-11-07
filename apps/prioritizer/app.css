@@ -1008,3 +1008,4 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 /* Today's column panels: Now and Waiting on others sit inside the Today column */
 .col-today .panel{margin-top:1.4rem}
 .col-today .panel.nowcard{margin:0 0 1rem}
+.dslate button.lnk{color:var(--accent);font-weight:500}

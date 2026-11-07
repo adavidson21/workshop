@@ -13,6 +13,7 @@ import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
 import { notesFor, shown, taskLink } from './notes-link.js';
+import { slateFor, slateLabel } from './slate-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
 import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
@@ -80,6 +81,7 @@ function renderDrawer(){
     <div class="dbody">
       <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
       ${t.ado ? `<div class="dado"><a href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.ado.type || 'item')} #${t.ado.id} in ADO</a><span>${esc(t.ado.state)}${t.ado.project ? ' · ' + esc(t.ado.project) : ''}</span>${t.ado.gone ? `<span class="chip">${ADO_GONE[t.ado.gone]}</span>` : ''}</div>` : ''}
+      ${t.ado ? slateDrawer(t) : ''}
       ${t.ado ? engDrawer(t) : ''}
       ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
@@ -115,6 +117,12 @@ function renderDrawer(){
   const fit = () => { ti.style.height = 'auto'; ti.style.height = ti.scrollHeight + 'px'; };
   fit();
   if (focusKey){ const f = drawer.querySelector(`[data-fk="${focusKey}"]`); if (f) f.focus({preventScroll: true}); }
+}
+/* The ADO item is on Slate's board too (slate-link.js): where, and a way there. Inside Workshop only. */
+function slateDrawer(t){
+  const sl = embedded ? slateFor(t.ado.id) : null;
+  if (!sl) return '';
+  return `<div class="dado dslate"><button class="lnk" data-d="open-slate" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Slate</button><span>${esc(slateLabel(sl))}</span></div>`;
 }
 /* The notes in Notes that link to this task, and Copy link (notes-link.js). One quiet line under the task's own notes. */
 function aboutHtml(t){
@@ -209,6 +217,7 @@ drawer.addEventListener('click', e => {
   if (a === 'prai-again') return prAiAgain(t, b);
   if (a === 'copy-link') return copyTaskLink(t);
   if (a === 'open-note' && ws) return ws.open({app: 'notes', path: b.dataset.path}).catch(() => {});
+  if (a === 'open-slate' && ws) return ws.open({app: 'slate', path: b.dataset.path}).catch(() => {});
   if (a === 'more-notes' && ws) return ws.open({app: 'notes', path: 'search/' + encodeURIComponent(`ws:prioritizer/task/${t.id}`)}).catch(() => {});
   if (focusDrawerClick(t, a)) return;
   if (planFieldClick(t, a)) return renderDrawer();
