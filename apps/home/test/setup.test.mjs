@@ -2,32 +2,32 @@
 // next, skipping, hiding, and reading everything through a fake SDK.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STEPS, adoFact, areaCount, card, createSetup, factsFor, onOneDrive, stepsFor, teamCount } from '../js/setup.js';
+import { STEPS, adoFact, appSuggestions, areaCount, card, createSetup, factsFor, onOneDrive, selfName, stepsFor, teamCount } from '../js/setup.js';
 
 const fresh = { connected: false, ado: { state: 'browser' }, receipts: 0, dispatch: null, startAtLogin: null, name: '', tasks: 0 };
 const OD = 'C:\\Users\\sam\\OneDrive - Acme\\Workshop';
-const all = { connected: true, ado: { state: 'ready', message: '' }, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', tasks: 4, team: 3, areas: 2, dataDir: OD };
+const all = { connected: true, ado: { state: 'ready', message: '' }, receipts: 1, dispatch: 'ready', startAtLogin: true, name: 'Sam', self: 'Sam Lee', appsPicked: true, tasks: 4, team: 3, areas: 2, dataDir: OD };
 const ctx = { platform: 'win', origin: 'https://workshop.alexisdavidson.org', settings: { href: 'http://127.0.0.1:4380/apps/settings/' } };
 const states = v => Object.fromEntries(v.steps.map(s => [s.id, s.state]));
 
 test('a brand-new browser: Connect is first, steps that need Workshop wait for it', () => {
   const v = stepsFor(fresh);
-  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', ado: 'blocked', team: 'todo', areas: 'blocked', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
+  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', ado: 'blocked', apps: 'todo', team: 'todo', areas: 'blocked', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
   assert.equal(v.current, 'connect');
-  assert.deepEqual([v.finished, v.total, v.complete], [0, 8, false]);
+  assert.deepEqual([v.finished, v.total, v.complete], [0, 9, false]);
 });
 
 test('everything done: complete, nothing current', () => {
   const v = stepsFor(all);
   assert.ok(v.steps.every(s => s.state === 'done'));
-  assert.deepEqual([v.done, v.finished, v.complete, v.current], [8, 8, true, null]);
+  assert.deepEqual([v.done, v.finished, v.complete, v.current], [9, 9, true, null]);
 });
 
 test('skipping ADO: core done moves on to the later steps', () => {
   const v = stepsFor({ ...all, ado: { state: 'off' }, areas: 0, dispatch: 'off', startAtLogin: false }, ['ado']);
   assert.equal(states(v).ado, 'skipped');
   assert.equal(v.complete, true);
-  assert.equal(v.done, 6);
+  assert.equal(v.done, 7);
   assert.equal(v.current, 'dispatch');
   assert.equal(stepsFor({ ...all }, ['ado']).steps.find(s => s.id === 'ado').state, 'done', 'done wins over skipped');
 });
@@ -71,14 +71,15 @@ test('adoFact turns connector info into one plain state', () => {
 
 test('the card: the current step is open with what to do next, and every command can be copied', () => {
   const { html, copies } = card(stepsFor(fresh), null, { ...ctx, facts: fresh });
-  assert.match(html, /Get started · 0 of 8/);
+  assert.match(html, /Get started · 0 of 9/);
   assert.match(html, /data-step="connect"[^>]*>\s*<button[^>]*aria-expanded="true"/);
-  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex', 'irm https://workshop.alexisdavidson.org/install-work.ps1 | iex']);
+  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex'], 'a work computer is the default: only the work mode installer');
+  assert.match(html, /data-machine="work" aria-pressed="true"/);
   assert.match(html, /data-copy="0"/);
   assert.match(html, /Skip this step/);
   assert.equal((html.match(/aria-expanded="true"/g) || []).length, 1);
   const mac = card(stepsFor(fresh), null, { ...ctx, platform: 'mac', origin: 'http://127.0.0.1:4380', facts: fresh });
-  assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash', 'curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'], 'never an http installer address');
+  assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'], 'never an http installer address');
 });
 
 test('the ADO step names the PAT variable to save and links to Settings on this computer', () => {
@@ -119,7 +120,7 @@ test('text from settings is escaped', () => {
 function fakeWs({ backend = 'agent', saved = null } = {}) {
   const ws = {
     backend, mode: 'hosted', puts: [], subs: [],
-    people: { async get() { return { people: [{ id: 'p1', relation: 'self' }, { id: 'p2', relation: 'report' }] }; } },
+    people: { async get() { return { people: [{ id: 'p1', relation: 'self', name: 'Sam' }, { id: 'p2', relation: 'report' }] }; } },
     data: {
       async get(c, o) {
         if (o && o.app === 'receipts') return { items: [] };
@@ -139,12 +140,12 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
 
 test('factsFor reads every app and connector, and keeps going when one fails', async () => {
   const f = await factsFor(fakeWs());
-  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, team: 1, areas: 0, dataDir: OD, dispatch: 'off', startAtLogin: false, workMode: true });
+  assert.deepEqual(f, { connected: true, mode: 'hosted', ado: { state: 'noPat', patEnv: 'ADO_PAT' }, receipts: 0, team: 1, self: 'Sam', areas: 0, dataDir: OD, dispatch: 'off', startAtLogin: false, workMode: true });
   const ws = fakeWs({ backend: 'browser' });
   ws.data.get = async () => { throw new Error('no'); };
   ws.people.get = async () => { throw new Error('no'); };
   const b = await factsFor(ws);
-  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, team: 0, areas: 0, dataDir: null, dispatch: null, startAtLogin: null, workMode: false });
+  assert.deepEqual(b, { connected: false, mode: 'hosted', ado: { state: 'browser' }, receipts: 0, team: 0, self: '', areas: 0, dataDir: null, dispatch: null, startAtLogin: null, workMode: false });
 });
 
 test('createSetup saves hide and skip in home.setup, merges on a conflict, and puts it back if saving fails', async () => {
@@ -155,7 +156,7 @@ test('createSetup saves hide and skip in home.setup, merges on a conflict, and p
   assert.deepEqual(s.s.skipped, ['receipt'], 'unknown step ids are dropped');
   assert.equal(s.view().current, 'ado');
   await s.skip('ado');
-  assert.deepEqual(ws.puts.at(-1), ['setup', { schema: 'home.setup', version: 1, rev: 3, items: [], deleted: {}, meta: { hidden: false, skipped: ['receipt', 'ado'], updatedAt: ws.puts.at(-1)[1].meta.updatedAt } }]);
+  assert.deepEqual(ws.puts.at(-1), ['setup', { schema: 'home.setup', version: 1, rev: 3, items: [], deleted: {}, meta: { hidden: false, skipped: ['receipt', 'ado'], machine: 'work', appsPicked: false, folded: false, updatedAt: ws.puts.at(-1)[1].meta.updatedAt } }]);
   ws.conflict = true;
   await s.hide();
   assert.equal(ws.puts.at(-1)[1].rev, 7);
@@ -177,7 +178,7 @@ test('every step has a unique id and later steps come after the core ones', () =
 test('backup ticks off once the data folder is in OneDrive, and offers the move command until then', () => {
   assert.ok(onOneDrive(OD) && onOneDrive('/Users/sam/Library/CloudStorage/OneDrive-Acme/Workshop'));
   assert.ok(!onOneDrive('C:\\Users\\sam\\Workshop') && !onOneDrive(null));
-  const local = { ...all, dataDir: 'C:\\Users\\sam\\Workshop' };
+  const local = { ...all, dataDir: 'C:\\Users\\sam\\Workshop', workMode: true };
   const v = stepsFor(local);
   assert.equal(states(v).backup, 'todo');
   assert.equal(v.current, 'backup');
@@ -192,11 +193,42 @@ test('team counts active reports and the manager from the people directory', () 
   assert.equal(states(stepsFor({ ...all, team: 0 })).team, 'todo');
 });
 
-test('Connect offers the work mode installer next to the usual one', () => {
+test('Connect: Work computer first; Personal computer shows the usual installer', () => {
   const { copies } = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh });
-  assert.ok(copies.includes('irm https://workshop.alexisdavidson.org/install-work.ps1 | iex'));
+  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex']);
   const mac = card(stepsFor(fresh), 'connect', { ...ctx, platform: 'mac', facts: fresh });
-  assert.ok(mac.copies.includes('curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'));
+  assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash']);
+  const home = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh, machine: 'personal' });
+  assert.deepEqual(home.copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex']);
+  assert.match(home.html, /data-machine="personal" aria-pressed="true"/);
+});
+
+test('your name: done once People has a You; the step opens People with the name filled in', () => {
+  assert.equal(states(stepsFor({ ...all, self: '' })).name, 'todo');
+  assert.equal(states(stepsFor({ ...all, self: '', name: 'Sam' })).name, 'todo', 'Home\'s own name is not enough');
+  assert.equal(selfName({ people: [{ relation: 'report', name: 'A' }, { relation: 'self', name: ' Sam Lee ' }] }), 'Sam Lee');
+  assert.equal(selfName({ people: [{ relation: 'self', name: 'Old', archived: true }] }), '');
+  const f = { ...all, self: '', name: 'Sam Lee' };
+  assert.match(card(stepsFor(f), 'name', { ...ctx, facts: f }).html, /data-open="settings" data-path="people\/you\/Sam%20Lee"/);
+});
+
+test('Pick your apps: Slate and Dispatch suggested off without ADO and agents; done once confirmed', () => {
+  const off = appSuggestions({ ado: { state: 'off' }, dispatch: 'off' });
+  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate', 'agents']);
+  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), ['agents']);
+  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'ready' }).filter(a => a.off), []);
+  assert.equal(states(stepsFor({ ...all, appsPicked: false })).apps, 'todo');
+  const f = { ...all, appsPicked: false, ado: { state: 'off' }, dispatch: 'off' };
+  const { html } = card(stepsFor(f), 'apps', { ...ctx, facts: f });
+  assert.match(html, /data-apps-ok/);
+  assert.match(html, /Slate<\/b>.*Suggested: off/);
+});
+
+test('backup outside work mode suggests a backed-up folder, not OneDrive', () => {
+  const local = { ...all, dataDir: '/Users/sam/Workshop', workMode: false };
+  const { html, copies } = card(stepsFor(local), 'backup', { ...ctx, facts: local });
+  assert.deepEqual(copies, ['workshop data-folder <folder>']);
+  assert.doesNotMatch(html, /OneDrive/);
 });
 
 test('receiptsCount: from Rapport\'s summary, 0 without one', async () => {

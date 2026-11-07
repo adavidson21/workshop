@@ -21,5 +21,5 @@
 .cap-recent:empty{display:none}
 .cap-recent li{padding:.3rem .2rem;border-bottom:1px solid var(--line);font-size:.88rem}
 .cap-recent li.sel{background:var(--hover,var(--panel))}
-.cap-recent .cap-undo{min-height:1.6rem;padding:.1rem .5rem;font-size:.78rem;opacity:.7}
-.cap-recent li:hover .cap-undo,.cap-recent li.sel .cap-undo{opacity:1}
+.cap-recent .cap-open,.cap-recent .cap-undo{min-height:1.6rem;padding:.1rem .5rem;font-size:.78rem;opacity:.7}
+.cap-recent li:hover .cap-undo,.cap-recent li.sel .cap-undo,.cap-recent li:hover .cap-open,.cap-recent li.sel .cap-open{opacity:1}
