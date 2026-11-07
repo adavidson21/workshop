@@ -267,6 +267,42 @@
           }
         }
       }
+    },
+    "settings": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Switches this app has, shown under it in Settings (app-settings.md). Read with ws.appSettings.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "title",
+          "default"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9-]{0,39}$"
+          },
+          "type": {
+            "const": "boolean"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "default": {
+            "type": "boolean"
+          }
+        }
+      }
     }
   },
   "$defs": {

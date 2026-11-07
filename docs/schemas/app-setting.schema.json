@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One app's settings: one item of settings.app-settings v1",
+  "description": "The values of the switches an app declares in its manifest, owned by Settings. See app-settings.md.",
+  "type": "object",
+  "required": [
+    "id",
+    "updatedAt",
+    "values"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "The app's id."
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "values": {
+      "type": "object",
+      
+      "propertyNames": {
+        "pattern": "^[a-z][A-Za-z0-9-]{0,39}$"
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    }
+  }
+}

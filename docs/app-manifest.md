@@ -66,6 +66,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `aliases` | no | Other words for this app in `> <place>` (quick capture and the hub). Up to 20, each a lowercase word (`"tasks"`) or `{name, path}` to open a part of the app (`{"name": "1:1s", "path": "1on1s"}`). The app's `id` and `name` always work. |
 | `hosts` | no | Other apps shown inside this one: up to 5 of `{app, path}`. While both are on, the hosted app has no rail button, its commands leave the palette, and `#/<app>/<rest>` (and `ws.open` to it) opens this app at `<path>/<rest>`. See Hosted apps below. |
 | `privateFiles` | no | Files other apps may not see: `true` for every file of this app, or a list of top folders (`["oneonones", "goals"]`). See Private files below. |
+| `settings` | no | On/off switches for the whole app, shown under it on Settings' Apps tab: up to 20 of `{id, type: "boolean", title, description?, default}`. The app reads them with `ws.appSettings` ([app-settings.md](app-settings.md)). Bundle 2.7.0. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
 
 
