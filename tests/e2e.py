@@ -301,14 +301,14 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.inner_text('#top'))
         slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new request lands in Inbox and opens its panel, Triage shown', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
-              and slf.locator('.panel .next [data-act=triage]').count() == 1)
+        check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
+              and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
         check('one board of six columns, no lane switcher, Board and Health tabs', cols == ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']
               and slf.locator('.top [data-act=lane]').count() == 0
               and slf.eval_on_selector_all('.top [data-act=tab]', 'bs => bs.map(b => b.dataset.id)') == ['board', 'health'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
-        check('the request shows Triage and Interview me; Define now, Add to roadmap and Move to are in More', shown == ['triage', 'shape']
+        check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
         stored = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); return [e.schema, e.items.length, e.items[0].stage]; }""")
         check('Slate keeps items in its own collection (slate.items v1)', stored == ['slate.items', 1, 'new'])
@@ -348,9 +348,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('.col[aria-label=Inbox] .card').count() == 1)
         slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new idea lands in Inbox, marked Idea, with Shape it', slf.locator('.col[aria-label=Inbox] .card').count() == 2
+        check('a new idea lands in Inbox, marked Idea, with Write it myself (no Dispatch here)', slf.locator('.col[aria-label=Inbox] .card').count() == 2
               and slf.locator('.col[aria-label=Inbox] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
-              and slf.locator('.panel .next [data-act=shape]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
+              and slf.locator('.panel .next [data-act=write-myself]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)

@@ -61,7 +61,7 @@ const STEPS = () => {
     ['waiting', base(plain('waiting'), { column: 'waiting' })],
     ['triage, questions, on ADO', base(plain('triaged', { ado }), { column: 'triage', triage: triage(['q1']), canLocal: true, canAdo: true })],
     ['waiting, asked on ADO', base(plain('waiting', { ado, asked: { id: 42, at: '2026-11-06T10:00:00Z' } }), { column: 'waiting', canAdo: true })],
-    ['inbox request, Tandem off', base(newItem({ title: 'r' }), { tandemOff: 'Turn on the opencode connector in Settings.' })],
+    ['inbox request, Tandem off', base(newItem({ title: 'r' }), { tandemOff: 'Dispatch is not set up on this computer.' })],
     ['interview, waiting', base(plain('shaping'), { column: 'interview', canLocal: true })],
     ['brief', base(plain('brief'), { column: 'brief', files: { 'brief.md': '# Brief\n\nLevel: Feature\n' }, canLocal: true })],
     ['define, pick', base(plain('defining'), { column: 'define', canLocal: true })],
@@ -196,7 +196,10 @@ test('panel: Define offers Approve and publish; the approved step offers Publish
   assert.match(h, /data-act="approve-publish"[^>]*>Approve and publish</);
   assert.match(h, /data-act="approve-build"/);
   assert.match(h, /data-act="approve"[^>]*>Approve only</);
-  const pub = panelHtml(base(it, { column: 'publish', draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
+  const pub = panelHtml(base(it, { column: 'publish', canAdo: true, draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
+  const local = panelHtml(base(it, { column: 'publish', canAdo: false, draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
+  assert.match(local, /data-act="to-decide"/, 'no ADO: approved drafts go on to Who builds it?');
+  assert.doesNotMatch(local, /data-act="publish"/);
   assert.match(pub, /data-act="publish-build"/);
   assert.match(pub, /data-act="build-local"/);
   assert.match(publishDialogHtml([{ op: 'create', type: 'User Story', title: 'x' }], { area: '', build: true }), /Publish and build/);
@@ -249,16 +252,41 @@ test('panel: triage questions on an ADO item can be posted there; Waiting reads 
   assert.deepEqual(acts(nextOf(steps.waiting).shown), ['answers', 'define']);
 });
 
-test('panel: with Tandem off, agent buttons stay but are disabled with the reason; the rest still work', () => {
+test('panel: with Tandem off, agent buttons stay but are disabled with the reason; Inbox offers Write it myself', () => {
   const steps = Object.fromEntries(STEPS());
   const n = nextOf(steps['inbox request, Tandem off']);
-  for (const b of n.shown) assert.match(b, /^<button disabled title="Needs Tandem: Turn on the opencode connector in Settings\."/);
-  assert.match(n.text, /Agent steps need Tandem/);
-  const more = n.more.filter(b => /data-act="roadmap-add"/.test(b));
-  assert.doesNotMatch(more[0], /disabled/, 'Add to roadmap needs no agent');
+  assert.deepEqual(acts(n.shown), ['write-myself', 'to-decide']);
+  assert.ok(n.shown.every(b => !/ disabled/.test(b)), 'nothing here needs an agent');
+  const off = 'Dispatch is not set up on this computer.';
+  const tri = nextOf(base(cleanItem({ ...newItem({ title: 't' }), stage: 'triaged' }), { column: 'triage', triage: { summary: 's', route: 'delegate', size: 'S', repos: [], questions: [] }, tandemOff: off }));
+  for (const b of tri.shown) assert.match(b, /^<button disabled title="Needs Dispatch: Dispatch is not set up on this computer\."/);
+  assert.match(tri.text, /Agent steps need Dispatch, which is not set up here\./);
   const on = nextOf(steps['inbox request']);
   assert.ok(on.shown.every(b => !/ disabled/.test(b)), 'Tandem on: nothing disabled');
 });
+
+test('Write it myself: Define offers both drafts; a manual draft approves, and publishes only with ADO', () => {
+  const it = cleanItem({ ...newItem({ title: 'CSV' }), stage: 'defining' });
+  const pick = nextOf(base(it, { column: 'define', tandemOff: 'Dispatch is not set up on this computer.' }));
+  assert.deepEqual(acts(pick.shown), ['write-refine', 'write-scope']);
+  const onPick = nextOf(base(it, { column: 'define', canLocal: true }));
+  assert.ok(acts(onPick.more).includes('write-refine') && acts(onPick.more).includes('write-scope'), 'with agents on, in More');
+  const draft = { kind: 'refine', file: 'refine.md', step: 'approve', ready: false, manual: true };
+  assert.deepEqual(acts(nextOf(base(it, { column: 'define', draft, canAdo: true })).shown), ['approve-manual-publish', 'edit-draft', 'approve-manual']);
+  assert.deepEqual(acts(nextOf(base(it, { column: 'define', draft, canAdo: false })).shown), ['approve-manual', 'edit-draft']);
+  const h = panelHtml(base(it, { column: 'define', draft, files: {} }));
+  assert.match(h, /Your draft: refine\.md/);
+  assert.match(h, /data-act="edit-draft"/);
+});
+
+test('without ADO: board hints and search say nothing about ADO; delegated and merged resolve here', () => {
+  const b = topHtml({ tab: 'board', q: '', level: '', noAdo: true }, [{ text: 'Slate works without Azure DevOps.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] }]);
+  assert.match(b, /placeholder="Search titles"/);
+  assert.match(b, /data-act="ado-note-seen"[^>]*>Got it</);
+  const del = cleanItem({ ...newItem({ title: 'With Sam' }), stage: 'delegated' });
+  assert.ok(acts(nextOf(base(del, { column: 'delegated' })).shown).includes('mark-resolved'));
+});
+
 
 test('panel: Define picks scope when triage sized it L, and says why', () => {
   const it = cleanItem({ ...newItem({ title: 'x', ado: { id: 7, type: 'Issue' } }), stage: 'defining' });

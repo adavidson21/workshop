@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Slate",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Your team's backlog on one board, from request to who builds it to resolved, with sprints and team health. Tandem does the legwork; you decide.",
   "icon": "icon.svg",
   "entry": "index.html",
