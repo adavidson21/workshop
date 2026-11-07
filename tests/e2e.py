@@ -1189,13 +1189,9 @@ def agents_checks(b, watch):
         run.locator('.rtab-body [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
         check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
         check('the file sheet offers Open in Notebook', af.locator('.sheet [data-open-notebook]').count() == 1)
-        # Edit and save: file.write with the text read, straight into .work.
-        af.click('.sheet [data-file-mode=edit]'); pg.wait_for_timeout(300)
-        af.click('.doc-edit'); af.press('.doc-edit', 'Control+End'); af.type('.doc-edit', '\nChecked by e2e.\n')
-        check('editing turns Save on', not af.locator('.sheet [data-file-save]').is_disabled())
-        af.click('.sheet [data-file-save]'); pg.wait_for_timeout(1000)
-        with open(os.path.join(info['workspace'], '.work', '41300-export-retry-fails', 'bug.md'), encoding='utf-8') as f: on_disk = f.read()
-        check('Save writes the file in .work', on_disk.rstrip().endswith('Checked by e2e.'))
+        # Approve just started a session on this run, so the sheet is read-only until Tandem stops (lib/docs.mjs refuses too).
+        check('while Tandem works on the run, Edit is off and the sheet says why',
+              af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
         af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
         af.click('[data-close-run]')
         check('Back from a run page returns to its list', seen(af, '.page .rrow#item-41207') and af.get_attribute('.tab.on', 'data-tab') == 'runs')
