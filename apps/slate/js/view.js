@@ -280,7 +280,30 @@ const step = (text, shown = [], more = [], extra = '') => ({ text, shown, more, 
  * The step's next move: a sentence, the buttons shown (main one first, at most MAX_SHOWN), the buttons for More,
  * and any form that goes with it. Agent questions and the interview form take the box over.
  */
+/* Buttons that start or talk to a Tandem agent. With the opencode connector off they stay visible, disabled, with
+   the reason as their tooltip, so the step still says what comes next. */
+export const AGENT_ACTS = new Set(['triage', 'shape', 'define', 'refine', 'scope', 'slice', 'approve', 'approve-publish', 'approve-build', 'revise', 'write-brief', 'keep-going', 'send-define', 'answers', 'myself', 'build-local', 'start', 'run-next', 'publish-build']);
+const gate = (p, html) => {
+  if (!p.tandemOff) return html;
+  return html.map(h => {
+    const m = /data-act="([^"]+)"/.exec(h);
+    if (!m || !AGENT_ACTS.has(m[1]) || / disabled/.test(h)) return h;
+    const tip = esc(`Needs Tandem: ${p.tandemOff}`);
+    return h.replace(/ title="[^"]*"/, '').replace('<button ', `<button disabled title="${tip}" `);
+  });
+};
+
 export function nextOf(p) {
+  const n = nextRaw(p);
+  if (!p.tandemOff || n.html) return n;
+  const shown = gate(p, n.shown || []);
+  const more = gate(p, n.more || []);
+  const blocked = (n.shown || []).some(h => { const m = /data-act="([^"]+)"/.exec(h); return m && AGENT_ACTS.has(m[1]); });
+  const text = blocked ? `${n.text} <span class="soft">Agent steps need Tandem, which is off here. Move to (in More) and Delegate still work.</span>` : n.text;
+  return { ...n, text, shown, more };
+}
+
+function nextRaw(p) {
   const it = p.item;
   const a = p.agent;
   if (p.asks && p.asks.count) return { html: asksHtml(p), more: [btn('dispatch', 'Open in Dispatch', { title: 'See the whole session' })] };
@@ -297,9 +320,13 @@ export function nextOf(p) {
         [btn('define', 'Define now', { title: 'Skip triage and start the draft' }), ...build, btn('roadmap-add', 'Add to roadmap')]);
     case 'triage':
       if (!p.triage) return step('Waiting for triage.md.', [btn('dispatch', 'Open in Dispatch')], build);
-      if (p.triage.questions.length) return step(`${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`,
-        [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
-      return step('Nothing is missing. Define it next, or dig in yourself first.', [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
+      if (p.triage.questions.length) {
+        const q = `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`;
+        if (it.ado && p.canAdo) return step(`${q} Post them on #${it.ado.id} so whoever asked can answer there, or copy them to send another way.`,
+          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, title: 'Adds them as a comment on the ADO item, after you confirm' }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+        return step(q, [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+      }
+      return step(`Nothing is missing. Define it next, or dig in yourself first.${p.suggestScope && p.triage.size ? ` Triage sized it ${esc(p.triage.size)}, so Define scopes and slices it.` : ''}`, [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
     case 'interview': {
       const sh = p.shape || {};
       if (sh.asking) return { html: `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}</div>`, more: build };
@@ -313,12 +340,16 @@ export function nextOf(p) {
         [...(b ? [btn('send-define', 'Send to Define', { primary: true })] : []), btn('keep-going', 'Keep going')], build,
         '<label class="lbl" for="bnotes">To keep going, say what to dig into (optional)</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea>');
     }
-    case 'waiting': return step('Paste the requester\'s answers. Triage runs again with them.',
-      [btn('answers', 'Save answers and triage again', { primary: true }), btn('define', 'Define anyway')], [],
+    case 'waiting': return step(it.asked && it.ado ? `The questions are on #${it.ado.id}. Read replies brings in comments posted since; check them, then triage again.` : 'Paste the requester\'s answers. Triage runs again with them.',
+      [btn('answers', 'Save answers and triage again', { primary: true }), ...(it.asked && it.ado && p.canAdo ? [btn('read-replies', `Read replies from #${it.ado.id}`)] : []), btn('define', 'Define anyway')], [],
       `<label class="sr" for="answers">Answers</label><textarea id="answers" class="answers" placeholder="Their answers, in their words">${esc(p.files['answers.md'] || '')}</textarea>`);
     case 'define': {
       const d = p.draft;
-      if (!d.kind) return step('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' })], build);
+      if (!d.kind) {
+        const big = p.suggestScope !== undefined ? !!p.suggestScope : it.level === 'epic' || it.level === 'feature';
+        const why = big && p.triage && (p.triage.size === 'L' || p.triage.size === 'XL') && it.level !== 'epic' && it.level !== 'feature' ? ` Triage sized it ${esc(p.triage.size)}: scope and slice is suggested.` : '';
+        return step(`Pick how to define it.${why}`, [btn('refine', 'One story: refine', { primary: !big }), btn('scope', 'Bigger: scope and slice', { primary: big })], build);
+      }
       if (d.step === 'approve' || d.step === 'approve-milestones') return step('Read the draft. Approve and publish creates the ADO items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.',
         [btn('approve-publish', 'Approve and publish', { primary: true }), btn('revise', 'Revise with my edits')], [btn('approve-build', 'Approve, publish and build it myself'), btn('approve', 'Approve only')]);
       if (d.step === 'approve-stories') return step('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
@@ -501,7 +532,9 @@ export function newIdeaDialogHtml() {
 }
 
 export function publishDialogHtml(plan, { area, build = false }) {
-  const rows = plan.map(p => `<tr><td>${esc(p.op === 'create' ? 'Create' : p.op === 'update' ? `Update #${p.id}` : `Done (#${p.id})`)}</td><td>${esc(p.type || '')}</td><td>${esc(p.title)}</td></tr>`).join('');
+  const label = (p) => p.op === 'create' ? 'Create' : p.op === 'update' ? `Update #${p.id}` : p.op === 'link' ? `Link #${p.id}` : `Done (#${p.id})`;
+  const what = (p) => p.op === 'link' ? `${p.title}: a Related link to the new ${p.toType || 'item'} (${p.toTitle || ''}) and a comment saying where the work went. Slate then follows the new ${p.toType || 'item'}.` : p.title;
+  const rows = plan.map(p => `<tr><td>${esc(label(p))}</td><td>${esc(p.type || '')}</td><td>${esc(what(p))}</td></tr>`).join('');
   const n = plan.filter(p => p.op !== 'skip').length;
   return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
     <p>${n} change${n === 1 ? '' : 's'} in Azure DevOps${area ? `, in ${esc(area)}` : ''}. Items are tagged <span class="mono">slate</span>. Nothing is sent until you click Publish.</p>
@@ -561,7 +594,7 @@ export function closeGroupDialogHtml(items, label) {
 }
 
 export function confirmHtml(title, text, okLabel) {
-  return `<form method="dialog" class="dlg" data-form="confirm"><h2>${esc(title)}</h2><p>${esc(text)}</p>
+  return `<form method="dialog" class="dlg" data-form="confirm"><h2>${esc(title)}</h2><p${String(text).includes('\n') ? ' class="pre-line"' : ''}>${esc(text)}</p>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">${esc(okLabel)}</button></div></form>`;
 }
 

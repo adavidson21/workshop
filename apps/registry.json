@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Home",
-        "version": "2.3.1",
+        "version": "2.4.0",
         "description": "Your day at a glance: Docket's Today in counts, what needs you across apps, and Dispatch, with a button for each part of the day.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -28,7 +28,8 @@
             "prioritizer",
             "receipts",
             "notes",
-            "runway"
+            "runway",
+            "slate"
           ]
         },
         "data": [
@@ -257,7 +258,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Slate",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "description": "Your team's backlog on one board, from request to who builds it to resolved, with sprints and team health. Tandem does the legwork; you decide.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -276,6 +277,9 @@
             "id": "opencode",
             "required": false
           }
+        ],
+        "capture": [
+          "request"
         ],
         "aliases": [
           "backlog",
@@ -360,7 +364,7 @@
         "manifestVersion": 1,
         "id": "agents",
         "name": "Dispatch",
-        "version": "2.2.0",
+        "version": "2.2.1",
         "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",

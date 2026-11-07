@@ -98,7 +98,8 @@ test('parseLines, retarget, nextKind, isCapture', () => {
   assert.equal(r.to, 'receipts');
   assert.equal(nextKind('task'), 'waiting');
   assert.equal(nextKind('note'), 'idea');
-  assert.equal(nextKind('idea'), 'task');
+  assert.equal(nextKind('idea'), 'request');
+  assert.equal(nextKind('request'), 'task');
 });
 
 test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
@@ -206,4 +207,37 @@ test('n <folder>: and n today: send a note to a Notes folder or today\'s note; o
   assert.equal(describe(plain), 'Notes');
   assert.equal(parseCapture('n runbooks: x', {}).payload.folder, undefined, 'no folders known: as before');
   assert.equal(parseCapture('n runbooks:', ctx).text, 'runbooks:', 'nothing after the colon: the whole line');
+});
+
+test('s and #id: a request for Slate, for an ADO item or new', () => {
+  const ctx = { today: '2026-11-06' };
+  const a = parseCapture('s #1234 customers want CSV export', ctx);
+  assert.equal(a.kind, 'request'); assert.equal(a.to, 'slate');
+  assert.deepEqual(a.payload, { kind: 'request', ado: 1234, note: 'customers want CSV export' });
+  assert.equal(a.text, '#1234 customers want CSV export');
+  assert.equal(describe(a), 'Slate · #1234, with a note');
+  assert.deepEqual(parseCapture('#1234', ctx).payload, { kind: 'request', ado: 1234 });
+  assert.equal(describe(parseCapture('#1234', ctx)), 'Slate · #1234');
+  assert.deepEqual(parseCapture('#1234: please look', ctx).payload, { kind: 'request', ado: 1234, note: 'please look' });
+  const b = parseCapture('request: Export to CSV for billing', ctx);
+  assert.deepEqual(b.payload, { kind: 'request', note: 'Export to CSV for billing' });
+  assert.equal(describe(b), 'Slate · New');
+  assert.equal(parseCapture('s 3 dashboards are slow', ctx).payload.ado, undefined, 'a bare number is text, not an id');
+  assert.equal(parseCapture('#12ab fix', ctx).kind, 'task', 'only digits make an id');
+  assert.equal(parseCapture('fix it #ops', ctx).kind, 'task');
+  assert.equal(retarget(parseCapture('call the vendor', ctx), 'request', ctx).to, 'slate');
+  const h = toHandoff(a, { sender: 'home', id: 'c_1', now: new Date('2026-11-06T12:00:00Z') });
+  assert.equal(h.to, 'slate'); assert.equal(h.accepted, true); assert.equal(h.payload.ado, 1234);
+});
+
+test('requests need Slate on this site', async () => {
+  const C = await import('../capture.js');
+  try {
+    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }]);
+    const ctx = { today: '2026-11-06' };
+    assert.equal(C.parseCapture('s export it', ctx).to, 'prioritizer', 'no Slate: the line is a task');
+    assert.equal(C.parseCapture('#1234 look', ctx).kind, 'task');
+    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }, { id: 'slate', name: 'Slate', order: 15, capture: ['request'] }]);
+    assert.equal(C.parseCapture('#1234 look', ctx).to, 'slate');
+  } finally { C.useApps(null); }
 });

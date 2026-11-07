@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   backTargets, forwardTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
-  areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS
+  areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS,
+  applyRequest, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope, timeline
 } from '../js/model.js';
 
 const NOW = new Date('2026-11-05T15:00:00Z');
@@ -727,4 +728,75 @@ test('Inbox leaves out a Runway pending idea that Slate itself sent (Add to road
   const rows = [{ id: 'p_1', title: 'Export orders' }, { id: 'p_2', title: 'Someone else\'s idea' }];
   assert.deepEqual(pendingIdeaCards(rows, [it], [], NOW, sentIdeaTitles(env)).map(c => c.title), ['Someone else\'s idea']);
   assert.equal(pendingIdeaCards(rows, [it], [], NOW).length, 2, 'without the list, both show (as before)');
+});
+
+/* ---------- request intake (claude/request-intake-v1-plan.md) ---------- */
+
+
+const offer = (payload, extra = {}) => ({ id: 'c_1', to: 'slate', text: payload.note || '', payload: { kind: 'request', ...payload }, source: { app: 'home', id: 'c_1' }, accepted: true, ...extra });
+
+test('applyRequest: an ADO id links to its card or makes one titled #id; plain text makes a request card', () => {
+  const list = [];
+  const id = applyRequest(list, offer({ ado: 1234, note: 'customers want CSV' }), NOW);
+  assert.equal(list.length, 1);
+  assert.deepEqual([list[0].id, list[0].title, list[0].stage, list[0].ado.id, list[0].history[0].from], [id, '#1234', 'new', 1234, 'capture']);
+  assert.match(list[0].description, /Note \(2026-11-05\): customers want CSV/);
+  assert.equal(needsAdoTitle(list[0]), true);
+  // Again, same item: no second card, the note is added once.
+  assert.equal(applyRequest(list, offer({ ado: 1234, note: 'also PDF' }), NOW), id);
+  applyRequest(list, offer({ ado: 1234, note: 'also PDF' }), NOW);
+  assert.equal(list.length, 1);
+  assert.equal((list[0].description.match(/also PDF/g) || []).length, 1);
+  const n = applyRequest(list, offer({ note: 'Export to CSV for billing\nFinance asked twice' }), NOW);
+  const r = list.find(x => x.id === n);
+  assert.deepEqual([r.title, r.description, r.ado], ['Export to CSV for billing', 'Finance asked twice', null]);
+  assert.equal(timeline(r)[0].text, 'Captured on Home');
+  assert.equal(timeline(list[0])[0].text, 'Captured on Home: ADO #1234');
+  assert.equal(applyRequest(list, offer({}, { text: '' }), NOW), null, 'nothing to add');
+  assert.equal(applyRequest(list, { ...offer({ ado: 5 }), to: 'runway' }, NOW), null, 'not for Slate');
+  assert.equal(needsAdoTitle(cleanItem({ title: 'Real', ado: { id: 9, type: 'Issue' } })), false);
+});
+
+test('publish plan: a scope from an existing Issue links the Issue to the new epic, once', () => {
+  const s = newItem({ title: 'Customers want CSV', ado: { id: 77, rev: 3, type: 'Issue' } }, NOW);
+  s.work.define = 'scope-csv';
+  const sf = { 'stories.md': 'Status: APPROVED', 'milestones.md': MILESTONES };
+  const plan = publishPlan(s, sf);
+  const link = plan.at(-1);
+  assert.deepEqual([link.ref, link.op, link.id, link.to, link.toType, link.toTitle], ['source', 'link', 77, 'epic', 'Epic', 'Orders v2.1']);
+  s.published = { epic: 10, source: 77 };
+  assert.equal(publishPlan(s, sf).at(-1).op, 'skip');
+  // An epic item is the epic: nothing to link. Neither is one milestones.md names.
+  const e = newItem({ title: 'E', ado: { id: 900, rev: 1, type: 'Epic' } }, NOW);
+  e.work.define = 'scope-e';
+  assert.ok(!publishPlan(e, sf).some(p => p.ref === 'source'));
+  const named = newItem({ title: 'N', ado: { id: 900, rev: 1, type: 'Issue' } }, NOW);
+  named.work.define = 'scope-n';
+  assert.ok(!publishPlan(named, { ...sf, 'milestones.md': MILESTONES.replace('Epic: Orders v2.1', 'Epic: #900 Orders v2.1') }).some(p => p.ref === 'source'));
+  // A refined story updates the item itself: no link.
+  assert.match(sourceComment({ id: 10, type: 'Epic', title: 'Orders v2.1' }), /^Shaped in Slate into Epic #10: Orders v2\.1\. /);
+});
+
+test('suggestsScope, questionsText, repliesSince', () => {
+  const story = newItem({ title: 'x', ado: { id: 3, type: 'Issue' } }, NOW);
+  assert.equal(suggestsScope(story, null), false);
+  assert.equal(suggestsScope(story, { size: 'M' }), false);
+  assert.equal(suggestsScope(story, { size: 'L' }), true);
+  assert.equal(suggestsScope(newItem({ title: 'f', level: 'feature' }, NOW), null), true);
+  assert.equal(questionsText(story, { questions: ['Who?', 'When?'] }), 'x (#3)\n\nA few questions before we start:\n1. Who?\n2. When?');
+  const comments = [
+    { text: 'old', date: '2026-11-01T00:00:00Z', by: { name: 'A' } },
+    { text: 'x (#3)\n\nA few questions before we start:\n1. Who?', date: '2026-11-06T10:00:00Z', by: { name: 'Me' } },
+    { text: 'Finance, by Q1', date: '2026-11-06T12:00:00Z', by: { name: 'Pat Lee' } }
+  ];
+  assert.equal(repliesSince(comments, '2026-11-06T09:00:00Z'), 'Pat Lee (2026-11-06):\nFinance, by Q1');
+  assert.equal(repliesSince(comments, '2026-11-07T00:00:00Z'), '');
+});
+
+test('cleanItem keeps source and asked only in shape', () => {
+  const it = cleanItem({ title: 't', source: { id: 5, url: 'javascript:x', type: 'Issue' }, asked: { id: 5, at: '2026-11-06T10:00:00Z' } });
+  assert.deepEqual(it.source, { id: 5, url: '', type: 'Issue' });
+  assert.deepEqual(it.asked, { id: 5, at: '2026-11-06T10:00:00Z' });
+  const bad = cleanItem({ title: 't', source: { id: 'x' }, asked: { id: 5 } });
+  assert.equal(bad.source, undefined); assert.equal(bad.asked, undefined);
 });

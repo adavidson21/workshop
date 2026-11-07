@@ -13,6 +13,8 @@
                 folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Dispatch)
      p <text>   roadmap idea for Runway: a feature, bug or any thought for a project ("idea: ..." works too).
                 "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
+     s <text>   a request for Slate's New ("request: ..." works too). "s #1234 <note>", or a line that starts with
+                "#1234", is a request for that ADO work item
      ? <text>   a question for the Dispatch hub (a line that ends in "?" too)
      > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
 
@@ -22,10 +24,10 @@
 /* Where each capture kind goes, app names, and places for "> <name>". These are the built-in defaults; useApps()
    replaces them in place from the manifests on this site (ws.apps.list(); docs/app-manifest.md capture and
    aliases, docs/hub.md "Which app takes a capture"), so every function here follows the apps that are there. */
-export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway' };
-export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway' };
+export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway', request: 'slate' };
+export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', slate: 'Slate' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
-export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea'];
+export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea', 'request'];
 const MAX_TEXT = 2000;
 
 /* Places "> name" can go: words people use to the app id. */
@@ -196,6 +198,8 @@ export function parseCapture(line, ctx = {}) {
   else if ((m = /^(w|waiting)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'waiting'; s = m[2]; }
   else if ((m = /^(n|note)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'note'; s = m[2]; }
   else if ((m = /^(p|idea)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'idea'; s = m[2]; }
+  else if ((m = /^(s|request)(?::\s*|\s+)(.+)$/i.exec(s))) { kind = 'request'; s = m[2]; }
+  else if (TARGETS.request && /^#\d{1,10}(?=[\s:.,;]|$)/.test(s)) kind = 'request';
   else if ((m = /^(r|receipt|win|feedback|growth|concern)(?::\s*|\s+)(.+)$/i.exec(s))) {
     kind = 'receipt';
     const head = m[1].toLowerCase();
@@ -214,6 +218,16 @@ export function parseCapture(line, ctx = {}) {
   }
   if (!s.trim()) return null;
 
+  if (kind === 'request') {
+    // "#1234 note": a request for that ADO work item; anything else is a new request's text.
+    const id = /^#(\d{1,10})(?=[\s:.,;]|$)[\s:.,;]*(.*)$/.exec(s.trim());
+    const payload = { kind: 'request' };
+    let body = s.trim();
+    if (id) { payload.ado = Number(id[1]); body = id[2].trim(); }
+    if (body) payload.note = body.slice(0, 4000);
+    const text = payload.ado ? `#${payload.ado}${body ? ' ' + body : ''}` : body;
+    return { kind, to: TARGETS[kind], text, title: (body ? cap(body.split('\n')[0]) : `#${payload.ado}`).slice(0, 200), payload };
+  }
   if (kind === 'idea') {
     const named = findMap(s.trim(), ctx.maps);
     const body = cap((named ? named.rest : s).trim());
@@ -288,7 +302,7 @@ export const isCapture = p => !!(p && TARGETS[p.kind] && p.to === TARGETS[p.kind
 /* Change what a proposal is (Tab in the review list), keeping the words. */
 export function retarget(p, kind, ctx = {}) {
   if (!p || !KINDS.includes(kind)) return p;
-  const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ', idea: 'p ' }[kind];
+  const prefix = { task: 't ', waiting: 'w ', receipt: 'r ', note: 'n ', idea: 'p ', request: 's ' }[kind];
   return parseCapture(prefix + (p.text || p.title || ''), ctx) || p;
 }
 export const nextKind = kind => KINDS[(KINDS.indexOf(kind) + 1) % KINDS.length] || 'task';
@@ -315,6 +329,7 @@ export function describe(p) {
   if (p.kind === 'ask') return 'Ask in Dispatch';
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
+  if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Slate'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Slate'} · New`;
   if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (p.names && p.names.length) bits.push(p.names.join(', '));

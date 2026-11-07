@@ -142,7 +142,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.9.0',
+  version: '1.10.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -298,7 +298,7 @@ export default {
       }
     },
     'workitem.update': {
-      title: 'Change a work item (title, state, assignee, priority, sprint, area, dates, tags)',
+      title: 'Change a work item (title, state, assignee, priority, sprint, area, dates, tags), comment on it, or link related items',
       write: true,
       argsSchema: {
         type: 'object',
@@ -322,7 +322,9 @@ export default {
               description: { type: 'string', maxLength: 32000, description: 'Plain text or Markdown; sent as HTML with line breaks kept.' },
               acceptance: { type: 'string', maxLength: 32000, description: 'Acceptance criteria, plain text or Markdown; sent as HTML with line breaks kept.' },
               tagsAdd: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
-              tagsRemove: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } }
+              tagsRemove: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
+              comment: { type: 'string', minLength: 1, maxLength: 32000, description: 'Added to the Discussion, plain text or Markdown; sent as HTML with line breaks kept.' },
+              related: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'integer', minimum: 1 }, description: 'Work item ids to add Related links to. Ones already linked are skipped.' }
             }
           }
         }

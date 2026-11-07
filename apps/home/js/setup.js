@@ -42,6 +42,12 @@ export function receiptsCount(summaryEnv) {
   return c && c.kind === 'count' && Number.isInteger(c.count) ? c.count : 0;
 }
 
+/** How many area paths your team has in Settings (docs/teams.md); 0 when none or unreadable. */
+export function areaCount(env) {
+  const t = env && Array.isArray(env.items) ? env.items.find(x => x && x.id === 't_mine') : null;
+  return t && Array.isArray(t.areas) ? t.areas.filter(a => typeof a === 'string' && a.trim()).length : 0;
+}
+
 /** Whether a data folder is inside OneDrive (any OneDrive: "OneDrive - Company" on Windows, OneDrive-Company on a Mac). */
 export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(String(dir || ''));
 
@@ -52,12 +58,13 @@ export const onOneDrive = dir => /[\\/]OneDrive([ -][^\\/]*)?([\\/]|$)/i.test(St
 export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
-  const [summary, people, list, cfg, adoCfg] = await Promise.all([
+  const [summary, people, list, cfg, adoCfg, teams] = await Promise.all([
     quiet(ws.data.get('summary', { app: 'receipts' })),
     quiet(ws.people.get()),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
-    agent ? quiet(ws.connectors.getConfig('ado')) : null
+    agent ? quiet(ws.connectors.getConfig('ado')) : null,
+    quiet(ws.data.get('teams', { app: 'settings' }))
   ]);
   const byId = id => (Array.isArray(list) ? list.find(c => c.id === id) : undefined);
   const oc = byId('opencode');
@@ -67,6 +74,7 @@ export async function factsFor(ws) {
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
     receipts: receiptsCount(summary),
     team: teamCount(people),
+    areas: areaCount(teams),
     dataDir: cfg && typeof cfg.dataDir === 'string' ? cfg.dataDir : null,
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,
     startAtLogin: cfg && cfg.features ? cfg.features.startAtLogin === true : null,
@@ -83,6 +91,7 @@ export const STEPS = [
   { id: 'backup', core: true, title: 'Keep your data backed up', needs: 'connect' },
   { id: 'ado', core: true, title: 'Connect Azure DevOps', needs: 'connect' },
   { id: 'team', core: true, title: 'Add your team' },
+  { id: 'areas', core: true, title: "Set your team's area paths", needs: 'ado' },
   { id: 'task', core: true, title: 'Add your first task in Docket' },
   { id: 'receipt', core: true, title: 'Log your first receipt' },
   { id: 'dispatch', core: false, title: 'Set up Dispatch for coding agents', needs: 'connect' },
@@ -103,6 +112,7 @@ export function stepsFor(facts, skipped = []) {
     backup: onOneDrive(f.dataDir),
     ado: f.ado && f.ado.state === 'ready',
     team: Number(f.team) > 0,
+    areas: Number(f.areas) > 0,
     task: Number(f.tasks) > 0,
     receipt: f.receipts > 0,
     dispatch: f.dispatch === 'ready',
@@ -177,6 +187,8 @@ function detail(s, ctx) {
     }
     case 'team':
       return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
+    case 'areas':
+      return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Dispatch hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
       return `<p>Used only for the greeting on this page.</p><p>${btn('Add your name', 'data-edit-profile', true)}</p>`;
     case 'ado': {

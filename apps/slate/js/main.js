@@ -10,7 +10,8 @@ import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } f
 import { hostFrame } from './host.js';
 import {
   APP, NO_AREA, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
-  moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer
+  moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
+  levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope
 } from './model.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
@@ -58,6 +59,7 @@ async function refresh({ backlog = true } = {}) {
     try { s.team = await ws.teams.get(); } catch { s.team = { areas: [], connection: '' }; }
     await readWork();
     if (backlog) await readBacklog();
+    if (backlog) await fillAdoTitles();
     await readPending();
     await readTandem();
     if (backlog) await checkPrs();
@@ -77,11 +79,12 @@ async function readPending() {
   s.pending = (card && Array.isArray(card.rows) ? card.rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string');
 }
 
-/* Work started in Dispatch (handoffs to Slate, kind `work`): a card in Building for each, or linked to the card
-   for the same run. Dispatch sets `accepted` from the person's Start click, so Slate adds them without asking. */
+/* Offers to Slate: work started in Dispatch (kind `work`, a card in Building, or linked to the card for the same
+   run) and requests captured on Home or in the hub (kind `request`, a card in New, or the card for that ADO item).
+   The person accepted each where they clicked or typed it, so Slate adds them without asking. */
 async function readWork() {
   if (!store.v.loaded) return;
-  const senders = sendersFrom(s.apps, APP, { agents: 'Dispatch' });
+  const senders = sendersFrom(s.apps, APP, { agents: 'Dispatch', home: 'Home' });
   let offers = [];
   try { offers = await readWorkOffers(ws, senders); } catch { offers = []; }
   if (!offers.length) return;
@@ -91,7 +94,7 @@ async function readWork() {
 async function readBacklog() {
   s.backlogNote = '';
   if (s.conn.ado !== true) { s.backlog = []; return; }
-  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths in People so Slate can list your ADO backlog.'; return; }
+  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths (Settings, People & teams, Team area paths) so Slate can list your ADO backlog. Home\'s Get started has a step for it.'; return; }
   try {
     const r = await ado(ws, 'backlog', { areas: s.team.areas, pointsFields: store.v.prefs.pointsFields, ...(s.team.connection ? { connection: s.team.connection } : {}) });
     s.backlog = r.items || [];
@@ -100,6 +103,26 @@ async function readBacklog() {
   } catch (e) {
     s.backlog = [];
     s.backlogNote = `Could not read the ADO backlog: ${e.message}`;
+  }
+}
+
+/**
+ * Cards made from `#<id>` (quick capture, or work started in Dispatch) before Slate read the item: their title, type
+ * and level from the backlog when the item is there, else read one at a time (up to 5 a refresh).
+ */
+async function fillAdoTitles() {
+  if (s.conn.ado !== true) return;
+  const want = store.v.items.filter(needsAdoTitle).slice(0, 5);
+  for (const it of want) {
+    let w = s.backlog.find(b => b.id === it.ado.id) || null;
+    if (!w) { try { w = await ado(ws, 'workitem.get', { id: it.ado.id, ...(s.team.connection ? { connection: s.team.connection } : {}) }); } catch { w = null; } }
+    if (!w || !w.title) continue;
+    await store.update(it.id, x => {
+      const was = x.title === `#${x.ado.id}`;
+      if (was) x.title = String(w.title).slice(0, 255);
+      x.ado = { ...x.ado, rev: w.rev || x.ado.rev, type: w.type || x.ado.type, url: x.ado.url || w.url || '', area: w.area || x.ado.area, state: w.state || x.ado.state, connection: x.ado.connection || w.connection || '' };
+      if (was && w.type) x.level = levelOfType(w.type);
+    }).catch(() => {});
   }
 }
 
@@ -353,6 +376,8 @@ function panelState(c) {
     run,
     timeline: c.virtual ? [] : timeline(c, { run, assigneeName: personName(c.assignee) }),
     canLocal: s.conn.opencode === true,
+    tandemOff: s.conn.opencode !== true && s.conn.opencode !== 'Checking…' ? String(s.conn.opencode || 'Tandem is not ready.') : '',
+    suggestScope: suggestsScope(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])),
     canAdo: s.conn.ado === true,
     assigneeName: personName(c.assignee),
     owners: ownersOf(c),
@@ -633,10 +658,33 @@ const ACT = {
   },
   async ask(c) {
     const t = parseTriage(filesOf(c.work.triage)['triage.md']);
-    const text = `${c.title}${c.ado ? ` (#${c.ado.id})` : ''}\n\nA few questions before we start:\n${t.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+    const text = questionsText(c, t);
     try { await navigator.clipboard.writeText(text); ws.toast('Questions copied. Send them, then paste the answers here.', { kind: 'success' }); }
     catch { ws.toast('Could not copy. Select the questions in the panel instead.', { kind: 'warn' }); }
     await store.update(c.id, x => setStage(x, 'waiting'));
+  },
+  /** Post the triage questions on the ADO item as a comment (one confirm that shows them), then wait for replies. */
+  async 'post-questions'(c) {
+    if (!c.ado) return;
+    const t = parseTriage(filesOf(c.work.triage)['triage.md']);
+    const text = questionsText(c, t);
+    showDialog(confirmHtml(`Post the questions on #${c.ado.id}?`, `Adds this comment to its Discussion in Azure DevOps, where whoever asked can answer:\n\n${text}`, 'Post them'), async () => {
+      const conn = c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
+      const w = await ado(ws, 'workitem.get', { id: c.ado.id, ...conn });
+      const out = await ado(ws, 'workitem.update', { id: c.ado.id, rev: w.rev, changes: { comment: text }, ...conn }, { confirm: true });
+      await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev || x.ado.rev }; x.asked = { id: c.ado.id, at: new Date().toISOString() }; setStage(x, 'waiting'); });
+      ws.toast(`Posted on #${c.ado.id}. Read replies brings their answers in.`, { kind: 'success' });
+    });
+  },
+  /** Comments on the ADO item since the questions were posted, into the answers box (nothing is saved yet). */
+  async 'read-replies'(c) {
+    if (!c.ado) return;
+    const w = await ado(ws, 'workitem.get', { id: c.ado.id, comments: true, ...(c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {}) });
+    const text = repliesSince(w.comments || [], c.asked && c.asked.at);
+    if (!text) return ws.toast(`No replies on #${c.ado.id} since the questions went up.`, { kind: 'info' });
+    const box = $('answers');
+    if (box) box.value = box.value.trim() ? `${box.value.trim()}\n\n${text}` : text;
+    ws.toast('Replies added below. Check them, then save.', { kind: 'success' });
   },
   async answers(c) {
     const text = ($('answers') && $('answers').value || '').trim();
@@ -650,7 +698,7 @@ const ACT = {
   async define(c) {
     const it = await ensureStored(c);
     const t = parseTriage(filesOf(it.work.triage)['triage.md']);
-    return (it.level === 'epic' || it.level === 'feature' || (t && t.size === 'XL')) ? ACT.scope(it) : ACT.refine(it);
+    return suggestsScope(it, t) ? ACT.scope(it) : ACT.refine(it);
   },
   async refine(c) {
     const it = await ensureStored(c);
@@ -960,8 +1008,10 @@ async function runPublish(c, plan, { then = null } = {}) {
   const ids = { ...(c.published || {}) };
   const conn = c.ado && c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
   let first = null;
+  let linkTo = null;
   for (const p of plan) {
     if (p.op === 'skip') { ids[p.ref] = p.id; continue; }
+    if (p.op === 'link') { linkTo = p; continue; } // after everything is made, below
     if (p.op === 'update') {
       const out = await ado(ws, 'workitem.update', { id: p.id, rev: (c.adoNow || c.ado).rev, changes: p.fields, ...conn }, { confirm: true });
       await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev }; });
@@ -974,8 +1024,25 @@ async function runPublish(c, plan, { then = null } = {}) {
     // Saved after each one, so a run that stops part way resumes without making the same item twice.
     await store.update(c.id, x => { x.published = { ...x.published, [p.ref]: out.id }; if (!x.ado && (p.ref === 'item' || p.ref === 'epic')) x.ado = { id: out.id, rev: out.rev, type: out.type, url: out.url, connection: out.connection, area: out.area, state: out.state }; });
   }
+  // The card's own item (an Issue, say) gets a Related link to the top item made and a comment saying so; the card
+  // then follows the top item, keeping the first one as its source.
+  if (linkTo && ids[linkTo.to]) {
+    const topId = ids[linkTo.to];
+    const top = await ado(ws, 'workitem.get', { id: topId, ...conn });
+    const w = await ado(ws, 'workitem.get', { id: linkTo.id, ...conn });
+    try { await ado(ws, 'workitem.update', { id: linkTo.id, rev: w.rev, changes: { comment: sourceComment({ id: topId, type: top.type || linkTo.toType, title: top.title || linkTo.toTitle }), related: [topId] }, ...conn }, { confirm: true }); }
+    catch (e) { if (!/already linked/i.test(e.message || '')) throw e; }
+    await store.update(c.id, x => {
+      x.published = { ...x.published, source: linkTo.id };
+      x.source = { id: x.ado.id, url: x.ado.url || '', type: x.ado.type || '' };
+      x.ado = { id: top.id || topId, rev: top.rev || 0, type: top.type || linkTo.toType, url: top.url || '', connection: top.connection || x.ado.connection, area: top.area || x.ado.area, state: top.state || '' };
+      x.title = top.title || x.title;
+      x.level = levelOfType(top.type || linkTo.toType);
+    });
+  }
   await store.update(c.id, x => { if (!x.ado && first) x.ado = { id: first.id, rev: first.rev, type: first.type, url: first.url, connection: first.connection, area: first.area, state: first.state }; delete x.after; setStage(x, 'decide'); });
-  await logDecision(store.v.items.find(x => x.id === c.id) || c, `Defined and published to ADO (${Object.keys(ids).length} item${Object.keys(ids).length === 1 ? '' : 's'})`);
+  const made = Object.keys(ids).filter(k => k !== 'source').length;
+  await logDecision(store.v.items.find(x => x.id === c.id) || c, `Defined and published to ADO (${made} item${made === 1 ? '' : 's'})`);
   ws.toast('Published to ADO.', { kind: 'success' });
   const now = store.v.items.find(x => x.id === c.id);
   if (then === 'build' && now && now.ado) await buildMyself(now);
@@ -1132,6 +1199,8 @@ let ocTimer = null;
 try { ws.connectors.on('opencode', '*', () => { clearTimeout(ocTimer); ocTimer = setTimeout(() => refresh({ backlog: false }).catch(() => {}), 400); }); } catch { /* browser mode */ }
 try { ws.people.subscribe((d) => { s.people = d; paint(); }); } catch { /* no directory */ }
 try { ws.data.subscribe('summary', () => readPending().then(paint).catch(() => {}), { app: 'runway' }); } catch { /* no data backend */ }
+// Captures from Home and the Dispatch hub show up as soon as they are accepted, not at the next refresh.
+for (const app of ['home', 'agents']) { try { ws.data.subscribe('handoffs', () => readWork().then(paint).catch(() => {}), { app }); } catch { /* no data backend */ } }
 
 /* ---------- start ---------- */
 

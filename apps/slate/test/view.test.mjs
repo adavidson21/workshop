@@ -59,6 +59,9 @@ const STEPS = () => {
     ['triage, none', base(plain('triaged'), { column: 'triage', triage: triage([]), canLocal: true })],
     ['triage, waiting for file', base(plain('triaged'), { column: 'triage', canLocal: true })],
     ['waiting', base(plain('waiting'), { column: 'waiting' })],
+    ['triage, questions, on ADO', base(plain('triaged', { ado }), { column: 'triage', triage: triage(['q1']), canLocal: true, canAdo: true })],
+    ['waiting, asked on ADO', base(plain('waiting', { ado, asked: { id: 42, at: '2026-11-06T10:00:00Z' } }), { column: 'waiting', canAdo: true })],
+    ['inbox request, Tandem off', base(newItem({ title: 'r' }), { tandemOff: 'Turn on the opencode connector in Settings.' })],
     ['interview, waiting', base(plain('shaping'), { column: 'interview', canLocal: true })],
     ['brief', base(plain('brief'), { column: 'brief', files: { 'brief.md': '# Brief\n\nLevel: Feature\n' }, canLocal: true })],
     ['define, pick', base(plain('defining'), { column: 'define', canLocal: true })],
@@ -230,4 +233,44 @@ test('panel: the timeline links the pull requests and says where the work came f
   assert.match(h, /Started in Dispatch/);
   assert.match(h, /href="https:\/\/ado.example.com\/pr\/9"[^>]*>Pull request 9 in web-api: merged</);
   assert.match(h, /All pull requests merged/);
+});
+
+const acts = (list) => (list || []).map(b => /data-act="([^"]+)"/.exec(b)[1]);
+
+test('panel: triage questions on an ADO item can be posted there; Waiting reads the replies', () => {
+  const steps = Object.fromEntries(STEPS());
+  const t = nextOf(steps['triage, questions, on ADO']);
+  assert.deepEqual(acts(t.shown), ['post-questions', 'ask', 'define']);
+  assert.match(t.shown[0], />Post on #42</);
+  assert.deepEqual(acts(nextOf(steps['triage, questions']).shown), ['ask', 'define'], 'no ADO item: copy only');
+  const w = nextOf(steps['waiting, asked on ADO']);
+  assert.deepEqual(acts(w.shown), ['answers', 'read-replies', 'define']);
+  assert.match(w.text, /The questions are on #42/);
+  assert.deepEqual(acts(nextOf(steps.waiting).shown), ['answers', 'define']);
+});
+
+test('panel: with Tandem off, agent buttons stay but are disabled with the reason; the rest still work', () => {
+  const steps = Object.fromEntries(STEPS());
+  const n = nextOf(steps['inbox request, Tandem off']);
+  for (const b of n.shown) assert.match(b, /^<button disabled title="Needs Tandem: Turn on the opencode connector in Settings\."/);
+  assert.match(n.text, /Agent steps need Tandem/);
+  const more = n.more.filter(b => /data-act="roadmap-add"/.test(b));
+  assert.doesNotMatch(more[0], /disabled/, 'Add to roadmap needs no agent');
+  const on = nextOf(steps['inbox request']);
+  assert.ok(on.shown.every(b => !/ disabled/.test(b)), 'Tandem on: nothing disabled');
+});
+
+test('panel: Define picks scope when triage sized it L, and says why', () => {
+  const it = cleanItem({ ...newItem({ title: 'x', ado: { id: 7, type: 'Issue' } }), stage: 'defining' });
+  const n = nextOf(base(it, { column: 'define', suggestScope: true, triage: { size: 'L', questions: [], repos: [] }, canLocal: true }));
+  assert.match(n.text, /Triage sized it L/);
+  assert.match(n.shown.find(b => /data-act="scope"/.test(b)), /class="btn primary"/);
+  assert.doesNotMatch(n.shown.find(b => /data-act="refine"/.test(b)), /primary/);
+});
+
+test('publish dialog: the source link row says what happens to the first item', () => {
+  const h = publishDialogHtml([{ ref: 'epic', op: 'create', type: 'Epic', title: 'Export' }, { ref: 'source', op: 'link', id: 7, type: 'Issue', title: 'Customers want CSV', to: 'epic', toType: 'Epic', toTitle: 'Export' }], { area: '' });
+  assert.match(h, /Link #7/);
+  assert.match(h, /a Related link to the new Epic \(Export\)/);
+  assert.match(h, /2 changes in Azure DevOps/);
 });

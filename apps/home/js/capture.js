@@ -1,6 +1,6 @@
 /* Home: quick capture (docs/hub.md). A rules-only capture box right under the greeting, the most prominent thing on Home, so a task, receipt or note can be
    captured with no AI, in every mode. Accepted captures go to Home's own `handoffs` collection with
-   accepted: true (docs/handoffs.md); Docket, Rapport and Notes add them when they next load. A question, or
+   accepted: true (docs/handoffs.md); Docket, Rapport, Notes, Runway and Slate add them when they next load. A question, or
    Ctrl+Enter, opens the hub in Dispatch with the text filled in.
 
    Names and @handles come from the people directory (ws.people, docs/people.md). List, roadmap and folder names come from
@@ -40,7 +40,7 @@ export function startCapture(ws, root) {
     context: () => captureContext(src),
     onAsk: text => ws.open({ app: 'agents', path: 'hub/' + text }),
     placeholder: "What's on your mind? Ask with ?",
-    hint: '<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea · <kbd>?</kbd> ask in Dispatch · <kbd>&gt;</kbd> go'
+    hint: '<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea · <kbd>s</kbd> request or <kbd>#id</kbd> for Slate · <kbd>?</kbd> ask in Dispatch · <kbd>&gt;</kbd> go'
   });
   read();
   // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding
