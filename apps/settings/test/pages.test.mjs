@@ -75,6 +75,9 @@ test('gate notes say what to do in one line', () => {
 
 test('old addresses open the right page', () => {
   assert.deepEqual(P.routeToPage('general'), { page: 'overview' });
+  assert.deepEqual(P.routeToPage('people/you/Riley%20Chen'), { page: 'people', focus: 'you', name: 'Riley Chen' });
+  assert.deepEqual(P.routeToPage('people/you'), { page: 'people', focus: 'you', name: '' });
+  assert.deepEqual(P.routeToPage('people/you/%E0%A4'), { page: 'people', focus: 'you', name: '' }, 'a bad escape is no name');
   assert.deepEqual(P.routeToPage('c-ado'), { page: 'connections' });
   assert.deepEqual(P.routeToPage('c-opencode'), { page: 'agents' });
   assert.deepEqual(P.routeToPage('repos'), { page: 'repos' });
