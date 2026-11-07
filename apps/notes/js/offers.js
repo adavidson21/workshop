@@ -109,7 +109,7 @@ export const offerId = (kind, path, text, about = '') => `n-${kind}-${hash(`${pa
  */
 export function offerFor(kind, note, text, { day, now = new Date(), dir = null, about = '', shown = '' } = {}) {
   const t = String(text).trim().slice(0, 2000);
-  const from = `From the note "${note.title || note.path}" (${note.path}) in Notes.`;
+  const from = `From the note "${note.title || note.path}" (${note.path}) in Folio.`;
   const body = (shown || readable(t, dir)).trim().slice(0, 2000);
   if (kind === 'task') {
     const who = whoOf(handlesIn(t), dir).people.slice(0, 10).map(p => p.id);

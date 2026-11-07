@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Notebook",
-  "short_name": "Notebook",
+  "name": "Folio",
+  "short_name": "Folio",
   "description": "Markdown notes: folders, links and backlinks, tags, search and images.",
   "start_url": "./",
   "scope": "./",

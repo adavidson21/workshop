@@ -40,7 +40,7 @@ export function sectionsHtml(state) {
     return '';
   };
   return `<button class="ibtn drawer-btn" data-act="drawer" aria-label="Pages" title="Pages">${ICON.drawer}</button>
-    <p class="nb-name">Notebook</p>
+    <p class="nb-name">Folio</p>
     <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>`;
 }
 
@@ -271,18 +271,18 @@ function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
   if (s.kind === 'dirty') return 'Edited';
   if (s.kind === 'failed') return `Not saved yet. ${s.message || ''}`.trim();
-  if (s.kind === 'conflict') return 'Changed outside Notebook';
-  if (s.kind === 'gone') return 'Moved or trashed outside Notebook';
+  if (s.kind === 'conflict') return 'Changed outside Folio';
+  if (s.kind === 'gone') return 'Moved or trashed outside Folio';
   return known ? `Saved ${age(known.mtime)}` : '';
 }
 function conflictBar(ui, tandem = false) {
   if (ui.status.kind === 'failed') return `<div class="bar warn"><span class="bar-msg">Your edits are kept here.</span>
       <span class="bar-acts"><button class="btn" data-act="retry">Retry now</button></span></div>`;
-  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This page changed outside Notebook since you opened it. Your edits are still here.</span>
+  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This page changed outside Folio since you opened it. Your edits are still here.</span>
       <span class="bar-acts"><button class="btn" data-act="take-theirs">Load the new version</button>
       ${tandem ? '' : '<button class="btn" data-act="keep-copy">Save mine as a copy</button>'}
       <button class="btn ghost" data-act="overwrite">Overwrite with mine</button></span></div>`;
-  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This page was moved or trashed outside Notebook. Your text is still here.</span>
+  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This page was moved or trashed outside Folio. Your text is still here.</span>
       <span class="bar-acts"><button class="btn" data-act="restore">Save it again</button></span></div>`;
   return '';
 }

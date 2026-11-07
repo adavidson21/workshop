@@ -23,7 +23,7 @@ export function appLink(href) {
 export function appHref(app, path = '') {
   if (!APP.test(app)) throw new RangeError('Not an app id.');
   const href = `ws:${app}${path ? '/' + path : ''}`;
-  if (!appLink(href)) throw new RangeError('Not a route Notes can link to.');
+  if (!appLink(href)) throw new RangeError('Not a route Folio can link to.');
   return href;
 }
 

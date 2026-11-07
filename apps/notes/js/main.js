@@ -42,7 +42,7 @@ const modeKey = () => (isPhone() ? 'mode-phone' : 'mode');
 
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Notebook');
+if (!ws.embedded) mountBar('Folio');
 // On Notes' own site: install as an app and work offline (shared/sw-register.js). Inside Workshop, Workshop's does.
 let swReload = null;
 if (!ws.embedded && window.WorkshopSw) WorkshopSw.register((msg, label, fn) => { swReload = fn; ws.toast(msg, { action: { label, command: 'reload-new' } }).catch(() => {}); });
@@ -682,7 +682,7 @@ async function send(kind, line) {
   try {
     for (let tries = 0; ; tries++) {
       const before = readOffers(await ws.data.get('handoffs'));
-      if (!before) { ws.toast('Notes saved these by a newer version. Update Workshop to send more.', { kind: 'warn' }); return; }
+      if (!before) { ws.toast('Folio saved these with a newer version. Update Workshop to send more.', { kind: 'warn' }); return; }
       const after = items.reduce((env, item) => withOffer(env, item), before);
       ws.data.stamp(before, after);
       try { await ws.data.put('handoffs', after); sent = sentIds(after); break; }
@@ -781,12 +781,12 @@ function askPair() {
     .then(fd => {
       if (!fd) return;
       const r = pairWith(Number(fd.get('value')), { onError: m => ws.toast(m, { kind: 'error' }) });
-      ws.toast(r === 'blocked' ? 'Your browser blocked the window. Allow pop-ups for this site and try again.' : 'In the window that opened, allow this site. Notes reloads once it is connected.');
+      ws.toast(r === 'blocked' ? 'Your browser blocked the window. Allow pop-ups for this site and try again.' : 'In the window that opened, allow this site. Folio reloads once it is connected.');
     });
 }
 
 async function createAt(path, title) {
-  if (!path || !/\.md$/.test(path) || !validFolder(dirOf(path)) || !SEG.test(stem(path))) { ws.toast('That link does not name a note Notes can make.', { kind: 'warn' }); return; }
+  if (!path || !/\.md$/.test(path) || !validFolder(dirOf(path)) || !SEG.test(stem(path))) { ws.toast('That link does not name a note Folio can make.', { kind: 'warn' }); return; }
   if (!(await leaveNote())) return;
   try { if (!notes.files.has(path)) await notes.create(path, newNoteText(title || stem(path))); await openNote(path, { focus: true }); }
   catch (e) { toastErr(e); }
@@ -1265,7 +1265,7 @@ function route(raw) {
   try { path = decodeURIComponent(raw || ''); } catch { path = raw || ''; }
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
   if (path === 'review') { showSection('products'); setQuery('is:review'); return; }
-  // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook).
+  // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook, to be renamed Open in Folio).
   if (path.startsWith('tandem/')) { const d = parseTandem(path.slice(7)); if (d) { const t = tandemPath(d.folder, d.file); if (notes.loaded) openNote(t); else pendingRoute = t; } return; }
   // search/<words>: Notes opened on a search (Docket's "+N" opens the notes that link to a task).
   if (path.startsWith('search/')) { const q = path.slice(7); if (notes.loaded) showSearch(q); else pendingSearch = q; return; }
