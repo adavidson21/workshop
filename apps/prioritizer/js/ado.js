@@ -12,6 +12,7 @@ import { assign } from './directory.js';
 import { followDate } from './delegate.js';
 import { PR_HOLD_MAX, PR_HOLD_MIN, commitOf, holdsNew } from './pr-ai-model.js';
 import { prAiActive, prAiAfterSync, prAiOnSync } from './pr-ai.js';
+import { slateFor, slateLabel } from './slate-link.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector. */
 /* ---------- Azure DevOps ----------
    Where the data comes from: Workshop's ADO connector, reached through the SDK (ws.connectors) when this page
@@ -74,25 +75,27 @@ function adoPick(addIds, skipIds){
   state.ado.pending = state.ado.pending.filter(p => !add.has(p.id) && !skip.has(p.id));
   return added;
 }
+// Already on Slate's board (slate-link.js): say where, so it can be skipped knowingly. Inside Workshop only.
+const inSlate = id => { const sl = embedded ? slateFor(id) : null; return sl ? ` · <span class="chip">${esc(slateLabel(sl))}</span>` : ''; };
 function adoReview(){
   const P = state.ado.pending;
   if (!P.length){ toast('No new ADO work items to review.'); return; }
   setAdo();
   const item = p => `<li><label><input type="checkbox" value="${p.id}" checked><span class="ptx">${esc(p.title || 'ADO #' + p.id)}
-      <span class="pmeta">${esc(adoShort(p.type))} ${p.id} · ${esc(p.state)}${p.priority ? ' · P' + p.priority : ''}${p.due ? ' · due ' + fmtDay(p.due) : ''}${p.project ? ' · ' + esc(p.project) : ''}</span></span></label>
+      <span class="pmeta">${esc(adoShort(p.type))} ${p.id} · ${esc(p.state)}${p.priority ? ' · P' + p.priority : ''}${p.due ? ' · due ' + fmtDay(p.due) : ''}${p.project ? ' · ' + esc(p.project) : ''}${inSlate(p.id)}</span></span></label>
       ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">Open</a>` : ''}</li>`;
   const sorted = [...P].sort((a, b) => (a.priority || 9) - (b.priority || 9) || (a.due || '9').localeCompare(b.due || '9') || b.id - a.id);
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="New ADO work items"><h3>New ADO work items${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('docket.ado-new', "Assigned to you, not on your board yet. Skipped items won't come back.", 'About new ADO work items') : ''}</h3>
     <div class="drow" style="margin-top:.5rem;gap:.8rem"><button class="lnk" data-all="1">Check all</button><button class="lnk" data-all="0">Uncheck all</button></div>
     <ul class="pick">${sorted.map(item).join('')}</ul>
-    <footer><button class="btn" data-skip>Skip unchecked</button><span class="grow"></span><button class="btn" data-close>Later</button><button class="btn primary" data-add>Add checked</button></footer></div>`,
+    <footer><button class="btn" data-skip>Skip unchecked</button><span class="grow"></span><button class="btn" data-close>Later</button><button class="btn primary" data-ado-add>Add checked</button></footer></div>`,
     sh => {
       const boxes = () => [...sh.querySelectorAll('.pick input')];
-      const sync = () => { const k = boxes().filter(b => b.checked).length; const a = sh.querySelector('[data-add]'); a.textContent = k ? `Add ${k}` : 'Add checked'; a.disabled = !k; };
+      const sync = () => { const k = boxes().filter(b => b.checked).length; const a = sh.querySelector('[data-ado-add]'); a.textContent = k ? `Add ${k}` : 'Add checked'; a.disabled = !k; };
       sh.addEventListener('change', sync); sync();
       sh.addEventListener('click', e => {
         const all = e.target.closest('[data-all]'); if (all){ boxes().forEach(b => b.checked = all.dataset.all === '1'); sync(); return; }
-        const isAdd = e.target.closest('[data-add]'), isSkip = e.target.closest('[data-skip]');
+        const isAdd = e.target.closest('[data-ado-add]'), isSkip = e.target.closest('[data-skip]');
         if (!isAdd && !isSkip) return;
         const on = boxes().filter(b => b.checked).map(b => +b.value), off = boxes().filter(b => !b.checked).map(b => +b.value);
         // Add: add checked, leave unchecked for later. Skip unchecked: add checked too, and skip the rest for good.
