@@ -221,3 +221,5 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 /* big screens (a 27in monitor, Workshop full screen): use the room instead of a narrow centered column */
 @media (min-width:1600px){.wrap{max-width:1440px;padding-inline:2.5rem}#capture{max-width:960px}}
 @media (min-width:2100px){.wrap{max-width:1720px}}
+.su-pick{display:flex;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
+.su-off{font-size:.76rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 .45rem;margin-left:.3rem;white-space:nowrap}

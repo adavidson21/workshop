@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "home",
   "name": "Home",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "Your day at a glance: Docket's Today in counts, what needs you across apps, and Dispatch, with a button for each part of the day.",
   "icon": "icon.svg",
   "entry": "index.html",
