@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "3.1.2",
-  "description": "Connectors, repos, apps, the data folder, and backups.",
+  "version": "4.0.0",
+  "description": "Connectors, repos, people and teams, apps, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -17,15 +17,71 @@
     {
       "name": "repos",
       "path": "repos"
+    },
+    "people",
+    "groups",
+    {
+      "name": "teams",
+      "path": "team"
+    },
+    {
+      "name": "import people",
+      "path": "people/import"
+    },
+    {
+      "name": "connections",
+      "path": "connections"
     }
   ],
   "files": [
     "js/forms.js",
+    "js/pages.js",
+    "js/people.js",
+    "js/people-forms.js",
+    "js/people-sheet.js",
     "js/repos.js",
     "js/settings.js",
     "settings.css"
   ],
   "data": [
     "teams"
+  ],
+  "routes": [
+    {
+      "path": "people",
+      "title": "People and groups"
+    },
+    {
+      "path": "team",
+      "title": "Team area paths"
+    },
+    {
+      "path": "people/import",
+      "title": "Import people from a spreadsheet"
+    },
+    {
+      "path": "connections",
+      "title": "Azure DevOps connections"
+    },
+    {
+      "path": "pull-requests",
+      "title": "Pull request settings"
+    },
+    {
+      "path": "repos",
+      "title": "Repos"
+    }
+  ],
+  "commands": [
+    {
+      "id": "add-person",
+      "title": "Add a person",
+      "route": "people"
+    },
+    {
+      "id": "add-group",
+      "title": "Add a group",
+      "route": "people"
+    }
   ]
 }

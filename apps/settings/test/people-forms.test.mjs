@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
-import * as F from '../js/forms.js';
+import * as F from '../js/people-forms.js';
 import * as P from '../../../shared/people.js';
 
 const schemas = SchemaSet.fromDir(new URL('../../../docs/schemas', import.meta.url).pathname);

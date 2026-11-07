@@ -6,7 +6,7 @@
 const lc = s => String(s == null ? '' : s).toLowerCase();
 const trimSlash = s => String(s || '').replace(/[\\/]+$/, '');
 
-/** The ADO config keys this tab owns (marked x-workshop-tab: "repos" in the connector's configSchema). */
+/** The ADO config keys the Repos and Pull requests pages draw themselves (x-workshop-page in the connector's configSchema). */
 export const KEYS = ['paths', 'prSources'];
 
 /** "work" connection's collection URL, like the connector's baseOf: server + "/" + collection. */

@@ -31,9 +31,9 @@ test('apps.json keeps the apps turned off, and never Home or Settings', async ()
 
 test('the registry leaves out apps turned off', () => {
   const all = ids(buildRegistry(path.join(REPO, 'apps'), schemas));
-  assert.ok(all.includes('people') && all.includes('home'));
-  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['people'])));
-  assert.deepEqual(some, all.filter(id => id !== 'people'));
+  assert.ok(all.includes('slate') && all.includes('home'));
+  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['slate'])));
+  assert.deepEqual(some, all.filter(id => id !== 'slate'));
 });
 
 test('gitHead reads the commit and release tag from .git files, without running git', { skip: !hasGit && 'git is not installed' }, () => {
@@ -76,7 +76,7 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
   } finally { rmHome(home); }
 });
 
-// People (built in) is the app switched here: Notes and the other remote apps depend on their checkouts.
+// Slate (built in) is the app switched here: Notes and the other remote apps depend on their checkouts.
 test('GET and PUT /api/app-switches: changes come from this computer only, and work mode rebuilds the pinned copy', async () => {
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
@@ -88,24 +88,24 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'GET');
     assert.equal(r.json.workMode, true);
-    assert.equal(r.json.apps.find(a => a.id === 'people').inWorkshop, true);
+    assert.equal(r.json.apps.find(a => a.id === 'slate').inWorkshop, true);
 
-    r = await put(agent, '/api/app-switches/people', { on: false });
+    r = await put(agent, '/api/app-switches/slate', { on: false });
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'PUT');
-    assert.equal(r.json.changed, 'people');
-    assert.equal(r.json.apps.find(a => a.id === 'people').inWorkshop, false);
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('people'), 'rebuilt without People');
-    assert.equal((await get(agent, '/apps/people/index.html', { auth: 'cookie' })).status, 404, 'People is no longer served');
+    assert.equal(r.json.changed, 'slate');
+    assert.equal(r.json.apps.find(a => a.id === 'slate').inWorkshop, false);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('slate'), 'rebuilt without Slate');
+    assert.equal((await get(agent, '/apps/slate/index.html', { auth: 'cookie' })).status, 404, 'Slate is no longer served');
 
-    r = await put(agent, '/api/app-switches/people', { on: true });
+    r = await put(agent, '/api/app-switches/slate', { on: true });
     assert.equal(r.status, 200, r.text);
-    assert.equal((await get(agent, '/apps/people/index.html', { auth: 'cookie' })).status, 200, 'People is back');
+    assert.equal((await get(agent, '/apps/slate/index.html', { auth: 'cookie' })).status, 200, 'Slate is back');
 
     assert.equal((await put(agent, '/api/app-switches/home', { on: false })).status, 400, 'Home is always on');
     assert.equal((await put(agent, '/api/app-switches/nope', { on: false })).status, 404);
-    assert.equal((await put(agent, '/api/app-switches/people', { on: 'yes' })).status, 400);
-    assert.equal((await put(agent, '/api/app-switches/people', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
+    assert.equal((await put(agent, '/api/app-switches/slate', { on: 'yes' })).status, 400);
+    assert.equal((await put(agent, '/api/app-switches/slate', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
     // Turning on an app that is not downloaded saves the switch and says what to run; nothing is downloaded.
     r = await put(agent, '/api/app-switches/runway', { on: false });
@@ -179,9 +179,9 @@ test('readManifest explains a bad app.json in plain words', () => {
     assert.match(readManifest(dir, 'x', schemas).problem, /no app\.json/);
     fs.writeFileSync(path.join(dir, 'app.json'), '{');
     assert.match(readManifest(dir, 'x', schemas).problem, /not valid JSON/);
-    const ok = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'people', 'app.json'), 'utf8'));
+    const ok = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'slate', 'app.json'), 'utf8'));
     fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(ok));
-    assert.equal(readManifest(dir, 'people', schemas).problem, undefined);
-    assert.match(readManifest(dir, 'notes', schemas).problem, /says id "people", not "notes"/);
+    assert.equal(readManifest(dir, 'slate', schemas).problem, undefined);
+    assert.match(readManifest(dir, 'notes', schemas).problem, /says id "slate", not "notes"/);
   } finally { rmHome(dir); }
 });

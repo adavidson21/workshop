@@ -10,7 +10,11 @@
      array of strings            list of text fields with add and remove
      array of objects            repeating group with add and remove
      object                      fieldset (nesting up to 3 levels)
-     top level + x-workshop-tab  not shown; edited on that Settings tab, value kept as it was
+     top level + x-workshop-tab  not shown; edited on that Settings page, value kept as it was
+     top level + x-workshop-section  in a folded section with that name (for example ADO's team reports)
+
+   Settings shows each page's fields only (pages.js cuts the schema down with subSchema), so a form here is
+   one page's worth. opts.fold: false keeps optional fields with defaults in view (no "More options").
 
    render(schema, value, env, opts) returns a DOM element whose `readValue()` gives the current config
    back as a plain object. Each control carries its own reader, so reading never re-parses the DOM.
@@ -57,19 +61,36 @@ function objectField(schema, value, env, o) {
   // form opens on what has to be filled in (for ADO: connections and mapping). Only when something stays out.
   // A top-level field marked x-workshop-tab is edited on that Settings tab (for ADO: repos and PR sources on
   // Repos), so the form leaves it out and hands its current value back unchanged.
-  const elsewhere = top ? Object.keys(props).filter(k => props[k]['x-workshop-tab']) : [];
+  const elsewhere = top ? Object.keys(props).filter(k => props[k]['x-workshop-tab'] && !o.page) : [];
   for (const k of elsewhere) readers[k] = () => value[k];
   const keys = Object.keys(props).filter(k => !elsewhere.includes(k));
-  const fold = top ? keys.filter(k => !required.has(k) && hasDefault(props[k])) : [];
-  const more = fold.length && fold.length < keys.length ? document.createElement('details') : null;
+  const sectionOf = k => (top && props[k]['x-workshop-section']) || '';
+  const fold = top && o.fold !== false ? keys.filter(k => !sectionOf(k) && !required.has(k) && hasDefault(props[k])) : [];
+  const plain = keys.filter(k => !sectionOf(k));
+  const more = fold.length && fold.length < plain.length ? document.createElement('details') : null;
   if (more) { more.className = 'cfg-more'; more.innerHTML = '<summary>More options</summary>'; }
+  const sections = new Map();
+  const sectionEl = name => {
+    if (!sections.has(name)) {
+      const d = document.createElement('details');
+      d.className = 'cfg-section';
+      const sm = document.createElement('summary'); sm.textContent = name; d.appendChild(sm);
+      sections.set(name, d);
+    }
+    return sections.get(name);
+  };
   for (const key of keys) {
     const sub = props[key];
-    const node = control(sub, value[key], env, childOpts);
+    // An object in a section draws its fields straight in the section, with no box and legend of its own.
+    const flat = sectionOf(key) && sub.type === 'object';
+    const node = control(sub, value[key], env, flat ? Object.assign({}, o, { _nested: false, fold: false }) : childOpts);
+    if (flat && sub.description) sectionEl(sectionOf(key)).appendChild(help(sub.description));
     readers[key] = node.readValue;
-    ((more && fold.includes(key)) ? more : wrap).appendChild(row(sub, node, key, required.has(key)));
+    const into = sectionOf(key) ? sectionEl(sectionOf(key)) : (more && fold.includes(key)) ? more : wrap;
+    into.appendChild(row(sub, node, key, required.has(key)));
   }
   if (more) wrap.appendChild(more);
+  for (const d of sections.values()) wrap.appendChild(d);
   // Keys come out in schema order. An empty optional text field is left out rather than sent as "", so it
   // does not fail its pattern and the connector's default applies.
   wrap.readValue = () => {

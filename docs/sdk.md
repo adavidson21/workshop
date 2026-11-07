@@ -88,7 +88,7 @@ Every change is checked by the rules in [people.md](people.md) and rejects with 
 
 ### Teams
 
-Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `teams` collection. The People app edits them here; other apps read the collection with `ws.data.get('teams', {app: 'settings'})`. Bundle 2.3.0.
+Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `teams` collection. Settings' Team area paths page edits them here; other apps read the collection with `ws.data.get('teams', {app: 'settings'})`. Bundle 2.3.0.
 
 | Method | Meaning |
 | --- | --- |

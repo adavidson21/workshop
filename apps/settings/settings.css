@@ -4,15 +4,43 @@ html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
 
-.wrap{max-width:46rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
+.wrap{max-width:66rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
+/* the nav beside the page; a select above it on a narrow window */
+.layout{display:grid;grid-template-columns:13rem minmax(0,1fr);gap:2.25rem;align-items:start}
+.side{position:sticky;top:1rem}
+.nav-select{display:none}
+.nav{display:flex;flex-direction:column;gap:1.1rem}
+.nav-group{display:flex;flex-direction:column;gap:.1rem}
+.nav-label{display:flex;align-items:center;gap:.45rem;margin:0 0 .25rem;padding:0 .6rem;font:500 11px/1.4 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--eyebrow)}
+.nav-dot{width:.45rem;height:.45rem;border-radius:50%;background:var(--line)}
+.nav-dot[hidden]{display:none}
+.nav-dot[data-state=ready]{background:var(--accent)}
+.nav-dot[data-state=error]{background:var(--danger)}
+.nav-dot[data-state=starting]{background:var(--warn)}
+.nav-item{appearance:none;display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;padding:.42rem .6rem;border:0;border-radius:var(--r-sm);background:none;color:var(--muted);font:inherit;font-size:.9rem;text-align:left;cursor:pointer}
+.nav-item:hover{color:var(--ink);background:var(--sunk)}
+.nav-item[aria-current=page]{color:var(--ink);background:var(--accent-soft);font-weight:500}
+.nav-item:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.dirty-dot{flex:none;width:.45rem;height:.45rem;border-radius:50%;background:var(--warn)}
+.dirty-dot[hidden]{display:none}
+.page-title{margin:0 0 .6rem;font:600 1.7rem/1.15 var(--serif);letter-spacing:-.02em}
+.gate{margin:0 0 1rem;padding:.7rem .9rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--sunk);font-size:.92rem}
+.gate[hidden]{display:none}
+@media (max-width:760px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:1rem}
+  .side{position:static}
+  .nav{display:none}
+  .nav-select{display:block;width:100%}
+}
 .shead{margin-bottom:2rem;animation:rise .6s ease-out both}
 .shead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;letter-spacing:-.02em;line-height:1.04}
 .shead .sub{margin:.5rem 0 0;max-width:38rem;font-size:.92rem;line-height:1.5;color:var(--muted)}
 .shead .sub:empty{display:none}
 
+.card[hidden]{display:none}
 .card{border-top:1px solid var(--rule);padding:1.2rem 0 1.5rem;margin:0;animation:rise .6s ease-out .08s both}
 .card h2{margin:0 0 .5rem;font:600 1.35rem/1.2 var(--serif);letter-spacing:-.01em}
-.card:first-child{border-top:0;padding-top:.3rem}
+.card:first-child,.panel>.card:first-of-type{border-top:0;padding-top:.3rem}
 .card>.sub{margin:0 0 1rem;color:var(--muted);font-size:.9rem}
 .err{color:var(--danger);font-size:.88rem}
 
@@ -22,6 +50,7 @@ code,.mono{font-family:var(--mono);font-size:.86em}
 .cfg-row{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .7rem;margin:.55rem 0}
 .cfg-row>label{min-width:11rem;font-size:.88rem}
 .cfg-row.cfg-check>label{min-width:0}
+.cfg-row.cfg-check>.cfg-leaf{flex:none;min-width:0}
 .cfg-row .cfg-leaf{flex:1;min-width:12rem;display:flex;align-items:center;gap:.5rem}
 .cfg-row>.cfg-input{flex:none;width:8rem}
 .cfg-help{flex-basis:100%;margin:0;color:var(--muted);font-size:.8rem}
@@ -79,13 +108,9 @@ label.btn{cursor:pointer}
 .conn details{margin-top:.5rem}
 .cfg-more{margin:.9rem 0 .2rem;padding-top:.7rem;border-top:1px dashed var(--line)}
 .cfg-more>summary{cursor:pointer;font-size:.86rem;font-weight:500;color:var(--accent);width:max-content}
-.conn summary,.adv>summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent);width:max-content}
+.conn summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent);width:max-content}
 .conn details[open]>summary{margin-bottom:.3rem}
 
-/* Workshop card: rarely changed settings fold away under Advanced */
-.adv{margin:.9rem 0 0;padding-top:.8rem;border-top:1px solid var(--line)}
-.adv[open]>summary{margin-bottom:.4rem}
-.adv-note{margin:0 0 .3rem}
 
 /* open Workshop */
 .open-card .acts{margin-top:.4rem}
@@ -118,7 +143,7 @@ label.btn{cursor:pointer}
 .moved p{margin:.2rem 0}
 .sites{margin:.4rem 0 0;padding-left:1.2rem;display:grid;gap:.2rem}
 
-/* lists (Repos tab rows; the classes came from the People card, now its own app) */
+/* lists: people, connections, repos, Overview's connector rows */
 .people{list-style:none;margin:0;padding:0}
 .person{display:flex;align-items:center;gap:.8rem;border-top:1px solid var(--line);padding:.6rem 0}
 .person:first-child{border-top:0}
@@ -130,17 +155,6 @@ label.btn{cursor:pointer}
 .import-preview summary,.archived-list summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent)}
 .import-preview ul{margin:.4rem 0;padding-left:1.2rem;font-size:.86rem}
 
-/* tabs: mono labels on the page rule, the open one underlined in the accent */
-.tabs{display:flex;gap:.2rem;margin:0 0 1.6rem;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;animation:rise .6s ease-out .04s both}
-.tabs:empty{display:none}
-.tab{appearance:none;display:inline-flex;align-items:center;gap:.45rem;flex:none;margin:0 0 -1px;padding:.6rem .85rem .55rem;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
-.tab:hover{color:var(--ink)}
-.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
-.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r-sm) var(--r-sm) 0 0}
-.tab-dot{width:.45rem;height:.45rem;border-radius:50%;background:var(--line)}
-.tab-dot[data-state=ready]{background:var(--accent)}
-.tab-dot[data-state=error]{background:var(--danger)}
-.tab-dot[data-state=starting]{background:var(--warn)}
 .panel[hidden]{display:none}
 .panel>.card{animation:none}
 .card>.conn:first-child{border-top:0;padding-top:0}
@@ -183,6 +197,48 @@ label.btn{cursor:pointer}
 .health-lines{list-style:none;margin:.4rem 0 .8rem;padding:0;font-family:var(--mono);font-size:.8rem;line-height:1.6}
 .health-lines li.err{color:var(--danger)}
 
+/* folded sections inside a form or page (ADO's team reports, Other folders) */
+.cfg-section{margin:.9rem 0 .2rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+.cfg-section>summary{cursor:pointer;font-size:.88rem;font-weight:500;color:var(--accent);width:max-content}
+.cfg-section[open]>summary{margin-bottom:.4rem}
+.card>.cfg-section:first-child{margin-top:0;padding-top:0;border-top:0}
+
+/* connections and Overview rows */
+.conns .person-meta{overflow-wrap:anywhere}
+.conn-form{width:100%}
+.conn-foot:not(:empty){margin-top:1rem;padding-top:.6rem;border-top:1px dashed var(--line)}
+.conn-foot[data-hide="1"]{display:none}
+.conn-draft{margin:0 0 .4rem;padding:.4rem .7rem;border-radius:var(--r-sm);background:var(--accent-soft);font-size:.84rem}
+.pill-tag{display:inline-block;margin-left:.25rem;padding:0 .45rem;border-radius:999px;background:var(--sunk);color:var(--muted);font:500 11px/1.6 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+.warn-text{color:var(--warn)}
+.status-rows .state{margin-left:.35rem;vertical-align:1px}
+.state[data-state=neutral]::before{background:var(--line)}
+
+/* People & teams (js/people.js) */
+.bar{display:flex;flex-wrap:wrap;gap:.5rem;margin:.2rem 0 .8rem}
+.bar .cfg-input{width:auto;flex:1;min-width:10rem}
+.bar select.cfg-input{flex:none}
+.count{font:500 12px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.person.archived b{color:var(--muted)}
+.people-sub{margin:1.25rem 0 .25rem;font:600 1rem/1.3 var(--serif)}
+.person-form .cfg-row>.cfg-input{flex:1;width:auto;min-width:12rem}
+.person-form fieldset.members{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:.25rem 1rem;max-height:14rem;overflow:auto}
+.person-form fieldset.members legend{padding:0;margin-bottom:.25rem;font-size:.88rem;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--ink)}
+.person-form .member{display:inline-flex;align-items:center;gap:.35rem;font-size:.88rem}
+#team .cfg-row>.cfg-input{flex:1;width:auto;min-width:12rem}
+.preview{margin-top:1rem;border-top:1px dashed var(--line);padding-top:.9rem}
+.preview h3{margin:0 0 .4rem;font:600 1.05rem/1.3 var(--serif)}
+.tallies{display:flex;flex-wrap:wrap;gap:.4rem 1rem;margin:0 0 .6rem;font-size:.86rem}
+.tally b{font-weight:600}
+.rows{width:100%;border-collapse:collapse;font-size:.85rem}
+.rows th{text-align:left;font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:.3rem .5rem .3rem 0;border-bottom:1px solid var(--line)}
+.rows td{padding:.35rem .5rem .35rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+.rows .act{white-space:nowrap;font:500 11px/1.6 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+.rows tr[data-act=new] .act{color:var(--accent)}
+.rows tr[data-act=skip] .act,.rows tr[data-act=skip] .why{color:var(--danger)}
+.rows tr[data-act=same]{color:var(--muted)}
+.rows-wrap{max-height:22rem;overflow:auto}
+
 /* big screens (a 27in monitor, Workshop full screen): a wider page, kept short of full width since it is forms */
-@media (min-width:1600px){.wrap{max-width:58rem;padding-inline:2.5rem}}
-@media (min-width:2100px){.wrap{max-width:64rem}}
+@media (min-width:1600px){.wrap{max-width:74rem;padding-inline:2.5rem}}
+@media (min-width:2100px){.wrap{max-width:82rem}}

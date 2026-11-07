@@ -43,13 +43,13 @@ export const configSchema = {
         }
       }
     },
-    defaultConnection: { type: 'string', title: 'Default connection' },
-    syncConnection: { type: 'string', title: 'Connection for my work items', description: 'Empty means the default connection.' },
+    defaultConnection: { type: 'string', title: 'Default connection', description: 'Its name. Used when a repo has no mapping. Not needed with one connection.' },
+    syncConnection: { type: 'string', title: 'Connection for my work items', description: 'Empty means the default connection.', 'x-workshop-page': 'work-items' },
     paths: {
       type: 'array',
       title: 'Repo and path mapping',
       description: 'Which connection and project a repo or folder uses. * matches any characters.',
-      'x-workshop-tab': 'repos',
+      'x-workshop-page': 'repos',
       'x-workshop-hosted': true,
       items: {
         type: 'object',
@@ -62,14 +62,14 @@ export const configSchema = {
         }
       }
     },
-    types: stringList('Work item types', null, ['Issue', 'Bug', 'User Story']),
-    closedStates: stringList('States that count as done', null, ['Resolved', 'Closed', 'Done']),
-    removedStates: stringList('States that count as won\'t do', null, ['Removed']),
+    types: { ...stringList('Work item types', null, ['Issue', 'Bug', 'User Story']), 'x-workshop-page': 'work-items' },
+    closedStates: { ...stringList('States that count as done', null, ['Resolved', 'Closed', 'Done']), 'x-workshop-page': 'work-items' },
+    removedStates: { ...stringList('States that count as won\'t do', null, ['Removed']), 'x-workshop-page': 'work-items' },
     prSources: {
       type: 'array',
       title: 'Pull request sources',
       description: 'Where to look for pull requests waiting on you. Empty skips PRs.',
-      'x-workshop-tab': 'repos',
+      'x-workshop-page': 'pull-requests',
       'x-workshop-hosted': true,
       items: {
         type: 'object',
@@ -82,10 +82,13 @@ export const configSchema = {
         }
       }
     },
-    prTeams: stringList('Teams that count as mine', 'Empty means every team you are on.', []),
+    prTeams: { ...stringList('Teams that count as mine', 'Empty means every team you are on.', []), 'x-workshop-page': 'pull-requests' },
     reports: {
       type: 'object',
       title: 'Team reports',
+      description: 'How Runway\'s ADO reports count work. Most people never change these.',
+      'x-workshop-page': 'work-items',
+      'x-workshop-section': 'Team reports (used by Runway)',
       additionalProperties: false,
       properties: {
         workloadTypes: stringList('Work item types in reports', 'Empty means the same as Work item types.', []),

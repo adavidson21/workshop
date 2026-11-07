@@ -1,6 +1,6 @@
 # Teams
 
-The Azure DevOps area paths your team works in, kept once and read by every app that pulls work items: Runway's ADO roadmaps, the Dispatch hub. It lives in Settings' folder, like the people directory ([people.md](people.md)), and is edited in the People app.
+The Azure DevOps area paths your team works in, kept once and read by every app that pulls work items: Runway's ADO roadmaps, the Dispatch hub. It lives in Settings' folder, like the people directory ([people.md](people.md)), and is edited in Settings, on the Team area paths page.
 
 Version: the `settings.teams` collection is version 1.
 
@@ -29,6 +29,6 @@ Settings keeps one collection named `teams`, so its schema is `settings.teams`, 
 
 ## Rules
 
-1. **Written only through `ws.teams`** ([sdk.md](sdk.md), Teams), which the People app uses. Other apps read it with `ws.data.get('teams', {app: 'settings'})`.
+1. **Written only through `ws.teams`** ([sdk.md](sdk.md), Teams), which Settings' Team area paths page uses. Other apps read it with `ws.data.get('teams', {app: 'settings'})`.
 2. **Missing means not set up.** Apps leave area paths empty (Runway asks for them in its dialog) and never write it themselves.
 3. **Not secret.** Area paths and connection names only. PATs stay in environment variables ([security.md](security.md)).

@@ -90,7 +90,8 @@ export const configSchema = {
     },
     prReviews: {
       type: "object",
-      title: "PR reviews",
+      title: "AI first-pass reviews",
+      "x-workshop-page": "pull-requests",
       additionalProperties: false,
       properties: {
         nightlyAt: {
