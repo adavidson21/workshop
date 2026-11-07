@@ -542,8 +542,13 @@ export function briefHtml(it) {
 }
 
 /** "From Slate": the request this run came from, when Slate knows the ADO item (Slate's summary, `ado` card). */
+/** What Slate says about a run (its summary): found by run folder, else by ADO id. */
+export function slateOf(it) {
+  if (!it || !S.slate) return null;
+  return (it.folder && S.slate.get(it.folder)) || (it.id && S.slate.get(String(it.id))) || null;
+}
 export function slateChip(it) {
-  const s = it && it.id && S.slate && S.slate.get(String(it.id));
+  const s = slateOf(it);
   return s ? `<button type="button" class="tag slate" data-open-slate="${h(s.route)}" title="${h(s.note || 'Open the request in Slate')}">From Slate</button>` : '';
 }
 export function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }

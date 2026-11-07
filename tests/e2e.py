@@ -323,6 +323,11 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('the area path view picks which cards show (a request with no area under No area path)', areas == ['', '-'] and shown_none == 1 and shown_other == 0 and empty_msg
               and slf.locator('.col[aria-label=New] .card').count() == 1)
         check('the board has Shape, PM and Dev lanes, Shape first', slf.locator('.top [data-act=lane]').evaluate_all('els => els.map(e => e.dataset.id)') == ['shape', 'pm', 'dev'])
+        shape_cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
+        slf.click('.top [data-act=lane][data-id=dev]'); pg.wait_for_timeout(400)
+        dev_text = slf.inner_text('#main')
+        slf.click('.top [data-act=lane][data-id=shape]'); pg.wait_for_timeout(400)
+        check('Shape is New, Shaping, Brief; the Dev lane is empty until you build something', shape_cols == ['New', 'Shaping', 'Brief'] and 'Nothing to build yet' in dev_text)
         slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         check('a new idea lands in New, marked Idea, with Shape it and Already shaped', slf.locator('.col[aria-label=New] .card').count() == 2

@@ -9,6 +9,7 @@ import { configFromUrl } from './lib/url.mjs';
 import { authTracker, patStatus } from './lib/pat.mjs';
 import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
+import { workItemPrs } from './lib/prs.mjs';
 import { iterationsList } from './lib/items.mjs';
 import { BACKLOG_TYPES, backlogList, roadmapList } from './lib/roadmap.mjs';
 import { CREATE_TYPES, createWorkItem, updateWorkItem } from './lib/write.mjs';
@@ -141,7 +142,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.8.0',
+  version: '1.9.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -219,6 +220,27 @@ export default {
       },
       async run(args, ctx) {
         return guarded(ctx, 'workitem.get', () => getWorkItem(deps(ctx), args));
+      }
+    },
+
+    'workitem.prs': {
+      title: 'Pull requests linked to a work item and its child items, with their status (Slate)',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'integer', minimum: 1 },
+          connection: { type: 'string', maxLength: 40 },
+          children: { type: 'boolean', description: 'Also the PRs linked to child items (default true).' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.prs', async () => {
+          const out = await workItemPrs(deps(ctx), args);
+          ctx.log.info(`workitem.prs: ${args.id} has ${out.prs.length} PRs (${out.status})`);
+          return out;
+        });
       }
     },
 

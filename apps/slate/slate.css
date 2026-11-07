@@ -183,3 +183,14 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .agent-box .say{margin-top:.5rem;max-height:18rem}
 .work.wide .agent-box .say,.work.wide .txt{max-height:34rem}
 .reply{width:100%;box-sizing:border-box;font-size:.86rem;margin:.2rem 0 .5rem;min-height:4.5rem}
+
+/* Slate 1.7.0: the step a Shaping, Define or Building card is at, the Resolved column's area groups, links in the timeline. */
+.chip.step{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.rgroup{display:flex;flex-direction:column;gap:.35rem;padding:.4rem 0 .6rem;border-top:1px solid var(--line)}
+.rgroup:first-child{border-top:0;padding-top:0}
+.rhead{display:flex;align-items:baseline;gap:.5rem;padding:0 .2rem;font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.rarea{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.racts{display:flex;flex-wrap:wrap;gap:.3rem}
+.racts .btn{font-size:.72rem;padding:.15rem .5rem}
+.linkish{color:var(--accent);text-align:left;text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0;font:inherit;cursor:pointer}
+.link-in{width:8rem}

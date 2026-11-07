@@ -16,7 +16,7 @@
    - Ship (its own tab): the pull requests of your own runs (pr.md, at Ship), with where each repo's code review
      stands, grouped by whose turn it is. The run page has the same PR box. */
 import { S } from './state.js';
-import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar, stamp } from './view.js';
+import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar, stamp, slateOf } from './view.js';
 import { projectChip } from './projects.js';
 
 const SEV = [['blocking', 'Blocking'], ['should-fix', 'Should fix'], ['optional', 'Optional']];
@@ -381,12 +381,18 @@ function mineCard(it) {
     `<div class="item-head"><h4 class="t">${it.id ? idLink(it) : ''}${title}</h4><div class="meta">${meta.join('')}</div></div>` + prHtml(it) + '</article>';
 }
 
-/** The Ship tab's PR groups, for the runs in `list` (default: every run with PRs). */
+/** The Ship tab's PR groups, for the runs in `list` (default: every run with PRs). Runs Slate saw merge come first. */
 export function mineHtml(list = mineItems()) {
   let html = '';
   if (!list.length) return '';
+  const merged = list.filter(it => { const sl = slateOf(it); return !!(sl && sl.merged); });
+  if (merged.length) {
+    html += `<section class="group" aria-labelledby="gh-mine-merged"><h3 id="gh-mine-merged">Merged <span class="n">${merged.length}</span></h3>` +
+      '<p class="hint">Slate saw every pull request for these merge. Remove the run to clean up its folder.</p>' +
+      `<div class="items">${merged.map(mineCard).join('')}</div></section>`;
+  }
   for (const [key, name, hint, states] of MINE_GROUPS) {
-    const g = list.filter(it => states.includes(mineState(it)));
+    const g = list.filter(it => !merged.includes(it) && states.includes(mineState(it)));
     if (!g.length) continue;
     html += `<section class="group" aria-labelledby="gh-mine-${key}"><h3 id="gh-mine-${key}">${h(name)} <span class="n">${g.length}</span></h3>` +
       (hint ? `<p class="hint">${h(hint)}</p>` : '') + `<div class="items">${g.map(mineCard).join('')}</div></section>`;

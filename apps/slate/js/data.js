@@ -3,7 +3,7 @@
 
    Writes stamp against what was read and merge on a conflict (docs/data-format.md), so two windows, or Slate and
    a Workshop data import, never lose each other's changes. */
-import { APP, VERSION, cleanItem, cleanPrefs } from './model.js';
+import { APP, VERSION, applyWork, cleanItem, cleanPrefs } from './model.js';
 
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
@@ -83,6 +83,35 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     show();
   }
 
+  /**
+   * Work started in Dispatch (handoffs to Slate, kind `work`): add or link a card for each offer not handled yet,
+   * and record its id in items' `meta.handled` (docs/handoffs.md, rule 2) in the same write. Returns the ids added.
+   */
+  async function takeWork(offers) {
+    if (v.readOnly || !v.loaded) return [];
+    const was = new Set(Array.isArray(env.items && env.items.meta && env.items.meta.handled) ? env.items.meta.handled : []);
+    const key = (o) => `${(o.source && o.source.app) || ''}:${o.id}`.slice(0, 200);
+    const fresh = offers.filter(o => o && o.id && !was.has(key(o)));
+    if (!fresh.length) return [];
+    const before = (await read('items')) || env.items;
+    const after = structuredClone(before);
+    const handled = Array.isArray(after.meta && after.meta.handled) ? after.meta.handled.filter(x => typeof x === 'string') : [];
+    const done = new Set(handled);
+    const added = [];
+    for (const o of fresh) {
+      if (done.has(key(o))) continue;
+      const id = applyWork(after.items, o);
+      if (id) added.push(id);
+      handled.push(key(o));
+      done.add(key(o));
+    }
+    after.items = after.items.map(cleanItem);
+    after.meta = { ...(after.meta || {}), handled: handled.slice(-500) };
+    env.items = await write('items', before, after);
+    show();
+    return added;
+  }
+
   /** Change one item by id. Returns the item as stored. */
   async function update(id, fn) {
     let out = null;
@@ -115,10 +144,25 @@ export function createStore(ws, { onChange = () => {} } = {}) {
   }
 
   ws.data.subscribe('items', () => load().catch(() => {}));
-  return { v, load, change, update, savePrefs, dismiss, offer, writeSummary };
+  return { v, load, change, update, savePrefs, dismiss, offer, writeSummary, takeWork };
 }
 
 /* ---------- connectors ---------- */
+
+/**
+ * Offers to Slate from every sender (`senders`: {app id: name}, from the manifests): accepted `work` items only.
+ * A sender with no collection, or one Slate cannot read, has none.
+ */
+export async function readWorkOffers(ws, senders) {
+  const out = [];
+  for (const app of Object.keys(senders)) {
+    let e = null;
+    try { e = await ws.data.get('handoffs', { app }); } catch { e = null; }
+    if (!e || e.schema !== `${app}.handoffs` || e.version !== 1 || !Array.isArray(e.items)) continue;
+    for (const o of e.items) if (o && o.to === APP && o.accepted === true && o.payload && o.payload.kind === 'work' && o.source && o.source.app === app) out.push(o);
+  }
+  return out;
+}
 
 /** Which connectors are ready: {ado, opencode} as true or the reason they are not. */
 export async function connectorState(ws) {

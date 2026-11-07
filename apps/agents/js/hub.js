@@ -222,13 +222,11 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
   async function runAct(card) {
     const a = card.route && card.route.act;
     if (!actAllowed(a)) return;
-    if (!window.confirm(`${a.label}?\n\nThis starts work in Tandem.`)) return;
     try { await ws.connectors.call(a.connector, a.action, a.args, { confirm: true }); ws.toast('Started. It shows below.', { kind: 'success' }); card.acted = true; }
     catch (e) { ws.toast(e.message || 'Could not start that.', { kind: 'error' }); }
     draw();
   }
   async function spike(card) {
-    if (!window.confirm(`Start a spike on "${card.text}"?\n\nThe investigator reads code and writes findings in .work. It changes no code.`)) return;
     try { await ws.connectors.call(OC, 'spike', { topic: card.text.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. It shows below.', { kind: 'success' }); }
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
