@@ -653,7 +653,8 @@ const ACT = {
   },
   async triage(c) {
     const it = await ensureStored(c);
-    await startSession(it, 'triage', 'triage.start', it.ado ? { id: String(it.ado.id) } : { text: [it.title, it.description].filter(Boolean).join('. ').slice(0, 2000) });
+    // With an ADO item, your notes (the note typed with #1234 in quick capture, say) go along too: /triage keeps them.
+    await startSession(it, 'triage', 'triage.start', it.ado ? { id: String(it.ado.id), ...(it.description ? { text: it.description.slice(0, 1000) } : {}) } : { text: [it.title, it.description].filter(Boolean).join('. ').slice(0, 2000) });
     ws.toast('Triage started. It shows here when the agent is done.', { kind: 'success' });
   },
   async ask(c) {
@@ -920,7 +921,7 @@ const ACT = {
         await store.update(it.id, x => (to === 'decide' ? skipToDecide(x) : setStage(x, to)));
         ui.open = it.id; ui.editing = false; ui.shapeEditing = null;
         paint();
-        ws.toast(`Moved to ${STAGE_TITLE[to] || to}.`, { kind: 'success' });
+        { const t = String(STAGE_TITLE[to] || to); ws.toast(`Moved to ${t}${/[.?!]$/.test(t) ? '' : '.'}`, { kind: 'success' }); }
       });
     }
     const notes = [];

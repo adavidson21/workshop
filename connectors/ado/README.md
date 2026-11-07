@@ -23,7 +23,7 @@ Mostly read-only. The two actions that change ADO, `workitem.update` (Runway's a
 
 ### Setting up and renewing a PAT
 
-1. In ADO, make a PAT with **Work Items (Read)** (add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs). Note its expiry date.
+1. In ADO, make a PAT with **Work Items (Read & write)** (Slate's Publish, Post questions, Mark resolved and Close as released, assigning on Delegate, and Runway's Publish write; **Work Items (Read)** is enough for Docket alone). Add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs. Note its expiry date.
 2. Run `workshop pat ADO_PAT` (or the variable name the connection uses) and paste the token. It is not shown and does not land in shell history. On Windows it is saved for your account and Workshop picks it up within seconds, with no restart. On macOS and Linux the command explains how to add it to your shell profile; then run `workshop restart`.
 3. In Settings, ADO connector: add the connection (or **Import settings from a file** with your `ado-helper.json` or eng-agents `config.json`; nothing is saved until you click Save), set **PAT expires** to the date ADO showed, and try the Test field.
 

@@ -53,7 +53,7 @@ function card(c, s) {
   if (c.kind === 'idea' || c.fromRunway || c.runwayPending) flags.push(chip('Idea', 'soft'));
   if (c.skipped) flags.push(chip('Skipped shaping', 'soft'));
   return `<li><button type="button" class="card${s.open === c.id ? ' open' : ''}" data-act="open" data-id="${esc(c.id)}">
-    <span class="row1">${chip(LEVEL_NAME[c.level] || 'Story', `lv-${c.level}`)}${flags.join('')}</span>
+    <span class="row1">${chip(typeLabel(c), `lv-${c.level}`)}${flags.join('')}</span>
     <span class="title">${esc(c.title)}</span>
     <span class="meta">${esc(meta.join(' · '))}</span>
     ${c.facts && c.facts.facts.length ? `<span class="ado">${c.facts.facts.map(f => `<span class="f-${esc(f.key)}"${f.title ? ` title="${esc(f.title)}"` : ''}>${esc(f.text)}</span>`).join('')}</span>` : ''}
@@ -293,6 +293,9 @@ const gate = (p, html) => {
   });
 };
 
+/** The chip on a card: the ADO work item type when there is one (Issue, User Story), else the level. */
+export const typeLabel = (c) => (c && c.ado && c.ado.type) ? String(c.ado.type).slice(0, 30) : (LEVEL_NAME[c && c.level] || 'Story');
+
 export function nextOf(p) {
   const n = nextRaw(p);
   if (!p.tandemOff || n.html) return n;
@@ -487,11 +490,11 @@ export function panelHtml(p) {
   const details = [
     meta ? `<p class="soft small meta-line">${meta}</p>` : '',
     adoSection(it, p.details, p.prefs),
-    it.description && !it.ado ? section(it.kind === 'idea' || it.fromRunway ? 'Idea' : 'Request', `<pre class="txt">${esc(it.description)}</pre>`) : '',
+    it.description ? section(it.ado ? 'Your notes' : it.kind === 'idea' || it.fromRunway ? 'Idea' : 'Request', `<pre class="txt">${esc(it.description)}</pre>`) : '',
     p.owners && p.owners.length && !p.dev ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''
   ].join('');
   return `<div class="phead">
-      <div class="prow">${chip(LEVEL_NAME[it.level] || 'Story', `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${moreHtml(p, n.more || [], shown)}${btn('wide', p.wide ? 'Narrow' : 'Expand', { title: p.wide ? 'Give the board more room' : 'Give the panel more room', extra: ` aria-pressed="${p.wide}"` })}${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
+      <div class="prow">${chip(typeLabel(it), `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${moreHtml(p, n.more || [], shown)}${btn('wide', p.wide ? 'Narrow' : 'Expand', { title: p.wide ? 'Give the board more room' : 'Give the panel more room', extra: ` aria-pressed="${p.wide}"` })}${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
       ${titleField}
       ${links.length ? `<p class="links">${links.join(' · ')}</p>` : ''}
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
@@ -548,7 +551,7 @@ export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
     <label>To<select name="person" required><option value="">Pick someone</option>${people.map(p => `<option value="${esc(p.id)}"${p.id === pick ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
     <p class="soft">Owners of what it touches come first (People, Owns).</p>
     ${people.length ? '' : '<p class="soft">Add your team in People first.</p>'}
-    <label class="check"><input type="checkbox" name="brief"${canBrief ? ' checked' : ' disabled'}> Write a brief for them (/handoff; posts nothing)</label>
+    <label class="check"><input type="checkbox" name="brief"${canBrief ? ' checked' : ' disabled'}> Write a brief for them (an agent drafts it; nothing is posted)</label>
     <label class="check"><input type="checkbox" name="assign"${canAssign ? ' checked' : ' disabled'}> Assign it to them in ADO</label>
     <label class="check"><input type="checkbox" name="task" checked> Add a "waiting on" task in Docket</label>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate</button></div></form>`;

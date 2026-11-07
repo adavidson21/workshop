@@ -90,7 +90,9 @@ test('the ADO step names the PAT variable to save and links to Settings on this 
   const o = card(stepsFor(off), 'ado', { ...ctx, facts: off });
   assert.deepEqual(o.copies, ['workshop pat ADO_PAT']);
   assert.match(o.html, /href="http:\/\/127\.0\.0\.1:4380\/apps\/settings\/"[^>]*>Open Settings on this computer/);
-  assert.match(o.html, /Import settings from a file/);
+  assert.match(o.html, /Work Items \(Read &amp; write\)/, 'Slate and Runway publish: the PAT needs write');
+  assert.match(o.html, /paste any link from Azure DevOps/);
+  assert.doesNotMatch(o.html, /ado-helper\.json/);
   const inShell = card(stepsFor(off), 'ado', { ...ctx, settings: { inShell: true }, facts: off });
   assert.match(inShell.html, /data-open="settings"/);
   const none = card(stepsFor(off), 'ado', { ...ctx, settings: null, facts: off });
