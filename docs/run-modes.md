@@ -120,7 +120,7 @@ For computers where the code that runs against your data must not change unless 
 - **Built for you the first time.** When work mode is on and there is no pinned copy yet, the agent builds one from this install (as `workshop pin` would) when it starts or on the first page load.
 - **Without a usable copy** (a file changed after it was built, or the build failed), `/` says why and the Settings page is still served, so work mode can be turned off there. A changed copy is never rebuilt by itself: run `workshop pin` once you know why it changed.
 
-Work mode is changed like any setting only this computer may change: in Settings on the agent's own page, or with `workshop install --work-mode` while the agent is stopped. A hosted page cannot turn it on or off (`PUT /api/config` is `local_only`). The installer turns it on with `WORKSHOP_WORK_MODE=1` (README.md, One-line install).
+Work mode is changed like any setting only this computer may change: in Settings on the agent's own page, or with `workshop install --work-mode` while the agent is stopped. A hosted page cannot turn it on or off (`PUT /api/config` is `local_only`). The installer turns it on with `WORKSHOP_WORK_MODE=1` (docs/install.md, One-line install).
 
 The trade-off it removes: in hosted mode the code that can read your data is whatever the site serves today, so it changes whenever the site deploys, and anyone who could change the site (or the accounts that deploy it) could change that code. In work mode it is a copy you chose, on your disk, checked on every request.
 
