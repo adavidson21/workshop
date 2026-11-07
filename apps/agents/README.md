@@ -5,7 +5,8 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 ## How it works
 
 - **Data:** the opencode connector's `state` action ([connectors/opencode/README.md](../../connectors/opencode/README.md)). The app fetches it again after the connector's events (`model`, `live`, `autopilot`, `agent.waiting`, `agent.done`) and when the connector's status changes. No polling.
-- **Buttons:** the connector's actions. Write actions (`run`, `start`, `start.local`, `spike`, `repo.add`, `repo.guide`, `reply`, `answer`, `abort`, `remove`, `push`, `autopilot`) send `confirm: true`, only from the click that says what will happen. `.work` files open in a sheet through `file.read`.
+- **Buttons:** the connector's actions. Write actions (`run`, `start`, `start.local`, `spike`, `repo.add`, `repo.guide`, `reply`, `answer`, `abort`, `remove`, `push`, `autopilot`, `file.write`) send `confirm: true`, only from the click that says what will happen.
+- **Documents:** `.work` files (plan.md, spec.md, review.md...) open in a sheet with **Preview** and **Edit** (`js/doc.js`). Save (or `Ctrl+S`) writes through `file.write` with the text the sheet read, so a change Tandem made meanwhile is never overwritten: the sheet says so and offers *Load the new version* or *Copy my text*. Edit is off while Tandem or autopilot works on the item. Closing with unsaved changes asks first. **Open in Notebook** opens the same file in the Notes app's Tandem section (`#/notes/tandem/<folder>/<file>`), the full editor. Approving is still the step's button, not an edit.
 - **Shell:** `#/agents/<id>` opens that item (a work item id opens its run page; a spike, doc or TSD folder opens it in Research; `pr-<id>` opens Reviews at that review). `#/agents/<tab>` opens a tab, `#/agents/runs/<id>` a run page, `#/agents/research/<folder>` a Research folder, `#/agents/chat/<session>` a conversation. The rail badge counts what is in the Inbox. A notification, if allowed, when an agent waits for you or finishes while the app is out of sight. **Refresh work items** is in the `Ctrl+K` palette.
 - **Theme:** the page loads `shared/themes.css` and `shared/theme.js`, and the SDK applies theme changes. Inside the shell, the shell owns the theme and the name; opened on its own (`/apps/agents/`), the page has both.
 
@@ -67,6 +68,7 @@ The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or
 | --- | --- |
 | `js/pages.js` | The tabs (Inbox, Runs and the run page, Ship, Research and its reader) and the tab bar. HTML strings, tested in Node. |
 | `js/view.js` | The header, sheets and the pieces the tabs draw (track, next step, agent box, PR box), as HTML strings, from the state. Ported from eng-agents `core/scripts/dashboard/dashboard.template.html` at `e2d202a` (Dashboard 1.6.1, live mode). No DOM, so it is tested in Node. |
+| `js/doc.js` | The `.work` file sheet: a safe Markdown renderer for Preview, the read-only reason while Tandem works, and the Notebook route. No DOM. |
 | `js/main.js` | SDK connection, fetching, painting, clicks, alerts, focus. |
 | `js/state.js` | The state the view reads. |
 | `js/projects.js` | Projects: the filter, the project chip, run status, and the project, Projects and move sheets. HTML strings, tested in Node. |

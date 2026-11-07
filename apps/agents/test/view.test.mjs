@@ -202,7 +202,24 @@ test('.work files open in the app through file.read, not as links', () => {
   assert.match(card, /<button type="button" class="lnk" data-file="41207-fix-login-timeout" data-name="plan.md">plan.md<\/button>/);
   assert.doesNotMatch(card, /href="files\//);
   S.ui.file = { folder: '41207-fix-login-timeout', name: 'plan.md', text: '# Plan <b>x</b>', error: null };
-  assert.match(render(), /<pre class="filetext"># Plan &lt;b&gt;x&lt;\/b&gt;<\/pre>/);
+  const html = render();
+  assert.match(html, /<div class="doc"><h2>Plan &lt;b&gt;x&lt;\/b&gt;<\/h2><\/div>/, 'preview, escaped');
+  assert.match(html, /data-file-mode="edit"/);
+  // Edit mode: a textarea holding the text; Save stays off until it changes.
+  S.ui.file.mode = 'edit';
+  const busy = render();
+  if (/data-file-mode="edit" disabled/.test(busy)) assert.doesNotMatch(busy, /<textarea class="doc-edit"/, 'locked while Tandem works: preview only');
+  S.ui.file = { folder: 'spike-cache-options', name: 'findings.md', text: '# F', error: null, mode: 'edit' };
+  const ed = render();
+  assert.match(ed, /<textarea class="doc-edit" data-draft="file:spike-cache-options\/findings.md"[^>]*># F<\/textarea>/);
+  assert.match(ed, /data-file-save="1" disabled/);
+  S.ui.drafts['file:spike-cache-options/findings.md'] = '# F\n\nMore';
+  assert.match(render(), /data-file-save="1">Save/);
+  assert.match(render(), /Unsaved changes/);
+  S.hasNotes = true;
+  assert.match(render(), /data-open-notebook="1"/);
+  delete S.ui.drafts['file:spike-cache-options/findings.md'];
+  S.hasNotes = false; S.ui.file = null;
 });
 
 test('text from .work and opencode is escaped, and only http(s) links are links', () => {

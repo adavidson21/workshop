@@ -20,7 +20,7 @@ test("module follows the connector contract and its configSchema fits the settin
   assert.deepEqual(schemas.validate("config-form", configSchema), []);
   const writes = Object.entries(oc.actions).filter(([, a]) => a.write).map(([n]) => n).sort();
   assert.deepEqual(writes, ["abort", "answer", "approve", "autopilot", "chat.send", "chat.start", "file.write", "handoff.start", "hub.run", "oneonone.draft", "pr.review", "pr.reviewAll", "project.create", "project.delete", "project.update", "push", "refine.start", "remove", "reply", "repo.add", "repo.guide", "review.submit", "run", "run.assign", "scope.start", "shape.start", "slice.start", "spike", "start", "start.local", "triage.start"], "everything that changes opencode, git, .work or the workspace needs confirm");
-  for (const n of ["status", "state", "refresh", "file.read", "terminal", "session.dismiss", "review.session", "review.file", "pr.queue.stop", "pr.queue.clear", "pr.inbox.save", "oneonone.result", "chat.messages", "chat.list", "chat.remove"]) assert.equal(oc.actions[n].write, false);
+  for (const n of ["status", "state", "refresh", "file.read", "terminal", "session.dismiss", "review.session", "review.file", "pr.queue.stop", "pr.queue.clear", "pr.inbox.save", "oneonone.result", "chat.messages", "chat.list", "chat.remove", "docs.list"]) assert.equal(oc.actions[n].write, false);
 });
 
 test("the C0 example's opencode entry and a typical config are valid", () => {

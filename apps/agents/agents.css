@@ -855,3 +855,30 @@ section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
 .chat-home .hub-cards { max-height: none; }
 
 @media (max-width: 600px) { .top .tabs { order: 3; flex-basis: 100%; } }
+
+/* ---------- the .work file sheet: preview and edit (view.js fileSheetHtml, doc.js) */
+.doc-sheet { width: min(900px, 100%); }
+.doc-sheet .sheet-head { flex-wrap: wrap; }
+.doc-tabs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; margin-left: 8px; }
+.doc-tab { border: 0; background: transparent; font: 500 12.5px/1 var(--sans, inherit); padding: 6px 12px; cursor: pointer; color: var(--muted); }
+.doc-tab.on { background: var(--bg); color: var(--ink); }
+.doc-tab:disabled { cursor: not-allowed; opacity: .55; }
+.doc-note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.doc { margin-top: 12px; font-size: 14.5px; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
+.sheet .doc p { color: var(--ink); font-size: 14.5px; margin: 8px 0; }
+.doc h2, .doc h3, .doc h4, .doc h5, .doc h6 { font-family: var(--serif); margin: 18px 0 6px; line-height: 1.25; }
+.doc h2 { font-size: 21px; } .doc h3 { font-size: 17px; } .doc h4, .doc h5, .doc h6 { font-size: 15px; }
+.doc ul, .doc ol { margin: 6px 0; padding-left: 22px; }
+.doc li { margin: 2px 0; }
+.doc li.task { list-style: none; margin-left: -20px; display: flex; gap: 8px; align-items: baseline; }
+.doc li.task .box { flex: none; width: 13px; height: 13px; border: 1px solid var(--muted); border-radius: 3px; font-size: 10px; line-height: 12px; text-align: center; transform: translateY(2px); }
+.doc li.task.done { color: var(--muted); }
+.doc code { font: 12.5px var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.doc pre { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; overflow: auto; }
+.doc pre code { border: 0; padding: 0; background: none; }
+.doc blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.doc table { border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+.doc th, .doc td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+.doc hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.doc-edit { display: block; width: 100%; box-sizing: border-box; margin-top: 12px; min-height: min(60vh, 560px); resize: vertical; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; font: 13px/1.6 var(--mono); tab-size: 2; }
+.doc-edit:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
