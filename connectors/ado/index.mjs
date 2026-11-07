@@ -7,7 +7,7 @@ import { dataset } from './lib/dataset.mjs';
 import { importConfig, importFile } from './lib/import.mjs';
 import { configFromUrl } from './lib/url.mjs';
 import { authTracker, patStatus } from './lib/pat.mjs';
-import { cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
+import { areasMine, cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
 import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
 import { workItemPrs } from './lib/prs.mjs';
 import { iterationsList } from './lib/items.mjs';
@@ -142,7 +142,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.10.0',
+  version: '1.11.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -163,6 +163,14 @@ export default {
           ctx.log.info(`sync: ${out.items.length} items, ${out.gone.length} gone${out.prs ? `, ${out.prs.items.length} PRs` : ''}`);
           return out;
         });
+      }
+    },
+    'areas.mine': {
+      title: 'Area paths of my open work items (for Team area paths)',
+      write: false,
+      argsSchema: { type: 'object', properties: {} },
+      async run(args, ctx) {
+        return guarded(ctx, 'areas.mine', () => areasMine(deps(ctx)));
       }
     },
     'sync.prs': {

@@ -851,3 +851,24 @@ test('applyRoadmapItem: a card from Runway\'s roadmap-item offer, once per roadm
   assert.equal(list[1].level, 'story');
   assert.equal(list[1].ado, null);
 });
+
+test('manual drafts: templates parse, Status flips, and cleanItem keeps only the draft files', async () => {
+  const { manualDraft, withStatus } = await import('../js/model.js');
+  const it = newItem({ title: 'CSV export', description: 'Pat needs it' }, NOW);
+  const r = manualDraft('refine', it);
+  assert.equal(draftState({ work: { define: 'refine-manual-x' } }, r).step, 'approve');
+  assert.match(parseRefine(r['refine.md']).acceptance, /^Scenario:/);
+  const sc = manualDraft('scope', it);
+  assert.equal(draftState({ work: { define: 'scope-manual-x' } }, sc).step, 'approve-milestones');
+  assert.equal(parseMilestones(sc['milestones.md']).features.length, 1);
+  assert.equal(draftState({ work: { define: 'scope-manual-x' } }, { ...sc, 'milestones.md': withStatus(sc['milestones.md'], 'APPROVED') }).step, 'publish');
+  assert.equal(withStatus('no status', 'DRAFT').split('\n')[0], 'Status: DRAFT');
+  const kept = cleanItem({ title: 't', manual: { folder: 'refine-manual-w_1', files: { 'refine.md': 'x', 'evil.sh': 'y' } } });
+  assert.deepEqual(kept.manual, { folder: 'refine-manual-w_1', files: { 'refine.md': 'x' } });
+  assert.equal(cleanItem({ title: 't', manual: { folder: '../x', files: {} } }).manual, undefined);
+  // A manual epic from an Issue publishes the same plan as an agent's, source link included.
+  const src = newItem({ title: 'Customers want CSV', ado: { id: 77, rev: 1, type: 'Issue' } }, NOW);
+  src.work.define = 'scope-manual-w';
+  const plan = publishPlan(src, { ...sc, 'milestones.md': withStatus(sc['milestones.md'], 'APPROVED') });
+  assert.deepEqual(plan.map(p => p.ref), ['epic', 'feature 1', 'story 1.1', 'source']);
+});

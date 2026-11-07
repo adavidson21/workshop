@@ -1,6 +1,6 @@
 // opencode connector: adapter for opencode 1.x (`opencode serve`).
 //
-// Copied from eng-agents core/scripts/dashboard/server/opencode-v1.mjs. Change: the reload after
+// Copied from eng-agents core/scripts/dashboard/server/opencode-v1.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Change: the reload after
 // opencode disposes its instance stops with the connector.
 
 import { httpError, later, opt } from "./context.mjs";

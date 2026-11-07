@@ -172,13 +172,14 @@ ws.on('route', ({ path } = {}) => {
   if (!r) return;
   wantPage = r.page; wantFocus = r.focus || '';
   if (pages.has(r.page)) { selectPage(r.page); focusPart(); }
+  if (r.focus === 'you') { if (people) people.command('add-you', r.name); else pendingCommands.push(['add-you', r.name]); }
 });
 // Commands from the palette (Add a person, Add a group) open People & groups with the form.
 ws.on('command', ({ id } = {}) => {
   if (id !== 'add-person' && id !== 'add-group') return;
   wantPage = 'people';
   selectPage('people');
-  if (people) people.command(id); else pendingCommands.push(id);
+  if (people) people.command(id); else pendingCommands.push([id]);
 });
 
 // A card on a page (Overview unless named). `order` places it among the page's cards (default 50).
@@ -1353,7 +1354,7 @@ function healthCard() {
 async function peoplePages() {
   try {
     people = await mountPeople({ ws, toast, peopleEl: page('people'), teamEl: page('team') });
-    for (const id of pendingCommands.splice(0)) people.command(id);
+    for (const [id, arg] of pendingCommands.splice(0)) people.command(id, arg);
     if (current === 'people') focusPart();
   } catch (e) { card('', '', 'people').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }

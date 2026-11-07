@@ -838,8 +838,10 @@ export function setupHtml() {
     title = 'Connecting to Workshop';
     body = '<p>Looking for the opencode connector.</p>';
   } else if (c.state === 'missing') {
-    title = 'The opencode connector is not installed';
-    body = '<p>This copy of Workshop has no <code>connectors/opencode</code> folder.</p>';
+    title = 'Dispatch is not set up on this computer';
+    body = '<p>Dispatch runs coding agents (Tandem, on opencode) on your work items: triage, drafting stories, building and reviewing code. It needs opencode, Tandem and an AI model your company allows, so it is optional; the rest of Workshop works without it.</p>'
+      + '<p>To add it, run the Workshop installer again and answer <b>y</b> to the AI model question (in work mode, follow "Dispatch in work mode" in the README). Home\'s Get started has the steps under <b>Set up Dispatch for coding agents</b>.</p>'
+      + '<p class="note">The box below still captures tasks, receipts and notes without it.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
     body = '<p>Turn it on in Settings and set your workspace folder (the folder that holds <code>.work</code> and your repos).</p>';

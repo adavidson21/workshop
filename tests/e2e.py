@@ -301,14 +301,14 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.inner_text('#top'))
         slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new request lands in Inbox and opens its panel, Triage shown', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
-              and slf.locator('.panel .next [data-act=triage]').count() == 1)
+        check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
+              and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
         check('one board of six columns, no lane switcher, Board and Health tabs', cols == ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']
               and slf.locator('.top [data-act=lane]').count() == 0
               and slf.eval_on_selector_all('.top [data-act=tab]', 'bs => bs.map(b => b.dataset.id)') == ['board', 'health'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
-        check('the request shows Triage and Interview me; Define now, Add to roadmap and Move to are in More', shown == ['triage', 'shape']
+        check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
         stored = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); return [e.schema, e.items.length, e.items[0].stage]; }""")
         check('Slate keeps items in its own collection (slate.items v1)', stored == ['slate.items', 1, 'new'])
@@ -348,9 +348,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('.col[aria-label=Inbox] .card').count() == 1)
         slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new idea lands in Inbox, marked Idea, with Shape it', slf.locator('.col[aria-label=Inbox] .card').count() == 2
+        check('a new idea lands in Inbox, marked Idea, with Write it myself (no Dispatch here)', slf.locator('.col[aria-label=Inbox] .card').count() == 2
               and slf.locator('.col[aria-label=Inbox] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
-              and slf.locator('.panel .next [data-act=shape]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
+              and slf.locator('.panel .next [data-act=write-myself]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)
@@ -500,8 +500,16 @@ def browser_mode_checks(ctx, pg, frame, watch):
 PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg=='
 PASTE_IMAGE = """(b64) => { const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const dt = new DataTransfer(); dt.items.add(new File([bytes], 'Screen Shot.png', {type: 'image/png'}));
-  const ed = document.getElementById('editor'); ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length);
+  const ed = document.querySelector('.cm-content'); ed.focus();
   ed.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
+
+
+def notes_append(page, nf, text):
+    """Add text at the end of the open note. Folio 3.3 edits in CodeMirror, which continues lists and closes brackets
+    as you type, so set the whole text at once (as Folio's own e2e does) instead of typing it."""
+    nf.fill('.cm-content', nf.input_value('#editor') + text)
+    nf.press('.cm-content', 'Control+End')
+    page.wait_for_timeout(150)
 
 
 def notes_new(page, nf, title, folder_button=None):
@@ -509,8 +517,8 @@ def notes_new(page, nf, title, folder_button=None):
     # title when you leave it; Control+s saves it as typed.
     nf.click(folder_button or '.side [data-act=new-note]')
     page.wait_for_timeout(400)
-    nf.type('#editor', title)
-    nf.press('#editor', 'Control+s')
+    nf.type('.cm-content', title)
+    nf.press('.cm-content', 'Control+s')
     page.wait_for_timeout(600)
 
 
@@ -520,9 +528,8 @@ def notes_ecosystem(pg, nf):
     nf = next(f for f in pg.frames if '/apps/notes/' in f.url)  # notes_flow reloaded the page
     seen(nf, '.side')
     notes_new(pg, nf, 'Team Sync')
-    nf.click('#editor'); nf.press('#editor', 'Control+End')
-    nf.type('#editor', '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:prioritizer/today)\n')
-    nf.press('#editor', 'Control+s'); pg.wait_for_timeout(1200)
+    notes_append(pg, nf, '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:prioritizer/today)\n')
+    nf.press('.cm-content', 'Control+s'); pg.wait_for_timeout(1200)
     check('Notes: the panel lists the action item and the win (For Rapport), each with a send button',
           nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=rapport]').count() == 1)
     check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'docket')
@@ -547,12 +554,12 @@ def notes_ecosystem(pg, nf):
     check('Notes: today\'s note has the wrap-up from Docket', '## Wrap-up' in today and '- Day: ' in today)
     if '## Wrap-up' not in today: print('      today:', today[:300].replace('\n', ' | '))
     # Plan 1: the [[ picker offers Docket's tasks; the task's details list the note.
-    nf.click('#editor'); nf.press('#editor', 'Control+End')
-    nf.type('#editor', '\nFollow up on [[Draft the')
+    nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
+    nf.type('.cm-content', '\nFollow up on [[Draft the')
     pg.wait_for_timeout(1500)
     picker_text = nf.inner_text('#picker') if nf.locator('#picker').count() else ''
     check('Notes: the [[ picker lists Docket tasks under In other apps', 'in other apps' in picker_text.lower() and 'Draft the rollout plan' in picker_text)
-    nf.press('#editor', 'Enter'); nf.press('#editor', 'Control+s'); pg.wait_for_timeout(1500)
+    nf.press('.cm-content', 'Enter'); nf.press('.cm-content', 'Control+s'); pg.wait_for_timeout(1500)
     m = re.search(r'\[Draft the rollout plan\]\(ws:prioritizer/task/([^)]+)\)', nf.input_value('#editor'))
     check('Notes: choosing a task writes its ws: link', bool(m))
     if m:
@@ -582,8 +589,7 @@ def notes_flow(page, nf, where):
     notes_new(page, nf, 'Deploy Runbook')
     check(f'Notes ({where}): a new note opens with its title as the heading', nf.input_value('#editor').startswith('# Deploy Runbook')
           and 'Deploy Runbook' in nf.inner_text('.tree .current'))
-    nf.click('#editor'); nf.press('#editor', 'Control+End')
-    nf.type('#editor', 'Steps for a release. #ops\n\n<img src=x onerror="window.__xss=1">\n')
+    notes_append(page, nf, 'Steps for a release. #ops\n\n<img src=x onerror="window.__xss=1">\n')
     page.wait_for_timeout(300)
     nf.evaluate(PASTE_IMAGE, PNG_B64); page.wait_for_timeout(1200)
     text = nf.input_value('#editor')
@@ -593,11 +599,11 @@ def notes_flow(page, nf, where):
     check(f'Notes ({where}): HTML in a note is shown as text, never run', not nf.evaluate('window.__xss') and 'onerror' in nf.inner_text('#preview') and nf.locator('#preview img[src=x]').count() == 0)
 
     notes_new(page, nf, 'Guide')
-    nf.click('#editor'); nf.press('#editor', 'Control+End')
-    nf.type('#editor', 'Read [[Depl'); page.wait_for_timeout(300)
+    nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
+    nf.type('.cm-content', 'Read [[Depl'); page.wait_for_timeout(300)
     picker = nf.locator('#picker')
     check(f'Notes ({where}): typing [[ opens the note picker', picker.is_visible() and 'Deploy Runbook' in picker.inner_text())
-    nf.press('#editor', 'Enter'); nf.type('#editor', ' first.\n'); page.wait_for_timeout(1500)
+    nf.press('.cm-content', 'Enter'); nf.type('.cm-content', ' first.\n'); page.wait_for_timeout(1500)
     check(f'Notes ({where}): the picker inserts a standard Markdown link', '[Deploy Runbook](deploy-runbook.md)' in nf.input_value('#editor'))
     check(f'Notes ({where}): edits save on their own', 'Saved' in nf.text_content('.status'))
 

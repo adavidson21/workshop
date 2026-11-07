@@ -1,6 +1,6 @@
 // opencode connector: adapter for the opencode 2.x background service (/api routes).
 //
-// Copied from eng-agents core/scripts/dashboard/server/opencode-v2.mjs. Change: the user name comes
+// Copied from eng-agents core/scripts/dashboard/server/opencode-v2.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Change: the user name comes
 // from the connector config (usernameEnv) instead of OPENCODE_SERVER_USERNAME directly.
 
 import { httpError, inWorkspace, opt } from "./context.mjs";

@@ -142,6 +142,12 @@ export function cleanItem(raw = {}) {
   // The ADO item the work came from, once Publish made new items for it (it was linked to them), and when the
   // triage questions were posted on the ADO item (Read replies reads comments after that).
   if (raw.source && Number.isInteger(raw.source.id)) it.source = { id: raw.source.id, url: /^https?:\/\//i.test(String(raw.source.url || '')) ? str(raw.source.url, 1000) : '', type: str(raw.source.type, 60) }; else delete it.source;
+  // A draft you write yourself (Write it myself): the same files an agent would write, kept here, never in .work.
+  if (raw.manual && /^(refine|scope)-manual-[a-z0-9_-]{1,60}$/.test(String(raw.manual.folder || ''))) {
+    const files = {};
+    for (const n of ['refine.md', 'stories.md', 'milestones.md']) if (typeof (raw.manual.files || {})[n] === 'string') files[n] = raw.manual.files[n].slice(0, 64000);
+    it.manual = { folder: raw.manual.folder, files };
+  } else delete it.manual;
   if (raw.asked && Number.isInteger(raw.asked.id) && typeof raw.asked.at === 'string' && raw.asked.at.length <= 30) it.asked = { id: raw.asked.id, at: raw.asked.at }; else delete it.asked;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
@@ -642,6 +648,22 @@ export function publishPlan(item, files = {}, { area = '', storyType = 'User Sto
 export function sourceComment(made) {
   return `Shaped in Slate into ${made.type || 'a work item'} #${made.id}: ${made.title || ''}. That is where the work is tracked now; this item is linked to it as Related.`.replace(/: \./, '.');
 }
+
+/** Templates for Write it myself, in the layouts the parsers read (refine.md; milestones.md with stories.md approved). */
+export function manualDraft(kind, item) {
+  const title = String(item.title || 'Untitled').replace(/\s+/g, ' ').trim();
+  const about = String(item.description || '').trim();
+  if (kind === 'refine') {
+    return { 'refine.md': `# Refine: ${title}\n\nStatus: DRAFT\nType: ${item.level === 'bug' ? 'Bug' : 'User Story'}\n\n## Description\n\nAs a <who>, I want <what>, so that <why>.\n${about ? `\n${about}\n` : ''}\n## Acceptance criteria\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n\n## Notes for the builder\n\n- \n\n## Open questions\n\n- None.\n` };
+  }
+  return {
+    'stories.md': `# Stories: ${title}\n\nStatus: APPROVED\n\nWritten by hand in Slate: the stories are in milestones.md.\n`,
+    'milestones.md': `# Milestones: ${title}\n\nStatus: DRAFT\n\nEpic: ${title}\n\n${about || 'What this delivers, and for whom.'}\n\n## Feature 1: <the first thing that ships>\n\n### Story 1.1: <a story>\n\nAs a <who>, I want <what>, so that <why>.\n\n#### Acceptance criteria\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n`
+  };
+}
+
+/** A draft's text with its Status line set (DRAFT or APPROVED). */
+export const withStatus = (text, status) => /^Status:.*$/m.test(text || '') ? String(text).replace(/^Status:.*$/m, `Status: ${status}`) : `Status: ${status}\n\n${text || ''}`;
 
 /** Scope (scope and slice) rather than refine: an epic or feature, or a triage that sized it L or XL. */
 export function suggestsScope(item, triage) {

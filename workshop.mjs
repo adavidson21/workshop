@@ -83,20 +83,20 @@ const USAGE = `Usage: workshop <command> [options]
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
   publish [--out <dir>]          Build the static site for hosted or browser mode (default out: dist/).
   pin [--docket <folder>]        Build work mode's pinned copy of Workshop (with Docket, Runway, Rapport and
-      [--no-docket]              Notes) from this install into ~/.workshop/ui. The agent serves only that
-      [--runway <folder>]        copy, checked file by file. Docket, Runway, Rapport and Notes come from a
+      [--no-docket]              Folio) from this install into ~/.workshop/ui. The agent serves only that
+      [--runway <folder>]        copy, checked file by file. Docket, Runway, Rapport and Folio come from a
       [--no-runway]              docket, runway, receipts and notes folder next to Workshop (or
       [--receipts <folder>]      .remote/<id>) unless a folder is given.
       [--no-receipts]            Apps turned off (workshop apps off) are left out.
       [--notes <folder>]
       [--no-notes]
   apps                           List the apps and whether each is on.
-  apps on <app>                  Turn an app on. In work mode, an app in its own repo (Docket, Runway, Rapport, Notes)
+  apps on <app>                  Turn an app on. In work mode, an app in its own repo (Docket, Runway, Rapport, Folio)
                                  is downloaded next to Workshop first, at its newest release, and the pinned
                                  copy is rebuilt. For Dispatch, Tandem (eng-agents) is downloaded next to
                                  Workshop and installed in opencode. Settings (Apps) has the same switches.
   apps off <app>                 Turn an app off: it leaves the rail (and the pinned copy in work mode).
-  update                         Update Workshop, Docket, Runway, Rapport, Notes and Tandem (eng-agents) each to its
+  update                         Update Workshop, Docket, Runway, Rapport, Folio and Tandem (eng-agents) each to its
                                  newest release tag (skipping any already there), then rebuild the pinned copy if
                                  work mode is on. Tandem is reinstalled in opencode when opencode's copy is behind.
                                  Tandem's clone is the one next to Workshop, else the one opencode installed from.
@@ -104,7 +104,7 @@ const USAGE = `Usage: workshop <command> [options]
   update --check                 List the release tags and say which one this is. Changes nothing.
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
          [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
-         [--runway-tag <tag>]    the pinned copy is built from. --receipts-tag and --notes-tag do the same for Rapport and Notes.
+         [--runway-tag <tag>]    the pinned copy is built from. --receipts-tag and --notes-tag do the same for Rapport and Folio.
          [--receipts-tag <tag>]  --eng-agents-tag installs Tandem in opencode at that tag (core-v<version>).
          [--notes-tag <tag>]
          [--eng-agents-tag <tag>]

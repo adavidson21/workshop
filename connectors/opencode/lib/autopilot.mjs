@@ -1,7 +1,7 @@
 // opencode connector: autopilot. Runs approve, tasks, do-task, review and pr in order, each in a new
 // session, and stops when it needs the engineer.
 //
-// Copied from eng-agents core/scripts/dashboard/server/autopilot.mjs. Changes: autopilot.json is read by
+// Copied from eng-agents core/scripts/dashboard/server/autopilot.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: autopilot.json is read by
 // loadAuto() on each start; status changes also send an `autopilot` event. The rules are unchanged.
 
 import fs from "node:fs";

@@ -1,7 +1,7 @@
 // opencode connector: the actions. Run a command, start an item, reply, answer prompts, push, abort,
 // remove, open a terminal. Also the shell status data (the `status` action).
 //
-// Copied from eng-agents core/scripts/dashboard/server/actions.mjs. Changes: the status `version` is
+// Copied from eng-agents core/scripts/dashboard/server/actions.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: the status `version` is
 // the connector's version; resetActions() for a restart. The rules (push protections, confirm on
 // remove, one session per item) are unchanged.
 
@@ -131,7 +131,7 @@ function stepText(it) {
   return n.text || n.action || n.command || null;
 }
 
-// Version of the shell API contract in docs/shell-api.md.
+// Version of the shell API contract (the `status` row in this connector's README).
 export const SHELL_API = 1;
 
 // What a shell needs to badge its tasks: one row per numbered work item, plus /start in progress.
@@ -171,7 +171,7 @@ export function shellData() {
   }
   return {
     app: APP,
-    api: SHELL_API, // bump on a breaking change to this shape (docs/shell-api.md)
+    api: SHELL_API, // bump on a breaking change to this shape (README, `status`)
     version: VERSION,
     workspace: path.basename(opt.workspace),
     opencode: { connected: oc.connected, error: oc.error },

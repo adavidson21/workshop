@@ -129,7 +129,7 @@ export function mountCapture(root, opts) {
     list.innerHTML = st.recent.map((h, i) => `<li class="${i === sel ? 'sel' : ''}" data-id="${esc(h.id)}">
       <span class="cap-tag">${esc(TARGET_NAMES[h.to] || h.to)}</span>
       <span class="cap-text">${esc(h.text)}</span>
-      <button class="btn ghost cap-undo" type="button" data-undo="${esc(h.id)}" title="Undo (x)">Undo</button></li>`).join('');
+      ${TARGET_NAMES[h.to] && ws.open ? `<button class="btn ghost cap-open" type="button" data-open-app="${esc(h.to)}" title="Open ${esc(TARGET_NAMES[h.to])}">Open</button>` : ''}<button class="btn ghost cap-undo" type="button" data-undo="${esc(h.id)}" title="Undo (x)">Undo</button></li>`).join('');
   }
   const draw = () => { drawPreview(); drawRecent(); };
 
@@ -196,6 +196,9 @@ export function mountCapture(root, opts) {
     else if (e.key === 'Escape') { e.preventDefault(); sel = -1; drawRecent(); input.focus(); }
   });
   root.addEventListener('click', e => {
+    // Open: the app the capture went to (it adds the item when it loads).
+    const o = e.target.closest('[data-open-app]');
+    if (o) { ws.open({ app: o.dataset.openApp }); return; }
     const u = e.target.closest('[data-undo]');
     if (u) { undo(u.dataset.undo); return; }
     if (e.target.closest('.cap-all')) { accept(); return; }

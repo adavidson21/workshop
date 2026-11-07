@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "description": "Connectors, repos, people and teams, apps, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",

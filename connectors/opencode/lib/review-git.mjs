@@ -1,6 +1,6 @@
 // opencode connector: git helpers for the review screen. Read-only: they never change a repo.
 //
-// Copied from eng-agents core/scripts/dashboard/server/review-git.mjs on branch dev/feature/review-api
+// Copied from eng-agents core/scripts/dashboard/server/review-git.mjs (gone from eng-agents since Core 2.11.0; this is the only copy) on branch dev/feature/review-api
 // at 2626601, unchanged apart from this header.
 //
 // Kept free of context.mjs on purpose, so tests can import this module without starting the server.

@@ -1,18 +1,18 @@
 # opencode connector
 
-The eng-agents live dashboard server, moved into Workshop as a connector. It reads `.work` with the eng-agents parser, follows opencode (1.x and 2.x), and runs pipeline commands for the Agents app (WS6) and Prioritizer.
+The eng-agents live dashboard server, moved into Workshop as a connector. eng-agents retired its own server in Core 2.11.0 (eng-agents #41), so this is the only copy; Dispatch is the one live UI (D2). It reads `.work` with the eng-agents parser, follows opencode (1.x and 2.x), and runs pipeline commands for the Agents app (WS6) and Prioritizer.
 
 Node standard library only. It calls only opencode on this computer (`127.0.0.1`, `localhost` or `[::1]`) and runs `git`, PowerShell and the `opencode` command locally.
 
 ## Source
 
-Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) `main` at `e2d202abf5223e74d3af942fcd8ff56bd12cf811` (Core 2.1.0, Dashboard 1.6.1). Later Dashboard releases are synced as listed in PARITY.md.
+Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) `main` at `e2d202abf5223e74d3af942fcd8ff56bd12cf811` (Core 2.1.0, Dashboard 1.6.1). Later Dashboard releases were synced as listed in PARITY.md. eng-agents deleted `server/*.mjs` and `live-server.mjs` in Core 2.11.0, so `lib/` and `index.mjs` change here only. Only the parser still has a twin in eng-agents.
 
 | eng-agents | Here |
 | --- | --- |
-| `core/scripts/dashboard/server/*.mjs` (all but `updates.mjs`) | `lib/` |
-| `core/scripts/dashboard/New-Dashboard.ps1` | `parser/New-Dashboard.ps1`, unchanged. Synced again from eng-agents Dashboard 1.9.0 (Core 2.6.0): scope folders and PR reviews. |
-| `core/scripts/dashboard/live-server.mjs` routes | actions and events in `index.mjs` |
+| `core/scripts/dashboard/server/*.mjs` (all but `updates.mjs`), deleted in Core 2.11.0 | `lib/`, now the only copy |
+| `core/scripts/dashboard/New-Dashboard.ps1` | `parser/New-Dashboard.ps1`. Synced from eng-agents Dashboard 1.9.0 (Core 2.6.0): scope folders and PR reviews. Differs on purpose: finds repos one folder down (`repoCategories`), and leaves out the static page's `coreVersion` and `dispatchUrl`. Sync parsing and next-step rules both ways until the parser is ported to JavaScript. |
+| `core/scripts/dashboard/live-server.mjs` routes, deleted in Core 2.11.0 | actions and events in `index.mjs` |
 
 The first commit on the WS3 branch is the verbatim copy, so `git diff` against it shows every change. Each file in `lib/` says what changed at the top.
 
@@ -62,7 +62,7 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 
 | Action | Write | Args | Live server route | Result |
 | --- | --- | --- | --- | --- |
-| `status` | no | | `GET /api/shell/status` | The shell API 1 shape, unchanged: `{app: "eng-agents-dashboard", api: 1, version, workspace, opencode, error, items[]}`. Each item has `stage`, `next` (with `text`), `busy`, `waiting`, `autopilot`. `version` is the connector's. |
+| `status` | no | | `GET /api/shell/status` | The shell API 1 shape (documented here; eng-agents' `docs/shell-api.md` is gone), unchanged: `{app: "eng-agents-dashboard", api: 1, version, workspace, opencode, error, items[]}`. Each item has `stage`, `next` (with `text`), `busy`, `waiting`, `autopilot`. `version` is the connector's. |
 | `state` | no | | the page data | Everything the dashboard page got: the parser's model (items, repos, activity, `stepWords`, PR text), `projects` (see Projects), plus `liveMode.live` (sessions, prompts, questions, autopilot, `canOpenTerminal`, `others`, and `opencode.ai`: `{known, providers}`, the AI providers opencode can use, or `known: false` when this opencode does not say) and `tandem.ado` (whether Tandem has ADO connections set up). |
 | `refresh` | no | | `POST /api/refresh` | Reads `.work` again and asks opencode for its AI providers again. `{ok, error}`. |
 | `file.read` | no | `folder`, `file` | `GET /files/<folder>/<file>` | `{folder, file, text}`. Only `.work/<folder>/<name>.md`. |
@@ -226,9 +226,9 @@ Request changes saves the feedback, sets the review to `revising`, and sends one
 | --- | --- | --- |
 | The page (`dashboard.template.html`) and `/` | Connectors have no UI. | WS6 (Agents app) |
 | Session token, `shellOrigins`, CORS, `frame-ancestors`, `Host` check | The agent does this for every connector. | WS1 (done) |
-| `/api/update`, `/api/update-check`, `/api/restart` (`updates.mjs`) | Connectors make no update checks. eng-agents updates stay in eng-agents. | WS8 |
-| Writing `.work/dashboard.html` | Its template is the eng-agents page. The static page still works from eng-agents' `/dashboard static`. | WS6, WS8 |
-| `/api/ping`, `Start-LiveDashboard.ps1` | The agent starts and stops the connector; use `GET /api/connectors/opencode` for its status. | |
+| `/api/update`, `/api/update-check`, `/api/restart` (`updates.mjs`) | Connectors make no update checks. `workshop update` updates Tandem (workshop #154). | Done |
+| Writing `.work/dashboard.html` | Its template is the eng-agents page. eng-agents' `/dashboard static` still writes it, and it links to Dispatch. | Stays in eng-agents |
+| `/api/ping`, `Start-LiveDashboard.ps1` | The agent starts and stops the connector; use `GET /api/connectors/opencode` for its status. eng-agents deleted the script in Core 2.11.0; `/dashboard` opens Dispatch. | Done |
 | Port 4300 | Served by the agent. | |
 
 ## Known quirks kept for parity

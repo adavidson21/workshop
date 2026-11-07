@@ -267,7 +267,8 @@ test('before the connector is ready, the page says what is wrong and how to fix 
   assert.match(setupHtml(), /href="http:\/\/127\.0\.0\.1:4380\/#\/settings"[^>]*>Open Settings in Workshop/, 'paired: a link to Settings on this computer');
   S.agentUrl = null;
   S.connector = { state: 'missing', message: null };
-  assert.match(setupHtml(), /not installed/);
+  assert.match(setupHtml(), /Dispatch is not set up on this computer/);
+  assert.doesNotMatch(setupHtml(), /connectors\/opencode/, 'no folder names for someone new');
 });
 
 test('an empty .work says how to start', () => {

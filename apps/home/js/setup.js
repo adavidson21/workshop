@@ -2,7 +2,8 @@
    Workshop on this computer, your name, the ADO connector, a Docket task, a receipt),
    so it works as an interactive guide for someone new. Any step can be skipped. Hiding the checklist and
    skipped steps are saved in Home's own collection `setup` (home.setup v1, no items; meta: {hidden,
-   skipped: [step ids], updatedAt}); everything else is read live, read-only.
+   skipped: [step ids], machine ('work' | 'personal', the Connect step's choice), appsPicked, folded (you folded
+   the card to one line), updatedAt}); everything else is read live, read-only.
 
    factsFor() reads, stepsFor() decides (pure), card() builds the HTML (pure), createSetup() loads and
    saves. main.js puts the card under the greeting and repaints it when anything changes. */
@@ -31,6 +32,12 @@ export function adoFact(info, config) {
   return { state: 'error', message: s.message || 'The ADO connector is not ready yet.' };
 }
 
+
+/** Your own person in the people directory (relation You): its name, or '' when there is none. */
+export const selfName = dir => {
+  const me = dir && Array.isArray(dir.people) ? dir.people.find(p => !p.archived && p.relation === 'self') : null;
+  return me ? String(me.name || '').trim() : '';
+};
 
 /** Active reports and manager in the people directory (ws.people, docs/people.md): the people Rapport works with. */
 export const teamCount = dir => (dir && Array.isArray(dir.people) ? dir.people.filter(p => !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
@@ -74,6 +81,7 @@ export async function factsFor(ws) {
     ado: agent ? (list ? adoFact(byId('ado'), adoCfg) : null) : { state: 'browser' },
     receipts: receiptsCount(summary),
     team: teamCount(people),
+    self: selfName(people),
     areas: areaCount(teams),
     dataDir: cfg && typeof cfg.dataDir === 'string' ? cfg.dataDir : null,
     dispatch: agent && list ? (oc && oc.enabled && oc.status.state === 'ready' ? 'ready' : oc ? 'off' : 'missing') : null,
@@ -82,14 +90,32 @@ export async function factsFor(ws) {
   };
 }
 
+/**
+ * Pick your apps: one line per app on the rail, with the ones that cannot do much here suggested off. Slate
+ * without Azure DevOps and without Dispatch is only a local request board; Dispatch needs its agents.
+ */
+export function appSuggestions(f = {}) {
+  const ado = f.ado && f.ado.state === 'ready';
+  const agents = f.dispatch === 'ready';
+  return [
+    { id: 'prioritizer', name: 'Docket', why: 'your tasks, today and what you handed over.' },
+    { id: 'slate', name: 'Slate', why: ado || agents ? 'requests from idea to shipped.' : 'requests from idea to shipped. Without Azure DevOps or Dispatch it is a local board you fill in by hand.', off: !ado && !agents },
+    { id: 'agents', name: 'Dispatch', why: agents ? 'coding agents on your work items.' : 'coding agents on your work items. Not set up on this computer.', off: !agents },
+    { id: 'receipts', name: 'Rapport', why: '1:1s and evidence for reviews.' },
+    { id: 'notes', name: 'Folio', why: 'notes, kept as files.' },
+    { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' }
+  ];
+}
+
 /* ------------------------------------------------------------------------------------------- deciding */
 
 // The order a new person goes in. `core` steps count toward "n of m"; the rest are for later.
 export const STEPS = [
   { id: 'connect', core: true, title: 'Connect Workshop on this computer' },
-  { id: 'name', core: true, title: 'Add your name' },
+  { id: 'name', core: true, title: 'Add yourself' },
   { id: 'backup', core: true, title: 'Keep your data backed up', needs: 'connect' },
   { id: 'ado', core: true, title: 'Connect Azure DevOps', needs: 'connect' },
+  { id: 'apps', core: true, title: 'Pick your apps' },
   { id: 'team', core: true, title: 'Add your team' },
   { id: 'areas', core: true, title: "Set your team's area paths", needs: 'ado' },
   { id: 'task', core: true, title: 'Add your first task in Docket' },
@@ -108,7 +134,9 @@ export function stepsFor(facts, skipped = []) {
   const skip = new Set(skipped);
   const done = {
     connect: f.connected === true,
-    name: !!(f.name && String(f.name).trim()),
+    // Your name lives in People (relation You), so every app knows who you are.
+    name: !!(f.self && String(f.self).trim()),
+    apps: f.appsPicked === true,
     backup: onOneDrive(f.dataDir),
     ado: f.ado && f.ado.state === 'ready',
     team: Number(f.team) > 0,
@@ -168,29 +196,44 @@ function detail(s, ctx) {
     case 'connect': {
       if (f.workMode) return `<p>Work mode is on: Workshop runs from the pinned copy on this computer, so there is nothing to connect. Open it with <code>workshop open</code> and check it with <code>workshop doctor</code>.</p>`;
       const site = /^https:\/\//.test(ctx.origin || '') ? ctx.origin : SITE.workshop;
-      const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
-      return `<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
-        ${copy(cmd)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If your company blocks piping a script, follow "By hand" in the README.</p>
-        <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
-        <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>
-        <p><b>On a work computer</b>, install in work mode instead. Workshop then runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive:</p>
+      const work = ctx.machine !== 'personal';
+      const pick = (id, label) => `<button type="button" class="btn${(id === 'work') === work ? ' primary' : ' ghost'}" data-machine="${id}" aria-pressed="${(id === 'work') === work}">${label}</button>`;
+      const choose = `<p class="su-pick" role="group" aria-label="Which computer is this?">${pick('work', 'Work computer')}${pick('personal', 'Personal computer')}</p>`;
+      if (work) {
+        return `${choose}<p>Install Workshop in work mode, once, for your user only, with no admin rights. It runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive:</p>
         ${copy(ctx.platform === 'win' ? `irm ${site}/install-work.ps1 | iex` : `curl -fsSL ${site}/install-work.sh | bash`)}
-        <p class="su-fine">It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. If your company blocks piping a script, follow "Work mode, by hand" in the README.</p>
+        <p>It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
+      }
+      const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
+      return `${choose}<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
+        ${copy(cmd)}
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If piping a script is blocked, follow "By hand" in the README.</p>
+        <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
+        <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
     }
     case 'backup': {
       const where = f.dataDir ? `<code>${esc(f.dataDir)}</code>` : 'your data folder';
       if (onOneDrive(f.dataDir)) return `<p>Your data is in ${where}, so OneDrive backs it up.</p>`;
-      return `<p>Everything you add is saved as files in ${where}. Workshop never uploads it, so if this computer is replaced, those files are your only copy.</p>
+      if (f.workMode) return `<p>Everything you add is saved as files in ${where}. Workshop never uploads it, so if this computer is replaced, those files are your only copy.</p>
         <p>Move it into your company OneDrive, which backs it up. This copies your files, switches to the new folder and keeps the old one:</p>${copy('workshop data-folder --onedrive')}
         <p class="su-fine">Prefer another folder? <code>workshop data-folder &lt;folder&gt;</code>. Happy with local files? Skip this step.</p>`;
+      return `<p>Everything you add is saved as files in ${where}. Workshop never uploads it, so if this computer is replaced, those files are your only copy.</p>
+        <p>Keep the folder somewhere your computer backs up (a synced folder, or one your backup tool copies). This copies your files, switches to the new folder and keeps the old one:</p>${copy('workshop data-folder <folder>')}
+        <p class="su-fine">Happy with where it is? Skip this step.</p>`;
     }
     case 'team':
       return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
     case 'areas':
       return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Dispatch hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
-      return `<p>Used only for the greeting on this page.</p><p>${btn('Add your name', 'data-edit-profile', true)}</p>`;
+      return `<p>Add yourself in People: your name, and the name Azure DevOps knows you by, so Docket, Slate and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
+    case 'apps': {
+      const sug = appSuggestions(f);
+      const rows = sug.map(a => `<li><b>${esc(a.name)}</b>: ${esc(a.why)}${a.off ? ' <span class="su-off">Suggested: off</span>' : ''}</li>`).join('');
+      return `<p>Turn off what you won't use, so the rail only shows what helps. Anything can come back later in Settings, Apps.</p><ul class="su-list">${rows}</ul>
+        <p>${ctx.settings && ctx.settings.inShell ? btn('Open Apps', 'data-open="settings" data-path="apps"') : ctx.settings && ctx.settings.href ? `<a class="btn ghost" href="${esc(ctx.settings.href)}#apps" target="_blank" rel="noopener">Open Apps on this computer</a>` : btn('Open Apps', 'data-open="settings" data-path="apps"')} ${btn('These look right', 'data-apps-ok', true)}</p>`;
+    }
     case 'ado': {
       const a = f.ado || {};
       if (a.state === 'ready') {
@@ -291,7 +334,7 @@ export function card(view, open, ctx) {
  * (tasks: null while the board is unknown). onChange is called after every load or save.
  */
 export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}) {
-  const s = { loaded: false, facts: null, hidden: false, skipped: [], env: null };
+  const s = { loaded: false, facts: null, hidden: false, skipped: [], env: null, machine: 'work', appsPicked: false, folded: false };
 
   async function loadSaved() {
     try {
@@ -299,6 +342,9 @@ export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}
       const m = s.env && s.env.meta || {};
       s.hidden = m.hidden === true;
       s.skipped = Array.isArray(m.skipped) ? m.skipped.filter(id => STEPS.some(x => x.id === id)) : [];
+      s.machine = m.machine === 'personal' ? 'personal' : 'work';
+      s.appsPicked = m.appsPicked === true;
+      s.folded = m.folded === true;
     } catch (e) { /* keep what is shown; Home's own waiting state covers the folder */ }
   }
   async function load() {
@@ -309,12 +355,12 @@ export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}
   }
 
   async function save(patch) {
-    const before = { hidden: s.hidden, skipped: s.skipped };
+    const before = { hidden: s.hidden, skipped: s.skipped, machine: s.machine, appsPicked: s.appsPicked, folded: s.folded };
     Object.assign(s, patch);
     onChange();
     const build = base => ({
       schema: 'home.setup', version: SETUP_VERSION, rev: base ? base.rev : 0, items: [], deleted: base && base.deleted || {},
-      meta: Object.assign({}, base && base.meta, { hidden: s.hidden, skipped: s.skipped, updatedAt: Date.now() })
+      meta: Object.assign({}, base && base.meta, { hidden: s.hidden, skipped: s.skipped, machine: s.machine, appsPicked: s.appsPicked, folded: s.folded, updatedAt: Date.now() })
     });
     try {
       try {
@@ -334,12 +380,15 @@ export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}
     }
   }
 
-  const view = () => stepsFor({ ...(s.facts || {}), ...extra() }, s.skipped);
+  const view = () => stepsFor({ ...(s.facts || {}), ...extra(), appsPicked: s.appsPicked }, s.skipped);
   return {
     s, load, view,
     hide: () => save({ hidden: true }),
     show: () => save({ hidden: false }),
     skip: id => save({ skipped: [...new Set([...s.skipped, id])] }),
-    unskip: id => save({ skipped: s.skipped.filter(x => x !== id) })
+    unskip: id => save({ skipped: s.skipped.filter(x => x !== id) }),
+    setMachine: m => save({ machine: m === 'personal' ? 'personal' : 'work' }),
+    appsOk: () => save({ appsPicked: true }),
+    fold: on => save({ folded: !!on })
   };
 }

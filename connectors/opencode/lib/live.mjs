@@ -1,6 +1,6 @@
 // opencode connector: the full state (what the dashboard page showed) and connector events.
 //
-// Copied from eng-agents core/scripts/dashboard/server/live.mjs. The live server pushed the whole
+// Copied from eng-agents core/scripts/dashboard/server/live.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). The live server pushed the whole
 // model and live state to open pages over its own event stream. Connector events go through the
 // agent's /api/events and must stay small (docs/connector.md), so they say what changed and the app
 // calls the `state` or `status` action for the data, as the agent API does for data events.

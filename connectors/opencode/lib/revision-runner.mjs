@@ -17,7 +17,7 @@
 //
 // Kept free of context.mjs: review.mjs passes in the launcher and the session events.
 //
-// Copied from eng-agents core/scripts/dashboard/server/revision-runner.mjs on branch
+// Copied from eng-agents core/scripts/dashboard/server/revision-runner.mjs (gone from eng-agents since Core 2.11.0; this is the only copy) on branch
 // dev/feature/review-api at 2626601, unchanged apart from these comments.
 
 import { EventEmitter } from "node:events";
