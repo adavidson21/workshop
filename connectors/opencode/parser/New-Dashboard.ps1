@@ -26,8 +26,10 @@
     The LAST line of output is always the path of the dashboard file.
 
     With -AsJson it writes nothing: it prints the data as one line of JSON (ASCII only,
-    other characters escaped) and exits. The live dashboard (live-server.mjs, server/model.mjs) uses
-    this, so the static and live pages share one parser and one set of next-step rules.
+    other characters escaped) and exits. Workshop's opencode connector (Dispatch) runs this copy
+    with -AsJson. eng-agents keeps the original for its static page (/dashboard static); this copy
+    differs on purpose: it finds repos one folder down and lists repoCategories, and it leaves out
+    the static page's coreVersion and dispatchUrl. Sync parsing and next-step rule changes both ways.
 
 .EXAMPLE
     .\New-Dashboard.ps1 -WorkRoot .work
@@ -521,7 +523,7 @@ function Get-FileList {
 
 # ------------------------------------------------------- next step (/status)
 
-# Each pipeline command in plain words. The live dashboard and shells (such as Workshop) show
+# Each pipeline command in plain words. Dispatch (Workshop) shows
 # these instead of the command, so this is the only place to change the wording. Sent to the page
 # as stepWords; /do-task becomes "Task <n>: <title>".
 $script:StepWords = [ordered]@{
@@ -865,8 +867,6 @@ foreach ($s in $script:RepoCache.Values) { if ($s.Contains("_webObj")) { $s.Remo
 $sortedActivity = @($activity | Sort-Object -Property @{ Expression = { $_.date }; Descending = $true }, @{ Expression = { $_.modifiedMs }; Descending = $true }, @{ Expression = { $_.order }; Descending = $true } | Select-Object -First $Recent)
 
 $psExe = $(if ($PSVersionTable.PSVersion.Major -lt 6) { "powershell" } else { "pwsh" })
-$versionFile = Join-Path $PSScriptRoot "VERSION"
-$dashboardVersion = if (Test-Path -LiteralPath $versionFile) { (Read-Text $versionFile).Trim() } else { $null }
 $now = Get-Date
 $data = [ordered]@{
     generated = $now.ToString("o")
@@ -875,11 +875,9 @@ $data = [ordered]@{
     workRoot = $workRootFull
     gitAvailable = $script:GitOk
     configFound = (Test-Path -LiteralPath $ConfigPath)
-    dashboardVersion = $dashboardVersion
     stepWords = $script:StepWords
     refreshCommand = "/dashboard static"
     refreshShell = "$psExe -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -WorkRoot `"$workRootFull`""
-    liveShell = "$psExe -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'Start-LiveDashboard.ps1')`""
     items = @($items | Sort-Object -Property @{ Expression = { $_.modifiedMs }; Descending = $true })
     repos = @($repos)
     repoCategories = @($repoCategories)

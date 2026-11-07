@@ -1,6 +1,6 @@
 // opencode connector: which opencode session belongs to which work item (.work/_dashboard/sessions.json).
 //
-// Copied from eng-agents core/scripts/dashboard/server/links.mjs. Change: the file is read by
+// Copied from eng-agents core/scripts/dashboard/server/links.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Change: the file is read by
 // loadLinks() on each start instead of once at import, so a new workspace setting takes effect.
 
 import fs from "node:fs";

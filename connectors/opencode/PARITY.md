@@ -54,14 +54,14 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
 | | `Start-LiveDashboard.ps1 -Detach`. | | **Not carried over**: the agent starts and stops the connector. |
-| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. WS6 kept it that way: the Agents app is live only. Revisit in WS8. |
-| | The static page shows whether the live dashboard is running. | | eng-agents, unchanged. **WS8** points it at Workshop. |
+| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. The Agents app (Dispatch) is live only. Settled by eng-agents Core 2.11.0 (#41). |
+| | The static page shows whether the live dashboard is running. | | **Done in eng-agents Core 2.11.0** (#41): the static page links to Dispatch instead. |
 
 ## Core 2.1.0
 
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
-| | `/dashboard` opens the live dashboard, starting it if needed. | | **WS8** |
+| | `/dashboard` opens the live dashboard, starting it if needed. | | **Done in eng-agents Core 2.11.0** (#41): `/dashboard` opens Dispatch (`Open-Dispatch.ps1`). |
 
 ## Dashboard 1.5.1
 
