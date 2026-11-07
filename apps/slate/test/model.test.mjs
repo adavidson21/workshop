@@ -800,3 +800,16 @@ test('cleanItem keeps source and asked only in shape', () => {
   const bad = cleanItem({ title: 't', source: { id: 'x' }, asked: { id: 5 } });
   assert.equal(bad.source, undefined); assert.equal(bad.asked, undefined);
 });
+
+test('summary: tracked lists every ADO item on the board with its column, and linked sources', async () => {
+  const { summaryCards } = await import('../js/model.js');
+  const now = new Date('2026-11-06T12:00:00');
+  const a = newItem({ title: 'In shape', ado: { id: 7, type: 'Issue' } }, now); setStage(a, 'triaged', now);
+  const b = newItem({ title: 'Scoped', ado: { id: 90, type: 'Epic' } }, now); setStage(b, 'decide', now); b.source = { id: 77, url: '', type: 'Issue' };
+  const c = newItem({ title: 'Closed', ado: { id: 8, type: 'Bug' } }, now); setStage(c, 'done', now);
+  const d = newItem({ title: 'No ADO' }, now);
+  const cols = { [a.id]: 'triage', [b.id]: 'decide', [c.id]: 'resolved', [d.id]: 'new' };
+  const t = summaryCards([a, b, c, d], { columnOf: it => cols[it.id], now }).find(x => x.id === 'tracked');
+  assert.deepEqual(t.rows.map(r => [r.id, r.note]), [['7', 'Shape'], ['90', 'Who builds it?'], ['77', 'Source of #90']]);
+  assert.equal(t.rows[0].route, `item/${a.id}`);
+});
