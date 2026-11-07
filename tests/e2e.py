@@ -122,9 +122,10 @@ def check(name, ok):
     if not ok: failed.append(name)
 
 
+SETTINGS_PAGE = {'general': 'overview', 'c-ado': 'connections', 'c-opencode': 'agents'}
 def stab(frame, tab):
-    """Settings is split into tabs (General, one per connector as c-<id>, People, Data): open one."""
-    frame.click(f'[role=tab][data-tab="{tab}"]'); frame.wait_for_timeout(150)
+    """Settings has a page per job in its left nav (apps/settings/js/pages.js). Opens one, by page id or the old tab id."""
+    frame.click(f'.nav-item[data-page="{SETTINGS_PAGE.get(tab, tab)}"]'); frame.wait_for_timeout(150)
 
 
 def skip_docket_tour(frame):
@@ -185,7 +186,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry', rail == ['prioritizer', 'slate', 'agents', 'receipts', 'notes', 'people', 'settings'])
+    check('rail is built from the app registry', rail == ['prioritizer', 'slate', 'agents', 'receipts', 'notes', 'settings'])
     check('Runway is hosted by Slate, so it has no rail button', pg.locator('.app-btn[data-app=runway]').count() == 0)
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
@@ -340,7 +341,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         if rmf and os.path.isfile(os.path.join(RUNWAY, 'app.json')):
             rmf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
             check('Runway inside Slate loads its roadmaps', rmf.locator('[data-new]').count() > 0)
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # People is Alt+6
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)  # Notes is Alt+5
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -349,12 +350,15 @@ def browser_mode_checks(ctx, pg, frame, watch):
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
-    check('Settings has no People tab (People is its own app)', sf is not None and sf.locator('[role=tab][data-tab="people"]').count() == 0)
+    nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.page)") if sf else []
+    check('Settings in browser mode: Overview, Apps, People & teams, Data & backups in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'data', 'people', 'team'])
 
-    # People directory (docs/people.md), in the People app: add yourself, then a report whose name is markup.
+    # People directory (docs/people.md), in Settings' People & teams: add yourself, then a report whose name is markup.
+    # The old People app's address opens it (shell RENAMED).
     pg.evaluate("location.hash = '#/people'"); pg.wait_for_timeout(1500)
-    sf = next((f for f in pg.frames if '/apps/people/' in f.url), None)
-    check('People opens from the rail as its own app', sf is not None and pg.locator('.app-btn[data-app=people]').count() == 1)
+    sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
+    check('#/people opens Settings at People & groups, and People has no rail button', sf is not None and pg.locator('.app-btn[data-app=people]').count() == 0
+          and sf.locator('#page-people').is_visible() and pg.url.endswith('#/settings'))
     if sf:
         sf.wait_for_selector('[data-person-new]', timeout=5000)
         sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
@@ -368,7 +372,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.select_option('#pRel', 'manager'); sf.fill('#pName', 'Boss Person')
         check('People: "On my team" follows the relation', not sf.is_checked('#pTeam'))
         sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
-        rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/people/'); rp.wait_for_timeout(500)
+        rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/settings/'); rp.wait_for_timeout(500)
         stored = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.kind, p.handle, p.relation, p.team, p.adoIdentity])]; }""")
         check('People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, 'dev.one@example.com'], ['person', 'boss', 'manager', False, '']]])
@@ -648,7 +652,16 @@ def agent_checks(b, watch):
         check('the agent\'s address opens Workshop on this computer (Settings), in local mode', sf.url == url + '/apps/settings/'
               and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
         check('it has one button to Workshop\'s site to pair from, not a list of sites', sf.locator('[data-open-site]').count() == 1 and sf.locator('a[data-open-site][href="' + HOSTED + '/"]').count() == 1)
-        check('rarely changed settings fold away under Advanced', sf.locator('details.adv:not([open]) #port').count() == 1 and sf.locator('details.adv #feat-startAtLogin').count() == 0)
+        nav = sf.evaluate("[...document.querySelectorAll('.nav-group')].map(g => g.dataset.group + ':' + [...g.querySelectorAll('.nav-item')].map(b => b.dataset.page).join(','))")
+        check('Settings has a left nav grouped by task', nav == ['workshop:overview,apps,computer,data', 'people:people,team', 'ado:connections,work-items,pull-requests', 'code:repos', 'connectors:c-echo'])
+        check('rarely changed settings are on their own page, This computer, not on Overview', sf.locator('#page-computer #port').count() == 1 and sf.locator('#page-computer #feat-startAtLogin').count() == 1
+              and sf.locator('#page-overview #port').count() == 0 and sf.locator('details.adv').count() == 0)
+        check('Overview says Azure DevOps is off, with Set up, and nothing in red', 'off' in sf.inner_text('[data-status-of=ado]').lower() and sf.locator('[data-status-of=ado] .state[data-state=error]').count() == 0)
+        stab(sf, 'work-items')
+        check('with Azure DevOps off, Work items says so in one line and shows no form', 'Azure DevOps is off. Turn it on in Connections.' in sf.inner_text('#page-work-items')
+              and sf.locator('#page-work-items form.cfg:visible').count() == 0)
+        stab(sf, 'repos')
+        check('Repos works with no Azure DevOps: no ADO lines or other folders', sf.locator('#page-repos .repo-meta').count() == 0 and not sf.locator('#page-repos .cfg-section').is_visible())
         gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html']
           .map(p => fetch(p).then(r => r.status)))""")
         check('the agent serves no hub and no other app', gone == [404] * 5)
@@ -686,13 +699,17 @@ def agent_checks(b, watch):
         check('changing the data folder saves dataDir and says to restart', saved.get('dataDir') == other and 'Restart Workshop' in sf.inner_text('[data-folder] .msg'))
         stab(sf, 'c-echo')
         echo = sf.locator('.conn[data-connector=echo]')
+        echo_page = sf.locator('#page-c-echo')
         check('Settings lists every connector, off by default', echo.count() == 1 and sf.locator('.conn[data-connector=ado]').count() == 1 and echo.locator('[data-state]').text_content().strip() == 'Off')
+        check('an unknown connector gets its own page, its form hidden while it is off', echo_page.locator('form.cfg:visible').count() == 0)
         echo.locator('[data-enable]').check(); sf.wait_for_timeout(1200)
         check('turning a connector on starts it', echo.locator('[data-state]').text_content().strip() == 'Ready')
-        echo.locator('summary').click(); sf.wait_for_timeout(600)
-        greeting = echo.get_by_label('Greeting (required)', exact=True)
-        check('a connector form is generated from its configSchema', greeting.input_value() == 'Hello' and echo.locator('select').count() == 1 and echo.locator('.cfg-env-status').inner_text() == 'set on this computer')
-        greeting.fill('Hi from e2e'); echo.locator('form.cfg button.btn.primary').click(); sf.wait_for_timeout(1000)
+        greeting = echo_page.get_by_label('Greeting (required)', exact=True)
+        check('a connector form is generated from its configSchema', greeting.input_value() == 'Hello' and echo_page.locator('select').count() == 1 and echo_page.locator('.cfg-env-status').inner_text() == 'set on this computer')
+        greeting.fill('Hi from e2e')
+        check('typing marks the page unsaved', sf.locator('.nav-item[data-page=c-echo] .dirty-dot').is_visible())
+        echo_page.locator('form.cfg button.btn.primary').click(); sf.wait_for_timeout(1000)
+        check('saving clears the unsaved mark', not sf.locator('.nav-item[data-page=c-echo] .dirty-dot').is_visible())
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         check('connector settings save to config.json', saved['connectors']['echo']['config'].get('greeting') == 'Hi from e2e')
         echo.locator('[data-test] input').fill('ping'); echo.locator('[data-test] button').click(); sf.wait_for_timeout(800)
@@ -700,22 +717,34 @@ def agent_checks(b, watch):
 
         stab(sf, 'c-ado')
         ado = sf.locator('.conn[data-connector=ado]')
-        ado.locator('summary').click(); sf.wait_for_timeout(800)
-        legends = [t.strip() for t in ado.locator('legend').all_text_contents()]  # labels are uppercased by CSS
-        check('the ADO form has connections, and repos are on the Repos tab', 'Connections' in legends and 'Repo and path mapping' not in legends and sf.locator('#tab-repos').count() == 1)
-        conn = ado.locator('fieldset', has=sf.locator('legend', has_text='Connections')).first
-        conn.locator('> .cfg-add').click(); sf.wait_for_timeout(200)
-        item = conn.locator('.cfg-item').first
+        conns_page = sf.locator('#page-connections')
+        ado.locator('[data-enable]').check(); sf.wait_for_timeout(1200)
+        check('ADO on with no connection reads as not set up, not as a problem', ado.locator('[data-state]').text_content().strip() == 'Not set up'
+              and sf.get_attribute('[data-group=ado] .nav-dot', 'data-state') == 'empty')
+        stab(sf, 'pull-requests')
+        check('Pull requests asks for a connection first', 'Add a connection first, in Connections.' in sf.inner_text('#page-pull-requests'))
+        stab(sf, 'c-ado')
+        check('Connections lists connections, and repo mapping is not on this page', 'No connections yet' in conns_page.inner_text() and conns_page.locator('legend', has_text='Repo and path mapping').count() == 0)
+        conns_page.locator('[data-conn-new]').click(); sf.wait_for_timeout(200)
+        item = conns_page.locator('.conn-form').first
         item.get_by_label('Name (required)', exact=True).fill('work')
         item.get_by_label('Server URL (required)', exact=True).fill('https://ado.example.com')
         item.get_by_label('Collection (required)', exact=True).fill('Main')
         pat = item.locator('.cfg-row', has=sf.get_by_label('PAT environment variable (required)', exact=True))
         check('a PAT is never typed in: only the variable name', pat.locator('input').input_value() == 'ADO_PAT' and pat.locator('input[type=password]').count() == 0 and pat.locator('.cfg-env-status').inner_text() == 'save to check')
-        ado.locator('form.cfg > .acts button.primary').click(); sf.wait_for_timeout(1200)
+        item.locator('> .acts button.primary').click(); sf.wait_for_timeout(1200)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
         conns = saved['connectors'].get('ado', {}).get('config', {}).get('connections', [])
-        check('the ADO mapping saves to config.json', len(conns) == 1 and conns[0]['serverUrl'] == 'https://ado.example.com' and 'ADO_PAT' not in json.dumps({k: v for k, v in os.environ.items() if k == 'ADO_PAT'}))
-        check('after saving, the form says whether the variable is set', ado.locator('.cfg-env-status').first.inner_text() == 'not set on this computer')
+        check('the ADO connection saves to config.json', len(conns) == 1 and conns[0]['serverUrl'] == 'https://ado.example.com' and 'ADO_PAT' not in json.dumps({k: v for k, v in os.environ.items() if k == 'ADO_PAT'}))
+        check('after saving, its row says whether the variable is set', 'not set on this computer' in conns_page.locator('.conns [data-conn=work]').inner_text())
+        stab(sf, 'work-items')
+        sf.locator('#page-work-items fieldset').first.locator('input').first.fill('Task')
+        sf.locator('#page-work-items form.cfg > .acts button.primary').click(); sf.wait_for_timeout(1200)
+        with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
+        ado_cfg = saved['connectors']['ado']['config']
+        check('saving Work items keeps the connection (each page saves only its own fields)', ado_cfg['types'][0] == 'Task' and len(ado_cfg['connections']) == 1)
+        check('team reports fold away on Work items', sf.locator('#page-work-items details.cfg-section:not([open]) summary', has_text='Team reports').count() == 1)
+        stab(sf, 'c-ado'); ado.locator('[data-enable]').uncheck(); sf.wait_for_timeout(1200)
 
         streams.clear()  # the reload opens the hub's stream again; from here on, every page shares that one
         ap.reload(); ap.wait_for_timeout(1500)
@@ -767,6 +796,10 @@ def agent_checks(b, watch):
           try { await ws.config.put({features: {startAtLogin: true}}); return 'saved'; } catch (e) { return e.code; } }""") if hs else None
         check('the agent refuses config changes from a hosted page', put == 'local_only')
         check('hosted Settings shows the data folder, read-only', hs is not None and hs.locator('[data-folder=agent] #dataDir[disabled]').count() == 1 and hs.locator('[data-folder] button.primary').count() == 0)
+        if hs:
+            stab(hs, 'people')
+            hs.click('[data-person-new]'); hs.fill('#pName', 'Hosted Person'); hs.click('[data-person-form] button.primary'); hs.wait_for_timeout(800)
+        check('hosted Settings still edits People & teams', hs is not None and 'Hosted Person' in hs.inner_text('#page-people'))
         hctx.close()
         lctx.close()
     finally:

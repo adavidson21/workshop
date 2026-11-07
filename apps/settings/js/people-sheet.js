@@ -1,5 +1,5 @@
 /* People: the spreadsheet template and importing a filled-in sheet (docs/people.md). Pure: rows in and out are
-   arrays of cells, so main.js does the SheetJS reading and writing and test/sheet.test.mjs needs no browser.
+   arrays of cells, so people.js does the SheetJS reading and writing and test/people-sheet.test.mjs needs no browser.
 
    One sheet, one person per row. Columns, in any order (matched by header, case and spacing ignored):
      Name          required
@@ -11,7 +11,7 @@
      Groups        @handles, comma separated; groups that do not exist yet are made
    A row matches someone already here by handle, else by name (one active match only), and updates them.
    Everyone else is added. Groups only gain members; an import never removes anyone from a group. */
-import { ownsList } from './forms.js';
+import { ownsList } from './people-forms.js';
 import * as P from '../../../shared/people.js';
 
 export const SHEET = 'People';

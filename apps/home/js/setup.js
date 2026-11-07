@@ -145,7 +145,8 @@ const btn = (label, attrs, primary) => `<button type="button" class="btn${primar
 function detail(s, ctx) {
   const f = ctx.facts || {};
   const copy = text => code(text, ctx.copies.push(text) - 1);
-  const settingsBtn = (label = 'Open Settings') => ctx.settings && ctx.settings.inShell ? btn(label, 'data-open="settings"', true)
+  // path: the Settings page to open (apps/settings/js/pages.js), for example connections.
+  const settingsBtn = (label = 'Open Settings', path = '') => ctx.settings && ctx.settings.inShell ? btn(label, `data-open="settings"${path ? ` data-path="${esc(path)}"` : ''}`, true)
     : ctx.settings && ctx.settings.href ? `<a class="btn primary" href="${esc(ctx.settings.href)}" target="_blank" rel="noopener">${esc(label)} on this computer</a>`
       : '';
   const settingsWhere = ctx.settings && ctx.settings.inShell ? 'Settings' : '<b>Workshop on this computer</b> (run <code>workshop open</code>, or the button below), Settings,';
@@ -175,7 +176,7 @@ function detail(s, ctx) {
         <p class="su-fine">Prefer another folder? <code>workshop data-folder &lt;folder&gt;</code>. Happy with local files? Skip this step.</p>`;
     }
     case 'team':
-      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="people"', true)}</p>`;
+      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
     case 'name':
       return `<p>Used only for the greeting on this page.</p><p>${btn('Add your name', 'data-edit-profile', true)}</p>`;
     case 'ado': {
@@ -188,17 +189,17 @@ function detail(s, ctx) {
           <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date.</li>
           <li>Save it on this computer: ${copy('workshop pat ADO_PAT')}It asks for the token without showing it.</li>
           <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and add your connection, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>. Set <b>PAT expires</b>, Save, and try the Test field with a work item ID.</li></ol>
-          <p>${settingsBtn()}</p>`;
+          <p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noConnection') {
-        return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Azure DevOps settings and add your server, collection and project, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>.</p><p>${settingsBtn()}</p>`;
+        return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Connections and paste any Azure DevOps link, add your server, collection and project by hand, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>.</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noPat') {
         return `<p>The connection is set up, but the token isn't saved on this computer yet. Run this and paste your token when asked:</p>${copy(`workshop pat ${a.patEnv || 'ADO_PAT'}`)}
           <p class="su-fine">${ctx.platform === 'win' ? 'Workshop picks it up within seconds; this step ticks itself off.' : 'Then run <code>workshop restart</code>; this step ticks itself off.'}</p>`;
       }
       if (a.state === 'browser') return '<p>Do <b>Connect Workshop on this computer</b> first.</p>';
-      return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn()}</p>`;
+      return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
     }
     case 'task':
       return `<p>Docket decides what you work on next. It opens with a short tour; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
@@ -209,7 +210,7 @@ function detail(s, ctx) {
         ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in the README (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
         : `<p>Dispatch runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; Dispatch's own setup guide walks you through it.</p><p>${btn('Open Dispatch', 'data-open="agents"', true)}</p>`;
     case 'login':
-      return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere}, or run:</p>${copy('workshop install --login')}<p>${settingsBtn()}</p>`;
+      return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;
     default: return '';
   }
 }

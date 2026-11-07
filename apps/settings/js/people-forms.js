@@ -1,5 +1,5 @@
-/* People: what the person and group forms turn into (docs/people.md). Pure, so test/forms.test.mjs can import
-   it. The directory model and its rules are shared/people.js; main.js draws the page and saves through
+/* People: what the person and group forms turn into (docs/people.md). Pure, so test/people-forms.test.mjs can import
+   it. The directory model and its rules are shared/people.js; people.js draws the pages and saves through
    ws.people. */
 import { RELATIONS } from '../../../shared/people.js';
 

@@ -130,6 +130,17 @@
         },
         "properties": {
           "$ref": "#/$defs/props2"
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },
@@ -210,6 +221,17 @@
         },
         "x-workshop-hosted": {
           "type": "boolean"
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },
@@ -247,6 +269,17 @@
         },
         "x-workshop-hosted": {
           "type": "boolean"
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },
@@ -275,6 +308,17 @@
         },
         "x-workshop-hosted": {
           "type": "boolean"
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },
@@ -321,6 +365,17 @@
         },
         "x-workshop-hosted": {
           "type": "boolean"
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },
@@ -430,6 +485,17 @@
           "enum": [
             "repos"
           ]
+        },
+        "x-workshop-page": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The Settings page this top-level field is on (docs/connector.md). Unknown pages mean the connector's own page."
+        },
+        "x-workshop-section": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "A folded section on its page, by name. Top-level fields only."
         }
       }
     },

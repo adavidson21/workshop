@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import * as S from '../js/sheet.js';
+import * as S from '../js/people-sheet.js';
 import * as P from '../../../shared/people.js';
 
 const NOW = 1793736000000;
@@ -113,8 +113,8 @@ test('a filled-in template imports back with no changes', () => {
 
 test('app.json lists every script, and nothing mentions a Since date', () => {
   const app = JSON.parse(fs.readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
-  for (const f of ['js/main.js', 'js/forms.js', 'js/sheet.js', 'people.css']) assert.ok(app.files.includes(f), f);
-  for (const f of ['js/main.js', 'js/forms.js', 'js/sheet.js']) assert.doesNotMatch(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /since/i, f);
+  for (const f of ['js/people.js', 'js/people-forms.js', 'js/people-sheet.js', 'settings.css']) assert.ok(app.files.includes(f), f);
+  for (const f of ['js/people.js', 'js/people-forms.js', 'js/people-sheet.js']) assert.doesNotMatch(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /since/i, f);
 });
 
 test('Owns: a comma list in the sheet, kept on the person, and an import that changes it says so', () => {

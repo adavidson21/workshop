@@ -184,11 +184,16 @@ function setBadge(appId, count) {
 /* ---------- routing: #/<app>[/<path>]. The home page (or the first rail app) has the bare address, no #. ---------- */
 // The home page if an app is marked home: true, else the first app on the rail.
 const homeId = () => homeApp ? homeApp.id : railApps.length ? railApps[0].id : null;
-// Addresses from before an app was renamed: the Dashboard pane became the Agents app (WS6).
-const RENAMED = { dashboard: 'agents' };
+// Addresses from before an app was renamed or folded into another: the Dashboard pane became the Agents app
+// (WS6); the People app became Settings' People & teams pages (#/people/team opens #/settings/people/team).
+const RENAMED = { dashboard: 'agents', people: { id: 'settings', path: 'people' } };
 /** Where an app id and path really open: a renamed app under its new id, a hosted app inside its host. */
 function resolveApp(id, path = '') {
-  if (!byId[id] && byId[RENAMED[id]]) id = RENAMED[id];
+  const to = RENAMED[id];
+  if (!byId[id] && to) {
+    const toId = typeof to === 'string' ? to : to.id;
+    if (byId[toId]) { if (typeof to !== 'string') path = [to.path, path].filter(Boolean).join('/'); id = toId; }
+  }
   const h = hostedBy[id];
   if (h && byId[h.host]) return { id: h.host, path: [h.path, path].filter(Boolean).join('/') };
   return { id, path };

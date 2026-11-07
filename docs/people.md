@@ -70,7 +70,7 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 
 ## Rules
 
-1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Docket adds a contact when you type a new `@name`; the People app is the full editor and imports spreadsheets). The SDK applies the same checks for every app and merges concurrent changes item by item.
+1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Docket adds a contact when you type a new `@name`; Settings' People & teams pages are the full editor and import spreadsheets). The SDK applies the same checks for every app and merges concurrent changes item by item.
 2. **Reference by id.** Apps store `p_` and `g_` ids, never names or handles. They show names with `label()` and mentions with `mention()` from the directory object, at render time.
 3. **Archive, never delete.** No app deletes an item. A tombstone (from a hand edit or an old copy) means it is gone: records pointing to it show "Unknown", never an error.
 4. **Someone is involved through their groups.** When an app asks "what involves John", it matches John's id and the ids of the active groups he is in (`reach()` and `involves()`). An archived group, or an archived member, does not count.
@@ -83,7 +83,7 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 
 | App | Uses |
 | --- | --- |
-| `people` (People) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
+| `settings` (Settings, People & teams) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
 | `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
 | `receipts` (Rapport) | Reports are `report` people; Upward is the `manager`. Entries' `about` is `me`, `up` or a person id. 1:1s are keyed by person id. |
 | `slate` (Slate) | Delegate picks a person; owners (`owns`) of what the item touches come first. Requesters are matched to people by name. What is delegated to each person is in Slate's summary (`delegated`), for Rapport's 1:1 prep. |

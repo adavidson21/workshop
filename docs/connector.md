@@ -98,7 +98,8 @@ The Settings app (WS4) builds each connector's form from `configSchema` alone, s
 | --- | --- |
 | `type: "string"` | Text field. `format: "uri"` makes it a URL field. `x-workshop-multiline: true` makes it a text area. |
 | `type: "string"` with `enum` | Select. `x-workshop-labels` (same length as `enum`) gives the option labels. |
-| `x-workshop-tab: "repos"` on a top-level array of objects | Edited on Settings' Repos tab instead of the connector's form (the ADO connector's `paths` and `prSources`). The form leaves it out and saves its value unchanged. |
+| `x-workshop-page: "<page>"` on a top-level field | The Settings page the field is on (apps/settings/js/pages.js): `work-items`, `pull-requests`, `repos` and the like. Without it, or with a page Settings does not have, the field is on the connector's own page (`c-<id>` in the nav's Connectors group; Connections for ADO, Agents for opencode). A page that belongs to another connector shows the field only while that connector is installed. Each page saves only its own fields, on top of the config as it is now. `x-workshop-tab: "repos"` is the older name and still works. |
+| `x-workshop-section: "<name>"` on a top-level field | Folds the field into a section with that name on its page, closed until opened (the ADO connector's team reports). An object in a section shows its fields directly. |
 | `x-workshop-hosted: true` on any field | A paired hosted page may change this field (`PUT /api/connectors/<id>/config`). Unmarked fields change only from the agent's own origin. Never mark a field that names a server, a command, a file to read, or an environment variable. |
 | `type: "string"` with `x-workshop-env: true` | Environment variable name field. The form shows the name and whether it is set (from `env` in `GET /api/connectors/<id>/config`). There is no field for the value. |
 | `type: "integer"` or `"number"` | Number field, with `minimum` and `maximum`. |

@@ -106,7 +106,9 @@ test('repos: clone URL matched to a connection', () => {
   assert.equal(R.fromCloneUrl(CFG, 'https://github.com/a/b.git'), null);
 });
 
-test('repos: the ADO connector hands paths and prSources to this tab', async () => {
-  const src = fs.readFileSync(new URL('../../../connectors/ado/index.mjs', import.meta.url), 'utf8');
-  for (const k of R.KEYS) assert.match(src, new RegExp(`${k}: \\{[^}]*?'x-workshop-tab': 'repos'`, 's'), `${k} is marked for the Repos tab`);
+test('repos: the ADO connector puts paths on Repos and prSources on Pull requests, both editable from a paired site', async () => {
+  const { configSchema } = await import('../../../connectors/ado/index.mjs');
+  assert.equal(configSchema.properties.paths['x-workshop-page'], 'repos');
+  assert.equal(configSchema.properties.prSources['x-workshop-page'], 'pull-requests');
+  for (const k of R.KEYS) assert.equal(configSchema.properties[k]['x-workshop-hosted'], true, k);
 });

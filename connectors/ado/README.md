@@ -6,7 +6,7 @@ Mostly read-only. The two actions that change ADO, `workitem.update` (Runway's a
 
 ## Settings
 
-`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`). `paths` and `prSources` are edited on Settings' **Repos** tab, one row per workspace repo, and a paired site may change them (`x-workshop-hosted`).
+`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`). Each field names its Settings page with `x-workshop-page`: connections on **Connections** (one row each), work item types, states and team reports on **Work items**, `prSources` and `prTeams` on **Pull requests**, and `paths` on **Repos**, one row per workspace repo. A paired site may change `paths` and `prSources` (`x-workshop-hosted`).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
