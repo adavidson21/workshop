@@ -1,0 +1,56 @@
+# Refresh remote app snapshots: keeps apps/remote.json (and apps/registry.json) in step with the app.json each app's
+# own site serves (Docket, Runway, Rapport, Folio). The Worker always serves the live manifest, so a stale snapshot
+# only shows the wrong version in static builds and makes tests/check-remote.mjs warn.
+#
+# Runs every morning and from Actions > Refresh remote snapshots > Run workflow. When a snapshot changed it pushes the
+# branch refresh-remote-snapshots and opens a pull request for you to merge. If this repo does not let Actions open
+# pull requests (Settings > Actions > General > Workflow permissions), the run's summary links to the branch instead.
+name: Refresh remote snapshots
+
+on:
+  schedule:
+    - cron: '17 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-remote
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Refresh snapshots
+        id: refresh
+        run: |
+          node shell/registry.mjs --refresh-remote
+          if git diff --quiet -- apps/remote.json apps/registry.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- apps/remote.json apps/registry.json
+          fi
+      - name: Push the branch and open a pull request
+        if: steps.refresh.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch=refresh-remote-snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add apps/remote.json apps/registry.json
+          git commit -m "Remote app snapshots: $(node -e "const d=require('./apps/remote.json');console.log(d.apps.map(a=>a.manifest.name+' '+a.manifest.version).join(', '))")"
+          git push --force origin "$branch"
+          if gh pr list --head "$branch" --state open --json number --jq 'length' | grep -q '^0$'; then
+            if ! gh pr create --head "$branch" --base main --title "Remote app snapshots" --body "Made by the Refresh remote snapshots workflow: apps/remote.json and apps/registry.json now match each app's live app.json."; then
+              echo "Could not open a pull request (Actions may not be allowed to). Open one from: https://github.com/${{ github.repository }}/compare/main...$branch" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
