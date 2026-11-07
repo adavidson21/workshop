@@ -51,7 +51,10 @@ export function wikiHtml(markdown, diagrams = new Map()) {
     .replace(/<a href="#"[^>]*>([\s\S]*?)<\/a>/g, '$1')                        // notes, tags, anchors
     .replace(/<span class="bad-link"[^>]*>([\s\S]*?)<\/span>/g, '$1')
     .replace(/ (?:data-line|data-lang|loading)="[^"]*"| id="h-[^"]*"/g, '')
-    .replace(/<figure class="diagram"><pre class="diagram-src">([\s\S]*?)<\/pre><\/figure>/g, '<pre>$1</pre>');
+    .replace(/<figure class="diagram"><pre class="diagram-src">([\s\S]*?)<\/pre><\/figure>/g, '<pre>$1</pre>')
+    .replace(/<span class="tok-[a-z]+">([\s\S]*?)<\/span>/g, '$1')                          // syntax colors
+    .replace(/<div class="callout callout-[a-z]+" role="note"><p class="callout-title">([\s\S]*?)<\/p>([\s\S]*?)<\/div>/g, '<blockquote><p><strong>$1</strong></p>$2</blockquote>')
+    .replace(/<sup class="fn-ref"[^>]*>/g, '<sup>').replace(/ class="note-link fn-back"[^>]*/g, '');
 }
 
 /** Bytes to a data: URL. */

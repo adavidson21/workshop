@@ -15,6 +15,10 @@ export const TEMPLATE_INFO = {
   adr: { name: 'Decision record (ADR)', use: 'Write down a technical decision, why it was made and what else was considered.' },
   runbook: { name: 'Runbook', use: 'Steps for a task someone will repeat, with a way to check it worked and to roll back.' },
   retro: { name: 'Retro', use: 'What went well, what could be better, and what to try next sprint.' },
+  'design-doc': { name: 'Design doc', use: 'Propose a change: goals, non-goals, the design with a diagram, alternatives and rollout.' },
+  'api-endpoint': { name: 'API endpoint', use: 'One endpoint: request, response, errors and its flow as a sequence diagram.' },
+  architecture: { name: 'Architecture overview', use: 'How a system fits together: context and container diagrams, data and operations.' },
+  postmortem: { name: 'Postmortem', use: 'After an incident: impact, a timeline diagram, root cause and action items.' },
   daily: { name: 'Daily note', use: "Used by Today's note: the day's plan (your Docket tasks), notes and wins." },
   product: { name: 'Product note', use: 'What you and Tandem know about one product. New ones go in products/.' }
 };

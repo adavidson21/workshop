@@ -186,7 +186,7 @@ function folderItems(dir, state, depth) {
 
 function results(state) {
   const { found, ui } = state;
-  if (!found.length) return '<p class="side-note">Nothing matches. Narrow a search with <code>tag:ops</code>, <code>path:runbooks</code> or <code>is:review</code>.</p>';
+  if (!found.length) return '<p class="side-note">Nothing matches. Narrow a search with <code>tag:ops</code>, <code>path:runbooks</code>, <code>lang:sql</code>, <code>has:diagram</code>, <code>has:code</code>, <code>has:task</code> or <code>is:review</code>.</p>';
   return `<ol class="results">${found.map((r, k) => `
     <li><a href="#" class="result${k === ui.pick ? ' picked' : ''}" data-open="${esc(r.path)}" data-line="${r.line}">
       <span class="r-title">${esc(r.title)}</span>

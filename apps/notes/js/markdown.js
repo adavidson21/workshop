@@ -6,9 +6,11 @@
    gives a URL for them (files in the Workshop folder); remote images are never loaded.
 
    No DOM, so Node tests run it. Supported: frontmatter, ATX headings, paragraphs, emphasis, strong,
-   strikethrough, code spans, fenced code, block quotes, nested lists, task lists, pipe tables, rules, links,
-   images, [[wikilinks]], autolinks and #tags. Links to other apps (ws:<app>/<route>, applinks.js) become chips. */
+   strikethrough, code spans, fenced code (with syntax colors, highlight.js), block quotes, callouts
+   (> [!NOTE]), footnotes ([^1]), nested lists, task lists, pipe tables, rules, links, images, [[wikilinks]],
+   autolinks and #tags. ```mermaid blocks become diagram figures (diagrams.js draws them). Links to other apps (ws:<app>/<route>, applinks.js) become chips. */
 import { appLink } from './applinks.js';
+import { highlight } from './highlight.js';
 
 export const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -65,6 +67,8 @@ const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^ {0,3}> ?/;
 const ITEM = /^( *)([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
+const CALLOUT = /^\[!(note|tip|important|warning|caution)\][+-]?[ \t]*(.*)$/i;
+const FOOTDEF = /^ {0,3}\[\^([^\]\s]{1,40})\]:[ \t]?(.*)$/;
 const TABLE_SEP = /^ *\|?(?: *:?-+:? *\|)+ *:?-*:? *\|? *$/;
 
 export const headingId = (text) => String(text).toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'section';
@@ -97,7 +101,18 @@ function parseBlocks(lines, base) {
     if (QUOTE.test(line)) {
       const start = i, inner = [];
       while (i < lines.length && !blank(lines[i]) && (QUOTE.test(lines[i]) || inner.length)) { inner.push(lines[i].replace(QUOTE, '')); i++; }
-      out.push({ type: 'quote', children: parseBlocks(inner, base + start), line: base + start });
+      // > [!NOTE] Optional title: a callout (GitHub's syntax), its body the quote's other lines.
+      const co = CALLOUT.exec(inner[0]);
+      if (co) out.push({ type: 'callout', kind: co[1].toLowerCase(), title: co[2].trim(), children: parseBlocks(inner.slice(1), base + start + 1), line: base + start });
+      else out.push({ type: 'quote', children: parseBlocks(inner, base + start), line: base + start });
+      continue;
+    }
+    if ((m = FOOTDEF.exec(line))) {
+      // [^id]: text, with indented lines after it continuing the note.
+      const start = i, text = [m[2]];
+      i++;
+      while (i < lines.length && /^(?: {2,}|\t)\S/.test(lines[i])) text.push(lines[i++].trim());
+      out.push({ type: 'footdef', id: m[1], text: text.join('\n'), line: base + start });
       continue;
     }
     if ((m = ITEM.exec(line))) {
@@ -118,7 +133,7 @@ function parseBlocks(lines, base) {
       continue;
     }
     const start = i, para = [];
-    while (i < lines.length && !blank(lines[i]) && !FENCE.test(lines[i]) && !HEADING.test(lines[i]) && !RULE.test(lines[i]) && !QUOTE.test(lines[i]) && !(para.length && ITEM.test(lines[i]) && !/^ {4}/.test(lines[i]))) para.push(lines[i++]);
+    while (i < lines.length && !blank(lines[i]) && !FENCE.test(lines[i]) && !HEADING.test(lines[i]) && !RULE.test(lines[i]) && !QUOTE.test(lines[i]) && !(para.length && FOOTDEF.test(lines[i])) && !(para.length && ITEM.test(lines[i]) && !/^ {4}/.test(lines[i]))) para.push(lines[i++]);
     out.push({ type: 'para', text: para.join('\n'), line: base + start });
   }
   return out;
@@ -223,6 +238,11 @@ export function inline(text, ctx = {}) {
       else html += `<span class="img-note missing">[image not found: ${esc(m[1] || src)}]</span>`;
       i += m[0].length; continue;
     }
+    if (c === '[' && ctx.footnote && (m = /^\[\^([^\]\s]{1,40})\]/.exec(rest))) {
+      const fn = ctx.footnote(m[1]);
+      // The first reference to a note gets the id its ↩ goes back to.
+      if (fn) { const n = fn.n, id = headingId(m[1]); html += `<sup class="fn-ref"${fn.first ? ` id="h-fnref-${esc(id)}"` : ''}><a href="#" data-anchor="fn-${esc(id)}" class="note-link" title="Footnote ${n}">${n}</a></sup>`; i += m[0].length; continue; }
+    }
     if (c === '[' && (m = WIKI.exec(rest))) {
       const target = m[1].trim(), label = (m[2] || m[1]).trim();
       const hit = ctx.wiki ? ctx.wiki(target) : null;
@@ -309,7 +329,21 @@ function finishInline(html) {
 export function render(md, ctx = {}) {
   const { body, offset } = frontmatter(md);
   const ids = new Map();
-  const html = renderBlocks(parseBlocks(String(body).split(/\r?\n/), offset), ctx, ids);
+  const list = parseBlocks(String(body).split(/\r?\n/), offset);
+  // Footnotes: numbered in the order they are first referred to; the notes go at the end.
+  const defs = new Map();
+  const collect = (bs) => { for (const b of bs) { if (b.type === 'footdef' && !defs.has(b.id)) defs.set(b.id, b); if (b.children) collect(b.children); if (b.items) for (const it of b.items) collect(it.children); } };
+  collect(list);
+  const order = [];
+  const c = defs.size ? { ...ctx, footnote: (id) => { if (!defs.has(id)) return null; const first = !order.includes(id); if (first) order.push(id); return { n: order.indexOf(id) + 1, first }; } } : ctx;
+  let html = renderBlocks(list, c, ids);
+  if (defs.size) {
+    for (const id of defs.keys()) if (!order.includes(id)) order.push(id);
+    html += `<section class="footnotes" aria-label="Footnotes"><ol>${order.map(id => {
+      const d = defs.get(id), hid = headingId(id);
+      return `<li id="h-fn-${esc(hid)}" data-line="${d.line}">${fin(d.text, { ...c, footnote: null })} <a href="#" data-anchor="fnref-${esc(hid)}" class="note-link fn-back" title="Back to the text">↩</a></li>`;
+    }).join('')}</ol></section>`;
+  }
   return ctx.placeholders ? placeholderChips(html, ctx.placeholders) : html;
 }
 
@@ -336,7 +370,12 @@ function renderBlocks(list, ctx, ids) {
       h += img ? `<p data-line="${b.line}"><img src="${esc(img)}" alt="Diagram"></p>`
         : `<figure class="diagram" data-line="${b.line}"><pre class="diagram-src"><code data-lang="mermaid">${esc(b.text)}</code></pre></figure>`;
     }
-    else if (b.type === 'code') h += `<pre data-line="${b.line}"><code${b.lang ? ` data-lang="${esc(b.lang)}"` : ''}>${esc(b.text)}</code></pre>`;
+    else if (b.type === 'code') h += `<pre data-line="${b.line}"><code${b.lang ? ` data-lang="${esc(b.lang)}"` : ''}>${highlight(b.text, b.lang)}</code></pre>`;
+    else if (b.type === 'callout') {
+      const name = CALLOUT_NAMES[b.kind];
+      h += `<div class="callout callout-${b.kind}" data-line="${b.line}" role="note"><p class="callout-title">${b.title ? fin(b.title, ctx) : name}</p>${renderBlocks(b.children, ctx, ids)}</div>`;
+    }
+    else if (b.type === 'footdef') { /* written at the end, with the other footnotes */ }
     else if (b.type === 'rule') h += '<hr>';
     else if (b.type === 'quote') h += `<blockquote>${renderBlocks(b.children, ctx, ids)}</blockquote>`;
     else if (b.type === 'list') {
@@ -363,18 +402,21 @@ function renderBlocks(list, ctx, ids) {
   return h;
 }
 const fin = (t, ctx) => finishInline(inline(t, ctx));
+const CALLOUT_NAMES = { note: 'Note', tip: 'Tip', important: 'Important', warning: 'Warning', caution: 'Caution' };
 
 /* ---------- facts for the index ---------- */
 
 /**
  * What a note says about itself: {title, tags, links: [{href, line, image}], wikilinks: [{target, line}],
- * headings: [{level, text, id, line}], review: {reviewed, tandemChanged}}. Lines are 0-based in the whole file.
+ * headings: [{level, text, id, line}], code: [fence languages, '' for none], tasks: open task count, review: {reviewed, tandemChanged}}. Lines are 0-based in the whole file.
  * Code is skipped.
  */
 export function facts(md, fallbackTitle = '') {
   const { data, body, offset } = frontmatter(md);
   const tags = new Set(data.tags || []);
   const links = [], wikilinks = [], headings = [];
+  const code = new Set();
+  let tasks = 0;
   const ids = new Map();
   const walk = (list) => {
     for (const b of list) {
@@ -384,14 +426,16 @@ export function facts(md, fallbackTitle = '') {
         headings.push({ level: b.level, text: plainText(b.text), id, line: b.line + offset });
         scanInline(b.text, b.line + offset, { links, wikilinks });
       } else if (b.type === 'para') scanInline(b.text, b.line + offset, { links, wikilinks, tags });
-      else if (b.type === 'quote') walk(b.children);
-      else if (b.type === 'list') for (const it of b.items) walk(it.children);
+      else if (b.type === 'quote' || b.type === 'callout') { if (b.title) scanInline(b.title, b.line + offset, { links, wikilinks, tags }); walk(b.children); }
+      else if (b.type === 'footdef') scanInline(b.text, b.line + offset, { links, wikilinks, tags });
+      else if (b.type === 'code') code.add(b.lang.toLowerCase());
+      else if (b.type === 'list') for (const it of b.items) { if (it.task === false) tasks++; walk(it.children); }
       else if (b.type === 'table') for (const r of [{ cells: b.head, line: b.line }, ...b.rows]) for (const c of r.cells) scanInline(c, r.line + offset, { links, wikilinks, tags });
     }
   };
   walk(blocks(body));
   const h1 = headings.find(h => h.level === 1);
-  return { title: data.title || (h1 && h1.text) || fallbackTitle, tags: [...tags].sort(), links, wikilinks, headings,
+  return { title: data.title || (h1 && h1.text) || fallbackTitle, tags: [...tags].sort(), links, wikilinks, headings, code: [...code], tasks,
     review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '' } };
 }
 

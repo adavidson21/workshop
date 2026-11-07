@@ -341,3 +341,54 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .kit:hover,.kit:focus-visible{background:var(--hover);border-color:var(--accent)}
 .kit .small{line-height:1.35}
 .md .diagram-tools .ibtn{min-width:0;min-height:0}
+
+/* Code blocks: syntax colors (highlight.js) and a Copy button */
+.md pre[data-line]{position:relative}
+.md .code-tools{position:absolute;top:.3rem;right:.35rem;display:flex;align-items:center;gap:.4rem;opacity:0;transition:opacity .12s}
+.md pre:hover .code-tools,.md pre:focus-within .code-tools{opacity:1}
+.md .code-lang{font:500 .68rem/1 var(--mono);color:var(--muted);text-transform:lowercase}
+.md .code-copy{font:500 .72rem/1.2 inherit;padding:.15rem .45rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--muted);cursor:pointer}
+.md .code-copy:hover{color:var(--ink);background:var(--hover)}
+@media (hover:none){.md .code-tools{opacity:1}}
+.md .tok-c{color:var(--muted);font-style:italic}
+.md .tok-s{color:#3d7a3a}
+.md .tok-n{color:#a3561c}
+.md .tok-k{color:#7a3e9d;font-weight:500}
+.md .tok-f{color:#2f5f8a}
+.md .tok-t{color:#8a5a00}
+.md .tok-a{color:#a33a5b}
+.md .tok-v{color:#0f6f73}
+.md .tok-add{color:#2f6f2c;background:color-mix(in srgb,#3fa34d 12%,transparent);display:inline-block;width:100%}
+.md .tok-del{color:#9b2c2c;background:color-mix(in srgb,#d9534f 12%,transparent);display:inline-block;width:100%}
+.md .tok-meta{color:var(--muted)}
+[data-theme=dark] .md .tok-s{color:#9fcf8f}
+[data-theme=dark] .md .tok-n{color:#e6a26b}
+[data-theme=dark] .md .tok-k{color:#c9a2e6}
+[data-theme=dark] .md .tok-f{color:#8cb8e6}
+[data-theme=dark] .md .tok-t{color:#e3c27a}
+[data-theme=dark] .md .tok-a{color:#ee98b2}
+[data-theme=dark] .md .tok-v{color:#7fd0cf}
+[data-theme=dark] .md .tok-add{color:#a7d99c}
+[data-theme=dark] .md .tok-del{color:#f0a3a0}
+
+/* Callouts: > [!NOTE] and friends */
+.md .callout{margin:0 0 1em;padding:.6rem .9rem .1rem;border-left:3px solid var(--c);border-radius:0 var(--r-sm) var(--r-sm) 0;background:color-mix(in srgb,var(--c) 8%,transparent)}
+.md .callout-title{margin:0 0 .35em;font-weight:600;color:var(--c)}
+.md .callout>:last-child{margin-bottom:.6em}
+.md .callout-note{--c:#3b6ea8}
+.md .callout-tip{--c:#2f7d4f}
+.md .callout-important{--c:#7a4bb0}
+.md .callout-warning{--c:#a86b00}
+.md .callout-caution{--c:#b13c3c}
+[data-theme=dark] .md .callout-note{--c:#7fa9d9}
+[data-theme=dark] .md .callout-tip{--c:#7cc69a}
+[data-theme=dark] .md .callout-important{--c:#b99be0}
+[data-theme=dark] .md .callout-warning{--c:#e0b15c}
+[data-theme=dark] .md .callout-caution{--c:#e58a8a}
+
+/* Footnotes */
+.md .fn-ref{font-size:.72em;line-height:0}
+.md .fn-ref a{text-decoration:none;padding:0 .1em}
+.md .footnotes{margin-top:2em;padding-top:.6em;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+.md .footnotes ol{padding-left:1.4rem}
+.md .fn-back{text-decoration:none}

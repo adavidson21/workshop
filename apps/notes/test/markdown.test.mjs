@@ -17,7 +17,7 @@ test('blocks: headings, paragraphs, lists, tasks, quotes, tables, code and rules
   assert.match(html, /<ol><li data-line="8">one<\/li><li data-line="9">two<\/li><\/ol>/);
   assert.match(html, /<blockquote><p data-line="11">quoted<\/p><\/blockquote>/);
   assert.match(html, /<th style="text-align:right">n<\/th>/);
-  assert.match(html, /<pre data-line="17"><code data-lang="js">let a = 1;<\/code><\/pre>/);
+  assert.match(html, /<pre data-line="17"><code data-lang="js"><span class="tok-k">let<\/span> a = <span class="tok-n">1<\/span>;<\/code><\/pre>/);
   assert.match(html, /<hr>/);
 });
 

@@ -181,6 +181,7 @@ function paintPreview(now = false) {
     // A Tandem page: its links are to code and other .work files, so only web links are links.
     preview.innerHTML = render(text, { noLinks: true, imageUrl: () => null, tasks: !editor.readOnly });
     paintDiagrams(preview, { key: from });
+    paintCodeTools(preview);
     markCursorDiagram();
     return;
   }
@@ -212,6 +213,7 @@ function paintPreview(now = false) {
     }
   });
   paintDiagrams(preview, { key: from });
+  paintCodeTools(preview);
   markCursorDiagram();
   markTandemLines(from, text);
   // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
@@ -224,6 +226,15 @@ function paintPreview(now = false) {
       if (url) img.src = url;
       else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` }));
     }, () => {});
+  }
+}
+
+/* A Copy button on each code block (not diagrams: they have their own toolbar). */
+function paintCodeTools(root) {
+  for (const pre of root.querySelectorAll('pre[data-line]')) {
+    if (pre.querySelector('.code-copy')) continue;
+    const lang = pre.querySelector('code')?.dataset.lang;
+    pre.insertAdjacentHTML('afterbegin', `<span class="code-tools">${lang ? `<span class="code-lang">${lang.replace(/[<>&"']/g, '')}</span>` : ''}<button type="button" class="code-copy" data-code-act="copy" title="Copy the code">Copy</button></span>`);
   }
 }
 
@@ -1086,6 +1097,16 @@ function updatePicker() {
   if (!m) { closePicker(); return; }
   const q = m[1].toLowerCase();
   pk.start = editor.selectionStart - m[0].length;
+  // [[note#heading, or [[#heading in this note: link to a heading.
+  if (q.includes('#')) {
+    pk.items = headingsFor(q.slice(0, q.indexOf('#')).trim(), q.slice(q.indexOf('#') + 1).trim());
+    if (!pk.items.length) { closePicker(); return; }
+    pk.pick = Math.min(pk.pick, pk.items.length - 1);
+    pk.open = true;
+    picker.innerHTML = pickerHtml(pk.items, pk.pick);
+    picker.hidden = false;
+    return;
+  }
   pk.items = [...notes.index.notes.values()].filter(n => n.path !== ui.path && (!q || n.title.toLowerCase().includes(q) || n.path.includes(q)))
     .sort((a, b) => (a.title.toLowerCase().startsWith(q) ? 0 : 1) - (b.title.toLowerCase().startsWith(q) ? 0 : 1) || (a.title < b.title ? -1 : 1)).slice(0, 8)
     .concat(matchRecords(records, q));
@@ -1095,6 +1116,22 @@ function updatePicker() {
   picker.hidden = false;
 }
 function closePicker() { pk.open = false; picker.hidden = true; }
+/* Headings for [[note#: the note named by title or path (this one when empty), filtered by the text after #. */
+function headingsFor(noteQ, headQ) {
+  const ix = notes.index;
+  let n = null;
+  if (!noteQ) n = ix.notes.get(ui.path) || { path: ui.path, title: 'This note', headings: facts(editor.value).headings };
+  else {
+    const all = [...ix.notes.values()];
+    n = all.find(x => x.title.toLowerCase() === noteQ || x.path === noteQ || x.path === `${noteQ}.md`)
+      || all.find(x => x.title.toLowerCase().startsWith(noteQ)) || all.find(x => x.path.includes(noteQ));
+  }
+  if (!n) return [];
+  const here = n.path === ui.path;
+  const heads = (here ? facts(editor.value).headings : n.headings).filter(h => h.level > 1 || !here);
+  return heads.filter(h => !headQ || h.text.toLowerCase().includes(headQ)).slice(0, 12)
+    .map(h => ({ title: `${'  '.repeat(Math.max(0, h.level - 2))}${h.text}`, path: `${here ? 'This note' : n.title} › ${h.text}`, heading: { path: n.path, id: h.id, text: h.text, here } }));
+}
 /* People whose handle starts with q or whose name has it: reports first, then by name. Not you. */
 const REL_ORDER = { report: 0, peer: 1, manager: 2, contact: 3 };
 function peopleFor(q) {
@@ -1105,7 +1142,9 @@ function peopleFor(q) {
 function choosePicker(k = pk.pick) {
   const n = pk.items[k];
   if (!n) { closePicker(); return; }
-  const md = n.handle ? `@${n.handle} ` : n.href ? recordLink(n) : `[${n.title.replace(/[[\]]/g, '')}](${relativeLink(ui.path, n.path)})`;
+  const md = n.handle ? `@${n.handle} ` : n.href ? recordLink(n)
+    : n.heading ? `[${n.heading.text.replace(/[[\]]/g, '')}](${n.heading.here ? '' : relativeLink(ui.path, n.heading.path)}#${n.heading.id})`
+    : `[${n.title.replace(/[[\]]/g, '')}](${relativeLink(ui.path, n.path)})`;
   editor.setRangeText(md, pk.start, editor.selectionStart, 'end');
   closePicker();
   editor.dispatchEvent(new Event('input'));
@@ -1154,6 +1193,12 @@ document.addEventListener('click', async (e) => {
   let x;
   // The ⋯ menu closes on any click outside it (its own items act below).
   if (ui.menu && !el('.menu-wrap')) { ui.menu = false; paintHead(); }
+  if ((x = el('[data-code-act=copy]'))) {
+    e.preventDefault();
+    const code = x.closest('pre')?.querySelector('code')?.textContent ?? '';
+    navigator.clipboard.writeText(code).then(() => { x.textContent = 'Copied'; setTimeout(() => { if (x.isConnected) x.textContent = 'Copy'; }, 1200); }, toastErr);
+    return;
+  }
   if ((x = el('[data-diagram-act]'))) { e.preventDefault(); const fig = x.closest('figure.diagram'); if (fig) diagramAct(x.dataset.diagramAct, fig); return; }
   if ((x = el('[data-section]'))) { showSection(x.dataset.section); ui.query = ''; ui.drawer = isPhone(); paintChrome(); if (ui.section === 'tandem') tandem.refresh(); return; }
   if ((x = el('input[data-task]'))) { e.preventDefault(); toggleTaskAt(Number(x.dataset.task)); return; }

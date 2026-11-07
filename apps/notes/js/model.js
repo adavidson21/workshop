@@ -93,7 +93,7 @@ export function buildIndex(list) {
     const f = facts(n.content, stem(n.path));
     // Templates go by their name (template-info.js), not their "# {{title}}" heading.
     const tpl = isTemplate(n.path) ? templateInfo(n.path, n.content) : null;
-    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, review: f.review, raw: f, mtime: n.mtime, size: n.size });
+    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();
@@ -149,12 +149,24 @@ export const wikiPath = (target) => `${slugify(String(target).split('#')[0])}.md
 
 /* ---------- search ---------- */
 
-/** Parse a query: free words, tag:x and path:folder. */
+/* has: filters, from what a note says about itself (markdown.js facts). */
+const HAS = {
+  diagram: (n) => (n.code || []).includes('mermaid'),
+  code: (n) => (n.code || []).some(l => l !== 'mermaid'),
+  task: (n) => n.tasks > 0,
+  image: (n) => (n.links || []).some(l => l.image),
+  link: (n) => (n.links || []).some(l => !l.image) || (n.appLinks || []).length > 0
+};
+export const HAS_FILTERS = Object.keys(HAS);
+
+/** Parse a query: free words, tag:x, path:folder, lang:sql (a code block in that language) and has:diagram|code|task|image|link. */
 export function parseQuery(q) {
-  const out = { words: [], tags: [], paths: [], review: false };
+  const out = { words: [], tags: [], paths: [], langs: [], has: [], review: false };
   for (const tok of String(q || '').match(/"[^"]*"|\S+/g) || []) {
     const t = tok.replace(/^"|"$/g, '');
     if (/^is:review$/i.test(t)) { out.review = true; continue; }
+    const f = /^(lang|has):(.+)$/i.exec(t);
+    if (f && (f[1].toLowerCase() === 'lang' || HAS[f[2].toLowerCase()])) { (f[1].toLowerCase() === 'lang' ? out.langs : out.has).push(f[2].toLowerCase()); continue; }
     const m = /^(tag|path):(.*)$/i.exec(t);
     if (m && m[2]) (m[1].toLowerCase() === 'tag' ? out.tags : out.paths).push(m[2].replace(/^#/, '').toLowerCase());
     else if (/^#[\w/-]+$/.test(t)) out.tags.push(t.slice(1).toLowerCase());
@@ -169,12 +181,14 @@ export function parseQuery(q) {
  */
 export function search(index, contents, query, limit = 50) {
   const q = parseQuery(query);
-  if (!q.words.length && !q.tags.length && !q.paths.length && !q.review) return [];
+  if (!q.words.length && !q.tags.length && !q.paths.length && !q.langs.length && !q.has.length && !q.review) return [];
   const out = [];
   for (const n of index.notes.values()) {
     if (q.review && !needsReview(n.review)) continue;
     if (q.tags.length && !q.tags.every(t => n.tags.some(nt => nt === t || nt.startsWith(t + '/')))) continue;
     if (q.paths.length && !q.paths.every(p => n.path === p || n.path.startsWith(p.replace(/\/$/, '') + '/'))) continue;
+    if (q.langs.length && !q.langs.every(l => (n.code || []).includes(l))) continue;
+    if (q.has.length && !q.has.every(h => HAS[h](n))) continue;
     const text = contents.get(n.path) || '';
     const lower = text.toLowerCase();
     const title = n.title.toLowerCase();

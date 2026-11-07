@@ -50,7 +50,7 @@ test('index: titles, backlinks with lines, missing links and tags', () => {
 test('search: words in titles, paths and text, tag: and path: filters', () => {
   const ix = buildIndex(NOTES);
   const text = new Map(NOTES.map(n => [n.path, n.content]));
-  assert.deepEqual(parseQuery('deploy tag:ops path:runbooks #x'), { words: ['deploy'], tags: ['ops', 'x'], paths: ['runbooks'], review: false });
+  assert.deepEqual(parseQuery('deploy tag:ops path:runbooks #x'), { words: ['deploy'], tags: ['ops', 'x'], paths: ['runbooks'], langs: [], has: [], review: false });
   assert.deepEqual(search(ix, text, 'undo').map(r => [r.path, r.line]), [['runbooks/rollback.md', 2]]);
   assert.equal(search(ix, text, 'deploy')[0].path, 'runbooks/deploy.md', 'a title match ranks first');
   assert.deepEqual(search(ix, text, 'tag:team').map(r => r.path), ['guide.md'], 'a tag matches its children');
