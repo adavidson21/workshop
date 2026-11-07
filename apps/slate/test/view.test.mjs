@@ -274,3 +274,15 @@ test('publish dialog: the source link row says what happens to the first item', 
   assert.match(h, /a Related link to the new Epic \(Export\)/);
   assert.match(h, /2 changes in Azure DevOps/);
 });
+
+test('cards and the panel show the ADO type; your notes show on ADO cards too', async () => {
+  const { typeLabel } = await import('../js/view.js');
+  assert.equal(typeLabel({ level: 'story', ado: { id: 7, type: 'Issue' } }), 'Issue');
+  assert.equal(typeLabel({ level: 'feature' }), 'Feature');
+  const it = cleanItem({ ...newItem({ title: 'CSV', ado: { id: 7, type: 'Issue' } }), description: 'Note (2026-11-07): Pat needs it before renewal' });
+  const h = panelHtml(base(it, { canLocal: true }));
+  assert.match(h, /class="chip lv-story">Issue</);
+  assert.match(h, /Your notes/);
+  assert.match(h, /Pat needs it before renewal/);
+  assert.match(boardHtml({ inbox: [{ ...it, age: 0, facts: null }] }, { open: null }), />Issue</);
+});

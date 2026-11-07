@@ -19,6 +19,8 @@ One board, left to right. A card's chip names the step it is at inside its colum
 
 **Buttons.** Each step shows its main button and at most two others. Everything else is in the panel's **More** menu: **Move to** (skip ahead or move back, one list), **Build it myself** when it is a skip ahead, **Add to roadmap**, **Hide from Slate**, **Open in ADO**, **Mark closed** and **Remove from Slate**.
 
+**Cards** show the ADO work item type (Issue, User Story) when there is one, else the level. **Your notes** (the note typed with `#1234 <note>` in quick capture, say) show under Details on every card, and Triage sends them along with the ADO id (Tandem Core 2.18.0 keeps them in `note.md`).
+
 **The panel.** The next step (or the agent's question) at the top, then the agent's last words while there is a session, then the current step's file open (triage, the understanding and brief, the draft). Earlier steps' files are there, closed. **Details** (ADO fields, the request, owners, who asked, days in the stage) and **Timeline** start closed; Slate remembers in this browser whether you opened them.
 
 ## The steps

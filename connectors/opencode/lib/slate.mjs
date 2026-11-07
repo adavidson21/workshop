@@ -68,7 +68,9 @@ export async function startTriage({ id, text, folder }) {
     const n = String(id);
     if (!/^[0-9]{1,10}$/.test(n)) throw httpError(400, "The work item id is a number.");
     const f = `triage-${n}`;
-    return { ...(await runLoose("triage", n, when(f))), folder: f };
+    // A note after the id (who asked, why it matters): /triage keeps it in note.md (Core 2.18.0).
+    const note = oneLine(text).slice(0, 1000);
+    return { ...(await runLoose("triage", note ? `${n} ${note}` : n, when(f))), folder: f };
   }
   const t = oneLine(text);
   if (!t) throw httpError(400, "Give the work item id, or say what is being asked.");

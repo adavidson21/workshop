@@ -197,14 +197,14 @@ function detail(s, ctx) {
         return `<p>Connected.${a.message ? ' ' + esc(a.message) : ''}</p>${a.noExpiry ? `<p class="su-fine">Tip: set <b>PAT expires</b> on the connection in ${settingsWhere} to get a warning two weeks before it stops working.</p>` : ''}`;
       }
       if (a.state === 'off' || a.state === 'missing') {
-        return `<p>Docket syncs your work items and the pull requests waiting on your review through the Azure DevOps connector.</p>
-          <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date.</li>
+        return `<p>Docket syncs your work items and the pull requests waiting on your review, and Slate and Runway read your backlog and publish to it, through the Azure DevOps connector.</p>
+          <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read &amp; write)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date. (Work Items (Read) is enough if you only use Docket: Slate and Runway then can't publish, comment or close items.)</li>
           <li>Save it on this computer: ${copy('workshop pat ADO_PAT')}It asks for the token without showing it.</li>
-          <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and add your connection, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>. Set <b>PAT expires</b>, Save, and try the Test field with a work item ID.</li></ol>
+          <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and paste any link from Azure DevOps (a work item or board) to fill in your connection. Set <b>PAT expires</b>, Save, and try the Test field with a work item ID.</li></ol>
           <p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noConnection') {
-        return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Connections and paste any Azure DevOps link, add your server, collection and project by hand, or <b>Import settings from a file</b> with your <code>ado-helper.json</code>.</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
+        return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Connections and paste any Azure DevOps link, or add your server, collection and project by hand.</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noPat') {
         return `<p>The connection is set up, but the token isn't saved on this computer yet. Run this and paste your token when asked:</p>${copy(`workshop pat ${a.patEnv || 'ADO_PAT'}`)}

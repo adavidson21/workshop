@@ -348,7 +348,7 @@ const actions = {
   "triage.start": {
     title: "Triage a request (/triage, writes triage.md, never posts)",
     write: true,
-    argsSchema: obj([], { id: str("ADO work item id", { pattern: "^[0-9]{1,10}$" }), text: str("The request in words (when there is no ADO item)", { maxLength: 2000 }), folder: str("A triage-<name> folder to triage again", { maxLength: 100 }) }),
+    argsSchema: obj([], { id: str("ADO work item id", { pattern: "^[0-9]{1,10}$" }), text: str("The request in words (when there is no ADO item), or a note to go with the ADO id (Core 2.18.0 keeps it in note.md)", { maxLength: 2000 }), folder: str("A triage-<name> folder to triage again", { maxLength: 100 }) }),
     async run(args) {
       needReady();
       return startTriage(args);

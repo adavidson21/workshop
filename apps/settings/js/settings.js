@@ -37,7 +37,7 @@ const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 const FOLDER = '<svg class="path-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2h6.6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>';
 // One line on what each connector is for. Unknown connectors show none.
 const ABOUT = {
-  ado: 'Your Azure DevOps work items and pull requests, for Docket and Runway. Optional: everything else works without it.',
+  ado: 'Your Azure DevOps work items and pull requests, for Docket, Slate and Runway. Optional: everything else works without it.',
   opencode: 'Runs coding agents on this computer, for Dispatch. Optional.'
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
@@ -216,8 +216,10 @@ function header() {
   if (ws.mode === 'local') note.textContent = 'Workshop on this computer: sign-in, pairing and the settings only this computer can change.';
   else if (readOnly) {
     const at = agentAddress();
-    note.innerHTML = 'Read only. To change these, open Workshop on this computer'
-      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : ' (run <code>workshop open</code>).');
+    // Only this computer's settings, connections and repos are read only here; people, groups and team area paths are not.
+    note.innerHTML = 'This computer, Azure DevOps and Repos are read only here. To change them, open Workshop on this computer'
+      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : ' (run <code>workshop open</code>).')
+      + ' People, groups and team area paths change here.';
     document.body.classList.add('ro');
   }
   // Browser mode: no subtitle. Overview's "Workshop on this computer" card says how to connect.
@@ -674,6 +676,10 @@ function connectorBlock(info) {
   });
 
   const toolsMsg = box.querySelector('[data-tools-msg]');
+  // "Filled in ... Nothing is saved yet" is about the unsaved form: once a save lands (or the form closes) it is stale.
+  const clearFillNote = () => { if (/^(Filled in|Imported)/.test(toolsMsg.textContent)) toolsMsg.textContent = ''; };
+  onChange.add((id, kind) => { if (id === info.id && kind === 'config') clearFillNote(); });
+  box.addEventListener('click', e => { if (e.target.closest('button') && /^(Cancel)$/.test(e.target.closest('button').textContent.trim())) clearFillNote(); });
   const filled = (what, where) => `${what}. Nothing is saved yet: review ${where.length ? where.join(' and ') : 'the settings'}, then Save.`;
   box.querySelector('[data-recheck]').addEventListener('click', async () => {
     toolsMsg.textContent = 'Checking...';
