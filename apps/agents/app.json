@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -45,7 +45,8 @@
       "prioritizer",
       "receipts",
       "notes",
-      "runway"
+      "runway",
+      "slate"
     ]
   },
   "aliases": [
@@ -213,6 +214,7 @@
     "vendor/monaco/vs/workers-BeMslOxK.js",
     "vendor/monaco/vs/xml-DHCggo_L.js",
     "vendor/monaco/vs/yaml-C-RIivnc.js",
-    "js/summary.js"
+    "js/summary.js",
+    "js/slate-handoff.js"
   ]
 }

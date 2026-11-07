@@ -84,7 +84,7 @@ export function startChat(ws, { hubEl = null, intro = () => null, asksHtml = () 
   }
   async function spike() {
     const topic = (conv && conv.title) || '';
-    if (!topic || !window.confirm(`Start a spike on "${topic}"?\n\nThe investigator reads code and writes findings in .work. It changes no code.`)) return;
+    if (!topic) return;
     try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. Follow it in Research.', { kind: 'success' }); }
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
