@@ -362,7 +362,11 @@ function renderBlocks(list, ctx, ids) {
       ids.set(id, n + 1);
       if (n) id = `${id}-${n}`;
       h += `<h${b.level} id="h-${esc(id)}" data-line="${b.line}">${fin(b.text, ctx)}</h${b.level}>`;
-    } else if (b.type === 'para') h += `<p data-line="${b.line}">${fin(b.text, ctx)}</p>`;
+    } else if (b.type === 'para') {
+      // A paragraph that is only an embed (![[note#heading]]): ctx.embed gives that note's HTML, or null.
+      const emb = ctx.embed && /^\s*!\[/.test(b.text) ? ctx.embed(b.text) : null;
+      h += emb !== null ? `<div class="embed" data-line="${b.line}">${emb}</div>` : `<p data-line="${b.line}">${fin(b.text, ctx)}</p>`;
+    }
     else if (b.type === 'code' && b.lang.toLowerCase() === 'mermaid') {
       // A diagram: the source stays in the page, and diagrams.js draws it (or shows it with the error).
       // ctx.diagramImage(src) gives a ready image instead (Copy for wiki's HTML).
@@ -446,7 +450,8 @@ function scanInline(text, line, acc) {
   const wiki = /\[\[([^\]|\n]+)(?:\|[^\]\n]+)?\]\]/g;
   while ((m = wiki.exec(s))) acc.wikilinks.push({ target: m[1].trim(), line: lineOf(m.index) });
   const link = /(!?)\[(?:[^\]\\]|\\.)*\]\(\s*(<[^>\n]*>|[^)\s]*)(?:\s+"[^"\n]*")?\s*\)/g;
-  while ((m = link.exec(s))) acc.links.push({ href: m[2].replace(/^<|>$/g, ''), line: lineOf(m.index), image: m[1] === '!' });
+  // ![label](note.md) is an embed: a link to the note, not an image.
+  while ((m = link.exec(s))) { const href = m[2].replace(/^<|>$/g, ''); acc.links.push({ href, line: lineOf(m.index), image: m[1] === '!' && !/\.md(?:#|$)/i.test(href) }); }
   if (acc.tags) {
     const tag = /(^|[\s(])#([A-Za-z0-9_][A-Za-z0-9_/-]*)/g;
     while ((m = tag.exec(s))) { const t = normTag(m[2]); if (t) acc.tags.add(t); }

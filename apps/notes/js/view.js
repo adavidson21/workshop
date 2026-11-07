@@ -208,9 +208,12 @@ export function header(state) {
   const items = [
     ['insert-diagram', 'Insert diagram'],
     ['format-table', 'Format table', 'Ctrl+Alt+T'],
+    ['map', 'Map of links'],
     ['copy-wiki', 'Copy for wiki'],
     ['copy', 'Copy Markdown'],
     ['download', 'Download .md'],
+    ['download-html', 'Download HTML'],
+    ['print', 'Print or save as PDF'],
     ['rename', 'Rename or move', 'F2'],
     ...(n && n.use === undefined ? [['save-template', 'Save as template']] : []),
     ...(state.isStarter ? [['reset-template', 'Reset to starter']] : []),
@@ -440,4 +443,14 @@ export function diagramPickerHtml(kits) {
     <p class="soft small">A Mermaid starter goes in at the cursor as a <code>\`\`\`mermaid</code> block. Change the text and the preview redraws it.</p>
     <div class="kit-grid">${kits.map(k => `<button class="kit" value="${esc(k.id)}" data-kit="${esc(k.id)}"><b>${esc(k.name)}</b><span class="soft small">${esc(k.about)}</span></button>`).join('')}</div>
     <div class="dlg-actions"><button class="btn" value="cancel">Cancel</button></div></form>`;
+}
+
+/* Map of links: the note, what it links to and what links to it, drawn as a diagram (map.js). */
+export function mapHtml(m, title) {
+  const alone = m.nodes.length < 2;
+  return `<form method="dialog" class="dlg wide"><h2>Map of links</h2>
+    <p class="soft small">${alone ? `<b>${esc(title)}</b> has no links to or from other notes yet.` : `Notes <b>${esc(title)}</b> links to, and notes that link to it. Click one to open it.`}</p>
+    ${alone ? '' : `<div class="md map-view"><figure class="diagram"><pre class="diagram-src"><code data-lang="mermaid">${esc(m.code)}</code></pre></figure></div>`}
+    ${m.more ? `<p class="soft small">${m.more} more not shown.</p>` : ''}
+    <div class="dlg-actions"><button class="btn" value="cancel">Close</button></div></form>`;
 }

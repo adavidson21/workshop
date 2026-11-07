@@ -26,15 +26,17 @@ import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
 import { docketPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
-import { dataUrl, inlineImages, wikiHtml } from './export.js';
-import { facts, render, headingId } from './markdown.js';
+import { dataUrl, inlineImages, pageHtml, wikiHtml } from './export.js';
+import { EMBED_DEPTH, embedHtml, embedSpec, sectionText } from './embeds.js';
+import { noteMap, nodeAt } from './map.js';
+import { esc, facts, render, headingId } from './markdown.js';
 import { markDiagram, paintDiagrams, pngBytes, svgFile } from './diagrams.js';
 import { KITS, blockInsert, fenceAt, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, diagramPickerHtml, empty, header, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
+import { confirmHtml, diagramPickerHtml, empty, header, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), preview = $('preview');
@@ -174,10 +176,10 @@ function paintHint() {
 }
 
 let previewTimer = null;
-function paintPreview(now = false) {
+function paintPreview(now = false, { force = false } = {}) {
   clearTimeout(previewTimer);
   if (!now) { previewTimer = setTimeout(() => paintPreview(true), 120); return; }
-  if (ui.mode === 'edit') return;
+  if (ui.mode === 'edit' && !force) return;
   const from = ui.path;
   if (!from) { preview.innerHTML = ''; return; }
   const text = editor.value;
@@ -191,9 +193,28 @@ function paintPreview(now = false) {
     return;
   }
   const tpl = sectionOf(from) === 'templates';
-  preview.innerHTML = render(text, {
-    tasks: true,
-    placeholders: tpl ? PLACEHOLDERS : null,
+  preview.innerHTML = render(text, { ...noteCtx(from), tasks: true, placeholders: tpl ? PLACEHOLDERS : null, embed: embedder([from]) });
+  paintDiagrams(preview, { key: from });
+  paintCodeTools(preview);
+  markCursorDiagram();
+  markTandemLines(from, text);
+  // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
+  for (const box of preview.querySelectorAll('input[data-task]')) {
+    const t = taskText(text, Number(box.dataset.task));
+    if (t !== null && sent.has(offerId('task', from, t))) { box.disabled = true; box.title = 'Sent to Docket, which owns whether it is done'; }
+  }
+  for (const img of preview.querySelectorAll('img[data-img]')) {
+    notes.imageUrl(img.dataset.img).then(url => {
+      if (url) img.src = url;
+      else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` }));
+    }, () => {});
+  }
+}
+
+/* How a note's Markdown resolves its links, images, [[wikilinks]], @people and app links, from its own path. */
+function noteCtx(from) {
+  const ix = notes.index;
+  return {
     appName: (id) => appNames[id] || id,
     person: (h) => { const it = dir && dir.items.find(x => !x.archived && x.handle === h); return it ? it.name : null; },
     resolveLink(href) {
@@ -216,22 +237,26 @@ function paintPreview(now = false) {
       const p = resolveWiki(ix.byTitle, ix.notes, target);
       return p ? { path: p } : null;
     }
-  });
-  paintDiagrams(preview, { key: from });
-  paintCodeTools(preview);
-  markCursorDiagram();
-  markTandemLines(from, text);
-  // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
-  for (const box of preview.querySelectorAll('input[data-task]')) {
-    const t = taskText(text, Number(box.dataset.task));
-    if (t !== null && sent.has(offerId('task', from, t))) { box.disabled = true; box.title = 'Sent to Docket, which owns whether it is done'; }
-  }
-  for (const img of preview.querySelectorAll('img[data-img]')) {
-    notes.imageUrl(img.dataset.img).then(url => {
-      if (url) img.src = url;
-      else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` }));
-    }, () => {});
-  }
+  };
+}
+
+/* Embeds (embeds.js): ![[note]] or ![[note#heading]] shows that note or section in place, read only. chain is
+   the notes already being shown, so an embed never loops; two levels deep at most. */
+function embedder(chain) {
+  return (para) => {
+    const spec = embedSpec(para);
+    if (!spec) return null;
+    const ix = notes.index, from = chain[chain.length - 1];
+    const path = spec.wiki ? (spec.target ? resolveWiki(ix.byTitle, ix.notes, spec.target) : from) : resolvePath(from, localHref(spec.target)?.path || spec.target);
+    const name = `${spec.target || 'this note'}${spec.anchor ? '#' + spec.anchor : ''}`;
+    if (!path || !notes.texts.has(path)) return `<p class="embed-note missing">Nothing to embed: there is no note ${esc(name)}.</p>`;
+    const title = (ix.notes.get(path) || {}).title || path;
+    const head = `<div class="embed-head"><a href="#" data-note="${esc(path)}"${spec.anchor ? ` data-anchor="${esc(spec.anchor)}"` : ''} class="note-link">${esc(title)}${spec.anchor ? ` › ${esc(spec.anchor)}` : ''}</a></div>`;
+    if ((chain.includes(path) && !(path === from && spec.anchor)) || chain.length > EMBED_DEPTH) return `${head}<p class="embed-note">Not shown here: it would embed ${chain.includes(path) ? 'a note inside itself' : 'too many levels deep'}.</p>`;
+    const text = sectionText(notes.texts.get(path).content, spec.anchor);
+    if (text === null) return `${head}<p class="embed-note missing">${esc(title)} has no heading "${esc(spec.anchor)}".</p>`;
+    return `${head}<div class="embed-body">${embedHtml(render(text, { ...noteCtx(path), embed: embedder([...chain, path]) }))}</div>`;
+  };
 }
 
 /* A Copy button on each code block (not diagrams: they have their own toolbar). */
@@ -277,6 +302,7 @@ async function diagramAct(act, fig) {
   const src = fig.querySelector('.diagram-src code')?.textContent ?? '';
   const line = Number(fig.dataset.line);
   if (act === 'edit') {
+    if (Number.isNaN(line)) return; // a diagram inside an embed belongs to the other note
     if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
     goToLine(line + 1);
     return;
@@ -1013,6 +1039,66 @@ async function copyMarkdown() {
 /* Copy for wiki: the note as Markdown with its images embedded, and as HTML with the images inside it, both on
    the clipboard at once. A visual editor takes the HTML; a Markdown box takes the text. Nothing leaves the
    clipboard. The ClipboardItem gets promises so the copy still counts as part of the click while images load. */
+/* Map: the note's links and backlinks as a diagram (map.js); click a note in it to open that note. */
+function showMap() {
+  if (!ui.path || isTandem(ui.path)) return;
+  const m = noteMap(notes.index, ui.path);
+  if (!m) return;
+  dlg.innerHTML = mapHtml(m, (notes.index.notes.get(ui.path) || {}).title || ui.path);
+  dlg.returnValue = '';
+  const onClick = (e) => {
+    const g = e.target.closest && e.target.closest('g.node');
+    const k = g ? nodeAt(g.id) : -1;
+    if (k > 0 && m.nodes[k]) { dlg.close(); openNote(m.nodes[k]); }
+  };
+  dlg.addEventListener('click', onClick);
+  dlg.addEventListener('close', () => dlg.removeEventListener('click', onClick), { once: true });
+  dlg.showModal();
+  paintDiagrams(dlg, { key: 'map', tools: false });
+}
+
+/** The data: URL of an image in the folder, or null. */
+async function imageData(p) {
+  if (!notes.files.has(p)) return null;
+  const f = await ws.files.read(p).catch(() => null);
+  return f ? dataUrl(f.content.type, new Uint8Array(await f.content.arrayBuffer())) : null;
+}
+/** Wait until the diagrams under root are drawn (or have errors), up to a few seconds. */
+async function diagramsSettled(root, ms = 8000) {
+  const end = Date.now() + ms;
+  await new Promise(r => setTimeout(r, 50));
+  while (Date.now() < end && root.querySelector('figure.diagram.drawing, figure.diagram.stale')) await new Promise(r => setTimeout(r, 100));
+}
+
+/* Download HTML: one self-contained page (export.js pageHtml), diagrams as SVG and images inside it. */
+async function downloadHtml() {
+  if (!ui.path) return;
+  const text = editor.value, from = ui.path;
+  try {
+    const r = await inlineImages(text, from, imageData);
+    const svgs = new Map();
+    for (const f of mermaidFences(text)) {
+      if (svgs.has(f.src)) continue;
+      try { svgs.set(f.src, dataUrl('image/svg+xml', new TextEncoder().encode(await svgFile(f.src)))); } catch { /* stays as its code */ }
+    }
+    const title = isTandem(from) ? stem(from) : (notes.index.notes.get(from) || {}).title || stem(from);
+    await saveFile(`${stem(from).slice(0, 100)}.html`, pageHtml(r.markdown, { title, diagrams: svgs, embed: isTandem(from) ? null : embedder([from]) }), 'text/html');
+  } catch (e) { toastErr(e); }
+}
+
+/* Print or save as PDF: the preview alone, in the light theme, once its diagrams are drawn (print CSS in notes.css). */
+async function printNote() {
+  if (!ui.path) return;
+  const root = document.documentElement, dark = root.dataset.theme === 'dark';
+  if (dark) root.dataset.theme = 'light';
+  paintPreview(true, { force: true });
+  await diagramsSettled(preview);
+  root.classList.add('printing');
+  const done = () => { root.classList.remove('printing'); if (dark) root.dataset.theme = 'dark'; if (ui.mode === 'edit') preview.innerHTML = ''; };
+  window.addEventListener('afterprint', done, { once: true });
+  window.print();
+}
+
 async function copyForWiki() {
   if (!ui.path) return;
   const text = editor.value, from = ui.path;
@@ -1266,7 +1352,7 @@ document.addEventListener('click', async (e) => {
   if (e.target.classList && e.target.classList.contains('scrim')) { ui.drawer = false; paintChrome(); return; }
   if (!(x = el('[data-act]'))) return;
   const act = x.dataset.act;
-  if (x.closest('.menu')) ui.menu = false;
+  if (x.closest('.menu')) { ui.menu = false; paintHead(); }
   if (act === 'menu') { ui.menu = !ui.menu; paintHead(); return; }
   if (act === 'drawer') { ui.drawer = !ui.drawer; paintChrome(); return; }
   if (act === 'new-note') newNote();
@@ -1301,6 +1387,9 @@ document.addEventListener('click', async (e) => {
   else if (act === 'copy-wiki') copyForWiki();
   else if (act === 'insert-diagram') pickDiagram();
   else if (act === 'format-table') formatTableNow();
+  else if (act === 'map') showMap();
+  else if (act === 'download-html') downloadHtml();
+  else if (act === 'print') printNote();
   else if (act === 'download') download();
   else if (act === 'retry') { ui.status = { kind: 'dirty' }; saveNow(); }
   else if (['take-theirs', 'keep-copy', 'overwrite', 'restore'].includes(act)) resolveConflict(act);

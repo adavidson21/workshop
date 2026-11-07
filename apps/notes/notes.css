@@ -427,3 +427,26 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .cm-editor.cm-folio .cm-search .cm-button:hover{background:var(--hover)}
 .cm-editor.cm-folio .cm-search label{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.78rem}
 .cm-editor.cm-folio .cm-search button[name=close]{margin-left:auto;background:none;border:0;color:var(--muted);font-size:1.1rem;cursor:pointer}
+
+/* Embeds: ![[note#heading]] shown in place (embeds.js) */
+.md .embed{margin:0 0 1em;padding:.35rem 1rem .1rem;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);background:var(--surface)}
+.md .embed-head{font:500 .74rem/1.4 var(--mono);margin:.15rem 0 .35rem}
+.md .embed-head a{text-decoration:none;color:var(--eyebrow)}
+.md .embed-head a:hover{text-decoration:underline}
+.md .embed-body>:first-child{margin-top:.2em}
+.md .embed .diagram-tools{display:none}
+.md .embed-note{font-size:.88rem;color:var(--muted);margin:.2rem 0 .5rem}
+.md .embed-note.missing{color:var(--warn)}
+/* Map of links */
+.map-view{padding:0;max-height:65vh;overflow:auto}
+.map-view figure.diagram{margin:0}
+.map-view g.node{cursor:pointer}
+
+/* Print or save as PDF: the preview alone */
+@media print{
+  html,body,.notes,.main,.body{height:auto!important;overflow:visible!important;display:block!important;background:#fff!important}
+  .ws-bar,#sections,#side,#head,#panel,.scrim,.editor,.picker,.title-hint,#empty,.diagram-tools,.code-tools{display:none!important}
+  #body .md{display:block!important;overflow:visible!important;padding:0!important;max-width:none!important;color:#000}
+  .md pre,.md figure,.md table,.md .callout,.md .embed{break-inside:avoid}
+  .md a{color:inherit}
+}
