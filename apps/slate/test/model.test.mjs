@@ -277,8 +277,10 @@ test('health: counts, stale and median days per column; request to decision', as
   const c = newItem({ title: 'c' }, new Date('2026-11-01T12:00:00')); setStage(c, 'decide', new Date('2026-11-04T12:00:00'));
   const d = newItem({ title: 'd' }, new Date('2026-11-01T12:00:00')); setStage(d, 'delegated', new Date('2026-11-02T12:00:00')); d.assignee = 'p_1';
   const h = health([a, b, c, d], it => (it.stage === 'decide' ? 'decide' : it.stage === 'delegated' ? 'delegated' : 'new'), new Date('2026-11-06T12:00:00'));
-  assert.deepEqual(h.cols.new, { count: 2, stale: 1, medianDays: 3 });
+  assert.deepEqual(h.cols.inbox, { count: 2, stale: 1, medianDays: 3 }, 'counted by board column, stale by step');
   assert.equal(h.cols.decide.count, 1);
+  assert.equal(h.cols.inflight.count, 1, 'delegated is In flight');
+  assert.equal(h.oldest[0].column, 'Inbox');
   assert.deepEqual(h.load, { p_1: 1 });
   assert.deepEqual(h.toDecision, { n: 2, median: 1 });
   assert.equal(h.oldest[0].it.title, 'a');
@@ -333,10 +335,13 @@ test('field settings: defaults, unknown keys dropped, reference names checked', 
   assert.equal(fieldLabel('Custom.ReleaseNotes'), 'Release Notes');
 });
 
-test('cards show assignee, priority, points, iteration, area and tags from the backlog', () => {
+test('cards show assignee, priority and tags by default; points, iteration and area when picked in Fields', () => {
   const b = { assignee: { name: 'Dev One' }, priority: 2, storyPoints: 3, commentCount: 4, iteration: 'Web App\\Sprint 12', area: 'Web App\\Team A', tags: ['api'] };
-  const all = cardFacts(b, cleanPrefs({}));
-  assert.deepEqual(all.facts.map(f => f.text), ['Dev One', 'P2', '3 pts', 'Sprint 12', 'Team A']);
+  const dflt = cardFacts(b, cleanPrefs({}));
+  assert.deepEqual(dflt.facts.map(f => f.text), ['Dev One', 'P2']);
+  assert.deepEqual(dflt.tags, ['api']);
+  const all = cardFacts(b, cleanPrefs({ card: ['assignee', 'iteration', 'area', 'tags', 'priority', 'points'] }));
+  assert.deepEqual(all.facts.map(f => f.text), ['Dev One', 'P2', '3 pts', 'Sprint 12', 'Team A'], 'a saved Fields choice is kept');
   assert.equal(all.facts.find(f => f.key === 'iteration').title, 'Web App\\Sprint 12');
   assert.deepEqual(all.tags, ['api']);
   const some = cardFacts({ ...b, assignee: null }, cleanPrefs({ card: ['assignee', 'comments'] }));
@@ -424,7 +429,7 @@ test('area paths: under, filter and the view tree', () => {
   assert.equal(areaOf(moved[0]), 'Proj\\New');
 });
 
-test('forwardTargets: skip ahead to Define or Who builds it? from the PM lane only', () => {
+test('forwardTargets: skip ahead to Define or Who builds it? only before Who builds it?', () => {
   const at = (stage) => forwardTargets(cleanItem({ stage }));
   assert.deepEqual(at('new'), ['defining', 'decide']);
   assert.deepEqual(at('triaged'), ['defining', 'decide']);
@@ -463,20 +468,31 @@ test('questionAnswers: picks plus typed text, null until every question has one'
   assert.equal(questionAnswers({ questions: [] }), null);
 });
 
-/* ---------- the Shape lane (Slate 1.6.0) ---------- */
+/* ---------- shaping: triage, interview and brief (Slate 1.6.0) ---------- */
 
-test('Board: Shape is New, Shaping, Brief; PM is Define, Who builds it?, Delegated; Dev is Building to Resolved; steps map to columns', async () => {
-  const { SHAPE_COLUMNS, PM_COLUMNS, DEV_COLUMNS, laneOf, boardColumn, STEP_CHIP } = await import('../js/model.js');
-  assert.deepEqual(SHAPE_COLUMNS.map(c => c.key), ['new', 'shaping', 'brief']);
-  assert.deepEqual(PM_COLUMNS.map(c => c.key), ['define', 'decide', 'delegated']);
-  assert.deepEqual(DEV_COLUMNS.map(c => c.key), ['building', 'review', 'merged', 'resolved']);
-  for (const k of ['new', 'triage', 'waiting', 'interview', 'shaping', 'brief']) assert.equal(laneOf(k), 'shape', k);
-  for (const k of ['define', 'publish', 'decide', 'delegated']) assert.equal(laneOf(k), 'pm', k);
-  for (const k of ['building', 'review', 'merged', 'resolved']) assert.equal(laneOf(k), 'dev', k);
-  assert.deepEqual(['triage', 'waiting', 'interview', 'publish', 'brief', 'decide'].map(boardColumn), ['shaping', 'shaping', 'shaping', 'define', 'brief', 'decide']);
+test('Board: one board of six columns; every step maps to its column', async () => {
+  const { BOARD_COLUMNS, STEP_COLUMN, boardColumn, STEP_CHIP } = await import('../js/model.js');
+  assert.deepEqual(BOARD_COLUMNS.map(c => c.key), ['inbox', 'shape', 'define', 'decide', 'inflight', 'resolved']);
+  assert.deepEqual(BOARD_COLUMNS.map(c => c.title), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
+  const want = { new: 'inbox', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'define', publish: 'define', decide: 'decide', delegated: 'inflight', building: 'inflight', review: 'inflight', merged: 'inflight', resolved: 'resolved' };
+  for (const [st, col] of Object.entries(want)) assert.equal(boardColumn(st), col, st);
+  const keys = new Set(BOARD_COLUMNS.map(c => c.key));
+  for (const col of Object.values(STEP_COLUMN)) assert.ok(keys.has(col), col);
   assert.equal(STEP_CHIP.publish, 'Approved: not in ADO');
+  assert.equal(STEP_CHIP.brief, 'Brief ready');
+  assert.equal(STEP_CHIP.merged, 'Merged');
   assert.equal(pmColumn(cleanItem({ stage: 'shaping' })), 'interview');
   assert.equal(pmColumn(cleanItem({ stage: 'brief' })), 'brief');
+});
+
+test('every stored stage lands in a column (stored data did not change with the board)', async () => {
+  const { STAGES, BOARD_COLUMNS, boardColumn, devColumn } = await import('../js/model.js');
+  const keys = new Set(BOARD_COLUMNS.map(c => c.key));
+  for (const stage of STAGES.filter(x => x !== 'done')) {
+    const it = cleanItem({ title: 'x', stage });
+    const st = ['dev', 'resolved'].includes(stage) ? devColumn(null, it) : pmColumn(it);
+    assert.ok(keys.has(boardColumn(st)), `${stage} -> ${st}`);
+  }
 });
 
 test('ideas: kind and runwayPending are kept clean; own ideas are never stale in New', async () => {
@@ -701,4 +717,14 @@ test('health: request to resolved and closed items', async () => {
 test('backTargets: a resolved item goes back to Building, never to Resolved itself', () => {
   const it = cleanItem({ title: 'x', stage: 'resolved', history: [{ stage: 'new', at: '2026-11-01' }, { stage: 'dev', at: '2026-11-02' }, { stage: 'resolved', at: '2026-11-03' }] });
   assert.deepEqual(backTargets(it), ['new', 'dev']);
+});
+
+test('Inbox leaves out a Runway pending idea that Slate itself sent (Add to roadmap): the card is already on the board', async () => {
+  const { pendingIdeaCards, roadmapIdea, sentIdeaTitles } = await import('../js/model.js');
+  const it = newItem({ title: 'Export   orders', description: 'Finance asked' }, NOW);
+  const env = { schema: 'slate.handoffs', version: 1, items: [roadmapIdea(it, NOW), { id: 'h_t', to: 'prioritizer', text: 'A task', payload: { kind: 'task' } }] };
+  assert.deepEqual(sentIdeaTitles(env), ['Export orders']);
+  const rows = [{ id: 'p_1', title: 'Export orders' }, { id: 'p_2', title: 'Someone else\'s idea' }];
+  assert.deepEqual(pendingIdeaCards(rows, [it], [], NOW, sentIdeaTitles(env)).map(c => c.title), ['Someone else\'s idea']);
+  assert.equal(pendingIdeaCards(rows, [it], [], NOW).length, 2, 'without the list, both show (as before)');
 });

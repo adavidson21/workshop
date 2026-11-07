@@ -1,6 +1,6 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
-import { CARD_FIELDS, DETAIL_FIELDS, DEV_COLUMNS, LEVELS, LEVEL_NAME, PM_COLUMNS, SHAPE_COLUMNS, SKIP_FROM, STAGE_TITLE, areaOf, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage, releaseGroups } from './model.js';
+import { BOARD_COLUMNS, CARD_FIELDS, DETAIL_FIELDS, LEVELS, LEVEL_NAME, STAGE_TITLE, areaOf, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage, releaseGroups } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = {}) =>
@@ -10,12 +10,10 @@ const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = 
 
 export function topHtml(ui, notes, areas = []) {
   const tab = (key, label) => `<button type="button" class="tab${ui.tab === key ? ' on' : ''}" role="tab" aria-selected="${ui.tab === key}" data-act="tab" data-id="${key}">${label}</button>`;
-  const lane = (key, label) => `<button type="button" class="seg${ui.lane === key ? ' on' : ''}" aria-pressed="${ui.lane === key}" data-act="lane" data-id="${key}">${label}</button>`;
   const board = ui.tab === 'board';
   return `<div class="top">
-    <div class="tabs" role="tablist" aria-label="Slate">${tab('board', 'Board')}${tab('roadmaps', 'Roadmaps')}${tab('sprints', 'Sprints')}${tab('health', 'Health')}</div>
-    ${board ? `<div class="segs" role="group" aria-label="Lane">${lane('shape', 'Shape')}${lane('pm', 'PM')}${lane('dev', 'Dev')}</div>
-    <label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
+    <div class="tabs" role="tablist" aria-label="Slate">${tab('board', 'Board')}${tab('health', 'Health')}</div>
+    ${board ? `<label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="Search titles and #ids" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
     <span class="grow"></span>
@@ -42,7 +40,7 @@ function card(c, s) {
   if (c.ado) meta.push(`#${c.ado.id}`);
   if (c.triage && c.triage.size) meta.push(`Size ${c.triage.size}`);
   if (c.route) meta.push(c.route === 'delegate' ? 'Delegate' : 'Myself');
-  if (c.assigneeName) meta.push(c.assigneeName);
+  if (c.assigneeName && c.stage !== 'delegated') meta.push(c.assigneeName);
   if (c.requester) meta.push(`from ${c.requester}`);
   if (!c.virtual && c.age) meta.push(`${c.age}d`);
   const flags = [];
@@ -64,27 +62,20 @@ function card(c, s) {
   </button></li>`;
 }
 
-const EMPTY = {
-  shape: ['Nothing to shape yet', 'Add an idea or a request, or set your team\'s area paths in People so Slate can list your ADO backlog. Ideas waiting in Runway show here too.'],
-  pm: ['Nothing to define yet', 'Items move here from Shape when you send them to Define.'],
-  dev: ['Nothing to build yet', 'Items you choose to build yourself, and Tandem runs from Dispatch, show here.']
-};
 export function boardHtml(columns, s) {
-  const defs = s.lane === 'dev' ? DEV_COLUMNS : s.lane === 'pm' ? PM_COLUMNS : SHAPE_COLUMNS;
-  const total = defs.reduce((n, d) => n + (columns[d.key] || []).length, 0);
+  const total = BOARD_COLUMNS.reduce((n, d) => n + (columns[d.key] || []).length, 0);
   if (!total && s.filtered) {
-    return `<div class="empty"><h2>Nothing here</h2><p>No cards in this lane match the area path, level or search you picked.</p></div>`;
+    return `<div class="empty"><h2>Nothing here</h2><p>No cards match the area path, level or search you picked.</p></div>`;
   }
   if (!total) {
-    const [h, p] = EMPTY[s.lane] || EMPTY.shape;
-    return `<div class="empty"><h2>${h}</h2>
-      <p>${esc(s.lane === 'shape' && s.backlogNote ? s.backlogNote : p)}</p>
-      ${s.lane === 'shape' ? `${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}` : ''}</div>`;
+    return `<div class="empty"><h2>Nothing on the board yet</h2>
+      <p>${esc(s.backlogNote || 'Add an idea or a request, or set your team\'s area paths in Settings, People and teams, so Slate can list your ADO backlog. Ideas waiting in Runway show here too.')}</p>
+      ${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}</div>`;
   }
-  return `<div class="board" style="--cols:${defs.length}">${defs.map(d => {
+  return `<div class="board" style="--cols:${BOARD_COLUMNS.length}">${BOARD_COLUMNS.map(d => {
     const list = columns[d.key] || [];
     const body = d.key === 'resolved' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
-    return `<section class="col" aria-label="${esc(d.title)}"><header><h2>${esc(d.title)}${d.hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key, d.hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
+    return `<section class="col" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header><h2>${esc(d.title)}${d.hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key, d.hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
       ${body}</section>`;
   }).join('')}</div>`;
 }
@@ -257,12 +248,11 @@ function questionHtml(q, ui) {
   return `${out}<div class="acts">${btn('qsend', 'Answer', { primary: true, extra: ` data-q="${esc(q.id)}"` })}${btn('qreject', 'Dismiss', { extra: ` data-q="${esc(q.id)}"`, title: 'Tell the agent you will not answer this one' })}</div></div>`;
 }
 
-/** Every prompt and question for the item, in the panel's "next" box. */
+/** Every prompt and question for the item, in the panel's "next" box. Open in Dispatch is in More. */
 function asksHtml(p) {
   const a = p.asks;
   return `<div class="next asking"><p><span class="dot wait" aria-hidden="true"></span> The agent is asking you ${a.count === 1 ? 'something' : `${a.count} things`}. Answer here; it carries on right away.</p>
-    ${a.permissions.map(permHtml).join('')}${a.questions.map(q => questionHtml(q, p.ui)).join('')}
-    <div class="acts">${btn('dispatch', 'Open in Dispatch', { title: 'See the whole session' })}</div></div>`;
+    ${a.permissions.map(permHtml).join('')}${a.questions.map(q => questionHtml(q, p.ui)).join('')}</div>`;
 }
 
 /** The item's current agent session: what it last said, and a reply box once it stops (for questions asked in plain text). */
@@ -279,61 +269,74 @@ function agentSection(p) {
     ${ses.error ? `<p class="bad small">${esc(ses.error)}</p>` : ''}${ses.text ? `<pre class="txt say">${esc(ses.text)}</pre>` : ''}${reply}</details>`;
 }
 
-/** The one thing to do next, as a sentence and buttons. */
-function nextHtml(p) {
+/* ---------- the next step: up to 3 buttons, the rest in More ---------- */
+
+/** Most buttons a step shows in its "next" box. Everything else is in the panel's More menu. */
+export const MAX_SHOWN = 3;
+
+const step = (text, shown = [], more = [], extra = '') => ({ text, shown, more, extra });
+
+/**
+ * The step's next move: a sentence, the buttons shown (main one first, at most MAX_SHOWN), the buttons for More,
+ * and any form that goes with it. Agent questions and the interview form take the box over.
+ */
+export function nextOf(p) {
   const it = p.item;
   const a = p.agent;
-  const out = (text, buttons) => `<div class="next"><p>${text}</p><div class="acts">${buttons.join('')}</div></div>`;
-  if (p.asks && p.asks.count) return asksHtml(p);
-  if (a && a.waiting) return out('The agent is asking you something.', [btn('dispatch', 'Answer in Dispatch', { primary: true })]);
-  if (a && a.busy) return out('The agent is working on it.', [btn('dispatch', 'Follow in Dispatch')]);
-  if (p.lane === 'dev') return devNext(p, out);
-  const skip = SKIP_FROM.includes(it.stage || 'new') ? [btn('skip', 'Already shaped: who builds it?', { title: 'Skip the rest of Shape and Define. Nothing changes in ADO.' })] : [];
+  if (p.asks && p.asks.count) return { html: asksHtml(p), more: [btn('dispatch', 'Open in Dispatch', { title: 'See the whole session' })] };
+  if (a && a.waiting) return step('The agent is asking you something.', [btn('dispatch', 'Answer in Dispatch', { primary: true })]);
+  if (a && a.busy) return step('The agent is working on it.', [btn('dispatch', 'Follow in Dispatch')]);
+  if (p.dev) return devNext(p);
   const build = buildBtns(p);
   switch (p.column) {
     case 'new':
-      if (it.kind === 'idea' || it.fromRunway || it.runwayPending) return out('Your idea. An agent interviews you, a round of questions at a time, until it is understood, then writes a brief.', [
-        btn('shape', 'Shape it', { primary: true }), ...build, ...skip, ...(it.fromRunway ? [btn('dismiss', 'Hide from Slate', { title: 'Hides it here. It stays in Runway.' })] : [btn('roadmap-add', 'Add to roadmap')])]);
-      return out('Start with a triage: an agent reads the request and the code, and says what is missing and who should build it. Or skip to an interview with you.', [
-        btn('triage', 'Triage', { primary: true }), btn('shape', 'Interview me'), btn('define', 'Skip to define'), ...build, ...skip, btn('roadmap-add', 'Add to roadmap')]);
-    case 'triage': return p.triage ? out(p.triage.questions.length ? `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.` : 'Nothing is missing. Define it next, or dig in yourself first.', [
-      ...(p.triage.questions.length ? [btn('ask', 'Copy questions and wait', { primary: true })] : []), btn('define', 'Define', { primary: !p.triage.questions.length }), btn('shape', 'Interview me'), ...build, ...skip])
-      : out('Waiting for triage.md.', [btn('dispatch', 'Open in Dispatch')]);
+      if (it.kind === 'idea' || it.fromRunway || it.runwayPending) return step('Your idea. An agent interviews you, a round of questions at a time, until it is understood, then writes a brief.',
+        [btn('shape', 'Shape it', { primary: true }), it.fromRunway ? btn('dismiss', 'Hide from Slate', { title: 'Hides it here. It stays in Runway.' }) : btn('roadmap-add', 'Add to roadmap')], build);
+      return step('Start with a triage: an agent reads the request and the code, and says what is missing and who should build it. Or skip to an interview with you.',
+        [btn('triage', 'Triage', { primary: true }), btn('shape', 'Interview me')],
+        [btn('define', 'Define now', { title: 'Skip triage and start the draft' }), ...build, btn('roadmap-add', 'Add to roadmap')]);
+    case 'triage':
+      if (!p.triage) return step('Waiting for triage.md.', [btn('dispatch', 'Open in Dispatch')], build);
+      if (p.triage.questions.length) return step(`${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`,
+        [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+      return step('Nothing is missing. Define it next, or dig in yourself first.', [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
     case 'interview': {
       const sh = p.shape || {};
-      if (sh.asking) return `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}<div class="acts">${skip.join('')}</div></div>`;
-      if (sh.ready) return out('The brief is written.', [btn('to-brief', 'Read the brief', { primary: true })]);
-      return out('Waiting for the agent\'s questions.', [btn('dispatch', 'Open in Dispatch'), btn('write-brief', 'Write the brief now'), ...skip]);
+      if (sh.asking) return { html: `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}</div>`, more: build };
+      if (sh.ready) return step('The brief is written.', [btn('to-brief', 'Read the brief', { primary: true })]);
+      return step('Waiting for the agent\'s questions.', [btn('dispatch', 'Open in Dispatch'), btn('write-brief', 'Write the brief now')], build);
     }
     case 'brief': {
       const b = parseBrief(p.files['brief.md']);
       const to = b && (b.level === 'story' || b.level === 'bug') ? 'refine (one story)' : 'scope and slice';
-      return `<div class="next"><p>${b ? `Read the brief. Send to Define runs ${to} from it, asking only what it leaves open.` : 'Waiting for brief.md.'}</p>
-        <label class="lbl" for="bnotes">To keep going, say what to dig into (optional)</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea>
-        <div class="acts">${b ? btn('send-define', 'Send to Define', { primary: true }) : ''}${btn('keep-going', 'Keep going')}${build.join('')}${skip.join('')}</div></div>`;
+      return step(b ? `Read the brief. Send to Define runs ${to} from it, asking only what it leaves open.` : 'Waiting for brief.md.',
+        [...(b ? [btn('send-define', 'Send to Define', { primary: true })] : []), btn('keep-going', 'Keep going')], build,
+        '<label class="lbl" for="bnotes">To keep going, say what to dig into (optional)</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea>');
     }
-    case 'waiting': return `<div class="next"><p>Paste the requester's answers. Triage runs again with them.</p>
-      <label class="sr" for="answers">Answers</label><textarea id="answers" class="answers" placeholder="Their answers, in their words">${esc(p.files['answers.md'] || '')}</textarea>
-      <div class="acts">${btn('answers', 'Save answers and triage again', { primary: true })}${btn('define', 'Define anyway')}</div></div>`;
+    case 'waiting': return step('Paste the requester\'s answers. Triage runs again with them.',
+      [btn('answers', 'Save answers and triage again', { primary: true }), btn('define', 'Define anyway')], [],
+      `<label class="sr" for="answers">Answers</label><textarea id="answers" class="answers" placeholder="Their answers, in their words">${esc(p.files['answers.md'] || '')}</textarea>`);
     case 'define': {
       const d = p.draft;
-      if (!d.kind) return out('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' }), ...skip]);
-      if (d.step === 'approve' || d.step === 'approve-milestones') return out('Read the draft. Approve and publish creates the ADO items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.', [
-        btn('approve-publish', 'Approve and publish', { primary: true }), btn('approve-build', 'Approve, publish and build it myself'), btn('approve', 'Approve only'), btn('revise', 'Revise with my edits')]);
-      if (d.step === 'approve-stories') return out('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
-      if (d.ready) return out('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
-      if (d.step === 'slice') return out('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
-      return out('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch'), ...build, ...skip]);
+      if (!d.kind) return step('Pick how to define it.', [btn('refine', 'One story: refine', { primary: it.level === 'story' || it.level === 'bug' }), btn('scope', 'Bigger: scope and slice', { primary: it.level === 'epic' || it.level === 'feature' })], build);
+      if (d.step === 'approve' || d.step === 'approve-milestones') return step('Read the draft. Approve and publish creates the ADO items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.',
+        [btn('approve-publish', 'Approve and publish', { primary: true }), btn('revise', 'Revise with my edits')], [btn('approve-build', 'Approve, publish and build it myself'), btn('approve', 'Approve only')]);
+      if (d.step === 'approve-stories') return step('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
+      if (d.ready) return step('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
+      if (d.step === 'slice') return step('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
+      return step('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch')], build);
     }
-    case 'publish': return out(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`, [
-      btn('publish', 'Publish to ADO', { primary: true }), btn('publish-build', 'Publish and build it myself'), ...(it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]), ...skip]);
-    case 'decide': return out(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`, [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', it.ado ? 'Build it myself' : 'Build it myself, skip ADO', { primary: p.item.route !== 'delegate', title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem; link an ADO item later' })]);
-    case 'delegated': return out(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`, [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [])]);
-    default: return '';
+    case 'publish': return step(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
+      [btn('publish', 'Publish to ADO', { primary: true }), btn('publish-build', 'Publish and build it myself')], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
+    case 'decide': return step(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
+      [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', it.ado ? 'Build it myself' : 'Build it myself, skip ADO', { primary: p.item.route !== 'delegate', title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem; link an ADO item later' })]);
+    case 'delegated': return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`,
+      [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [])]);
+    default: return step('');
   }
 }
 
-/** Build it myself, as a skip ahead from New, Triage, Brief and Define. In ADO: Tandem on the item; else local work. */
+/** Build it myself, as a skip ahead from Inbox, Shape and Define (in More). In ADO: Tandem on the item; else local work. */
 function buildBtns(p) {
   const it = p.item;
   if (!p.canLocal && !it.ado) return [];
@@ -341,67 +344,93 @@ function buildBtns(p) {
   return [btn('build-local', 'Build it myself, skip ADO', { title: 'Skip ahead: start local work in Tandem now. Link an ADO item later; the PR needs one.' })];
 }
 
-/** The Dev lane's next step, by column: Building (the Tandem run), Review and PR, Merged, Resolved, or closed. */
-function devNext(p, out) {
+/** In flight and Resolved, for work you build: Building (the Tandem run), Review and PR, Merged, Resolved, or closed. */
+function devNext(p) {
   const it = p.item;
   const run = p.run;
   const n = (run && run.next) || {};
   const nextBtn = n.command && n.needsYou ? [btn('run-next', n.command.startsWith('/approve') ? 'Approve' : `Run ${n.command}`, { primary: true })] : [];
   const adoBtn = it.ado ? [btn('ado', 'Open in ADO')] : [];
   switch (p.column) {
-    case 'done': return out('Closed. It is off the board; Health still counts it.', adoBtn);
-    case 'resolved': return out(`Resolved: merged to main and waiting for a release, under ${esc(areaOf(it) || 'No area path')}. Close it as released when it ships, or close its whole area from the Resolved column.`,
+    case 'done': return step('Closed. It is off the board; Health still counts it.', adoBtn);
+    case 'resolved': return step(`Resolved: merged to main and waiting for a release, under ${esc(areaOf(it) || 'No area path')}. Close it as released when it ships, or close its whole area from the Resolved column.`,
       [...(it.ado ? [btn('close-one', 'Close as released', { primary: true })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
     case 'merged':
-      if (!it.ado) return out(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Link its ADO item below to resolve it there, or mark it closed.`, [btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
-      return out(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Mark it resolved: in main, waiting for the next release.`,
-        [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), ...adoBtn]);
+      if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Link its ADO item below to resolve it there, or mark it closed.`, [btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
+      return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Mark it resolved: in main, waiting for the next release.`,
+        [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet')]);
     case 'review': {
       const prs = (it.prs && it.prs.list) || [];
       const done = prs.filter(x => x.status === 'completed').length;
       const text = !it.ado ? 'Link an ADO item below so Slate can follow the pull request, or mark it merged yourself.'
         : prs.length ? `${done} of ${prs.length} linked pull request${prs.length === 1 ? '' : 's'} merged. Slate checks again every 15 minutes.`
         : `${esc(n.text || 'Review the code, push and open the PR in Dispatch.')} No pull request is linked to #${it.ado.id} yet.`;
-      return out(text, [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length }), ...(it.ado ? [btn('check-prs', 'Check pull requests')] : []), btn('mark-merged', 'Mark merged')]);
+      if (!it.ado) return step(text, [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length }), btn('mark-merged', 'Mark merged')]);
+      return step(text, [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length }), btn('check-prs', 'Check pull requests')], [btn('mark-merged', 'Mark merged')]);
     }
     default: {
-      if (!run && it.run) return out('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open in Dispatch')]);
-      if (!run) return out(it.ado ? 'Start runs Tandem on the ADO item: brief, spec, plan, then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
+      if (!run && it.run) return step('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open in Dispatch')]);
+      if (!run) return step(it.ado ? 'Start runs Tandem on the ADO item: brief, spec, plan, then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
         [btn('start', it.ado ? 'Start' : 'Start as local work', { primary: true })]);
-      return out(esc(n.text || 'See where it is in Dispatch.'), [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length })]);
+      return step(esc(n.text || 'See where it is in Dispatch.'), [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length })]);
     }
   }
 }
 
-/** Link an ADO item to a card with none (Dev lane): the pull request needs one, and Merged and Resolved read it. */
+function nextHtml(n) {
+  if (n.html) return n.html;
+  if (!n.text && !n.shown.length && !n.extra) return '';
+  return `<div class="next"><p>${n.text}</p>${n.extra || ''}<div class="acts">${n.shown.slice(0, MAX_SHOWN).join('')}</div></div>`;
+}
+
+/** Link an ADO item to a card with none (In flight): the pull request needs one, and Merged and Resolved read it. */
 function linkSection(p) {
   const it = p.item;
-  if (it.ado || it.virtual || p.lane !== 'dev' || p.column === 'done') return '';
+  if (it.ado || it.virtual || !p.dev || p.column === 'done') return '';
   return section('Azure DevOps', `<p class="small">No ADO item yet. The pull request needs one, and Slate reads Merged and Resolved from it.</p>
     <div class="acts"><label class="sr" for="linkAdo">Work item number</label><input id="linkAdo" class="link-in" inputmode="numeric" placeholder="12345" maxlength="11" autocomplete="off">${btn('link-ado', 'Link ADO item', { primary: true, extra: p.canAdo ? '' : ' disabled title="Turn on the Azure DevOps connector"' })}</div>`);
 }
 
 /** The whole journey, oldest first (model.js timeline). */
-function timelineSection(p) {
+function timelineBody(p) {
   const rows = p.timeline || [];
   if (!rows.length) return '';
   const safe = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
-  return section('Timeline', `<ol class="hist">${rows.map(r => {
+  return `<ol class="hist">${rows.map(r => {
     const u = safe(r.url);
     const text = u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(r.text)}</a>` : r.run ? `<button type="button" class="linkish" data-act="dispatch">${esc(r.text)}</button>` : esc(r.text);
     return `<li>${r.at ? `<span class="mono">${esc(r.at)}</span> ` : ''}${text}</li>`;
-  }).join('')}</ol>`);
+  }).join('')}</ol>`;
 }
 
-/** Move to: a select of earlier stages (Move back) and later ones (Skip ahead), and a button. Off while an agent
-    is running on the item. */
-function backHtml(p) {
+/**
+ * The More menu: the step's other buttons, then Move to (earlier stages and skip ahead, one list), Open in ADO,
+ * Mark closed and Remove from Slate.
+ */
+function moreHtml(p, extra, shown) {
+  const it = p.item;
+  const items = [...extra];
+  const has = (act) => [...shown, ...items].some(h => h.includes(`data-act="${act}"`));
   const back = p.back || [], fwd = p.forward || [];
-  if (!back.length && !fwd.length) return '';
-  const running = !!(p.agent && p.agent.busy);
-  const off = running ? ' disabled title="An agent is running on it. Move it when the run stops."' : '';
-  const opts = (list) => list.map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('');
-  return `<span class="back"><label class="sr" for="backTo">Move to</label><select id="backTo"${off}>${fwd.length ? `<optgroup label="Skip ahead">${opts(fwd.slice().reverse())}</optgroup>` : ''}${back.length ? `<optgroup label="Move back">${opts(back.slice().reverse())}</optgroup>` : ''}</select>${btn('back', 'Move', { extra: off })}</span>`;
+  let move = '';
+  if (back.length || fwd.length) {
+    const running = !!(p.agent && p.agent.busy);
+    const off = running ? ' disabled title="An agent is running on it. Move it when the run stops."' : '';
+    const opts = (list) => list.map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('');
+    move = `<div class="move"><label for="backTo">Move to</label><select id="backTo"${off}>${fwd.length ? `<optgroup label="Skip ahead">${opts(fwd.slice().reverse())}</optgroup>` : ''}${back.length ? `<optgroup label="Move back">${opts(back.slice().reverse())}</optgroup>` : ''}</select>${btn('back', 'Move', { extra: off })}</div>`;
+  }
+  if (it.ado && !has('ado')) items.push(btn('ado', 'Open in ADO'));
+  if (!it.virtual && it.stage !== 'done' && !has('done')) items.push(btn('done', 'Mark closed', { title: 'Off the board without changing ADO' }));
+  if (!it.virtual) items.push(btn('remove', 'Remove from Slate'));
+  if (!items.length && !move) return '';
+  return `<details class="more"><summary class="btn">More</summary><div class="menu" role="group" aria-label="More">${items.join('')}${move}</div></details>`;
+}
+
+/** A section that folds. `open` is the default; `remembered` (from browser storage) wins when set. */
+function fold(key, title, body, open, remembered) {
+  if (!body) return '';
+  const isOpen = remembered !== undefined ? remembered : open;
+  return `<details class="ps fold" data-fold="${esc(key)}"${isOpen ? ' open' : ''}><summary><h3>${esc(title)}</h3></summary>${body}</details>`;
 }
 
 export function panelHtml(p) {
@@ -412,26 +441,43 @@ export function panelHtml(p) {
   const titleField = it.ado || it.virtual
     ? `<h2 class="ptitle">${esc(it.title)}</h2>`
     : `<label class="sr" for="ptitle">Title</label><input id="ptitle" class="ptitle-in" value="${esc(it.title)}" maxlength="255">`;
+  const n = nextOf(p);
+  const shown = n.shown || [];
+  const folds = (p.ui && p.ui.folds) || {};
+  const col = p.column;
+  // The current step's file is open; earlier steps' files are there, closed.
+  const files = [
+    p.column === 'interview' || p.column === 'brief' || p.files['understanding.md'] ? wrapOpen(understandingSection(p), col === 'interview' || p.shapeEditing === 'understanding.md') : '',
+    wrapOpen(briefSection(p), col === 'brief' || col === 'interview' || p.shapeEditing === 'brief.md'),
+    wrapOpen(triageSection(p.triage), col === 'triage' || col === 'waiting' || col === 'new'),
+    wrapOpen(draftSection(p), col === 'define' || col === 'publish' || p.editing)
+  ].join('');
+  const meta = [it.requester ? `Asked by ${esc(it.requester)}.` : '', p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''].filter(Boolean).join(' ');
+  const details = [
+    meta ? `<p class="soft small meta-line">${meta}</p>` : '',
+    adoSection(it, p.details, p.prefs),
+    it.description && !it.ado ? section(it.kind === 'idea' || it.fromRunway ? 'Idea' : 'Request', `<pre class="txt">${esc(it.description)}</pre>`) : '',
+    p.owners && p.owners.length && !p.dev ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''
+  ].join('');
   return `<div class="phead">
-      <div class="prow">${chip(LEVEL_NAME[it.level] || 'Story', `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${btn('wide', p.wide ? 'Narrow' : 'Expand', { title: p.wide ? 'Give the board more room' : 'Give the panel more room', extra: ` aria-pressed="${p.wide}"` })}${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
+      <div class="prow">${chip(LEVEL_NAME[it.level] || 'Story', `lv-${it.level}`)}${changedInAdo(it) ? chip('Changed in ADO', 'warn') : ''}<span class="grow"></span>${moreHtml(p, n.more || [], shown)}${btn('wide', p.wide ? 'Narrow' : 'Expand', { title: p.wide ? 'Give the board more room' : 'Give the panel more room', extra: ` aria-pressed="${p.wide}"` })}${btn('close', 'Close', { extra: ' aria-label="Close"' })}</div>
       ${titleField}
       ${links.length ? `<p class="links">${links.join(' · ')}</p>` : ''}
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
     </div>
-    ${nextHtml(p)}
-    ${agentSection(p)}
-    ${it.requester || p.age ? `<p class="soft small meta-line">${it.requester ? `Asked by ${esc(it.requester)}. ` : ''}${p.age ? `${p.age} day${p.age === 1 ? '' : 's'} in this stage.` : ''}</p>` : ''}
-    ${linkSection(p)}
-    ${adoSection(it, p.details, p.prefs)}
-    ${it.description && !it.ado ? section(it.kind === 'idea' || it.fromRunway ? 'Idea' : 'Request', `<pre class="txt">${esc(it.description)}</pre>`) : ''}
-    ${p.column === 'interview' || p.column === 'brief' || p.files['understanding.md'] ? understandingSection(p) : ''}
-    ${briefSection(p)}
-    ${p.owners && p.owners.length && p.lane !== 'dev' ? section('Owners', `<ul>${p.owners.slice(0, 4).map(o => `<li>${esc(o.name)}: ${esc(o.hits.join(', '))}</li>`).join('')}</ul>`) : ''}
-    ${triageSection(p.triage)}
-    ${draftSection(p)}
+    ${nextHtml(n)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
-    ${timelineSection(p)}
-    ${!it.virtual ? `<div class="acts foot">${backHtml(p)}${it.stage !== 'done' ? btn('done', 'Mark closed', { title: 'Off the board without changing ADO' }) : ''}${btn('remove', 'Remove from Slate')}</div>` : ''}`;
+    ${agentSection(p)}
+    ${linkSection(p)}
+    ${files}
+    ${fold('details', 'Details', details, false, folds.details)}
+    ${fold('timeline', 'Timeline', timelineBody(p), false, folds.timeline)}`;
+}
+
+/** Turn a plain section into a folding one, open or closed. */
+function wrapOpen(html, open) {
+  if (!html) return '';
+  return html.replace(/^<section class="ps"><h3>([\s\S]*?)<\/h3>/, (m, h) => `<details class="ps fold"${open ? ' open' : ''}><summary><h3>${h}</h3></summary>`).replace(/<\/section>$/, '</details>');
 }
 
 /* ---------- dialogs ---------- */
@@ -460,7 +506,7 @@ export function publishDialogHtml(plan, { area, build = false }) {
   return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
     <p>${n} change${n === 1 ? '' : 's'} in Azure DevOps${area ? `, in ${esc(area)}` : ''}. Items are tagged <span class="mono">slate</span>. Nothing is sent until you click Publish.</p>
     <table class="plan"><thead><tr><th>Change</th><th>Type</th><th>Title</th></tr></thead><tbody>${rows}</tbody></table>
-    ${build ? '<p>Then it moves to the Dev lane and Tandem starts on it (Build it myself).</p>' : ''}
+    ${build ? '<p>Then it moves to In flight and Tandem starts on it (Build it myself).</p>' : ''}
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok"${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'}</button></div></form>`;
 }
 

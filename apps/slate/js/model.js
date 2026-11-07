@@ -1,16 +1,19 @@
 /* Slate: the pure part. No DOM and no SDK, so Node tests drive it.
 
-   Slate is your ADO backlog as a board, in three lanes:
-     Shape lane  every item starts here: New, Triage, Waiting on requester, Interview, Brief. Requests get /triage;
-                 your own ideas (and Runway's pending ones) get /shape, an interview with you a round at a time,
-                 ending in a brief.
-     PM lane     Define, Publish, Who builds it?, and it ends Delegated or in the Dev lane. /scope and /slice or
-                 /refine (from the brief when there is one), /handoff. You approve.
-     Dev lane  the item's Tandem run (Dispatch's .work items), read live from the opencode connector.
+   Slate is your ADO backlog as one board of six columns (Slate 2.0.0):
+     Inbox          every item starts here. Requests get /triage; your own ideas (and Runway's pending ones) get
+                    /shape, an interview with you a round at a time, ending in a brief.
+     Shape          triage, waiting on the requester, the interview, the brief.
+     Define         /scope and /slice or /refine (from the brief when there is one), then publish. You approve.
+     Who builds it? delegate it (/handoff) or build it yourself.
+     In flight      delegated, or the item's Tandem run (Dispatch's .work items, read live from the opencode
+                    connector) through review and PR to merged.
+     Resolved       merged to main, waiting for a release.
+   Stored stages (STAGES) did not change with the board; boardColumn maps each step to its column.
 
    Collections (version 1, docs/data-format.md):
      items      one record per item you acted on (and `meta.fields`: which ADO fields cards and the panel show,
-                cleanPrefs; `meta.dismissed`: Runway pending ideas hidden from New): {id, title, level, kind ('idea'
+                cleanPrefs; `meta.dismissed`: Runway pending ideas hidden from Inbox): {id, title, level, kind ('idea'
                 for your own ideas), runwayPending (the Runway pending idea it came from), parentId, ado, runway, work, sessions, route,
                 assignee, answers, published, stage, createdAt, history}. ADO items you have not touched are not
                 stored: they come from the ADO connector's `backlog` action each time.
@@ -33,38 +36,27 @@ export const levelOfType = (type) => ADO_LEVEL[type] || 'story';
 // 'resolved': the ADO item is Resolved (merged to main, waiting for a release); the card stays until it closes.
 // 'done': closed in ADO (or marked done). Off the board; Health and history keep it.
 export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'resolved', 'done'];
-export const SHAPE_COLUMNS = [
-  { key: 'new', title: 'New', hint: 'Requests and ideas nobody has looked at yet.' },
-  { key: 'shaping', title: 'Shaping', hint: 'Triage, waiting on the requester, or an interview with you. The card says which.' },
-  { key: 'brief', title: 'Brief', hint: 'Understood. Read the brief, then send it to Define.' }
-];
-export const PM_COLUMNS = [
+// The board: six columns, one board (Slate 2.0.0). Each column holds several steps; the card's chip names the step.
+export const BOARD_COLUMNS = [
+  { key: 'inbox', title: 'Inbox', hint: 'Requests, ideas and ADO items nobody has looked at yet.' },
+  { key: 'shape', title: 'Shape', hint: 'Triage, waiting on the requester, an interview with you, or a brief to read. The card says which.' },
   { key: 'define', title: 'Define', hint: 'Stories and acceptance criteria, approved and published to ADO from here.' },
   { key: 'decide', title: 'Who builds it?', hint: 'Delegate it with a brief, or build it yourself.' },
-  { key: 'delegated', title: 'Delegated', hint: 'With a teammate. Docket tracks it as waiting on them.' }
-];
-export const DEV_COLUMNS = [
-  { key: 'building', title: 'Building', hint: 'Spec, plan and build in Tandem. The card says which; click it for the run in Dispatch.' },
-  { key: 'review', title: 'Review and PR', hint: 'Review the code, push and open the PR.' },
-  { key: 'merged', title: 'Merged', hint: 'Every linked pull request is completed. Mark it resolved.' },
+  { key: 'inflight', title: 'In flight', hint: 'With a teammate, or building in Tandem, in review, or merged. The card says which.' },
   { key: 'resolved', title: 'Resolved', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
 ];
 
 /**
- * The steps that share a board column: pmColumn says the step (what the panel offers, how long it may wait), the
- * board shows the column, and the card names the step.
+ * Steps (what the panel offers and how long a card may wait) and the board column each one shows in. Shape and PM
+ * steps come from pmColumn, the rest from devColumn.
  */
-export const STEP_COLUMN = { triage: 'shaping', waiting: 'shaping', interview: 'shaping', publish: 'define' };
-export const STEP_CHIP = { triage: 'Triage', waiting: 'Waiting on requester', interview: 'Interview', publish: 'Approved: not in ADO' };
+export const STEP_COLUMN = {
+  new: 'inbox', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'define', publish: 'define',
+  decide: 'decide', delegated: 'inflight', building: 'inflight', review: 'inflight', merged: 'inflight', resolved: 'resolved'
+};
+export const STEP_CHIP = { triage: 'Triage', waiting: 'Waiting on requester', interview: 'Interview', brief: 'Brief ready', publish: 'Approved: not in ADO', review: 'Review and PR', merged: 'Merged' };
+export const STEP_TITLE = { new: 'Inbox', triage: 'Shape: triage', waiting: 'Shape: waiting on requester', interview: 'Shape: interview', brief: 'Shape: brief', define: 'Define', publish: 'Define: approved, not in ADO', decide: 'Who builds it?', delegated: 'In flight: delegated', building: 'In flight: building', review: 'In flight: review and PR', merged: 'In flight: merged', resolved: 'Resolved' };
 export const boardColumn = (step) => STEP_COLUMN[step] || step;
-
-/** Which lane a column (or step) is in: 'shape', 'pm' or 'dev'. */
-export function laneOf(column) {
-  const c = boardColumn(column);
-  if (SHAPE_COLUMNS.some(x => x.key === c)) return 'shape';
-  if (PM_COLUMNS.some(x => x.key === c)) return 'pm';
-  return 'dev';
-}
 
 /**
  * The step a Shape or PM card is at: new, triage, waiting, interview, brief, define, publish, decide or delegated.
@@ -184,12 +176,12 @@ export function setStage(it, stage, now = new Date()) {
 
 /* ---------- moving back ---------- */
 
-export const STAGE_TITLE = { new: 'New', triaged: 'Shaping: triage', waiting: 'Shaping: waiting on requester', shaping: 'Shaping: interview', brief: 'Brief', defining: 'Define', ready: 'Define: approved', decide: 'Who builds it?', delegated: 'Delegated', dev: 'Building', resolved: 'Resolved', done: 'Closed' };
+export const STAGE_TITLE = { new: 'Inbox', triaged: 'Shape: triage', waiting: 'Shape: waiting on requester', shaping: 'Shape: interview', brief: 'Shape: brief', defining: 'Define', ready: 'Define: approved', decide: 'Who builds it?', delegated: 'In flight: delegated', dev: 'In flight: building', resolved: 'Resolved', done: 'Closed' };
 
 /**
  * Earlier stages an item can go back to: the ones its history went through (New always), before where it is
  * now. `column` is where the board shows it: an item in Define whose draft is approved shows in Publish, so
- * Define is a step back for it. Delegated and the Dev lane are two ends of one choice, so neither goes to the
+ * Define is a step back for it. Delegated and building it yourself are two ends of one choice, so neither goes to the
  * other; both go back to Who builds it?.
  */
 export function backTargets(it, column = null) {
@@ -205,8 +197,8 @@ export function backTargets(it, column = null) {
 /**
  * Later stages an item can skip ahead to, for work that is already done elsewhere (a feature whose stories are
  * already written goes straight to Who builds it?). Only Define and Who builds it?: Waiting and Publish need
- * triage questions or drafts, and Delegated and the Dev lane go through Delegate and Do it myself.
- * Only from the Shape lane, Define and Publish (before Who builds it?).
+ * triage questions or drafts, and Delegated and building go through Delegate and Build it myself.
+ * Only from Inbox, Shape and Define (before Who builds it?).
  */
 export function forwardTargets(it) {
   const cur = it.stage || 'new';
@@ -259,11 +251,23 @@ export function cards(items, backlog = []) {
  * Runway's Pending assignment ideas (its summary's `pending` rows) as cards for New: not stored until you act on
  * one, and left out once an item came from it (`runwayPending`) or you hid it (`dismissed`).
  */
-export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Date()) {
+export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Date(), sent = []) {
   const taken = new Set(items.map(it => it.runwayPending).filter(Boolean));
   const hidden = new Set(dismissed);
-  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string' && !taken.has(r.id) && !hidden.has(r.id))
+  const mine = new Set(sent);
+  return (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(r.id) && typeof r.title === 'string' && !taken.has(r.id) && !hidden.has(r.id) && !mine.has(r.title))
     .map(r => ({ ...newItem({ title: r.title, description: r.note || '', kind: 'idea' }, now), id: `rw_${r.id}`, virtual: true, fromRunway: r.id, createdAt: isDay(r.due) ? r.due : today(now) }));
+}
+
+/**
+ * Titles of the ideas Slate itself sent to Runway (Add to roadmap), as Runway titles them (the first line of the
+ * offer's text). Runway's pending rows do not say who sent them, so Slate leaves these out of Inbox: the card is
+ * already on the board. `env` is Slate's handoffs envelope.
+ */
+export function sentIdeaTitles(env) {
+  const list = (env && Array.isArray(env.items)) ? env.items : [];
+  return list.filter(h => h && h.to === 'runway' && h.payload && h.payload.kind === 'idea' && typeof h.text === 'string')
+    .map(h => h.text.trim().split('\n')[0].trim().replace(/\s+/g, ' ').slice(0, 200)).filter(Boolean);
 }
 
 /** True when ADO changed the item since Slate last wrote or read it. */
@@ -625,7 +629,7 @@ export function publishPlan(item, files = {}, { area = '', storyType = 'User Sto
 /**
  * What the agents are asking about this item, so the panel can answer it in place: permission prompts and
  * questions (opencode connector `state`, `liveMode.live`) from any session Slate started for it, its `.work`
- * folders, or its Tandem run's folder (Dev lane). `{permissions, questions, count}`.
+ * folders, or its Tandem run's folder (In flight). `{permissions, questions, count}`.
  */
 export function asksFor(item, live, run = null) {
   const L = live || {};
@@ -722,20 +726,23 @@ export function aboutText(it, triage) {
 
 /* ---------- team health ---------- */
 
-/** Health numbers for the Health tab: per column {count, stale, medianDays}, the oldest open items, and load. */
+/**
+ * Health numbers for the Health tab: per board column {count, stale, medianDays}, the oldest open items, and load.
+ * `columnOf(it)` gives the item's step; stale limits apply per step, counts per board column.
+ */
 export function health(items, columnOf, now = new Date()) {
   const cols = {};
   const open = items.filter(it => !['done'].includes(it.stage));
   for (const it of open) {
-    const k = columnOf(it);
-    const c = (cols[k] ||= { count: 0, stale: 0, days: [] });
+    const step = columnOf(it);
+    const c = (cols[boardColumn(step)] ||= { count: 0, stale: 0, days: [] });
     c.count++;
     const d = daysInStage(it, now);
     c.days.push(d);
-    if (isStale(it, k, now)) c.stale++;
+    if (isStale(it, step, now)) c.stale++;
   }
   for (const c of Object.values(cols)) { const s = c.days.sort((a, b) => a - b); c.medianDays = s.length ? s[Math.floor((s.length - 1) / 2)] : 0; delete c.days; }
-  const oldest = open.filter(it => !['dev', 'delegated', 'resolved'].includes(it.stage)).map(it => ({ it, days: daysInStage(it, now), column: columnOf(it) }))
+  const oldest = open.filter(it => !['dev', 'delegated', 'resolved'].includes(it.stage)).map(it => ({ it, days: daysInStage(it, now), column: STEP_TITLE[columnOf(it)] || columnOf(it) }))
     .sort((a, b) => b.days - a.days).slice(0, 8);
   const load = {};
   for (const it of items) if (it.stage === 'delegated' && it.assignee) load[it.assignee] = (load[it.assignee] || 0) + 1;
@@ -979,7 +986,7 @@ export const DETAIL_FIELDS = [
 ];
 const DETAIL_KEYS = DETAIL_FIELDS.map(f => f.key);
 export const DEFAULT_PREFS = {
-  card: ['assignee', 'iteration', 'area', 'tags', 'priority', 'points'],
+  card: ['assignee', 'priority', 'tags'],
   detail: {
     epic: ['description', 'priority', 'links', 'comments'],
     feature: ['description', 'releaseNotes', 'priority', 'links', 'comments'],
