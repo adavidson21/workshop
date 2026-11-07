@@ -1187,7 +1187,7 @@ def agents_checks(b, watch):
 
         # A file opens in the app.
         run.locator('.rtab-body [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
-        check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('.sheet h3').inner_text() == '.work/41300-export-retry-fails/bug.md')
+        check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
         check('the file sheet offers Open in Notebook', af.locator('.sheet [data-open-notebook]').count() == 1)
         # Edit and save: file.write with the text read, straight into .work.
         af.click('.sheet [data-file-mode=edit]'); pg.wait_for_timeout(300)
