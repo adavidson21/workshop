@@ -503,7 +503,7 @@ export function removeSheetHtml() {
 
 // ------------------------------------------------------------- a .work file: read, preview and edit (doc.js)
 // Read through file.read, saved through file.write with the text it was read at, so nothing Tandem wrote since is
-// overwritten. Read-only while Tandem or autopilot works on the item. Open in Notebook shows it in the Notes app.
+// overwritten. Read-only while Tandem or autopilot works on the item. Open in Folio shows it in Folio (app id notes).
 export function fileDraftKey(f) { return 'file:' + f.folder + '/' + f.name; }
 export function fileDraft(f) { const d = S.ui.drafts[fileDraftKey(f)]; return d == null ? f.text : d; }
 export function fileDirty(f) { return !!f && f.text != null && fileDraft(f) !== f.text; }
@@ -535,7 +535,7 @@ function fileSheetHtml() {
   const foot = f.confirmClose
     ? `<span class="grow dim">Discard your changes to ${h(f.name)}?</span><button type="button" class="btn" data-file-keep="1">Keep editing</button><button type="button" class="btn danger" data-file-discard="1">Discard</button>`
     : `<span class="grow dim" data-file-state="1">${f.saving ? 'Saving.' : dirty ? 'Unsaved changes' : f.saved ? 'Saved' : ''}</span>` +
-      (S.hasNotes && f.text != null ? `<button type="button" class="btn" data-open-notebook="1" title="Open in Notebook">Open in Notebook</button>` : '') +
+      (S.hasNotes && f.text != null ? `<button type="button" class="btn" data-open-notebook="1" title="Open in Folio">Open in Folio</button>` : '') +
       (f.text ? copyBtn(cur, 'Copy') : '') +
       (f.text != null ? `<button type="button" class="btn" data-file-revert="1"${dirty ? '' : ' hidden'}>Revert</button>` +
         `<button type="button" class="btn primary" data-file-save="1"${!dirty || lock || f.saving ? ' disabled' : ''}>Save</button>` : '') +

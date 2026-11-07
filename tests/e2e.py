@@ -1211,7 +1211,7 @@ def agents_checks(b, watch):
         # A file opens in the app.
         run.locator('.rtab-body [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
         check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
-        check('the file sheet offers Open in Notebook', af.locator('.sheet [data-open-notebook]').count() == 1)
+        check('the file sheet offers Open in Folio', af.locator('.sheet [data-open-notebook]').count() == 1)
         # Approve just started a session on this run, so the sheet is read-only until Tandem stops (lib/docs.mjs refuses too).
         check('while Tandem works on the run, Edit is off and the sheet says why',
               af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))

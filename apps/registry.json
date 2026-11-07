@@ -780,9 +780,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "notes",
-        "name": "Notebook",
+        "name": "Folio",
         "version": "3.0.0",
-        "description": "Your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Links and backlinks, tags, search and images.",
+        "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 45,
@@ -893,6 +893,7 @@
           "shared/workshop-sdk.js"
         ],
         "aliases": [
+          "folio",
           "notebook",
           "notes"
         ],

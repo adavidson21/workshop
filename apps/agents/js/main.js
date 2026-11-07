@@ -868,7 +868,7 @@ app.addEventListener('click', ev => {
     const f = ui().file;
     if (fileDirty(f)) { toast('Save or revert your changes first.', true); return; }
     closeOverlays(true); paint();
-    ws.open({ app: 'notes', path: notebookRoute(f.folder, f.name) }).catch(() => toast("Couldn't open Notebook.", true));
+    ws.open({ app: 'notes', path: notebookRoute(f.folder, f.name) }).catch(() => toast("Couldn't open Folio.", true));
     return;
   }
   const fb = t.closest('[data-file]');
