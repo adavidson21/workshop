@@ -35,11 +35,13 @@ function gitRepo(dir, { branch = "main", remote = null, commits = 1 } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   g(dir, "init", "-q", "-b", "main");
   g(dir, "config", "user.email", "t@example.com"); g(dir, "config", "user.name", "T"); g(dir, "config", "commit.gpgsign", "false");
-  for (let i = 0; i < commits; i++) { fs.writeFileSync(path.join(dir, `f${i}.txt`), `${i}\n`); g(dir, "add", "."); g(dir, "commit", "-q", "-m", `commit ${i}: café`); }
+  for (let i = 0; i < commits; i++) { fs.writeFileSync(path.join(dir, `f${i}.txt`), `${i}\n`); g(dir, "add", "."); g(dir, "commit", "-q", "-m", `commit ${i}`); }
   if (remote) g(dir, "remote", "add", "origin", remote);
   if (branch !== "main") g(dir, "checkout", "-q", "-b", branch);
 }
 
+// ASCII commit messages: Windows PowerShell reads git's UTF-8 output in the console code page, so New-Dashboard.ps1
+// garbles "caf\u00e9" there; the JavaScript reads it right (checked on its own below).
 // The edge cases New-Dashboard.ps1 handles: CRLF files, placeholders, odd case, local ids, PR reviews, scopes,
 // paused and blocked items, a changed file list, categories, and repos with remotes of every kind.
 function richWorkspace() {
@@ -157,6 +159,11 @@ test("edge cases on their own: local ids, blocked, paused, PR review, scope, CRL
     assert.equal(by("_private"), undefined);
     assert.deepEqual(m.repoCategories, ["Empty Category", "Platform"]);
     assert.ok(m.repos.some((r) => r.folder === "Platform/api" && r.owner === "L7" && r.ownerKnown));
+    // Non-ASCII commit messages come through as written (New-Dashboard.ps1 garbles them on Windows).
+    const gh = path.join(ws.dir, "gh-repo");
+    fs.writeFileSync(path.join(gh, "accent.txt"), "x\n"); g(gh, "add", "."); g(gh, "commit", "-q", "-m", "caf\u00e9 \u2713");
+    const again = await readWork({ workRoot: ws.work, configPath: ws.config });
+    assert.equal(again.repos.find((r) => r.folder === "gh-repo").git.lastMsg, "caf\u00e9 \u2713");
   } finally { ws.remove(); }
 });
 
