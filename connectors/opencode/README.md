@@ -2,7 +2,7 @@
 
 The eng-agents live dashboard server, moved into Workshop as a connector. eng-agents retired its own server in Core 2.11.0 (eng-agents #41), so this is the only copy; Dispatch is the one live UI (D2). It reads `.work` with the eng-agents parser, follows opencode (1.x and 2.x), and runs pipeline commands for the Agents app (WS6) and Prioritizer.
 
-Node standard library only. It calls only opencode on this computer (`127.0.0.1`, `localhost` or `[::1]`) and runs `git`, PowerShell and the `opencode` command locally.
+Node standard library only. It calls only opencode on this computer (`127.0.0.1`, `localhost` or `[::1]`) and runs `git` and the `opencode` command locally (and `powershell.exe` for **Open terminal** on Windows).
 
 ## Source
 
@@ -11,14 +11,14 @@ Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) 
 | eng-agents | Here |
 | --- | --- |
 | `core/scripts/dashboard/server/*.mjs` (all but `updates.mjs`), deleted in Core 2.11.0 | `lib/`, now the only copy |
-| `core/scripts/dashboard/New-Dashboard.ps1` | `parser/New-Dashboard.ps1`. Synced from eng-agents Dashboard 1.9.0 (Core 2.6.0): scope folders and PR reviews. Differs on purpose: finds repos one folder down (`repoCategories`), and leaves out the static page's `coreVersion` and `dispatchUrl`. Sync parsing and next-step rules both ways until the parser is ported to JavaScript. |
+| `core/scripts/dashboard/New-Dashboard.ps1` | `lib/workparser.mjs`, a JavaScript port (connector 1.6.0) of `parser/New-Dashboard.ps1`, which is kept for the parity test. The copy finds repos one folder down (`repoCategories`) and leaves out the static page's `coreVersion` and `dispatchUrl`. A parsing or next-step change in eng-agents goes into both `lib/workparser.mjs` and `parser/New-Dashboard.ps1`; `test/workparser.test.mjs` checks they agree. |
 | `core/scripts/dashboard/live-server.mjs` routes, deleted in Core 2.11.0 | actions and events in `index.mjs` |
 
 The first commit on the WS3 branch is the verbatim copy, so `git diff` against it shows every change. Each file in `lib/` says what changed at the top.
 
 ## Requirements
 
-- PowerShell: `pwsh` (PowerShell 7) or Windows PowerShell. The connector runs `New-Dashboard.ps1 -AsJson` to read `.work`, as the live server did. On a Mac this means installing `pwsh` until the parser is ported to JavaScript (roadmap F10).
+- No PowerShell: since 1.6.0 the connector reads `.work` itself with `lib/workparser.mjs`, a JavaScript port of `New-Dashboard.ps1 -AsJson` (it ran that script before). Tandem's own commands still use PowerShell inside opencode. `parser/New-Dashboard.ps1` stays only for `test/workparser.test.mjs`, which runs both on the same folders and fails on any difference.
 - opencode 1.x or 2.x, and eng-agents installed in it (the `/start`, `/do-task` and other commands).
 - `git`, for Push.
 
@@ -34,7 +34,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `opencode.startServer` | `true` | `--no-start-opencode` | 2.x: `opencode service start`. 1.x: `opencode serve`, stopped again when the connector stops. |
 | `opencode.passwordEnv` | `OPENCODE_SERVER_PASSWORD` | the same variable | 2.x only, and only if the password is not in opencode's `service.json`. |
 | `opencode.usernameEnv` | `OPENCODE_SERVER_USERNAME` | the same variable | 2.x only. Not set means `opencode`. |
-| `powershell` | `pwsh`, else `powershell` | `--ps` | |
+| `powershell` | (unused) | `--ps` | No longer used since 1.6.0; kept so saved settings stay valid. |
 | `engAgentsConfig` | `~/.config/eng-agents/config.json` (the parser's default) | `--config` | Read by the parser only, for work item links. |
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
@@ -44,7 +44,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
-A bad setting (no `.work` in the workspace, a URL on another computer, no PowerShell) shows in the connector's status with what to fix. It never stops the agent.
+A bad setting (no `.work` in the workspace, a URL on another computer) shows in the connector's status with what to fix. It never stops the agent.
 
 ## Approved AI providers
 
@@ -233,7 +233,7 @@ Request changes saves the feedback, sets the review to `revising`, and sends one
 
 ## Known quirks kept for parity
 
-- The parser reads a published TSD's `Status:` line's gate value as `UNKNOWN` (`docs/work-format.md`, Known quirks), but since eng-agents Dashboard 1.7.1 the TSD's state is Published. `parser/New-Dashboard.ps1` carries the same fix; `test/parser.test.mjs` checks it.
+- The parser reads a published TSD's `Status:` line's gate value as `UNKNOWN` (`docs/work-format.md`, Known quirks), but since eng-agents Dashboard 1.7.1 the TSD's state is Published. `lib/workparser.mjs` and `parser/New-Dashboard.ps1` carry the same fix; `test/parser.test.mjs` and `test/workparser.test.mjs` check it.
 - `/do-task` and `/check-docs` always run in a new session.
 - `parser/New-Dashboard.ps1` lists `brief.md` right after `workitem.md`, as eng-agents Dashboard 1.10.1 does (PARITY.md).
 
@@ -250,4 +250,4 @@ node --test "connectors/opencode/test/*.test.mjs"
 - `one-on-one.test.mjs`: the 1:1 draft step (`lib/one-on-one.mjs`): where the packet goes, a stale draft cleared, running, done and failed, and the action args. Needs neither PowerShell nor opencode.
 - `agent.test.mjs`: the module against the connector contract, and the connector through the real agent (confirm, events, restarts on a config change, the password never in responses, events or logs).
 
-Tests that need PowerShell or git skip with a message when they are missing. GitHub's Windows, macOS and Linux runners have both.
+Tests that need PowerShell (the parity tests and `parser.test.mjs`) or git skip with a message when they are missing. GitHub's Windows, macOS and Linux runners have both.

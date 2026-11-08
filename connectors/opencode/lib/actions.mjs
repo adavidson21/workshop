@@ -124,7 +124,7 @@ export async function startItem({ id, lane, project }) {
 }
 
 // The next step in plain words, the way the dashboard page says it ("Task 3: Update invoice totals").
-// The next step in plain words. New-Dashboard.ps1 words it (next.text, stepWords); this only adds paused.
+// The next step in plain words. The parser words it (next.text, stepWords); this only adds paused.
 function stepText(it) {
   const n = it.next || {};
   if (it.paused) return (model && model.stepWords && model.stepWords.resume) || "Resume this item";

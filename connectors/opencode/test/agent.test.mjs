@@ -11,7 +11,7 @@ import oc, { configSchema } from "../index.mjs";
 import { startFakeOpencode } from "./fake-opencode.mjs";
 import { REPO, configFor, hasPowerShell, makeWorkspace, waitFor } from "./harness.mjs";
 
-const skip = hasPowerShell ? false : "PowerShell is not installed (the .work parser needs it)";
+const skip = false; // the connector reads .work itself since 1.6.0; PowerShell is not needed
 const PASSWORD = "fake-service-password-9b2c";
 
 test("module follows the connector contract and its configSchema fits the settings form", () => {

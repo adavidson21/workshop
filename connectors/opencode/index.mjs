@@ -5,7 +5,7 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { VERSION, configure, current, findPs, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
@@ -81,7 +81,7 @@ export const configSchema = {
     powershell: {
       type: "string",
       title: "PowerShell command",
-      description: "Runs the .work parser. Leave empty to use pwsh, else powershell.",
+      description: "No longer used: the connector reads .work itself since 1.6.0. Kept so saved settings stay valid.",
       pattern: "^[^\"&|<>^%\\r\\n]*$",
     },
     engAgentsConfig: {
@@ -167,9 +167,6 @@ function resetAll() {
 
 async function init() {
   const alive = current(() => true);
-  const ps = await findPs();
-  if (!alive()) return;
-  if (ps) return setPhase("error", ps);
   await refresh();
   if (!alive()) return;
   watchWork();

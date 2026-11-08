@@ -8,7 +8,7 @@ import oc from "../index.mjs";
 import { startFakeOpencode } from "./fake-opencode.mjs";
 import { EXAMPLE_WORK, configFor, fakeCtx, hasGit, hasPowerShell, makeFakeCli, makeWorkspace, waitFor } from "./harness.mjs";
 
-const skip = hasPowerShell ? false : "PowerShell is not installed (the .work parser needs it)";
+const skip = false; // the connector reads .work itself since 1.6.0; PowerShell is not needed
 const PASSWORD = "fake-service-password-5d1e";
 const expected = JSON.parse(fs.readFileSync(path.join(EXAMPLE_WORK, "expected.json"), "utf8"));
 const numbered = expected.items.filter((i) => i.kind === "item");
@@ -455,8 +455,9 @@ describe("settings and lifecycle", { skip }, () => {
       await rejects(call("status"), "unavailable", /does not exist/);
       await oc.stop();
       await startConnector({ ...configFor(ws.dir, { url: "http://127.0.0.1:9" }), powershell: "no-such-powershell-xyz" });
-      assert.equal(oc.status().state, "error");
-      assert.match(oc.status().message, /Could not run PowerShell/);
+      // Since 1.6.0 the connector reads .work itself: a PowerShell setting that does not work no longer matters.
+      assert.notEqual(oc.status().state, "error");
+      assert.doesNotMatch(String(oc.status().message || ""), /PowerShell/);
     } finally {
       await oc.stop();
       ws.remove();

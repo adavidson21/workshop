@@ -1,12 +1,12 @@
-// opencode connector: the work model. Runs New-Dashboard.ps1 -AsJson and watches .work.
+// opencode connector: the work model. Reads .work with lib/workparser.mjs (in process, no PowerShell) and watches it.
 //
-// Copied from eng-agents core/scripts/dashboard/server/model.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: the parser is the copy in
-// connectors/opencode/parser/; the watcher and poll stop with the connector; the static page snapshot
+// Copied from eng-agents core/scripts/dashboard/server/model.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Changes: the parser is
+// lib/workparser.mjs (connector 1.6.0; it ran parser/New-Dashboard.ps1 before); the watcher and poll stop with the connector; the static page snapshot
 // (.work/dashboard.html) is not written, because its template is the eng-agents page (see README.md).
 
-import { spawn } from "node:child_process";
 import fs from "node:fs";
-import { cancel, current, every, later, log, opt, psExe, running, scriptPath, workRoot } from "./context.mjs";
+import { cancel, current, every, later, log, opt, running, workRoot } from "./context.mjs";
+import { readWork } from "./workparser.mjs";
 import { linkSessionsFromModel } from "./links.mjs";
 import { emitModel } from "./live.mjs";
 
@@ -22,15 +22,10 @@ let refreshAgain = false;
 let watcher = null;
 let poller = null;
 let debounce = null;
-// The parser process running now, if any. Its working folder is the workspace, so on Windows the folder
-// cannot be removed until it exits: stop ends it and waits (parserGone).
-let child = null;
+// The read in progress, if any: stop waits for it (parserGone) so nothing reads the folder after the connector stops.
 let childExit = Promise.resolve();
 
 export function resetModel() {
-  if (child) {
-    try { child.kill(); } catch {}
-  }
   model = null;
   modelError = null;
   refreshing = false;
@@ -47,43 +42,16 @@ export function resetModel() {
 }
 
 export function runModel() {
-  return new Promise((resolve) => {
-    const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-WorkRoot", workRoot, "-AsJson"];
-    if (opt.config) args.push("-ConfigPath", opt.config);
-    let p;
-    try {
-      p = spawn(psExe, args, { cwd: opt.workspace, windowsHide: true });
-    } catch (e) {
-      return resolve({ error: e.message });
-    }
-    child = p;
-    childExit = new Promise((gone) => {
-      p.on("close", gone);
-      p.on("error", gone);
-    }).then(() => {
-      if (child === p) child = null;
-    });
-    let out = "";
-    let err = "";
-    p.stdout.on("data", (d) => (out += d));
-    p.stderr.on("data", (d) => (err += d));
-    p.on("error", (e) => resolve({ error: e.message }));
-    p.on("close", (code) => {
-      if (code !== 0) return resolve({ error: (err || out || `exit ${code}`).trim().split(/\r?\n/).slice(-3).join(" ") });
-      try {
-        resolve({ data: JSON.parse(out) });
-      } catch (e) {
-        resolve({ error: "Could not read New-Dashboard.ps1 output: " + e.message });
-      }
-    });
-  });
+  const p = readWork({ workRoot, configPath: opt.config || undefined }).then((data) => ({ data }), (e) => ({ error: e && e.message ? e.message : String(e) }));
+  childExit = p.then(() => {});
+  return p;
 }
 
 // Callers waiting for a read that starts after their change (for example start.local reading back the
 // folder it just made). A call during a read used to return at once, before the new folder was seen.
 let waiters = [];
 
-/** Resolves once no parser process is running (after resetModel ends it). */
+/** Resolves once no read of .work is in progress. */
 export function parserGone() {
   return childExit;
 }
