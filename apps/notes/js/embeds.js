@@ -49,3 +49,26 @@ export function embedHtml(html) {
     .replace(/ id="h-[^"]*"/g, '')
     .replace(/<input type="checkbox" data-task="\d+" aria-label="Done"/g, '<input type="checkbox" disabled');
 }
+
+/**
+ * The note's Markdown with its embeds replaced by the text they show (Copy for wiki: a wiki has no embeds).
+ * An embed is a line that is only ![[...]] (or ![label](note.md#h)), with blank lines around it, outside code.
+ * load(spec, fromPath) resolves one: {path, text} (the section's Markdown, ready to paste) or null to leave
+ * the line as it is. Two levels deep, and never a note inside itself.
+ */
+export async function expandEmbeds(md, from, load, chain = [from]) {
+  const lines = String(md).split('\n');
+  const out = [];
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const f = /^ {0,3}(`{3,}|~{3,})/.exec(l);
+    if (fence) { out.push(l); if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null; continue; }
+    if (f) { fence = f[1]; out.push(l); continue; }
+    const spec = (!lines[i - 1] || !lines[i - 1].trim()) && (!lines[i + 1] || !lines[i + 1].trim()) ? embedSpec(l) : null;
+    const got = spec && chain.length <= EMBED_DEPTH ? await load(spec, chain[chain.length - 1]) : null;
+    if (!got || chain.includes(got.path)) { out.push(l); continue; }
+    out.push(await expandEmbeds(got.text, got.path, load, [...chain, got.path]));
+  }
+  return out.join('\n');
+}

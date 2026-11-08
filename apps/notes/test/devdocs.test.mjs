@@ -105,10 +105,10 @@ test('the developer starter templates are named, fill in, and their diagrams are
   }
 });
 
-test('Copy for wiki HTML: no syntax-color spans, callouts as quotes with a bold title', () => {
+test('Copy for wiki HTML: syntax colors inline, callouts as quotes with a bold title', () => {
   const html = wikiHtml('> [!NOTE] Heads up\n> Body.\n\n```js\nconst a = 1\n```\n\nText[^1].\n\n[^1]: Foot.\n');
   assert.ok(!html.includes('tok-'), html);
-  assert.match(html, /<pre><code>const a = 1<\/code><\/pre>/);
+  assert.match(html, /<pre><code><span style="color:#7a3e9d">const<\/span> a = <span style="color:#a3561c">1<\/span><\/code><\/pre>/, 'colors as inline styles');
   assert.match(html, /<blockquote><p><strong>Heads up<\/strong><\/p><p>Body.<\/p><\/blockquote>/);
   assert.ok(!html.includes('class="callout'));
 });

@@ -26,8 +26,8 @@ import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
 import { docketPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
-import { dataUrl, inlineImages, pageHtml, wikiHtml } from './export.js';
-import { EMBED_DEPTH, embedHtml, embedSpec, sectionText } from './embeds.js';
+import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './export.js';
+import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
 import { esc, facts, render, headingId } from './markdown.js';
 import { markDiagram, paintDiagrams, pngBytes, svgFile } from './diagrams.js';
@@ -162,7 +162,21 @@ function paintChrome() {
   paintHint();
 }
 /* The header, keeping focus and the caret in a template field being typed in. */
+/* A click in the header lands on the button it started on: a repaint between pointerdown and click (autosave's
+   status, as the editor loses focus) would replace that button and the click would be lost. So while a pointer
+   is down in the header, repaints wait, and the latest one runs once the click has been handled. */
+let headHeld = false, headPending = false;
+head.addEventListener('pointerdown', () => { headHeld = true; }, true);
+const releaseHead = () => {
+  if (!headHeld) return;
+  headHeld = false;
+  setTimeout(() => { if (headPending && !headHeld) { headPending = false; paintHead(); } }, 0);
+};
+document.addEventListener('pointerup', releaseHead, true);
+document.addEventListener('pointercancel', releaseHead, true);
 function paintHead(st = state()) {
+  if (headHeld) { headPending = true; return; }
+  headPending = false;
   const a = document.activeElement;
   const field = a && a.dataset && a.dataset.tplField;
   const pos = field ? [a.selectionStart, a.selectionEnd] : null;
@@ -240,6 +254,12 @@ function noteCtx(from) {
   };
 }
 
+/** The note an embed names, from the note it is in, or null. */
+function embedTarget(spec, from) {
+  const ix = notes.index;
+  return spec.wiki ? (spec.target ? resolveWiki(ix.byTitle, ix.notes, spec.target) : from) : resolvePath(from, localHref(spec.target)?.path || spec.target);
+}
+
 /* Embeds (embeds.js): ![[note]] or ![[note#heading]] shows that note or section in place, read only. chain is
    the notes already being shown, so an embed never loops; two levels deep at most. */
 function embedder(chain) {
@@ -247,7 +267,7 @@ function embedder(chain) {
     const spec = embedSpec(para);
     if (!spec) return null;
     const ix = notes.index, from = chain[chain.length - 1];
-    const path = spec.wiki ? (spec.target ? resolveWiki(ix.byTitle, ix.notes, spec.target) : from) : resolvePath(from, localHref(spec.target)?.path || spec.target);
+    const path = embedTarget(spec, from);
     const name = `${spec.target || 'this note'}${spec.anchor ? '#' + spec.anchor : ''}`;
     if (!path || !notes.texts.has(path)) return `<p class="embed-note missing">Nothing to embed: there is no note ${esc(name)}.</p>`;
     const title = (ix.notes.get(path) || {}).title || path;
@@ -1102,22 +1122,33 @@ async function printNote() {
 async function copyForWiki() {
   if (!ui.path) return;
   const text = editor.value, from = ui.path;
-  const built = inlineImages(text, from, async (p) => {
-    if (!notes.files.has(p)) return null;
-    const f = await ws.files.read(p).catch(() => null);
-    return f ? dataUrl(f.content.type, new Uint8Array(await f.content.arrayBuffer())) : null;
-  }).then(async r => {
+  const built = (async () => {
+    // Embeds become their text (with their own images inside), each relative to its own note.
+    const images = new Set(), missing = new Set();
+    let embeds = 0;
+    const tally = (r) => { r.embedded.forEach(p => images.add(p)); r.missing.forEach(p => missing.add(p)); return r.markdown; };
+    const expanded = isTandem(from) ? text : await expandEmbeds(text, from, async (spec, at) => {
+      const path = embedTarget(spec, at);
+      const t = path && notes.texts.get(path);
+      const section = t ? sectionText(t.content, spec.anchor) : null;
+      if (section === null) return null;
+      embeds++;
+      return { path, text: tally(await inlineImages(section, path, imageData)) };
+    });
+    const markdown = tally(await inlineImages(wikiMarkdown(expanded), from, imageData));
     // Diagrams: a picture in the HTML; the Markdown keeps each ```mermaid block for editors that draw it.
     const pngs = new Map();
-    for (const f of mermaidFences(text)) {
+    let diagrams = 0;
+    for (const f of mermaidFences(markdown)) {
       if (pngs.has(f.src)) continue;
-      try { pngs.set(f.src, dataUrl('image/png', await pngBytes(f.src))); } catch { /* stays as its code */ }
+      try { pngs.set(f.src, dataUrl('image/png', await pngBytes(f.src))); diagrams++; } catch { /* stays as its code */ }
     }
-    return { ...r, html: wikiHtml(r.markdown, pngs) };
-  });
+    return { markdown, html: wikiHtml(markdown, pngs), images: images.size, diagrams, embeds, missing: [...missing] };
+  })();
   const done = (r) => {
-    const n = r.embedded.length;
-    const msg = `Copied for the wiki${n ? ` with ${n} image${n === 1 ? '' : 's'}` : ''}.`;
+    const n = (k, one) => `${r[k]} ${one}${r[k] === 1 ? '' : 's'}`;
+    const parts = [r.images && n('images', 'image'), r.diagrams && n('diagrams', 'diagram'), r.embeds && n('embeds', 'embedded section')].filter(Boolean);
+    const msg = `Copied for the wiki${parts.length ? ` with ${parts.join(', ')}` : ''}.`;
     ws.toast(r.missing.length ? `${msg} ${r.missing.length} image${r.missing.length === 1 ? ' was' : 's were'} not found: ${r.missing.join(', ')}.` : msg, { kind: r.missing.length ? 'warn' : 'success' });
   };
   try {

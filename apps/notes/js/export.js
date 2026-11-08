@@ -1,11 +1,13 @@
-/* Notes: a note ready to paste somewhere else, such as the company wiki, with its images inside it.
+/* Folio: a note ready to paste somewhere else, such as the company wiki, with its images inside it.
 
    Two forms of the same note, put on the clipboard together so one paste works in a visual editor or a
-   Markdown box:
-   - Markdown, with every image from the Workshop folder embedded as a data: URL (base64).
-   - HTML from the same Markdown, with the images inside it, and links to other notes as plain text
-     (they would not lead anywhere outside Workshop). Diagrams are pictures in the HTML; the Markdown keeps
-     each ```mermaid block as written, since Markdown editors draw those themselves.
+   Markdown box. Before either, main.js expands embeds (embeds.js expandEmbeds) so the wiki gets their text,
+   and wikiMarkdown() drops what only means something in Folio:
+   - Markdown: no frontmatter; links to other notes, [[wikilinks]] and files in the folder as their plain
+     text (they would lead nowhere in the wiki); every image from the folder embedded as a data: URL. Web
+     links, links to headings in the note, ```mermaid blocks, callouts and footnotes stay as written.
+   - HTML from that Markdown: diagrams as PNG pictures, code with its colors as inline styles (visual editors
+     keep those, not classes), callouts as quotes with a bold title.
    Nothing is uploaded anywhere: the clipboard is the only place it goes. Pure, so Node tests run it. */
 import { esc, headingId, render } from './markdown.js';
 import { isImagePath, localHref, outsideCode, resolvePath } from './model.js';
@@ -38,6 +40,20 @@ function target(fromPath, href) {
   return p && isImagePath(p) ? p : null;
 }
 
+/** The Markdown a wiki can use: frontmatter gone, and links into the folder (notes, [[wikilinks]], files that
+    are not images) as their text. Web links, #heading links, images and code are left alone. */
+export function wikiMarkdown(md) {
+  const body = String(md).replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '').replace(/^\s*\n/, '');
+  return outsideCode(body, (s) => s
+    .replace(/!?\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/g, (m, t, label) => (label || t.replace(/#/, ' › ')).trim())
+    .replace(/(^|[^!\\])\[((?:[^\]\\\n]|\\.)*)\]\(\s*(<[^>\n]*>|[^)\s]*)(?:\s+"[^"\n]*")?\s*\)/g, (m, pre, label, href) => {
+      const loc = localHref(href.replace(/^<|>$/g, ''));
+      return loc && loc.path ? `${pre}${label}` : m;
+    }));
+}
+
+const TOK_COLORS = { c: '#6b665e', s: '#3d7a3a', n: '#a3561c', k: '#7a3e9d', f: '#2f5f8a', t: '#8a5a00', a: '#a33a5b', v: '#0f6f73', add: '#2f6f2c', del: '#9b2c2c', meta: '#6b665e' };
+
 /** HTML for a visual editor: images from data: URLs or the web, web links kept, everything else plain.
     diagrams: Map of a ```mermaid block's source to its PNG data: URL; a diagram not in it stays as its code. */
 export function wikiHtml(markdown, diagrams = new Map()) {
@@ -52,7 +68,7 @@ export function wikiHtml(markdown, diagrams = new Map()) {
     .replace(/<span class="bad-link"[^>]*>([\s\S]*?)<\/span>/g, '$1')
     .replace(/ (?:data-line|data-lang|loading)="[^"]*"| id="h-[^"]*"/g, '')
     .replace(/<figure class="diagram"><pre class="diagram-src">([\s\S]*?)<\/pre><\/figure>/g, '<pre>$1</pre>')
-    .replace(/<span class="tok-[a-z]+">([\s\S]*?)<\/span>/g, '$1')                          // syntax colors
+    .replace(/<span class="tok-([a-z]+)">/g, (m, k) => `<span style="color:${TOK_COLORS[k] || 'inherit'}${k === 'c' ? ';font-style:italic' : ''}">`)
     .replace(/<div class="callout callout-[a-z]+" role="note"><p class="callout-title">([\s\S]*?)<\/p>([\s\S]*?)<\/div>/g, '<blockquote><p><strong>$1</strong></p>$2</blockquote>')
     .replace(/<sup class="fn-ref"[^>]*>/g, '<sup>').replace(/ class="note-link fn-back"[^>]*/g, '');
 }
