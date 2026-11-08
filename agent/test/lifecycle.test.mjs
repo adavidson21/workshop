@@ -83,6 +83,7 @@ test('node agent/start.mjs starts the agent and prints the launcher address', { 
     const agent = { port, token: url.token };
     const health = await get(agent, '/api/health', { auth: 'none' });
     assert.equal(health.json.app, 'workshop-agent');
+    assert.match(health.json.site, /^https:\/\/[^/]+$/, "health names Workshop's own site");
     const cfg = (await get(agent, '/api/config')).json;
     assert.equal(cfg.home, home);
     assert.equal(cfg.dataDir, dataDirOf(home));

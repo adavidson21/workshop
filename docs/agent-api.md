@@ -106,10 +106,10 @@ The agent checks the path as the client sent it, before any normalization, one s
 No token. Schema [health](schemas/health.schema.json), example [health.ok.json](examples/health.ok.json).
 
 ```json
-{"app": "workshop-agent", "api": 1, "version": "0.1.0"}
+{"app": "workshop-agent", "api": 1, "version": "0.1.0", "site": "https://workshop.example.org"}
 ```
 
-Check `app` before trusting anything else at that address.
+Check `app` before trusting anything else at that address. `site` (agent 1.5.0) is Workshop's own site from `shared/site.js`; Tandem's `/dashboard` uses it to open Dispatch without naming a domain.
 
 ### `GET /api/session`
 

@@ -11,6 +11,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { VERSION } from './version.mjs';
+import { SITE } from '../shared/site.js';
 import { SchemaSet } from './lib/schema.mjs';
 import { HttpError, MB, fail, sendJson, sendHtml, sendText, readJsonBody, drain, parseCookies, escapeHtml } from './lib/http.mjs';
 import { removeTmpFiles, KeyedLock } from './lib/fsutil.mjs';
@@ -232,7 +233,7 @@ export async function createAgent(o) {
 
       if (p === '/api/health') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
-        sendJson(res, 200, { app: 'workshop-agent', api: 1, version: VERSION }, cors);
+        sendJson(res, 200, { app: 'workshop-agent', api: 1, version: VERSION, site: SITE.workshop }, cors);
         return;
       }
       if (p === '/api/session') {
