@@ -83,7 +83,7 @@ function richWorkspace() {
     gitRepo(path.join(ws.dir, "Platform", "api"), { branch: "dev/bug/L7-local-thing", remote: "ssh://git@ssh.example.org:2222/team/api.git" });
     gitRepo(path.join(ws.dir, "Platform", "web"), { remote: origin });
     g(path.join(ws.dir, "Platform", "web"), "push", "-q", "-u", "origin", "main");
-    fs.writeFileSync(path.join(ws.dir, "Platform", "web", "dirty \"q\".txt"), "x\n");
+    fs.writeFileSync(path.join(ws.dir, "Platform", "web", "dirty caf\u00e9.txt"), "x\n"); // git quotes this name
     fs.writeFileSync(path.join(ws.dir, "Platform", "web", "f0.txt"), "changed\n");
     g(path.join(ws.dir, "Platform", "web"), "commit", "-q", "-am", "ahead by one");
     gitRepo(path.join(ws.dir, "Platform", "empty"), { commits: 0 });
