@@ -23,7 +23,8 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket, Runway, Rapport and Folio (DOCKET_TAG, RUNWAY_TAG, RECEIPTS_TAG and NOTES_TAG, else their newest code) and builds
+#                         downloads the apps in Workshop's apps/remote.json (Docket, Runway, Rapport, Folio; each with a
+#                         <FOLDER>_TAG such as DOCKET_TAG or NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 # Dispatch (opencode, git, PowerShell 7, Tandem and an AI model) is only for coding agents:
 #   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no PowerShell download, no AI step
@@ -51,7 +52,7 @@ main() {
   need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is needed and was not found."; }
   need curl; need tar; need uname
   # A release tag: letters, digits, dots, dashes and underscores (v1.2.0).
-  for t in "${WORKSHOP_TAG:-}" "${TANDEM_TAG:-}" "${DOCKET_TAG:-}" "${RUNWAY_TAG:-}" "${RECEIPTS_TAG:-}" "${NOTES_TAG:-}"; do
+  for t in "${WORKSHOP_TAG:-}" "${TANDEM_TAG:-}"; do
     case "$t" in *[!A-Za-z0-9._-]*|-*|*..*) fail "\"$t\" is not a release tag like v1.2.0." ;; esac
   done
 
@@ -128,18 +129,11 @@ main() {
   fi
 
   # ------------------------------------------------------------ 2. Workshop and Tandem
-  local names="workshop"; [ "$DISPATCH" = "1" ] && names="$names eng-agents"; [ "$WORK" = "1" ] && names="$names docket runway receipts notes"
-  for name in $names; do
-    local tag="" var=""
-    case "$name" in
-      workshop) step "Workshop"; tag="${WORKSHOP_TAG:-}"; var=WORKSHOP_TAG ;;
-      eng-agents) step "Tandem (eng-agents)"; tag="${TANDEM_TAG:-}"; var=TANDEM_TAG ;;
-      docket) step "Docket (for the pinned copy)"; tag="${DOCKET_TAG:-}"; var=DOCKET_TAG ;;
-      runway) step "Runway (for the pinned copy)"; tag="${RUNWAY_TAG:-}"; var=RUNWAY_TAG ;;
-      receipts) step "Rapport (for the pinned copy)"; tag="${RECEIPTS_TAG:-}"; var=RECEIPTS_TAG ;;
-      notes) step "Folio (for the pinned copy)"; tag="${NOTES_TAG:-}"; var=NOTES_TAG ;;
-    esac
-    local dir="$ROOT/$name" url="https://github.com/adavidson21/$name"
+  # get_repo <folder> <label> <tag> <tag variable> <owner/repo> <optional 0|1>: download or update one repo into $ROOT/<folder>.
+  get_repo() {
+    local name="$1" label="$2" tag="$3" var="$4" repo="$5" optional="$6"
+    step "$label"
+    local dir="$ROOT/$name" url="https://github.com/$repo"
     if [ -d "$dir/.git" ]; then
       if ! command -v git >/dev/null 2>&1; then say "This is a git checkout and git is not on PATH, so it is left as it is."
       elif [ -n "$tag" ]; then
@@ -147,15 +141,15 @@ main() {
         git -C "$dir" fetch --tags --quiet origin || say "Could not fetch tags; using the ones already here."
         git -C "$dir" checkout --quiet --detach "refs/tags/$tag" || fail "There is no tag $tag in $dir, or it has local changes."
       else say "Updating your git checkout."; git -C "$dir" pull --ff-only; fi
-      continue
+      return 0
     fi
     local ref="refs/heads/main"; [ -n "$tag" ] && ref="refs/tags/$tag"
-    # Runway, Rapport and Folio are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
+    # Optional apps: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
     # pinned copy is built without it until there is a clone of it here.
-    if { [ "$name" = runway ] || [ "$name" = receipts ] || [ "$name" = notes ]; } && ! curl -fsSLI "$url/archive/$ref.tar.gz" >/dev/null 2>&1; then
+    if [ "$optional" = "1" ] && ! curl -fsSLI "$url/archive/$ref.tar.gz" >/dev/null 2>&1; then
       say "$name could not be downloaded (no such tag, or GitHub could not be reached), so the pinned copy leaves it out."
       say "To add it: git clone $url \"$dir\" (signed in to GitHub), then run: workshop pin"
-      continue
+      return 0
     fi
     if [ -d "$dir" ]; then rm -rf "$dir.previous"; mv "$dir" "$dir.previous"; say "Kept the old copy at $dir.previous."; fi
     if [ -n "$tag" ]; then
@@ -165,7 +159,26 @@ main() {
       say "Downloading the latest from $url (not a release: set $var to pin one)."
       get_tar "$url/archive/refs/heads/main.tar.gz" "$dir"
     fi
-  done
+  }
+  get_repo workshop "Workshop" "${WORKSHOP_TAG:-}" WORKSHOP_TAG adavidson21/workshop 0
+  [ "$DISPATCH" = "1" ] && get_repo eng-agents "Tandem (eng-agents)" "${TANDEM_TAG:-}" TANDEM_TAG adavidson21/eng-agents 0
+  if [ "$WORK" = "1" ]; then
+    # The apps the pinned copy is built from: Workshop's apps/remote.json, through workshop remote-apps
+    # (folder, id, name, required or optional, repo). Each has a <FOLDER>_TAG variable (DOCKET_TAG, RUNWAY_TAG, ...).
+    # A Workshop release from before workshop remote-apps (agent 1.5.0) gets the four apps it shipped with.
+    if ! REMOTE_LINES="$("$NODE" "$ROOT/workshop/workshop.mjs" remote-apps 2>/dev/null)" || [ -z "$REMOTE_LINES" ]; then
+      REMOTE_LINES="$(printf 'docket\tprioritizer\tDocket\trequired\tadavidson21/docket\nrunway\trunway\tRunway\toptional\tadavidson21/runway\nreceipts\treceipts\tRapport\toptional\tadavidson21/receipts\nnotes\tnotes\tFolio\toptional\tadavidson21/notes')"
+    fi
+    while IFS="$(printf '\t')" read -r key id label need repo; do
+      [ -n "$key" ] || continue
+      local var; var="$(printf '%s' "$key" | tr 'a-z-' 'A-Z_')_TAG"
+      local tag="${!var:-}"
+      case "$tag" in *[!A-Za-z0-9._-]*|-*|*..*) fail "\"$tag\" is not a release tag like v1.2.0." ;; esac
+      get_repo "$key" "$label (for the pinned copy)" "$tag" "$var" "$repo" "$([ "$need" = optional ] && echo 1 || echo 0)"
+    done <<EOF_APPS
+$REMOTE_LINES
+EOF_APPS
+  fi
 
   # ------------------------------------------------------------ 3. opencode
   step "opencode"
@@ -282,10 +295,14 @@ main() {
   "$NODE" "$ROOT/workshop/workshop.mjs" "${wargs[@]}" || fail "Workshop setup failed. See the messages above."
   if [ "$WORK" = "1" ]; then
     step "Building the pinned copy (work mode)"
-    local rargs=(--no-runway); [ -f "$ROOT/runway/app.json" ] && rargs=(--runway "$ROOT/runway")
-    if [ -f "$ROOT/receipts/app.json" ]; then rargs+=(--receipts "$ROOT/receipts"); else rargs+=(--no-receipts); fi
-    if [ -f "$ROOT/notes/app.json" ]; then rargs+=(--notes "$ROOT/notes"); else rargs+=(--no-notes); fi
-    "$NODE" "$ROOT/workshop/workshop.mjs" pin --docket "$ROOT/docket" "${rargs[@]}" || fail "Building the pinned copy failed. See the messages above."
+    local rargs=()
+    while IFS="$(printf '\t')" read -r key id label need repo; do
+      [ -n "$key" ] || continue
+      if [ "$need" = required ] || [ -f "$ROOT/$key/app.json" ]; then rargs+=("--$key" "$ROOT/$key"); else rargs+=("--no-$key"); fi
+    done <<EOF_APPS
+$REMOTE_LINES
+EOF_APPS
+    "$NODE" "$ROOT/workshop/workshop.mjs" pin "${rargs[@]}" || fail "Building the pinned copy failed. See the messages above."
   fi
 
   # ------------------------------------------------------------ 7. start and sign in

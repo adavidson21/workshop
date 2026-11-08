@@ -41,7 +41,7 @@ import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
-import { verifyPinned, describeBuild, uiDirOf, REMOTE_APPS } from './agent/lib/pinned.mjs';
+import { verifyPinned, describeBuild, uiDirOf, REMOTE_APPS, DOCKET_ID } from './agent/lib/pinned.mjs';
 import { buildRegistry as registryOf, findRemote as findRemoteIn, findApp, downloadDir, pinApps, readOff, writeOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
@@ -110,6 +110,7 @@ const USAGE = `Usage: workshop <command> [options]
          [--eng-agents-tag <tag>]
   update --pull                  Update to the newest code on the current branch (git pull), not a release.
   version                        Print the agent version.
+  remote-apps                    List the apps work mode pins from other repos (apps/remote.json), for the installers.
   help                           Show this.
 
 Home folder: ~/.workshop, or set WORKSHOP_HOME. Data folder: dataDir in config.json, default ~/Workshop.
@@ -1279,12 +1280,22 @@ async function runPat(rest, io) {
   return 0;
 }
 
+/** The apps work mode pins from other repos (apps/remote.json), one per line for the installers:
+ *  <folder key>\t<app id>\t<name>\t<required|optional>\t<owner/repo>. Docket is required (the pinned copy needs it). */
+export function remoteAppLines(apps = REMOTE_APPS, repoOf = id => (readRemote().find(a => a.id === id) || {}).repo) {
+  return apps.map(a => [a.key, a.id, a.name, a.id === DOCKET_ID ? 'required' : 'optional', repoOf(a.id) || ''].join('\t'));
+}
+function readRemote() {
+  try { return JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'remote.json'), 'utf8')).apps || []; } catch { return []; }
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
   const [cmd, ...rest] = argv;
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') { io.out(USAGE); return 0; }
   if (cmd === 'version' || cmd === '--version' || cmd === '-v') { io.out(VERSION); return 0; }
+  if (cmd === 'remote-apps') { for (const l of remoteAppLines()) io.out(l); return 0; }
 
   if (cmd === 'up') return runUp(rest, io);
   if (cmd === 'data-folder') return runDataFolder(rest, io);

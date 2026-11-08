@@ -242,3 +242,22 @@ test('install --allow and --workspace set up hosted mode and the opencode connec
     assert.equal(await main(['install', '--bogus'], io), 1);
   } finally { rm(home); rm(env.WORKSHOP_LOGIN_DIR); }
 });
+
+test('remote-apps lists apps/remote.json for the installers: folder, id, name, required or optional, repo', async () => {
+  const { remoteAppLines } = await import('../../workshop.mjs');
+  const lines = remoteAppLines();
+  const rows = lines.map(l => l.split('\t'));
+  assert.ok(rows.length >= 1);
+  for (const r of rows) {
+    assert.equal(r.length, 5);
+    assert.match(r[0], /^[a-z][a-z0-9-]{0,39}$/);
+    assert.match(r[4], /^[A-Za-z0-9_.-]+\/[a-z][a-z0-9-]{0,39}$/);
+    assert.ok(['required', 'optional'].includes(r[3]));
+  }
+  const docket = rows.find(r => r[1] === 'prioritizer');
+  assert.deepEqual([docket[0], docket[3]], ['docket', 'required'], 'Docket is required: the pinned copy needs it');
+  assert.ok(rows.filter(r => r[1] !== 'prioritizer').every(r => r[3] === 'optional'));
+  const out = [];
+  assert.equal(await main(['remote-apps'], { out: s => out.push(s), env: {} }), 0);
+  assert.deepEqual(out, lines);
+});
