@@ -4,7 +4,7 @@ import { BOARD_COLUMNS, LEVEL_NAME, esc, sprintLoad } from './model.js';
 const btn = (act, label, { id = '', primary = false } = {}) =>
   `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${esc(act)}"${id ? ` data-id="${esc(id)}"` : ''}>${esc(label)}</button>`;
 
-/** Health: where requests are and how long they sit, who holds delegated work, Sprints, and Runway's team reports below. */
+/** Health: where requests are and how long they sit, who holds delegated work, Sprints, and a link to Runway's team reports. */
 export function healthHtml(h, { names = {}, reports = true } = {}) {
   const rows = BOARD_COLUMNS.map(({ key, title }) => {
     const x = h.cols[key] || { count: 0, stale: 0, medianDays: 0 };
@@ -29,7 +29,8 @@ export function healthHtml(h, { names = {}, reports = true } = {}) {
     <section class="hcard"><h2>Delegated, by person</h2>${load.length ? `<ul class="load">${load.map(([id, n]) => `<li><span>${esc(names[id] || 'Someone')}</span><span class="num">${n}</span></li>`).join('')}</ul>` : '<p class="soft">Nothing delegated right now.</p>'}</section>
     <section class="hcard full" id="sprints"><h2>Sprints</h2><div id="sprintsBox"></div></section>
     ${reports ? `<section class="hcard full"><h2>Team reports${globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.reports', 'Sprint health from Azure DevOps: priority churn, carryover, scope churn, load by person, aging and throughput.', 'About Team reports') : ''}</h2>
-      <iframe id="reports" class="reports" title="Team reports" src="../runway/index.html"></iframe></section>` : ''}
+      <p class="soft">Priority churn, carryover, scope churn, load by person, aging and throughput live in Runway.</p>
+      <p><button class="btn" type="button" data-act="reports">Open team reports in Runway</button></p></section>` : ''}
   </div>`;
 }
 

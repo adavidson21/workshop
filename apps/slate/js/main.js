@@ -1,5 +1,5 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
-   view.js builds HTML, host.js frames Runway's team reports in Health. This file owns the page: state,
+   view.js builds HTML; Health links to Runway's team reports. This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { readCards } from '../../../shared/summary.js';
@@ -7,7 +7,6 @@ import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
 import { sendersFrom } from '../../../shared/handoffs.js';
 import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
-import { hostFrame } from './host.js';
 import {
   APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
@@ -431,7 +430,6 @@ function paint() {
   const board = ui.tab === 'board' && store.v.loaded;
   ui.noAdo = s.conn.ado !== true && s.conn.ado !== 'Checking…';
   setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
-  if (ui.tab !== 'health' && reportsHost) { reportsHost.stop(); reportsHost = null; }
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
     if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
@@ -489,14 +487,11 @@ function wantDetails(c) {
     .finally(() => { d.loading = false; const o = findCard(ui.open); if (o && o.ado && String(o.ado.id) === key) paintPanel(); });
 }
 
-let reportsHost = null;
 const runwayOn = () => s.apps.some(a => a.id === 'runway') || !s.apps.length;
 function mountHealth() {
   const items = store.v.items;
   const names = Object.fromEntries((s.people.people || []).map(p => [p.id, p.name]));
   mainEl.innerHTML = healthHtml(health(items, columnOf), { names, reports: runwayOn() });
-  const frame = $('reports');
-  if (frame) reportsHost = hostFrame(frame, { ws, onOpenSlate: (path) => route(path), getRoute: () => 'reports' });
 }
 
 function sprintsView() {
@@ -553,6 +548,7 @@ async function startSession(it, kind, action, args) {
 
 const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
+  reports: () => ws.open({ app: 'runway', path: 'reports' }),
   'open-item': (c) => { if (c) { ui.open = c.id; ui.tab = 'board'; paint(); } },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
   fields: () => {
@@ -1145,7 +1141,7 @@ document.addEventListener('click', async (e) => {
   const target = b.dataset.id && !['tab', 'open'].includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
   const menu = b.closest('details.more');
   if (menu) menu.open = false;
-  if (['tab', 'open'].includes(act)) return fn(b.dataset.id);
+  if (['tab', 'open', 'reports'].includes(act)) return fn(b.dataset.id);
   if (ui.busy) return;
   ui.busy = true; ui.error = ''; b.disabled = true;
   try { await fn(target || findCard(ui.open), b); }
