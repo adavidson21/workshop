@@ -529,7 +529,7 @@ export function manualUpdateLines(repo = REPO) {
   const src = releaseSource(repo);
   return [
     `This is not a git checkout. Download the latest release of Workshop${src ? ` (${src})` : ''} and replace this folder with it.`,
-    'If you installed with the one-line installer, run it again with WORKSHOP_TAG set to the release you want (README.md, One-line install).',
+    'If you installed with the one-line installer, run it again with WORKSHOP_TAG set to the release you want (docs/install.md, One-line install).',
     `Current version: ${VERSION}.`
   ];
 }

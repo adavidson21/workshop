@@ -1,7 +1,7 @@
 # Install Workshop on Windows, per user, no admin rights.
 # It checks Node and creates %USERPROFILE%\.workshop. Start at login stays off unless you pass -Login.
 # Run it from PowerShell:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1   [-Login] [-WorkMode]
-# -WorkMode turns on work mode and builds the pinned copy from the docket, runway and receipts folders next to Workshop (README.md, Work mode).
+# -WorkMode turns on work mode and builds the pinned copy from the docket, runway and receipts folders next to Workshop (docs/install.md, Work mode).
 #Requires -Version 5
 $ErrorActionPreference = 'Stop'
 
