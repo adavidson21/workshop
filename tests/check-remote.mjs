@@ -5,7 +5,8 @@
 //   - Docket's copies of Workshop's shared files (its workshop-files.json) should match this branch, or Docket
 //     inside Workshop runs an SDK or theme that differs from the shell's. Docket can only copy them after they
 //     merge here, so this warns, with the command to run in Docket's repo afterwards.
-//   - Each app should pin this branch's platform bundle (bundle.json, docs/bundle.md); an older pin warns.
+//   - An app's copies of bundle files should match this branch. An older bundle pin warns only when a file the
+//     app copies changed since; a bump that touched only files the app does not copy is fine (docs/bundle.md).
 //   - The manifest snapshot in remote.json should match the app's app.json. The Worker serves the live one,
 //     so a stale snapshot only warns; refresh it with node shell/registry.mjs --refresh-remote.
 //
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const remoteFile = path.join(root, 'apps', 'remote.json');
 const remote = fs.existsSync(remoteFile) ? JSON.parse(fs.readFileSync(remoteFile, 'utf8')).apps : [];
-const errors = [], warnings = [], checked = [];
+const errors = [], warnings = [], notes = [], checked = [];
 const bundleFile = path.join(root, 'bundle.json');
 const bundle = fs.existsSync(bundleFile) ? JSON.parse(fs.readFileSync(bundleFile, 'utf8')) : null;
 const sha = f => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -34,15 +35,17 @@ for (const app of remote) {
   const copies = path.join(dir, 'workshop-files.json');
   if (fs.existsSync(copies)) {
     const list = JSON.parse(fs.readFileSync(copies, 'utf8'));
-    if (bundle && list.bundle !== bundle.version) warnings.push(`${app.id}: pins platform bundle ${list.bundle || '(none)'}, this branch is ${bundle.version} (docs/bundle.md). After merging here, run in ${app.repo}: node scripts/sync-workshop.mjs --update`);
     const differ = Object.entries(list.files).filter(([theirs, ours]) => {
       const a = path.join(dir, theirs), b = path.join(root, ours);
       return fs.existsSync(b) && (!fs.existsSync(a) || sha(a) !== sha(b));
     }).map(([, ours]) => ours);
-    if (differ.length) warnings.push(`${app.id}: its copies of these Workshop files differ from this branch: ${differ.join(', ')}. After merging here, run in ${app.repo}: node scripts/sync-workshop.mjs --update`);
+    const pin = bundle && list.bundle !== bundle.version ? ` (it pins bundle ${list.bundle || '(none)'}, this branch is ${bundle.version})` : '';
+    if (differ.length) warnings.push(`${app.id}: its copies of these Workshop files differ from this branch${pin}: ${differ.join(', ')}. After merging here, run in ${app.repo}: node scripts/sync-workshop.mjs --update`);
+    else if (pin) notes.push(`${app.id}: pins bundle ${list.bundle || '(none)'}, this branch is ${bundle.version}; no file it copies changed, nothing to do`);
   }
 }
 
+for (const n of notes) console.log('note: ' + n);
 for (const w of warnings) console.warn('warning: ' + w);
 if (errors.length) { console.error('Remote app checks failed:\n- ' + errors.join('\n- ')); process.exit(1); }
 console.log(`remote ok: ${checked.length ? checked.join(', ') : 'nothing checked'}`);
