@@ -134,7 +134,6 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .oldest li{margin:.25rem 0}
 .load{list-style:none;padding:0}
 .load li{display:flex;justify-content:space-between;padding:.25rem 0;border-bottom:1px solid var(--line)}
-.reports{display:block;width:100%;height:70vh;border:1px solid var(--line);border-radius:var(--r-sm);margin-top:.5rem}
 .sprints{display:grid;grid-template-columns:repeat(auto-fill,minmax(22rem,1fr));gap:1rem;padding:1.1rem 1.25rem 2rem}
 .sprint{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);padding:.8rem .9rem}
 .sprint header{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}

@@ -93,7 +93,7 @@ Saved in `items`' `meta.fields`, so they follow your Workshop folder.
 
 ## Health
 
-Where requests sit (items, median days and stale count per board column), the median days from request to decision and from request to resolved, what has waited longest, delegated work by person, then **Sprints**, then Runway's team reports (sprint health from ADO, Runway's page framed by `js/host.js`).
+Where requests sit (items, median days and stale count per board column), the median days from request to decision and from request to resolved, what has waited longest, delegated work by person, then **Sprints**, then a button that opens Runway's team reports (sprint health from ADO) in Runway. Slate embedded that page until 2.5.0.
 
 **Sprints** (`#/slate/sprints` opens Health there): ADO items Slate knows (published, delegated or yours), by sprint: the current and next sprints, then Not in a sprint, with load per person. Move an item to a sprint or assign it with the selects; each change goes to ADO after a confirm (`workitem.update`). Sprints come from the ADO connector's `iterations.list`.
 
@@ -126,8 +126,7 @@ The `.work` files stay in your workspace; Slate reads them with the opencode con
 | `js/model.js` | Pure: stages, steps and the six board columns, the Fields settings and what cards and the panel show from ADO, the parsers for `triage.md`, the interview's `questions.md` and `brief.md` and the `answers.md` writer, `refine.md` and `milestones.md` (as eng-agents' `Export-Backlog.ps1` reads it), the publish plan, handoff offers. |
 | `js/data.js` | The collections, and calls to the ADO and opencode connectors. |
 | `js/view.js` | HTML for the board, the panel (next step, More, folding sections) and dialogs. |
-| `js/host.js` | The stand-in shell for Runway's team reports in Health. |
 | `js/health.js` | HTML for the Health tab and its Sprints section. |
 | `js/main.js` | The page: state, refreshing, and what each button does. |
 
-Tests: `node --test "apps/slate/test/*.test.mjs"` (model, view, host); the browser checks are in `tests/e2e.py` (Slate).
+Tests: `node --test "apps/slate/test/*.test.mjs"` (model, view); the browser checks are in `tests/e2e.py` (Slate).
