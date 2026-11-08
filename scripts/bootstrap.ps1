@@ -21,7 +21,8 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads Docket, Runway, Rapport and Folio (DOCKET_TAG, RUNWAY_TAG, RECEIPTS_TAG and NOTES_TAG, else their newest code) and builds
+#                         downloads the apps in Workshop's apps/remote.json (Docket, Runway, Rapport, Folio; each with a
+#                         <FOLDER>_TAG such as DOCKET_TAG or NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
 #                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
@@ -39,11 +40,13 @@ $Site = '{{SITE}}'
 if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org' }
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
-$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents'; docket = 'https://github.com/adavidson21/docket'; runway = 'https://github.com/adavidson21/runway'; receipts = 'https://github.com/adavidson21/receipts'; notes = 'https://github.com/adavidson21/notes' }
+$Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents' }
 # /install-work.ps1 serves this file with {{WORK}} set to 1 (worker/index.js), so work mode needs no variable.
 $Work = ($env:WORKSHOP_WORK_MODE -eq '1') -or ('{{WORK}}' -eq '1')
-$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG; docket = $env:DOCKET_TAG; runway = $env:RUNWAY_TAG; receipts = $env:RECEIPTS_TAG; notes = $env:NOTES_TAG }
-$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG'; docket = 'DOCKET_TAG'; runway = 'RUNWAY_TAG'; receipts = 'RECEIPTS_TAG'; notes = 'NOTES_TAG' }
+$Tags = @{ workshop = $env:WORKSHOP_TAG; 'eng-agents' = $env:TANDEM_TAG }
+$TagVars = @{ workshop = 'WORKSHOP_TAG'; 'eng-agents' = 'TANDEM_TAG' }
+$Labels = @{ workshop = 'Workshop'; 'eng-agents' = 'Tandem (eng-agents)' }
+$Optional = @{}
 # Dispatch installs a coding agent and talks to an AI provider, so in work mode it waits until you ask for it.
 $Dispatch = if ($env:WORKSHOP_DISPATCH -eq '0') { $false } elseif ($env:WORKSHOP_DISPATCH -eq '1') { $true } else { -not $Work }
 $OcVersion = if ($env:OPENCODE_VERSION) { $env:OPENCODE_VERSION } else { 'latest' }
@@ -138,11 +141,9 @@ if (Test-Workshop) {
 }
 
 # ---------------------------------------------------------------- 2. Workshop and Tandem
-$names = @('workshop')
-if ($Dispatch) { $names += 'eng-agents' }
-if ($Work) { $names += @('docket', 'runway', 'receipts', 'notes') }
-foreach ($name in $names) {
-  Step ($(if ($name -eq 'workshop') { 'Workshop' } elseif ($name -eq 'docket') { 'Docket (for the pinned copy)' } elseif ($name -eq 'runway') { 'Runway (for the pinned copy)' } elseif ($name -eq 'receipts') { 'Rapport (for the pinned copy)' } elseif ($name -eq 'notes') { 'Folio (for the pinned copy)' } else { 'Tandem (eng-agents)' }))
+# Get-Repo: download or update one repo into $Root\<name>. Optional apps that cannot be downloaded are skipped.
+function Get-Repo($name) {
+  Step $Labels[$name]
   $dir = Join-Path $Root $name
   $tag = $Tags[$name]
   if (Test-Path (Join-Path $dir '.git')) {
@@ -155,19 +156,18 @@ foreach ($name in $names) {
       if ($LASTEXITCODE -ne 0) { Fail "There is no tag $tag in $dir, or it has local changes." }
     }
     else { Say 'Updating your git checkout.'; git -C $dir pull --ff-only }
-    continue
+    return
   }
   $ref = if ($tag) { "refs/tags/$tag" } else { 'refs/heads/main' }
-  # Runway, Rapport and Folio are optional: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
+  # Optional apps: if a repo cannot be downloaded (no such tag, or GitHub could not be reached), skip it, and the
   # pinned copy is built without it until there is a clone of it here.
-  if ($name -eq 'runway' -or $name -eq 'receipts' -or $name -eq 'notes') {
-    $label = if ($name -eq 'runway') { 'Runway' } elseif ($name -eq 'notes') { 'Folio' } else { 'Rapport' }
+  if ($Optional[$name]) {
     $reachable = $true
     try { Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$($Repos[$name])/archive/$ref.zip" | Out-Null } catch { $reachable = $false }
     if (-not $reachable) {
-      Say "$label could not be downloaded (no such tag, or GitHub could not be reached), so the pinned copy leaves it out."
+      Say "$($Optional[$name]) could not be downloaded (no such tag, or GitHub could not be reached), so the pinned copy leaves it out."
       Say "To add it: git clone $($Repos[$name]) `"$dir`" (signed in to GitHub), then run: workshop pin"
-      continue
+      return
     }
   }
   if (Test-Path $dir) {
@@ -182,6 +182,38 @@ foreach ($name in $names) {
   } else {
     Say "Downloading the latest from $($Repos[$name]) (not a release: set $($TagVars[$name]) to pin one)."
     Get-Zip "$($Repos[$name])/archive/refs/heads/main.zip" $dir
+  }
+}
+Get-Repo 'workshop'
+if ($Dispatch) { Get-Repo 'eng-agents' }
+# The apps the pinned copy is built from: Workshop's apps/remote.json, through workshop remote-apps (folder, id, name,
+# required or optional, repo). Each has a <FOLDER>_TAG variable (DOCKET_TAG, RUNWAY_TAG, ...). A Workshop release from
+# before that command (agent 1.5.0) gets the four apps it shipped with.
+$RemoteApps = @()
+if ($Work) {
+  # try and Continue: Windows PowerShell 5.1 turns a native command's stderr into an error under Stop.
+  $lines = @(); $ok = $false
+  try {
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $lines = @(& $node (Join-Path (Join-Path $Root 'workshop') 'workshop.mjs') remote-apps 2>$null)
+    $ok = ($LASTEXITCODE -eq 0)
+  } catch { $ok = $false } finally { $ErrorActionPreference = $eap }
+  if (-not $ok -or -not ($lines | Where-Object { $_ })) {
+    $lines = @("docket`tprioritizer`tDocket`trequired`tadavidson21/docket", "runway`trunway`tRunway`toptional`tadavidson21/runway",
+      "receipts`treceipts`tRapport`toptional`tadavidson21/receipts", "notes`tnotes`tFolio`toptional`tadavidson21/notes")
+  }
+  foreach ($line in $lines) {
+    $f = "$line".Split("`t")
+    if ($f.Count -lt 5 -or $f[0] -notmatch '^[a-z][a-z0-9-]{0,39}$' -or $f[4] -notmatch '^[A-Za-z0-9_.-]+/[a-z][a-z0-9-]{0,39}$') { continue }
+    $key = $f[0]
+    $var = ($key.ToUpperInvariant() -replace '-', '_') + '_TAG'
+    $tag = [Environment]::GetEnvironmentVariable($var)
+    if ($tag -and ($tag -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$' -or $tag.Contains('..'))) { Fail "`"$tag`" is not a release tag like v1.2.0." }
+    $Repos[$key] = "https://github.com/$($f[4])"; $Tags[$key] = $tag; $TagVars[$key] = $var
+    $Labels[$key] = "$($f[2]) (for the pinned copy)"
+    if ($f[3] -eq 'optional') { $Optional[$key] = $f[2] }
+    $RemoteApps += [pscustomobject]@{ Key = $key; Required = ($f[3] -eq 'required') }
+    Get-Repo $key
   }
 }
 $wsDir = Join-Path $Root 'workshop'
@@ -315,10 +347,12 @@ if ($ocCmd) {
 if ($LASTEXITCODE -ne 0) { Fail 'Workshop setup failed. See the messages above.' }
 if ($Work) {
   Step 'Building the pinned copy (work mode)'
-  $runwayArgs = if (Test-Path (Join-Path $Root 'runway\app.json')) { @('--runway', (Join-Path $Root 'runway')) } else { @('--no-runway') }
-  $receiptsArgs = if (Test-Path (Join-Path $Root 'receipts\app.json')) { @('--receipts', (Join-Path $Root 'receipts')) } else { @('--no-receipts') }
-  $notesArgs = if (Test-Path (Join-Path $Root 'notes\app.json')) { @('--notes', (Join-Path $Root 'notes')) } else { @('--no-notes') }
-  & $node (Join-Path $wsDir 'workshop.mjs') pin --docket (Join-Path $Root 'docket') @runwayArgs @receiptsArgs @notesArgs
+  $pinArgs = @()
+  foreach ($a in $RemoteApps) {
+    $appDir = Join-Path $Root $a.Key
+    if ($a.Required -or (Test-Path (Join-Path $appDir 'app.json'))) { $pinArgs += @("--$($a.Key)", $appDir) } else { $pinArgs += "--no-$($a.Key)" }
+  }
+  & $node (Join-Path $wsDir 'workshop.mjs') pin @pinArgs
   if ($LASTEXITCODE -ne 0) { Fail 'Building the pinned copy failed. See the messages above.' }
 }
 
