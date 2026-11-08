@@ -840,7 +840,7 @@ export function setupHtml() {
   } else if (c.state === 'missing') {
     title = 'Dispatch is not set up on this computer';
     body = '<p>Dispatch runs coding agents (Tandem, on opencode) on your work items: triage, drafting stories, building and reviewing code. It needs opencode, Tandem and an AI model your company allows, so it is optional; the rest of Workshop works without it.</p>'
-      + '<p>To add it, run the Workshop installer again and answer <b>y</b> to the AI model question (in work mode, follow "Dispatch in work mode" in the README). Home\'s Get started has the steps under <b>Set up Dispatch for coding agents</b>.</p>'
+      + '<p>To add it, run the Workshop installer again and answer <b>y</b> to the AI model question (in work mode, follow "Dispatch in work mode" in docs/install.md). Home\'s Get started has the steps under <b>Set up Dispatch for coding agents</b>.</p>'
       + '<p class="note">The box below still captures tasks, receipts and notes without it.</p>';
   } else if (c.state === 'disabled') {
     title = 'Turn on the opencode connector';
