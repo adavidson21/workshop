@@ -40,7 +40,7 @@ export function liveData() {
   };
 }
 
-/** The `state` action: the model from New-Dashboard.ps1 plus live opencode state, as the page got it. */
+/** The `state` action: the .work model (lib/workparser.mjs) plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
   return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), liveMode: { error: modelError, live: liveData() } };

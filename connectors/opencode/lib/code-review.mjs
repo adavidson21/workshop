@@ -141,7 +141,7 @@ export function parseResponses(text) {
 // deps:
 //   workspace   absolute workspace root (repos are folders directly inside it)
 //   workRoot    absolute path of .work
-//   findItem    (workItemId) => the work item from New-Dashboard.ps1 -AsJson, or null
+//   findItem    (workItemId) => the work item from the .work model (lib/workparser.mjs), or null
 //   canRevise   optional () => null, or a plain-words reason a revision cannot start right now
 //               (checked before request changes is saved, so a verdict never strands an item)
 //   runInfo     optional (folder, repo) => the revision run's { status, message, session, revision }, or null

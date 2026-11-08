@@ -14,25 +14,23 @@ import { fileURLToPath } from "node:url";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const VERSION = "1.5.2"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.6.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
 export const V1_DEFAULT_URL = "http://127.0.0.1:4096";
-export const scriptPath = path.join(HERE, "parser", "New-Dashboard.ps1");
 
 // ------------------------------------------------------------------ settings
 
 /**
  * The live server's options, from the connector config:
  *   workspace, port (none: the agent serves), opencode (url or null), startOpencode, opencodeCmd,
- *   ps, config (eng-agents config.json for work item links), poll, username, password.
+ *   ps (unused since 1.6.0), config (eng-agents config.json for work item links), poll, username, password.
  */
 export let opt = null;
 export let workRoot = null;
 export let stateDir = null;
 export let sessionsFile = null;
-export let psExe = null;
 export let ctx = null;
 
 /** True while the connector is started. Background work checks it before touching shared state. */
@@ -89,7 +87,7 @@ export function configure(c) {
     username: env(oc.usernameEnv) || "opencode",
     password: env(oc.passwordEnv) || null,
   };
-  workRoot = stateDir = sessionsFile = psExe = null;
+  workRoot = stateDir = sessionsFile = null;
   if (oc.url) {
     opt.opencode = loopbackUrl(oc.url);
     if (!opt.opencode) return `The opencode server URL must be on this computer (http://127.0.0.1:<port>), not ${oc.url}.`;
@@ -105,7 +103,6 @@ export function configure(c) {
   }
   stateDir = path.join(workRoot, "_dashboard");
   sessionsFile = path.join(stateDir, "sessions.json");
-  if (!fs.existsSync(scriptPath)) return `Missing ${scriptPath}. Reinstall Workshop.`;
   try {
     fs.mkdirSync(stateDir, { recursive: true });
   } catch (e) {
@@ -183,47 +180,6 @@ export function repoFolder(name) {
   const parts = s.split("/");
   if (s.length > 201 || parts.length > 2) return null;
   return parts.every((p) => SEGMENT.test(p) && !p.startsWith(".") && !p.startsWith("-")) ? parts.join("/") : null;
-}
-
-function psWorks(exe) {
-  return new Promise((resolve) => {
-    let p;
-    try {
-      p = spawn(exe, ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.Major"], { windowsHide: true, stdio: "ignore" });
-    } catch {
-      return resolve(false);
-    }
-    const t = setTimeout(() => {
-      try { p.kill(); } catch {}
-      resolve(false);
-    }, 30000);
-    p.on("error", () => {
-      clearTimeout(t);
-      resolve(false);
-    });
-    p.on("close", (code) => {
-      clearTimeout(t);
-      resolve(code === 0);
-    });
-  });
-}
-
-/** Finds PowerShell (async, so the agent keeps answering). Returns a problem, or null. */
-export async function findPs() {
-  if (opt.ps) {
-    if (await psWorks(opt.ps)) {
-      psExe = opt.ps;
-      return null;
-    }
-    return `Could not run PowerShell as "${opt.ps}". Fix the PowerShell setting, or leave it empty to find pwsh or powershell.`;
-  }
-  for (const exe of ["pwsh", "powershell"]) {
-    if (await psWorks(exe)) {
-      psExe = exe;
-      return null;
-    }
-  }
-  return "PowerShell not found. Install PowerShell 7 (pwsh), or set the PowerShell command in Settings.";
 }
 
 // Errors carry the status and code the agent API uses (docs/agent-api.md).

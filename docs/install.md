@@ -93,7 +93,7 @@ Dispatch is where Tandem's coding agents run, as a Workshop app (it replaced the
 **Once:**
 
 1. Start Workshop on this computer (`node workshop.mjs start`) and open it.
-2. In **Settings**, turn on the opencode connector and set **Workspace folder** to the folder that holds `.work` and your repos. The connector needs PowerShell (`pwsh` on a Mac) and opencode 1.x or 2.x with eng-agents installed.
+2. In **Settings**, turn on the opencode connector and set **Workspace folder** to the folder that holds `.work` and your repos. The connector needs opencode 1.x or 2.x with eng-agents installed (Tandem's commands use PowerShell, `pwsh` on a Mac; the connector itself no longer does).
 3. Open **Dispatch**. If the connector can't start, the page says why.
 
 Docket shows each ADO task's Tandem stage and can start a work item, through the same connector. Clicking a stage opens that item in Dispatch (`#/agents/<work item id>`).
