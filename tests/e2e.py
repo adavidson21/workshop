@@ -367,6 +367,11 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.top [data-act=tab][data-id=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the six columns, with Sprints inside it', hrows == ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved'] and slf.locator('#sprints #sprintsBox').count() == 1)
+        check('Health links to Runway\'s team reports instead of framing them', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 1)
+        slf.click('[data-act=reports]'); pg.wait_for_timeout(2000)
+        rwf = next((f for f in pg.frames if '/runway/' in f.url), None)
+        check('Open team reports opens Runway on its reports page', '#/runway' in pg.url and rwf is not None
+              and rwf.evaluate("document.getElementById('app').dataset.view") == 'reports')
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
     pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes is Alt+5, Runway Alt+6

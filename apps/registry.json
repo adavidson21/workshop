@@ -269,7 +269,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Slate",
-        "version": "2.4.1",
+        "version": "2.5.0",
         "description": "Your team's backlog on one board, from request to who builds it to resolved, with sprints and team health. Tandem does the legwork; you decide.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -364,7 +364,6 @@
           "js/data.js",
           "js/model.js",
           "js/view.js",
-          "js/host.js",
           "js/health.js"
         ]
       }
