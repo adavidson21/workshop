@@ -202,13 +202,13 @@ function detail(s, ctx) {
       if (work) {
         return `${choose}<p>Install Workshop in work mode, once, for your user only, with no admin rights. It runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive:</p>
         ${copy(ctx.platform === 'win' ? `irm ${site}/install-work.ps1 | iex` : `curl -fsSL ${site}/install-work.sh | bash`)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. If your company blocks piping a script, follow "Work mode, by hand" in the README.</p>
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. If your company blocks piping a script, follow "Work mode, by hand" in docs/install.md.</p>
         <p>It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
       }
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `${choose}<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If piping a script is blocked, follow "By hand" in the README.</p>
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If piping a script is blocked, follow "By hand" in docs/install.md.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
         <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
     }
@@ -262,7 +262,7 @@ function detail(s, ctx) {
       return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in the README (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
+        ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
         : `<p>Dispatch runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; Dispatch's own setup guide walks you through it.</p><p>${btn('Open Dispatch', 'data-open="agents"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;

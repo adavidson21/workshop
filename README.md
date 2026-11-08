@@ -1,243 +1,151 @@
 # Workshop
 
-An engineering manager's hub: one page with a rail of apps, sharing one theme. Workshop brings together Docket, Dispatch, Rapport, Folio, Runway, Slate, and Tandem, the agent scaffolding Dispatch runs on.
+One page for an engineering manager's whole day: what to work on next, new requests, roadmaps, 1:1s, notes and your coding agents, side by side in one window with one look.
 
-- **Home** (the Workshop logo at the top of the rail) is your day at a glance: what's on Today, what to triage, what's overdue or due this week, your top 3 tasks, your people, and agents waiting on you. Guide: [apps/home/README.md](apps/home/README.md).
-- **Docket** (formerly Prioritizer; code and URLs still say `prioritizer`) decides what to work on next (work items assigned to you and pull requests waiting on your review become tasks when the ADO connector is on), Its code lives in its own repo, [adavidson21/docket](https://github.com/adavidson21/docket), and its own site, https://docket.alexisdavidson.org; Workshop shows it inside the shell by serving that site under `apps/prioritizer/` (see Apps from another site below). User guide: [Docket's README](https://github.com/adavidson21/docket#readme).
-- **Dispatch** (formerly Agents; code and URLs still say `agents`) is the front end for [Tandem](https://github.com/adavidson21/eng-agents) (the eng-agents repo), the agent scaffolding that drives opencode. It shows your work items and the opencode agents working on them, and runs the next step. It needs Workshop running on this computer with the opencode connector on.
-- **Rapport** (formerly Receipts, with 1:1s inside since 2.0.0) keeps receipts and 1:1s for you, your reports and your manager: your own receipts for a self review (the main use), each direct report's page with your 1:1 prep and note above their receipts, a 1:1s tab with everyone you meet with by who is due, a Goals tab with the team's and each report's OKRs as a tree (one plain `.md` file per owner per quarter, key results updated in place), optional upward notes, and review drafts grouped by your review form's sections. 1:1 prep gathers what Docket and Rapport know since your last 1:1; notes are plain `.md` files in your Workshop folder; after the meeting, follow-ups are copied as Docket quick-add lines and wins become receipts. Drafting talking points with your opencode agents is optional. Its code lives in its own repo, [adavidson21/receipts](https://github.com/adavidson21/receipts), with its own site, https://receipts.alexisdavidson.org; Workshop serves it under `/apps/receipts/` like Docket and Runway (apps/remote.json). Guide: that repo's README.
-- **Runway** is team and project roadmaps: type an outline or drag a timeline, export an image or Markdown. Ad hoc roadmaps need nothing else; with the ADO connector on it can also import Epics and Features to edit, or show a live ADO view. Its code lives in [adavidson21/runway](https://github.com/adavidson21/runway) and is served here under `/apps/runway/`.
-- **Slate** is your team's backlog in Azure DevOps and your own ideas, on one board of six columns: **Inbox**, **Shape** (triage, waiting on the requester, an interview with you, the brief), **Define**, **Who builds it?**, **In flight** (delegated, or building in Tandem through review and PR to merged) and **Resolved**. Tandem's `/triage`, `/shape`, `/refine`, `/scope`, `/slice` and `/handoff` do each step's legwork from a button; each step shows at most three buttons, with the rest in **More**. **Health** shows where requests stall, who holds delegated work, **Sprints** (move and assign ADO items by sprint), and Runway's team reports. Guide: [apps/slate/README.md](apps/slate/README.md).
-- **Folio** (formerly Notes, then Notebook; app id `notes`) is your notebook of Markdown files, laid out like OneNote: section tabs along the top (Notes, Daily, Products, Templates, and Tandem), the section's pages on the left, and the page. Links with backlinks, tags, search, images you paste in, templates you can change in place, a daily note, version history, links to other apps' records (`ws:` links), and action items and wins you can send to Docket and Rapport. The Tandem section shows the plans, specs, reviews and briefs Tandem writes in `.work`, read and edited in place through the opencode connector (`docs.list`, `file.read`, `file.write`), so nothing is copied; Dispatch's file sheet edits the same files and has **Open in Folio**. Files are plain `.md` with standard links, so they work in any Markdown tool. Its code lives in its own repo, [adavidson21/notes](https://github.com/adavidson21/notes), with its own site, https://notes.alexisdavidson.org; Workshop serves it under `/apps/notes/` like Docket, Runway and Rapport (apps/remote.json). Guide: that repo's README.
-- **Settings** has a left nav grouped by task. **Workshop**: Overview (connector status with a link to whatever needs you, the health check), Apps, This computer (start at login, work mode, pairing, port), Data & backups. **People & teams**: everyone you assign work to (you, your manager, reports, peers, contacts) and groups of them (`@leadership`), shared by every app, added one at a time or from a spreadsheet you fill in and import after a preview; and your team's Azure DevOps area paths. **Azure DevOps**: Connections, Work items (types, states, team report counting), Pull requests (where Docket looks, your teams, AI first-pass reviews). **Code & agents**: Repos (add a repo, choose its ADO project) and Agents (opencode and Tandem). Each page saves only its own fields. Azure DevOps and opencode are optional: without them their pages say what to do in one line, and the rest works.
+**Your data stays on your device.** There are no accounts and no Workshop server. Everything is saved in your browser or in plain files on your computer.
 
-Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.org and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Opening `apps/prioritizer/` on its own here goes to Docket's site. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
+## What's inside
 
-## Through the day
+| App | What it's for | Needs |
+| --- | --- | --- |
+| **Home** | Your day at a glance and the **Get started** checklist | Nothing |
+| **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps adds your work items and PRs) |
+| **Slate** | Take a request from idea to delegated or built | Nothing (Azure DevOps or Dispatch make it more useful) |
+| **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
+| **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
+| **Folio** | Your notebook of Markdown files | Nothing |
+| **Dispatch** | Run Tandem coding agents on your work items | opencode and an AI provider |
+| **Settings** | People, teams, Azure DevOps, repos, apps on or off | Nothing |
 
-Each part of the day has one obvious place to start:
+Every app can be turned on or off, so you only see what you use. More on each app: [docs/guide.md](docs/guide.md).
 
-- **Morning: Home.** **Needs you** lists everything waiting on you across apps in one place: agents asking a question, Slate items to decide or approve, pull requests to review, 1:1s due, tasks to triage or overdue. Then **Plan today** (the round button by your name).
-- **Any time: Capture.** The **Capture** button in the top bar, or `Ctrl+.` (`Cmd+.` on a Mac), from any app: `t` a task, `w` waiting on someone, `r` a receipt, `n` a note, `p` a roadmap idea, `?` ask Tandem, `>` go to a place. It is Home's quick capture, so it works the same everywhere.
-- **New requests: Slate.** Triage, define, publish, then delegate or build it yourself.
-- **Building: Dispatch.** Your Tandem runs, their questions, code review and push, and first-pass reviews of teammates' PRs.
-- **1:1s: Rapport.** Prep shows what Docket, Slate and Rapport know since last time.
-- **End of day: Wrap up** on Home. **Fridays: Weekly status** on Home drafts your update from what you finished in Docket, decided in Slate, shipped with Dispatch and won in Rapport.
+## Get started
 
-Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
+### Step 1: Pick your setup
 
-## At work: start here
+| | Try it | Personal computer | Work computer |
+| --- | --- | --- | --- |
+| **Best for** | A quick look | Your own laptop | A company laptop |
+| **Install** | Nothing | One command | One command |
+| **Admin rights** | No | No | No |
+| **Where data lives** | Your browser | Files on your computer | Your company OneDrive |
+| **Azure DevOps sync** | No | Yes | Yes |
+| **Dispatch (AI agents)** | No | Included | Off unless you add it |
 
-On a work computer, use work mode. Workshop runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive so it is backed up.
+Not sure? Use **Personal** at home and **Work** on a company laptop. You can start with **Try it** and install later.
 
-1. **Install.** In PowerShell, as yourself (not admin): `irm https://workshop.alexisdavidson.org/install-work.ps1 | iex` (macOS: `curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash`). It needs no admin rights and leaves Dispatch out. If your company blocks piping a script, use the by-hand steps in Work mode below.
-2. **Open it.** The installer opens Workshop when it finishes. After that, open it from the Start menu: **Workshop** starts it if needed and opens it (`workshop up` does the same). **Restart Workshop** and **Stop Workshop** are next to it. On a Mac, `workshop up` and `workshop restart`.
-3. **Follow Get started on Home.** It ticks itself off as you go: your name, backup, Azure DevOps (`workshop pat` saves your token; Settings imports your `ado-helper.json`), your team (in People), a Docket task and a receipt. Docket starts syncing ADO by itself once the connector is ready.
-4. **Every day:** Home's quick capture for anything that comes up, Docket for what to do next, Rapport for 1:1s and receipts.
+#### Try it (no install)
 
-Commands you may need: `workshop doctor` (checks everything), `workshop data-folder` (where your data is; `--onedrive` moves it there), `workshop restart` (`--opencode` also restarts opencode, for "Agent not found" in Dispatch), `workshop update` (see Work mode), `workshop apps` (turn apps on and off; also in Settings, Apps).
+Open https://workshop.alexisdavidson.org in Chrome or Edge. That's it. Your data is saved in this browser, so export it (Settings, Data & backups) before clearing browser data.
 
-Testing Workshop with a team at work? Work mode and the other items in [docs/team-testing.md](docs/team-testing.md) are prerequisites.
+#### Personal computer
 
-Your data stays on your device. There are no accounts and no server holds your data: it is saved in your browser, or in files on this computer when Workshop runs there. The page talks only to its own site, `127.0.0.1` and the systems you set up in Settings. The exception is Dispatch, whose coding agents send work to the AI provider you connect to opencode. What Workshop stores, where it sends data and what to tell your security team: [docs/security.md](docs/security.md) and [docs/for-security-teams.md](docs/for-security-teams.md).
+1. **Run the installer** as yourself (not as admin):
+   - **Windows**, in PowerShell:
+     ```
+     irm https://workshop.alexisdavidson.org/install.ps1 | iex
+     ```
+   - **Mac or Linux**, in Terminal:
+     ```
+     curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash
+     ```
+   It installs anything missing (Node, opencode, git), Workshop and Tandem, then starts Workshop and opens it once to sign your browser in. It takes a few minutes.
+2. **Connect an AI provider** (only for Dispatch). On Windows the installer asks. On a Mac or Linux, open a new Terminal and run `opencode auth login`.
+3. **Open https://workshop.alexisdavidson.org** in the same browser and click **Connect** on the left rail.
 
-Workshop always opens from its site, https://workshop.alexisdavidson.org (see [docs/run-modes.md](docs/run-modes.md)). With the Workshop agent running on your computer and the site paired (**Connect** on the rail), data is files on your computer and connectors work. Without it, data is saved in your browser or a folder you pick. The agent serves only **Workshop on this computer** at the address it prints: it signs your browser in, approves pairing, and holds the settings a public site must never change by itself (connectors on or off, ADO servers, the data folder, allowed sites, start at login). `workshop open` opens it.
+Don't want Dispatch? Run `$env:WORKSHOP_DISPATCH='0'` (PowerShell) or `export WORKSHOP_DISPATCH=0` (Terminal) before the installer.
 
-## Dispatch
+#### Work computer
 
-Dispatch is where Tandem's coding agents run, as a Workshop app (it replaced the eng-agents live dashboard). It reads `.work` and follows opencode through the opencode connector ([connectors/opencode/README.md](connectors/opencode/README.md)), so it needs the Workshop agent on this computer. There is nothing to start in eng-agents and no `shellOrigins` to set.
+Work mode runs Workshop from a copy on your computer that changes only when you update it. No website can reach it, and your data goes in your company OneDrive so it's backed up.
 
-**Once:**
+> **Before you start:** if you're unsure your company allows it, share [docs/for-security-teams.md](docs/for-security-teams.md) with your security team. It explains what Workshop stores and where it sends data.
 
-1. Start Workshop on this computer (`node workshop.mjs start`) and open it.
-2. In **Settings**, turn on the opencode connector and set **Workspace folder** to the folder that holds `.work` and your repos. The connector needs PowerShell (`pwsh` on a Mac) and opencode 1.x or 2.x with eng-agents installed.
-3. Open **Dispatch**. If the connector can't start, the page says why.
+1. **Run the installer** as yourself (not as admin):
+   - **Windows**, in PowerShell:
+     ```
+     irm https://workshop.alexisdavidson.org/install-work.ps1 | iex
+     ```
+   - **Mac**, in Terminal:
+     ```
+     curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash
+     ```
+   It needs no admin rights and leaves Dispatch out. Workshop opens when it finishes.
+2. **Open it any time** from the Start menu: **Workshop** (starts it if needed and opens it). **Restart Workshop** and **Stop Workshop** are next to it. On a Mac, run `workshop up`.
 
-Docket shows each ADO task's Tandem stage and can start a work item, through the same connector. Clicking a stage opens that item in Dispatch (`#/agents/<work item id>`).
+If your company blocks piping a script into PowerShell, use the by-hand steps in [docs/install.md, Work mode](docs/install.md#work-mode). To add Dispatch at work (only if your company allows a coding agent), see [Dispatch in work mode](docs/install.md#work-mode).
 
-eng-agents' own static page (`/dashboard static`) is unchanged.
+### Step 2: Follow Get started on Home
 
-## Install it as a desktop app
+Home opens with a **Get started** checklist. Each step ticks itself off when it's done, tells you exactly what to do, and can be skipped:
 
-In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Docket**, **Dispatch** and **Rapport** shortcuts.
+1. **Connect Workshop:** pick Work computer or Personal computer.
+2. **Add yourself** in Settings, People.
+3. **Back up your data:** company OneDrive at work, or any folder your computer backs up.
+4. **Connect Azure DevOps** (optional): create a personal access token with **Work Items (Read & write)** and **Code (Read)**, then run `workshop pat` to save it safely.
+5. **Pick your apps:** turn off what you won't use.
+6. **Add your team** and its area paths (skipped without Azure DevOps).
+7. **Add your first task** in Docket and **log your first receipt** in Rapport.
 
-It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
+When the checklist is done, you're set up. **Hide** puts it away; **Get started** next to your name brings it back.
 
-## Docket on Android
+## Your day in Workshop
 
-Docket is also an Android app, with its board saved in the app's own storage on the phone (never on a server, and not cleared like browser storage). Android visitors to Docket's page get a "Get the app" banner linking to the latest build. It is built in Docket's repo: see [mobile/README.md](https://github.com/adavidson21/docket/blob/main/mobile/README.md) there.
+- **Morning:** open **Home**. **Needs you** lists everything waiting on you. Then **Plan today**.
+- **Any time:** press `Ctrl+.` (`Cmd+.` on a Mac) to capture from anywhere: `t` task, `w` waiting on someone, `r` receipt, `n` note, `p` roadmap idea, `?` ask Tandem.
+- **New requests:** **Slate**.
+- **Building:** **Dispatch**.
+- **1:1s:** **Rapport** preps you with what changed since last time.
+- **End of day:** **Wrap up** on Home. On Fridays, **Weekly status** drafts your update.
 
-The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.
+Shortcuts: `Alt+1`, `Alt+2` and so on switch apps. `Ctrl+K` (`Cmd+K`) opens the command palette.
 
-## Install and run the agent
-
-The agent is one local process: it serves the Workshop UI at `http://127.0.0.1:<port>`, keeps your data on disk, and hosts connectors. Node 22 or later, no admin rights, no npm install.
-
-### One-line install (Workshop and Tandem)
-
-This is what Dispatch's setup guide shows. It installs per user with no admin rights: Node, opencode and git if they are missing (git as MinGit on Windows; on a Mac it asks macOS to install its command line tools; plus PowerShell 7 on a Mac or Linux), Workshop and Tandem (eng-agents) from GitHub with no git needed, then installs Tandem into opencode. If opencode has no AI provider yet, the Windows installer asks to connect one (`opencode auth login`); on macOS and Linux the last lines say to run `opencode auth login` in a new terminal, because its menu does not get the keyboard inside `curl | bash`. It then turns on hosted mode for the site it came from and the opencode connector with workspace `~/work`, starts Workshop and opens it once to sign the browser in. Running it again updates everything and keeps your settings.
-
-Start at login stays off (run Workshop by hand for a few days first; turn it on later in Workshop on this computer), unless you set `WORKSHOP_LOGIN=1` before running the installer; a setting you turned on earlier is kept. opencode and Tandem are only needed for Dispatch: if a company network blocks installing them (for example npm behind an HTTPS-inspecting proxy), the installer says so and carries on, so Workshop, Docket, Rapport and Home still work. npm runs with Node's `--use-system-ca` so it trusts the certificates your computer trusts. Run the installer again later to add them.
-
-- Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
-- macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`
-
-Dispatch's parts (opencode, Tandem, git or PowerShell, the AI model) are skipped with `WORKSHOP_DISPATCH=0`, and are skipped by default in work mode (`WORKSHOP_DISPATCH=1` adds them). `OPENCODE_VERSION=<version>` installs that opencode version instead of the newest. On a work laptop, piping a downloaded script into PowerShell or bash is often flagged by endpoint security; use the by-hand install in Work mode below instead.
-
-The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (`worker/index.js`) serves them at `/install.ps1` and `/install.sh` on either domain, with the site filled in. They install into `%LOCALAPPDATA%\Workshop` or `~/.local/share/workshop` (set `WORKSHOP_INSTALL_DIR` to change it; `WORKSHOP_WORKSPACE` changes the workspace folder) and put a `workshop` command on PATH. `workshop open` opens Workshop signed in; `workshop open --print` prints the address for another browser.
-
-### By hand
-
-1. Get the code: `git clone https://github.com/adavidson21/workshop` (or download the zip).
-2. Install, per user:
-   - macOS or Linux: `bash scripts/install.sh`
-   - Windows: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`
-   This checks Node and creates `~/.workshop`. Start at login stays off; pass `--login` (or `-Login` on Windows) to turn it on, or turn it on later in Settings.
-3. Start it now: `node workshop.mjs start`, then open the address it prints in Chrome or Edge on this computer. That signs the browser in to Workshop on this computer.
-4. Open https://workshop.alexisdavidson.org in the same browser and click **Connect** on the rail.
-
-Other commands:
-
-- `node workshop.mjs install --allow <site> --workspace <folder>` turns on hosted mode for a site and the opencode connector. It only adds, so settings changed later in Settings are kept.
-- `node workshop.mjs open` opens Workshop in your default browser, signed in.
-- `node workshop.mjs stop` stops Workshop; `node workshop.mjs restart` stops it and starts it again in the background (no window).
-- `node workshop.mjs pat ADO_PAT` saves your Azure DevOps PAT without showing it or leaving it in shell history. On Windows, Workshop picks it up within seconds with no restart. See [connectors/ado/README.md](connectors/ado/README.md), Setting up and renewing a PAT.
-- `node workshop.mjs doctor` checks Node, `config.json`, the port, the data folder, start at login, hosted mode, work mode's pinned copy and opencode's AI providers. `node workshop.mjs doctor ado` checks the ADO connector.
-- `node workshop.mjs publish --out dist` builds the static site for hosted or browser mode, with `apps/registry.json`.
-- `node workshop.mjs pin` builds work mode's pinned copy (see Work mode below).
-- `node workshop.mjs update` moves Workshop, Docket, Runway and Rapport to their newest release tags; `update --check` lists the tags and changes nothing, `update --tag <tag>` moves this checkout to one (`--pull` is the old git pull). `node workshop.mjs uninstall` turns off start at login; your data folder (`~/Workshop` by default) and `~/.workshop` stay where they are.
-
-Start at login and hosted mode are off until you turn them on, and never need admin rights. See [docs/security.md](docs/security.md) for what Workshop stores, where, and the checks that keep it on your computer.
-
-## Work mode
-
-For a work laptop: Workshop runs from a pinned copy on your computer instead of its site, so the code that can read your work data changes only when you update it, and no site can pair with Workshop. Details: [docs/run-modes.md](docs/run-modes.md), Work mode; [docs/security.md](docs/security.md), Work mode.
-
-**Testing with a team:** work mode is a prerequisite. Before anyone tests with real work data, go through [docs/team-testing.md](docs/team-testing.md).
-
-**Release tags.** Work mode installs and updates only by tag. Tags are `v<version>` in Workshop, Docket, Runway and Rapport (receipts) (for example `v1.0.0` and `v4.13.1`) and `core-v<version>` in eng-agents (for example `core-v2.8.1`). Use the newest of each, listed on each repo's Releases page.
-
-**Set it up (by hand, recommended at work):**
-
-1. Check `node -v` says 22 or later (22.15 or later on Windows, so Node uses the system certificate store). Get it from https://nodejs.org or your company's software portal.
-2. Clone Workshop, Docket, Runway and Rapport at their release tags, side by side in one folder:
-   `git clone --branch <workshop tag> https://github.com/adavidson21/workshop`, then the same for `docket`, `runway` and `receipts`
-3. Install in work mode and build the pinned copy: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1 -WorkMode` (on a Mac or Linux: `bash workshop/scripts/install.sh --work-mode`). It turns on work mode, builds the copy from the `docket`, `runway` and `receipts` folders next to Workshop, and adds a `workshop` command for new terminal windows. Open a new terminal before using `workshop`; until then use `node workshop/workshop.mjs` the same way.
-4. `workshop start`, then `workshop open`. Workshop opens at the `http://127.0.0.1:...` address from the pinned copy. Settings says "Work mode is on" and shows the tags. There is no **Connect** step in work mode.
-5. Add your ADO connection in Settings and save your token with `workshop pat ADO_PAT` (the Home page's **Get started** walks you through it).
-6. Run `workshop doctor` and continue when it ends with `Result: all good.`
-
-**Dispatch in work mode (only if your company allows a coding agent):**
-
-1. Install opencode, then run `workshop apps on dispatch`. It clones Tandem (eng-agents) next to Workshop at its newest `core-v` release and installs it into opencode (`~/.config/opencode`). If you already have an eng-agents clone somewhere else, Workshop finds it from opencode's install and keeps it updated (or name it with `workshop update --eng-agents <folder>`).
-2. In Settings, turn on the opencode connector and set its **Workspace folder** first (the folder with your repos and `.work`). Then set **Approved AI providers** to your company's provider.
-3. Add `"enabled_providers": ["<that provider>"]` to `~/.config/opencode/opencode.json`, so opencode cannot use any other provider.
-4. Run `workshop doctor` again. It checks that opencode can use only the approved provider.
-5. `workshop update` keeps Tandem at its newest release tag along with everything else, and `workshop doctor` says when opencode's copy is behind the checkout. Restart Workshop after a Tandem update so opencode loads the new agents.
-
-**Adding or removing an app in work mode:** run `workshop apps on runway` (or `docket`, `rapport`). It downloads the app next to Workshop at its newest release if it is not there yet, then rebuilds the pinned copy; reload Workshop. `workshop apps off <app>` takes one out. Settings, Apps has the same switches, and shows the command when an app still needs downloading. See [docs/apps.md](docs/apps.md).
-
-**With the one-line installer:** `/install-work.ps1` and `/install-work.sh` are the same installers with work mode on (At work, above). On a new install, work mode puts the data folder in your company OneDrive when there is one (`OneDriveCommercial` on Windows, `~/Library/CloudStorage/OneDrive-<Company>` on a Mac; never a personal OneDrive); set `WORKSHOP_DATA_DIR` to choose another folder. An existing data folder is never moved by the installer: `workshop data-folder <folder>` or `--onedrive` copies it and switches. To pin releases, set `WORKSHOP_WORK_MODE=1` and the tags first, for example in PowerShell `$env:WORKSHOP_WORK_MODE='1'; $env:WORKSHOP_TAG='v1.0.0'; $env:TANDEM_TAG='core-v2.8.1'; $env:DOCKET_TAG='v4.13.1'` (and `RUNWAY_TAG`, `RECEIPTS_TAG`), then run the install command. Without tags it installs the newest code and says so. In work mode the installer leaves Dispatch out (no opencode, Tandem, git or PowerShell download, no AI question); add `$env:WORKSHOP_DISPATCH='1'` when your company allows a coding agent and an AI provider.
-
-**Updating:** `workshop update` moves Workshop, Docket, Runway and Rapport each to its newest release tag (skipping any already there), rebuilds the pinned copy (always, so an app added since the last build shows up), and moves Tandem (eng-agents: the clone next to Workshop, else the one opencode installed from, or `--eng-agents <folder>`) to its newest `core-v` tag and reinstalls it in opencode when opencode's copy is behind (with its own `update.ps1 -Tag <tag> -Yes`, which keeps your Personal and Company layers). `workshop update --check` only lists the release tags; `workshop update --tag <tag> [--docket-tag <tag>] [--runway-tag <tag>] [--receipts-tag <tag>] [--eng-agents-tag <tag>]` moves to specific ones. Restart Workshop afterwards if Workshop itself moved; otherwise reloading is enough. Building again keeps the last copy in `~/.workshop/ui.previous/`.
-
-Turn work mode off in Settings (Workshop on this computer) to go back to the hosted site; your allowed sites are kept.
-
-## Layout
-
-```
-index.html              the shell page: rail + one pane per app
-shell/                  shell.js (rail, routing, palette, light/dark toggle, toast, pairing, the SDK's shell side),
-                        shell.css, registry.mjs (writes apps/registry.json)
-shared/                 used by the shell and every app
-  workshop-sdk.js       the SDK: apps reach the shell, data and connectors only through it (docs/sdk.md)
-  themes.css            the themes: the styling source of truth for the shell and every app
-  theme.js              applies and remembers the theme across pages
-  ui.css                buttons, menus, toast, tooltip
-  sw-register.js        registers sw.js
-  device-fs.js          the Android app's storage on the phone, for the SDK's device store
-  save-file.js          downloads in a browser, Android's share sheet in the app
-  fonts/                self-hosted Gelasio, Figtree and DM Mono (OFL), fonts.css
-  vendor/               third-party code served from this site (SheetJS); see vendor/README.md
-  screenshots/          images for the install dialog
-  test/                 SDK tests
-apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
-  registry.json         the app list for static sites (node shell/registry.mjs writes it)
-  remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket, Runway, Rapport)
-  agents/               Dispatch (Tandem's runs, on the opencode connector)
-  people/               People (the people directory and your team's area paths)
-  settings/             Settings
-agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
-connectors/             one folder per connector (ADO, opencode)
-docs/                   the contracts every part is written against
-sw.js                   offline cache for the whole site
-tests/                  checks (see below)
-```
-
-### Adding an app
-
-An app is a folder. No shell or service worker edits.
-
-1. Make `apps/<id>/` with an `app.json` ([docs/app-manifest.md](docs/app-manifest.md)), an `icon.svg` (20 by 20, stroke, `currentColor`) and its page. Load `shared/theme.js`, `shared/fonts/fonts.css`, `shared/themes.css` and `shared/ui.css` so it matches, and copy the Content-Security-Policy meta tag from `index.html`. List the app's other files in `app.json` `files` so it works offline (`node tests/check-offline.mjs` says what is missing).
-2. Talk to the shell, data and connectors through the SDK only ([docs/sdk.md](docs/sdk.md)): `import { connect } from '../../shared/workshop-sdk.js'; const ws = await connect({app: '<id>'});`. Then `ws.open`, `ws.toast`, `ws.badge`, `ws.commands.register`, `ws.data.get` and `put`, `ws.connectors.call`, and events with `ws.on`. No `postMessage` and no `fetch` to `/api/`.
-3. Run `node shell/registry.mjs` so static sites list it too. The agent finds it on its own.
-
-The rail, routes, `Alt+<n>`, shortcuts and the palette come from `app.json`. See `apps/settings/` for a small app.
-
-### Apps from another site
-
-An app can live in its own repo and deploy to its own site, and still open inside Workshop. Docket works this way. The shell only frames pages from its own origin, so the Worker (`worker/index.js`) serves the app's site under `/apps/<id>/`:
-
-- `apps/remote.json` lists each one: its `id`, `site`, `repo`, the name of a service `binding` in `wrangler.jsonc` (optional; without it the Worker fetches the site over the internet), and a snapshot of its `app.json`.
-- `/apps/<id>/<path>` comes from `<site>/<path>`. A deploy of the app's site shows up in Workshop right away.
-- `/apps/registry.json` gets the app's live `app.json` from its site, so a new file or command needs no Workshop change. The snapshot is the fallback if the site is down; `node shell/registry.mjs --refresh-remote` updates it.
-- Opening `/apps/<id>/` on its own (not in the shell) goes to the app's site, its standalone address.
-- The app keeps exact copies of the `shared/` files it uses, so it also runs on its own. After changing one of those here, update the copies in the app's repo (Docket: `node scripts/sync-workshop.mjs --update`).
-- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` `git clone https://github.com/adavidson21/runway .remote/runway` and `git clone https://github.com/adavidson21/receipts .remote/receipts`.
-- Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
-
-### No third-party requests
-
-Pages load files from this site only, plus the local helpers on `http://127.0.0.1`. Fonts are in `shared/fonts/` and libraries in `shared/vendor/`; nothing comes from a CDN. A Content-Security-Policy meta tag on each page enforces this, and `tests/e2e.py` fails if any request goes anywhere else.
-
-### Themes
-
-Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/theme.js` (`node tests/check-themes.mjs` fails until they match). Every app, Dispatch included, loads `themes.css` directly.
-
-## Running it locally
-
-Serve the site with any static web server, for example `python -m http.server 8000`, then open `http://localhost:8000/` (browser mode). Docket comes from `.remote/prioritizer/` in CI and `tests/e2e.py`; a plain static server shows it only if you serve that checkout under `/apps/prioritizer/`.
-
-To use the agent with it:
-
-```
-node agent/start.mjs
-```
-
-Open the address it prints once (Workshop on this computer, which signs this browser in). Add `http://localhost:8000` under Allowed sites there, then click **Connect** on the local site.
-
-## Checks
-
-```
-node tests/check-themes.mjs              theme.js matches themes.css
-node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
-node tests/check-remote.mjs              apps from another site: Home still reads Docket's tasks (needs .remote/)
-node shell/registry.mjs --check          apps/registry.json lists every app folder and remote app
-node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
-node --test "apps/*/test/*.test.mjs"     apps' own tests
-node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, apps from another site
-node tests/check-vendor.mjs              vendored libraries match their pinned SHA256SUMS (--write after updating one)
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage (needs .remote/prioritizer)
-python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy, Docket, Runway and Rapport inside it, no hosted access
-```
-
-`e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
-
-## Shipping
-
-A Cloudflare Worker serves the repo root (`wrangler.jsonc`; Cloudflare's Git integration runs `npx wrangler deploy` on every push to `main`). Files that are not part of the site are listed in `.assetsignore`. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
-
-Workshop lives at https://workshop.alexisdavidson.org. Docket deploys from its own repo to https://docket.alexisdavidson.org, and the `DOCKET` service binding in `wrangler.jsonc` connects the two (see Apps from another site). If the site moves to another host, update `shared/site.js` (every site address lives there; `tests/check-site.mjs` finds any other); browser storage does not move between hosts, so export from the old one and import on the new one.
+**Want it in its own window?** In Chrome or Edge, click **Install** on the rail. Workshop then opens like a desktop app, with a taskbar or dock icon, and works offline.
+
+## Everyday commands
+
+Run these in a terminal. Start with `workshop doctor` whenever something seems off.
+
+| Command | What it does |
+| --- | --- |
+| `workshop up` | Start Workshop if needed and open it |
+| `workshop restart` | Restart Workshop (`--opencode` also restarts opencode) |
+| `workshop stop` | Stop Workshop |
+| `workshop doctor` | Check everything and say what to fix |
+| `workshop pat` | Save or renew your Azure DevOps token |
+| `workshop apps` | Turn apps on or off (also in Settings, Apps) |
+| `workshop data-folder` | Show where your data is (`--onedrive` moves it there) |
+| `workshop update` | Work mode: update everything to the newest release |
+
+**Updating a personal install:** run the install command again. It updates everything and keeps your settings.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| Something isn't working | Run `workshop doctor` and follow what it says |
+| Dispatch says "Agent not found" | `workshop restart --opencode` |
+| `workshop` isn't recognized | Open a new terminal window, or use `node workshop/workshop.mjs` |
+| The installer is blocked at work | Use the [by-hand steps](docs/install.md#work-mode) |
+| opencode or Tandem failed to install | Workshop still works without them; run the installer again later |
+| No **Install** button in the browser | Your company's browser policy may block web app installs |
+| No **Connect** button in work mode | Expected: work mode doesn't need it |
+
+## Privacy and security
+
+Workshop talks only to its own site, `127.0.0.1` on your computer, and the systems you set up in Settings (like Azure DevOps). The one exception is Dispatch, whose coding agents send work to the AI provider you connect. Start at login is off until you turn it on, and nothing needs admin rights.
+
+- What Workshop stores and sends: [docs/security.md](docs/security.md)
+- For your security team: [docs/for-security-teams.md](docs/for-security-teams.md)
+- Testing with your team at work: [docs/team-testing.md](docs/team-testing.md)
+
+## More docs
+
+- [Using Workshop](docs/guide.md): every app in detail
+- [Installing Workshop](docs/install.md): every install option, setting and command
+- [Run modes](docs/run-modes.md): browser, personal and work mode
+- [Developing Workshop](docs/development.md): code layout, adding an app, tests, shipping
+- [Contracts](docs/README.md): the interfaces between Workshop's parts
 
 ## License
 
