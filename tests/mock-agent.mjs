@@ -551,7 +551,7 @@ export async function createMockAgent(options = {}) {
 
       if (p === '/api/health') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
-        return send(res, 200, { app: 'workshop-agent', api: 1, version: VERSION }, cors);
+        return send(res, 200, { app: 'workshop-agent', api: 1, version: VERSION, site: 'https://workshop.example.org' }, cors);
       }
       if (p === '/api/session') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');

@@ -17,6 +17,11 @@
     },
     "version": {
       "$ref": "common.schema.json#/$defs/semver"
+    },
+    "site": {
+      "type": "string",
+      "pattern": "^https://[^/]+$",
+      "description": "Workshop's own site (shared/site.js, docs/site.md), so tools on this computer (Tandem's /dashboard) can link to the hosted hub without naming a domain. Agent 1.5.0 and later."
     }
   }
 }
