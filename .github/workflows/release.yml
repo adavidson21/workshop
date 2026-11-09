@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
@@ -46,6 +47,18 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Releasing $tag."
+      - name: Check that CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Work mode installs and updates by these tags, so a tag is only made on a commit whose checks passed.
+          sha=$(git rev-parse HEAD)
+          ok=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/checks.yml/runs?head_sha=$sha&status=success&per_page=1" --jq '.total_count')
+          if [ "${ok:-0}" -lt 1 ]; then
+            echo "::error::No passing 'checks' run on $sha. Wait for CI to finish green on this commit (or rerun it), then release again."
+            exit 1
+          fi
+          echo "CI passed on $sha."
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +70,7 @@ jobs:
             echo "::error::$TAG is already released. Bump the version in agent/version.mjs, then run this again."
             exit 1
           fi
+          # Notes: what was typed, then GitHub's list of merged PRs since the previous release.
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$sha" --title "$TAG" \
-            --notes "${NOTES:-Release $TAG ($sha).}"
+            --notes "${NOTES:-Release $TAG ($sha).}" --generate-notes --latest
           echo "Released $TAG at $sha."

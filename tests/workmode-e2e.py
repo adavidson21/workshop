@@ -74,7 +74,7 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Dispatch', 'Slate', 'Settings'] + (['Docket'] if with_docket else []) + (['Rapport'] if with_receipts else []):  # Runway is inside Slate
+            for name in ['Dispatch', 'Slate', 'Settings'] + (['Docket'] if with_docket else []) + (['Rapport'] if with_receipts else []) + (['Runway'] if with_runway else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')
@@ -118,7 +118,7 @@ def main():
                     if rframe and rframe.locator('body').count() and rframe.inner_text('body').strip():
                         break
                     pg.wait_for_timeout(200)
-                check(rframe is not None and bool(rframe.inner_text('body').strip()), 'Runway opens inside Slate from the pinned copy')
+                check(rframe is not None and bool(rframe.inner_text('body').strip()), 'Runway opens from the pinned copy')
 
             check(not foreign, 'no request went anywhere but this computer' + (f': {foreign[:3]}' if foreign else ''))
             browser.close()

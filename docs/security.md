@@ -118,7 +118,7 @@ Hosted mode trusts the site: the code that can read your data is whatever the si
 - **The UI is a pinned copy on this computer** (`~/.workshop/ui/`, built by `workshop pin` from this install and a Docket checkout). Its `build.json` records the release tags and commits it came from and the SHA-256 of every file.
 - **The agent serves only that copy**, and checks every file's bytes against `build.json` before sending it. A file that is not listed is `404`; a file that changed is refused and logged. `workshop doctor` checks the whole copy.
 - **No site can pair or call the agent**, even one in `allowedOrigins`. Only pages from `127.0.0.1` can use it, and those pages make no request anywhere else (the same Content-Security-Policy as every page, checked by `tests/workmode-e2e.py`).
-- **Updates are deliberate**: `workshop update` moves to the newest release tags and `workshop update --tag <tag>` to one you chose, and either rebuilds the copy. A tag that was moved on the remote after you fetched it is not taken (git refuses to replace it, and Workshop does not force it).
+- **Updates are deliberate**: `workshop update` moves to the newest release tags (never back to an older version) and `workshop update --tag <tag>` to one you chose, and either rebuilds the copy. A tag that was moved on the remote after you fetched it is not taken (git refuses to replace it, and Workshop does not force it).
 
 What work mode does not cover: the agent and connectors run from this install's files, so they are as trustworthy as the release you installed; and coding agents in Dispatch send work to the AI provider opencode is set up with. Set the opencode connector's approved providers so `workshop doctor` checks that (connectors/opencode/README.md, Approved AI providers).
 

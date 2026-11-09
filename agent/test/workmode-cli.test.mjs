@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { main, doctorReport, parseUpdateArgs, parsePinArgs, parseInstallArgs, validTag, checkoutTag, listTags, gitInfo, pin, planLatest, latestTag } from '../../workshop.mjs';
+import { main, doctorReport, parseUpdateArgs, parsePinArgs, parseInstallArgs, validTag, checkoutTag, listTags, gitInfo, pin, planLatest, latestTag, versionAt } from '../../workshop.mjs';
 import { verifyPinned } from '../lib/pinned.mjs';
 import { REPO } from './helpers.mjs';
 
@@ -223,5 +223,52 @@ test('update --latest picks the newest release tag of each checkout found, Tande
     assert.ok(plan.lines.some(l => /Tandem \(eng-agents\): not installed in opencode -> core-v2\.1\.0/.test(l)), plan.lines.join('\n'));
     assert.ok(parseUpdateArgs(['--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag === 'core-v2.1.0');
     assert.equal(fs.readFileSync(path.join(ws, 'f.txt'), 'utf8'), 'one', 'planning changes nothing');
+  } finally { rm(root); }
+});
+
+test('update --latest never moves a checkout back to an older release, and versionAt reads both kinds of repo', { skip: !hasGit && 'git is not installed' }, () => {
+  const root = tempDir('workshop-wm-nodown-');
+  const g = (dir, ...args) => {
+    const r = spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.org', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  // An origin with releases 1.0.0 and 1.1.0 and unreleased 1.2.0 on main. write(v) puts the version where that repo keeps it.
+  const origin = (name, write) => {
+    const dir = path.join(root, `${name}-origin`);
+    fs.mkdirSync(dir);
+    g(dir, 'init', '-q', '-b', 'main');
+    for (const v of ['1.0.0', '1.1.0', '1.2.0']) {
+      write(dir, v);
+      g(dir, 'add', '.'); g(dir, 'commit', '-qm', v);
+      if (v !== '1.2.0') g(dir, 'tag', `v${v}`);
+    }
+    return dir;
+  };
+  const clone = (from, name, at) => {
+    const dir = path.join(root, name);
+    const c = spawnSync('git', ['clone', '-q', from, dir], { encoding: 'utf8' });
+    assert.equal(c.status, 0, c.stderr);
+    if (at) g(dir, 'checkout', '-q', '--detach', at);
+    return dir;
+  };
+  try {
+    const wsOrigin = origin('workshop', (d, v) => { fs.mkdirSync(path.join(d, 'agent'), { recursive: true }); fs.writeFileSync(path.join(d, 'agent', 'version.mjs'), `export const VERSION = '${v}';\n`); });
+    const appOrigin = origin('docket', (d, v) => fs.writeFileSync(path.join(d, 'app.json'), JSON.stringify({ id: 'prioritizer', version: v })));
+    const ws = clone(wsOrigin, 'workshop');           // main: 1.2.0, newer than any release
+    const docket = clone(appOrigin, 'docket', 'v1.0.0'); // an old release: moves forward
+    const runway = clone(appOrigin, 'runway');        // main: 1.2.0, newer than any release
+
+    assert.equal(versionAt(ws), '1.2.0');
+    assert.equal(versionAt(ws, 'refs/tags/v1.1.0'), '1.1.0');
+    assert.equal(versionAt(docket), '1.0.0');
+    assert.equal(versionAt(path.join(root, 'nowhere')), null);
+
+    const plan = planLatest(ws, () => {}, { userHome: path.join(root, 'home'), dispatchOn: false });
+    assert.deepEqual(plan.tags, { docketTag: 'v1.1.0' }, plan.lines.join('\n'));
+    assert.ok(plan.lines.some(l => /Workshop: 1\.2\.0 here is newer than the newest release \(v1\.1\.0\)\. Left as it is/.test(l)), plan.lines.join('\n'));
+    assert.ok(plan.lines.some(l => /Runway: 1\.2\.0 here is newer than the newest release \(v1\.1\.0\)/.test(l)), plan.lines.join('\n'));
+    assert.ok(plan.lines.some(l => /Docket: v1\.0\.0 -> v1\.1\.0/.test(l)), plan.lines.join('\n'));
+    assert.equal(versionAt(ws), '1.2.0', 'planning changes nothing');
   } finally { rm(root); }
 });
