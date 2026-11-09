@@ -10,7 +10,7 @@ import { configSchema as ocSchema } from '../../../connectors/opencode/index.mjs
 test('ADO fields are spread across Connections, Work items, Pull requests and Repos', () => {
   assert.deepEqual(P.formKeys('ado', adoSchema, 'connections'), ['defaultConnection'], 'connections themselves are drawn as a list');
   assert.deepEqual(P.formKeys('ado', adoSchema, 'work-items'), ['syncConnection', 'types', 'closedStates', 'removedStates', 'reports']);
-  assert.deepEqual(P.formKeys('ado', adoSchema, 'pull-requests'), ['prTeams'], 'PR sources are drawn by hand');
+  assert.deepEqual(P.formKeys('ado', adoSchema, 'pull-requests'), ['prTeams', 'prNotNeeded'], 'PR sources are drawn by hand');
   assert.deepEqual(P.formKeys('ado', adoSchema, 'repos'), []);
   assert.deepEqual(P.formPages('ado', adoSchema).sort(), ['connections', 'pull-requests', 'work-items']);
   assert.equal(adoSchema.properties.reports['x-workshop-section'], 'Team reports (used by Runway)');

@@ -19,6 +19,12 @@ const DEFAULTS = {
 };
 
 const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string') : null);
+// Which PRs don't need you (sync.mjs classify). Missing or bad fields get the default.
+function notNeeded(v) {
+  const o = v && typeof v === 'object' ? v : {};
+  const n = Number.isInteger(o.approvals) && o.approvals >= 0 && o.approvals <= 20 ? o.approvals : 2;
+  return { teamOnly: o.teamOnly !== false, canMerge: o.canMerge !== false, approvals: n };
+}
 
 /** Collection URL of a connection: server URL plus collection, no trailing slash. */
 export function baseOf(c) {
@@ -83,6 +89,7 @@ export function normalize(raw) {
     removedStates: strings(r.removedStates) || DEFAULTS.removedStates,
     prSources,
     prTeams: strings(r.prTeams) || [],
+    prNotNeeded: notNeeded(r.prNotNeeded),
     reports: {
       workloadTypes: strings(rr.workloadTypes) || DEFAULTS.reports.workloadTypes,
       bugTypes: strings(rr.bugTypes) || DEFAULTS.reports.bugTypes,

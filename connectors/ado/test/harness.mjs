@@ -83,6 +83,8 @@ export async function runPythonCase(python, c, srv) {
 export async function runNodeCase(c, srv) {
   const filled = swap(c, PLACEHOLDER, srv.url);
   const { config } = importConfig({ helper: filled.config });
+  // The retired helper had no "not needed" PRs: turned off so the goldens still compare.
+  config.prNotNeeded = { teamOnly: false, canMerge: false, approvals: 0 };
   const { config: cfg } = normalize(config);
   const env = testEnv();
   const d = { cfg, env: name => env[name], now: new Date(NOW) };
@@ -109,6 +111,7 @@ export function comparable(result, url) {
       r.ok.prs.gone.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
       // Added by the connector, not in the helper: each PR's source commit (Dispatch's Review all).
       for (const p of [...r.ok.prs.items, ...r.ok.prs.gone]) delete p.commit;
+      delete r.ok.prs.notNeeded; // added by the connector: how many PRs did not need you
     }
   }
   return r;

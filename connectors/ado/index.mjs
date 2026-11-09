@@ -84,6 +84,18 @@ export const configSchema = {
       }
     },
     prTeams: { ...stringList('Teams that count as mine', 'Empty means every team you are on.', []), 'x-workshop-page': 'pull-requests' },
+    prNotNeeded: {
+      type: 'object',
+      title: 'PRs that don\'t need you',
+      description: 'Left out of Docket and Dispatch. A PR where you are a required reviewer always needs you.',
+      'x-workshop-page': 'pull-requests',
+      additionalProperties: false,
+      properties: {
+        teamOnly: { type: 'boolean', title: 'Team-only PRs (only your team was added, not you by name)', default: true },
+        canMerge: { type: 'boolean', title: 'Every required reviewer already approved', default: true },
+        approvals: { type: 'integer', title: 'This many others already approved (0 turns this off)', minimum: 0, maximum: 20, default: 2 }
+      }
+    },
     reports: {
       type: 'object',
       title: 'Team reports',
@@ -142,7 +154,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.11.0',
+  version: '1.12.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
