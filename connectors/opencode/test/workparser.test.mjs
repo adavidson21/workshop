@@ -89,6 +89,7 @@ function richWorkspace() {
     fs.writeFileSync(path.join(ws.dir, "Platform", "web", "f0.txt"), "changed\n");
     g(path.join(ws.dir, "Platform", "web"), "commit", "-q", "-am", "ahead by one");
     gitRepo(path.join(ws.dir, "Platform", "empty"), { commits: 0 });
+    gitRepo(path.join(ws.dir, "Platform", "Lighthouse Edge", "ui"), {}); // a nested category, with a space
   }
   const config = path.join(path.dirname(ws.dir), "eng-config.json");
   fs.writeFileSync(config, JSON.stringify({ default: "work", connections: { work: { serverUrl: "https://ado.example.test/tfs/", collection: "Main", project: "Web Shop" } } }));
@@ -157,7 +158,8 @@ test("edge cases on their own: local ids, blocked, paused, PR review, scope, CRL
     assert.equal(by("PR-77").prReview.history, 1);
     assert.equal(by("scope-payments").state, "Import file ready");
     assert.equal(by("_private"), undefined);
-    assert.deepEqual(m.repoCategories, ["Empty Category", "Platform"]);
+    assert.deepEqual(m.repoCategories, ["Empty Category", "Platform", "Platform/Lighthouse Edge"]);
+    assert.ok(m.repos.some((r) => r.folder === "Platform/Lighthouse Edge/ui"), "repos in nested categories are listed");
     assert.ok(m.repos.some((r) => r.folder === "Platform/api" && r.owner === "L7" && r.ownerKnown));
     // Non-ASCII commit messages come through as written (New-Dashboard.ps1 garbles them on Windows).
     const gh = path.join(ws.dir, "gh-repo");

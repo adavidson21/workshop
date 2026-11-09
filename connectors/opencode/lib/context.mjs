@@ -172,13 +172,16 @@ export const inWorkspace = (dir) => {
   return a === b || a.startsWith(b + path.sep);
 };
 
-// A repo folder in the workspace: "repo", or "Category/repo" for a repo one folder down. Returns the name
-// with "/" as the separator (a "\" is accepted and turned into "/"), or null if it is not one.
-const SEGMENT = /^[A-Za-z0-9._-]{1,100}$/;
+// A repo folder in the workspace: "repo", or "Category/repo" up to REPO_DEPTH folders deep ("Platform/Lighthouse
+// Edge/ui"). Returns the name with "/" as the separator (a "\\" is accepted and turned into "/"), or null if it is
+// not one. Folder names may have spaces inside, not at either end.
+export const REPO_DEPTH = 4;
+export const REPO_FOLDER_MAX = REPO_DEPTH * 101 - 1;
+const SEGMENT = /^[A-Za-z0-9._-](?:[A-Za-z0-9._ -]{0,98}[A-Za-z0-9._-])?$/;
 export function repoFolder(name) {
   const s = String(name || "").trim().replace(/\\/g, "/");
   const parts = s.split("/");
-  if (s.length > 201 || parts.length > 2) return null;
+  if (s.length > REPO_FOLDER_MAX || parts.length > REPO_DEPTH) return null;
   return parts.every((p) => SEGMENT.test(p) && !p.startsWith(".") && !p.startsWith("-")) ? parts.join("/") : null;
 }
 

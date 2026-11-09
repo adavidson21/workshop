@@ -1055,19 +1055,30 @@ export function repoUrlCheck(raw) {
   if (!/^(https?:\/\/[^/]+\/.+|ssh:\/\/[^/]+\/.+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+)$/i.test(u)) return { error: 'That does not look like a git URL. Copy it from the repo\'s Clone button, for example https://github.com/owner/repo.git' };
   return { url: u };
 }
-// Category folders Add a repo can clone into: the parser's list, plus any in repo names (Category/repo).
+// Category folders Add a repo can clone into: the parser's list, plus every parent folder in repo names
+// ("Platform/Lighthouse/ui" gives Platform and Platform/Lighthouse).
 export function repoCategories() {
   const set = new Set(((S.D && S.D.repoCategories) || []).filter(c => typeof c === 'string' && c));
-  ((S.D && S.D.repos) || []).forEach(r => { const i = String(r.folder || '').indexOf('/'); if (i > 0) set.add(r.folder.slice(0, i)); });
+  ((S.D && S.D.repos) || []).forEach(r => {
+    const parts = String(r.folder || '').split('/');
+    for (let i = 1; i < parts.length; i++) set.add(parts.slice(0, i).join('/'));
+  });
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 export const NEW_CATEGORY = '__new';
-// The category from the picker: '' for the top of the workspace, else one folder name.
+// A category folder path: folder names separated by "/" (at most 3), each letters, numbers, spaces, dots,
+// dashes and underscores, not starting with a dot or dash and no space at either end. Matches the connector.
+const CAT_SEGMENT = /^[A-Za-z0-9_](?:[A-Za-z0-9._ -]{0,98}[A-Za-z0-9._-])?$/;
+export function categoryPathOk(c) {
+  const parts = String(c || '').replace(/\\/g, '/').split('/');
+  return parts.length <= 3 && parts.every(p => CAT_SEGMENT.test(p));
+}
+// The category from the picker: '' for the top of the workspace, else a folder path such as Platform/Lighthouse.
 export function repoCategoryCheck(pick, typed) {
   if (pick !== NEW_CATEGORY) return { category: pick || '' };
-  const c = String(typed || '').trim();
+  const c = String(typed || '').trim().replace(/\\/g, '/');
   if (!c) return { error: 'Name the new category folder, or pick another one.' };
-  if (!/^[A-Za-z0-9._-]{1,100}$/.test(c) || c.startsWith('.') || c.startsWith('-')) return { error: 'A category is one folder name: letters, numbers, dots, dashes and underscores, such as Platform.' };
+  if (!categoryPathOk(c)) return { error: 'A category is a folder name, or up to 3 separated by /, such as Platform or Platform/Lighthouse Edge. Letters, numbers, spaces, dots, dashes and underscores.' };
   return { category: c };
 }
 function repoSheetHtml() {
@@ -1102,7 +1113,7 @@ function repoCategoryHtml() {
     .concat([`<option value="${NEW_CATEGORY}"${pick === NEW_CATEGORY ? ' selected' : ''}>New category</option>`]);
   if (pick && pick !== NEW_CATEGORY && !cats.includes(pick)) opts.splice(1, 0, `<option value="${h(pick)}" selected>${h(pick)}</option>`);
   return `<label class="cfg-row"><span class="cfg-t">Category</span><span class="cfg-d">The folder in your workspace it goes in.</span><select data-draft="repo:category" data-repo-cat="1">${opts.join('')}</select></label>` +
-    (pick === NEW_CATEGORY ? `<label class="cfg-row"><span class="cfg-t">New category folder</span><input type="text" class="mono repo-newcat" data-draft="repo:newcat" value="${h(S.ui.drafts['repo:newcat'] || '')}" placeholder="Platform" maxlength="100" spellcheck="false" autocomplete="off"></label>` : '');
+    (pick === NEW_CATEGORY ? `<label class="cfg-row"><span class="cfg-t">New category folder</span><input type="text" class="mono repo-newcat" data-draft="repo:newcat" value="${h(S.ui.drafts['repo:newcat'] || '')}" placeholder="Platform or Platform/Lighthouse" maxlength="300" spellcheck="false" autocomplete="off"></label>` : '');
 }
 
 // --------------------------------------------------------- getting set up

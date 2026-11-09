@@ -1081,7 +1081,7 @@ async function reposTab(list) {
       <div class="cfg-row"><label for="raCat">Category</label><select id="raCat" name="category" class="cfg-input">
         <option value="">None (top of the workspace)</option>${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}<option value="${NEW_CAT}">New category</option></select>
         <p class="cfg-help">The folder in your workspace it goes in.</p></div>
-      <div class="cfg-row" data-newcat hidden><label for="raNew">New category folder</label><input id="raNew" name="newcat" class="cfg-input mono" maxlength="100" placeholder="Platform" spellcheck="false"></div>
+      <div class="cfg-row" data-newcat hidden><label for="raNew">New category folder</label><input id="raNew" name="newcat" class="cfg-input mono" maxlength="300" placeholder="Platform or Platform/Lighthouse" spellcheck="false"><p class="cfg-help">Use / for a folder inside a category.</p></div>
       <div class="cfg-row"><label for="raAbout">What it is, in one line</label><input id="raAbout" name="about" class="cfg-input" maxlength="200" placeholder="The web app customers use"><p class="cfg-help">Optional. Helps agents pick the right repo for a task.</p></div>
       ${canMap() ? '<div class="cfg-row cfg-check"><input id="raWatch" name="watch" type="checkbox" checked><label for="raWatch">Show its pull requests in Docket</label><p class="cfg-help">For Azure DevOps repos. The connection and project come from the URL.</p></div>' : ''}
       <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn" data-add-cancel>Cancel</button><button class="btn primary"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning...' : 'Clone into workspace'}</button></div></form>`;

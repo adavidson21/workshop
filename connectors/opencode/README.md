@@ -11,7 +11,7 @@ Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) 
 | eng-agents | Here |
 | --- | --- |
 | `core/scripts/dashboard/server/*.mjs` (all but `updates.mjs`), deleted in Core 2.11.0 | `lib/`, now the only copy |
-| `core/scripts/dashboard/New-Dashboard.ps1` | `lib/workparser.mjs`, a JavaScript port (connector 1.6.0) of `parser/New-Dashboard.ps1`, which is kept for the parity test. The copy finds repos one folder down (`repoCategories`) and leaves out the static page's `coreVersion` and `dispatchUrl`. A parsing or next-step change in eng-agents goes into both `lib/workparser.mjs` and `parser/New-Dashboard.ps1`; `test/workparser.test.mjs` checks they agree. |
+| `core/scripts/dashboard/New-Dashboard.ps1` | `lib/workparser.mjs`, a JavaScript port (connector 1.6.0) of `parser/New-Dashboard.ps1`, which is kept for the parity test. The copy finds repos in category folders up to 4 deep (`repoCategories`, such as `Platform/Lighthouse`) and leaves out the static page's `coreVersion` and `dispatchUrl`. A parsing or next-step change in eng-agents goes into both `lib/workparser.mjs` and `parser/New-Dashboard.ps1`; `test/workparser.test.mjs` checks they agree. |
 | `core/scripts/dashboard/live-server.mjs` routes, deleted in Core 2.11.0 | actions and events in `index.mjs` |
 
 The first commit on the WS3 branch is the verbatim copy, so `git diff` against it shows every change. Each file in `lib/` says what changed at the top.

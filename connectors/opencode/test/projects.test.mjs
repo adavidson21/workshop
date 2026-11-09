@@ -57,12 +57,14 @@ test("projects are created with unique ids, saved, and read back", () => {
   assert.equal(projectsData().projects[1].baseBranch, "develop");
 });
 
-test("a repo one folder down (Category/repo) can be a project's repo", () => {
+test("a repo in category folders (up to 4 deep, spaces inside names) can be a project's repo", () => {
   fs.mkdirSync(path.join(ws, "Platform", "gateway"), { recursive: true });
   assert.equal(createProject({ name: "Gateway", repo: "Platform/gateway" }).project.repo, "Platform/gateway");
   assert.equal(createProject({ name: "Gateway 2", repo: "Platform\\gateway" }).project.repo, "Platform/gateway", "a backslash becomes /");
   assert.throws(() => createProject({ name: "X", repo: "Platform/nope" }), code(/no Platform\/nope folder/, 404));
-  for (const bad of ["a/b/c", "Platform/../etc", "/Platform/gateway", "Platform/.git", "Platform/"]) assert.throws(() => createProject({ name: "X", repo: bad }), code(/not a valid repo/, 400), bad);
+  fs.mkdirSync(path.join(ws, "Platform", "Lighthouse Edge", "ui"), { recursive: true });
+  assert.equal(createProject({ name: "Lighthouse UI", repo: "Platform/Lighthouse Edge/ui" }).project.repo, "Platform/Lighthouse Edge/ui");
+  for (const bad of ["a/b/c/d/e", "Platform/../etc", "Platform/ Lighthouse Edge/ui", "/Platform/gateway", "Platform/.git", "Platform/"]) assert.throws(() => createProject({ name: "X", repo: bad }), code(/not a valid repo/, 400), bad);
 });
 
 test("bad input is refused in plain words", () => {

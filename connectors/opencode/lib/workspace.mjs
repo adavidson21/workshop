@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { commandError, httpError, log, opt, repoFolder, workRoot } from "./context.mjs";
+import { commandError, httpError, log, opt, REPO_DEPTH, repoFolder, workRoot } from "./context.mjs";
 import { model, refresh } from "./model.mjs";
 import { currentSession, folderForToken, linkFrom } from "./links.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
@@ -201,12 +201,13 @@ export function startReview({ url, again }) {
 export function onboardRepo({ repo }) {
   const name = repoFolderName(repo);
   if (!fs.existsSync(path.join(opt.workspace, name, ".git"))) throw httpError(404, `${name} is not a git repo in the workspace.`);
-  return runLoose("onboard-repo", name, null);
+  // Quoted when a folder name has a space ("Platform/Lighthouse Edge/ui"), so the agent reads it as one path.
+  return runLoose("onboard-repo", name.includes(" ") ? `"${name}"` : name, null);
 }
 
 // ------------------------------------------------------------------ repos
 
-// "repo" or "Category/repo" (repos one folder down are found too).
+// "repo" or "Category/repo", up to REPO_DEPTH folders deep ("Platform/Lighthouse/ui").
 function repoFolderName(name) {
   const n = repoFolder(name);
   if (!n) throw httpError(400, `"${String(name || "").trim()}" is not a valid repo folder name.`);
@@ -291,17 +292,22 @@ export function addToRepoMap(workspace, folder, about) {
 }
 
 /**
- * The category folder to clone into: null for the top of the workspace, else one folder name. It is made if
- * it is not there, and it cannot be a repo itself (repos inside repos are not listed).
+ * The category folder to clone into: null for the top of the workspace, else a folder path such as "Platform" or
+ * "Platform/Lighthouse Edge" (up to REPO_DEPTH - 1 folders). Missing folders are made by addRepo; none of them
+ * can be a repo itself (repos inside repos are not listed).
  */
 export function categoryFolder(workspace, category) {
   const raw = String(category == null ? "" : category).trim();
   if (!raw) return null;
   const c = repoFolder(raw);
-  if (!c || c.includes("/")) throw httpError(400, `"${raw}" is not a valid category folder name. Use one folder name, such as Platform.`);
-  const dir = path.join(workspace, c);
-  if (fs.existsSync(path.join(dir, ".git"))) throw httpError(400, `${c} is a repo, not a category folder. Pick another category.`);
-  if (fs.existsSync(dir) && !fs.statSync(dir).isDirectory()) throw httpError(409, `There is a file named ${c} in the workspace. Pick another category.`);
+  if (!c || c.split("/").length > REPO_DEPTH - 1) throw httpError(400, `"${raw}" is not a valid category folder. Use folder names separated by /, such as Platform or Platform/Lighthouse, at most ${REPO_DEPTH - 1} deep.`);
+  let at = workspace;
+  for (const part of c.split("/")) {
+    at = path.join(at, part);
+    const shown = path.relative(workspace, at).replace(/\\/g, "/");
+    if (fs.existsSync(path.join(at, ".git"))) throw httpError(400, `${shown} is a repo, not a category folder. Pick another category.`);
+    if (fs.existsSync(at) && !fs.statSync(at).isDirectory()) throw httpError(409, `There is a file named ${shown} in the workspace. Pick another category.`);
+  }
   return c;
 }
 
@@ -317,12 +323,17 @@ export async function addRepo({ url, about, category }) {
   const folder = cat ? `${cat}/${name}` : name;
   const dest = path.join(parent, name);
   if (fs.existsSync(dest)) throw httpError(409, `There is already a ${folder} folder in the workspace.`);
-  const madeCategory = cat && !fs.existsSync(parent);
-  if (madeCategory) fs.mkdirSync(parent);
+  // The first category folder that is not there yet, so a failed clone removes only what it made.
+  let madeCategory = null;
+  if (cat) {
+    let at = opt.workspace;
+    for (const part of cat.split("/")) { at = path.join(at, part); if (!fs.existsSync(at)) { madeCategory = at; break; } }
+    fs.mkdirSync(parent, { recursive: true });
+  }
   const r = await git(["clone", "--", String(url).trim(), name], parent);
   if (r.code !== 0) {
     fs.rmSync(dest, { recursive: true, force: true });
-    if (madeCategory) fs.rmSync(parent, { recursive: true, force: true });
+    if (madeCategory) fs.rmSync(madeCategory, { recursive: true, force: true });
     const auth = /authentication|could not read username|permission denied|403|401|terminal prompts disabled/i.test(r.out);
     const msg = r.out.split(/\r?\n/).filter(Boolean).slice(-2).join(" ");
     throw httpError(auth ? 403 : 502, auth

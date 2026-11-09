@@ -77,7 +77,7 @@ test("PR links: the number and a clean link from ADO pull request URLs; anything
   for (const bad of ["", "812", "https://github.com/o/r/pull/3", "https://x/_git/r/pullrequest/1;calc", "https://x/a b/_git/r/pullrequest/1", "file:///_git/r/pullrequest/1", "https://x/_git/r/pullrequest/abc"]) assert.equal(prFromUrl(bad), null, bad);
 });
 
-test("Add a repo's category: empty is the top of the workspace, else one folder that is not a repo", () => {
+test("Add a repo's category: empty is the top of the workspace, else a folder path (up to 3 deep) with no repo on the way", () => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "oc-cat-"));
   try {
     fs.mkdirSync(path.join(ws, "Platform"));
@@ -89,7 +89,10 @@ test("Add a repo's category: empty is the top of the workspace, else one folder 
     assert.equal(categoryFolder(ws, "Data"), "Data", "a new category is fine; addRepo makes it");
     assert.throws(() => categoryFolder(ws, "api"), /is a repo, not a category/);
     assert.throws(() => categoryFolder(ws, "notes.txt"), /file named notes.txt/);
-    for (const bad of ["a/b", "..", ".hidden", "-x", "a b"]) assert.throws(() => categoryFolder(ws, bad), /not a valid category/, bad);
+    assert.equal(categoryFolder(ws, "Platform/Lighthouse Edge"), "Platform/Lighthouse Edge", "nested, with a space");
+    assert.equal(categoryFolder(ws, "Platform\\New\\Deep"), "Platform/New/Deep", "a backslash becomes /");
+    assert.throws(() => categoryFolder(ws, "api/inner"), /api is a repo, not a category/, "a repo on the way is refused");
+    for (const bad of ["a/b/c/d", "..", ".hidden", "-x", "a/../b", " a /b", "a/ b", "a/"]) assert.throws(() => categoryFolder(ws, bad), /not a valid category/, bad);
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
   }

@@ -16,7 +16,7 @@ export function baseOf(c) {
   return coll ? `${server}/${coll}` : server;
 }
 
-/** A folder's full path for a `paths` entry: the workspace, then "repo" or "Category/repo". */
+/** A folder's full path for a `paths` entry: the workspace, then "repo" or "Category/repo" (categories can nest: "Platform/Lighthouse/ui"). */
 export function folderPath(workspace, folder) {
   const w = trimSlash(workspace);
   return w ? `${w}/${folder}` : String(folder || '');

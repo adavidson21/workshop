@@ -47,7 +47,7 @@ test("a pr-<id> folder is a PR review: title, recommendation, and comments from 
 
 // Windows PowerShell 5.1 reads a .ps1 with no BOM as Windows-1252, so a non-ASCII character can turn into
 // a quote and break the parse (an arrow in a regex did: "Missing closing '}'"). Keep every .ps1 ASCII.
-test("workspace repos: top-level ones and ones a folder down (Category/repo); a repo's own folders are not searched", { skip }, () => {
+test("workspace repos: top-level ones and ones in category folders up to 4 deep; a repo's own folders are not searched", { skip }, () => {
   const ws = makeWorkspace();
   try {
     const mk = (rel) => fs.mkdirSync(path.join(ws.dir, rel, ".git"), { recursive: true });
@@ -55,14 +55,17 @@ test("workspace repos: top-level ones and ones a folder down (Category/repo); a 
     mk("Platform/api");
     mk("Platform/web");
     mk("top-repo/inner"); // inside a repo: not listed
-    mk("Deep/two/levels"); // two folders down: not listed
+    mk("Deep/two/levels"); // two folders down: listed
+    mk("Platform/Lighthouse Edge/ui"); // nested category with a space
+    mk("A/B/C/D/too-deep"); // five folders down: not listed
     mk(".hidden/repo"); // dot folders: not listed
+    mk(".work/repo"); // the .work folder: not listed
     fs.mkdirSync(path.join(ws.dir, "Empty"));
     const r = spawnSync(ps, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-WorkRoot", ws.work, "-AsJson"], { cwd: ws.dir, encoding: "utf8", windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    assert.deepEqual(out.repos.map((x) => x.folder), ["Platform/api", "Platform/web", "top-repo"]);
-    assert.deepEqual(out.repoCategories, ["Deep", "Empty", "Platform"], "non-repo top-level folders are categories, empty ones too");
+    assert.deepEqual(out.repos.map((x) => x.folder), ["Deep/two/levels", "Platform/api", "Platform/Lighthouse Edge/ui", "Platform/web", "top-repo"]);
+    assert.deepEqual(out.repoCategories, ["A", "A/B", "A/B/C", "Deep", "Deep/two", "Empty", "Platform", "Platform/Lighthouse Edge"], "non-repo folders on the way are categories, empty ones too");
   } finally { ws.remove(); }
 });
 
