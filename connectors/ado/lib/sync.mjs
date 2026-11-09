@@ -84,6 +84,9 @@ export async function sync(d, known, knownPrs, { prs = true } = {}) {
 // Your vote decides whether it is on you: none = to review, "Waiting for author" = waiting,
 // Approve / Approve with suggestions / Reject = done. For team-only PRs, a teammate voting for
 // the team also counts as done.
+// Not needed (cfg.prNotNeeded): a PR you are not required on drops off when it is team-only, every
+// required reviewer already approved, or enough other people approved. It never shows in Docket or
+// Dispatch, and a known one is reported gone with reason "notneeded".
 
 const SUGGEST = 5;
 const WAITING = -5;
@@ -155,7 +158,7 @@ class PrSource {
     }
   }
 
-  /** [status, info]. status: review, waiting, reviewed, covered, unassigned, draft, own, merged, abandoned. */
+  /** [status, info]. status: review, waiting, reviewed, covered, notneeded, unassigned, draft, own, merged, abandoned. */
   classify(pr) {
     const revs = pr.reviewers || [];
     const mine = revs.find(r => r.id === this.me) || null;
@@ -190,7 +193,21 @@ class PrSource {
     const teamIds = new Set(teams.map(r => r.id));
     const votedForTeam = revs.some(r => truthy(r.vote ?? 0) && (r.votedFor || []).some(v => teamIds.has(v.id)));
     if (!mine && (votedForTeam || teams.some(r => truthy(r.vote ?? 0)))) return ['covered', info];
+    const why = this.notNeeded(revs, mine, reqOthers);
+    if (why) { info.notNeeded = why; return ['notneeded', info]; }
     return ['review', info];
+  }
+
+  /** Why a PR does not need you (team, merge, approvals), or null. Never when you are a required reviewer. */
+  notNeeded(revs, mine, reqOthers) {
+    const nn = this.d.cfg.prNotNeeded;
+    if (!nn || (mine && mine.isRequired)) return null;
+    if (!mine && nn.teamOnly) return 'team';
+    const ok = r => (r.vote ?? 0) >= SUGGEST;
+    if (nn.canMerge && reqOthers.length && reqOthers.every(ok)) return 'merge';
+    const people = revs.filter(r => r.id !== this.me && !r.isContainer && !this.teams.has(r.id) && ok(r));
+    if (nn.approvals > 0 && people.length >= nn.approvals) return 'approvals';
+    return null;
   }
 }
 
@@ -199,6 +216,7 @@ export async function syncPrs(d, knownList) {
   const items = [];
   const gone = [];
   const notes = [];
+  let notNeeded = 0;
   const known = [...new Set(knownList)];
   const knownSet = new Set(known);
   for (const src of d.cfg.prSources) {
@@ -209,6 +227,7 @@ export async function syncPrs(d, knownList) {
     const seen = new Set();
     for (const pr of active.values()) {
       const [st, info] = ps.classify(pr);
+      if (st === 'notneeded') notNeeded++;
       if (st === 'review' || st === 'waiting') {
         info.waiting = st === 'waiting';
         items.push(info);
@@ -238,7 +257,7 @@ export async function syncPrs(d, knownList) {
       }
     }
   }
-  return { items, gone, notes };
+  return { items, gone, notes, notNeeded };
 }
 
 /**

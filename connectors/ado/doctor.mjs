@@ -142,6 +142,7 @@ async function runTest(o, io) {
       const tag = p.waiting ? 'waiting' : p.tier + (p.lastBlocker ? ' (last one)' : '');
       io.out(`  PR ${String(p.id).padEnd(6)} ${tag.padEnd(20)} ${p.repo}: ${p.title}`);
     }
+    if (r.prs.notNeeded) io.out(`  ${r.prs.notNeeded} more did not need you (Settings, Pull requests, PRs that don't need you).`);
     for (const n of r.prs.notes) io.out('  Note: ' + n);
   }
   return failed ? 1 : 0;

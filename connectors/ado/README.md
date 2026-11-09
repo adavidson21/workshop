@@ -6,7 +6,7 @@ Mostly read-only. The two actions that change ADO, `workitem.update` (Runway's a
 
 ## Settings
 
-`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`). Each field names its Settings page with `x-workshop-page`: connections on **Connections** (one row each), work item types, states and team reports on **Work items**, `prSources` and `prTeams` on **Pull requests**, and `paths` on **Repos**, one row per workspace repo. A paired site may change `paths` and `prSources` (`x-workshop-hosted`).
+`connectors.ado.config` in `~/.workshop/config.json`, edited in the Settings app (the form comes from `configSchema` in `index.mjs`). Each field names its Settings page with `x-workshop-page`: connections on **Connections** (one row each), work item types, states and team reports on **Work items**, `prSources`, `prTeams` and `prNotNeeded` on **Pull requests**, and `paths` on **Repos**, one row per workspace repo. A paired site may change `paths` and `prSources` (`x-workshop-hosted`).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ Mostly read-only. The two actions that change ADO, `workitem.update` (Runway's a
 | `types`, `closedStates`, `removedStates` | `Issue, Bug, User Story`; `Resolved, Closed, Done`; `Removed` | Same as the helper's `types`, `closed_states`, `removed_states`. |
 | `prSources[]` | `[]` | `{connection, project, repos[]}`. Empty skips PRs. |
 | `prTeams` | `[]` | Team names that count as yours. Empty means every team you are on. |
+| `prNotNeeded` | `{teamOnly: true, canMerge: true, approvals: 2}` | PRs that don't need you, left out of `sync.prs` items (a known one is gone with reason `notneeded` and `notNeeded`: `team`, `merge` or `approvals`; `prs.notNeeded` counts them). Never applies where you are a required reviewer, or once you voted. `teamOnly`: only your team was added. `canMerge`: every other required reviewer approved. `approvals`: at least this many other people approved (0 off). |
 | `reports` | helper defaults | `workloadTypes`, `bugTypes`, `highPriorities` (strings, for example `"1"`), `escalationPriority`, `effortFields`, `maxItems`. |
 
 **PATs** live only in environment variables. A connection names the variable (`patEnv`); the connector reads it through `ctx.env` and puts it only in the `Authorization` header. It never logs, returns or emits it, and error messages never include it.
