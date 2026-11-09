@@ -261,6 +261,33 @@ def main():
         check('History shows each day, a late lunch clearing the missed one', hist.count('Late') == 2 and 'Missed' not in hist and 'Nov 10' in hist)
         check('History shows focus kept against planned', 'of 3h' in hist)
 
+        # 9. Docket inside the shell, during focus: the Inbox folds to a rail and a capture still counts there.
+        ctx2 = b.new_context(viewport={'width': 1360, 'height': 860})
+        dp = ctx2.new_page(); dp.on('pageerror', lambda e: errors.append(f'{str(e)[:300]} | docket'))
+        dp.clock.install(time=at(9, 59)); dp.clock.pause_at(at(10, 0))
+        dp.goto(HUB + '/'); dp.clock.run_for(3000); dp.wait_for_timeout(800)
+        dp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const F = await import('/shared/focus.js');
+          const ws = await connect({app: 'settings'}); await ws.data.put('focus', {schema: 'settings.focus', version: 1, rev: 0, items: [], deleted: {}, meta: F.defaults()}); }""")
+        dp.evaluate("location.hash = '#/prioritizer'")
+        for _ in range(15):
+            dp.clock.run_for(1000); dp.wait_for_timeout(300)
+            df = frame_of(dp, 'prioritizer')
+            if df and df.evaluate("() => !!window.__prioritizer && !!document.querySelector('.today3')"): break
+        df = frame_of(dp, 'prioritizer')
+        docket_focus = df.evaluate("() => fetch('js/focus-hours.js').then(r => r.ok)") if df else False
+        if not docket_focus:
+            print('SKIP  Docket inside the shell: this Docket has no focus hours yet')
+        else:
+            dp.clock.run_for(61000); dp.wait_for_timeout(600)
+            check('Docket inside the shell folds its Inbox to a rail during focus', df.locator('.col-inbox.rail.held').count() == 1)
+            before = df.evaluate("() => document.querySelector('.col-inbox.rail .num').textContent.trim()")
+            df.evaluate("""() => { const P = window.__prioritizer, s = P.state; s.tasks.push({id: 'cap1', title: 'Captured in focus', notes: '', color: 'sage', rank: 99, value: null, effort: null, due: null, urgentFlag: false,
+              listId: s.lists[0].id, done: false, doneAt: null, wontDo: false, createdAt: '2026-11-09', ageFrom: '2026-11-09', waiting: false, nudgeOn: null, focusOn: null, who: []}); P.commit(); }""")
+            dp.clock.run_for(1500); dp.wait_for_timeout(400)
+            after = df.evaluate("() => document.querySelector('.col-inbox.rail .num').textContent.trim()")
+            check('a capture during focus still counts on the rail', int(after) == int(before) + 1)
+        ctx2.close()
+
         check('no page errors', not errors)
         for e in errors: print('  ', e)
         b.close()
