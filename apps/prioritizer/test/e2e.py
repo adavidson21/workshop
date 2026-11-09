@@ -321,6 +321,28 @@ def main():
         check('a held PR that drops off ADO never becomes a task', r == [1, 0, False])
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.pr && t.pr.id > 700)); P.state.ado.prHeld = []; P.commit(); }}")
         # ---------- PR filter: per window, in the scope menu; Team PRs hide with "Only ones that need me" ----------
+        # ---------- PR groups planned into Day plan blocks by kind (Blocking: reviews, Pending: admin) ----------
+        r = pg.evaluate(f"""() => {{ const P = {P}, dp = P.dp;
+          dp.templates = [{{id: 'tpr', name: 'PR day', weekdays: [0, 1, 2, 3, 4, 5, 6], days: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            sections: [{{id: 'rvw', name: 'Reviews', kind: 'reviews', color: 'sage', around: null, minutes: null, capacity: null}},
+                       {{id: 'adm', name: 'Admin', kind: 'admin', color: 'sky', around: null, minutes: null, capacity: null}}]}}];
+          const keep = dp.days; dp.days = {{}};
+          P.adoApply({{prs: {{items: [{{key: 'c|p|r|811', id: 811, repo: 'web', title: 'Req', tier: 'blocking', created: '2026-01-01'}},
+            {{key: 'c|p|r|812', id: 812, repo: 'web', title: 'Opt', tier: 'asked', created: '2026-01-01'}}]}}}});
+          const where = id => {{ const t = P.state.tasks.find(x => x.pr && x.pr.id === id);
+            for (const [d, rec] of Object.entries(dp.days)) {{ const s = rec.slots.find(x => x.taskId === t.id); if (s) return s.sectionId; }} return null; }};
+          const out = [where(811), where(812), P.state.ado.prSlots.blocking, P.state.ado.prSlots.pending];
+          P.adoApply({{prs: {{items: [], gone: [{{key: 'c|p|r|812', reason: 'notneeded'}}]}}}});
+          const t = P.state.tasks.find(x => x.pr && x.pr.id === 812); out.push(t.done, t.wontDo, t.pr.gone);
+          P.state.tasks = P.state.tasks.filter(x => !(x.pr && x.pr.id > 810)); dp.days = keep; dp.templates = []; P.commit();
+          return out; }}""")
+        check('Blocking PRs go into the reviews block and Pending ones into admin', r[:4] == ['rvw', 'adm', 'reviews', 'admin'])
+        check('a PR that stops needing you is marked won\'t do', r[4:] == [True, True, 'notneeded'])
+        pg.evaluate("() => import('./js/ado.js').then(m => { m.adoSetup(); })"); pg.wait_for_selector('.sheet [data-slot=pending]')
+        r = pg.evaluate("() => [...document.querySelectorAll('.sheet [data-slot]')].map(e => e.dataset.slot + '=' + e.value)")
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
+        check('ADO Settings has the Day plan kind for each PR group', r == ['blocking=reviews', 'pending=admin'])
+        pg.evaluate(f"() => {{ const P = {P}; P.state.ado.prSlots = {{blocking: '', pending: ''}}; }}")
         pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'rank'; P.adoApply({{prs: {{items: [
           {{key: 'c|p|r|801', id: 801, repo: 'web', title: 'Mine', tier: 'blocking', created: '2026-01-01'}},
           {{key: 'c|p|r|802', id: 802, repo: 'web', title: 'Team one', tier: 'pool', via: ['Team'], created: '2026-01-01'}}]}}}}); P.commit(); }}""")

@@ -33,6 +33,9 @@ const NAV_OF = v => v;
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
 const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
 const PR_TIER_DEFAULTS = {blocking: {value: 4, urgent: true}, asked: {value: 3, urgent: false}, pool: {value: 2, urgent: false}};
+// Which Day plan block kind each PR group goes into (blocking: you're required; pending: everything else that
+// still needs you). Empty: not planned. PRs that don't need you never reach Docket (Workshop's ADO connector).
+const PR_SLOT_DEFAULTS = {blocking: 'reviews', pending: 'admin'};
 const svg = (d, w = 1.5) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICON = {
   check: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>',
@@ -95,4 +98,4 @@ function initials(name){
 const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
-export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
+export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

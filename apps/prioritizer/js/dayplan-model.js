@@ -510,6 +510,37 @@ function autoPlan(dp, item, taskId, due){
   return to;
 }
 
+/* PR reviews by group (Docket ADO settings, state.ado.prSlots): put a task into the first block of `kind` that
+   has not ended yet, today first, then the next work days (up to `days`). Blocks without a time count as open.
+   `from`: a kind to move the task out of first (its group changed). Never moves a task planned by hand into
+   another kind. Returns {date, section}, or null when nothing fits or the task is already planned. */
+function planByKind(dp, taskId, kind, today, nowMin, {from = '', days = 7} = {}){
+  if (!kind || !dayReady(dp.sprint)) return null;
+  for (let i = 0; i < days; i++){
+    const date = addDays(today, i), view = dayView(dp, date);
+    const slot = slotOf(view.rec, taskId);
+    if (slot){
+      const sec = sectionOf(view.rec, slot.sectionId);
+      if (!from || !sec || sec.kind !== from) return null;   // planned by hand, or already where it goes
+      unslotTask(dp, date, taskId);
+    }
+  }
+  for (let i = 0; i < days; i++){
+    const date = addDays(today, i);
+    if (!isWorkday(dp.sprint, date)) continue;
+    const open = dayView(dp, date).rec.sections.filter(s => !s.lost);
+    const timed = open.filter(s => s.around).map(s => toMin(s.around)).sort((a, b) => a - b);
+    const ended = s => {
+      if (i > 0 || !s.around) return false;
+      const at = toMin(s.around), next = timed.find(t => t > at);
+      return nowMin >= (s.minutes ? at + s.minutes : next != null ? next : at + 60);
+    };
+    const to = open.find(s => s.kind === kind && !ended(s));
+    if (to){ slotTask(dp, date, taskId, to.id); return {date, section: to}; }
+  }
+  return null;
+}
+
 /* ---------- undo and redo (per window) ----------
    Each entry is the records of the dates an action touched, as they were before ({date: record or null}). */
 function createHistory(max = MAX_UNDO){
@@ -535,7 +566,7 @@ function createHistory(max = MAX_UNDO){
 }
 
 export {
-  REPEATS, WEEKDAY_NAMES, autoPlan, dayInfo, dayReady, sprintsOn, cleanRecurring, recurDue, recurTaskId, repeatLabel, repeatsOn, sprintDayDate,
+  REPEATS, WEEKDAY_NAMES, autoPlan, planByKind, dayInfo, dayReady, sprintsOn, cleanRecurring, recurDue, recurTaskId, repeatLabel, repeatsOn, sprintDayDate,
   COLORS, DEFAULT_SPRINT, addDays, addSection, carryCandidates, carryOver, carryPending, cleanDayplan, cleanRecord, cleanSection,
   cleanSprint, cleanTemplate, createHistory, currentSection, dayView, daysBetween, dismissCarry, editDay, formatDays, freshDayplan,
   fmt12, fromMin, isDate, isTime, parseTime, isWorkday, loseSection, moveInSection, moveSection, nextWorkday, overCapacity, parseDays, placeSection,

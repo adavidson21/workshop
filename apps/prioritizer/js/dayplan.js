@@ -1,7 +1,7 @@
 /* Docket: the day plan's state and saving. The day plan is its own small board (dayplan-model.js), saved through
    the same write loop as the board (store.js) as the dayplan/* collections (dayplan-format.js). Every change the
    Day view makes goes through dpChange, which records it for undo and saves. */
-import { autoPlan, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue, sprintsOn } from './dayplan-model.js';
+import { autoPlan, planByKind, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue, sprintsOn } from './dayplan-model.js';
 import { COLORS } from './constants.js';
 import { commit, isWaiting, listById, state, topLists } from './state.js';
 import { todayStr } from './util.js';
@@ -63,6 +63,16 @@ function recurTick(){
   if (dstore) dstore.schedule();
   commit();
   return made;
+}
+
+/* A PR review task into the Day plan block of `kind` (ado.js, state.ado.prSlots). Not saved in undo: it comes
+   from a sync, not a click. Returns {date, section} or null. */
+function planPr(taskId, kind, from = ''){
+  if (!dstore || !kind) return null;
+  const now = new Date();
+  const at = planByKind(dp, taskId, kind, todayStr(), now.getHours() * 60 + now.getMinutes(), {from});
+  if (at){ ensureYear(at.date); save(); }
+  return at;
 }
 
 /* Load the year a date is in, if this window has not yet (the Day view calls it for the date it shows). */
@@ -136,4 +146,4 @@ async function importDayplan(bundle){
   return cols.length;
 }
 
-export { workshopLinked, recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };
+export { planPr, workshopLinked, recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };

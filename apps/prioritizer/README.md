@@ -208,15 +208,20 @@ Work item types and which states count as closed are connector settings in Works
 
 ### Pull requests to review
 
-Active PRs where you or one of your teams is a reviewer become tasks in **ADO > Pull requests**, titled `Review: <PR title>` (rows show just the PR title next to the PR chip). Each gets a tier based on how much it's waiting on you:
+Active PRs where you or one of your teams is a reviewer are sorted into three groups:
 
-| Tier | When | Starting value | Urgent |
+| Group | When | Starting value | Urgent |
 | --- | --- | --- | --- |
 | Blocking | You're a named, required reviewer | High | Yes |
-| Asked | You're a named, optional reviewer | Medium | No |
-| Team | Only your team was added, so any teammate can take it | Low | No |
+| Pending | You're a named, optional reviewer | Medium | No |
+| Pending, team | Only your team was added, so any teammate can take it | Low | No |
+| Not needed | Not required, and team only, or every required reviewer already approved, or 2 or more others approved | | |
 
-The starting value and urgent flag are defaults; change them per tier in ADO Settings.
+Blocking and Pending PRs become tasks in **ADO > Pull requests**, titled `Review: <PR title>` (rows show just the PR title next to the PR chip). The starting value and urgent flag are defaults; change them per group in ADO Settings.
+
+**Not needed** PRs never become tasks and are left out of Dispatch too. Workshop's ADO connector decides, so set the rules in Workshop **Settings**, Pull requests, **PRs that don't need you** (team-only PRs are on that list by default, so Pending, team only shows up when you turn that rule off). A PR task that stops needing you is marked won't do ("Doesn't need you"). A PR you are required on, or already voted Waiting for author on, always stays yours.
+
+**Planned into your day:** with a Day plan, each new Blocking PR goes into the next block of kind `reviews` and each new Pending PR into the next block of kind `admin` that has not ended yet, today or a coming work day (on Today when the block is today). Change the kinds in ADO Settings, **Plan PR reviews into Day plan blocks of kind** (empty: not planned). No block of that kind: the task stays unplanned. A PR that moves to Blocking moves to its block; one you planned yourself is never moved. A PR waiting for its author is not planned.
 
 A Blocking PR where every other required reviewer has already approved shows **Last approval**. Effort starts at S. Age counts from when the PR was opened, so old PRs rise in the list. PRs never go stale or back to the Inbox: what they need is a review.
 
@@ -231,7 +236,7 @@ A Blocking PR where every other required reviewer has already approved shows **L
 With Workshop's opencode connector on and its **Review new PRs as soon as they are found** setting on (Workshop Settings, opencode, PR reviews; on by default), every sync hands the PRs waiting on you to Tandem, which runs a first-pass `/pr-review` on the new ones and on PRs with a new commit. Drafts only: nothing is posted, voted or changed in ADO.
 
 - **Blocking** PRs become tasks right away with an **AI reviewing** chip (the row is dimmed a little).
-- **Asked** and **Team** PRs wait until their review ends, then show up already reviewed. They also show up when Tandem stops to ask something, when the review fails, or after the hold limit (60 minutes by default, set in ADO Settings).
+- **Pending** PRs wait until their review ends, then show up already reviewed. They also show up when Tandem stops to ask something, when the review fails, or after the hold limit (60 minutes by default, set in ADO Settings).
 - The chip then shows the recommendation (**AI: Approve**, **AI: Changes**, **AI: Questions**), in the warning look for high risk or blocking comments. Hover for the risk and draft comment counts; click it, or **Open in Dispatch** in the drawer, to read the drafts. A failed or late review has **Review again**.
 - A new push starts the review over on the same task.
 - Connector off or not ready, opencode not connected, or the setting off: PRs land as they always did, and held ones land at once.

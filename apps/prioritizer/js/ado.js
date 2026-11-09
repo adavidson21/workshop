@@ -6,7 +6,7 @@ import { flushText } from './drawer.js';
 import { hideTip, placeTip, tipFor } from './events.js';
 import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
 import { setScope, setView } from './render.js';
-import { PR_GONES, cleanAdo, cleanPending, cleanPr, commit, isWaiting, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
+import { PR_GONES, cleanAdo, cleanPending, cleanPr, cleanSlots, commit, prGroup, isWaiting, listById, normalizeRanks, saveUi, state, topLists, ui } from './state.js';
 import { $, esc, fmtDay, fmtLong, fmtMD, isDate, plural, todayStr, uid } from './util.js';
 import { embedded, ready } from './ws.js';
 import { assign } from './directory.js';
@@ -14,6 +14,7 @@ import { followDate } from './delegate.js';
 import { PR_HOLD_MAX, PR_HOLD_MIN, commitOf, holdsNew } from './pr-ai-model.js';
 import { prAiActive, prAiAfterSync, prAiOnSync } from './pr-ai.js';
 import { slateFor, slateLabel } from './slate-link.js';
+import { dp, planPr } from './dayplan.js';
 /* Prioritizer: Azure DevOps sync, through Workshop's ADO connector. */
 /* ---------- Azure DevOps ----------
    Where the data comes from: Workshop's ADO connector, reached through the SDK (ws.connectors) when this page
@@ -25,13 +26,16 @@ const ADO_MIN_GAP = 2 * 60 * 1000;
 const ADO_GONE = {closed: 'Closed in ADO', removed: 'Removed in ADO', reassigned: 'Reassigned in ADO', missing: 'Not found in ADO', filtered: 'No longer matches ADO filter'};
 const ADO_VALUE = {1: 4, 2: 3, 3: 2, 4: 1};   // ADO priority 1 (highest) to 4, as a starting value
 // Labels and tips per PR tier. The starting value and urgent flag for each are in state.ado.prTiers.
+// Groups: Blocking (blocking) and Pending (asked, pool). PRs that don't need you never get here: Workshop's ADO
+// connector leaves them out (Settings, Pull requests), and a known one comes back gone as "notneeded".
 const PR_TIER = {
   blocking: {label: 'Blocking', tip: "You're a required reviewer, so it can't merge without you"},
-  asked: {label: 'Asked', tip: 'You were added by name as an optional reviewer'},
-  pool: {label: 'Team', tip: 'Your team was added, so any teammate can review it'}
+  asked: {label: 'Pending', tip: 'You were added by name as an optional reviewer'},
+  pool: {label: 'Pending, team', tip: 'Your team was added, so any teammate can review it'}
 };
+const PR_GROUP = {blocking: 'Blocking', pending: 'Pending'};
 const tierOf = k => Object.assign({}, PR_TIER[k] || PR_TIER.pool, state.ado.prTiers[k] || state.ado.prTiers.pool);
-const PR_GONE = {reviewed: 'You voted', covered: 'A teammate reviewed it', merged: 'Completed in ADO', abandoned: 'Abandoned in ADO',
+const PR_GONE = {reviewed: 'You voted', covered: 'A teammate reviewed it', notneeded: "Doesn't need you", merged: 'Completed in ADO', abandoned: 'Abandoned in ADO',
   unassigned: 'No longer a reviewer', draft: 'Back to draft', own: 'Your own PR', missing: 'Not found in ADO'};
 const prTip = p => `PR ${p.id} in ${p.repo}${p.author ? ' by ' + p.author : ''}${p.via.length && p.tier === 'pool' ? ', via ' + p.via.join(', ') : ''}${p.lastBlocker ? '. Everyone else required has approved' : ''}`;
 const adoShort = type => ({'User Story': 'Story', 'Product Backlog Item': 'PBI'})[type] || type || 'ADO';
@@ -173,7 +177,16 @@ function prNewTask(it, link, rank, ai){
   if (ai) link.ai = ai;
   nt.pr = link;
   state.tasks.push(nt);
+  prPlan(nt);
   return nt;
+}
+/* Into the Day plan block for its group (state.ado.prSlots); from: the old group, when it changed. A PR waiting
+   for its author is not planned. Lands on Today when the block is today. */
+function prPlan(t, from){
+  if (t.done || t.waiting || !t.pr) return null;
+  const slots = state.ado.prSlots, at = planPr(t.id, slots[prGroup(t.pr)], from ? slots[from] : '');
+  if (at && at.date === todayStr()) t.focusOn = at.date;
+  return at;
 }
 function prApply(prs, n, opts = {}){
   const aiOn = !!opts.ai, now = new Date();
@@ -227,8 +240,11 @@ function prApply(prs, n, opts = {}){
     if (aiOn && !link.waiting && !t.done && (!t.pr.ai || (link.commit && t.pr.commit && link.commit !== t.pr.commit)))
       link.ai = {state: 'pending', at: now.toISOString()};
     else if (!aiOn && link.ai && link.ai.state === 'pending') delete link.ai;
+    const was = prGroup(t.pr), back = t.pr.waiting && !link.waiting;
     t.title = title;
     t.pr = link;
+    if (was !== prGroup(link)) prPlan(t, was);        // e.g. made required: moves to the Blocking block
+    else if (back) prPlan(t);                         // back from the author
     if (before !== JSON.stringify([t.title, t.pr, t.value, t.urgentFlag, t.waiting, t.done])) n.updated++;
   }
   // Held PRs no longer waiting on you (merged, abandoned, you voted, a teammate covered it) just drop off.
@@ -239,7 +255,7 @@ function prApply(prs, n, opts = {}){
     t.pr.gone = PR_GONES.includes(g.reason) ? g.reason : 'missing';
     if (t.done) continue;
     t.done = true; t.doneAt = todayStr(); t.waiting = false; t.nudgeOn = null; n.prDone++;
-    if (['unassigned', 'draft', 'own', 'missing'].includes(t.pr.gone)) t.wontDo = true;
+    if (['notneeded', 'unassigned', 'draft', 'own', 'missing'].includes(t.pr.gone)) t.wontDo = true;
     if (t.pr.ai && t.pr.ai.state === 'pending') delete t.pr.ai;
     adoNote(t, `${PR_GONE[t.pr.gone]} on ${on}.`);
   }
@@ -355,6 +371,13 @@ function setAdo(){
     : warn ? `ADO: ${warn}` : ago == null ? 'ADO sync on' : `ADO synced ${ago < 1 ? 'just now' : plural(ago, 'minute') + ' ago'}`;
   if (tipFor === b) placeTip(b);
 }
+// Block kinds in the day plan's templates and the coming days, for the PR slot suggestions.
+function dayKinds(){
+  const out = new Set();
+  for (const t of dp.templates || []) for (const sec of t.sections || []) if (sec.kind) out.add(sec.kind);
+  for (const r of Object.values(dp.days || {})) for (const sec of (r && r.sections) || []) if (sec.kind) out.add(sec.kind);
+  return [...out].sort();
+}
 async function adoSetup(){
   await adoDetect();
   const valueOpts = cur => [4, 3, 2, 1].map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${VALUE[v]}</option>`).join('');
@@ -368,6 +391,10 @@ async function adoSetup(){
       <label><input type="radio" name="adoChoose" value="0"${state.ado.choose ? '' : ' checked'}> Add them automatically</label></div>
     <div class="fld"><label for="adoEvery">Sync every</label><input type="number" id="adoEvery" class="mono" min="${ADO_SYNC_MIN}" max="${ADO_SYNC_MAX}" value="${state.ado.syncMinutes}"> <span class="hint">minutes</span></div>
     <table class="tiers"><caption>New pull request reviews start at</caption><tbody>${tiers}</tbody></table>
+    <table class="tiers"><caption>Plan new PR reviews into the Day plan block of kind</caption><tbody>
+      ${Object.entries(PR_GROUP).map(([k, l]) => `<tr><th scope="row">${l}</th><td><input type="text" data-slot="${k}" class="mono" maxlength="40" list="adoKinds" value="${esc(state.ado.prSlots[k])}" placeholder="not planned" autocomplete="off" aria-label="${l}: Day plan block kind"></td></tr>`).join('')}
+    </tbody></table><datalist id="adoKinds">${dayKinds().map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+    <p class="hint">The next block of that kind that has not ended, today or a coming work day. Empty: not planned. PRs that don't need you are left out in Workshop <b>Settings</b>, Pull requests.</p>
     ${prAiOnSync() == null ? '' : `<div class="fld"><label for="adoHold">Hold asked and team PRs for Tandem's review up to</label><input type="number" id="adoHold" class="mono" min="${PR_HOLD_MIN}" max="${PR_HOLD_MAX}" value="${state.ado.prHoldMinutes}"> <span class="hint">minutes</span></div>
     <p class="hint">${prAiOnSync() ? 'Tandem reviews new PRs first: blocking ones show right away, the rest once reviewed. Drafts only, nothing is posted. Turn it off in Workshop <b>Settings</b>, opencode, PR reviews.' : 'Tandem is not reviewing new PRs as they are found. Turn it on in Workshop <b>Settings</b>, opencode, PR reviews.'}</p>`}
     <p class="hint" id="adoMsg" aria-live="polite" style="margin-top:.6rem">${esc(adoNoteNow.error || (ui.ado.on && ui.ado.error) || adoNoteNow.warn)}</p>
@@ -380,11 +407,12 @@ async function adoSetup(){
       if (!(every >= ADO_SYNC_MIN && every <= ADO_SYNC_MAX)){ msg.textContent = `Sync every ${ADO_SYNC_MIN} to ${ADO_SYNC_MAX} minutes.`; return; }
       const prTiers = {};
       for (const k of Object.keys(PR_TIER)) prTiers[k] = {value: +sh.querySelector(`[data-tier-value=${k}]`).value, urgent: sh.querySelector(`[data-tier-urgent=${k}]`).checked};
+      const prSlots = cleanSlots(Object.fromEntries([...sh.querySelectorAll('[data-slot]')].map(el => [el.dataset.slot, el.value])));
       const choose = sh.querySelector('[name=adoChoose]:checked').value === '1';
       const holdEl = sh.querySelector('#adoHold'), hold = holdEl ? Math.round(+holdEl.value) : state.ado.prHoldMinutes;
       if (!(hold >= PR_HOLD_MIN && hold <= PR_HOLD_MAX)){ msg.textContent = `Hold PRs ${PR_HOLD_MIN} to ${PR_HOLD_MAX} minutes.`; return; }
-      if (choose !== state.ado.choose || every !== state.ado.syncMinutes || hold !== state.ado.prHoldMinutes || JSON.stringify(prTiers) !== JSON.stringify(state.ado.prTiers)){
-        state.ado.syncMinutes = every; state.ado.prTiers = prTiers; state.ado.prHoldMinutes = hold;
+      if (choose !== state.ado.choose || every !== state.ado.syncMinutes || hold !== state.ado.prHoldMinutes || JSON.stringify(prTiers) !== JSON.stringify(state.ado.prTiers) || JSON.stringify(prSlots) !== JSON.stringify(state.ado.prSlots)){
+        state.ado.syncMinutes = every; state.ado.prTiers = prTiers; state.ado.prSlots = prSlots; state.ado.prHoldMinutes = hold;
         if (choose !== state.ado.choose){ state.ado.choose = choose; if (!choose){ adoPick(state.ado.pending.map(p => p.id), []); normalizeRanks(state); } }
         commit();
       }
@@ -418,4 +446,4 @@ function onAdoClick(btn){
     });
 }
 
-export { ADO_GONE, PR_GONE, PR_TIER, adoApply, prRelease, tierOf, adoCall, adoDetect, adoInit, adoPick, adoReview, adoSchedule, adoSetup, adoShort, adoSync, onAdoClick, prTip, setAdo };
+export { ADO_GONE, PR_GONE, PR_GROUP, PR_TIER, prPlan, adoApply, prRelease, tierOf, adoCall, adoDetect, adoInit, adoPick, adoReview, adoSchedule, adoSetup, adoShort, adoSync, onAdoClick, prTip, setAdo };

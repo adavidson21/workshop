@@ -2,7 +2,7 @@
 // does anything when it loads (its listeners are in drawerInit, called by main.js), but keep this order.
 import { cleanLeftOff } from './left-off-model.js';
 import { scheduleSave } from './storage.js';
-import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
+import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
 import { isStale, isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
@@ -17,7 +17,7 @@ import { cleanFollow } from './delegate-model.js';
 const PR_SHOW = ['all', 'mine', 'none'];   // the PR filter's values (see shown)
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}, follow: cleanFollow()};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prSlots: cleanSlots(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}, follow: cleanFollow()};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -67,7 +67,7 @@ function cleanAdo(a){
 // PR review link on a task: {key, id, repo, project, url, author, tier, via, waiting, lastBlocker, gone, commit, ai}.
 // ai is Tandem's first-pass review (js/pr-ai-model.js); commit is the PR's source commit when the sync gives it.
 // key is "<collection url>|<project>|<PR id>" so PRs from two collections never collide.
-const PR_GONES = ['reviewed','covered','merged','abandoned','unassigned','draft','own','missing'];
+const PR_GONES = ['reviewed','covered','notneeded','merged','abandoned','unassigned','draft','own','missing'];
 function cleanPr(a){
   if (!a || typeof a !== 'object' || typeof a.key !== 'string' || !a.key) return null;
   const id = parseInt(a.id ?? a.key.split('|').pop(), 10);
@@ -96,6 +96,16 @@ function cleanTiers(t){
   }
   return out;
 }
+// Day plan block kind per PR group (constants.js PR_SLOT_DEFAULTS). Kinds are lowercase, like a block's kind.
+function cleanSlots(t){
+  const out = {};
+  for (const [k, d] of Object.entries(PR_SLOT_DEFAULTS)){
+    const v = t && typeof t === 'object' ? t[k] : undefined;
+    out[k] = typeof v === 'string' ? v.trim().toLowerCase().slice(0, 40) : d;
+  }
+  return out;
+}
+const prGroup = pr => pr && pr.tier === 'blocking' ? 'blocking' : 'pending';
 function sanitize(s){
   if (!s || !Array.isArray(s.lists) || !s.lists.length) return fresh();
   s.version = 2;
@@ -136,6 +146,7 @@ function sanitize(s){
   const mins = Math.round(+s.ado.syncMinutes);
   s.ado.syncMinutes = mins >= ADO_SYNC_MIN && mins <= ADO_SYNC_MAX ? mins : ADO_SYNC_MINUTES;
   s.ado.prTiers = cleanTiers(s.ado.prTiers);
+  s.ado.prSlots = cleanSlots(s.ado.prSlots);
   s.ado.pending = Array.isArray(s.ado.pending) ? s.ado.pending.map(cleanPending).filter(Boolean).slice(0, 300) : [];
   if (s.ado.prListId && !ids.has(s.ado.prListId)) delete s.ado.prListId;
   s.ado.prHeld = cleanHeld(s.ado.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
@@ -226,4 +237,4 @@ function inboxQueue(){
 }
 // Today's Ranked column: open tasks in rank order, without the Inbox's and what is waiting on someone.
 const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting);
-export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanTiers, commit, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
