@@ -84,6 +84,17 @@ export const configSchema = {
       description: "No longer used: the connector reads .work itself since 1.6.0. Kept so saved settings stay valid.",
       pattern: "^[^\"&|<>^%\\r\\n]*$",
     },
+    hiddenRepos: {
+      type: "array",
+      title: "Hidden folders",
+      description: "Workspace folders Dispatch and Settings leave out, like a folder of tools you are building. \"Tools\" hides that folder and everything in it; \"Tools/workshop\" hides one repo. Up to 4 folders deep.",
+      "x-workshop-page": "repos",
+      "x-workshop-hosted": true,
+      maxItems: 200,
+      items: { type: "string", pattern: "^[^/\\\\]{1,150}([/\\\\][^/\\\\]{1,150}){0,3}$" },
+      uniqueItems: true,
+      default: [],
+    },
     engAgentsConfig: {
       type: "string",
       title: "Tandem config.json",

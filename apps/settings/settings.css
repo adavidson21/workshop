@@ -173,6 +173,9 @@ label.btn{cursor:pointer}
 .repos .repo>div{flex:1;min-width:0}
 .repos .repo.editing{display:block}
 .repo-name{margin:0;display:flex;align-items:center;gap:.35rem;overflow-wrap:anywhere}
+.repo-acts{display:flex;gap:.4rem;flex:none}
+.repo-hidden .people{margin:.4rem 0}
+.repo-hidden .person{justify-content:space-between}
 .repo-web svg{width:.8rem;height:.8rem;display:block}
 .repo-meta{margin:.1rem 0 0;color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}
 .repo-tag{display:inline-block;margin-left:.25rem;padding:0 .4rem;border-radius:var(--r-sm);background:var(--warn-soft);color:var(--warn);font-size:.76rem}

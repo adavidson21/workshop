@@ -701,7 +701,7 @@ def agent_checks(b, watch):
         check('with Azure DevOps off, Work items says so in one line and shows no form', 'Azure DevOps is off. Turn it on in Connections.' in sf.inner_text('#page-work-items')
               and sf.locator('#page-work-items form.cfg:visible').count() == 0)
         stab(sf, 'repos')
-        check('Repos works with no Azure DevOps: no ADO lines or other folders', sf.locator('#page-repos .repo-meta').count() == 0 and not sf.locator('#page-repos .cfg-section').is_visible())
+        check('Repos works with no Azure DevOps: no ADO lines or other folders', sf.locator('#page-repos .repo-meta').count() == 0 and not sf.locator('#page-repos .cfg-section:not(.repo-hidden)').is_visible())
         gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html']
           .map(p => fetch(p).then(r => r.status)))""")
         check('the agent serves no hub and no other app', gone == [404] * 5)
@@ -1345,6 +1345,23 @@ def agents_checks(b, watch):
         sp.keyboard.press('Escape')
         sp.reload(); seen(sp, '.tabs'); sp.click('.tabs [data-tab=runs]')
         check('the project filter stays in this browser after a reload', seen(sp, '.fchip.on') and 'Orders API' in sp.inner_text('.fchip.on'))
+
+        # Settings, Repos: Hide leaves a workspace repo out (opencode hiddenRepos), Show brings it back.
+        pg.goto(HOSTED + '/#/settings/repos'); pg.wait_for_timeout(800)
+        sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
+        check('Repos lists the workspace repo with a Hide button', sf is not None and seen(sf, '[data-repo-hide="gateway"]'))
+        sf.click('[data-repo-hide="gateway"]')
+        sf.wait_for_function('() => !document.querySelector(\'[data-repo-hide="gateway"]\') && !!document.querySelector(\'[data-unhide="gateway"]\')', timeout=20000)
+        sf.click('.repo-hidden > summary')
+        # The list is the connector's state, so the row going away means the connector left it out.
+        check('Hide saves it under Hidden folders and the connector leaves it out', 'gateway' in sf.inner_text('.repo-hidden') and sf.locator('.repos .repo').count() == 0)
+        sf.click('[data-unhide="gateway"]')
+        check('Show brings it back', seen(sf, '[data-repo-hide="gateway"]') and sf.locator('[data-unhide]').count() == 0)
+        pg.wait_for_timeout(1500)  # the connector restarts after a save; let the page settle before typing
+        sf.fill('[data-hide-add] [name=folder]', 'a/b/c/d/e'); sf.click('[data-hide-add] button')
+        try: sf.wait_for_function('() => (document.querySelector("[data-hide-add] .msg") || {}).textContent?.includes("like Tools or Tools/workshop")', timeout=5000); bad = True
+        except Exception: bad = False
+        check('Hiding a path deeper than 4 folders says what to give', bad)
         ctx.close()
     finally:
         proc.terminate(); proc.wait(10)

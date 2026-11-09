@@ -56,7 +56,13 @@ param(
     [switch]$NoOpen,
 
     # Print the data as JSON instead of writing the page.
-    [switch]$AsJson
+    [switch]$AsJson,
+
+    # Workspace folders to leave out with everything under them: a category ("Tools", "Platform/Lighthouse")
+    # or a repo ("gh-repo", "Tools/workshop"), up to 4 names. Case is ignored; "\" is read as "/".
+    # Matches lib/workparser.mjs (hide).
+    # With -File, give the list as one comma-separated string: -Hide "Tools,Platform/web".
+    [string[]]$Hide = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -836,12 +842,18 @@ $repos = New-Object System.Collections.ArrayList
 # product. A repo's own folders are never searched, nor are dot folders (.work) or node_modules. The folder is
 # "repo" or "Category/Sub/repo", always with "/". Every other folder on the way is a category ("Platform",
 # "Platform/Lighthouse"), even with no repos yet (Add a repo can clone into one).
+# Hidden folders (-Hide) are left out with everything under them: no repo, no category.
+$hiddenDirs = @(foreach ($h in @($Hide | ForEach-Object { ([string]$_) -split ',' })) {
+        $parts = @((([string]$h).Trim() -replace '\\', '/').Trim('/') -split '/')
+        if ($parts.Count -le 4 -and -not @($parts | Where-Object { -not $_ -or $_ -eq '.' -or $_ -eq '..' }).Count) { ($parts -join '/').ToLowerInvariant() }
+    })
 $repoDirs = New-Object System.Collections.ArrayList
 $repoCategories = New-Object System.Collections.ArrayList
 $repoDepth = 4
 function Find-Repos([string]$dir, [string]$rel, [int]$depth) {
     foreach ($d in @(Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" -and $_.Name -ne "node_modules" } | Sort-Object Name)) {
         $folder = if ($rel) { "$rel/$($d.Name)" } else { $d.Name }
+        if ($hiddenDirs -contains $folder.ToLowerInvariant()) { continue }
         if (Test-Path -LiteralPath (Join-Path $d.FullName ".git")) {
             [void]$repoDirs.Add([ordered]@{ folder = $folder; path = $d.FullName })
             continue
