@@ -19,7 +19,7 @@
     "kind": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{0,39}$",
-      "description": "count, list, targets, board, day or people. Readers ignore kinds they do not know."
+      "description": "count, list, targets, board, day, people or held. Readers ignore kinds they do not know."
     },
     "title": {
       "type": "string",
@@ -76,6 +76,15 @@
           "waiting"
         ]
       }
+    },
+    "block": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]$",
+      "description": "held cards: the held span, the date and HH:MM it started (focus.md)."
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 120
     }
   },
   "$defs": {
@@ -151,6 +160,18 @@
     {
       "properties": {
         "kind": {
+          "const": "held"
+        }
+      },
+      "required": [
+        "block",
+        "count",
+        "label"
+      ]
+    },
+    {
+      "properties": {
+        "kind": {
           "not": {
             "enum": [
               "count",
@@ -158,7 +179,8 @@
               "targets",
               "board",
               "day",
-              "people"
+              "people",
+              "held"
             ]
           }
         }

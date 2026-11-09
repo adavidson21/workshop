@@ -16,6 +16,7 @@ import { mountBar } from '../shared/standalone-bar.js';
 import * as R from './state.js';
 import * as D from '../shared/people.js';
 import { createSummaryWriter } from '../shared/summary.js';
+import { createHolder } from '../shared/focus.js';
 import { createOneOnOnesPage } from './oneonones/page.js';
 import { createGoalsPage } from './goals/page.js';
 
@@ -32,7 +33,10 @@ const store = {};
 const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0, items: [], deleted: {}, ...(name === 'config' ? { meta: { ...R.DEFAULT_CONFIG, updatedAt: 0 } } : {}) });
 
 // Rapport's summary for other apps (R.summaryCards): written after loading and after each save of entries.
-const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries, { due: oo && oo.dueList ? oo.dueList() : [], today: R.isoDay(new Date()) }) : null });
+const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries, { due: oo && oo.dueList ? oo.dueList() : [], today: R.isoDay(new Date()) }).concat(held.card() ? [held.card()] : []) : null });
+// Focus hours (Workshop docs/focus.md): receipts picked up during focus or lunch are added as always, without a toast,
+// and counted in Rapport's `held` summary card for Workshop's release toast and Dispatch's digest.
+const held = createHolder(ws, { label: n => `${n} receipt${n === 1 ? '' : 's'} picked up`, route: 'me', onChange: () => summary.schedule() });
 // Senders of offers come from the manifests (ws.apps.list); R.SENDERS is updated in place. Not awaited here, so
 // the page's route and command handlers are in place before the first event; loadOffers waits for it.
 const sendersReady = (ws.apps && ws.apps.list ? ws.apps.list() : Promise.resolve([])).catch(() => []).then(apps => {
@@ -90,7 +94,7 @@ async function pickUp() {
     const made = todo.map(o => R.entryFromOffer(o));
     await save('entries', env => { const ids = new Set(env.items.map(e => e.id)); env.items.push(...made.filter(e => !ids.has(e.id))); });
     await saveConfig({ handled: R.markHandled(cfg().handled, todo.map(o => o.key)) });
-    ws.toast(todo.length === 1 ? `Receipt added from ${todo[0].from}.` : `${todo.length} receipts added from ${todo[0].from}.`, { kind: 'success' });
+    if (!held.add(todo.length)) ws.toast(todo.length === 1 ? `Receipt added from ${todo[0].from}.` : `${todo.length} receipts added from ${todo[0].from}.`, { kind: 'success', hold: true });
   } catch (e) { /* tried again on the next change */ }
   finally { picking = false; }
 }

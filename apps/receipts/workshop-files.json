@@ -1,11 +1,12 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "c5f1a89bf51606a0c301d47fa808a576e552e58c",
+  "commit": "bc3eef4e32c6bd76a4f1e48ebefdb1b518262ae5",
   "files": {
     "scripts/sync-workshop.mjs": "scripts/sync-workshop.mjs",
     "shared/app-settings.js": "shared/app-settings.js",
     "shared/app-sw.js": "shared/app-sw.js",
     "shared/device-fs.js": "shared/device-fs.js",
+    "shared/focus.js": "shared/focus.js",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "shared/fonts/dm-mono-latin-400-normal.woff2",
     "shared/fonts/dm-mono-latin-500-normal.woff2": "shared/fonts/dm-mono-latin-500-normal.woff2",
     "shared/fonts/dm-mono-latin-ext-400-normal.woff2": "shared/fonts/dm-mono-latin-ext-400-normal.woff2",
@@ -35,11 +36,16 @@
     "test/workshop/schemas/common.schema.json": "docs/schemas/common.schema.json",
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json"
   },
-  "bundle": "2.7.2",
+  "bundle": "2.8.0",
   "sha256": {
     "scripts/sync-workshop.mjs": "ed1a8417acb88610c986d269b77c0610f0afc15bc16a66fbcafe049e9bbdd101",
+    "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
+    "shared/focus.js": "d4cfd12432c310ae989af6752c43f1c938bf61bad9e6ff7df11e50eb20037e5d",
+    "shared/fonts/OFL-DMMono.txt": "d2766c396a8534cba53340f8af2037749b6a0a1dd3587348c917a70e779d2e32",
+    "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
+    "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "e1896b13b2b1bb112fac2f9571bd6c40e118746e77a4511edbf43fbb41bf3e1e",
     "shared/fonts/dm-mono-latin-500-normal.woff2": "9964608a849396bd00c4bfd7034afe03486469dcf20b4f6b8cbdfdd310369951",
     "shared/fonts/dm-mono-latin-ext-400-normal.woff2": "a52e19ebe0398c9c0f8fa28a0c5e9a6bc324f35d9f0881c9aa407d10af447175",
@@ -51,9 +57,6 @@
     "shared/fonts/fonts.css": "c55242c29395d78a51dfdb6693cdd5ae5fd36692e2cd8c0a601d4ca5e4f0b002",
     "shared/fonts/gelasio-latin-ext-wght-normal.woff2": "2f3f0cd292326e19687d727f87400d91632ab2ab3a0020a187ce22db6f358961",
     "shared/fonts/gelasio-latin-wght-normal.woff2": "ba5b902e472cfe3456eba6b2d8fcf2d237988ff181d8da3cb5cf839de989ab15",
-    "shared/fonts/OFL-DMMono.txt": "d2766c396a8534cba53340f8af2037749b6a0a1dd3587348c917a70e779d2e32",
-    "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
-    "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
     "shared/handoffs.js": "9d2cbe5efe23d81a8b7f348bc0d31f148f6d6619737dfae3a64fcbf7dc6fbcc7",
     "shared/people.js": "5368a2264d6f8dba820e6c612bf7e919ad55dc454a031afa2143d0d8b6be1ac3",
     "shared/site.js": "7fece628817b9d454b4156a5736b6748e2379f0be80aeceb2ef0273863073c2b",
@@ -64,10 +67,9 @@
     "shared/theme.js": "2663fe78a3492d4948cfa19b0904b718b0587bab94d16539df8377d78a29bf0e",
     "shared/themes.css": "2e749c9679766b04a95a3302470df20432713ceea056716d285008eed011c83e",
     "shared/ui.css": "94f6001c8c7bd5d0d0bcff5ad8b76ed881e921377026beebeb7504221a9bf35a",
-    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
+    "shared/workshop-sdk.js": "24fb8906ef82685e260caa98d70c00615d6020e2f12b950e1f2811c75192157d",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
-    "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e",
-    "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85"
+    "test/workshop/schemas/summary-card.schema.json": "c83567190b02d9eea291e3568e4fab3e4b61cc2c2c6d4dc4b8ad8213edd44e2d"
   }
 }
