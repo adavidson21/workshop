@@ -25,3 +25,5 @@ Each part of the day has one obvious place to start:
 - **End of day: Wrap up** on Home. **Fridays: Weekly status** on Home drafts your update from what you finished in Docket, decided in Slate, shipped with Dispatch and won in Rapport.
 
 Switch apps from the rail, or with `Alt+1`, `Alt+2` and so on. `Ctrl+K` (`Cmd+K` on a Mac) opens the command palette: every app's commands, from anywhere. Each app keeps its state while you're in another one. The first app is the plain address; the others are `#/<app>`, and `#/<app>/<path>` opens an app at a place, for example `#/agents/<work item id>` or `#/prioritizer/task/<task id>`.
+
+**Pop out:** the pop-out button in the top bar (or *Pop out ...* in `Ctrl+K`) opens the app you're in as its own window, without the rail, for example Folio beside Docket. It's the same Workshop, so the same data. Folio opens on the note you had open. Links to other apps open in the main Workshop window, and the button in the pop-out's top bar (**Back to Workshop**) puts the app back and closes the window. The address is `?solo=<app id>#/<app id>`, so you can bookmark it.

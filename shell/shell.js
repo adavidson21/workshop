@@ -30,6 +30,14 @@ let connectors = [];      // GET /api/connectors, agent backend only
 let current = null;
 const mounted = new Set();
 
+/* ---------- pop-out windows: ?solo=<app id> shows one app on its own, without the rail ----------
+   Same page and origin as the main window, so data, pairing and the agent are the same. Anything that opens
+   another app goes to the main Workshop window (named MAIN_WINDOW), which comes to the front. */
+const SOLO = new URLSearchParams(location.search).get('solo') || null;
+const MAIN_WINDOW = 'workshop-main';
+if (SOLO) document.documentElement.classList.add('solo');
+else if (!window.name) window.name = MAIN_WINDOW;
+
 /* ---------- the agent ---------- */
 async function agentGet(pathname) {
   const r = await fetch(env.agentUrl + pathname, { cache: 'no-store', targetAddressSpace: 'loopback', headers: env.token ? { 'X-Workshop-Token': env.token } : {} });
@@ -93,6 +101,8 @@ const MARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" heigh
 const INSTALL_ICON = svg('<rect x="3" y="3.5" width="14" height="10" rx="1.8"/><path d="M7 17h6M10 6.5v4.5M8 9l2 2 2-2"/>');
 const LINK_ICON = svg('<path d="M8.5 11.5l3-3"/><path d="M10.6 5.9l1.2-1.2a3 3 0 0 1 4.2 4.2l-1.2 1.2M9.4 14.1l-1.2 1.2a3 3 0 0 1-4.2-4.2l1.2-1.2"/>');
 const BLANK_ICON = svg('<rect x="4" y="4" width="12" height="12" rx="2.5"/>');
+const POP_ICON = svg('<path d="M11.5 3.5h5v5M16.5 3.5L10 10"/><path d="M14 11.5v3.5a1.5 1.5 0 0 1-1.5 1.5h-7.5A1.5 1.5 0 0 1 3.5 15V7.5A1.5 1.5 0 0 1 5 6h3.5"/>');
+const BACK_ICON = svg('<path d="M8.5 16.5h-3a1.5 1.5 0 0 1-1.5-1.5V5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 5v3"/><path d="M17 11.5l-5 5M12 12.5v4h4"/>');
 
 function renderRail() {
   $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
@@ -137,12 +147,17 @@ const LIFEKIT = onCrumbsDomain(location.hostname) ? SITE.crumbs.links : [];
 function renderTopbar() {
   const bar = $('#topbar');
   if (!bar) return;
-  bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
-    + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span></nav>`
+  const crumbs = SOLO ? `<span class="here" aria-current="page"></span>`
+    : `${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
+      + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span>`;
+  bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${crumbs}</nav>`
     + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
     + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
+    + (SOLO ? `<button type="button" class="popbtn" id="popBtn" title="Back to Workshop" aria-label="Back to Workshop">${BACK_ICON}</button>`
+      : `<button type="button" class="popbtn" id="popBtn" hidden>${POP_ICON}</button>`)
     + WorkshopTheme.toggleHtml();
   $('#capBtn').addEventListener('click', () => capture().toggle());
+  $('#popBtn').addEventListener('click', () => SOLO ? popIn() : popOut(current));
   focus.mount(bar, $('#capBtn'));
 }
 // The capture bar (shell/capture.js): one place to capture or ask, from every app.
@@ -158,7 +173,40 @@ function markTopbar() {
   const show = !!app && !(homeApp && current === homeApp.id);
   here.textContent = show ? app.manifest.name : '';
   here.hidden = !show;
-  $('#topbar .here-sep').hidden = !show;
+  const sep = $('#topbar .here-sep');
+  if (sep) sep.hidden = !show;
+  const pop = $('#popBtn');
+  if (pop && !SOLO) {
+    pop.hidden = !show;
+    const label = show ? `Pop out ${app.manifest.name} into its own window` : '';
+    pop.title = label; pop.setAttribute('aria-label', label);
+  }
+}
+
+// Opens an app in its own window (one per app: popping it out again brings that window forward). The app
+// opens at its own start, so an app that remembers where it was (Folio's last note) carries on there. This
+// window then goes Home, so the app is not open for editing in two places.
+function popOut(id, path = '') {
+  const app = byId[id];
+  if (!app || (homeApp && id === homeApp.id)) return;
+  const url = `${location.pathname}?solo=${encodeURIComponent(id)}#/${id}${path ? '/' + String(path).split('/').map(encodeURIComponent).join('/') : ''}`;
+  const w = Math.min(1200, screen.availWidth - 80), h = Math.min(900, screen.availHeight - 80);
+  if (app.frame && current === id) sendTo(app, 'visible', { visible: false }); // unsaved edits save first
+  const win = window.open(url, 'workshop-solo-' + id, `popup,width=${w},height=${h}`);
+  if (!win) { toast('Your browser blocked the window. Allow pop-ups for this site and try again.', null, null, 8000, 'warn'); return; }
+  if (current === id) go(homeId());
+}
+// From a pop-out window: the main Workshop window (opened or brought forward), at an address.
+function toMain(hash) {
+  const url = location.pathname + (hash || '#/');
+  const main = window.open(url, MAIN_WINDOW);
+  if (!main) location.href = url;
+}
+// Back to Workshop: the app opens in the main window again and this window closes.
+function popIn() {
+  const app = byId[SOLO];
+  if (app && app.frame) sendTo(app, 'visible', { visible: false });
+  setTimeout(() => { toMain('#/' + SOLO); window.close(); }, 150);
 }
 
 function markRail() {
@@ -228,7 +276,15 @@ function mountBackground() {
   for (const app of apps) if (app.manifest.background && !mounted.has(app.id)) ensureMounted(app, paneOf(app));
 }
 function route() {
-  const parsed = parseHash(), id = parsed.id || homeId();
+  const parsed = parseHash();
+  if (SOLO && byId[SOLO] && parsed.id !== SOLO) {
+    // A pop-out window shows only its app; anything else opens in the main window.
+    if (parsed.id) toMain(location.hash);
+    history.replaceState(null, '', location.pathname + location.search + '#/' + SOLO);
+    if (current === SOLO) return;
+    return route();
+  }
+  const id = parsed.id || homeId();
   const app = byId[id];
   if (!app) return;
   const prev = current && current !== id ? byId[current] : null;
@@ -243,12 +299,13 @@ function route() {
   setTitle();
   markRail();
   // Tidy the address: home is the bare page, and a one-time path is dropped so a reload does not repeat it.
-  const want = id === homeId() ? '' : '#/' + id;
+  const want = id === homeId() && !SOLO ? '' : '#/' + id;
   if (location.hash !== want) history.replaceState(null, '', want || location.pathname + location.search);
 }
 function go(id, path) {
   ({ id, path } = resolveApp(id, path || ''));
   const h = '#/' + id + (path ? '/' + String(path).split('/').map(encodeURIComponent).join('/') : '');
+  if (SOLO && id !== SOLO) { toMain(h); return; }
   if (location.hash === h) route(); else location.hash = h;
 }
 
@@ -481,6 +538,9 @@ function allCommands() {
   }
   out.unshift({ title: 'Capture or ask (Ctrl+.)', run: () => capture().open() });
   for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
+  const here = byId[current];
+  if (SOLO) out.push({ title: 'Back to Workshop (close this window)', run: popIn });
+  else if (here && !(homeApp && here === homeApp)) out.push({ title: `Pop out ${here.manifest.name} into its own window`, run: () => popOut(here.id) });
   out.push(...focus.commands());
   if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
   if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
@@ -544,7 +604,7 @@ function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'Period') { e.preventDefault(); e.stopPropagation(); closePalette(); capture().toggle(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); palette ? closePalette() : openPalette(); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);
-  if (digit && e.altKey && !e.ctrlKey && !e.metaKey) {
+  if (digit && e.altKey && !e.ctrlKey && !e.metaKey && !SOLO) {
     const a = railApps[+digit[1] - 1];
     if (a) { e.preventDefault(); e.stopPropagation(); go(a.id); }
     return;
@@ -668,6 +728,8 @@ const focus = createFocusShell({ toast: (...a) => toast(...a), go: (id, path) =>
 env = await detectBackend();
 document.documentElement.dataset.mode = env.mode;
 await loadApps();
+// A pop-out for an app that is not here (turned off, or a bad address): the main window instead.
+if (SOLO && !byId[resolveApp(SOLO).id]) { location.replace(location.pathname + '#/'); await new Promise(() => {}); }
 renderRail();
 renderTopbar();
 setInstall();
@@ -675,5 +737,5 @@ folderBar();
 if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found</h2><p>There is no app list for this site. If you publish Workshop as static files, run <code>node shell/registry.mjs</code> first.</p></div>';
 window.addEventListener('hashchange', route);
 route();
-mountBackground();
+if (!SOLO) mountBackground();
 WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));
