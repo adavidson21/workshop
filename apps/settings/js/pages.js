@@ -3,7 +3,7 @@
 
    The nav is grouped by task, not by connector. A connector's top-level config fields go on its main page
    unless the field says otherwise with `x-workshop-page` (docs/connector.md). Fields Settings draws itself
-   (ADO connections, repo mapping, PR sources) are listed in CUSTOM and left out of the generated forms. A new
+   (ADO connections, repo mapping, PR sources, opencode hidden folders) are listed in CUSTOM and left out of the generated forms. A new
    connector needs no change here: its fields land on its own page, `c-<id>`, in the Connectors group. */
 
 export const GROUPS = [
@@ -36,7 +36,7 @@ const MAIN = { ado: 'connections', opencode: 'agents' };
 export const mainPageOf = id => MAIN[id] || `c-${id}`;
 
 // Top-level fields Settings draws itself rather than with the generated form.
-export const CUSTOM = { ado: ['connections', 'paths', 'prSources'] };
+export const CUSTOM = { ado: ['connections', 'paths', 'prSources'], opencode: ['hiddenRepos'] };
 
 /** The page a top-level field goes on. `x-workshop-tab` is the older name of `x-workshop-page`. */
 export function pageOfField(connId, prop) {

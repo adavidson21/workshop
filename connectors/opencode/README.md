@@ -35,6 +35,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `opencode.passwordEnv` | `OPENCODE_SERVER_PASSWORD` | the same variable | 2.x only, and only if the password is not in opencode's `service.json`. |
 | `opencode.usernameEnv` | `OPENCODE_SERVER_USERNAME` | the same variable | 2.x only. Not set means `opencode`. |
 | `powershell` | (unused) | `--ps` | No longer used since 1.6.0; kept so saved settings stay valid. |
+| `hiddenRepos` | `[]` | | Workspace folders left out of `state` (`repos` and `repoCategories`), so Dispatch and Settings do not list them. A folder is hidden with everything under it: `"Tools"` or `"Platform/Lighthouse"` (a category), `"Tools/workshop"` or `"gh-repo"` (one repo), up to 4 folders deep. Case is ignored. Nothing is deleted, and items whose `repos.md` names a hidden repo still read it. Edited on Settings, Repos (Hide on a row, and Hidden folders); hosted pages may change it. Since 1.7.0. |
 | `engAgentsConfig` | `~/.config/eng-agents/config.json` (the parser's default) | `--config` | Read by the parser only, for work item links. |
 | `pollSeconds` | `20` | `--poll` | How often to read `.work` again (git state changes do not trigger the file watcher). |
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |

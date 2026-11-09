@@ -20,6 +20,8 @@ test('opencode: everything on Agents except PR reviews, which go on Pull request
   assert.deepEqual(P.formKeys('opencode', ocSchema, 'pull-requests'), ['prReviews']);
   const agents = P.formKeys('opencode', ocSchema, 'agents');
   assert.ok(agents.includes('workspace') && agents.includes('hub') && !agents.includes('prReviews'));
+  // Hidden folders are drawn by the Repos page, not a generated form.
+  assert.ok(!agents.includes('hiddenRepos') && !P.formPages('opencode', ocSchema).includes('repos'));
 });
 
 test('an unknown connector gets its own page, and an unknown page name falls back to it', () => {

@@ -436,17 +436,32 @@ function workItemUrl(id, wiText, repoGits, conf) {
   return null;
 }
 
+/** The hidden folders as a set of lower-case "a" or "a/b/..." paths (up to REPO_DEPTH names). Anything else (empty, "..", deeper) is ignored. */
+export function hiddenSet(list) {
+  const out = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const parts = String(raw || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").split("/");
+    if (parts.length > REPO_DEPTH || parts.some((x) => !x || x === "." || x === "..")) continue;
+    out.add(lc(parts.join("/")));
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- the model
 
 /**
- * Reads .work and the workspace repos. Same result as `New-Dashboard.ps1 -WorkRoot <workRoot> -AsJson`.
+ * Reads .work and the workspace repos. Same result as `New-Dashboard.ps1 -WorkRoot <workRoot> -AsJson`
+ * (with -Hide for o.hide).
  * @param {object} o
  * @param {string} o.workRoot     the .work folder
  * @param {string} [o.configPath] Tandem's config.json (default ~/.config/eng-agents/config.json)
  * @param {number} [o.recent]     how many progress entries to keep for Recent activity (default 80)
  * @param {boolean} [o.gitOk]     whether git is on PATH (found when left out)
+ * @param {string[]} [o.hide]     workspace folders to leave out with everything under them: a category
+ *                                ("Tools", "Platform/Lighthouse") or a repo ("gh-repo", "Tools/workshop"), up to
+ *                                REPO_DEPTH names. Case is ignored; a backslash is read as "/".
  */
-export async function readWork({ workRoot, configPath, recent = 80, gitOk } = {}) {
+export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide = [] } = {}) {
   if (!workRoot || !isDir(workRoot)) throw new Error(`No work folder at '${workRoot}'. Run this from your workspace root, or pass -WorkRoot <path to .work>.`);
   const workRootFull = path.resolve(workRoot);
   const workspace = path.dirname(workRootFull);
@@ -741,6 +756,8 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk } = {}
   // Repos anywhere up to REPO_DEPTH folders deep (<workspace>/<Category>/<Sub>/<repo>), so repos can be grouped by
   // product. A repo's own folders are never searched, nor are dot folders (.work) or node_modules. Every other folder
   // on the way is a category ("Platform", "Platform/Lighthouse"), even with no repos (Add a repo can clone into one).
+  // Hidden folders (Settings, Repos, Hidden folders) are left out with everything under them: no repo, no category.
+  const hiddenDirs = hiddenSet(hide);
   const itemIds = new Set(items.filter((i) => i.kind === "item").map((i) => lc(i.id)));
   const repoDirs = [];
   const repoCategories = [];
@@ -748,6 +765,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk } = {}
     for (const d of entries(dir).filter((x) => x.isDirectory() && x.name !== "node_modules").sort((a, b) => cmp(a.name, b.name))) {
       const full = path.join(dir, d.name);
       const folder = rel ? `${rel}/${d.name}` : d.name;
+      if (hiddenDirs.has(lc(folder))) continue;
       if (exists(path.join(full, ".git"))) { repoDirs.push({ folder, path: full }); continue; }
       if (depth >= REPO_DEPTH) continue;
       repoCategories.push(folder);

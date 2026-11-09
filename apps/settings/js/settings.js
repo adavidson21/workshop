@@ -1008,7 +1008,7 @@ async function reposTab(list) {
   const adoInfo = list.find(c => c.id === 'ado');
   const ocInfo = list.find(c => c.id === 'opencode');
   if (!adoInfo && !ocInfo) return;
-  const st = { ado: null, oc: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false };
+  const st = { ado: null, oc: null, ocCfg: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false, hiding: false };
   const main = card('Workspace repos', '', 'repos', 20, 'The repos in your workspace and, once Azure DevOps is connected, the project each one uses and whether Docket shows its pull requests.');
   const body = document.createElement('div'); main.appendChild(body);
   const prSec = adoInfo ? card('Where Docket looks', '', 'pull-requests', 10, 'The projects Docket checks for pull requests waiting on you.') : null;
@@ -1033,11 +1033,41 @@ async function reposTab(list) {
   async function load() {
     st.ado = null; st.oc = null; st.ocError = '';
     if (adoInfo) st.ado = conn.cc.ado || await loadCfg('ado');
+    if (ocInfo) st.ocCfg = conn.cc.opencode || await loadCfg('opencode');
     const fresh = ocInfo ? ((await ws.connectors.list().catch(() => list)).find(c => c.id === 'opencode') || ocInfo) : null;
     if (fresh && fresh.enabled && fresh.status && fresh.status.state === 'ready') {
       try { st.oc = await ws.connectors.call('opencode', 'state'); } catch (e) { st.ocError = errText(e); }
     } else if (fresh) st.ocError = fresh.enabled ? (fresh.status && fresh.status.message) || 'opencode is not ready yet.' : '';
     st.rows = R.rows(st.oc || {}, cfg());
+  }
+
+  const hiddenList = () => R.hiddenOf(st.ocCfg && st.ocCfg.config);
+
+  // Saving restarts the opencode connector, which reads the workspace again without the hidden folders.
+  async function saveHidden(list, okText, msgEl) {
+    if (msgEl) msgEl.textContent = 'Saving...';
+    st.hiding = true;
+    try { st.ocCfg = await saveKeys('opencode', R.HIDE_KEYS, { hiddenRepos: list }); }
+    catch (err) { st.hiding = false; if (msgEl) msgEl.textContent = errText(err); else toast(errText(err), 'error'); return false; }
+    for (let i = 0; i < 20; i++) {
+      try { st.oc = await ws.connectors.call('opencode', 'state'); break; } catch (e) { await new Promise(r => setTimeout(r, 250)); }
+    }
+    st.hiding = false;
+    st.rows = R.rows(st.oc || {}, cfg());
+    toast(okText, 'success');
+    return true;
+  }
+
+  function hiddenCard() {
+    if (!st.oc) return '';
+    const list = hiddenList();
+    const cats = ((st.oc && st.oc.repoCategories) || []).filter(c => !R.isHidden(list, c));
+    const li = list.map(h => `<li class="person"><span class="mono">${esc(h)}</span><button type="button" class="btn ghost" data-unhide="${esc(h)}"${st.hiding ? ' disabled' : ''}>Show</button></li>`).join('');
+    return `<details class="cfg-section repo-hidden"${st.hiddenOpen ? ' open' : ''}><summary>Hidden folders${list.length ? ` (${list.length})` : ''}</summary>
+      <p class="sub">Left out of Dispatch and this page, like a folder of tools you are building. Nothing is deleted. A category hides every repo in it.</p>
+      ${list.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None.</p>'}
+      <form class="cfg" data-hide-add><div class="from-url-row"><input name="folder" class="cfg-input mono" list="hideCats" maxlength="300" placeholder="Tools or Tools/workshop" aria-label="Folder to hide" spellcheck="false" autocomplete="off" required>
+        <datalist id="hideCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist><button class="btn"${st.hiding ? ' disabled' : ''}>Hide</button></div><span class="msg" aria-live="polite"></span></form></details>`;
   }
 
   async function saveAdo(next, okText, msgEl) {
@@ -1096,15 +1126,16 @@ async function reposTab(list) {
     const items = st.rows.map(r => st.editing === r.folder
       ? `<li class="repo editing"><p class="repo-name mono">${esc(r.folder)}</p>${repoForm(r)}</li>`
       : `<li class="repo"><div><p class="repo-name"><span class="mono">${esc(r.folder)}</span>${r.web ? ` <a class="lnk repo-web" href="${esc(r.web)}" target="_blank" rel="noopener" aria-label="Open ${esc(r.folder)}">${ARROW}</a>` : ''}</p>${adoLine(r)}</div>
-          ${canMap() ? `<button type="button" class="btn" data-repo-edit="${esc(r.folder)}">${r.ado && r.ado.from === 'mapping' ? 'Edit' : 'Set up'}</button>` : ''}</li>`).join('');
+          <span class="repo-acts">${canMap() ? `<button type="button" class="btn" data-repo-edit="${esc(r.folder)}">${r.ado && r.ado.from === 'mapping' ? 'Edit' : 'Set up'}</button>` : ''}<button type="button" class="btn ghost" data-repo-hide="${esc(r.folder)}" aria-label="Hide ${esc(r.folder)}"${st.hiding ? ' disabled' : ''}>Hide</button></span></li>`).join('');
     const added = st.added ? `<div class="moved" role="status"><p><b>${esc(st.added.folder)}</b> is in your workspace.${st.added.notes.map(n => ' ' + esc(n)).join('')}</p>
         <p>Next, draft its guide: an agent writes how to build, test and navigate it, for you to review. Follow it in Dispatch.</p>
         <div class="acts left"><button type="button" class="btn primary" data-guide="${esc(st.added.folder)}">Draft its guide</button><button type="button" class="btn" data-added-close>Later</button></div></div>` : '';
     body.innerHTML = (notes.length ? `<ul class="import-notes">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : '')
       + added
       + (todo.length ? `<div class="repo-todo"><p>${plural(todo.length, 'repo points', 'repos point')} at Azure DevOps but ${todo.length === 1 ? 'is' : 'are'} not saved yet, so agents may pick the wrong project.</p><button type="button" class="btn primary" data-map-all>Save ${todo.length === 1 ? 'it' : 'them'}</button></div>` : '')
-      + (st.oc ? (st.rows.length ? `<ul class="people repos">${items}</ul>` : `<p class="sub">No repos in your workspace (<code>${esc(st.oc.workspace || '')}</code>) yet.</p>`) : '')
-      + (st.oc ? (st.adding ? addForm() : '<div class="acts left"><button type="button" class="btn primary" data-add-open>Add a repo</button></div>') : '');
+      + (st.oc ? (st.rows.length ? `<ul class="people repos">${items}</ul>` : (hiddenList().length ? '<p class="sub">No repos to show. The ones you hid are under Hidden folders.</p>' : `<p class="sub">No repos in your workspace (<code>${esc(st.oc.workspace || '')}</code>) yet.</p>`)) : '')
+      + (st.oc ? (st.adding ? addForm() : '<div class="acts left"><button type="button" class="btn primary" data-add-open>Add a repo</button></div>') : '')
+      + hiddenCard();
     if (st.adding) body.querySelector('#raUrl').focus();
     const first = body.querySelector('.repo.editing input');
     if (first) first.focus();
@@ -1176,6 +1207,7 @@ async function reposTab(list) {
     paint();
   }
 
+  main.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('.repo-hidden')) st.hiddenOpen = e.target.open; }, true);
   main.addEventListener('change', e => {
     if (e.target.name === 'category') main.querySelector('[data-newcat]').hidden = e.target.value !== NEW_CAT;
     if (e.target.name === 'connection' && e.target.closest('[data-repo-form]')) e.target.form.project.placeholder = projectOf(e.target.value);
@@ -1188,6 +1220,8 @@ async function reposTab(list) {
     if (t.matches('[data-add-open]')) { st.adding = true; st.added = null; return paint(); }
     if (t.matches('[data-add-cancel]')) { st.adding = false; return paint(); }
     if (t.matches('[data-added-close]')) { st.added = null; return paint(); }
+    if (t.matches('[data-repo-hide]')) { const f = t.dataset.repoHide; t.disabled = true; if (await saveHidden(R.hide(hiddenList(), f), `${f} hidden. Show it again under Hidden folders.`)) paint(); else t.disabled = false; return; }
+    if (t.matches('[data-unhide]')) { const f = t.dataset.unhide; t.disabled = true; if (await saveHidden(R.unhide(hiddenList(), f), `${f} shown again`)) paint(); else t.disabled = false; return; }
     if (t.matches('[data-map-all]')) { t.disabled = true; if (await saveAdo(R.mapAll(cfg(), st.rows), 'Repos saved')) paint(); else t.disabled = false; return; }
     if (t.matches('[data-guide]')) {
       t.disabled = true;
@@ -1199,6 +1233,14 @@ async function reposTab(list) {
     e.preventDefault();
     const form = e.target;
     if (form.matches('[data-repo-add]')) return addRepo(form);
+    if (form.matches('[data-hide-add]')) {
+      const msg = form.querySelector('.msg');
+      let next;
+      try { next = R.hide(hiddenList(), new FormData(form).get('folder')); } catch (err) { msg.textContent = err.message; return; }
+      const f = R.hideEntry(new FormData(form).get('folder'));
+      if (await saveHidden(next, `${f} hidden`, msg)) paint();
+      return;
+    }
     if (!form.matches('[data-repo-form]')) return;
     const r = st.rows.find(x => x.folder === form.dataset.repoForm);
     if (!r) return;

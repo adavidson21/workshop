@@ -219,3 +219,45 @@ export function fromCloneUrl(cfg, url) {
   const c = connections(cfg).find(x => lc(baseOf(x)) === lc(parts.base));
   return { ...parts, connection: c ? c.name : null };
 }
+
+/* ---------- hidden folders (opencode `hiddenRepos`) ----------
+   Workspace folders Dispatch and this page leave out with everything under them: a category ("Tools",
+   "Platform/Lighthouse") or a repo ("gh-repo", "Tools/workshop"), up to HIDE_DEPTH names (the connector's
+   REPO_DEPTH). The connector's parser does the hiding; these only edit the list. */
+
+/** The opencode config key the Repos page draws itself. */
+export const HIDE_KEYS = ['hiddenRepos'];
+const HIDE_DEPTH = 4;
+
+/** A folder as the list keeps it: trimmed, forward slashes, no slash at either end. '' when it is not 1 to HIDE_DEPTH names. */
+export function hideEntry(s) {
+  const parts = String(s || '').trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '').split('/');
+  if (parts.length > HIDE_DEPTH || parts.some(p => !p || p === '.' || p === '..')) return '';
+  return parts.join('/');
+}
+
+/** The saved list, cleaned, in saved order. */
+export function hiddenOf(cfg) {
+  return (Array.isArray(cfg && cfg.hiddenRepos) ? cfg.hiddenRepos : []).map(hideEntry).filter(Boolean);
+}
+
+/** True when `folder` ("repo" or "Category/repo") is hidden by the list, itself or through its category. */
+export function isHidden(list, folder) {
+  const f = lc(hideEntry(folder));
+  return !!f && list.some(h => { const k = lc(h); return k === f || f.startsWith(k + '/'); });
+}
+
+/** The list with `folder` added (no change when it is already hidden). Throws a plain message for a bad name. */
+export function hide(list, folder) {
+  const f = hideEntry(folder);
+  if (!f) throw new Error('Give a folder in your workspace, like Tools or Tools/workshop.');
+  if (isHidden(list, f)) return list.slice();
+  // Hiding a category takes over anything under it already on the list.
+  return [...list.filter(h => !lc(h).startsWith(lc(f) + '/')), f];
+}
+
+/** The list without `entry` (case ignored). */
+export function unhide(list, entry) {
+  const k = lc(hideEntry(entry));
+  return list.filter(h => lc(h) !== k);
+}

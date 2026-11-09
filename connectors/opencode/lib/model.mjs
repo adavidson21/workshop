@@ -42,7 +42,7 @@ export function resetModel() {
 }
 
 export function runModel() {
-  const p = readWork({ workRoot, configPath: opt.config || undefined }).then((data) => ({ data }), (e) => ({ error: e && e.message ? e.message : String(e) }));
+  const p = readWork({ workRoot, configPath: opt.config || undefined, hide: opt.hide }).then((data) => ({ data }), (e) => ({ error: e && e.message ? e.message : String(e) }));
   childExit = p.then(() => {});
   return p;
 }

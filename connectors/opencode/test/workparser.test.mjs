@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { readWork, isoLocal, remoteWeb, branchLinks, field, section } from "../lib/workparser.mjs";
+import { readWork, isoLocal, remoteWeb, branchLinks, field, section, hiddenSet } from "../lib/workparser.mjs";
 import { hasGit, hasPowerShell, makeWorkspace, REPO } from "./harness.mjs";
 
 const ps = ["pwsh", "powershell"].find((exe) => spawnSync(exe, ["-NoProfile", "-Command", "1"], { windowsHide: true }).status === 0);
@@ -14,8 +14,9 @@ const script = path.join(REPO, "connectors", "opencode", "parser", "New-Dashboar
 const noPs = hasPowerShell ? false : "PowerShell is not installed (the parity tests run New-Dashboard.ps1)";
 const noGit = hasGit ? false : "git is not installed";
 
-function fromPs(work, config) {
+function fromPs(work, config, hide = []) {
   const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-WorkRoot", work, "-AsJson", "-ConfigPath", config];
+  if (hide.length) args.push("-Hide", hide.join(","));
   const r = spawnSync(ps, args, { cwd: path.dirname(work), encoding: "utf8", windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
@@ -179,6 +180,52 @@ test("helpers match .NET: remotes, links, fields, sections, ISO dates", () => {
   assert.equal(field("TYPE:  Bug  \r\n", "type"), "Bug");
   assert.equal(section("## Summary\r\n\r\nHi <!-- x -->\r\n## Next\n", "Summary"), "Hi");
   assert.match(isoLocal(1762613010123456700n), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.1234567[+-]\d{2}:\d{2}$/);
+});
+
+// Hidden folders (opencode hiddenRepos): a category hides itself and everything under it, "Category/repo" one repo,
+// "repo" a top-level repo. Up to 4 names; anything else is ignored.
+const HIDE = ["platform", "Empty Category/", "gh-repo", "Platform\\web", "bad/../x", "a/b/c/d/e", ""];
+
+test("parity: hidden folders read the same as New-Dashboard.ps1 -Hide", { skip: noPs || noGit }, async () => {
+  const ws = richWorkspace();
+  try {
+    for (const hide of [HIDE, ["Platform/web", "ado repo"], ["platform/lighthouse edge"]]) {
+      const js = await readWork({ workRoot: ws.work, configPath: ws.config, hide });
+      assert.deepEqual(comparable(js), comparable(fromPs(ws.work, ws.config, hide.filter((h) => !h.includes(",")))));
+    }
+  } finally { ws.remove(); }
+});
+
+test("hidden folders leave out a category with its repos, or one repo", { skip: noGit }, async () => {
+  const ws = richWorkspace();
+  try {
+    const all = await readWork({ workRoot: ws.work, configPath: ws.config });
+    const folders = (m) => m.repos.map((r) => r.folder);
+    assert.ok(folders(all).includes("Platform/api") && folders(all).includes("gh-repo"));
+    // The whole category, case ignored: no repo in it, and it is not offered as a category.
+    const cat = await readWork({ workRoot: ws.work, configPath: ws.config, hide: ["platform"] });
+    assert.deepEqual(folders(cat).filter((f) => f.startsWith("Platform/")), []);
+    assert.deepEqual(cat.repoCategories, ["Empty Category"]);
+    assert.ok(folders(cat).includes("gh-repo"));
+    // One repo in a category (backslash form), and one at the top.
+    const one = await readWork({ workRoot: ws.work, configPath: ws.config, hide: ["Platform\\web", "gh-repo/"] });
+    assert.ok(!folders(one).includes("Platform/web") && folders(one).includes("Platform/api"));
+    assert.ok(!folders(one).includes("gh-repo"));
+    assert.deepEqual(one.repoCategories, ["Empty Category", "Platform", "Platform/Lighthouse Edge"]);
+    // A nested category, with everything under it.
+    const nested = await readWork({ workRoot: ws.work, configPath: ws.config, hide: ["platform/lighthouse edge"] });
+    assert.ok(!folders(nested).includes("Platform/Lighthouse Edge/ui") && folders(nested).includes("Platform/api"));
+    assert.deepEqual(nested.repoCategories, ["Empty Category", "Platform"]);
+    // Items that name a hidden repo still read (their repo state comes from repos.md, not the list).
+    assert.ok(cat.items.some((i) => i.id === "L7"));
+  } finally { ws.remove(); }
+});
+
+test("hiddenSet keeps one to four names and drops the rest", () => {
+  assert.deepEqual([...hiddenSet(HIDE)], ["platform", "empty category", "gh-repo", "platform/web"]);
+  assert.deepEqual([...hiddenSet(["a/b/c/d"])], ["a/b/c/d"]);
+  assert.deepEqual([...hiddenSet(null)], []);
+  assert.deepEqual([...hiddenSet(["..", "/", " Tools "])], ["tools"]);
 });
 
 test("a missing work folder is an error that says what to pass", async () => {

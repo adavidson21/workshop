@@ -112,3 +112,27 @@ test('repos: the ADO connector puts paths on Repos and prSources on Pull request
   assert.equal(configSchema.properties.prSources['x-workshop-page'], 'pull-requests');
   for (const k of R.KEYS) assert.equal(configSchema.properties[k]['x-workshop-hosted'], true, k);
 });
+
+test('hidden folders: clean entries, hide, unhide, and what a category covers', () => {
+  assert.equal(R.hideEntry(' Tools/ '), 'Tools');
+  assert.equal(R.hideEntry('Tools\\workshop'), 'Tools/workshop');
+  for (const bad of ['', '/', 'a/b/c/d/e', '../x', 'a/./b']) assert.equal(R.hideEntry(bad), '');
+  assert.equal(R.hideEntry('Platform/Lighthouse Edge/api'), 'Platform/Lighthouse Edge/api');
+  assert.deepEqual(R.hiddenOf({ hiddenRepos: ['Tools', 'a/b/c/d/e', 'Platform\\web'] }), ['Tools', 'Platform/web']);
+  assert.ok(R.isHidden(['Platform/Lighthouse'], 'Platform/Lighthouse/api'));
+  assert.deepEqual(R.hiddenOf(null), []);
+
+  assert.ok(R.isHidden(['Tools'], 'tools/workshop'));
+  assert.ok(R.isHidden(['Tools/workshop'], 'Tools/workshop'));
+  assert.ok(!R.isHidden(['Tools/workshop'], 'Tools/docket'));
+  assert.ok(!R.isHidden(['Tool'], 'Tools/workshop'));
+
+  let list = R.hide([], 'Tools/workshop');
+  assert.deepEqual(list, ['Tools/workshop']);
+  assert.deepEqual(R.hide(list, 'tools/workshop'), list); // already hidden
+  list = R.hide(list, 'Tools'); // the category takes over its repo
+  assert.deepEqual(list, ['Tools']);
+  assert.deepEqual(R.hide(list, 'Tools/docket'), ['Tools']); // covered by the category
+  assert.throws(() => R.hide(list, 'a/b/c/d/e'), /like Tools or Tools\/workshop/);
+  assert.deepEqual(R.unhide(['Tools', 'gh-repo'], 'tools'), ['gh-repo']);
+});

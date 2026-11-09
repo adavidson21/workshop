@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { after, before, describe, test } from "node:test";
 import oc from "../index.mjs";
 import { startFakeOpencode } from "./fake-opencode.mjs";
@@ -476,6 +477,27 @@ describe("settings and lifecycle", { skip }, () => {
       assert.equal(st.opencode.connected, false);
       assert.equal(st.items.length, numbered.length);
       await rejects(call("start", { id: "1", lane: "bug" }), "unavailable", /not running/);
+    } finally {
+      await oc.stop();
+      ws.remove();
+    }
+  });
+
+  test("hiddenRepos leaves folders out of state: a category with its repos, or one repo", { skip: !hasGit }, async () => {
+    const ws = makeWorkspace({ repos: true });
+    try {
+      for (const r of ["Tools/workshop", "Tools/docket", "Platform/api"]) {
+        const d = path.join(ws.dir, r);
+        fs.mkdirSync(d, { recursive: true });
+        execFileSync("git", ["-C", d, "init", "-q", "-b", "main"]);
+      }
+      await startConnector({ ...configFor(ws.dir, { url: "http://127.0.0.1:9" }), hiddenRepos: ["tools", "gateway"] });
+      const st = await call("state");
+      assert.deepEqual(st.repos.map((r) => r.folder), ["Platform/api"]);
+      assert.deepEqual(st.repoCategories, ["Platform"]);
+      await oc.stop();
+      await startConnector({ ...configFor(ws.dir, { url: "http://127.0.0.1:9" }), hiddenRepos: ["Tools/docket"] });
+      assert.deepEqual((await call("state")).repos.map((r) => r.folder).sort(), ["gateway", "Platform/api", "Tools/workshop"].sort());
     } finally {
       await oc.stop();
       ws.remove();
