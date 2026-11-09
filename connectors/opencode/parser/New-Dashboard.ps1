@@ -28,7 +28,7 @@
     With -AsJson it writes nothing: it prints the data as one line of JSON (ASCII only,
     other characters escaped) and exits. Workshop's opencode connector (Dispatch) runs this copy
     with -AsJson. eng-agents keeps the original for its static page (/dashboard static); this copy
-    differs on purpose: it finds repos one folder down and lists repoCategories, and it leaves out
+    differs on purpose: it finds repos in category folders (up to 4 deep) and lists repoCategories, and it leaves out
     the static page's coreVersion and dispatchUrl. Sync parsing and next-step rule changes both ways.
 
 .EXAMPLE
@@ -832,23 +832,26 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
 
 $itemIds = @($items | Where-Object { $_.kind -eq "item" } | ForEach-Object { $_.id })
 $repos = New-Object System.Collections.ArrayList
-# Repos at the top of the workspace, and one folder down (<workspace>/<Category>/<repo>). A repo's own
-# folders are never searched. The folder is "repo" or "Category/repo", always with "/".
-# Every other top-level folder is a category (Add a repo can clone into one), even with no repos yet.
+# Repos anywhere up to 4 folders deep (<workspace>/<Category>/<Sub>/<repo>), so repos can be grouped by
+# product. A repo's own folders are never searched, nor are dot folders (.work) or node_modules. The folder is
+# "repo" or "Category/Sub/repo", always with "/". Every other folder on the way is a category ("Platform",
+# "Platform/Lighthouse"), even with no repos yet (Add a repo can clone into one).
 $repoDirs = New-Object System.Collections.ArrayList
 $repoCategories = New-Object System.Collections.ArrayList
-foreach ($d in @(Get-ChildItem -LiteralPath $workspace -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" } | Sort-Object Name)) {
-    if (Test-Path -LiteralPath (Join-Path $d.FullName ".git")) {
-        [void]$repoDirs.Add([ordered]@{ folder = $d.Name; path = $d.FullName })
-        continue
-    }
-    [void]$repoCategories.Add($d.Name)
-    foreach ($c in @(Get-ChildItem -LiteralPath $d.FullName -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" } | Sort-Object Name)) {
-        if (Test-Path -LiteralPath (Join-Path $c.FullName ".git")) {
-            [void]$repoDirs.Add([ordered]@{ folder = "$($d.Name)/$($c.Name)"; path = $c.FullName })
+$repoDepth = 4
+function Find-Repos([string]$dir, [string]$rel, [int]$depth) {
+    foreach ($d in @(Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike ".*" -and $_.Name -ne "node_modules" } | Sort-Object Name)) {
+        $folder = if ($rel) { "$rel/$($d.Name)" } else { $d.Name }
+        if (Test-Path -LiteralPath (Join-Path $d.FullName ".git")) {
+            [void]$repoDirs.Add([ordered]@{ folder = $folder; path = $d.FullName })
+            continue
         }
+        if ($depth -ge $repoDepth) { continue }
+        [void]$repoCategories.Add($folder)
+        Find-Repos $d.FullName $folder ($depth + 1)
     }
 }
+Find-Repos $workspace "" 1
 foreach ($d in $repoDirs) {
     $gs = Get-RepoState $d.path
     $owner = $null

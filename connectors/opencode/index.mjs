@@ -5,7 +5,7 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
@@ -602,7 +602,7 @@ const actions = {
   "repo.add": {
     title: "Clone a repo into the workspace",
     write: true,
-    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }), category: str("Category folder to clone into (empty: the top of the workspace)", { maxLength: 100 }) }),
+    argsSchema: obj(["url"], { url: str("Git clone URL", { minLength: 4, maxLength: 500 }), about: str("What it is, in one line", { maxLength: 200 }), category: str("Category folder to clone into, such as Platform or Platform/Lighthouse (empty: the top of the workspace)", { maxLength: REPO_FOLDER_MAX }) }),
     async run(args) {
       needReady();
       return addRepo(args);
@@ -611,7 +611,7 @@ const actions = {
   "repo.guide": {
     title: "Draft a repo's guide (/onboard-repo)",
     write: true,
-    argsSchema: obj(["repo"], { repo: str("Repo folder (repo or Category/repo)", { minLength: 1, maxLength: 201 }) }),
+    argsSchema: obj(["repo"], { repo: str("Repo folder (repo, or Category/repo up to 4 folders deep)", { minLength: 1, maxLength: REPO_FOLDER_MAX }) }),
     async run(args) {
       needReady();
       return onboardRepo(args);

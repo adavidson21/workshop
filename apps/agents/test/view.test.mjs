@@ -411,8 +411,8 @@ test('add a repo: a clone URL, then an offer to draft its guide', () => {
 test('add a repo: a category picker with the workspace folders, top of the workspace, or a new one', () => {
   load(clone(FIXTURE));
   S.D.repoCategories = ['Tools', 'Platform'];
-  S.D.repos = (S.D.repos || []).concat([{ folder: 'Billing/invoices', git: {} }]);
-  assert.deepEqual(repoCategories(), ['Billing', 'Platform', 'Tools'], 'parser categories plus Category/repo names, sorted');
+  S.D.repos = (S.D.repos || []).concat([{ folder: 'Billing/invoices', git: {} }, { folder: 'Tools/Lighthouse Edge/ui', git: {} }]);
+  assert.deepEqual(repoCategories(), ['Billing', 'Platform', 'Tools', 'Tools/Lighthouse Edge'], 'parser categories plus every parent folder in repo names, sorted');
   S.ui.repo = { busy: false, error: null, added: null };
   let html = render();
   assert.match(html, /data-repo-cat="1"><option value="" selected>None \(top of the workspace\)<\/option><option value="Billing">Billing<\/option>.*<option value="__new">New category<\/option>/s);
@@ -423,7 +423,9 @@ test('add a repo: a category picker with the workspace folders, top of the works
   assert.deepEqual(repoCategoryCheck('Platform', 'ignored'), { category: 'Platform' });
   assert.deepEqual(repoCategoryCheck(NEW_CATEGORY, ' Data '), { category: 'Data' });
   assert.match(repoCategoryCheck(NEW_CATEGORY, '').error, /Name the new category/);
-  for (const bad of ['a/b', '.hidden', '-x', 'has space']) assert.match(repoCategoryCheck(NEW_CATEGORY, bad).error, /one folder name/, bad);
+  assert.deepEqual(repoCategoryCheck(NEW_CATEGORY, 'Platform/Lighthouse Edge'), { category: 'Platform/Lighthouse Edge' });
+  assert.deepEqual(repoCategoryCheck(NEW_CATEGORY, 'Platform\\Lighthouse'), { category: 'Platform/Lighthouse' });
+  for (const bad of ['a/b/c/d', '.hidden', '-x', 'a/', 'a/ b', 'a/../b']) assert.match(repoCategoryCheck(NEW_CATEGORY, bad).error, /folder name/, bad);
   S.ui.repo.added = { folder: 'Platform/web-app', repoMap: 'added' };
   assert.match(render(), /<b>Platform\/web-app<\/b>.*data-guide="Platform\/web-app">Draft its guide/s);
 });

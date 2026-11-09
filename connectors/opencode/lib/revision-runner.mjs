@@ -23,6 +23,7 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
+import { REPO_DEPTH } from "./context.mjs";
 import { parseResponses } from "./code-review.mjs";
 import { branchHead, isAncestor } from "./review-git.mjs";
 
@@ -187,7 +188,8 @@ export function createRevisionRunner({ codeReview, workspace, workRoot, launcher
     }
     for (const f of folders) {
       const base = path.join(workRoot, f.name, "code-review");
-      // Repo folders are "repo" or "Category/repo", so a folder with no run.json may hold repos one down.
+      // Repo folders are "repo" or "Category/repo" up to REPO_DEPTH deep, so a folder with no run.json may hold
+      // repos further down.
       const dirs = (p) => {
         try {
           return fs.readdirSync(p, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
@@ -196,10 +198,14 @@ export function createRevisionRunner({ codeReview, workspace, workRoot, launcher
         }
       };
       const repos = [];
-      for (const name of dirs(base)) {
-        if (fs.existsSync(runFile(f.name, name))) repos.push(name);
-        else for (const sub of dirs(path.join(base, name))) repos.push(`${name}/${sub}`);
-      }
+      const walk = (rel, depth) => {
+        for (const name of dirs(path.join(base, ...rel))) {
+          const repo = [...rel, name].join("/");
+          if (fs.existsSync(runFile(f.name, repo))) repos.push(repo);
+          else if (depth < REPO_DEPTH) walk([...rel, name], depth + 1);
+        }
+      };
+      walk([], 1);
       for (const repo of repos) {
         const run = readRun(f.name, repo);
         if (run && run.session && run.status !== "done") bySession.set(run.session, { folder: f.name, repo });

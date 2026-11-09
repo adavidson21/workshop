@@ -14,6 +14,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { REPO_DEPTH } from "./context.mjs";
 
 // Each pipeline command in plain words (stepWords). Dispatch shows these instead of the command.
 export const STEP_WORDS = Object.freeze({
@@ -737,19 +738,23 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk } = {}
   }
 
   // ------------------------------------------------------- workspace repos
-  // Repos at the top of the workspace, and one folder down (<workspace>/<Category>/<repo>). A repo's own folders are
-  // never searched. Every other top-level folder is a category (Add a repo can clone into one), even with no repos.
+  // Repos anywhere up to REPO_DEPTH folders deep (<workspace>/<Category>/<Sub>/<repo>), so repos can be grouped by
+  // product. A repo's own folders are never searched, nor are dot folders (.work) or node_modules. Every other folder
+  // on the way is a category ("Platform", "Platform/Lighthouse"), even with no repos (Add a repo can clone into one).
   const itemIds = new Set(items.filter((i) => i.kind === "item").map((i) => lc(i.id)));
   const repoDirs = [];
   const repoCategories = [];
-  for (const d of entries(workspace).filter((x) => x.isDirectory()).sort((a, b) => cmp(a.name, b.name))) {
-    const full = path.join(workspace, d.name);
-    if (exists(path.join(full, ".git"))) { repoDirs.push({ folder: d.name, path: full }); continue; }
-    repoCategories.push(d.name);
-    for (const c of entries(full).filter((x) => x.isDirectory()).sort((a, b) => cmp(a.name, b.name))) {
-      if (exists(path.join(full, c.name, ".git"))) repoDirs.push({ folder: `${d.name}/${c.name}`, path: path.join(full, c.name) });
+  const walkRepos = (dir, rel, depth) => {
+    for (const d of entries(dir).filter((x) => x.isDirectory() && x.name !== "node_modules").sort((a, b) => cmp(a.name, b.name))) {
+      const full = path.join(dir, d.name);
+      const folder = rel ? `${rel}/${d.name}` : d.name;
+      if (exists(path.join(full, ".git"))) { repoDirs.push({ folder, path: full }); continue; }
+      if (depth >= REPO_DEPTH) continue;
+      repoCategories.push(folder);
+      walkRepos(full, folder, depth + 1);
     }
-  }
+  };
+  walkRepos(workspace, "", 1);
   const repos = [];
   for (const d of repoDirs) {
     const gs = await repoState(d.path);

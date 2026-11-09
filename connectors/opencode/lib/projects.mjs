@@ -13,7 +13,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { httpError, opt, repoFolder, stateDir } from "./context.mjs";
+import { httpError, opt, REPO_FOLDER_MAX, repoFolder, stateDir } from "./context.mjs";
 
 export const INBOX = "inbox";
 export const COLORS = ["slate", "blue", "teal", "green", "amber", "orange", "red", "rose", "violet"];
@@ -100,7 +100,7 @@ function text(v, label, max, { required = false } = {}) {
 }
 
 function repoName(v) {
-  const raw = text(v, "repo folder", 201);
+  const raw = text(v, "repo folder", REPO_FOLDER_MAX);
   if (!raw) return null;
   const s = repoFolder(raw);
   if (!s) throw httpError(400, `"${raw}" is not a valid repo folder name.`);
