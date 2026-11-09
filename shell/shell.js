@@ -14,6 +14,7 @@ import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.
 import { SITE, onCrumbsDomain } from '../shared/site.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 import { CAPTURE_ICON, createCaptureBar } from './capture.js';
+import { createFocusShell } from './focus.js';
 
 const $ = s => document.querySelector(s);
 const svg = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -142,6 +143,7 @@ function renderTopbar() {
     + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
     + WorkshopTheme.toggleHtml();
   $('#capBtn').addEventListener('click', () => capture().toggle());
+  focus.mount(bar, $('#capBtn'));
 }
 // The capture bar (shell/capture.js): one place to capture or ask, from every app.
 let captureBar = null;
@@ -173,9 +175,17 @@ function markRail() {
     if (on) mark.setAttribute('aria-current', 'page'); else mark.removeAttribute('aria-current');
   }
 }
-function setBadge(appId, count) {
+// What each app asked for ({count, breakThrough}); during focus and lunch the shell shows less (shell/focus.js).
+const badgeRaw = new Map();
+function setBadge(appId, count, breakThrough) {
+  badgeRaw.set(appId, { count: Number.isInteger(count) ? count : 0, breakThrough: Number.isInteger(breakThrough) ? breakThrough : 0 });
+  paintBadge(appId);
+}
+function renderBadges() { for (const id of badgeRaw.keys()) paintBadge(id); }
+function paintBadge(appId) {
   const el = document.querySelector(`.app-btn[data-app="${appId}"] .badge`);
   if (!el) return;
+  const count = focus.badgeFor(badgeRaw.get(appId));
   const n = Number.isInteger(count) ? Math.max(0, Math.min(999, count)) : 0;
   el.hidden = n === 0;
   el.textContent = n ? String(n) : '';
@@ -274,6 +284,7 @@ function mountFrame(app, pane) {
   frame.addEventListener('load', () => {
     frameToApp.set(frame.contentWindow, app);
     try { frame.contentWindow.addEventListener('keydown', onKey, true); } catch (e) { /* not same-origin */ }
+    try { focus.attachFrame(frame.contentWindow); } catch (e) { /* not same-origin */ }
   });
   mounted.add(app.id);
 }
@@ -328,11 +339,12 @@ function handleRequest(app, method, p) {
       return null;
     }
     case 'toast': {
+      if (focus.holds(p)) return null;   // held during focus or lunch; the app counts it (docs/focus.md)
       const a = p.action;
       toast(String(p.text || ''), a && a.label, a && a.command ? () => sendTo(app, 'command', { id: a.command }) : null, p.kind === 'error' || p.kind === 'warn' ? 8000 : 4000, p.kind);
       return null;
     }
-    case 'badge': setBadge(app.id, p.count); return null;
+    case 'badge': setBadge(app.id, p.count, p.breakThrough); return null;
     case 'notify': notify(app, p); return null;
     case 'commands.register': {
       (app.runtimeCommands ||= new Map()).set(p.id, { title: p.title, shortcut: p.shortcut });
@@ -469,6 +481,7 @@ function allCommands() {
   }
   out.unshift({ title: 'Capture or ask (Ctrl+.)', run: () => capture().open() });
   for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
+  out.push(...focus.commands());
   if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
   if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
   return out;
@@ -647,6 +660,9 @@ document.addEventListener('click', async e => {
   const p = installPrompt; installPrompt = null; setInstall();
   try { await p.prompt(); await p.userChoice; } catch (err) { /* each prompt works once; the browser offers a fresh one later */ }
 });
+
+/* ---------- focus hours and lunch (shell/focus.js, docs/focus.md) ---------- */
+const focus = createFocusShell({ toast: (...a) => toast(...a), go: (id, path) => go(id, path), apps: () => apps, panes: $('#panes'), renderBadges: () => renderBadges() });
 
 /* ---------- start ---------- */
 env = await detectBackend();

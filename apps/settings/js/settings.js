@@ -24,6 +24,7 @@ import { render as renderForm, readValue } from './forms.js';
 import * as R from './repos.js';
 import * as P from './pages.js';
 import { mountPeople } from './people.js';
+import { mountFocus } from './focus-page.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1359,6 +1360,12 @@ async function peoplePages() {
   } catch (e) { card('', '', 'people').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }
 
+/* ---------- Focus hours (focus-page.js, docs/focus.md) ---------- */
+async function focusPage() {
+  try { await mountFocus({ ws, el: page('focus'), toast }); }
+  catch (e) { card('', '', 'focus').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
+}
+
 /* ---------- start ---------- */
 async function start() {
   header();
@@ -1369,6 +1376,7 @@ async function start() {
       if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
       if (ws.mode === 'local') healthCard();
       await appsCard();
+      await focusPage();
       await computerCard(cfg);
       await folderCard(cfg);
       await peoplePages();
@@ -1385,6 +1393,7 @@ async function start() {
     card('Workshop on this computer', 'Not connected, so connectors are off. If Workshop is not running, run <code>workshop start</code>. Then '
       + (location.protocol === 'https:' ? 'click <b>Connect</b>.' : 'open Workshop from its site and click <b>Connect</b>.'));
     await appsCard();
+    await focusPage();
     await folderCard(null);
     await peoplePages();
   }

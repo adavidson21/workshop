@@ -1357,7 +1357,7 @@ export async function connect(options) {
     /* shell */
     open(target) { return shell.request('open', { app: target.app, path: target.path }); },
     toast(text, opts) { return shell.request('toast', Object.assign({ text }, opts)); },
-    badge(count) { return shell.request('badge', { count }); },
+    badge(count, opts) { return shell.request('badge', opts && Number.isInteger(opts.breakThrough) && opts.breakThrough > 0 ? { count, breakThrough: opts.breakThrough } : { count }); },
     notify(opts) { return shell.request('notify', opts); },
     // One line about what this app is doing right now, in the shell's top bar on every app (docs/sdk.md, Status).
     status: {

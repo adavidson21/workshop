@@ -26,6 +26,9 @@ import { sendWork, workOffer } from './slate-handoff.js';
 import { useApps } from '../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
 import { notebookRoute } from './doc.js';
+import { digestCard, digestHtml } from './digest.js';
+import { createHolder, heldFor, lastEndedFocusSpan, watchFocus, dateStr, toMin } from '../../../shared/focus.js';
+import { readCards } from '../../../shared/summary.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -33,6 +36,9 @@ const ws = await connect({ app: 'agents' });
 S.mode = ws.mode;
 S.embedded = ws.embedded;
 S.canNotify = typeof window.Notification === 'function';
+// Focus hours: set up below (see focus hours and the afternoon digest), declared here so nothing reads them early.
+let holder = null;
+let digestBase = { span: null, held: [], spanMs: null };
 document.documentElement.classList.toggle('embed', ws.embedded);
 // On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
 if (!ws.embedded) mountBar('Dispatch');
@@ -138,6 +144,8 @@ function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(async () => {
     const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now() });
+    const held = holder && holder.card();
+    if (held) cards.push(Object.assign({ updatedAt: Date.now() }, held));
     const key = JSON.stringify(cards.map(c => ({ ...c, updatedAt: 0 })));
     if (key === summaryKey) return;
     try {
@@ -172,6 +180,7 @@ async function loadInbox(force) {
     const r = await ws.connectors.call(ADO, 'sync.prs', { knownPrs: [] });
     S.inbox = { state: 'ok', items: (r && r.items) || [], notes: (r && r.notes) || [], error: null, at: Date.now() };
     saveInbox();
+    updateBadge();
     publishSummary();
   } catch (e) {
     S.inbox = { state: 'error', items: [], notes: [], error: errText(e), at: Date.now() };
@@ -320,16 +329,26 @@ function label(folder, fallback) {
   return it ? (it.id ? '#' + it.id + ' ' + it.title : it.title) : fallback;
 }
 function alertUser(title, body, folder) {
-  if (!S.canNotify || Notification.permission !== 'granted' || !outOfSight()) return;
   const it = folder ? itemForFolder(folder) : null;
+  // Focus hours (Workshop docs/focus.md): held during focus and lunch, except a blocking PR's review during focus.
+  const blockingPr = !!(it && it.kind === 'pr' && blockingIds().has(String(it.folder).replace(/^pr-/, '')));
+  if (holder && holder.held && !(blockingPr && holder.focus.state === 'focus')) { holder.add(1); return; }
+  if (!S.canNotify || Notification.permission !== 'granted' || !outOfSight()) return;
   ws.notify({ title, body: String(body || '').slice(0, 180), route: it ? itemKey(it) : '' }).catch(() => {});
 }
-let seen = null, wasBusy = {}, wasAuto = {}, lastBadge = -1;
+let seen = null, wasBusy = {}, wasAuto = {};
+// Pull requests blocked on you (required reviewer, not waiting on the author): their reviews break through focus.
+const blockingIds = () => new Set((S.inbox.items || []).filter(p => p && p.tier === 'blocking' && !p.waiting).map(p => String(p.id)));
+function updateBadge() {
+  const count = S.L ? inboxCount() : 0;
+  const bt = blockingIds().size;
+  const key = count + '/' + bt;
+  if (key !== S.badgeKey) { S.badgeKey = key; ws.badge(count || null, { breakThrough: bt }).catch(() => {}); }
+}
 function watchPrompts() {
   if (!S.L) return;
   const list = prompts();
-  const count = inboxCount();
-  if (count !== lastBadge) { lastBadge = count; ws.badge(count || null).catch(() => {}); }
+  updateBadge();
   const first = seen === null;
   if (first) seen = {};
   const fresh = list.filter(p => !seen[p.id]);
@@ -351,6 +370,33 @@ function watchPrompts() {
   fresh.forEach(p => alertUser('Agent waiting: ' + label(p.folder, (S.L.sessions[p.sid] || {}).title || 'opencode session'), p.text, p.folder));
   finished.forEach(s => alertUser((s.error ? 'Agent stopped: ' : 'Agent finished: ') + label(s.folder, s.title || 'opencode session'), s.error || s.command || '', s.folder));
 }
+
+/* ---------- focus hours (Workshop docs/focus.md) and the afternoon digest (digest.js) ----------
+   During focus and lunch the rail badge is held by the shell and agent alerts are counted here instead, in
+   Dispatch's `held` summary card. After a focus span ends, "While you were focused" sits on top of the Inbox. */
+const DIGEST_KEY = 'workshop.dispatch.digestDismissed';
+const focusWatch = watchFocus(ws, f => { if (holder) holder.sync(f); updateBadge(); refreshDigest(); schedule(); });
+holder = createHolder(ws, { watch: focusWatch, label: n => `${n} Dispatch update${n === 1 ? '' : 's'} waiting`, route: 'inbox', onChange: () => publishSummary() });
+let digestApps = null;
+async function refreshDigest() {
+  const f = focusWatch.current, d = new Date();
+  const span = lastEndedFocusSpan(f, d);
+  if (!span) { digestBase = { span: null, held: [], spanMs: null }; return; }
+  try {
+    if (!digestApps) digestApps = await ws.apps.list().catch(() => []);
+    const sums = await Promise.all(digestApps.map(a => ws.data.get('summary', { app: a.id }).then(env => readCards(env, a.id)).catch(() => null)));
+    const held = heldFor(digestApps.map((a, i) => ({ app: a.id, name: a.name, cards: sums[i] })), span.key);
+    const at = m => new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(m / 60), m % 60).getTime();
+    digestBase = { span, held, spanMs: [at(toMin(span.start)), at(toMin(span.end))] };
+  } catch (e) { digestBase = { span, held: [], spanMs: null }; }
+  schedule();
+}
+S.digestHtml = (h) => {
+  let dismissed = '';
+  try { dismissed = localStorage.getItem(DIGEST_KEY) || ''; } catch (e) { /* not remembered */ }
+  const reviews = ((S.D && S.D.items) || []).filter(it => it.kind === 'pr');
+  return digestHtml(digestCard({ ...digestBase, waiting: S.L ? inboxCount() : 0, reviews, blocking: blockingIds(), date: dateStr(new Date()), dismissed }), h);
+};
 
 /* ---------- routes ----------
    #/agents/<tab> opens a tab (inbox, chat, runs, ship, reviews, research); #/agents/runs/<id> a run page;
@@ -759,6 +805,10 @@ app.addEventListener('change', ev => {
   if (n >= 1024 && n <= 65535) { S.setup.port = n; S.setup.check = null; saveGuide(); schedule(); }
 });
 app.addEventListener('click', ev => {
+  const dd = ev.target.closest('[data-digest-dismiss]');
+  if (dd) { try { localStorage.setItem(DIGEST_KEY, dateStr(new Date())); } catch (e) { /* this page only */ } schedule(); return; }
+  const dg = ev.target.closest('[data-digest-app]');
+  if (dg) { if (dg.dataset.digestApp === 'agents') ws.open({ app: 'agents', path: dg.dataset.digestRoute || '' }); else ws.open({ app: dg.dataset.digestApp, path: dg.dataset.digestRoute || '' }); return; }
   const t = ev.target;
   if (!t.closest) return;
   const slOpen = t.closest('[data-open-slate]');

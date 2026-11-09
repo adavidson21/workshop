@@ -3,6 +3,7 @@
    refreshing from ADO and Tandem, and what each button does. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { readCards } from '../../../shared/summary.js';
+import { createHolder } from '../../../shared/focus.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
 import { sendersFrom } from '../../../shared/handoffs.js';
@@ -345,12 +346,24 @@ function columnOf(it) {
   return pmColumn(it, draftState(it, filesOf(it.work.define)), agentOf(it.sessions.current));
 }
 
+/* Focus hours (Workshop docs/focus.md): the shell holds the rail badge during focus and lunch; items that start
+   waiting on you meanwhile are counted in Slate's `held` summary card, for the release toast and Dispatch's digest. */
+const focusHold = createHolder(ws, { label: n => `${n} Slate item${n === 1 ? '' : 's'} waiting on you`, route: '', onChange: () => publishSummary() });
+let waitingSeen = null;
+function noteWaiting(list) {
+  const ids = new Set(list.map(it => it.id));
+  if (waitingSeen && focusHold.held) { let fresh = 0; for (const id of ids) if (!waitingSeen.has(id)) fresh++; if (fresh) focusHold.add(fresh); }
+  waitingSeen = ids;
+}
 let summaryTimer = null;
 function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(() => {
     const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), shapeAsking: it.stage === 'shaping' && shapeState(filesOf(it.work.shape), itemAgent(it)).asking, adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
-    store.writeSummary(summaryCards(items, { columnOf, agentOf: itemAgent })).catch(() => {});
+    const cards = summaryCards(items, { columnOf, agentOf: itemAgent });
+    const held = focusHold.card();
+    if (held) cards.push(held);
+    store.writeSummary(cards).catch(() => {});
   }, 300);
 }
 
@@ -437,8 +450,10 @@ function paint() {
     setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
-  const waiting = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); }).length;
+  const waitingItems = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); });
+  const waiting = waitingItems.length;
   ws.badge(waiting || null).catch(() => {});
+  noteWaiting(waitingItems);
   if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') {
     const el = $(focus);
     el.focus();

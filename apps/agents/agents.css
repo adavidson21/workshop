@@ -882,3 +882,13 @@ section.group > h3 .sh-r .btn.sm { margin-right: 12px; }
 .doc hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 .doc-edit { display: block; width: 100%; box-sizing: border-box; margin-top: 12px; min-height: min(60vh, 560px); resize: vertical; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; font: 13px/1.6 var(--mono); tab-size: 2; }
 .doc-edit:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
+
+/* While you were focused (digest.js): the afternoon digest on top of the Inbox. */
+.digest { padding: 14px 16px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r-sm); background: var(--surface); margin-bottom: 24px; }
+.digest-head { display: flex; align-items: baseline; gap: 12px; }
+.digest-head h3 { margin: 0; font: 600 1.05rem/1.2 var(--serif); }
+.digest-head .hint { color: var(--muted); font-size: 12.5px; }
+.digest-head [data-digest-dismiss] { margin-left: auto; font-size: 13px; color: var(--muted); }
+.digest ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.digest li .lnk { font-size: 13.5px; text-align: left; }
+.digest li .lnk.blocking { font-weight: 600; }

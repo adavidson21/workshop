@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.7.5",
+  "version": "2.8.0",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
@@ -58,6 +58,7 @@
     "shared/capture.css": "babc831f64299b58fae68b86e89a4ed84a773fdd38eff25cbe4aeb8bbc14939d",
     "shared/capture.js": "15746eb001ef67dab12f4b79cca71d33e900f4f7e9897800c66f972f5db24455",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
+    "shared/focus.js": "b9a741b0debb411aa0c2b174d270553958568eac28c9355abddf1b2a7ec38d7e",
     "shared/fonts/OFL-DMMono.txt": "d2766c396a8534cba53340f8af2037749b6a0a1dd3587348c917a70e779d2e32",
     "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
     "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
@@ -88,7 +89,7 @@
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
+    "shared/workshop-sdk.js": "24fb8906ef82685e260caa98d70c00615d6020e2f12b950e1f2811c75192157d",
     "tests/lib/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382"
   }
 }

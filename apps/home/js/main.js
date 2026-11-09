@@ -8,6 +8,7 @@ import { createHome } from './data.js';
 import { ICON, esc, hbtn, profileForm, render, statusDraft } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
 import { startCapture } from './capture.js';
+import { watchFocus } from '../../../shared/focus.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: 'home' });
@@ -96,6 +97,9 @@ ws.data.subscribe('setup', setupLater);
 ws.data.subscribe('summary', setupLater, { app: 'receipts' });
 if (ws.backend === 'agent') for (const id of ['ado', 'opencode']) ws.connectors.onStatus(id, setupLater);
 ws.on('online', p => { if (p && p.online) setup.load(); });
+
+// Focus hours (docs/focus.md): Needs you holds what can wait during focus and lunch.
+watchFocus(ws, f => { v.focus = f; paint(); });
 
 /* ---------- input ---------- */
 app.addEventListener('click', e => {

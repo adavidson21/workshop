@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "4.1.0",
-  "description": "Connectors, repos, people and teams, apps, the data folder, and backups.",
+  "version": "4.2.0",
+  "description": "Connectors, repos, people and teams, apps, focus hours and lunch, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -31,10 +31,16 @@
     {
       "name": "connections",
       "path": "connections"
+    },
+    {
+      "name": "focus hours",
+      "path": "focus"
     }
   ],
   "files": [
     "js/forms.js",
+    "js/focus-model.js",
+    "js/focus-page.js",
     "js/pages.js",
     "js/people.js",
     "js/people-forms.js",
@@ -44,7 +50,8 @@
     "settings.css"
   ],
   "data": [
-    "teams"
+    "teams",
+    "focus"
   ],
   "routes": [
     {
@@ -70,6 +77,10 @@
     {
       "path": "repos",
       "title": "Repos"
+    },
+    {
+      "path": "focus",
+      "title": "Focus hours and lunch"
     }
   ],
   "commands": [

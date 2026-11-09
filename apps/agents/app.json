@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -216,6 +216,7 @@
     "vendor/monaco/vs/xml-DHCggo_L.js",
     "vendor/monaco/vs/yaml-C-RIivnc.js",
     "js/summary.js",
+    "js/digest.js",
     "js/slate-handoff.js"
   ]
 }

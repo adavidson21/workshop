@@ -5,7 +5,7 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, boardFromSummary, dateStr, inboxRows, weekRows, withNames, wrapFromDay } from './view.js';
+import { agentCounts, blockingRows, boardFromSummary, dateStr, inboxRows, weekRows, withNames, wrapFromDay } from './view.js';
 import { EMPTY } from '../../../shared/people.js';
 import { cardDay, readCards } from '../../../shared/summary.js';
 
@@ -15,7 +15,7 @@ const OC = 'opencode';
 const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], inbox: [], week: [], apps: [], board: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], inbox: [], blocking: [], focus: null, week: [], apps: [], board: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -91,6 +91,8 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
       const sums = await Promise.all(v.apps.map(a => ws.data.get('summary', { app: a.id }).then(env => readCards(env, a.id)).catch(() => null)));
       const byApp = v.apps.map((a, i) => ({ app: a.id, name: a.name, cards: sums[i] }));
       v.inbox = inboxRows(byApp, { agents: v.agents });
+      const docket = byApp.find(a => a.app === 'prioritizer');
+      v.blocking = blockingRows(docket && docket.cards);
       v.week = weekRows(byApp);
     } catch (e) { waitFor(e); }
     changed();

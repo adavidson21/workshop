@@ -76,7 +76,7 @@ function section(id, title, n, body, hint) {
 }
 export function inboxHtml() {
   const d = inboxData();
-  let html = onboardHtml();
+  let html = (S.digestHtml ? S.digestHtml(h) : '') + onboardHtml();
   if (d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
   if (d.gates.length) html += section('gates', 'Runs waiting on you', d.gates.length, `<div class="rows">${d.gates.map(it => runRow(it)).join('')}</div>`);
   if (d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');

@@ -18,6 +18,7 @@ export const GROUPS = [
 export const PAGES = {
   overview: { label: 'Overview', group: 'workshop' },
   apps: { label: 'Apps', group: 'workshop' },
+  focus: { label: 'Focus hours', group: 'workshop' },
   computer: { label: 'This computer', group: 'workshop' },
   data: { label: 'Data & backups', group: 'workshop' },
   people: { label: 'People & groups', group: 'people' },
