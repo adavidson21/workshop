@@ -78,7 +78,7 @@ Docket's `day` summary card ([summaries.md](summaries.md)) adds to each day:
 {"focus": [{"start": "09:00", "end": "12:00"}], "lunch": {"start": "12:00", "end": "13:00"}}
 ```
 
-From the day's Day plan sections whose `kind` is `focus` or `lunch` (case-insensitive, trimmed), using `around` and `around + minutes`. Sections without both, and sections lost that day, are skipped. Both fields are omitted on a day with no Day plan. An empty `focus` array means focus is off that day. With more than one `lunch` section, the first counts. A Day plan with focus sections and no lunch section keeps the Settings lunch.
+From the day's Day plan sections whose `kind` is `focus` or `lunch` (case-insensitive, trimmed), using `around` and `around + minutes`. Sections without both, and sections lost that day, are skipped. `focus` is there only when the day's plan has at least one section of kind `focus`; if none of them is usable (all lost, or no time), it is an empty array and focus is off that day. A day with no Day plan, or a plan with no `focus` section, has no `focus` field, and the weekly hours apply. `lunch` is the first usable `lunch` section; without one the Settings lunch applies.
 
 ## What is focused now
 
