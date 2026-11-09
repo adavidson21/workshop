@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Focus hours: the meta of settings.focus v1",
+  "description": "Weekly focus hours and the lunch block, owned by Settings. See focus.md.",
+  "type": "object",
+  "required": [
+    "enabled",
+    "dayplanOverride",
+    "week",
+    "lunch"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Off: every app behaves as if focus hours did not exist."
+    },
+    "dayplanOverride": {
+      "type": "boolean",
+      "description": "Docket's Day plan focus and lunch sections replace these hours on days that have them."
+    },
+    "week": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun"
+      ],
+      "properties": {
+        "mon": { "$ref": "#/$defs/blocks" },
+        "tue": { "$ref": "#/$defs/blocks" },
+        "wed": { "$ref": "#/$defs/blocks" },
+        "thu": { "$ref": "#/$defs/blocks" },
+        "fri": { "$ref": "#/$defs/blocks" },
+        "sat": { "$ref": "#/$defs/blocks" },
+        "sun": { "$ref": "#/$defs/blocks" }
+      }
+    },
+    "lunch": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "start",
+        "minutes",
+        "days"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "start": { "$ref": "#/$defs/time" },
+        "minutes": { "type": "integer", "minimum": 5, "maximum": 240 },
+        "days": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 7,
+          "items": { "$ref": "#/$defs/weekday" }
+        }
+      }
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    }
+  },
+  "$defs": {
+    "time": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+      "description": "Local wall-clock HH:MM, 24-hour."
+    },
+    "weekday": {
+      "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    },
+    "block": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/time" },
+        "end": { "$ref": "#/$defs/time" }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/block" }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "2026-11-09",
+  "updatedAt": 1794243600000,
+  "skip": false,
+  "manual": [{ "start": "14:00", "end": "14:50" }],
+  "endedEarly": ["09:00"],
+  "lunch": { "pushedTo": "12:30", "skipped": false, "late": [{ "start": "14:10", "end": "15:10" }], "endedAt": null, "status": "late" },
+  "log": { "focus": [{ "start": "09:00", "end": "12:00", "outcome": "endedEarly", "minutes": 150 }], "lunch": "late", "released": 7 }
+}
