@@ -575,34 +575,40 @@ export function watchFocus(ws, onChange = () => {}, { now = () => new Date(), ti
 }
 
 /**
- * An app's held interruptions (docs/focus.md, Holding a toast). label(n): what was held, "2 captures picked up".
- * route: where they live in this app. onChange(): the held card changed (call your summary writer's schedule).
- *   holder.toast(text, opts)  shows it now, or counts it during a span (blocking PRs break through focus)
- *   holder.add(n)             counts n held items with no toast
+ * An app's held interruptions (docs/focus.md, Holding a toast). label(n, kinds): what was held, "2 captures
+ * picked up"; kinds counts them by the kind given to add() or toast() ({ado: 3, pickup: 2}), for an app that holds
+ * more than one sort of thing. route: where they live in this app. onChange(): the held card changed (call your
+ * summary writer's schedule).
+ *   holder.toast(text, opts)  shows it now, or counts it during a span (blocking PRs break through focus);
+ *                             opts.heldAs names its kind
+ *   holder.add(n, kind)       counts n held items with no toast
  *   holder.card()             the `held` summary card to include, or null
  *   holder.resume(card)       picks the count up again from this app's own stored card after a reload
  */
 export function createHolder(ws, { label = n => `${n} held`, route = '', onChange = () => {}, watch = null, now } = {}) {
-  let key = null, count = 0;
+  let key = null, count = 0, kinds = {};
   const w = watch || watchFocus(ws, f => sync(f), now ? { now } : {});
   function sync(f) {
-    if (f && f.span && f.span.key !== key) { key = f.span.key; count = 0; onChange(); }
+    if (f && f.span && f.span.key !== key) { key = f.span.key; count = 0; kinds = {}; onChange(); }
   }
+  const bump = (n, kind) => { count += n; if (kind) kinds[kind] = (kinds[kind] || 0) + n; };
   if (watch) sync(watch.current);
   const holder = {
     get focus() { return w.current; },
     get held() { return isHeldNow(w.current); },
     get count() { return count; },
+    get kinds() { return Object.assign({}, kinds); },
     get key() { return key; },
     watch: w,
     sync,
     toast(text, opts = {}) {
       const f = w.current;
-      if (isHeldNow(f) && !(opts.breakThrough && f.state === 'focus')) { sync(f); count++; onChange(); return Promise.resolve(null); }
-      return ws.toast(text, Object.assign({}, opts, { hold: true }));
+      if (isHeldNow(f) && !(opts.breakThrough && f.state === 'focus')) { sync(f); bump(1, opts.heldAs); onChange(); return Promise.resolve(null); }
+      const o = Object.assign({}, opts, { hold: true }); delete o.heldAs;
+      return ws.toast(text, o);
     },
-    add(n = 1) { const f = w.current; if (!isHeldNow(f) || n <= 0) return false; sync(f); count += n; onChange(); return true; },
-    card() { return key ? { id: 'held', kind: 'held', block: key, count, label: label(count), route } : null; },
+    add(n = 1, kind = '') { const f = w.current; if (!isHeldNow(f) || n <= 0) return false; sync(f); bump(n, kind); onChange(); return true; },
+    card() { return key ? { id: 'held', kind: 'held', block: key, count, label: String(label(count, Object.assign({}, kinds)) || `${count} held`).slice(0, 120), route } : null; },
     resume(card) { if (card && card.kind === 'held' && typeof card.block === 'string' && (!key || card.block === key) && Number.isInteger(card.count)) { key = card.block; count = Math.max(count, card.count); } }
   };
   return holder;

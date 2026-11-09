@@ -258,6 +258,16 @@ test('holder: counts during a span, shows otherwise, breaks through focus for bl
   assert.ok(changes >= 3);
 });
 
+test('holder kinds: one card says each sort of thing held', async () => {
+  const ws = { toast: () => Promise.resolve(null) };
+  const cur = R('10:00');
+  const h = F.createHolder(ws, { watch: { get current() { return cur; } }, label: (n, k) => [k.ado && `${k.ado} new ADO items`, k.pickup && `${k.pickup} captures picked up`].filter(Boolean).join(', ') });
+  h.add(3, 'ado');
+  await h.toast('Added a task from Folio', { heldAs: 'pickup' });
+  assert.equal(h.card().count, 4);
+  assert.equal(h.card().label, '3 new ADO items, 1 captures picked up');
+});
+
 test('heldFor and releaseText', () => {
   const key = `${MON}T09:00`;
   const card = (count, label, block = key) => new Map([['held', { id: 'held', kind: 'held', block, count, label }]]);
