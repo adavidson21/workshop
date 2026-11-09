@@ -629,6 +629,18 @@ export function latestTag(dir, prefix = 'v', out = () => {}) {
   return listTags(dir, Infinity).find(t => t.startsWith(prefix) && /^\d+\.\d+\.\d+$/.test(t.slice(prefix.length))) ?? null;
 }
 
+/**
+ * The version a checkout holds at a ref: agent/version.mjs for Workshop, app.json for an app from another repo
+ * (Docket, Runway, Rapport, Folio). Null when it cannot be read, so callers treat an unknown version as "not older".
+ */
+export function versionAt(dir, ref = 'HEAD') {
+  const v = git(dir, ['show', `${ref}:agent/version.mjs`]);
+  if (v.code === 0) { const m = /VERSION\s*=\s*'(\d+(?:\.\d+)*)'/.exec(v.out); if (m) return m[1]; }
+  const a = git(dir, ['show', `${ref}:app.json`]);
+  if (a.code === 0) { try { const ver = JSON.parse(a.out).version; if (typeof ver === 'string' && /^\d+(\.\d+)*$/.test(ver)) return ver; } catch { /* not JSON */ } }
+  return null;
+}
+
 /** The release tags on a checkout's current commit (more than one tag can sit on a commit, like docket-android). */
 const tagsAtHead = dir => { const r = git(dir, ['tag', '--points-at', 'HEAD']); return r.code === 0 ? r.out.split('\n').filter(isReleaseTag) : []; };
 
@@ -913,6 +925,8 @@ async function runUpdate(rest, io) {
     const tags = listTags(REPO);
     if (!tags.length) { io.out('There are no release tags yet. Nothing was changed.'); return 0; }
     io.out(`Release tags, newest first: ${tags.join(', ')}.`);
+    const newest = tags.find(t => /^v\d+\.\d+\.\d+$/.test(t)), released = newest && versionAt(REPO, `refs/tags/${newest}`);
+    if (newerVersion(VERSION, released)) io.out(`This code (${VERSION}) is newer than the newest release (${newest}): "workshop update" leaves it as it is until ${VERSION} is released.`);
     io.out('Nothing was changed. To update everything to the newest release: workshop update');
     return 0;
   }
@@ -926,6 +940,18 @@ async function runUpdate(rest, io) {
     const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('agents'), engAgentsDir: opts.engAgents });
     for (const l of plan.lines) io.out(l);
     Object.assign(opts, plan.tags);
+  }
+  // A tag named by hand may be older on purpose (a rollback). Allowed, but said plainly.
+  if (!opts.latest) {
+    const back = (name, dir, t) => {
+      const have = versionAt(dir, 'HEAD'), want = versionAt(dir, `refs/tags/${t}`);
+      if (newerVersion(have, want)) io.out(`Note: ${name} moves back from ${have} to ${want} (${t}), an older version.`);
+    };
+    if (opts.tag) back('Workshop', REPO, opts.tag);
+    for (const a of REMOTE_APPS) {
+      const t = opts[`${a.key}Tag`], d = t && findRemote(a.key, REPO);
+      if (d && isCheckout(d)) back(a.name, d, t);
+    }
   }
   const running = await agentHealth(info.config?.port ?? DEFAULT_PORT);
   const moved = anyTag(opts);
@@ -968,8 +994,12 @@ export function planLatest(repo = REPO, out = () => {}, { userHome = os.homedir(
   const consider = (name, dir, key) => {
     const latest = latestTag(dir, 'v', out);
     const at = tagsAtHead(dir), now = at[0] ?? null;
+    const have = latest && !at.includes(latest) ? versionAt(dir, 'HEAD') : null;
+    const want = have ? versionAt(dir, `refs/tags/${latest}`) : null;
     if (!latest) lines.push(`${name}: no release tags yet. Left as it is.`);
     else if (at.includes(latest)) lines.push(`${name}: already at ${latest}.`);
+    // Never a step back: newer code than the newest release stays put until that version is released.
+    else if (newerVersion(have, want)) lines.push(`${name}: ${have} here is newer than the newest release (${latest}). Left as it is; release ${have} (Actions, Release) for "workshop update" to manage it.`);
     else { tags[key] = latest; lines.push(`${name}: ${now ?? 'not at a release tag'} -> ${latest}.`); }
   };
   consider('Workshop', repo, 'tag');
