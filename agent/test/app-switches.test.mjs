@@ -9,7 +9,7 @@ import { createAgent } from '../server.mjs';
 import { readOff, writeOff, buildRegistry, gitHead, pinApps, appSwitches, readManifest, APPS_FILE } from '../lib/apps.mjs';
 import { verifyPinned } from '../lib/pinned.mjs';
 import { loadSchemas, skippedLines } from '../../workshop.mjs';
-import { tempHome, rmHome, get, put, REPO, dataDirOf } from './helpers.mjs';
+import { tempHome, rmHome, get, put, post, REPO, dataDirOf } from './helpers.mjs';
 import { schemas as contractSchemas } from '../../tests/contract/helpers.mjs';
 
 const schemas = loadSchemas();
@@ -184,4 +184,32 @@ test('readManifest explains a bad app.json in plain words', () => {
     assert.equal(readManifest(dir, 'slate', schemas).problem, undefined);
     assert.match(readManifest(dir, 'notes', schemas).problem, /says id "slate", not "notes"/);
   } finally { rmHome(dir); }
+});
+
+test('POST /api/update-terminal: opens the Update terminal, from this computer only, with the header token', async () => {
+  const home = tempHome();
+  const site = 'https://workshop.example.org';
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: [site], features: { hostedMode: true } }));
+  const opened = [];
+  let fails = null;
+  const openUpdateTerminal = async o => { if (fails) throw fails; opened.push(o); return { ok: true }; };
+  const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), openUpdateTerminal });
+  try {
+    const r = await post(agent, '/api/update-terminal');
+    assert.equal(r.status, 200, r.text);
+    assert.match(r.json.command, /workshop\.mjs update --restart$/);
+    assert.equal(opened.length, 1);
+    assert.equal(opened[0].repo, REPO);
+    assert.equal((await get(agent, '/api/update-terminal')).status, 405);
+    const far = await post(agent, '/api/update-terminal', undefined, { origin: site });
+    assert.equal(far.status, 403, far.text);
+    assert.equal(far.json.code, 'local_only');
+    const cookieOnly = await post(agent, '/api/update-terminal', undefined, { auth: 'cookie' });
+    assert.equal(cookieOnly.status, 401, 'a write needs the header token');
+    fails = { status: 501, message: 'Opening a terminal works on Windows and macOS. Copy the command instead.' };
+    const none = await post(agent, '/api/update-terminal');
+    assert.equal(none.status, 503);
+    assert.match(none.json.error, /Copy the command/);
+    assert.equal(opened.length, 1);
+  } finally { await agent.stop(); rmHome(home); }
 });

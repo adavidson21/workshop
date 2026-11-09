@@ -1056,7 +1056,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "4.2.0",
+        "version": "4.3.0",
         "description": "Connectors, repos, people and teams, apps, focus hours and lunch, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",

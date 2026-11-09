@@ -74,6 +74,7 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /pair?origin=<origin>` | cookie | Hosted pairing page (HTML) |
 | `GET /api/apps` | token | Installed apps |
 | `GET /api/doctor` | token, own origin only | The health check: `{ok, lines}`, the parts of `workshop doctor` the agent can see itself: Node, its version and port, the data folder, start at login, connectors (Settings, General) |
+| `POST /api/update-terminal` | header token, own origin only | Open a terminal window running `workshop update --restart` (Settings, Update) |
 | `GET /api/data/<app>` | token | Collections of one app |
 | `GET /api/data/<app>/<collection>` | token | Read a collection |
 | `PUT /api/data/<app>/<collection>` | header token | Write a collection |
@@ -150,6 +151,10 @@ Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/a
 ### `PUT /api/app-switches/<id>`
 
 Body `{"on": true}` or `{"on": false}`. Workshop on this computer only (`403 local_only` from a paired site). Saves the switch in `<home>/apps.json` and, in work mode, rebuilds the pinned copy from what is on this computer. Answers like `GET`, plus `changed` (the id) and `download`: the command to run when an app turned on in work mode is not downloaded yet, else `null`. The agent never downloads anything itself. `400` for Home and Settings (always on) or a bad body, `404` for an unknown app.
+
+### `POST /api/update-terminal`
+
+No body. Workshop on this computer only (`403 local_only` from a paired site). Opens a terminal window you can see, running `workshop update --restart` with this agent's Node and checkout, and answers `{ok: true, command}`. The agent runs no git itself: the update runs in that window, as if you had typed it ([security.md](security.md)). Windows (PowerShell) and macOS (Terminal) only; elsewhere `503 unavailable`, and Settings shows the command to copy. `500 internal` when the window could not be opened.
 
 ### `GET /api/data/<app>`
 

@@ -1332,6 +1332,35 @@ function sitesCard(cfg) {
     <span class="msg mono">${esc(site.replace(/^https?:\/\//, ''))}</span></div>`);
 }
 
+/* ---------- update (POST /api/update-terminal, Workshop on this computer) ----------
+   The button opens a terminal you can see running "workshop update --restart": the agent runs no git itself. */
+function updateCard() {
+  const sec = card('Update', '', 'overview', 65, 'Moves Workshop, its apps and Tandem to their newest releases in a terminal window you can watch, then restarts Workshop if it changed. Nothing updates on its own.');
+  sec.insertAdjacentHTML('beforeend', `<p class="sub update-ver"></p>
+    <div class="acts left"><button type="button" class="btn" data-update>Update</button>
+    <span class="msg update-msg" aria-live="polite"></span></div>`);
+  const msg = sec.querySelector('.update-msg');
+  agentCall('GET', '/api/health').then(h => { sec.querySelector('.update-ver').textContent = `Workshop ${h.version} is running.`; }).catch(() => {});
+  sec.addEventListener('click', async e => {
+    const c = e.target.closest('[data-copy]');
+    if (c) {
+      try { await navigator.clipboard.writeText(c.dataset.copy); c.textContent = 'Copied'; setTimeout(() => { c.textContent = 'Copy'; }, 1500); }
+      catch (err) { toast('Could not copy. Select the command and copy it instead.', 'error'); }
+      return;
+    }
+    const b = e.target.closest('[data-update]');
+    if (!b) return;
+    b.disabled = true;
+    msg.textContent = 'Opening a terminal…';
+    try {
+      await agentCall('POST', '/api/update-terminal');
+      msg.textContent = 'Updating in the terminal window. When it says Done, reload this page.';
+    } catch (err) {
+      msg.innerHTML = `${esc(errText(err))} Run this on your computer: <code>workshop update</code> ${copyBtn('workshop update')}`;
+    } finally { b.disabled = false; }
+  });
+}
+
 /* ---------- health check: what `workshop doctor` checks, here (GET /api/doctor, Workshop on this computer) ---------- */
 function healthCard() {
   const sec = card('Health check', '', 'overview', 70, 'Node, the data folder, start at login and each connector, as Workshop on this computer sees them. For the full check run workshop doctor.');
@@ -1374,7 +1403,7 @@ async function start() {
     try {
       const cfg = await ws.config.get();
       if (ws.mode === 'local') { if (cfg.features && cfg.features.workMode) await workCard(); else sitesCard(cfg); }
-      if (ws.mode === 'local') healthCard();
+      if (ws.mode === 'local') { updateCard(); healthCard(); }
       await appsCard();
       await focusPage();
       await computerCard(cfg);
