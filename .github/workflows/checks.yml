@@ -44,6 +44,7 @@ jobs:
       - run: python tests/e2e.py
       - run: python tests/review-e2e.py
       - run: python tests/workmode-e2e.py
+      - run: python tests/focus-e2e.py
       # Tests must use temp folders only. A fresh runner has neither folder, so finding one means a test wrote there.
       - name: No test touched the real data folder or Workshop home
         if: ${{ !cancelled() }}

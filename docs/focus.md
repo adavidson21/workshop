@@ -145,7 +145,7 @@ When a span ends (by time, End early or End lunch), the shell shows one toast: "
 Workshop sees only activity in its own tabs: no system idle detection, no Idle Detection API, no calendar.
 
 - **Active minute:** a tab counts a minute as active if it is visible and had a key press, pointer down or scroll in it. Tabs share active minutes over the `workshop-focus` channel; a minute active in two tabs counts once. Only counts, never what was typed or clicked, and only in memory.
-- **Working through lunch:** 10 or more active minutes inside the lunch block (minutes inside a "Just a minute" pause do not count) show a quiet bar once per lunch: Take lunch now (a fresh 60-minute late lunch), Push 30 min, Skip lunch today.
+- **Working through lunch:** 10 or more active minutes inside the lunch block (the cover is up at first, so these come after a "Just a minute") show a quiet bar once per lunch: Take lunch now (a fresh 60-minute late lunch), Push 30 min, Skip lunch today.
 - **Missed:** a lunch block that ends with 30 or more active minutes, or a lunch pushed to 14:30 or later and not taken by then, is `missed`. Until 15:00 the shell bar offers a late lunch: Take 30 min, Take 60 min, Not today.
 - **Taken:** a lunch or late lunch with fewer than 10 active minutes. A taken late lunch clears `missed` (status `late`).
 - The thresholds (10, 30, 14:30, 15:00) are constants in `shared/focus.js` for version 1.

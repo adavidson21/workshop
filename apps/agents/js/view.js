@@ -1169,7 +1169,8 @@ function overlaysHtml() {
  *  once per paint. Before the connector is ready: what is wrong, and the hub's capture box under it (#hub-slot). */
 export function render() {
   S.copyStore = [];
-  if (!S.connector || S.connector.state !== 'ready' || !S.D) return setupHtml() + '<section class="setup-hub" aria-label="Capture"><div id="hub-slot"></div></section>' + overlaysHtml();
+  // The afternoon digest shows here too: with the opencode connector off it lists what other apps report.
+  if (!S.connector || S.connector.state !== 'ready' || !S.D) return (S.digestHtml ? S.digestHtml(h) : '') + setupHtml() + '<section class="setup-hub" aria-label="Capture"><div id="hub-slot"></div></section>' + overlaysHtml();
   return headerHtml() + bannersHtml() + `<div class="page" data-page="${h(S.ui.tab)}">${pageHtml()}</div>` + (S.D.gitAvailable ? '' : '<p class="note">git was not found on PATH, so repo state is missing.</p>') + overlaysHtml();
 }
 

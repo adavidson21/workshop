@@ -148,8 +148,34 @@ Nothing logged this week yet. Finish tasks in Docket, decide in Slate, ship with
   return parts.join('\n');
 }
 
-function inboxCard(rows) {
-  return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>
+/**
+ * Needs you during focus hours (docs/focus.md): during focus only blocking pull requests show and the rest folds
+ * to "N held until 12:00"; during lunch everything folds. Outside a block (or with focus hours off): the rows.
+ * focus: resolveFocus() or null. blocking: Docket's `blocking` rows as inbox rows.
+ */
+export function heldInbox(rows, focus, blocking = []) {
+  const state = focus && focus.state;
+  if (state !== 'focus' && state !== 'lunch') return { rows, held: 0, until: '' };
+  const until = focus.span ? focus.span.end : focus.until;
+  if (state === 'lunch') return { rows: [], held: rows.length + blocking.length, until };
+  return { rows: blocking, held: rows.length, until };
+}
+
+/** Docket's `blocking` card (PRs blocked on you) as inbox rows. */
+export function blockingRows(cards) {
+  const c = cards && cards.get('blocking');
+  if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) return [];
+  return c.rows.filter(r => r && typeof r.title === 'string').slice(0, 12).map(r => ({ app: 'prioritizer', appName: 'Docket', title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : 'Blocked on you', route: typeof r.route === 'string' ? r.route : '', flag: 'urgent' }));
+}
+
+const fmtUntil = s => { const h = +String(s).slice(0, 2); return Number.isFinite(h) ? `${h % 12 || 12}:${String(s).slice(3, 5)}` : ''; };
+function inboxCard(rowsIn, focus, blocking) {
+  const { rows, held, until } = heldInbox(rowsIn, focus, blocking);
+  const heldLine = held ? `<p class="soft held-line">${plural(held, 'item')} held until ${esc(fmtUntil(until))}.</p>` : '';
+  if (focus && (focus.state === 'focus' || focus.state === 'lunch') && !rows.length) {
+    return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>${heldLine || `<p class="soft">Nothing needs you right now.</p>`}</section>`;
+  }
+  return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>${heldLine}
     ${rows.length ? `<ul class="inbox-list">${rows.map(r => `<li><button class="irow${r.flag ? ' ' + r.flag : ''}" data-open="${esc(r.app)}"${r.route ? ` data-path="${esc(r.route)}"` : ''}>
       <span class="iapp">${esc(r.appName)}</span><span class="it">${esc(r.title)}</span>${r.note ? `<span class="in">${esc(r.note)}</span>` : ''}</button></li>`).join('')}</ul>`
       : '<p class="soft">Nothing needs you right now.</p>'}
@@ -188,22 +214,22 @@ export function render(v) {
   if (v.waiting) return head + waitingCard(v.embedded);
 
   if (!v.board) {
-    return head + inboxCard(v.inbox || []) + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
+    return head + inboxCard(v.inbox || [], v.focus, v.blocking || []) + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b && v.noSummary) {
     // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
     return head + `<section class="card note"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + inboxCard(v.inbox || []) + notesCard(v.notes) + agentsCard(v.agents);
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + inboxCard(v.inbox || [], v.focus, v.blocking || []) + notesCard(v.notes) + agentsCard(v.agents);
   }
   if (!b) {
     const empty = v.adoReady
       ? '<h2>Your ADO work items are waiting in Docket</h2><p>Azure DevOps is connected. Open Docket to bring in the items assigned to you; they show up here after that.</p>'
       : '<h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>';
-    return head + inboxCard(v.inbox || []) + `<section class="card note">${empty}
+    return head + inboxCard(v.inbox || [], v.focus, v.blocking || []) + `<section class="card note">${empty}
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
   }
 
-  return head + `<div class="cols"><div class="stack">${todayCard(b)}${inboxCard(v.inbox || [])}</div><div class="stack">${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
+  return head + `<div class="cols"><div class="stack">${todayCard(b)}${inboxCard(v.inbox || [], v.focus, v.blocking || [])}</div><div class="stack">${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
 }
 
 /* Docket's Today, in counts: each opens Docket's Today, where the day happens (its Needs you strip handles them). */

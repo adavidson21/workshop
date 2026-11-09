@@ -47,6 +47,10 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 
 Before the connector is ready, the page says what is wrong: browser mode, the connector off (with a button to Settings), starting, or its error message. The hub's capture box sits under it, so captures work without Tandem.
 
+## Focus hours
+
+With focus hours on (Settings, Focus hours; docs/focus.md) the shell hides the rail badge during focus and lunch, except the number of pull requests blocked on you during focus. Agent alerts are counted instead of shown, in Dispatch's `held` summary card, except a blocking PR's review during focus. After a focus span ends, **While you were focused** sits on top of the Inbox (or the setup page with the connector off): what every app held, runs waiting on you, and PR reviews that finished during the span, blocking ones first. Rules only (`js/digest.js`). One card per day; Dismiss hides it until tomorrow.
+
 ## Conversations
 
 The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or capture**, is the hub ([docs/hub.md](../../docs/hub.md)): one box for questions and captures, each answered as a card you can reply under. Below it, **Conversations**: hub threads you replied to, with their first question and answer, the turns since, and a reply box. When Tandem asks something in a thread or a hub card, it is answered right there (and it is in the Inbox too).

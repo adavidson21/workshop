@@ -384,7 +384,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
     nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.page)") if sf else []
-    check('Settings in browser mode: Overview, Apps, People & teams, Data & backups in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'data', 'people', 'team'])
+    check('Settings in browser mode: Overview, Apps, Focus hours, People & teams, Data & backups in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'focus', 'data', 'people', 'team'])
 
     # People directory (docs/people.md), in Settings' People & teams: add yourself, then a report whose name is markup.
     # The old People app's address opens it (shell RENAMED).
@@ -693,7 +693,7 @@ def agent_checks(b, watch):
               and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
         check('it has one button to Workshop\'s site to pair from, not a list of sites', sf.locator('[data-open-site]').count() == 1 and sf.locator('a[data-open-site][href="' + HOSTED + '/"]').count() == 1)
         nav = sf.evaluate("[...document.querySelectorAll('.nav-group')].map(g => g.dataset.group + ':' + [...g.querySelectorAll('.nav-item')].map(b => b.dataset.page).join(','))")
-        check('Settings has a left nav grouped by task', nav == ['workshop:overview,apps,computer,data', 'people:people,team', 'ado:connections,work-items,pull-requests', 'code:repos', 'connectors:c-echo'])
+        check('Settings has a left nav grouped by task', nav == ['workshop:overview,apps,focus,computer,data', 'people:people,team', 'ado:connections,work-items,pull-requests', 'code:repos', 'connectors:c-echo'])
         check('rarely changed settings are on their own page, This computer, not on Overview', sf.locator('#page-computer #port').count() == 1 and sf.locator('#page-computer #feat-startAtLogin').count() == 1
               and sf.locator('#page-overview #port').count() == 0 and sf.locator('details.adv').count() == 0)
         check('Overview says Azure DevOps is off, with Set up, and nothing in red', 'off' in sf.inner_text('[data-status-of=ado]').lower() and sf.locator('[data-status-of=ado] .state[data-state=error]').count() == 0)
