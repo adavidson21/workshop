@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "dayplanOverride": true,
+  "week": {
+    "mon": [{ "start": "09:00", "end": "12:00" }],
+    "tue": [{ "start": "09:00", "end": "12:00" }],
+    "wed": [{ "start": "09:00", "end": "12:00" }],
+    "thu": [{ "start": "09:00", "end": "12:00" }],
+    "fri": [{ "start": "09:00", "end": "12:00" }],
+    "sat": [],
+    "sun": []
+  },
+  "lunch": { "enabled": true, "start": "12:00", "minutes": 60, "days": ["mon", "tue", "wed", "thu", "fri"] }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Focus hours: one day item of settings.focus v1",
+  "description": "Today's manual changes (overrides) and the day's log. id is the date. See focus.md.",
+  "type": "object",
+  "required": [
+    "id",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "skip": {
+      "type": "boolean",
+      "description": "Skip today: no focus for the rest of the day. Never skips lunch."
+    },
+    "manual": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "focus-settings.schema.json#/$defs/block" },
+      "description": "Start focus now blocks."
+    },
+    "endedEarly": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "focus-settings.schema.json#/$defs/time" },
+      "description": "Start times of focus blocks ended early."
+    },
+    "lunch": {
+      "type": "object",
+      "properties": {
+        "pushedTo": {
+          "oneOf": [{ "$ref": "focus-settings.schema.json#/$defs/time" }, { "type": "null" }]
+        },
+        "skipped": { "type": "boolean" },
+        "late": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "focus-settings.schema.json#/$defs/block" }
+        },
+        "endedAt": {
+          "oneOf": [{ "$ref": "focus-settings.schema.json#/$defs/time" }, { "type": "null" }]
+        },
+        "notToday": {
+          "type": "boolean",
+          "description": "Not today on the missed lunch offer."
+        },
+        "status": {
+          "oneOf": [{ "enum": ["taken", "late", "partial", "missed", "skipped"] }, { "type": "null" }]
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "properties": {
+        "focus": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": ["start", "end", "outcome", "minutes"],
+            "properties": {
+              "start": { "$ref": "focus-settings.schema.json#/$defs/time" },
+              "end": { "$ref": "focus-settings.schema.json#/$defs/time" },
+              "outcome": { "enum": ["kept", "endedEarly", "skipped"] },
+              "minutes": { "type": "integer", "minimum": 0, "maximum": 1440 }
+            }
+          }
+        },
+        "lunch": {
+          "oneOf": [{ "enum": ["taken", "late", "partial", "missed", "skipped"] }, { "type": "null" }]
+        },
+        "released": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

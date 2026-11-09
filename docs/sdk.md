@@ -26,8 +26,8 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | Method | Meaning |
 | --- | --- |
 | `ws.open(target)` | Go to another app or a route. `target` is `{app, path?}`, for example `{app: 'agents', path: '41207'}`. Same as `#/agents/41207`. |
-| `ws.toast(text, {kind?, action?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. |
-| `ws.badge(count)` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. |
+| `ws.toast(text, {kind?, action?, hold?, breakThrough?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. `hold: true` marks an interruption (a pickup, new items from a sync) that the shell drops during a focus or lunch span; the app counts it in its `held` card ([focus.md](focus.md)). `breakThrough: true` with `hold` shows it during focus anyway (blocking pull requests only), never during lunch. |
+| `ws.badge(count, {breakThrough?})` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. During a focus or lunch span the shell hides it and restores it after ([focus.md](focus.md)); during focus it shows `breakThrough` instead (the part of `count` that comes only from blocking pull requests), if that is above 0. |
 | `ws.notify({title, body?, route?})` | System notification if the user allowed them, else a toast. Clicking it opens `route` in this app. |
 | `ws.status.set({text, detail?, since?, route?, actions?})` | One line in the shell's top bar about what this app is doing right now, shown on every app (see Status below). Calling it again replaces it. Standalone it rejects with `not_found`, so the app shows its own. |
 | `ws.status.clear()` | Removes this app's status. |

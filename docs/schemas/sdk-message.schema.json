@@ -146,6 +146,14 @@
                   "pattern": "^[a-z][a-z0-9-]{0,39}$"
                 }
               }
+            },
+            "hold": {
+              "type": "boolean",
+              "description": "An interruption the shell holds during focus and lunch (focus.md). The app counts it in its held card."
+            },
+            "breakThrough": {
+              "type": "boolean",
+              "description": "With hold: shown during focus anyway (blocking pull requests only). Never during lunch."
             }
           }
         }
@@ -192,6 +200,12 @@
                   "type": "null"
                 }
               ]
+            },
+            "breakThrough": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 999,
+              "description": "The part of count that comes only from blocking pull requests: shown instead of count during focus (focus.md)."
             }
           }
         }
