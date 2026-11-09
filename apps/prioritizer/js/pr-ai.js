@@ -1,4 +1,5 @@
 import { prRelease } from './ado.js';
+import { holdCount } from './focus-hours.js';
 import { renderMainOnly } from './drawer.js';
 import { toast } from './overlays.js';
 import { commit, state } from './state.js';
@@ -65,7 +66,8 @@ async function prAiRefresh(){
     state.ado.prHeld = out.held;
     const made = prRelease(out.release);
     if (out.changed){ commit(); renderMainOnly(); }
-    if (made.length){
+    if (made.length && holdCount(made.length, 'pr')){ /* held during focus or lunch (focus-hours.js) */ }
+    else if (made.length){
       const late = out.release.filter(x => x.ai && x.ai.state === 'timeout').length;
       toast(late === made.length ? `${plural(made.length, 'PR')} to review (Tandem had not finished)`
         : `${plural(made.length, 'PR')} reviewed by Tandem and added`, 'Show', () => import('./render.js').then(m => m.setScope(state.ado.prListId)));
@@ -86,7 +88,7 @@ function landAll(){
   if (state.ado.prHeld.length) changed++;
   state.ado.prHeld = [];
   if (changed || made.length){ commit(); renderMainOnly(); }
-  if (made.length) toast(`${plural(made.length, 'PR')} to review added (Tandem is not reviewing right now)`);
+  if (made.length && !holdCount(made.length, 'pr')) toast(`${plural(made.length, 'PR')} to review added (Tandem is not reviewing right now)`);
 }
 
 let inited = null;

@@ -12,6 +12,7 @@ import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
+import { leftOffDrawerHtml } from './left-off.js';
 import { notesFor, shown, taskLink } from './notes-link.js';
 import { slateFor, slateLabel } from './slate-link.js';
 import { toast } from './overlays.js';
@@ -85,7 +86,7 @@ function renderDrawer(){
       ${t.ado ? engDrawer(t) : ''}
       ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
-      ${focusDrawerHtml(t)}
+      ${focusDrawerHtml(t)}${leftOffDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       ${aboutHtml(t)}
       <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>

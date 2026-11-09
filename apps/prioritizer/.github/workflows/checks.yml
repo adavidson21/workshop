@@ -15,3 +15,4 @@ jobs:
       - run: node --test "mobile/test/*.test.mjs"
       - run: pip install playwright && python -m playwright install --with-deps chromium
       - run: python test/e2e.py
+      - run: python test/focus-e2e.py

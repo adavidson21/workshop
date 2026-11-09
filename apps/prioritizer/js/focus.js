@@ -4,6 +4,8 @@
 
    Everything is local: nothing watches other apps or the computer. A switch is counted only when you start a
    task while another unfinished one is active, and an interruption only when you log one. */
+import { focusNow } from './focus-hours.js';
+import { askLeftOff } from './left-off.js';
 import * as F from './focus-model.js';
 import { focusEnvelopesFromBundle, focusFormat } from './focus-format.js';
 import { createStore } from './store.js';
@@ -61,7 +63,8 @@ function startTask(id){
   if (isWaiting() || !t || t.done) return;
   const {left} = F.startTask(log, todayStr(), id, nowIso(), isOpen);
   save();
-  if (left) askCrumb(left, 'You switched tasks. Where did you leave off?');
+  // With focus hours on, the Today column asks inline (left-off.js); otherwise the breadcrumb sheet, as before.
+  if (left && !(focusNow().enabled && askLeftOff(left, 'You switched tasks'))) askCrumb(left, 'You switched tasks. Where did you leave off?');
 }
 /* From Docket, Pause asks for a breadcrumb here. From the shell's top bar the shell already asked: `text` is
    what was typed (or undefined if skipped), and nothing opens inside Docket, which may be hidden. */

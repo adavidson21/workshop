@@ -2,6 +2,7 @@
    `handoffs` collection (read only), and on Accept or Dismiss changes only Docket's own day plan: the every-sprint
    items and dayplan/settings meta.handled. On its own site Docket shares no data folder with other apps
    (Workshop docs/handoffs.md, rule 5), so it shows nothing. */
+import { holdCount } from './focus-hours.js';
 import { SENDERS, sendersFrom, acceptedTasks, applyOffer, listFor, markHandled, pendingOffers, taskFromOffer } from './offers-model.js';
 import { dp, setHandled, setRecurring } from './dayplan.js';
 import { COLORS } from './constants.js';
@@ -40,7 +41,8 @@ function pickUp(app){
   }
   setHandled(markHandled(dp.handled, todo.map(o => o.key)));
   commit();
-  toast(todo.length === 1 ? `Added "${todo[0].title}" from ${todo[0].from}` : `Added ${todo.length} tasks from ${todo[0].from}`);
+  // Picked up during focus or lunch: counted in Docket's held card instead of a toast (focus-hours.js).
+  if (!holdCount(todo.length, 'pickup')) toast(todo.length === 1 ? `Added "${todo[0].title}" from ${todo[0].from}` : `Added ${todo.length} tasks from ${todo[0].from}`);
   return todo.length;
 }
 

@@ -17,7 +17,8 @@ import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext,
 import { addPerson } from './directory.js';
 import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
-import { closeNeed, openNeed, setPeopleFilter, setTrayQ, copyText, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setTrayQ, copyText, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { leftOffClick } from './left-off.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -50,6 +51,8 @@ document.addEventListener('click', e => {
   // Today: a lens on Ranked (a rail goes back to List), the narrow-window Inbox, and the triage card's extras.
   const ln = t.closest('[data-lens]');
   if (ln){ if (ln.dataset.goto === 'inbox'){ setView('triage'); return; } setLens(ln.dataset.lens); return; }
+  if (t.closest('[data-inbox-anyway]')){ openInboxAnyway(); focusCol('inbox'); return; }
+  const lft = t.closest('[data-leftoff]'); if (lft){ leftOffClick(lft); return; }
   if (t.closest('[data-inbox-toggle]')){ setInboxOpen(!inboxOpen); render(); if (inboxOpen) focusCol('inbox'); return; }
   if (t.closest('[data-tri-again]')){ freshTri(); render(); focusCol('inbox'); return; }
   const to = t.closest('[data-tri-open]'); if (to){ openDrawer(to.dataset.triOpen); return; }

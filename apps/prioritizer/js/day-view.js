@@ -17,6 +17,8 @@ import { main, render, row, scopeLabel, sel, setSel } from './render.js';
 import { commit, findTask, isWaiting, orderedLists, scopeOpen, state } from './state.js';
 import { EFFORTS, VALUE } from './constants.js';
 import { $, esc, fmtLong, plural, todayStr } from './util.js';
+import { focusSettings } from './focus-hours.js';
+import { lunchOn, makerManagerTemplate, overlapsLunch } from './maker-manager.js';
 
 let date = null, followToday = true, trayFilter = 'all', lastNow = null, secDrag = null;
 const curDate = () => (followToday || !date) ? todayStr() : date;
@@ -75,15 +77,19 @@ function renderDay(){
     banners += `<div class="banner"><span>${plural(c.items.length, 'unfinished task')} from ${esc(fmtLong(c.prev))}.</span>
       <button class="btn ghost" data-dp="carry-skip">Dismiss</button><button class="btn" data-dp="carry-tray">Put in the tray</button><button class="btn primary" data-dp="carry-sections">Same blocks today</button></div>`;
   }
+  // Focus hours: a block of another kind that overlaps the day's lunch gets a quiet "Overlaps lunch" (maker-manager.js).
+  const [yy, mm, dd] = d.split('-').map(Number);
+  dayLunch = lunchOn(rec.sections, focusSettings(), new Date(yy, mm - 1, dd).getDay());
   const secs = rec.sections.map(s => section(rec, s, byId, now)).join('');
   const empty = !rec.sections.length && !info.off ? `<div class="focus-empty"><b>No blocks yet.</b>${template ? 'This day\'s template has no blocks.' : dp.templates.length ? `No template covers ${info.noSprint ? WEEKDAY_NAMES[info.weekday] + 's' : 'day ' + info.day}.` : `Templates give each ${info.noSprint ? 'workday' : 'sprint day'} its blocks.`}
-      <div class="acts"><button class="btn" data-dp="addsec">Add a block</button><button class="btn primary" data-dp="settings">${dp.templates.length ? 'Edit templates' : 'Set up templates'}</button></div></div>` : '';
+      <div class="acts">${dp.templates.length ? '' : '<button class="btn" data-dp="maker" data-tip="Focus in the morning, lunch, meetings after, then reviews and admin. From your focus hours in Workshop Settings when set.">Use the Maker/Manager template</button>'}<button class="btn" data-dp="addsec">${dp.templates.length ? 'Add a block' : 'Start empty'}</button><button class="btn primary" data-dp="settings">${dp.templates.length ? 'Edit templates' : 'Set up templates'}</button></div></div>` : '';
   main.innerHTML = `${banners}<div class="focus dayplan">
     <div class="fmain"><div class="dsecs">${secs}</div>${empty}
       <p class="soft">${saved ? `Edited for this day. <button class="lnk" data-dp="reset">Reset to template</button>` : template ? `From the "${esc(template.name)}" template. Changes here are for this day only.` : ''}</p></div>
     <aside>${tray(rec, byId, d)}</aside></div>`;
 }
 
+let dayLunch = null;   // the shown day's lunch, for "Overlaps lunch"
 function section(rec, s, byId, now){
   const items = sectionTasks(rec, s.id, byId);
   const load = sectionLoad(rec, s.id, byId, POINTS), over = overCapacity(s, load);
@@ -94,7 +100,7 @@ function section(rec, s, byId, now){
     `<button class="ibtn dpbtn" data-dp="rowmenu" aria-label="Options for ${esc(task.title)}" data-tip="Move or unplan (P)">${ICON.dots}</button>`)).join('');
   return `<section class="dsec${s.lost ? ' lost' : ''}${isNow ? ' now' : ''}" data-color="${esc(s.color)}" data-sec="${esc(s.id)}">
     <header class="dsec-h" data-sechead="${esc(s.id)}" tabindex="0"${TOUCH ? '' : ' draggable="true"'} aria-label="Block ${esc(s.name)}">
-      ${time}<h3>${esc(s.name)}</h3>${s.kind ? `<span class="chip">${esc(s.kind)}</span>` : ''}
+      ${time}<h3>${esc(s.name)}</h3>${s.kind ? `<span class="chip">${esc(s.kind)}</span>` : ''}${overlapsLunch(s, dayLunch) ? '<span class="chip lunchwarn" data-tip="This block overlaps lunch. Lunch still wins during focus hours.">Overlaps lunch</span>' : ''}
       ${isNow ? '<span class="chip acc">Now</span>' : isNext ? '<span class="chip">Next</span>' : ''}${s.lost ? '<span class="chip warn">Lost</span>' : ''}
       <span class="grow"></span>
       ${s.capacity != null || load ? `<span class="dcap${over ? ' over' : ''}" data-tip="${over ? 'Over capacity' : 'Planned effort points'}">${load}${s.capacity != null ? ` / ${s.capacity}` : ''} pts</span>` : ''}
@@ -347,7 +353,7 @@ function drawSettings(sh){
     <section class="dset"><h4>Templates</h4><p class="dhelp">${on ? 'Each template is a list of blocks for some sprint days, like <code>2-8</code>. <b>Last day</b> matches the final working day, even when a holiday shortens the sprint.' : 'Each template is a list of blocks for some weekdays. A workday no template covers starts empty.'}</p>
       <div class="derr" role="alert"></div>
       ${draft.templates.map((t, ti) => templateCard(t, ti, on)).join('')}
-      <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
+      <div class="acts"><button class="btn" data-addtpl>${ICON.plus} Template</button><button class="btn" data-addmaker data-tip="Adds a template to assign; nothing is replaced">Add Maker/Manager template</button>${draft.templates.length ? '' : '<button class="btn" data-example>Add example templates</button>'}</div>
     </section>
     <section class="dset drec"><h4>Repeating tasks</h4><p class="dhelp">Tasks you do every day, every week${on ? ' or once a sprint' : ''}, like checking logs${on ? ' or a release' : ''}. A daily or weekly one is added that morning, due that day and on your Today list${on ? '; an every-sprint one is added on day 1, due on its sprint day' : ''}.${on ? '' : ' Every-sprint ones are paused while sprints are off.'} With a time, the task shows it and goes into the block on at that time. With <b>Plan into</b>, it goes into that kind of block instead.</p>
       ${offersHtml()}
@@ -476,6 +482,7 @@ function settingsClick(e, sh){
   const reEl = b.closest('[data-ri]');
   if (b.hasAttribute('data-recdel') && reEl){ draft.recurring.splice(+reEl.dataset.ri, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addtpl')){ draft.templates.push({id: Math.random().toString(36).slice(2, 9), name: 'New template', days: [], last: false, weekdays: [], sections: [blank()]}); drawSettings(sh); return; }
+  if (b.hasAttribute('data-addmaker')){ draft.templates.push(makerManagerTemplate(cleanSprint(draft.sprint), focusSettings(), {assign: false})); drawSettings(sh); return; }
   if (b.hasAttribute('data-example')){ draft.templates = exampleTemplates(cleanSprint(draft.sprint)); drawSettings(sh); return; }
   if (b.hasAttribute('data-deltpl') && t){ draft.templates.splice(+tEl.dataset.ti, 1); drawSettings(sh); return; }
   if (b.hasAttribute('data-addsec') && t){ t.sections.push(blank()); drawSettings(sh); const r = sh.querySelectorAll(`[data-ti="${tEl.dataset.ti}"] [data-sf=name]`); if (r.length) r[r.length - 1].select(); return; }
@@ -595,6 +602,7 @@ function onClick(e){
   if (a === 'redo') return redo();
   if (a === 'daymenu') return dayMenu(b);
   if (a === 'settings') return openSettings();
+  if (a === 'maker'){ if (!dp.templates.length){ setTemplates([makerManagerTemplate(dp.sprint, focusSettings(), {assign: true})]); toast('Maker/Manager template added. Change it under the gear.'); } return; }
   if (a === 'nosprints'){ useNoSprints(); toast('Sprints off. Templates go by weekday.', 'Undo', () => setSprint(Object.assign({}, dp.sprint, {enabled: true}))); return; }
   if (a === 'addsec') return editSection(null);
   if (a === 'reset') return resetDialog();

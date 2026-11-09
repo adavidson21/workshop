@@ -1,4 +1,5 @@
 import { connectorNote, prMatchKey, reachNote, shouldAutoConnect } from './ado-status.js';
+import { focusNow, heldNow, holdCount } from './focus-hours.js';
 import { PAIR_KEY } from '../shared/pair.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, COLORS, VALUE } from './constants.js';
 import { flushText } from './drawer.js';
@@ -322,7 +323,15 @@ async function adoSync(manual){
     if (ai) prAiAfterSync(res);
     const bits = [n.prBlocking && `${n.prBlocking} PR${n.prBlocking > 1 ? 's' : ''} blocked on you`, n.prHeld && `${plural(n.prHeld, 'PR')} with Tandem for a first pass`, n.prBack && `${n.prBack} PR${n.prBack > 1 ? 's' : ''} back to you`,
       n.added && `${n.added} new`, n.closed && `${n.closed} closed`, n.removed && `${n.removed} reassigned or removed`, n.reopened && `${n.reopened} reopened`].filter(Boolean);
-    if (n.pending) toast(`ADO: ${plural(n.pending, 'new work item')} to review${bits.length ? ', ' + bits.join(', ') : ''}`, 'Review', adoReview);
+    // Focus hours (Workshop docs/focus.md): a sync on its own (not Sync now) during focus or lunch shows no toast; the
+    // items still land, and are counted in Docket's held card. PRs blocked on you still show during focus.
+    if (!manual && heldNow() && (n.pending || bits.length)){
+      holdCount(n.pending + Math.max(0, n.added - n.prAdded), 'ado');
+      holdCount(Math.max(0, n.prAdded - n.prBlocking), 'pr');
+      if (n.prBlocking && focusNow().state === 'focus') toast(`ADO: ${n.prBlocking} PR${n.prBlocking > 1 ? 's' : ''} blocked on you`, 'Show', () => setScope(state.ado.prListId));
+      else if (n.prBlocking) holdCount(n.prBlocking, 'pr');
+    }
+    else if (n.pending) toast(`ADO: ${plural(n.pending, 'new work item')} to review${bits.length ? ', ' + bits.join(', ') : ''}`, 'Review', adoReview);
     else if (bits.length) toast(`ADO: ${bits.join(', ')}`, n.added ? 'Show' : null, () => setScope(n.prAdded && n.prAdded === n.added ? state.ado.prListId : state.ado.listId));
     else if (manual) toast(res.prError ? `Work items synced, but pull requests failed: ${res.prError}`
       : `ADO is up to date. ${plural((res.items || []).length, 'open item')}${res.prs ? `, ${plural(res.prs.items.length, 'PR')} to review` : ''}.`);

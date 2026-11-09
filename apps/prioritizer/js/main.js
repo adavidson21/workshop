@@ -36,6 +36,9 @@ import { mountBar } from '../shared/standalone-bar.js';
 import { mountAppBanner } from './app-banner.js';
 import { startNative } from './native.js';
 import { startDirectory } from './directory.js';
+import { focusHoursBoot } from './focus-hours.js';
+import { askLeftOff, leftOffBoot, onLeftOffSaved } from './left-off.js';
+import { refreshSummary } from './storage.js';
 
 // Inside the shell the rail names the app (no second logo), and the shell owns the light/dark toggle, the service worker, Alt+<n> and Ctrl+K.
 // On its own page, Prioritizer gets the same top bar as the other tools (crumbs and the toggle) and registers the worker itself.
@@ -98,6 +101,17 @@ window.__prioritizer = {
 };
 
 drawerInit(); dayInit(); tourInit(); pasteInit();
+// Focus hours and lunch (Workshop docs/focus.md): hold what can wait, and ask where you left off when a block ends,
+// lunch starts or focus starts now.
+leftOffBoot({active: activeTask});
+onLeftOffSaved((t, text) => focusModel.addCrumb(t, text, new Date().toISOString()));
+focusHoursBoot({render: () => loaded.then(render), summary: refreshSummary, transition: (prev, f) => {
+  const t = activeTask();
+  if (!t || !prev.enabled) return;
+  if (f.state === 'lunch' && prev.state !== 'lunch') askLeftOff(t.id, 'Lunch');
+  else if (prev.state === 'focus' && f.state !== 'focus') askLeftOff(t.id, 'Focus ended');
+  else if (f.state === 'focus' && f.source === 'manual' && prev.state !== 'focus') askLeftOff(t.id, 'Focus started');
+}});
 adoInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.

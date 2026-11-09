@@ -42,6 +42,7 @@ function toggleDone(id){
   t.doneAt = t.done ? todayStr() : null;
   if (!t.done) t.wontDo = false;
   if (t.done) delete t.cameBack;
+  if (t.done) delete t.leftOff;   // where you left off is moot once it is done (left-off.js)
   if (t.done) focusTaskClosed(id);
   commit();
 }

@@ -1009,3 +1009,18 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .col-today .panel{margin-top:1.4rem}
 .col-today .panel.nowcard{margin:0 0 1rem}
 .dslate button.lnk{color:var(--accent);font-weight:500}
+
+/* ---------- Focus hours (focus-hours.js, Workshop docs/focus.md): the held Inbox rail and the Needs you line ---------- */
+.today3.inbox-held{grid-template-columns:3.2rem minmax(0,1fr) minmax(17rem,22rem)}
+.col-inbox.rail.held .railbtn{color:var(--muted)}
+.needs .need.held{cursor:default;color:var(--muted);background:transparent;border-style:dashed}
+/* Where I left off (left-off.js): above the Now card */
+.leftoff{margin:0 0 1rem;padding:.55rem .7rem;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:2px var(--r-sm) var(--r-sm) 2px;background:var(--surface);font-size:.86rem;transition:opacity .4s}
+.leftoff.fading{opacity:0}
+.leftoff .lo-h{display:flex;align-items:baseline;gap:.5rem;font:500 11px/1.4 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.leftoff .lo-h .grow{flex:1}
+.leftoff .lo-t{margin:.2rem 0 0;color:var(--ink);overflow-wrap:anywhere}
+.leftoff form{display:flex;gap:.4rem;margin-top:.35rem}
+.leftoff input{flex:1;min-width:0;font:inherit;padding:.3rem .45rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.dleftoff{margin:.4rem 0;padding:.4rem .6rem;border-left:3px solid var(--accent);background:var(--surface);font-size:.86rem}
+.dsec .chip.lunchwarn{color:var(--muted);border-style:dashed}

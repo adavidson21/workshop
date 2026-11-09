@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "f04a7229c1c066a15ecc33ea348f446617051723",
+  "commit": "bc3eef4e32c6bd76a4f1e48ebefdb1b518262ae5",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -12,6 +12,7 @@
     "shared/app-settings.js": "shared/app-settings.js",
     "shared/app-sw.js": "shared/app-sw.js",
     "shared/device-fs.js": "shared/device-fs.js",
+    "shared/focus.js": "shared/focus.js",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "shared/fonts/dm-mono-latin-400-normal.woff2",
     "shared/fonts/dm-mono-latin-500-normal.woff2": "shared/fonts/dm-mono-latin-500-normal.woff2",
     "shared/fonts/dm-mono-latin-ext-400-normal.woff2": "shared/fonts/dm-mono-latin-ext-400-normal.woff2",
@@ -53,7 +54,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.7.2",
+  "bundle": "2.8.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -65,6 +66,7 @@
     "shared/app-settings.js": "6e9f17c4266f1530eefa1df0a3d2a931f12e99b56b80f913a94f28993c705b85",
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
+    "shared/focus.js": "d4cfd12432c310ae989af6752c43f1c938bf61bad9e6ff7df11e50eb20037e5d",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "e1896b13b2b1bb112fac2f9571bd6c40e118746e77a4511edbf43fbb41bf3e1e",
     "shared/fonts/dm-mono-latin-500-normal.woff2": "9964608a849396bd00c4bfd7034afe03486469dcf20b4f6b8cbdfdd310369951",
     "shared/fonts/dm-mono-latin-ext-400-normal.woff2": "a52e19ebe0398c9c0f8fa28a0c5e9a6bc324f35d9f0881c9aa407d10af447175",
@@ -94,7 +96,7 @@
     "shared/vendor/LICENSE-SheetJS.txt": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64",
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "9ae66b604566b2594aa4acbfa74c56bffcc91870048085354d9a1203606d7aeb",
+    "shared/workshop-sdk.js": "24fb8906ef82685e260caa98d70c00615d6020e2f12b950e1f2811c75192157d",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
     "test/workshop/schemas/app.schema.json": "aacb2c69036863b58854d651416d8681c20808f83e7c14c011796c5cab904e6a",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
@@ -103,7 +105,7 @@
     "test/workshop/schemas/handoff-item.schema.json": "512a3b0428d6043d5b8872fcaf63858df3015bd1c9b33a185ea8b749c0669766",
     "test/workshop/schemas/person-group.schema.json": "7ddba893c6aaee2e1c0acc72c1814d47962412867b3f978166f4660868a2a040",
     "test/workshop/schemas/person.schema.json": "4311c304977caa3d5b6f6707ccb8bdd9bec6a0e3b4802e072b76fa5670cb6d6c",
-    "test/workshop/schemas/summary-card.schema.json": "f83a35c39a82c651d9b7866caec88e06bf1bbd64f375e74b70e71c049d3a993e",
+    "test/workshop/schemas/summary-card.schema.json": "c83567190b02d9eea291e3568e4fab3e4b61cc2c2c6d4dc4b8ad8213edd44e2d",
     "test/workshop/schemas/team.schema.json": "4d9a224efa52b92a388e93f33d66b35adcf07305cfe408a777300d08432a5e3d"
   }
 }

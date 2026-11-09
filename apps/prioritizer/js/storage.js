@@ -28,6 +28,7 @@ import { dayplanBoot, dp, importDayplan } from './dayplan.js';
 import { focusBoot, focusLog, importFocus } from './focus.js';
 import { offersBoot } from './offers.js';
 import { buildSummary } from './summary.js';
+import { heldCard } from './focus-hours.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { fillFollowUps } from './delegate.js';
 
@@ -42,7 +43,7 @@ const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts
 let summary = null, summaryDay = null;
 function summaryBoot(){
   summary = createSummaryWriter({data: ws.data, app: 'prioritizer', build: () => (!store || isWaiting() || Object.values(parts).some(p => p.state === 'readonly'))
-    ? null : buildSummary({board: state, dir: getDirectory(), dp, log: focusLog, today: todayStr()})});
+    ? null : buildSummary({board: state, dir: getDirectory(), dp, log: focusLog, today: todayStr(), held: heldCard()})});
   summaryDay = todayStr();
   summary.flush();
   setInterval(() => { if (todayStr() !== summaryDay){ summaryDay = todayStr(); summary.schedule(); } }, 60000);

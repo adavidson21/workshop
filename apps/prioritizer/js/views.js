@@ -8,6 +8,9 @@ import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from '.
 import { dp } from './dayplan.js';
 import { currentSection, dayReady, dayView, fmt12, isWorkday, sectionTasks } from './dayplan-model.js';
 import { adoReview } from './ado.js';
+import { fmtUntil, focusNow, heldUntil } from './focus-hours.js';
+import { heldNeeds } from './focus-hours-model.js';
+import { leftOffPanel } from './left-off.js';
 /* Prioritizer: The views: Today (three columns: Inbox, Ranked, Today), Done with the weekly recap, People.
 
    Today is where the day happens. Work moves left to right: triage it in the Inbox, rank it, pick it for Today.
@@ -42,16 +45,19 @@ function needs(){
     plan: unplannedToday()
   };
 }
-function needsStrip(n){
+function needsStrip(all){
+  const f = focusNow(), {n, held} = heldNeeds(all, f.state);
+  const heldLine = held ? `<span class="need held" data-tip="Held during ${f.state === 'lunch' ? 'lunch' : 'focus'}. They come back together when it ends.">${ICON.clock || ''}<b class="num">${held}</b><span>held until ${esc(fmtUntil(heldUntil()))}</span></span>` : '';
   const chip = (k, count, label, icon, cls = '') => count ? `<button class="need${cls ? ' ' + cls : ''}${need === k ? ' on' : ''}" data-need="${k}" aria-pressed="${need === k}">${icon}<b class="num">${count}</b><span>${label}</span></button>` : '';
   const html = chip('ado', n.ado, n.ado === 1 ? 'new ADO item' : 'new ADO items', ICON.item)
     + chip('prs', n.prs.length, n.prs.length === 1 ? 'PR blocked on you' : 'PRs blocked on you', ICON.block, 'warn')
     + chip('nudges', n.nudges.length, n.nudges.length === 1 ? 'follow-up due' : 'follow-ups due', ICON.bell, 'acc')
-    + chip('plan', n.plan, 'not in a block', ICON.day);
+    + chip('plan', n.plan, 'not in a block', ICON.day) + heldLine;
   return html ? `<div class="needs" role="toolbar" aria-label="Needs you"><span class="needs-h">Needs you</span>${html}</div>` : '';
 }
-function needPanel(n){
+function needPanel(all){
   if (!need) return '';
+  const n = heldNeeds(all, focusNow().state).n;
   const list = need === 'prs' ? n.prs : need === 'nudges' ? n.nudges : [];
   if (!list.length){ need = null; return ''; }
   const title = {prs: 'Pull requests blocked on you', nudges: 'Time to follow up'}[need];
@@ -100,9 +106,15 @@ function triageCard(cur, pos, total){
     </div>
   </div>`;
 }
+/* During focus and lunch the Inbox folds to a rail with its count (focus hours, Workshop docs/focus.md). Captures still
+   land in it, and a task dropped on the rail goes to the Inbox. "Open it anyway" lasts until the block ends. */
+let inboxAnyway = '';
+function heldInbox(){ const f = focusNow(); return (f.state === 'focus' || f.state === 'lunch') && inboxAnyway !== (f.span && f.span.key); }
+function openInboxAnyway(){ const f = focusNow(); inboxAnyway = f.span ? f.span.key : ''; render(); }
 function inboxCol(rail){
   const {q, cur} = triageState();
   if (!cur){ tri.id = null; tri.draft = null; }
+  if (!rail && heldInbox()) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="Inbox: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
   if (rail) return `<section class="col col-inbox rail" data-col="inbox" aria-label="Inbox"><button class="railbtn" data-lens="rank" data-goto="inbox" data-tip="Inbox: back to List to triage">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
   const rest = q.filter(t => !cur || t.id !== cur.id);
   const body = cur ? triageCard(cur, q.indexOf(cur) + 1, q.length)
@@ -208,7 +220,7 @@ function todayCol(rail){
     <div class="colbody">
       ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
         <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today.">${ICON.sun}<span>Keep</span></button></div>` : ''}
-      ${nowCard()}
+      ${leftOffPanel()}${nowCard()}
       ${focus.length ? `<div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
       <div class="ranklist rows dropzone" data-zone="today">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
         || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Ranked` : `Drag 3 to 5 from Ranked, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
@@ -224,7 +236,7 @@ function todayCol(rail){
 
 function renderToday(){
   const wide = state.lens === 'rank', n = needs();
-  main.innerHTML = `${needsStrip(n)}${needPanel(n)}<div class="t3wrap"><div class="today3${wide ? '' : ' lensed'}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(!wide)}${rankCol(state.lens)}${todayCol(!wide)}</div></div>`;
+  main.innerHTML = `${needsStrip(n)}${needPanel(n)}<div class="t3wrap"><div class="today3${wide ? '' : ' lensed'}${wide && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(!wide)}${rankCol(state.lens)}${todayCol(!wide)}</div></div>`;
   main.querySelectorAll('.col').forEach(c => c.classList.toggle('colon', c.dataset.col === col));
   fitTriage();
   if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
@@ -430,4 +442,4 @@ function renderArchive(){
   </div>`;
 }
 
-export { closeNeed, openNeed, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };
+export { closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };
