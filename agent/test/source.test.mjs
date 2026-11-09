@@ -48,8 +48,10 @@ test('the agent itself makes no outbound requests', () => {
   const banned = [/\bfetch\s*\(/, /node:https/, /\bhttp\.(request|get)\s*\(/, /node:net/, /node:tls/, /node:dns/, /node:dgram/, /node:child_process/, /\bWebSocket\b/, /\bEventSource\b/];
   for (const f of runtime) {
     const text = fs.readFileSync(f, 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
-    // One exception: lib/userenv.mjs reads saved user variables with "reg query" (docs/security.md).
-    for (const re of banned) if (!(re.source === 'node:child_process' && rel(f) === 'agent/lib/userenv.mjs')) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
+    // Two exceptions (docs/security.md): lib/userenv.mjs reads saved user variables with "reg query", and
+    // lib/terminal.mjs opens a visible terminal for Settings' Update button (checked below).
+    const mayRun = ['agent/lib/userenv.mjs', 'agent/lib/terminal.mjs'];
+    for (const re of banned) if (!(re.source === 'node:child_process' && mayRun.includes(rel(f)))) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
   }
 });
 
@@ -59,6 +61,23 @@ test('the agent runs no program except "reg query HKCU\\Environment"', () => {
   assert.deepEqual(calls, [['reg', "'query', 'HKCU\\\\Environment', '/v', name"]]);
   assert.equal((text.match(/spawnSync\(/g) || []).length, 1);
   assert.ok(!/\bspawn\(|\bexec(File)?Sync?\s*\(\s*['"`](?!reg)/.test(text.replace(/exec\('reg'/g, '')));
+});
+
+test('the only other program is a visible terminal running the fixed "workshop update --restart"', async () => {
+  const text = fs.readFileSync(path.join(AGENT, 'lib', 'terminal.mjs'), 'utf8').split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  assert.equal((text.match(/\brun\(/g) || []).length, 1, 'one launch');
+  assert.doesNotMatch(text, /spawnSync|execSync|exec\(|execFile|shell:\s*true|EncodedCommand/);
+  const { openUpdateTerminal, updateArgv } = await import('../lib/terminal.mjs');
+  assert.deepEqual(updateArgv({ execPath: 'node', repo: '/w' }).slice(2), ['update', '--restart']);
+  const seen = [];
+  const run = (exe, args) => { seen.push([exe, args]); return { once(ev, f) { if (ev === 'spawn') setImmediate(f); }, unref() {} }; };
+  for (const platform of ['win32', 'darwin']) await openUpdateTerminal({ execPath: 'node', repo: '/w', platform, run });
+  assert.equal(seen[0][0], 'powershell.exe');
+  assert.match(seen[0][1].at(-1), /^& 'node' '.*workshop\.mjs' 'update' '--restart'$/);
+  assert.equal(seen[1][0], 'osascript');
+  assert.match(seen[1][1][1], /workshop\.mjs.*'update' '--restart'/);
+  await assert.rejects(openUpdateTerminal({ execPath: 'node', repo: '/w', platform: 'linux', run }), e => e.status === 501);
+  assert.equal(seen.length, 2, 'nothing runs on other platforms');
 });
 
 test('the agent binds 127.0.0.1 only', () => {

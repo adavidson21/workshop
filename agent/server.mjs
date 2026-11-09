@@ -29,6 +29,7 @@ import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
 import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
+import { openUpdateTerminal, updateArgv } from './lib/terminal.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAME = /^[a-z][a-z0-9-]{0,39}$/;
@@ -349,6 +350,21 @@ document.getElementById('allow').addEventListener('click', function () {
       only('GET');
       if (!own) fail('local_only', 'The health check runs in Workshop on this computer.');
       ok(healthReport());
+      return;
+    }
+
+    // Settings' Update button (lib/terminal.mjs): opens a terminal you can see running "workshop update --restart".
+    // The agent runs no git itself; the update runs in that window. Local only, and a write (needs the token header).
+    if (parts[0] === 'update-terminal' && parts.length === 1) {
+      only('POST');
+      if (!own) fail('local_only', 'Update from Workshop on this computer.');
+      try { await (o.openUpdateTerminal || openUpdateTerminal)({ execPath: process.execPath, repo: REPO }); }
+      catch (e) {
+        if (e && e.status === 501) fail('unavailable', e.message);
+        fail('internal', (e && e.message) || 'Could not open a terminal. Copy the command instead.');
+      }
+      log.for('update').info('Opened a terminal running workshop update.');
+      ok({ ok: true, command: updateArgv({ execPath: process.execPath, repo: REPO }).slice(1).join(' ') });
       return;
     }
 

@@ -101,6 +101,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  work mode is on. Tandem is reinstalled in opencode when opencode's copy is behind.
                                  Tandem's clone is the one next to Workshop, else the one opencode installed from.
   update --eng-agents <folder>   Same, using the eng-agents clone in <folder> (also goes with --eng-agents-tag).
+  update --verbose               Show every step's full output (Tandem's install, the pinned copy build).
+  update --restart               Also restart Workshop when it moved to a new version (Settings' Update button uses it).
   update --check                 List the release tags and say which one this is. Changes nothing.
   update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
          [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
@@ -546,13 +548,15 @@ const anyTag = opts => !!opts.tag || !!opts.engAgentsTag || REMOTE_APPS.some(a =
 /** Read update's options. Returns {opts} or {error}. With no options, update means --latest. */
 export function parseUpdateArgs(rest) {
   // --<key>-tag for each app from another repo (apps/remote.json): --docket-tag, --runway-tag, --receipts-tag.
-  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false };
+  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false, verbose: false, restart: false };
   const keys = { '--tag': 'tag', ...Object.fromEntries(REMOTE_APPS.map(a => [`--${a.key}-tag`, `${a.key}Tag`])), '--eng-agents-tag': 'engAgentsTag' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pull') { opts.pull = true; continue; }
     if (a === '--latest') { opts.latest = true; continue; }
     if (a === '--check') { opts.check = true; continue; }
+    if (a === '--verbose') { opts.verbose = true; continue; }
+    if (a === '--restart') { opts.restart = true; continue; }
     if (a === '--eng-agents') {
       const v = rest[++i];
       if (!v || v.startsWith('--')) return { error: '--eng-agents needs the folder of your eng-agents clone.' };
@@ -571,6 +575,7 @@ export function parseUpdateArgs(rest) {
   if (opts.latest && (opts.pull || anyTag(opts))) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
   if (opts.check && (opts.pull || opts.latest || anyTag(opts))) return { error: '--check only lists the release tags, so it goes on its own.' };
   if (opts.engAgents && (opts.pull || opts.check)) return { error: '--eng-agents goes with a plain "workshop update" or --eng-agents-tag.' };
+  if (opts.restart && (opts.pull || opts.check)) return { error: '--restart goes with a plain "workshop update" or --tag.' };
   if (!opts.pull && !opts.check && !anyTag(opts)) opts.latest = true;
   return { opts };
 }
@@ -740,7 +745,7 @@ export function findPowerShell(platform = process.platform) {
  * otherwise install.ps1 runs, with ~/.config/eng-agents/personal when it exists (as the installer does).
  * Returns true when opencode now has that tag's Core version.
  */
-export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync, allowOlder = false, restart = restartOpencode } = {}) {
+export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = findPowerShell(), run = spawnSync, allowOlder = false, restart = restartOpencode, verbose = false } = {}) {
   { const w = tandemVersionAt(dir, `refs/tags/${tag}`), have = installedTandem(userHome)?.core;
     if (!allowOlder && newerVersion(have, w)) { out(`opencode has Tandem Core ${have}, newer than ${tag}. Not installing an older version.`); return false; } }
   if (!ps) { out('Tandem needs PowerShell to install (pwsh, or Windows PowerShell). Install PowerShell 7, then run "workshop update" again.'); return false; }
@@ -758,15 +763,29 @@ export function installTandem(dir, tag, { out, userHome = os.homedir(), ps = fin
     if (fs.existsSync(personal)) { args.push('-Personal', personal); out(`Using your personal layer at ${personal}.`); }
   }
   out(`${before ? 'Updating' : 'Installing'} Tandem ${tag} in opencode ...`);
-  const r = run(ps, args, { stdio: 'inherit', windowsHide: true });
+  // Quiet by default: Tandem's scripts print their changelog and every layer they copy. That output is shown only
+  // when the install fails, or with --verbose; on success only its warnings that need you are passed on.
+  const r = run(ps, args, verbose ? { stdio: 'inherit', windowsHide: true } : { encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+  const said = verbose ? '' : `${r?.stdout ?? ''}\n${r?.stderr ?? ''}`;
   const after = installedTandem(userHome);
   if (r.error || r.status !== 0 || !after || (want && after.core !== want)) {
+    if (said.trim()) out(said.trim());
     out(`Tandem did not install${r.error ? ` (${r.error.message})` : ''}. See the messages above, then run "workshop update" again.`);
     return false;
   }
   out(`Tandem ${after.core} is installed in opencode.`);
+  for (const l of tandemNotices(said)) out(`  ${l}`);
   restart({ out });
   return true;
+}
+
+// Tandem's warnings that need nothing from you: no company overlay or personal layer (normal at home), a file it
+// replaced (it keeps a backup), and git fetch trouble (update.ps1 falls back to the clone, and Workshop fetched first).
+const QUIET_TANDEM = [/Company overlay not found/, /Personal layer is empty/, /Replacing a file eng-agents did not create/, /tracks no remote/, /^Could not fetch/];
+
+/** The lines of Tandem's install output worth showing after a quiet install: its warnings, minus QUIET_TANDEM. */
+export function tandemNotices(text = '') {
+  return String(text).split(/\r?\n/).map(l => /^\s*WARNING:\s*(.+)$/.exec(l)?.[1]?.trim()).filter(l => l && !QUIET_TANDEM.some(re => re.test(l)));
 }
 
 /** Download Tandem next to Workshop (git clone) and install it at its newest release. Returns true when installed. */
@@ -936,9 +955,12 @@ async function runUpdate(rest, io) {
   }
   const home = resolveHome(io.env);
   const info = inspectConfig(homePaths(home).config, loadSchemas());
+  // Quiet unless --verbose: a short plan, progress only for slow steps, and what you need to do at the end.
+  const quiet = opts.latest && !opts.verbose;
+  const say = quiet ? l => { if (!/ is now at /.test(l)) io.out(l); } : io.out;
   if (opts.latest) {
     const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('agents'), engAgentsDir: opts.engAgents });
-    for (const l of plan.lines) io.out(l);
+    for (const l of quiet ? updateSummary(plan.items, plan.lines) : plan.lines) io.out(l);
     Object.assign(opts, plan.tags);
   }
   // A tag named by hand may be older on purpose (a rollback). Allowed, but said plainly.
@@ -955,32 +977,65 @@ async function runUpdate(rest, io) {
   }
   const running = await agentHealth(info.config?.port ?? DEFAULT_PORT);
   const moved = anyTag(opts);
-  if (opts.tag && !checkoutTag(REPO, opts.tag, io.out)) return 1;
+  if (opts.tag && !checkoutTag(REPO, opts.tag, say)) return 1;
   for (const a of REMOTE_APPS) {
     const t = opts[`${a.key}Tag`];
     if (!t) continue;
     const d = findRemote(a.key, REPO);
     if (!d || !isCheckout(d)) { io.out(`--${a.key}-tag needs a download of ${a.name}. Get it with: workshop apps on ${a.key}`); return 1; }
-    if (!checkoutTag(d, t, io.out)) return 1;
+    if (!checkoutTag(d, t, say)) return 1;
   }
   // Tandem last: a failed install leaves Workshop and its apps updated, and says so.
   let tandemFailed = false;
   if (opts.engAgentsTag) {
     const ea = findEngAgents(REPO, { dir: opts.engAgents });
     if (!ea) { io.out('--eng-agents-tag needs an eng-agents clone: one next to Workshop, the one opencode installed from, or --eng-agents <folder>. Get one with: workshop apps on dispatch'); return 1; }
-    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: io.out, allowOlder: !opts.latest });
+    tandemFailed = !installTandem(ea, opts.engAgentsTag, { out: say, allowOlder: !opts.latest, verbose: !quiet });
   }
-  if (!moved) io.out('Everything is already at its newest release.');
+  if (!moved && !quiet) io.out('Everything is already at its newest release.');
   if (info.config?.features?.workMode === true) {
     // Rebuilt even when nothing moved, so an app downloaded or turned on since the last build shows up.
     // The new code builds the copy, so run it in a fresh process.
-    io.out('Work mode is on, so the pinned copy is rebuilt.');
-    const r = spawnSync(process.execPath, [path.join(REPO, 'workshop.mjs'), 'pin'], { stdio: 'inherit', env: io.env });
-    if (r.status !== 0) { io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
-  } else if (!moved) io.out('Nothing was changed.');
-  if (running && opts.tag) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
+    const pinArgs = [path.join(REPO, 'workshop.mjs'), 'pin'];
+    if (!quiet) {
+      io.out('Work mode is on, so the pinned copy is rebuilt.');
+      const r = spawnSync(process.execPath, pinArgs, { stdio: 'inherit', env: io.env });
+      if (r.status !== 0) { io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
+    } else {
+      const r = spawnSync(process.execPath, pinArgs, { encoding: 'utf8', env: io.env });
+      const said = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+      if (r.status !== 0) { if (said) io.out(said); io.out('Rebuilding the pinned copy failed. Run "workshop pin" to see why.'); return 1; }
+      io.out('Rebuilt the pinned copy.');
+      for (const l of pinNotices(said)) io.out(`  ${l}`);
+    }
+  } else if (!moved && !quiet) io.out('Nothing was changed.');
+  if (running && opts.tag && opts.restart) {
+    io.out('Restarting Workshop so it runs the new version ...');
+    if (await runRestart([], io) !== 0) return 1;
+    io.out('Reload Workshop in your browser.');
+  } else if (running && opts.tag) io.out('Workshop is running the old version: run "workshop restart" to run this one.');
   else if (running && moved && anyTag({ ...opts, engAgentsTag: null })) io.out('Reload Workshop in your browser to use the new version.');
+  if (quiet && !tandemFailed) io.out(moved ? 'Done.' : 'Done. Nothing needed updating.');
   return tandemFailed ? 1 : 0;
+}
+
+/** The short plan a quiet update prints: what moves, then one line each for what is current, not downloaded or
+ *  has no release. Lines that need a decision (newer than the newest release) are kept whole. */
+export function updateSummary(items = [], lines = []) {
+  const of = kind => items.filter(i => i.kind === kind);
+  const out = [];
+  const moves = of('move');
+  out.push(moves.length ? `Updating ${moves.map(i => `${i.name} to ${i.to}`).join(', ')}.` : 'Everything is already at its newest release.');
+  items.forEach((i, n) => { if (i.kind === 'ahead') out.push(`  ${lines[n]}`); });
+  if (moves.length && of('current').length) out.push(`  Already current: ${of('current').map(i => i.name).join(', ')}.`);
+  if (of('missing').length) out.push(`  Not downloaded, skipped: ${of('missing').map(i => i.name).join(', ')} (add one with "workshop apps on <app>").`);
+  if (of('none').length) out.push(`  No releases yet: ${of('none').map(i => i.name).join(', ')}.`);
+  return out;
+}
+
+/** What a quiet update passes on from "workshop pin": apps left out and notes, not the build details. */
+export function pinNotices(text = '') {
+  return String(text).split(/\r?\n/).map(l => l.trim()).filter(l => l && !/^Built the pinned copy|^Work mode is on|is turned off, so it is not included|^Turned off, so not included/.test(l));
 }
 
 /**
@@ -990,23 +1045,25 @@ async function runUpdate(rest, io) {
  * Returns {tags: {tag, <key>Tag..., engAgentsTag}, lines}.
  */
 export function planLatest(repo = REPO, out = () => {}, { userHome = os.homedir(), dispatchOn = true, engAgentsDir = null } = {}) {
-  const tags = {}, lines = [];
+  const tags = {}, lines = [], items = [];
+  // kind: move, current, ahead (newer than the newest release), none (no release tags), missing (not downloaded).
+  const add = (kind, name, line, to = null) => { items.push({ kind, name, to }); lines.push(line); };
   const consider = (name, dir, key) => {
     const latest = latestTag(dir, 'v', out);
     const at = tagsAtHead(dir), now = at[0] ?? null;
     const have = latest && !at.includes(latest) ? versionAt(dir, 'HEAD') : null;
     const want = have ? versionAt(dir, `refs/tags/${latest}`) : null;
-    if (!latest) lines.push(`${name}: no release tags yet. Left as it is.`);
-    else if (at.includes(latest)) lines.push(`${name}: already at ${latest}.`);
+    if (!latest) add('none', name, `${name}: no release tags yet. Left as it is.`);
+    else if (at.includes(latest)) add('current', name, `${name}: already at ${latest}.`, latest);
     // Never a step back: newer code than the newest release stays put until that version is released.
-    else if (newerVersion(have, want)) lines.push(`${name}: ${have} here is newer than the newest release (${latest}). Left as it is; release ${have} (Actions, Release) for "workshop update" to manage it.`);
-    else { tags[key] = latest; lines.push(`${name}: ${now ?? 'not at a release tag'} -> ${latest}.`); }
+    else if (newerVersion(have, want)) add('ahead', name, `${name}: ${have} here is newer than the newest release (${latest}). Left as it is; release ${have} (Actions, Release) for "workshop update" to manage it.`);
+    else { tags[key] = latest; add('move', name, `${name}: ${now ?? 'not at a release tag'} -> ${latest}.`, latest); }
   };
   consider('Workshop', repo, 'tag');
   for (const a of REMOTE_APPS) {
     const d = findRemote(a.key, repo);
     if (d && isCheckout(d)) consider(a.name, d, `${a.key}Tag`);
-    else lines.push(`${a.name}: not downloaded, so skipped. To add it: workshop apps on ${a.key}`);
+    else add('missing', a.name, `${a.name}: not downloaded, so skipped. To add it: workshop apps on ${a.key}`);
   }
   // Tandem: behind when the checkout is not at its newest tag, or opencode has a different Core than that tag.
   const ea = findEngAgents(repo, { userHome, dir: engAgentsDir });
@@ -1014,12 +1071,12 @@ export function planLatest(repo = REPO, out = () => {}, { userHome = os.homedir(
     const latest = latestTag(ea, 'core-v', out);
     const want = latest && tandemVersionAt(ea, `refs/tags/${latest}`);
     const inst = installedTandem(userHome);
-    if (!latest) lines.push('Tandem (eng-agents): no release tags yet. Left as it is.');
-    else if (inst && want && newerVersion(inst.core, want)) lines.push(`Tandem (eng-agents): opencode has Core ${inst.core}, newer than the newest release (${latest}). Left as it is; release it from eng-agents (Actions, Release) for "workshop update" to manage it.`);
-    else if (inst && want && inst.core === want && tagsAtHead(ea).includes(latest)) lines.push(`Tandem (eng-agents): already at ${latest}.`);
-    else { tags.engAgentsTag = latest; lines.push(`Tandem (eng-agents${ea === tandemDir(repo) ? '' : `, ${ea}`}): ${inst ? `Core ${inst.core ?? 'unknown'} in opencode` : 'not installed in opencode'} -> ${latest}.`); }
-  } else if (dispatchOn) lines.push('Tandem (eng-agents): not downloaded, so skipped. To add it: workshop apps on dispatch');
-  return { tags, lines };
+    if (!latest) add('none', 'Tandem', 'Tandem (eng-agents): no release tags yet. Left as it is.');
+    else if (inst && want && newerVersion(inst.core, want)) add('ahead', 'Tandem', `Tandem (eng-agents): opencode has Core ${inst.core}, newer than the newest release (${latest}). Left as it is; release it from eng-agents (Actions, Release) for "workshop update" to manage it.`);
+    else if (inst && want && inst.core === want && tagsAtHead(ea).includes(latest)) add('current', 'Tandem', `Tandem (eng-agents): already at ${latest}.`, latest);
+    else { tags.engAgentsTag = latest; add('move', 'Tandem', `Tandem (eng-agents${ea === tandemDir(repo) ? '' : `, ${ea}`}): ${inst ? `Core ${inst.core ?? 'unknown'} in opencode` : 'not installed in opencode'} -> ${latest}.`); }
+  } else if (dispatchOn) add('missing', 'Tandem', 'Tandem (eng-agents): not downloaded, so skipped. To add it: workshop apps on dispatch');
+  return { tags, lines, items };
 }
 
 // --------------------------------------------------------------- apps

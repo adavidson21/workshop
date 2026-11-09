@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installedTandem, newerVersion, restartOpencode, opencodeStale, opencodeCommand, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs } from '../../workshop.mjs';
+import { installedTandem, newerVersion, restartOpencode, opencodeStale, opencodeCommand, tandemVersionAt, installTandem, planLatest, tandemDoctor, ensureTandem, findEngAgents, parseUpdateArgs, tandemNotices, updateSummary, pinNotices } from '../../workshop.mjs';
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 const rm = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -243,4 +243,66 @@ test('restartOpencode uses the opencode command from the connector config', () =
     restartOpencode({ out: () => {}, cmd: opencodeCommand(home), run: (exe, args) => { seen.push(exe); return args[0] === '--version' ? { status: 0, stdout: '2.0.0' } : { status: 0 }; } });
     assert.deepEqual(seen, ['/opt/oc/opencode', '/opt/oc/opencode', '/opt/oc/opencode']);
   } finally { rm(home); }
+});
+
+test('update --verbose and --restart parse; --restart does not go with --pull or --check', () => {
+  assert.equal(parseUpdateArgs(['--verbose']).opts.verbose, true);
+  assert.equal(parseUpdateArgs(['--restart']).opts.restart, true);
+  assert.equal(parseUpdateArgs(['--restart']).opts.latest, true);
+  assert.ok(parseUpdateArgs(['--restart', '--pull']).error);
+  assert.ok(parseUpdateArgs(['--restart', '--check']).error);
+});
+
+test('a quiet update keeps only the Tandem warnings and pin lines that need you', () => {
+  const ps = [
+    'eng-agents update', 'What\'s new:', '  Core 2.19.1', '    - long changelog line',
+    'WARNING: Company overlay not found at C:\\x. Skipping it. (Expected on a home machine.)',
+    'WARNING: Personal layer is empty or missing at C:\\y. Skipping it.',
+    'WARNING: Replacing a file eng-agents did not create: C:\\z (backed up)',
+    'WARNING: Core changed 2 file(s) that you override. Your copy keeps winning, so it will not get these changes:',
+  ].join('\r\n');
+  assert.deepEqual(tandemNotices(ps), ['Core changed 2 file(s) that you override. Your copy keeps winning, so it will not get these changes:']);
+  assert.deepEqual(tandemNotices(''), []);
+  const pinOut = 'Built the pinned copy in C:\\ui: Workshop v1; 900 files.\nWork mode is on: open pages offer a reload.\nRunway is not included: it is not downloaded. Download it with: workshop apps on runway\nTurned off, so not included: focus';
+  assert.deepEqual(pinNotices(pinOut), ['Runway is not included: it is not downloaded. Download it with: workshop apps on runway']);
+});
+
+test('updateSummary: one line for what moves, one each for current, missing and no release', () => {
+  const items = [
+    { kind: 'move', name: 'Workshop', to: 'v1.6.0' }, { kind: 'current', name: 'Docket', to: 'v4.0.0' },
+    { kind: 'current', name: 'Runway', to: 'v1.0.0' }, { kind: 'missing', name: 'Folio' },
+    { kind: 'move', name: 'Tandem', to: 'core-v2.19.1' }, { kind: 'ahead', name: 'Rapport' },
+  ];
+  const lines = ['', '', '', '', '', 'Rapport: 3.1.0 here is newer than the newest release (v3.0.0).'];
+  assert.deepEqual(updateSummary(items, lines), [
+    'Updating Workshop to v1.6.0, Tandem to core-v2.19.1.',
+    '  Rapport: 3.1.0 here is newer than the newest release (v3.0.0).',
+    '  Already current: Docket, Runway.',
+    '  Not downloaded, skipped: Folio (add one with "workshop apps on <app>").',
+  ]);
+  assert.deepEqual(updateSummary([{ kind: 'current', name: 'Workshop', to: 'v1' }], ['']), ['Everything is already at its newest release.']);
+});
+
+test('installTandem is quiet: Tandem\'s output shows only when the install fails', { skip: !hasGit && 'git is not installed' }, () => {
+  const s = setup();
+  try {
+    const ea = s.clone(s.eaOrigin, 'eng-agents', 'core-v2.0.0');
+    s.install('2.0.0', ea);
+    const out = [];
+    const ok = (exe, args, o) => { assert.equal(o.stdio, undefined, 'output is captured'); s.install(tandemVersionAt(ea), ea); return { status: 0, stdout: "What's new:\nWARNING: Company overlay not found at x.\nWARNING: Core changed 1 file(s) that you override.\n", stderr: '' }; };
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run: ok, restart: () => {} }));
+    assert.doesNotMatch(out.join('\n'), /What's new|Company overlay/);
+    assert.match(out.join('\n'), /Core changed 1 file/);
+
+    spawnSync('git', ['-C', ea, 'checkout', '-q', '--detach', 'core-v2.0.0']);
+    s.install('2.0.0', ea);
+    out.length = 0;
+    const bad = () => ({ status: 1, stdout: 'Copying agents...\nupdate: something broke', stderr: '' });
+    assert.equal(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run: bad, restart: () => {} }), false);
+    assert.match(out.join('\n'), /something broke[\s\S]*Tandem did not install/);
+
+    out.length = 0;
+    const loud = (exe, args, o) => { assert.equal(o.stdio, 'inherit'); s.install(tandemVersionAt(ea), ea); return { status: 0 }; };
+    assert.ok(installTandem(ea, 'core-v2.1.0', { out: l => out.push(l), userHome: s.userHome, ps: 'pwsh', run: loud, restart: () => {}, verbose: true }));
+  } finally { rm(s.root); }
 });

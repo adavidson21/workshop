@@ -21,8 +21,8 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: true, check: false }, 'plain update means the newest releases');
-  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: true });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: true, check: false, verbose: false, restart: false }, 'plain update means the newest releases');
+  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: true, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--check', '--tag', 'v1.0.0']).error);
   assert.equal(parseUpdateArgs(['--pull']).opts.latest, false);
   assert.equal(parseUpdateArgs(['--latest']).opts.latest, true);
@@ -30,7 +30,7 @@ test('update, pin and install read their options', () => {
   assert.ok(parseUpdateArgs(['--pull', '--receipts-tag', 'v3.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--tag', 'v1.0.0']).error);
   assert.ok(parseUpdateArgs(['--latest', '--pull']).error);
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false });
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
