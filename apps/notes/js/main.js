@@ -11,6 +11,7 @@ import { createNotes } from './data.js';
 import { QUICK, SENDERS, startPickup } from './pickup.js';
 import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
+import { createHolder } from '../shared/focus.js';
 import { RELATION_LABEL } from '../shared/people.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
 import { DAILY, PLACEHOLDERS, PRODUCT_TPL, STARTERS, TEMPLATES, asTemplate, dailyPath, dailyText, dayOf, fill, setTemplateFields, templateFields, templateText, templatesIn } from './templates.js';
@@ -87,7 +88,10 @@ const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loade
 const tandem = createTandem(ws, { onChange: () => { if (ui.path && isTandem(ui.path)) doc.item = (findDoc(tandem.state.items, ui.path) || {}).item || doc.item; paintChrome(); }, onModel: () => onTandemModel() });
 let doc = null; // the open Tandem page: {item, busy}
 // Notes' summary for Home and other apps (summary-cards.js): titles and paths, never note text.
-const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (notes.loaded ? notesCards(notes.index) : null) });
+const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (notes.loaded ? notesCards(notes.index).concat(held.card() ? [held.card()] : []) : null) });
+// Focus hours (Workshop docs/focus.md): captures picked up during focus or lunch are written as always, without a
+// toast, and counted in Folio's `held` summary card for Workshop's release toast and Dispatch's digest.
+const held = createHolder(ws, { label: n => `${n} note${n === 1 ? '' : 's'} picked up`, route: 'today', onChange: () => summary.schedule() });
 // App names for ws: link chips (applinks.js), from the manifests on this site.
 const appNames = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Rapport', runway: 'Runway', home: 'Home', people: 'People', settings: 'Settings' };
 // Offers Notes has sent (offers.js). The receivers can read them inside Workshop, or when paired.
@@ -110,9 +114,10 @@ const pickup = startPickup(ws, notes, {
     const quick = w.filter(x => x.path === QUICK).length;
     const day = w.filter(x => x.daily);
     const where = (x) => (x.daily === dayOf(new Date()) ? "today's note" : `the note for ${x.daily}`);
+    if (held.add(w.length)) return;
     ws.toast(day.length === w.length ? (day[0].section ? `Added the ${day[0].section.toLowerCase()} from ${from} to ${where(day[0])}` : `Added ${day.length === 1 ? 'a note' : day.length + ' notes'} from ${from} to ${where(day[0])}`)
       : quick === w.length ? `Added ${quick === 1 ? 'a note' : quick + ' notes'} from ${from} to Quick Notes`
-      : w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from}`, { kind: 'success' });
+      : w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from}`, { kind: 'success', hold: true });
     const gone = [...new Set(w.filter(x => x.fellBack).map(x => x.fellBack))];
     if (gone.length) ws.toast(`${gone.map(f => f + '/').join(', ')} ${gone.length === 1 ? "wasn't" : "weren't"} there anymore, so the capture went to ${w.find(x => x.fellBack).path === QUICK ? 'Quick Notes' : 'inbox/'}.`, { kind: 'warn' });
   }
