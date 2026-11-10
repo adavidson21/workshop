@@ -298,7 +298,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
     if slf:
         slf.click('.top [data-act=tab][data-id=board]'); pg.wait_for_timeout(400)
         slf.wait_for_selector('.empty, .board', timeout=10000)
-        check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.inner_text('#top'))
+        # Two setup notes (ADO and Dispatch) fold into one line that opens (docs/layout.md, .ws-notices).
+        check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.text_content('#top')
+              and '2 setup notes' in slf.inner_text('#top .ws-notices summary'))
         slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
