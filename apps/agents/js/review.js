@@ -15,11 +15,12 @@ import {
   parseHash, formatHash, select, draftKey, loadDraft, saveDraft, emptyDraft, nextCommentId, upsertComment, removeComment,
   quoteLines, buildFeedback, visibleFiles, sidesFor, languageFor, canRequestChanges,
 } from './review-state.js';
+import { confirmOutside } from '../../../shared/outside.js';
 import { esc, topBar, banner, filesPane, fileBar, placeholder, commentBox, panel } from './review-view.js';
 
-// Approve records the verdict, then pushes the branch with the connector's existing Push action. Dispatch
-// no longer offers Push on its own, so nothing is pushed before Approve.
-const APPROVE_LABEL = 'Approve and Push PR';
+// Approve only records the verdict, on this computer. Pushing the branch changes the git remote, so it is its own
+// button, Push to origin, with the shared outside confirm (shared/outside.js). Nothing is pushed before Approve.
+const APPROVE_LABEL = 'Approve';
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
@@ -502,7 +503,7 @@ async function submit(verdict) {
     R.ui.confirmApprove = false;
     if (verdict === 'approve') {
       await loadSession();
-      await pushBranch(); // the same click: Approve and Push PR
+      ws.toast('Approved. Nothing is pushed until you click Push to origin.', { kind: 'info' });
     } else {
       ws.toast('Sent to the agent. It is revising now.', { kind: 'info' });
       await loadSession();
@@ -516,10 +517,19 @@ async function submit(verdict) {
   }
 }
 
-// Push the reviewed branch (the connector's Push: git push -u origin <pr.md branch>, never --force).
-// After Approve, or from Push PR when an earlier push failed.
+// Push the reviewed branch (the connector's Push: git push -u origin <pr.md branch>, never --force), after Approve,
+// only once the shared confirm says yes. Only that click sends confirm: true.
 async function pushBranch() {
   if (R.ui.pushing) return;
+  const branch = R.session && R.session.branch;
+  const ok = await confirmOutside({
+    system: 'git',
+    title: `Push ${branch || 'this branch'} to origin?`,
+    body: 'Sends the approved branch to the remote, where your team can see it. It never force-pushes.',
+    items: [`${R.repo || ''}: ${branch || ''}`.replace(/^: |: $/, '')],
+    ok: 'Push'
+  });
+  if (!ok) return;
   R.ui.pushing = true;
   R.ui.error = null;
   paintChrome();
@@ -528,7 +538,7 @@ async function pushBranch() {
     R.ui.pushed = true;
     ws.toast((r && r.message) || 'Pushed.', { kind: 'info' });
   } catch (e) {
-    R.ui.error = `Approved, but the push did not go through: ${errText(e)} Fix it, then click Push PR.`;
+    R.ui.error = `Approved, but the push did not go through: ${errText(e)} Fix it, then click Push to origin.`;
   } finally {
     R.ui.pushing = false;
     paintChrome();

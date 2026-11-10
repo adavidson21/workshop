@@ -1,10 +1,12 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
+import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { BOARD_COLUMNS, CARD_FIELDS, DETAIL_FIELDS, LEVELS, LEVEL_NAME, STAGE_TITLE, areaOf, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage, releaseGroups } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
-const btn = (act, label, { id = '', primary = false, extra = '', title = '' } = {}) =>
-  `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${esc(act)}"${id ? ` data-id="${esc(id)}"` : ''}${title ? ` title="${esc(title)}"` : ''}${extra}>${esc(label)}</button>`;
+// out: 'ado' when the action changes Azure DevOps (after a confirm): the button carries the mark (shared/outside.js).
+const btn = (act, label, { id = '', primary = false, extra = '', title = '', out = '' } = {}) =>
+  `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${esc(act)}"${id ? ` data-id="${esc(id)}"` : ''}${title ? ` title="${esc(title)}"` : ''}${out ? ' data-out' : ''}${extra}>${esc(label)}${out ? ' ' + outsideMark(out) : ''}</button>`;
 
 /* ---------- top bar ---------- */
 
@@ -112,7 +114,7 @@ function resolvedGroups(list, s) {
     const key = g.area.toLowerCase();
     const linked = g.items.filter(it => it.ado).length;
     return `<div class="rgroup"><div class="rhead"><span class="rarea" title="${esc(g.area || 'No area path')}">${esc(g.area ? g.area.split('\\').pop() : g.label)}</span><span class="count">${g.items.length}</span></div>
-      <div class="racts">${btn('copy-notes', 'Copy release notes', { extra: ` data-area="${esc(key)}"`, title: 'Titles, ADO links and release notes, as Markdown' })}${linked ? btn('close-group', 'Close as released', { extra: ` data-area="${esc(key)}"`, title: `Close the ${linked} ADO item${linked === 1 ? '' : 's'} here, after a confirm` }) : ''}</div>
+      <div class="racts">${btn('copy-notes', 'Copy release notes', { extra: ` data-area="${esc(key)}"`, title: 'Titles, ADO links and release notes, as Markdown' })}${linked ? btn('close-group', 'Close as released', { out: 'ado', extra: ` data-area="${esc(key)}"`, title: `Close the ${linked} ADO item${linked === 1 ? '' : 's'} here, after a confirm` }) : ''}</div>
       <ul>${g.items.map(c => card(c, s)).join('')}</ul></div>`;
   }).join('');
 }
@@ -355,7 +357,7 @@ function nextRaw(p) {
       if (p.triage.questions.length) {
         const q = `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`;
         if (it.ado && p.canAdo) return step(`${q} Post them on #${it.ado.id} so whoever asked can answer there, or copy them to send another way.`,
-          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, title: 'Adds them as a comment on the ADO item, after you confirm' }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, out: 'ado', title: 'Adds them as a comment on the ADO item, after you confirm' }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
         return step(q, [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
       }
       return step(`Nothing is missing. Define it next, or dig in yourself first.${p.suggestScope && p.triage.size ? ` Triage sized it ${esc(p.triage.size)}, so Define scopes and slices it.` : ''}`, [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
@@ -387,10 +389,10 @@ function nextRaw(p) {
       if (d.manual) {
         if (d.ready) return step(p.canAdo ? 'Your draft is approved.' : 'Your draft is approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true }), btn('unapprove-manual', 'Edit again')]);
         return step(`Your draft. Edit it until it is right, then approve it.${p.canAdo ? ' Approve and publish creates the ADO items (you confirm the list first).' : ''}`,
-          p.canAdo ? [btn('approve-manual-publish', 'Approve and publish', { primary: true }), btn('edit-draft', 'Edit'), btn('approve-manual', 'Approve only')] : [btn('approve-manual', 'Approve', { primary: true }), btn('edit-draft', 'Edit')]);
+          p.canAdo ? [btn('approve-manual-publish', 'Approve and publish', { primary: true, out: 'ado' }), btn('edit-draft', 'Edit'), btn('approve-manual', 'Approve only')] : [btn('approve-manual', 'Approve', { primary: true }), btn('edit-draft', 'Edit')]);
       }
       if (d.step === 'approve' || d.step === 'approve-milestones') return step('Read the draft. Approve and publish creates the ADO items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.',
-        [btn('approve-publish', 'Approve and publish', { primary: true }), btn('revise', 'Revise with my edits')], [btn('approve-build', 'Approve, publish and build it myself'), btn('approve', 'Approve only')]);
+        [btn('approve-publish', 'Approve and publish', { primary: true, out: 'ado' }), btn('revise', 'Revise with my edits')], [btn('approve-build', 'Approve, publish and build it myself', { out: 'ado' }), btn('approve', 'Approve only')]);
       if (d.step === 'approve-stories') return step('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
       if (d.ready) return step('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
       if (d.step === 'slice') return step('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
@@ -399,13 +401,23 @@ function nextRaw(p) {
     case 'publish':
       if (!p.canAdo) return step('Approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true })]);
       return step(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
-      [btn('publish', 'Publish to ADO', { primary: true }), btn('publish-build', 'Publish and build it myself')], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
+      [btn('publish', 'Publish to ADO', { primary: true, out: 'ado' }), btn('publish-build', 'Publish and build it myself', { out: 'ado' })], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
     case 'decide': return step(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
-      [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), btn('myself', it.ado || !p.canAdo ? 'Build it myself' : 'Build it myself, skip ADO', { primary: p.item.route !== 'delegate', title: it.ado ? 'Starts Tandem on the ADO item' : p.canAdo ? 'Starts local work in Tandem; link an ADO item later' : 'Starts local work in Tandem' })]);
+      [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), decideBuild(p)]);
     case 'delegated': return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`,
       [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [btn('mark-resolved', 'Mark resolved', { title: 'Done, waiting for a release' })])]);
     default: return step('');
   }
+}
+
+/** Build it myself, from Who builds it?. An approved draft not in ADO yet publishes first (main.js myself), so the
+    button says so and carries the ADO mark; "skip ADO" never touches ADO. */
+function decideBuild(p) {
+  const it = p.item;
+  const primary = it.route !== 'delegate';
+  if (it.ado || !p.canAdo) return btn('myself', 'Build it myself', { primary, title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem' });
+  if (p.draft && p.draft.ready) return btn('myself', 'Publish and build it myself', { primary, out: 'ado', title: 'Creates the ADO items after you confirm the list, then starts Tandem' });
+  return btn('build-local', 'Build it myself, skip ADO', { primary, title: 'Starts local work in Tandem; link an ADO item later' });
 }
 
 /** Build it myself, as a skip ahead from Inbox, Shape and Define (in More). In ADO: Tandem on the item; else local work. */
@@ -426,11 +438,11 @@ function devNext(p) {
   switch (p.column) {
     case 'done': return step('Closed. It is off the board; Health still counts it.', adoBtn);
     case 'resolved': return step(`Resolved: merged to main and waiting for a release, under ${esc(areaOf(it) || 'No area path')}. Close it as released when it ships, or close its whole area from the Resolved column.`,
-      [...(it.ado ? [btn('close-one', 'Close as released', { primary: true })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
+      [...(it.ado ? [btn('close-one', 'Close as released', { primary: true, out: 'ado' })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
     case 'merged':
       if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Mark it resolved here, or link its ADO item below to resolve it there.`, [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
       return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Mark it resolved: in main, waiting for the next release.`,
-        [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet')]);
+        [btn('mark-resolved', 'Mark resolved', { primary: true, out: 'ado', title: `Sets #${it.ado.id} to Resolved in Azure DevOps, after a confirm` }), btn('unmerge', 'Not merged yet')]);
     case 'review': {
       const prs = (it.prs && it.prs.list) || [];
       const done = prs.filter(x => x.status === 'completed').length;
@@ -578,10 +590,11 @@ export function publishDialogHtml(plan, { area, build = false }) {
   const rows = plan.map(p => `<tr><td>${esc(label(p))}</td><td>${esc(p.type || '')}</td><td>${esc(what(p))}</td></tr>`).join('');
   const n = plan.filter(p => p.op !== 'skip').length;
   return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
-    <p>${n} change${n === 1 ? '' : 's'} in Azure DevOps${area ? `, in ${esc(area)}` : ''}. Items are tagged <span class="mono">slate</span>. Nothing is sent until you click Publish.</p>
+    ${outsideBanner('ado', `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}. Nothing is sent until you click Publish.`)}
+    <p>Items are tagged <span class="mono">slate</span>.</p>
     <table class="plan"><thead><tr><th>Change</th><th>Type</th><th>Title</th></tr></thead><tbody>${rows}</tbody></table>
     ${build ? '<p>Then it moves to In flight and Tandem starts on it (Build it myself).</p>' : ''}
-    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok"${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'}</button></div></form>`;
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok" data-out-ok${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'} ${outsideMark('ado')}</button></div></form>`;
 }
 
 export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
@@ -590,9 +603,10 @@ export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
     <p class="soft">Owners of what it touches come first (People, Owns).</p>
     ${people.length ? '' : '<p class="soft">Add your team in People first.</p>'}
     <label class="check"><input type="checkbox" name="brief"${canBrief ? ' checked' : ' disabled'}> Write a brief for them (an agent drafts it; nothing is posted)</label>
-    <label class="check"><input type="checkbox" name="assign"${canAssign ? ' checked' : ' disabled'}> Assign it to them in ADO</label>
     <label class="check"><input type="checkbox" name="task" checked> Add a "waiting on" task in Docket</label>
-    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate</button></div></form>`;
+    <label class="check"><input type="checkbox" name="assign"${canAssign ? '' : ' disabled'}> Also assign it to them in Azure DevOps ${outsideMark('ado')}</label>
+    ${canAssign ? outsideBanner('ado', 'Delegate will set Assigned To on the ADO item. Everything else here stays on this computer.', { cls: 'when-assign' }) : ''}
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate<span class="when-assign">and assign in ADO ${outsideMark('ado')}</span></button></div></form>`;
 }
 
 export function fieldsDialogHtml(prefs) {
@@ -629,9 +643,10 @@ export function linkAdoDialogHtml(w) {
 /** Close as released: every ADO item that will be set to Closed. */
 export function closeGroupDialogHtml(items, label) {
   return `<form method="dialog" class="dlg wide" data-form="close"><h2>Close as released?</h2>
-    <p>Sets ${items.length === 1 ? 'this item' : `these ${items.length} items`} in ${esc(label)} to Closed in Azure DevOps, one at a time. ${items.length === 1 ? 'It leaves' : 'They leave'} the board; Health still counts ${items.length === 1 ? 'it' : 'them'}.</p>
+    ${outsideBanner('ado', `Sets ${items.length === 1 ? 'this item' : `these ${items.length} items`} in ${label} to Closed, one at a time.`)}
+    <p>${items.length === 1 ? 'It leaves' : 'They leave'} the board; Health still counts ${items.length === 1 ? 'it' : 'them'}.</p>
     <ul>${items.map(it => `<li>#${esc(it.ado.id)} ${esc(it.title)}</li>`).join('')}</ul>
-    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Close ${items.length === 1 ? 'it' : `all ${items.length}`}</button></div></form>`;
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok" data-out-ok>Close ${items.length === 1 ? 'it' : `all ${items.length}`} ${outsideMark('ado')}</button></div></form>`;
 }
 
 export function confirmHtml(title, text, okLabel) {

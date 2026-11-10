@@ -13,6 +13,7 @@ import {
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
   levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
 } from './model.js';
+import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
@@ -698,7 +699,7 @@ const ACT = {
     if (!c.ado) return;
     const t = parseTriage(filesOf(c.work.triage)['triage.md']);
     const text = questionsText(c, t);
-    showDialog(confirmHtml(`Post the questions on #${c.ado.id}?`, `Adds this comment to its Discussion in Azure DevOps, where whoever asked can answer:\n\n${text}`, 'Post them'), async () => {
+    showDialog(outsideConfirmHtml({ cls: 'dlg', title: `Post the questions on #${c.ado.id}?`, body: `Adds this comment to its Discussion, where whoever asked can answer:\n\n${text}`, ok: 'Post them' }), async () => {
       const conn = c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
       const w = await ado(ws, 'workitem.get', { id: c.ado.id, ...conn });
       const out = await ado(ws, 'workitem.update', { id: c.ado.id, rev: w.rev, changes: { comment: text }, ...conn }, { confirm: true });
@@ -894,7 +895,7 @@ const ACT = {
   'mark-resolved': (c) => {
     // No ADO item: resolved here only (done, waiting for a release).
     if (!c.ado) return store.update(c.id, x => { setStage(x, 'resolved'); }).then(() => ws.toast('Resolved here. Mark it closed when it ships.', { kind: 'success' }));
-    showDialog(confirmHtml(`Resolve #${c.ado.id} in Azure DevOps?`, `Sets its state to Resolved: merged to main and waiting for a release. The card moves to Resolved under ${areaOf(c) || 'No area path'}.`, 'Resolve it'), async () => {
+    showDialog(outsideConfirmHtml({ cls: 'dlg', title: `Resolve #${c.ado.id} in Azure DevOps?`, body: `Sets its state to Resolved: merged to main and waiting for a release. The card moves to Resolved under ${areaOf(c) || 'No area path'}.`, items: [`#${c.ado.id} ${c.title || ''}`], ok: 'Resolve it' }), async () => {
       const out = await setAdoState(c, 'Resolved');
       await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev, state: 'Resolved' }; setStage(x, 'resolved'); });
       ws.toast(`#${c.ado.id} is resolved.`, { kind: 'success' });
@@ -1201,7 +1202,7 @@ function sprintChange(sel) {
     const p = (s.people.people || []).find(x => x.id === sel.value);
     changes = { assignedTo: p ? p.adoIdentity : '' }; what = p ? `Assign #${it.ado.id} to ${p.name}?` : `Unassign #${it.ado.id}?`;
   }
-  showDialog(confirmHtml('Change in Azure DevOps', what, 'Change it'), async () => {
+  showDialog(outsideConfirmHtml({ cls: 'dlg', title: what, items: [`#${it.ado.id} ${it.title || ''}`], ok: 'Change it' }), async () => {
     await ado(ws, 'workitem.update', { id: it.ado.id, rev, changes, ...conn }, { confirm: true });
     await readBacklog(); paint();
   });
