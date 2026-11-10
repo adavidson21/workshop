@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Folio",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Mermaid diagrams, links and backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -67,6 +67,7 @@
   },
   "data": [
     "taken",
+    "products-made",
     "handoffs",
     "summary"
   ],
@@ -96,6 +97,7 @@
     "js/offers.js",
     "js/pickup.js",
     "js/products.js",
+    "js/product-setup.js",
     "js/records.js",
     "js/sections.js",
     "js/slash.js",
@@ -123,6 +125,7 @@
     "shared/fonts/gelasio-latin-wght-normal.woff2",
     "shared/focus.js",
     "shared/handoffs.js",
+    "shared/products.js",
     "shared/pair.js",
     "shared/people.js",
     "shared/save-file.js",

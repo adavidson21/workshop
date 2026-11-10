@@ -9,6 +9,7 @@ import { mountBar } from '../shared/standalone-bar.js';
 import { saveFile } from '../shared/save-file.js';
 import { createNotes } from './data.js';
 import { QUICK, SENDERS, startPickup } from './pickup.js';
+import { startProductSetup } from './product-setup.js';
 import { useSenders } from '../shared/handoffs.js';
 import { createSummaryWriter } from '../shared/summary.js';
 import { createHolder } from '../shared/focus.js';
@@ -129,6 +130,17 @@ const pickup = startPickup(ws, notes, {
       : w.length === 1 ? `Added a note from ${from}: ${w[0].path}` : `Added ${w.length} notes from ${from}`, { kind: 'success', hold: true });
     const gone = [...new Set(w.filter(x => x.fellBack).map(x => x.fellBack))];
     if (gone.length) ws.toast(`${gone.map(f => f + '/').join(', ')} ${gone.length === 1 ? "wasn't" : "weren't"} there anymore, so the capture went to ${w.find(x => x.fellBack).path === QUICK ? 'Quick Notes' : 'inbox/'}.`, { kind: 'warn' });
+  }
+});
+// Product notes for the products set up in Workshop Settings (product-setup.js, Workshop docs/products.md): made once.
+const productSetup = startProductSetup(ws, notes, {
+  onMade(done) {
+    const made = done.filter(d => d.made);
+    if (!made.length) { paintChrome(); return; }
+    if (ui.path && made.some(d => d.path === ui.path) && !notes.texts.has(ui.path)) openNote(ui.path);
+    paintChrome();
+    if (held.add(made.length)) return;
+    ws.toast(made.length === 1 ? `Made the product note for ${made[0].name}` : `Made ${made.length} product notes`, { kind: 'success', hold: true });
   }
 });
 const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });
@@ -1676,6 +1688,7 @@ ws.on('online', async (p) => {
   if (!p.online) return;
   await notes.load();
   pickup.run();
+  await productSetup.run();
 // Senders of captures come from the manifests (ws.apps.list), without holding up the page: SENDERS is updated in
 // place, then pickup runs again for any new sender.
 ws.apps.list().then(apps => { const before = Object.keys(SENDERS).length; useSenders(SENDERS, apps, 'notes'); pickup.watch(); if (Object.keys(SENDERS).length > before) pickup.run(); }).catch(() => {});
@@ -1686,6 +1699,7 @@ ws.on('visible', (p) => { if (!p.visible && ui.status.kind === 'dirty') saveNow(
 paintChrome();
 await notes.load();
 pickup.run();
+await productSetup.run();
 summary.schedule();
 tandem.refresh();
 readSent().then(() => paintChrome());

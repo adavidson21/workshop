@@ -352,10 +352,20 @@ def main():
             pg.emulate_media(media='screen'); pg.evaluate("window.dispatchEvent(new Event('afterprint'))")
             pg.click('[data-mode=split]'); pg.wait_for_timeout(300)
 
+            # A product set up in Workshop Settings (settings.products, Workshop docs/products.md): Folio makes its note on the next load.
+            pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
+              await ws.data.put('products', {schema: 'settings.products', version: 1, rev: 0, deleted: {}, items: [
+                {id: 'p_sample-portal', updatedAt: 1, name: 'Sample Portal', slug: 'sample-portal', alsoCalled: ['SP'], repos: ['portal-ui'], areas: []},
+                {id: 'p_old', updatedAt: 1, name: 'Old', slug: 'old', archived: true}]}); }""")
             pg.goto(SITE + '#/today'); pg.reload(); pg.wait_for_selector('.side-head'); pg.wait_for_timeout(1000)
             check("the address #/today opens today's note on Notes' own site", 'daily/' in pg.inner_text('#head'))
             pg.click('.sec-notes'); pg.wait_for_timeout(300)
             check('after a reload, the notes are still there', pg.locator('#side').inner_text().lower().count('team sync') >= 1)
+            pg.goto(SITE + '#/products/sample-portal.md'); pg.wait_for_timeout(1200)
+            txt = pg.input_value('#editor')
+            check('a product set up in Settings gets its note, filled in, and an archived one does not',
+                  'products/sample-portal.md' in pg.inner_text('#head') and txt.startswith('---\ntitle: Sample Portal\nalso-called: [SP]\nrepos: [portal-ui]\n')
+                  and '## Business rules' in txt and pg.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'}); return !(await ws.files.read('products/old.md')); }"))
 
             pg.wait_for_function('navigator.serviceWorker && navigator.serviceWorker.controller !== null', timeout=15000)
             check('the service worker controls the page', True)

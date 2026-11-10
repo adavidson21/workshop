@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "bc3eef4e32c6bd76a4f1e48ebefdb1b518262ae5",
+  "commit": "1574934fe6998e6d69e5a2808c393c8d70170052",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -30,6 +30,7 @@
     "shared/handoffs.js": "shared/handoffs.js",
     "shared/pair.js": "shared/pair.js",
     "shared/people.js": "shared/people.js",
+    "shared/products.js": "shared/products.js",
     "shared/save-file.js": "shared/save-file.js",
     "shared/site.js": "shared/site.js",
     "shared/standalone-bar.js": "shared/standalone-bar.js",
@@ -50,7 +51,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.8.0",
+  "bundle": "2.9.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -63,9 +64,6 @@
     "shared/app-sw.js": "5e8033cc694db7c890d1c86ed508c2b203095694759d4c342de6694e5c183382",
     "shared/device-fs.js": "5d6efcd0ef2dbd976f5671ead6db245a50ee0e05e6357348837474c70ac81df2",
     "shared/focus.js": "d4cfd12432c310ae989af6752c43f1c938bf61bad9e6ff7df11e50eb20037e5d",
-    "shared/fonts/OFL-DMMono.txt": "d2766c396a8534cba53340f8af2037749b6a0a1dd3587348c917a70e779d2e32",
-    "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
-    "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
     "shared/fonts/dm-mono-latin-400-normal.woff2": "e1896b13b2b1bb112fac2f9571bd6c40e118746e77a4511edbf43fbb41bf3e1e",
     "shared/fonts/dm-mono-latin-500-normal.woff2": "9964608a849396bd00c4bfd7034afe03486469dcf20b4f6b8cbdfdd310369951",
     "shared/fonts/dm-mono-latin-ext-400-normal.woff2": "a52e19ebe0398c9c0f8fa28a0c5e9a6bc324f35d9f0881c9aa407d10af447175",
@@ -77,9 +75,13 @@
     "shared/fonts/fonts.css": "c55242c29395d78a51dfdb6693cdd5ae5fd36692e2cd8c0a601d4ca5e4f0b002",
     "shared/fonts/gelasio-latin-ext-wght-normal.woff2": "2f3f0cd292326e19687d727f87400d91632ab2ab3a0020a187ce22db6f358961",
     "shared/fonts/gelasio-latin-wght-normal.woff2": "ba5b902e472cfe3456eba6b2d8fcf2d237988ff181d8da3cb5cf839de989ab15",
+    "shared/fonts/OFL-DMMono.txt": "d2766c396a8534cba53340f8af2037749b6a0a1dd3587348c917a70e779d2e32",
+    "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
+    "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
     "shared/handoffs.js": "9d2cbe5efe23d81a8b7f348bc0d31f148f6d6619737dfae3a64fcbf7dc6fbcc7",
     "shared/pair.js": "0c7af3750f93d9b4088e2cfd6220f840558cbfbdc895a35a18ca977dae78b6b1",
     "shared/people.js": "5368a2264d6f8dba820e6c612bf7e919ad55dc454a031afa2143d0d8b6be1ac3",
+    "shared/products.js": "81f0b2ebb56d73034d169c530704a57ec347ef9395f95333c78172557a3f6242",
     "shared/save-file.js": "e22fe1a7bbb3b2eb5a4711c4eaf60064c59f8b631b4c015918a7eddc20042d9e",
     "shared/site.js": "7fece628817b9d454b4156a5736b6748e2379f0be80aeceb2ef0273863073c2b",
     "shared/standalone-bar.js": "1d3a4f8c8b1989b8b5bfcc0a8d0bc973ea4af9fe4ad41f48980962ce55814daa",
