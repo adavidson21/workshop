@@ -113,9 +113,9 @@ During a span (focus or lunch):
 | --- | --- | --- |
 | Shell rail badges (every app) | Hidden. During focus a badge with a `breakThrough` count shows that count instead ([sdk.md](sdk.md)). | Restored |
 | Home Needs you | Focus: only blocking pull requests; the rest folds to "N held until 12:00". Lunch: folds entirely. | Restored |
-| Docket Needs you strip | Same as Home | Restored |
+| Docket Today's Reviews group | Blocking pull requests stay pinned (Docket 7.0.0 has no Needs you strip) | n/a |
 | Docket ADO "new items" toast | Not shown; items still sync and land in Inbox | Counted in the release toast |
-| Docket Inbox column | Folds to a rail with a count; captures and drops still work | Unfolds |
+| Docket Inbox column | Folds to a rail with a count and "held until"; captures and drops still work | Unfolds |
 | Handoff and pickup toasts (every app) | Not shown; items still picked up and saved | Counted in the release toast |
 | Dispatch Inbox badge and toasts | Held, except reviews of blocking pull requests during focus | Restored |
 | Quick capture | Works as always | n/a |
