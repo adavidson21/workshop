@@ -286,6 +286,20 @@ def main():
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Issue 12345: Fix login')")
         check('the task keeps the ADO link', t and t.get('ado', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['ado']['type'] == 'Issue' and t['ado']['pasted'] is True)
         check('its row has a link that opens the item in ADO', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado[href*="_workitems/edit/12345"][target=_blank]').count() == 1)
+        # The Quick add cheat sheet: hidden by default, opens with its button or Ctrl+/, clicking a tag inserts it,
+        # and it stays open next time (per window).
+        pg.keyboard.press('n'); pg.wait_for_timeout(100)
+        check('the cheat sheet starts hidden', pg.locator('#cmdCheat').is_hidden())
+        pg.click('#cmdCheatBtn'); pg.wait_for_timeout(100)
+        check('its button opens it', pg.locator('#cmdCheat').is_visible() and pg.get_attribute('#cmdCheatBtn', 'aria-expanded') == 'true')
+        pg.fill('#cmdInput', 'Plan offsite'); pg.click('#cmdCheat [data-ins="!!"]'); pg.wait_for_timeout(100)
+        check('clicking a tag adds it to the box', pg.input_value('#cmdInput') == 'Plan offsite !!' and 'Urgent' in pg.inner_text('#cmdParsed'))
+        pg.fill('#cmdInput', ''); pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+        pg.keyboard.press('n'); pg.wait_for_timeout(100)
+        check('it stays open the next time', pg.locator('#cmdCheat').is_visible())
+        pg.keyboard.press('Control+/'); pg.wait_for_timeout(100)
+        check('Ctrl+/ hides it', pg.locator('#cmdCheat').is_hidden())
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.ado && t.ado.id === 12345).done; }}"""))
         # ---------- Tandem's first-pass PR reviews (js/pr-ai.js, js/pr-ai-model.js) ----------
         pr = lambda i, tier, c: "{key: 'c|P|%d', id: %d, title: 'Change %d', repo: 'api', project: 'P', url: 'https://ado.example.test/c/P/_git/api/pullrequest/%d', author: 'Dev One', tier: '%s', via: [], commit: '%s'}" % (i, i, i, i, tier, c)

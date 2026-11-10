@@ -404,6 +404,20 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .cmd .help{display:flex;flex-wrap:wrap;gap:.3rem 1rem;padding:.55rem .9rem .7rem;background:var(--bg);border-top:1px solid var(--line);font-size:.76rem;color:var(--muted)}
 .cmd .help code{font-family:var(--mono);color:var(--ink)}
 .cmd .added{color:var(--ink)}
+.cmd .help .cheat-btn{display:inline-flex;align-items:center;gap:.3rem;margin-right:auto;padding:.1rem .35rem .1rem .2rem;border-radius:var(--r-sm);color:var(--ink);font-weight:500;font-size:.76rem}
+.cmd .help .cheat-btn:hover{background:var(--hover)}
+.cmd .cheat-btn svg{width:10px;height:10px;transform:rotate(-90deg);transition:transform .15s}
+.cmd.cheat-open .cheat-btn svg{transform:none}
+.cmd .cheat{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.7rem 1.4rem;padding:.75rem .9rem .8rem;border-top:1px solid var(--line);max-height:50vh;overflow:auto;font-size:.8rem}
+.cmd .cheat[hidden]{display:none}
+.cmd .cheat h4{margin:0 0 .3rem;font:600 .66rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cmd .cheat .crow{display:grid;grid-template-columns:auto 1fr;gap:.6rem;align-items:baseline;padding:.15rem 0}
+.cmd .cheat .ctags{display:flex;flex-wrap:wrap;gap:.2rem;max-width:11rem}
+.cmd .cheat .ctag{font:400 .76rem var(--mono);color:var(--ink);background:var(--accent-soft);border-radius:3px;padding:.05rem .3rem;cursor:pointer}
+.cmd .cheat .ctag:hover{background:color-mix(in srgb,var(--accent) 26%,var(--surface))}
+.cmd .cheat .cwhat{color:var(--muted);line-height:1.35}
+.cmd .cheat .cnote{grid-column:1/-1;margin:0;color:var(--muted);line-height:1.5}
+.cmd .cheat .cnote .mono{color:var(--ink)}
 .rename{font:inherit;color:var(--ink);border:0;outline:2px solid var(--accent);background:var(--surface);border-radius:4px;padding:0 .3rem;min-width:3ch;width:100%}
 
 /* folder save indicator: neutral unless something actually needs attention */
@@ -453,6 +467,7 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
   .tfld{grid-template-columns:minmax(0,1fr)}
   .tri-card{padding:1rem}
   kbd{display:none}
+  .cmd .help .kb-only{display:none}
   .opt{padding-left:.6rem}
   .seg-row{display:flex;width:100%;flex-wrap:nowrap}
   .tri-help{display:none}

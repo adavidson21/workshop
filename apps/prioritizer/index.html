@@ -66,7 +66,8 @@
       <button class="btn ghost" data-cmd-close>Done</button>
     </div>
     <div class="parsed" id="cmdParsed" aria-live="polite"></div>
-    <div class="help"><span><code>@name</code> person</span><span><code>&gt;@name</code> delegate</span><span><code>!1</code> to <code>!4</code> value</span><span><code>!!</code> urgent</span><span><code>~xs</code> to <code>~xl</code> effort</span><span><code>^fri</code> due</span><span><code>#list</code> list</span><span class="kb-only"><kbd>Enter</kbd> add</span><span class="kb-only"><kbd>Esc</kbd> close</span></div>
+    <div class="cheat" id="cmdCheat" hidden></div>
+    <div class="help"><button type="button" class="cheat-btn" id="cmdCheatBtn" aria-expanded="false" aria-controls="cmdCheat"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4l2.5 2.5L7.5 4"/></svg>Cheat sheet</button><span class="kb-only" id="cmdCheatKey"><kbd>Ctrl /</kbd> toggle</span><span class="kb-only"><kbd>Enter</kbd> add</span><span class="kb-only"><kbd>Esc</kbd> close</span></div>
   </div>
 </div>
 <div class="modal" id="modal"></div>

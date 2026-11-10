@@ -141,6 +141,8 @@ Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; in
 
 Example: `Review design doc @Teammate !3 ~s ^fri #eng`
 
+**Cheat sheet:** the add box has a **Cheat sheet** button (or `Ctrl+/`, `Cmd+/` on a Mac, while typing) that opens every tag above with what it does, your own lists as `#tags`, and an example. Click a tag to put it in the box. It stays open or closed the way you left it, per window.
+
 **Pasting from ADO:** paste a work item from ADO's **Copy to clipboard** (`Issue 12345: Title`) or its URL into the add box, a person's add box, or a task's title, and the task keeps the link: its row gets an ADO chip that opens the item, and its details say **Open Issue #12345 in ADO**. A bare URL starts the title as `ADO 12345: ` for you to finish. Pasted into notes, the URL is kept in the text. If ADO sync later finds the item assigned to you, it takes the task over (no duplicate); until then sync leaves it alone, so an item assigned to someone else is never closed as reassigned. Pasting an item already open on your board offers to open that task instead.
 
 ## Keyboard
