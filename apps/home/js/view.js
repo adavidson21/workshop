@@ -64,7 +64,8 @@ export function boardFromSummary(card, today) {
   const d = card && card.days && card.days[today];
   if (!d) return null;
   return {
-    total: d.total | 0, open: d.open | 0, focus: { total: (d.focus && d.focus.total) | 0, done: (d.focus && d.focus.done) | 0 },
+    total: d.total | 0, open: d.open | 0, focus: { total: (d.focus && d.focus.total) | 0, done: (d.focus && d.focus.done) | 0,
+      tasks: (d.focus && Array.isArray(d.focus.tasks) ? d.focus.tasks : []).filter(t => t && typeof t.title === 'string').slice(0, 10).map(t => ({ id: String(t.id || ''), title: t.title.slice(0, 200), done: !!t.done })) },
     triage: d.triage | 0, overdue: d.overdue | 0, dueWeek: d.dueWeek | 0, nudges: d.nudges | 0, cameBack: d.cameBack | 0,
     upNext: Array.isArray(card.upNext) ? card.upNext.slice(0, 3) : [],
     team: Array.isArray(card.team) ? card.team : []
@@ -128,6 +129,46 @@ export function weekRows(byApp) {
       rows: c.rows.filter(r => r && typeof r.title === 'string').slice(0, 20).map(r => ({ title: r.title, note: typeof r.note === 'string' ? r.note : '', due: typeof r.due === 'string' ? r.due : '' })) });
   }
   return out;
+}
+
+/**
+ * Coming up, from each app's `upcoming` list card (docs/summaries.md): dated things in the next 14 days and up to
+ * 7 days late, soonest first, at most 12. Rows: [{app, appName, title, note, route, due}].
+ */
+export function upcomingRows(byApp, today) {
+  const out = [];
+  const lo = addDays(today, -7), hi = addDays(today, 14);
+  for (const a of byApp) {
+    const c = a.cards && a.cards.get('upcoming');
+    if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) continue;
+    for (const r of c.rows.slice(0, 20)) {
+      if (!r || typeof r.title !== 'string' || !isDay(r.due) || r.due < lo || r.due > hi) continue;
+      out.push({ app: a.app, appName: a.name, title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 80) : '', route: typeof r.route === 'string' ? r.route : '', due: r.due });
+    }
+  }
+  return out.map((r, i) => [r.due, i, r]).sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1])).map(x => x[2]).slice(0, 12);
+}
+const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+function addDays(day, n) { const [y, m, d] = day.split('-').map(Number); return dateStr(new Date(y, m - 1, d + n)); }
+/** "Today", "Tomorrow", "Thu", or "Nov 24" past a week; "3 days late" before today. */
+export function dueLabel(due, today) {
+  const [y, m, d] = due.split('-').map(Number), [ty, tm, td] = today.split('-').map(Number);
+  const diff = Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 864e5);
+  if (diff < 0) return diff === -1 ? 'Yesterday' : `${-diff} days late`;
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  const dt = new Date(y, m - 1, d);
+  return diff < 7 ? dt.toLocaleDateString(undefined, { weekday: 'short' }) : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** Today's Day plan blocks from Docket's `day` card: [{name, at, until, tasks, now, past}] with now marked. */
+export function dayBlocks(day, nowMin) {
+  if (!day || !Array.isArray(day.blocks)) return [];
+  return day.blocks.filter(b => b && typeof b.name === 'string' && isTime(b.at)).slice(0, 24).map(b => {
+    const at = toMin(b.at), until = isTime(b.until) ? toMin(b.until) : at;
+    return { name: b.name.slice(0, 80), at: b.at, until: isTime(b.until) ? b.until : '', now: nowMin >= at && nowMin < until, past: nowMin >= until,
+      tasks: (Array.isArray(b.tasks) ? b.tasks : []).filter(t => t && typeof t.title === 'string').slice(0, 10).map(t => ({ title: t.title.slice(0, 200), done: !!t.done })) };
+  });
 }
 
 /** The weekly status draft, as Markdown to edit and paste: one section per app that has something to say. */
@@ -213,35 +254,61 @@ export function render(v) {
 
   if (v.waiting) return head + waitingCard(v.embedded);
 
-  if (!v.board) {
-    return head + inboxCard(v.inbox || [], v.focus, v.blocking || []) + `<section class="card note"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>` + notesCard(v.notes) + agentsCard(v.agents);
-  }
-  if (!b && v.noSummary) {
+  /* The dashboard (docs/layout.md, .dash): one column in half a screen, two on a laptop, three from 1600px.
+     Home shows and links; triage, ranking and planning happen in each app. */
+  const today = dateStr(v.now);
+  const rest = inboxCard(v.inbox || [], v.focus, v.blocking || []) + dayCard(v.day, v.now)
+    + upcomingCard(v.upcoming, today) + notesCard(v.notes) + agentsCard(v.agents) + weekCard(v.week);
+  let first;
+  if (!v.board) first = `<section class="card note w2"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>`;
+  else if (!b && v.noSummary) {
     // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
-    return head + `<section class="card note"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + inboxCard(v.inbox || [], v.focus, v.blocking || []) + notesCard(v.notes) + agentsCard(v.agents);
-  }
-  if (!b) {
+    first = `<section class="card note w2"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>`;
+  } else if (!b) {
     const empty = v.adoReady
       ? '<h2>Your ADO work items are waiting in Docket</h2><p>Azure DevOps is connected. Open Docket to bring in the items assigned to you; they show up here after that.</p>'
       : '<h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>';
-    return head + inboxCard(v.inbox || [], v.focus, v.blocking || []) + `<section class="card note">${empty}
-      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>` + notesCard(v.notes) + agentsCard(v.agents);
-  }
+    first = `<section class="card note w2">${empty}
+      <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>`;
+  } else first = todayCard(b);
+  return head + `<div class="dash cols">${first}${rest}</div>`;
+}
 
-  return head + `<div class="cols"><div class="stack">${todayCard(b)}${inboxCard(v.inbox || [], v.focus, v.blocking || [])}</div><div class="stack">${notesCard(v.notes)}${agentsCard(v.agents)}</div></div>`;
+/* Today's Day plan from Docket's `day` card: the blocks with now marked. Only when there is a plan. */
+export function dayCard(day, now) {
+  const blocks = dayBlocks(day, now.getHours() * 60 + now.getMinutes());
+  if (!blocks.length) return '';
+  return `<section class="card daycard"><div class="ch"><h2>Day plan</h2><button class="lnk" data-open="prioritizer" data-path="day/today">Open</button></div>
+    <ol class="blocks">${blocks.map(x => `<li class="${x.now ? 'now' : x.past ? 'past' : ''}"><span class="bt num">${esc(fmt12(x.at))}</span><span class="bn">${esc(x.name)}${x.now ? ' <b class="nowtag">Now</b>' : ''}</span>${x.tasks.length ? `<span class="bk">${x.tasks.filter(t => t.done).length}/${x.tasks.length}</span>` : ''}</li>`).join('')}</ol></section>`;
+}
+
+/* Coming up across apps: each app's `upcoming` card (1:1s, milestones, review dates). */
+export function upcomingCard(rows, today) {
+  if (!Array.isArray(rows) || !rows.length) return '';
+  return `<section class="card upcoming"><div class="ch"><h2>Coming up</h2></div>
+    <ul class="uplist">${rows.map(r => `<li><button class="urow" data-open="${esc(r.app)}"${r.route ? ` data-path="${esc(r.route)}"` : ''}><span class="ud num${r.due < today ? ' late' : r.due === today ? ' today' : ''}">${esc(dueLabel(r.due, today))}</span><span class="ut">${esc(r.title)}</span><span class="un">${esc(r.note || r.appName)}</span></button></li>`).join('')}</ul></section>`;
+}
+
+/* This week: what you finished, decided and shipped, from every app's `done-week` card. */
+export function weekCard(week) {
+  if (!Array.isArray(week) || !week.length) return '';
+  return `<section class="card week w2"><div class="ch"><h2>This week</h2><button class="lnk" data-status>Weekly status</button></div>
+    <div class="weekcols">${week.map(w => `<div class="wk"><p class="wkh">${esc(w.title)} <span class="num">${w.count}</span></p><ul>${w.rows.slice(0, 4).map(r => `<li>${esc(r.title)}</li>`).join('')}${w.count > 4 ? `<li class="soft">and ${w.count - Math.min(4, w.rows.length)} more</li>` : ''}</ul></div>`).join('')}</div></section>`;
 }
 
 /* Docket's Today, in counts: each opens Docket's Today, where the day happens (its Needs you strip handles them). */
 export function todayCard(b) {
   const allDone = b.focus.total && b.focus.done === b.focus.total;
-  return `<section class="card todaycard"><div class="ch"><h2>Today</h2><button class="btn primary" data-open="prioritizer" data-path="today">Open Today</button></div>
-  <div class="tiles" aria-label="Today in Docket">
+  const tasks = b.focus.tasks || [];
+  const list = tasks.length ? `<ol class="ftasks" aria-label="On Today">${tasks.map(t => `<li class="${t.done ? 'done' : ''}"><button class="lnk" data-open="prioritizer" data-path="task/${esc(t.id)}">${esc(t.title)}</button></li>`).join('')}</ol>` : '';
+  return `<section class="card todaycard w2${list ? ' has-list' : ''}"><div class="ch"><h2>Today</h2><button class="btn primary" data-open="prioritizer" data-path="today">Open Today</button></div>
+  <div class="tbody"><div class="tiles" aria-label="Today in Docket">
     ${tile(ICON.sun, b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'On Today', allDone ? 'All done' : `${plural(b.open, 'open task')}`, b.focus.total ? (allDone ? 'good' : '') : 'zero', 'today', b.focus.total ? `${b.focus.done} of ${b.focus.total} on Today done` : 'Nothing on Today yet. Pick 3 to 5.')}
     ${tile(ICON.triage, b.triage, 'Triage', '', b.triage ? 'warn' : 'zero', 'today', b.triage ? `${plural(b.triage, 'task')} to sort` : 'Nothing to triage')}
     ${tile(ICON.bell, b.nudges, 'Follow-ups', b.cameBack ? `${b.cameBack} came back` : '', b.nudges ? 'warn' : b.cameBack ? '' : 'zero', 'today', b.nudges ? `${plural(b.nudges, 'follow-up')} due on work you handed over` : 'No follow-ups due')}
     ${tile(ICON.overdue, b.overdue, 'Overdue', b.dueWeek ? `${b.dueWeek} due this week` : '', b.overdue ? 'danger' : 'zero', 'today')}
-  </div></section>`;
+  </div>${list}</div></section>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */

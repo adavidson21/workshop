@@ -4,9 +4,10 @@ html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
 
-.wrap{max-width:66rem;margin:0 auto;padding:2.75rem 1.5rem 4rem}
+.wrap{max-width:calc(var(--w-page) + 2 * var(--gutter));margin:0 auto;padding:1.5rem var(--gutter) 4rem}
 /* the nav beside the page; a select above it on a narrow window */
 .layout{display:grid;grid-template-columns:13rem minmax(0,1fr);gap:2.25rem;align-items:start}
+@media (max-width:1099px){.layout{grid-template-columns:11rem minmax(0,1fr);gap:1.5rem}}
 .side{position:sticky;top:1rem}
 .nav-select{display:none}
 .nav{display:flex;flex-direction:column;gap:1.1rem}
@@ -32,8 +33,8 @@ code,.mono{font-family:var(--mono);font-size:.86em}
   .nav{display:none}
   .nav-select{display:block;width:100%}
 }
-.shead{margin-bottom:2rem;animation:rise .6s ease-out both}
-.shead h1{margin:0;font-family:var(--serif);font-size:clamp(36px,5.2vw,52px);font-weight:600;letter-spacing:-.02em;line-height:1.04}
+.shead{margin-bottom:1.25rem;animation:rise .6s ease-out both}
+.shead h1{margin:0;font-family:var(--serif);font-size:clamp(26px,2.2vw,34px);font-weight:600;letter-spacing:-.015em;line-height:1.15}
 .shead .sub{margin:.5rem 0 0;max-width:38rem;font-size:.92rem;line-height:1.5;color:var(--muted)}
 .shead .sub:empty{display:none}
 
@@ -246,9 +247,7 @@ label.btn{cursor:pointer}
 .rows tr[data-act=same]{color:var(--muted)}
 .rows-wrap{max-height:22rem;overflow:auto}
 
-/* big screens (a 27in monitor, Workshop full screen): a wider page, kept short of full width since it is forms */
-@media (min-width:1600px){.wrap{max-width:74rem;padding-inline:2.5rem}}
-@media (min-width:2100px){.wrap{max-width:82rem}}
+/* Page width and gutters come from the shared tokens (docs/layout.md, --w-page). */
 /* Focus hours (focus-page.js) */
 .fh-week{display:grid;gap:.35rem;margin:.3rem 0 .8rem}
 .fh-day{display:grid;grid-template-columns:7rem 1fr;gap:.6rem;align-items:start;padding:.3rem 0;border-top:1px solid var(--line)}

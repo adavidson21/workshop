@@ -3,12 +3,13 @@
    rules, and sections headed by a mono label over a rule instead of boxed cards. */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-.wrap{max-width:1040px;margin:0 auto;padding:1.5rem 1.75rem 4rem;display:flex;flex-direction:column;gap:2.25rem}
+/* A dashboard: full width with the shared gutter (docs/layout.md) */
+.wrap{max-width:none;margin:0;padding:1.5rem var(--gutter) 4rem;display:flex;flex-direction:column;gap:2rem}
 #app{display:contents}
 /* Quick capture is Home's front door: right under the greeting, before everything else (order moves it there,
    since #app is repainted and #capture never is), and drawn larger than the Dispatch hub's box. */
 .wrap>#app>.hello{order:-2}
-#capture{order:-1;width:100%;max-width:780px;margin:0 auto;animation:rise .6s ease-out .02s both}
+#capture{order:-1;width:100%;max-width:min(100%,64rem);margin:0;animation:rise .6s ease-out .02s both}
 #capture .cap-line{position:relative;gap:.85rem;padding:1.05rem 1.25rem;border:1.5px solid var(--line);border-top-color:var(--rule);border-radius:var(--r-md);box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s}
 #capture .cap-line:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--shadow)}
 #capture .cap-prompt{font-size:20px;color:var(--accent)}
@@ -41,7 +42,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .tile.danger .n{color:var(--danger)}
 
 /* sections */
-.cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:2.25rem;align-items:start;animation:rise .6s ease-out .14s both}
+.cols{animation:rise .6s ease-out .14s both}
 .stack{display:flex;flex-direction:column;gap:2.25rem}
 /* Today: Docket's counts in one card; each opens Docket's Today */
 .todaycard .ch .btn{margin-left:auto}
@@ -119,7 +120,6 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 
 @media (max-width:760px){
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .cols{grid-template-columns:minmax(0,1fr)}
   .wrap{padding:1rem 1rem 3rem;gap:1.75rem}
   .hello{flex-wrap:wrap}
   .tile{padding:1rem .75rem 1.1rem}
@@ -219,7 +219,34 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* big screens (a 27in monitor, Workshop full screen): use the room instead of a narrow centered column */
-@media (min-width:1600px){.wrap{max-width:1440px;padding-inline:2.5rem}#capture{max-width:960px}}
-@media (min-width:2100px){.wrap{max-width:1720px}}
+/* Dashboard cards (view.js): Today with its tasks, Day plan, Coming up, This week */
+.todaycard .tbody{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem 2rem;align-items:start}
+@media (min-width:1100px){.todaycard.has-list .tbody{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+.ftasks{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule);counter-reset:ft}
+.ftasks li{display:flex;align-items:baseline;gap:.6rem;border-bottom:1px solid var(--line);counter-increment:ft}
+.ftasks li::before{content:counter(ft);width:1.2rem;flex:none;font:500 .8rem var(--mono);color:var(--muted);text-align:right}
+.ftasks .lnk{flex:1;min-width:0;text-align:left;padding:.5rem 0;font-size:.95rem;font-weight:400;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.ftasks li.done .lnk{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.blocks{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.blocks li{display:grid;grid-template-columns:4.6rem minmax(0,1fr) auto;align-items:baseline;gap:.6rem;padding:.45rem .2rem;border-bottom:1px solid var(--line);font-size:.92rem}
+.blocks .bt{font:500 .8rem var(--mono);color:var(--muted)}
+.blocks .bk{font:500 .78rem var(--mono);color:var(--muted)}
+.blocks li.past{opacity:.55}
+.blocks li.now{background:var(--accent-soft);border-left:2px solid var(--accent)}
+.nowtag{margin-left:.35rem;font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.uplist{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.urow{display:grid;grid-template-columns:5.6rem minmax(0,1fr);gap:.05rem .8rem;width:100%;text-align:left;padding:.5rem .2rem;border-bottom:1px solid var(--line)}
+.urow:hover{background:var(--hover)}
+.ud{grid-row:span 2;font:500 .8rem/1.6 var(--mono);color:var(--muted)}
+.ud.today{color:var(--accent)}
+.ud.late{color:var(--danger)}
+.ut{font-size:.93rem}
+.un{font-size:.8rem;color:var(--muted)}
+.weekcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:1rem 1.75rem;border-top:1px solid var(--rule);padding-top:.75rem}
+.wkh{margin:0 0 .35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.wk ul{margin:0;padding-left:1rem;font-size:.9rem}
+.wk li{margin:.2rem 0}
+/* Get started and its one-line strip stay a readable width on a wide screen */
+.setup,.su-strip{max-width:64rem}
 .su-pick{display:flex;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
 .su-off{font-size:.76rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 .45rem;margin-left:.3rem;white-space:nowrap}

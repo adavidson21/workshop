@@ -1223,6 +1223,7 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('toggle', (e) => {
   const d = e.target;
   if (d && d.classList && d.classList.contains('agent-box') && d.dataset.sid) ui.agentOpen[d.dataset.sid] = d.open;
+  if (d && d.classList && d.classList.contains('slate-notices')) ui.notesOpen = d.open;
   // Details and Timeline: remembered in this browser, open or closed.
   if (d && d.classList && d.classList.contains('fold') && d.dataset.fold && panelEl.contains(d)) { ui.folds[d.dataset.fold] = d.open; remember(`fold.${d.dataset.fold}`, d.open ? '1' : '0'); }
 }, true);

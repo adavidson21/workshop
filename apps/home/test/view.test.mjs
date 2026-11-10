@@ -14,7 +14,7 @@ test('boardFromSummary: today\'s counts with Up next and the team; null when the
   const card = { id: 'board', kind: 'board', updatedAt: 1, days: { [TODAY]: { total: 9, open: 7, focus: { total: 2, done: 1 }, triage: 2, overdue: 1, dueWeek: 1 } },
     upNext: [row('c'), row('a'), row('d'), row('x')], team: [{ id: 'p_a', name: 'DevA', open: 2, waiting: 0 }] };
   const b = boardFromSummary(card, TODAY);
-  assert.deepEqual(b.focus, { total: 2, done: 1 });
+  assert.deepEqual(b.focus, { total: 2, done: 1, tasks: [] });
   assert.equal(b.open, 7);
   assert.deepEqual(b.upNext.map(x => x.id), ['c', 'a', 'd'], 'at most 3');
   assert.deepEqual(b.team, [{ id: 'p_a', name: 'DevA', open: 2, waiting: 0 }]);
@@ -136,4 +136,41 @@ test('weekly status: a Markdown draft from every app that logged something', asy
   assert.match(md, /## Finished this week\n\n- Ship the guide\n- Fix login \(Platform\)\n- and 1 more\n/);
   assert.match(md, /## Next week/);
   assert.match(statusDraft([], {}), /Nothing logged this week yet/);
+});
+
+test('dashboard: Coming up from every app\'s upcoming card, soonest first, two weeks ahead and a week late at most', async () => {
+  const { upcomingRows, upcomingCard, dueLabel } = await import('../js/view.js');
+  const today = '2026-11-10';
+  const card = rows => new Map([['upcoming', { id: 'upcoming', kind: 'list', updatedAt: 1, rows }]]);
+  const byApp = [
+    { app: 'receipts', name: 'Rapport', cards: card([{ id: 'a', title: '1:1 with Dev A', due: '2026-11-12', note: '1:1', route: '1on1s/p_a' }, { id: 'old', title: 'Long gone', due: '2026-10-01' }]) },
+    { app: 'runway', name: 'Runway', cards: card([{ id: 'm', title: 'Search live', due: '2026-11-10', note: 'Platform' }, { id: 'far', title: 'Next year', due: '2027-03-01' }, { id: 'late', title: 'Slipped', due: '2026-11-07' }, { title: 'No date' }]) },
+    { app: 'notes', name: 'Folio', cards: null }
+  ];
+  const rows = upcomingRows(byApp, today);
+  assert.deepEqual(rows.map(r => r.title), ['Slipped', 'Search live', '1:1 with Dev A']);
+  assert.equal(dueLabel('2026-11-10', today), 'Today');
+  assert.equal(dueLabel('2026-11-11', today), 'Tomorrow');
+  assert.equal(dueLabel('2026-11-07', today), '3 days late');
+  const html = upcomingCard(rows, today);
+  assert.match(html, /Coming up/);
+  assert.match(html, /data-open="receipts" data-path="1on1s\/p_a"/);
+  assert.match(html, /class="ud num late"/);
+  assert.equal(upcomingCard([], today), '');
+});
+
+test('dashboard: the page is one .dash grid with Today spanning two columns, Day plan when there is one', async () => {
+  const { dayBlocks } = await import('../js/view.js');
+  const now = new Date(2026, 10, 10, 10, 15);
+  const day = { blocks: [{ name: 'Standup', at: '09:00', until: '09:30', tasks: [] }, { name: 'Deep <focus>', at: '10:00', until: '12:00', tasks: [{ id: 't', title: 'Fix', done: true }] }] };
+  const blocks = dayBlocks(day, 10 * 60 + 15);
+  assert.deepEqual(blocks.map(b => [b.past, b.now]), [[true, false], [false, true]]);
+  const b = board({ total: 3, open: 3, focus: { total: 2, done: 1, tasks: [{ id: 'x1', title: 'Ship <it>', done: true }, { id: 'x2', title: 'Review', done: false }] } });
+  const html = render({ now, profile: {}, board: b, day, agents: { state: 'off' }, upcoming: [], week: [] });
+  assert.match(html, /<div class="dash cols">/);
+  assert.match(html, /class="card todaycard w2 has-list"/);
+  assert.match(html, /data-path="task\/x1">Ship &lt;it&gt;</);
+  assert.match(html, /Day plan/);
+  assert.match(html, /Deep &lt;focus&gt; <b class="nowtag">Now<\/b>/);
+  assert.doesNotMatch(render({ now, profile: {}, board: b, agents: { state: 'off' } }), /Day plan/);
 });

@@ -20,7 +20,9 @@ test('top bar: Board and Health tabs, no lane switcher, both New buttons', () =>
 test('board: one board of six columns; cards name their step', () => {
   const it = { ...newItem({ title: 'An idea', kind: 'idea' }), age: 0, facts: null };
   const h = boardHtml({ inbox: [it], shape: [{ ...it, id: 'w_2', step: 'Waiting on requester' }], inflight: [{ ...it, id: 'w_3', stage: 'delegated', step: 'With Sam' }] }, { open: null });
-  assert.deepEqual([...h.matchAll(/<section class="col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
+  assert.deepEqual([...h.matchAll(/<section class="col[^"]*" aria-label="([^"]+)"/g)].map(m => m[1]), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
+  assert.deepEqual([...h.matchAll(/<section class="col empty-col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Define', 'Who builds it?', 'Resolved'], 'empty columns are narrow strips');
+  assert.match(h, /grid-template-columns:minmax\(13\.75rem,1fr\) minmax\(13\.75rem,1fr\) minmax\(8\.5rem,\.45fr\)/);
   assert.match(h, />Idea</);
   assert.match(h, /class="chip step">Waiting on requester</);
   assert.match(h, /class="chip step">With Sam</);
@@ -313,4 +315,15 @@ test('cards and the panel show the ADO type; your notes show on ADO cards too', 
   assert.match(h, /Your notes/);
   assert.match(h, /Pat needs it before renewal/);
   assert.match(boardHtml({ inbox: [{ ...it, age: 0, facts: null }] }, { open: null }), />Issue</);
+});
+
+test('notes above the board: errors stay in view; two or more setup notes fold into one line', async () => {
+  const { notesHtml } = await import('../js/view.js');
+  const a = { text: 'Connect ADO', acts: [{ act: 'x', label: 'Got it' }] }, b = { text: 'Dispatch is off', acts: [{ act: 'y', label: 'How' }] };
+  assert.equal(notesHtml([]), '');
+  assert.doesNotMatch(notesHtml([a]), /ws-notices/, 'one setup note stays a line');
+  const h = notesHtml(['Azure DevOps: PAT rejected', a, b]);
+  assert.match(h, /<div class="notes"><p class="note">Azure DevOps: PAT rejected<\/p><\/div>/);
+  assert.match(h, /<details class="ws-notices slate-notices"><summary>2 setup notes<\/summary>/);
+  assert.match(notesHtml([a, b], true), /slate-notices" open>/);
 });

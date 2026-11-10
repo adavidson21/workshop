@@ -6,3 +6,5 @@ dist/
 .remote/
 .DS_Store
 .wrangler/
+# layout check screenshots (tests/layout-e2e.py)
+tests/out/

@@ -5,7 +5,7 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Prioritizer, Home then shows a message instead of an empty page, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, blockingRows, boardFromSummary, dateStr, inboxRows, weekRows, withNames, wrapFromDay } from './view.js';
+import { agentCounts, blockingRows, boardFromSummary, dateStr, inboxRows, upcomingRows, weekRows, withNames, wrapFromDay } from './view.js';
 import { EMPTY } from '../../../shared/people.js';
 import { cardDay, readCards } from '../../../shared/summary.js';
 
@@ -15,7 +15,7 @@ const OC = 'opencode';
 const EMPTY_BOARD = () => ({ total: 0, open: 0, focus: { total: 0, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] });
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], inbox: [], blocking: [], focus: null, week: [], apps: [], board: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, dir: EMPTY, notes: [], inbox: [], blocking: [], focus: null, week: [], upcoming: [], day: null, apps: [], board: null, wrap: null, boardNote: '', agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
   let profileEnv = null;
 
   const changed = () => { v.now = now(); onChange(v); };
@@ -36,7 +36,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
       v.dir = dir;
       const cards = readCards(env, 'prioritizer');
       const d = now(), today = dateStr(d), nowMin = d.getHours() * 60 + d.getMinutes();
-      v.wrap = null;
+      v.wrap = null; v.day = null;
       v.noSummary = !env;   // Docket has not written one: a new board, or Docket not opened since an update
       if (!env) { v.board = EMPTY_BOARD(); v.boardNote = ''; }
       else if (!cards) { v.board = null; v.boardNote = 'Your board was saved by a newer Docket. Update Workshop to see it here.'; }
@@ -45,7 +45,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
         if (!board) { v.board = null; v.boardNote = 'Open Docket to bring your board up to date here.'; }
         else {
           v.board = withNames(board, dir); v.boardNote = '';
-          if (day) v.wrap = wrapFromDay(day, nowMin);
+          if (day) { v.wrap = wrapFromDay(day, nowMin); v.day = day; }
         }
       }
     } catch (e) {
@@ -94,6 +94,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
       const docket = byApp.find(a => a.app === 'prioritizer');
       v.blocking = blockingRows(docket && docket.cards);
       v.week = weekRows(byApp);
+      v.upcoming = upcomingRows(byApp, dateStr(now()));
     } catch (e) { waitFor(e); }
     changed();
   }

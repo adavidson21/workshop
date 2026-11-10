@@ -46,6 +46,11 @@ jobs:
       - run: python tests/workmode-e2e.py
       - run: python tests/focus-e2e.py
       - run: python tests/popout-e2e.py
+      - run: python tests/layout-e2e.py
+      - name: Layout screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with: { name: layout-screenshots, path: tests/out/layout/, if-no-files-found: ignore }
       # Tests must use temp folders only. A fresh runner has neither folder, so finding one means a test wrote there.
       - name: No test touched the real data folder or Workshop home
         if: ${{ !cancelled() }}

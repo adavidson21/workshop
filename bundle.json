@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.9.0",
+  "version": "2.10.0",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
@@ -85,8 +85,8 @@
     "shared/sw-register.js": "3c3e0149634530891476e8bca0a384ee2282a589ee0463a7637161cdb7dc960d",
     "shared/teams.js": "af0852abf524bbff1f8a866413c40b17f03bbdd405c7813de85cfca79a7d9a36",
     "shared/theme.js": "2663fe78a3492d4948cfa19b0904b718b0587bab94d16539df8377d78a29bf0e",
-    "shared/themes.css": "2e749c9679766b04a95a3302470df20432713ceea056716d285008eed011c83e",
-    "shared/ui.css": "94f6001c8c7bd5d0d0bcff5ad8b76ed881e921377026beebeb7504221a9bf35a",
+    "shared/themes.css": "dd0c13e133b808c446470fba88dffcb2c77c1e0823c42735f141e3298eabcbc5",
+    "shared/ui.css": "0a4df496ff4b2c8c5bfb36d99ef4641aee2e29f19f4bfba813367d452eb3551e",
     "shared/vendor/LICENSE-SheetJS.txt": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64",
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
