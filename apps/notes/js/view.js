@@ -19,6 +19,8 @@ const ICON = {
   trash: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2.5 4.2h11M6.2 4.2V2.6h3.6v1.6M3.8 4.2l.7 9.4h7l.7-9.4M6.6 6.8v4.4M9.4 6.8v4.4"/></svg>',
   pencil: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M10.8 2.6l2.6 2.6-7.6 7.6-3.2.6.6-3.2z"/></svg>',
   menu: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>',
+  sideL: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.6"/><path d="M6 2.5v11"/></svg>',
+  sideR: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.6"/><path d="M10 2.5v11"/></svg>',
   drawer: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>',
   refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
@@ -39,9 +41,12 @@ export function sectionsHtml(state) {
     if (id === 'tandem') { const n = tandem.items.filter(i => i.review).length; return n ? `<span class="sec-badge" title="${n} waiting on your review">${n}</span>` : ''; }
     return '';
   };
+  const sideOpen = !ui.sideClosed, panelOpen = !ui.panelClosed;
   return `<button class="ibtn drawer-btn" data-act="drawer" aria-label="Pages" title="Pages">${ICON.drawer}</button>
+    <button class="ibtn fold-btn side-btn" data-act="side" aria-pressed="${sideOpen}" aria-label="${sideOpen ? 'Hide' : 'Show'} the pages list" title="${sideOpen ? 'Hide' : 'Show'} the pages list (Ctrl+\\)">${ICON.sideL}</button>
     <p class="nb-name">Folio</p>
-    <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>`;
+    <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>
+    ${ui.path ? `<button class="ibtn fold-btn panel-btn" data-act="panel" aria-pressed="${panelOpen}" aria-label="${panelOpen ? 'Hide' : 'Show'} the page panel" title="${panelOpen ? 'Hide' : 'Show'} outline, backlinks and tags (Ctrl+Shift+\\)">${ICON.sideR}</button>` : ''}`;
 }
 
 /* ---------- sidebar: the open section's pages ---------- */
@@ -66,11 +71,11 @@ export function sidebar(state) {
 }
 function sideActions(section) {
   const b = (act, title, icon, extra = '') => `<button class="ibtn" data-act="${act}" title="${esc(title)}" aria-label="${esc(title)}"${extra}>${icon}</button>`;
-  if (section === 'daily') return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.note);
+  if (section === 'daily') return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.plus);
   if (section === 'products') return b('new-product', 'New product note', ICON.plus);
   if (section === 'templates') return b('new-template', 'New template', ICON.plus);
   if (section === 'tandem') return b('tandem-refresh', 'Read .work again', ICON.refresh);
-  return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.note) + b('new-folder', 'New folder', ICON.folder);
+  return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.plus) + b('new-folder', 'New folder', ICON.folder);
 }
 function sectionBody(state) {
   const { ui } = state;
@@ -232,8 +237,9 @@ export function header(state) {
     ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
 }
 function segHtml(state) {
-  const modes = state.phone ? ['edit', 'preview'] : ['edit', 'split', 'preview'];
-  return `<div class="seg" role="group" aria-label="View">${modes.map(m => `<button data-mode="${m}" aria-pressed="${state.ui.mode === m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}</div>`;
+  const modes = [...(state.live ? ['live'] : []), 'edit', ...(state.phone ? [] : ['split']), 'preview'];
+  const tips = { live: 'Formatted as you write; the Markdown shows on the line you are on', edit: 'The Markdown as it is', split: 'Markdown and preview side by side', preview: 'Read only' };
+  return `<div class="seg" role="group" aria-label="View">${modes.map(m => `<button data-mode="${m}" aria-pressed="${state.ui.mode === m}" title="${tips[m]} (Ctrl+E for the next view)">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}</div>`;
 }
 /* The note's ⋯ menu: actions used less often than the ones in the header. Keyboard: arrows, Enter, Escape. */
 function menuHtml(ui, items) {
@@ -384,7 +390,7 @@ export function empty(state) {
     <p>Everything Tandem writes in <code>.work</code>, by run. Open a page to read or edit it; saves go straight back to the file Tandem reads. Runs waiting on your review are at the top.</p></div>`;
   return `<div class="engcard"><h1 class="page-title">Write it down</h1>
     <p>Markdown notes, as plain <code>.md</code> files. Link notes with <kbd>[[</kbd>, tag them with <code>#tag</code>, paste images straight in.</p>
-    <div class="acts"><button class="btn primary" data-act="new-note">New note <kbd>N</kbd></button><button class="btn" data-act="today">Today's note <kbd>T</kbd></button></div></div>`;
+    <div class="acts"><button class="btn primary" data-act="new-note">${ICON.plus}New note <kbd>N</kbd></button><button class="btn" data-act="today">Today's note <kbd>T</kbd></button></div></div>`;
 }
 
 /* ---------- dialogs ---------- */

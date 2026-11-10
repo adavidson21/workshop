@@ -13,10 +13,10 @@ import { csharp, java } from '@codemirror/legacy-modes/mode/clike';
 import { go } from '@codemirror/legacy-modes/mode/go';
 import { diff } from '@codemirror/legacy-modes/mode/diff';
 
-export { EditorState, EditorSelection, Compartment, Prec, Annotation, Transaction } from '@codemirror/state';
-export { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars } from '@codemirror/view';
+export { EditorState, EditorSelection, Compartment, Prec, Annotation, Transaction, StateField, StateEffect, RangeSetBuilder } from '@codemirror/state';
+export { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars, Decoration, WidgetType, ViewPlugin } from '@codemirror/view';
 export { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-export { syntaxHighlighting, HighlightStyle, bracketMatching, indentUnit, indentOnInput } from '@codemirror/language';
+export { syntaxHighlighting, HighlightStyle, bracketMatching, indentUnit, indentOnInput, syntaxTree, ensureSyntaxTree } from '@codemirror/language';
 export { markdown, markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 export { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 export { tags } from '@lezer/highlight';

@@ -59,6 +59,79 @@ def write_vault(root):
     return v
 
 
+LIVE_DOC = """# Live check
+
+Some **bold**, `code`, a [missing link](nowhere.md), [web](https://example.com) and #ops.
+
+- [ ] open task
+- plain bullet
+
+| a | b |
+|---|---|
+| 1 | 2 |
+
+> [!NOTE] Heads up
+> callout body
+
+```mermaid
+graph TD
+  A-->B
+```
+
+End.
+"""
+
+
+def live_checks(b):
+    """Live, the default view in a fresh browser: Markdown hidden off the cursor's line, blocks drawn in place,
+    tasks, tags and links that act on a click; and both sidebars folding away, remembered after a reload."""
+    lc = b.new_context(viewport={'width': 1400, 'height': 900})
+    pg = lc.new_page()
+    errs = []
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto(SITE); pg.wait_for_selector('.side-head', timeout=15000)
+    pg.click('#side [data-act=new-note]'); pg.wait_for_timeout(800)
+    check('Live is the default view in a fresh browser', 'mode-live' in pg.get_attribute('#body', 'class') and pg.locator('.cm-editor.live').count() == 1)
+    check('a new note\'s Title hint sits on the Live heading line', pg.is_visible('#title-hint') and 'lp' in (pg.get_attribute('#title-hint', 'class') or ''))
+    fill_editor(pg, LIVE_DOC)
+    pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
+    pg.click('.nb-name'); pg.wait_for_timeout(800)
+    lines = pg.evaluate("[...document.querySelectorAll('.cm-line')].map(l => l.textContent)")
+    check('Live hides Markdown marks when the editor is not focused', lines[0] == 'Live check' and '**' not in lines[2] and '`' not in lines[2])
+    check('Live sizes headings', pg.locator('.cm-line.lp-h1').count() == 1)
+    check('Live draws the table, callout and diagram in place', pg.locator('.lp-block table').count() == 1 and pg.locator('.lp-block .callout').count() == 1 and pg.locator('.lp-block figure.diagram').count() == 1)
+    check('Live draws a diagram as SVG', wait_js(pg, "!!document.querySelector('.lp-block figure.diagram .diagram-out svg')"))
+    check('Live marks a link to a missing note', pg.locator('.lp-link.missing').count() == 1)
+    pg.evaluate("document.querySelector('.cm-scroller').scrollTop = 0"); pg.wait_for_timeout(300)
+    pg.click('.cm-line >> nth=2', position={'x': 3, 'y': 8}); pg.wait_for_timeout(300)
+    check('a click in Live puts the cursor there, with no selection', pg.evaluate("(r => r.length === 1 && r[0].empty)(document.getElementById('editor').editor.view.state.selection.ranges)"))
+    check('the line the cursor is on shows its Markdown', '**bold**' in pg.evaluate("document.querySelectorAll('.cm-line')[2].textContent"))
+    pg.click('.lp-box'); pg.wait_for_timeout(1200)
+    check('ticking a box in Live changes that line and saves', '- [x] open task' in pg.input_value('#editor') and 'saved' in pg.inner_text('#head .status').lower())
+    pg.click('.lp-block td >> nth=0'); pg.wait_for_timeout(300)
+    check('clicking a drawn table shows its Markdown to edit', pg.locator('.lp-block table').count() == 0 and any(l.startswith('| a |') for l in pg.evaluate("[...document.querySelectorAll('.cm-line')].map(l => l.textContent)")))
+    pg.click('.nb-name'); pg.wait_for_timeout(300)
+    pg.click('.lp-tag'); pg.wait_for_timeout(400)
+    check('clicking a #tag in Live searches for it', pg.input_value('[data-search]') == 'tag:ops')
+    pg.fill('[data-search]', ''); pg.wait_for_timeout(300)
+    check('Ctrl+E goes from Live to Edit', (pg.click('.cm-content'), pg.keyboard.press('Control+e'), pg.wait_for_timeout(200), 'mode-edit' in pg.get_attribute('#body', 'class'))[-1])
+    pg.click('[data-mode=live]'); pg.wait_for_timeout(200)
+
+    check('every New note button uses the same plus icon', pg.evaluate(
+        "(() => { const svgs = [...document.querySelectorAll('[data-act=new-note] svg, [data-act=new-note-in] svg')].map(s => s.innerHTML); return svgs.length >= 1 && new Set(svgs).size === 1; })()"))
+    pg.keyboard.press('Control+Backslash'); pg.wait_for_timeout(300)
+    pg.keyboard.press('Control+Shift+Backslash'); pg.wait_for_timeout(300)
+    check('Ctrl+\\ and Ctrl+Shift+\\ fold the pages list and the page panel away', not pg.is_visible('#side') and not pg.is_visible('#panel'))
+    check('with both folded, the note takes the full width', pg.evaluate("document.getElementById('main').getBoundingClientRect().width") > 1300)
+    pg.reload(); pg.wait_for_selector('.side-head', state='attached'); pg.wait_for_timeout(1200)
+    check('the folded sidebars stay folded after a reload', not pg.is_visible('#side') and not pg.is_visible('#panel'))
+    pg.click('[data-act=side]'); pg.click('[data-act=panel]'); pg.wait_for_timeout(300)
+    check('the fold buttons bring both back', pg.is_visible('#side') and pg.is_visible('#panel'))
+    check('Live: no page errors', not errs)
+    if errs: print('      ' + '\n      '.join(errs[:5]))
+    lc.close()
+
+
 def main():
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(Static, directory=ROOT))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -67,6 +140,9 @@ def main():
         with sync_playwright() as p:
             b = p.chromium.launch()
             ctx = b.new_context()
+            # Most checks read the preview beside the editor, so this browser starts in Split (Live, the default,
+            # has its own checks in live_checks below).
+            ctx.add_init_script("try { if (!localStorage.getItem('notes.live-default')) { localStorage.setItem('notes.live-default', '1'); localStorage.setItem('notes.mode', 'split'); } } catch (e) {}")
             ctx.grant_permissions(['clipboard-read', 'clipboard-write'], origin=SITE.rstrip('/'))
             pg = ctx.new_page()
             errors = []
@@ -114,6 +190,8 @@ def main():
             pg.dblclick('#preview li[data-line="3"]'); pg.wait_for_timeout(400)
             check('double-clicking the preview opens the editor on that line',
                   pg.evaluate("document.activeElement.classList.contains('cm-content')") and pg.evaluate("(e => e.value.slice(0, e.selectionStart).split('\\n').length - 1)(document.getElementById('editor').editor)") == 3)
+            check('double-clicking the preview switches to Live', 'mode-live' in pg.get_attribute('#body', 'class'))
+            pg.click('[data-mode=split]'); pg.wait_for_timeout(300)
 
             pg.click('#head [data-act=menu]'); pg.wait_for_timeout(200)
             check('the ⋯ menu holds Copy, Download, Rename and Save as template', all(x in pg.inner_text('.menu') for x in ['Copy Markdown', 'Download', 'Rename', 'Save as template']))
@@ -298,6 +376,8 @@ def main():
             pp.keyboard.press('Escape'); pp.wait_for_timeout(400)
             phone.close()
 
+            live_checks(b)
+
             # Without the editor bundle, notes open in the plain textarea and still save.
             plain = b.new_context()
             pl = plain.new_page()
@@ -306,6 +386,7 @@ def main():
             pl.route('**/vendor/codemirror.js', lambda r: r.abort())
             pl.goto(SITE); pl.wait_for_selector('.side-head', timeout=15000)
             pl.click('[data-act=new-note]'); pl.wait_for_timeout(800)
+            check('without the editor bundle there is no Live view, and Split is the default', pl.locator('[data-mode=live]').count() == 0 and 'mode-split' in pl.get_attribute('#body', 'class'))
             pl.focus('#editor'); pl.keyboard.press('End'); pl.keyboard.type('Plain'); pl.keyboard.press('Control+s'); pl.wait_for_timeout(800)
             check('without the editor bundle, the textarea is the editor', pl.locator('.cm-editor').count() == 0 and pl.input_value('#editor').startswith('# Plain')
                   and 'saved' in pl.inner_text('#head .status').lower() and not plain_errors)

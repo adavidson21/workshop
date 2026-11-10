@@ -30,7 +30,7 @@ import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './export.js';
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
-import { esc, facts, render, headingId } from './markdown.js';
+import { esc, facts, inline, render, headingId } from './markdown.js';
 import { markDiagram, paintDiagrams, pngBytes, svgFile } from './diagrams.js';
 import { KITS, blockInsert, fenceAt, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
 import {
@@ -49,6 +49,11 @@ const sectionsEl = $('sections'), shell = $('notes'), titleHint = $('title-hint'
 const phoneQuery = window.matchMedia('(max-width: 760px)');
 const isPhone = () => phoneQuery.matches;
 const modeKey = () => (isPhone() ? 'mode-phone' : 'mode');
+// The views, in Ctrl+E's order. Live (live.js) needs CodeMirror; without it the editor is a plain text box.
+const hasLive = Boolean(editor.isCodeMirror);
+const modesNow = () => (isPhone() ? [...(hasLive ? ['live'] : []), 'edit', 'preview'] : [...(hasLive ? ['live'] : []), 'edit', 'split', 'preview']);
+// From Preview to writing (double-click, Edit on a diagram, Insert): Live where there is one.
+const writeMode = () => (hasLive ? 'live' : isPhone() ? 'edit' : 'split');
 
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
@@ -62,7 +67,9 @@ const store = (k, v) => { try { if (v === undefined) return localStorage.getItem
 const ui = {
   path: null,                 // the open note
   base: null,                 // {content, mtime}: the open note as last read or saved
-  mode: 'split',
+  mode: 'live',
+  sideClosed: store('side-closed') === '1',   // desktop: the pages list is folded away
+  panelClosed: store('panel-closed') === '1', // desktop: the About this page panel is folded away
   section: SECTION_IDS.includes(store('section')) ? store('section') : 'notes',
   menu: false,                // the note's ⋯ menu is open
   drawer: false,              // phone: the pages drawer is open
@@ -72,11 +79,13 @@ const ui = {
   status: { kind: 'saved' },  // saved, dirty, saving, failed, conflict, gone
   current: null               // the newer file on a conflict
 };
+// Live became the desktop default in 3.6.0: a view remembered from before moves to Live once.
+if (hasLive && store('live-default') !== '1') { store('mode', 'live'); store('live-default', '1'); }
 ui.mode = savedMode();
 function savedMode() {
   const m = store(modeKey());
-  if (isPhone()) return ['edit', 'preview'].includes(m) ? m : 'preview';
-  return ['edit', 'split', 'preview'].includes(m) ? m : 'split';
+  if (modesNow().includes(m)) return m;
+  return isPhone() ? 'preview' : hasLive ? 'live' : 'split';
 }
 phoneQuery.addEventListener('change', () => { ui.mode = savedMode(); ui.drawer = false; paintChrome(); paintPreview(true); });
 function setMode(m) { ui.mode = m; store(modeKey(), m); }
@@ -129,7 +138,7 @@ const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wr
 function state() {
   const tdoc = ui.path && isTandem(ui.path) ? { item: doc && doc.item, busy: tandem.busy(ui.path) } : null;
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
-  return { notes, ui, found, tree: tree(notesPaths(notes.texts.keys()), [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
+  return { live: hasLive, notes, ui, found, tree: tree(notesPaths(notes.texts.keys()), [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
     doc: tdoc, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
@@ -160,8 +169,10 @@ function paintChrome() {
   bodyEl.hidden = !showing;
   if (!showing) emptyEl.innerHTML = empty(st);
   bodyEl.className = `body mode-${ui.mode}`;
-  panelEl.hidden = !ui.path;
+  editor.setLive(ui.mode === 'live', liveCtx);
+  panelEl.hidden = !ui.path || (ui.panelClosed && !isPhone());
   shell.classList.toggle('drawer-open', ui.drawer);
+  shell.classList.toggle('side-closed', ui.sideClosed && !isPhone());
   shell.dataset.sec = ui.section;
   editor.readOnly = Boolean(st.doc && st.doc.busy);
   paintHint();
@@ -192,13 +203,26 @@ function paintHead(st = state()) {
 /* The faint "Title" on a new note's empty first line. */
 function paintHint() {
   titleHint.hidden = !(ui.path && !isTandem(ui.path) && ui.mode !== 'preview' && titleEmpty(editor.value));
+  // In Live the title line is a heading in the serif face, so the hint sits where that line's text ends.
+  const live = !titleHint.hidden && ui.mode === 'live' && editor.view;
+  titleHint.classList.toggle('lp', Boolean(live));
+  if (!live) { titleHint.style.left = titleHint.style.top = titleHint.style.lineHeight = ''; return; }
+  requestAnimationFrame(() => {
+    const v = editor.view;
+    if (!titleHint.classList.contains('lp') || !v.state.doc.lines) return;
+    const c = v.coordsAtPos(v.state.doc.line(1).to), box = bodyEl.getBoundingClientRect();
+    if (!c) return;
+    titleHint.style.left = `${c.right - box.left + 2}px`;
+    titleHint.style.top = `${c.top - box.top}px`;
+    titleHint.style.lineHeight = `${c.bottom - c.top}px`;
+  });
 }
 
 let previewTimer = null;
 function paintPreview(now = false, { force = false } = {}) {
   clearTimeout(previewTimer);
   if (!now) { previewTimer = setTimeout(() => paintPreview(true), 120); return; }
-  if (ui.mode === 'edit' && !force) return;
+  if ((ui.mode === 'edit' || ui.mode === 'live') && !force) return;
   const from = ui.path;
   if (!from) { preview.innerHTML = ''; return; }
   const text = editor.value;
@@ -211,8 +235,7 @@ function paintPreview(now = false, { force = false } = {}) {
     markCursorDiagram();
     return;
   }
-  const tpl = sectionOf(from) === 'templates';
-  preview.innerHTML = render(text, { ...noteCtx(from), tasks: true, placeholders: tpl ? PLACEHOLDERS : null, embed: embedder([from]) });
+  preview.innerHTML = render(text, renderOpts(from));
   paintDiagrams(preview, { key: from });
   paintCodeTools(preview);
   markCursorDiagram();
@@ -259,6 +282,74 @@ function noteCtx(from) {
   };
 }
 
+/* ---------- Live (live.js) ---------- */
+
+/** How a note renders, for the preview and Live alike. */
+function renderOpts(from) {
+  if (isTandem(from)) return { noLinks: true, imageUrl: () => null, tasks: !editor.readOnly };
+  const tpl = sectionOf(from) === 'templates';
+  return { ...noteCtx(from), tasks: true, placeholders: tpl ? PLACEHOLDERS : null, embed: embedder([from]) };
+}
+/** A link's attributes as the preview would draw it (data-note, data-missing-path, data-app, href, class). */
+function linkAttrsOf(md) {
+  const box = document.createElement('div');
+  box.innerHTML = inline(md, renderOpts(ui.path));
+  const a = box.querySelector('a, .bad-link');
+  if (!a) return null;
+  const out = {};
+  for (const at of a.attributes) out[at.name] = at.value;
+  return out;
+}
+const liveCtx = {
+  /* A diagram, table, callout or embed, drawn like the preview. line: its first line in the note, so a task's
+     box, a diagram's Edit and the outline still point at the right line. */
+  block(text, line) {
+    const box = document.createElement('div');
+    if (!ui.path) return box;
+    box.innerHTML = render(text, renderOpts(ui.path));
+    for (const el of box.querySelectorAll('[data-line]')) if (/^\d+$/.test(el.dataset.line)) el.dataset.line = String(Number(el.dataset.line) + line);
+    for (const el of box.querySelectorAll('input[data-task]')) {
+      el.dataset.task = String(Number(el.dataset.task) + line);
+      el.classList.add('lp-act');
+      const t = taskText(editor.value, Number(el.dataset.task));
+      if (editor.readOnly || (t !== null && sent.has(offerId('task', ui.path, t)))) el.disabled = true;
+    }
+    paintDiagrams(box, { key: `${ui.path}#live${line}` });
+    paintCodeTools(box);
+    for (const img of box.querySelectorAll('img[data-img]')) {
+      notes.imageUrl(img.dataset.img).then(url => { if (url) img.src = url; else img.replaceWith(Object.assign(document.createElement('span'), { className: 'img-note missing', textContent: `[image not found: ${img.alt || img.dataset.img}]` })); }, () => {});
+    }
+    return box;
+  },
+  link: (href) => (ui.path ? linkAttrsOf(`[x](${href})`) : null),
+  wiki: (inner) => (ui.path ? linkAttrsOf(`[[${inner}]]`) : null),
+  image(src) {
+    if (!ui.path || isTandem(ui.path)) return null;
+    const r = noteCtx(ui.path).imageUrl(src);
+    return r ? notes.imageUrl(r.path) : null;
+  },
+  taskLocked(line) {
+    if (!ui.path || editor.readOnly) return true;
+    const t = taskText(editor.value, line);
+    return t !== null && sent.has(offerId('task', ui.path, t));
+  }
+};
+
+/* ---------- folding the sidebars (desktop) ---------- */
+
+function toggleSide() {
+  if (isPhone()) { ui.drawer = !ui.drawer; paintChrome(); return; }
+  ui.sideClosed = !ui.sideClosed;
+  store('side-closed', ui.sideClosed ? '1' : '0');
+  paintChrome();
+}
+function togglePanel() {
+  if (isPhone()) return;
+  ui.panelClosed = !ui.panelClosed;
+  store('panel-closed', ui.panelClosed ? '1' : '0');
+  paintChrome();
+}
+
 /** The note an embed names, from the note it is in, or null. */
 function embedTarget(spec, from) {
   const ix = notes.index;
@@ -300,7 +391,7 @@ function markCursorDiagram() {
   markDiagram(preview, f ? f.line : null);
 }
 // Light or dark: diagrams are drawn in the theme's colors, so draw them again.
-new MutationObserver(() => paintPreview(true)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+new MutationObserver(() => { paintPreview(true); editor.refreshLive(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 /* Insert diagram: pick a kind, and its starter goes in at the cursor on lines of its own. */
 async function pickDiagram() {
@@ -313,7 +404,7 @@ async function pickDiagram() {
 }
 /** A block (a diagram, a table) at the cursor on lines of its own, the cursor on its second line. */
 function insertBlock(block) {
-  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); }
+  if (ui.mode === 'preview') { setMode(writeMode()); paintChrome(); }
   const s = editor.selectionStart, e = editor.selectionEnd;
   const r = blockInsert(editor.value, s, e, block);
   editor.focus();
@@ -328,7 +419,7 @@ async function diagramAct(act, fig) {
   const line = Number(fig.dataset.line);
   if (act === 'edit') {
     if (Number.isNaN(line)) return; // a diagram inside an embed belongs to the other note
-    if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+    if (ui.mode === 'preview') { setMode(writeMode()); paintChrome(); paintPreview(true); }
     goToLine(line + 1);
     return;
   }
@@ -454,7 +545,7 @@ function goToLine(line) {
     editor.setSelectionRange(at, at);
     editor.revealPos(at);
   }
-  if (ui.mode !== 'edit') {
+  if (ui.mode !== 'edit' && ui.mode !== 'live') {
     requestAnimationFrame(() => {
       const els = [...preview.querySelectorAll('[data-line]')];
       let best = null;
@@ -470,7 +561,7 @@ function goToAnchor(anchor) {
     if (el) el.scrollIntoView({ block: 'start' });
     const n = notes.index.notes.get(ui.path);
     const h = n && n.headings.find(x => x.id === anchor || x.id === headingId(anchor));
-    if (h && ui.mode === 'edit') goToLine(h.line);
+    if (h && (ui.mode === 'edit' || ui.mode === 'live')) goToLine(h.line);
   });
 }
 
@@ -641,7 +732,7 @@ async function newNote(folder = defaultFolder()) {
   try {
     await notes.create(path, BLANK);
     if (folder) ui.extraFolders.delete(folder);
-    if (ui.mode === 'preview') setMode(isPhone() ? 'edit' : 'split');
+    if (ui.mode === 'preview') setMode(writeMode());
     fresh = { path, folder };
     await openNote(path);
     editor.focus();
@@ -701,7 +792,7 @@ async function editTemplate(path) {
     if (!(await leaveNote())) return;
     try { await notes.create(path, STARTERS[path]); } catch (e) { if (e.code !== 'conflict') { toastErr(e); return; } }
   }
-  if (ui.mode === 'preview') setMode(isPhone() ? 'edit' : 'split');
+  if (ui.mode === 'preview') setMode(writeMode());
   await openNote(path, { focus: true });
 }
 async function newTemplate() {
@@ -749,7 +840,7 @@ function setTemplateField(field, value) {
   scheduleSave(); paintPreview();
 }
 function insertPlaceholder(name) {
-  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+  if (ui.mode === 'preview') { setMode(writeMode()); paintChrome(); paintPreview(true); }
   editor.focus();
   insertAtCursor(`{{${name}}}`);
 }
@@ -1119,7 +1210,7 @@ async function printNote() {
   paintPreview(true, { force: true });
   await diagramsSettled(preview);
   root.classList.add('printing');
-  const done = () => { root.classList.remove('printing'); if (dark) root.dataset.theme = 'dark'; if (ui.mode === 'edit') preview.innerHTML = ''; };
+  const done = () => { root.classList.remove('printing'); if (dark) root.dataset.theme = 'dark'; if (ui.mode === 'edit' || ui.mode === 'live') preview.innerHTML = ''; };
   window.addEventListener('afterprint', done, { once: true });
   window.print();
 }
@@ -1351,6 +1442,8 @@ function formatTableNow() {
 }
 for (const ev of ['keyup', 'click']) editor.addEventListener(ev, () => markCursorDiagram());
 editor.addEventListener('blur', () => { setTimeout(closePicker, 150); if (ui.status.kind === 'dirty') saveNow(); });
+// Live shows or hides the title line's "# " with focus, so the Title hint moves with it.
+for (const ev of ['focus', 'blur']) editor.addEventListener(ev, () => { if (ui.mode === 'live') setTimeout(paintHint, 0); });
 editor.addEventListener('paste', (e) => {
   const imgs = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
   if (imgs.length) { e.preventDefault(); addImages(imgs); }
@@ -1391,6 +1484,8 @@ document.addEventListener('click', async (e) => {
   if (x.closest('.menu')) { ui.menu = false; paintHead(); }
   if (act === 'menu') { ui.menu = !ui.menu; paintHead(); return; }
   if (act === 'drawer') { ui.drawer = !ui.drawer; paintChrome(); return; }
+  if (act === 'side') { toggleSide(); return; }
+  if (act === 'panel') { togglePanel(); return; }
   if (act === 'new-note') newNote();
   else if (act === 'today') openToday();
   else if (act === 'send') send(x.dataset.kind, Number(x.dataset.line));
@@ -1442,12 +1537,12 @@ head.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(k + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
   else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ui.menu = false; paintHead(); head.querySelector('[data-act=menu]')?.focus(); }
 });
-// Double-click the preview to write there: Edit (or Split on a wide screen), the cursor on that line.
+// Double-click the preview to write there: Live (or Edit / Split without CodeMirror), the cursor on that line.
 preview.addEventListener('dblclick', (e) => {
   if (!ui.path || e.target.closest('a, input, button')) return;
   const blk = e.target.closest('[data-line]');
   const line = blk ? Number(blk.dataset.line) : 0;
-  if (ui.mode === 'preview') { setMode(isPhone() ? 'edit' : 'split'); paintChrome(); paintPreview(true); }
+  if (ui.mode === 'preview') { setMode(writeMode()); paintChrome(); paintPreview(true); }
   window.getSelection()?.removeAllRanges();
   goToLine(line);
 });
@@ -1524,7 +1619,9 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && (ui.menu || ui.drawer) && !dlg.open) { ui.menu = false; ui.drawer = false; paintChrome(); return; }
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); return; }
   if (mod && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); side.querySelector('[data-search]')?.focus(); return; }
-  if (mod && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); const order = isPhone() ? ['edit', 'preview'] : ['edit', 'split', 'preview']; setMode(order[(order.indexOf(ui.mode) + 1) % order.length]); paintChrome(); paintPreview(true); return; }
+  if (mod && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); const order = modesNow(); setMode(order[(order.indexOf(ui.mode) + 1) % order.length]); paintChrome(); paintPreview(true); return; }
+  // Ctrl+\ folds the pages list away (and back); Ctrl+Shift+\ the About this page panel.
+  if (mod && e.code === 'Backslash') { e.preventDefault(); if (e.shiftKey) togglePanel(); else toggleSide(); return; }
   if (e.key === 'F2' && ui.path) { e.preventDefault(); renameNote(); return; }
   if (typing || dlg.open || mod || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); side.querySelector('[data-search]')?.focus(); }
@@ -1542,12 +1639,16 @@ ws.commands.register({ id: 'new', title: 'New note' });
 ws.commands.register({ id: 'search', title: 'Search notes' });
 ws.commands.register({ id: 'today', title: "Open today's note" });
 ws.commands.register({ id: 'diagram', title: 'Insert diagram' });
+ws.commands.register({ id: 'toggle-pages', title: 'Show or hide the pages list' });
+ws.commands.register({ id: 'toggle-panel', title: 'Show or hide the page panel' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
   if (p.id === 'undo-trash') { undoTrash(); return; }
   if (p.id === 'new') newNote();
   else if (p.id === 'today') openToday();
   else if (p.id === 'diagram') pickDiagram();
+  else if (p.id === 'toggle-pages') toggleSide();
+  else if (p.id === 'toggle-panel') togglePanel();
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
 });
 function route(raw) {

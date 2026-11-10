@@ -13,8 +13,12 @@
      one that calls preventDefault() stops CodeMirror handling the event (the [[ picker uses this).
    - anything else ('keyup', 'click') is a listener on the editable element.
 
-   reset(text) loads a note with a fresh undo history; revealPos(at) scrolls a position into view. The hidden
+   reset(text) loads a note with a fresh undo history; revealPos(at) scrolls a position into view. setLive(on, ctx)
+   turns the Live view on or off (live.js: the note formatted as you write); refreshLive() draws its blocks again.
+   The hidden
    <textarea id="editor"> keeps the text too (tests and devtools read it), and holds this object as `.editor`. */
+
+import { liveExtension } from './live.js';
 
 const HANDLED = ['keydown', 'paste', 'drop', 'dragover', 'focus', 'blur'];
 
@@ -35,6 +39,9 @@ function mount(textarea, cm) {
   const listeners = new Map();      // type -> [fn]
   const on = (type) => listeners.get(type) || [];
   const editable = new Compartment();
+  const liveSlot = new Compartment();
+  const liveSlotExt = liveSlot.of([]);
+  let live = null, liveOn = false; // live.js, made the first time it is turned on
 
   const style = HighlightStyle.define([
     { tag: t.heading, class: 'cm-md-h' },
@@ -72,6 +79,7 @@ function mount(textarea, cm) {
     keymap.of([...markdownKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
     editable.of([]),
     EditorView.editorAttributes.of({ class: 'editor cm-folio' }),
+    liveSlotExt,
     EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences', autocorrect: 'on', 'aria-label': 'Note text (Markdown)', 'aria-multiline': 'true' }),
     EditorView.updateListener.of((u) => {
       if (!u.docChanged) return;
@@ -82,6 +90,8 @@ function mount(textarea, cm) {
     })
   ];
 
+  // The extensions with Live in its current state (reset makes a new state from these).
+  const current = () => extensions.map(x => (x === liveSlotExt ? liveSlot.of(liveOn ? live.extension : []) : x));
   const view = new EditorView({ state: EditorState.create({ doc: textarea.value, extensions }) });
   textarea.hidden = true;
   textarea.tabIndex = -1;
@@ -109,8 +119,9 @@ function mount(textarea, cm) {
     },
     /** Load a note: its text, the cursor at the start, a fresh undo history. */
     reset(text) {
-      view.setState(EditorState.create({ doc: String(text), extensions }));
+      view.setState(EditorState.create({ doc: String(text), extensions: current() }));
       if (ro) view.dispatch({ effects: editable.reconfigure(readOnlyExt(true)) });
+      if (liveOn && view.hasFocus) view.dispatch({ effects: live.focus(true) });
       cache = null;
       textarea.value = ed.value;
       view.scrollDOM.scrollTop = 0;
@@ -144,7 +155,18 @@ function mount(textarea, cm) {
       if (ev.type === 'input' || HANDLED.includes(ev.type)) { for (const fn of on(ev.type)) fn(ev); return !ev.defaultPrevented; }
       return view.contentDOM.dispatchEvent(ev);
     },
-    contains(node) { return view.dom.contains(node); }
+    contains(node) { return view.dom.contains(node); },
+    get live() { return liveOn; },
+    /** Live view on or off. ctx is live.js's (main.js gives the same one each time). */
+    setLive(on, ctx) {
+      on = Boolean(on);
+      if (on === liveOn) return;
+      if (on && !live) live = liveExtension(cm, ctx);
+      liveOn = on;
+      view.dispatch({ effects: on ? [liveSlot.reconfigure(live.extension), live.focus(view.hasFocus)] : liveSlot.reconfigure([]) });
+    },
+    /** Draw Live's blocks (diagrams, tables, callouts, embeds) again, after the theme changes. */
+    refreshLive() { if (liveOn) view.dispatch({ effects: live.refresh() }); }
   };
   function readOnlyExt(v) { return v ? [EditorState.readOnly.of(true), EditorView.editable.of(false), EditorView.editorAttributes.of({ class: 'read-only' })] : []; }
   textarea.editor = ed;
@@ -160,6 +182,8 @@ function plain(textarea) {
     textarea.scrollTop = Math.max(0, line * lh - textarea.clientHeight / 3);
   };
   textarea.contains = (node) => node === textarea;
+  textarea.setLive = () => {};  // Live needs CodeMirror; main.js offers it only when isCodeMirror
+  textarea.refreshLive = () => {};
   textarea.editor = textarea;
   return textarea;
 }
