@@ -1140,13 +1140,13 @@ def folder_checks(b, watch):
     seen(hf4, '.waiting')
     check('meanwhile Home says to allow the folder instead of showing an empty page',
           'Allow Workshop to use your folder to see your day' in hf4.inner_text('#app') and 'in the bar at the top of Workshop' in hf4.inner_text('#app')
-          and hf4.locator('.tiles').count() == 0 and 'No tasks yet' not in hf4.inner_text('#app'))
+          and hf4.locator('.yourday').count() == 0 and 'No tasks yet' not in hf4.inner_text('#app'))
     check('while waiting, Home offers no profile editing and saves nothing',
           hf4.locator('[data-edit-profile]').count() == 0 and pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) is None)
     p4.locator('#folderBar [data-allow]').click()
-    seen(hf4, '.tiles')
-    check('after Allow, Home loads the board without a reload', hf4.locator('.waiting').count() == 0 and 'open task' in hf4.inner_text('.tiles'))
-    hf4.click('[data-edit-profile]'); hf4.fill('input[name=name]', 'Riley Park'); hf4.click('.pform .btn.primary'); p4.wait_for_timeout(600)
+    seen(hf4, '.yourday')
+    check('after Allow, Home loads the board without a reload', hf4.locator('.waiting').count() == 0 and hf4.locator('.yourday').count() == 1)
+    hf4.click('.hmore summary'); hf4.click('[data-edit-profile]'); hf4.fill('input[name=name]', 'Riley Park'); hf4.click('.pform .btn.primary'); p4.wait_for_timeout(600)
     check('and Home saves the profile to the folder again', 'Riley Park' in (pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) or ''))
 
     # Notes on the folder: the notes and images are files in Workshop/notes/.
@@ -1480,9 +1480,9 @@ def main():
 
         pg.click('#rail .mark'); pg.wait_for_timeout(800)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        seen(hf, '.tiles')
-        check('Home counts the board: two open tasks', '2 open tasks' in hf.inner_text('.tiles'))
-        hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Test User'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
+        seen(hf, '.yourday')
+        check('Home shows your day from Docket in one card, with one button into Docket', hf.locator('.yourday').count() == 1 and hf.locator('.yourday .ch [data-open=prioritizer]').count() == 1)
+        hf.click('.hmore summary'); hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Test User'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
         check('Home saves the profile name', 'Test' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Test User')
         hf.fill('.cap-in', 'w keys from the vendor fri')
         check('quick capture previews a waiting-on task before Enter', 'waiting on' in hf.inner_text('.cap-preview').lower())
@@ -1495,10 +1495,10 @@ def main():
         check('a question in quick capture opens Dispatch', pg.url.endswith('#/agents'))
         pg.click('#rail .mark'); pg.wait_for_timeout(600)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        check('Home has one Today card for Docket, no Up next, Now or People of its own', hf.locator('.todaycard').count() == 1 and 'Up next' not in hf.inner_text('#app'))
-        hf.click('.todaycard .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
+        check('Home has one Your day card for Docket, no tiles, Up next, Day plan card or People of its own', hf.locator('.yourday').count() == 1 and hf.locator('.tile').count() == 0 and 'Up next' not in hf.inner_text('#app') and hf.locator('.daycard').count() == 0)
+        hf.click('.yourday .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check("Open Today on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
+        check("Your day's button on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)

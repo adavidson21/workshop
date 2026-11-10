@@ -5,7 +5,7 @@
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { createHome } from './data.js';
-import { ICON, esc, hbtn, profileForm, render, statusDraft } from './view.js';
+import { ICON, esc, profileForm, render, statusDraft } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
 import { startCapture } from './capture.js';
 import { watchFocus } from '../../../shared/focus.js';
@@ -33,7 +33,7 @@ function settingsTarget() {
   try { const p = JSON.parse(localStorage.getItem('workshop.agent') || 'null'); if (p && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(p.url)) return { href: p.url + '/apps/settings/' }; } catch (e) { /* not paired */ }
   return null;
 }
-// Three forms: hidden (a progress button in the header brings it back), one line under the greeting (the
+// Three forms: hidden (Get started in the header's More menu brings it back), one line under the greeting (the
 // default: the next step and n of total), or the full card while you work through it (per window).
 // The setup checklist's markup and where it goes: into the hello tools (hidden) or after the hello.
 function setupPart() {
@@ -41,7 +41,7 @@ function setupPart() {
   const view = setup.view();
   if (setup.s.hidden) {
     const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
-    return { into: 'tools', html: hbtn(ICON.ring, label, 'data-setup-show', view.complete ? '' : 'acc'), copies: [] };
+    return { into: 'menu', html: `<button class="mi${view.complete ? '' : ' acc'}" role="menuitem" data-setup-show>${ICON.ring}${esc(label)}</button>`, copies: [] };
   }
   const open = setupOpen !== null ? setupOpen : !(view.complete || setup.s.folded);
   if (!open) return { into: 'after', html: setupStrip(view), copies: [] };
@@ -52,14 +52,14 @@ function placeSetup(part) {
   copies = [];
   const hello = app.querySelector('.hello');
   if (!hello || !part) return;
-  if (part.into === 'tools') { const tools = hello.querySelector('.htools'); if (tools) tools.insertAdjacentHTML('beforeend', part.html); return; }
+  if (part.into === 'menu') { const menu = hello.querySelector('.hmenu'); if (menu) menu.insertAdjacentHTML('beforeend', part.html); return; }
   copies = part.copies;
   hello.insertAdjacentHTML('afterend', part.html);
 }
 
 // Sections that fade in. They play once: a section already on screen keeps still through repaints
 // (a repaint comes with every agent event and once a minute).
-const ENTERS = ['.hello', '.setup', '.su-strip', '.tiles', '.cols', '.card.note', '.dayflow'];
+const ENTERS = ['.hello', '.setup', '.su-strip', '.cols', '.card.note'];
 let lastKey = null, lastFirst = null;
 function paint() {
   if (home.waiting) editing = false;
@@ -104,6 +104,9 @@ watchFocus(ws, f => { v.focus = f; paint(); });
 /* ---------- input ---------- */
 app.addEventListener('click', e => {
   const t = e.target;
+  // The header's More menu closes after a choice, and on a click anywhere else.
+  const menu = app.querySelector('details.hmore[open]');
+  if (menu && (!t.closest('details.hmore') || t.closest('.mi'))) menu.open = false;
   const open = t.closest('[data-open]');
   if (open) { ws.open(open.dataset.path ? { app: open.dataset.open, path: open.dataset.path } : { app: open.dataset.open }); return; }
   const toggle = t.closest('[data-toggle-step]');
@@ -164,6 +167,8 @@ async function copyText(text, b) {
   }
 }
 document.addEventListener('keydown', e => {
+  const menu = app.querySelector('details.hmore[open]');
+  if (e.key === 'Escape' && menu) { menu.open = false; menu.querySelector('summary').focus(); return; }
   if (e.key === 'Escape' && editing) { editing = false; paint(); return; }
   // "/" anywhere on Home (not while typing) jumps to quick capture.
   if (e.key === '/' && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) { e.preventDefault(); capture.focus(); }

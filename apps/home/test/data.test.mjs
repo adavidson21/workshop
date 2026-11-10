@@ -88,7 +88,7 @@ test('on Allow (online turns true), profile, board and agents load again, once',
   assert.ok(paints > 0);
   const html = render(home.v);
   assert.match(html, /Morning, Sam/);
-  assert.match(html, /1 open task/, 'the board loaded: the Today card counts it');
+  assert.match(html, /class="card yourday w2"[\s\S]*Pick today's tasks/, 'the board loaded: Your day shows it');
   assert.ok(!html.includes('Allow Workshop to use your folder'));
   // After the wait, the profile saves on top of the loaded revision.
   await home.saveProfile({ name: 'Sam R', role: 'EM' });
@@ -147,8 +147,8 @@ test('Docket\'s summary: the board and Wrap up come from it, with no reads of Do
   assert.deepEqual([home.v.board.nudges, home.v.board.cameBack], [3, 1], 'follow-ups due and came back');
   assert.deepEqual(home.v.wrap, { wrapped: false, due: false, receipts: 2 });
   const html = render(home.v);
-  assert.match(html, /Open Today/);
-  assert.ok(!html.includes('From the summary'), 'Up next is in Docket\'s Today, not on Home');
+  assert.match(html, /data-path="today">Open Docket</);
+  assert.ok(!html.includes('Up next'), 'Up next is in Docket\'s Today, not on Home');
 });
 
 test('Docket\'s summary: a stale one (no entry for today) says to open Docket; none yet is an empty board', async () => {
