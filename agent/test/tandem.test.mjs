@@ -176,12 +176,11 @@ test('a Tandem clone kept elsewhere is found from opencode\'s manifest, or named
   } finally { rm(s.root); }
 });
 
-test('update --eng-agents parses, and does not go with --pull or --check', () => {
+test('update --eng-agents parses, and does not go with --check', () => {
   assert.equal(parseUpdateArgs(['--eng-agents', '/x']).opts.engAgents, '/x');
   assert.equal(parseUpdateArgs(['--eng-agents', '/x']).opts.latest, true);
   assert.equal(parseUpdateArgs(['--eng-agents', '/x', '--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag, 'core-v2.1.0');
   assert.match(parseUpdateArgs(['--eng-agents']).error, /needs the folder/);
-  assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--pull']).error);
   assert.ok(parseUpdateArgs(['--eng-agents', '/x', '--check']).error);
 });
 
@@ -245,11 +244,10 @@ test('restartOpencode uses the opencode command from the connector config', () =
   } finally { rm(home); }
 });
 
-test('update --verbose and --restart parse; --restart does not go with --pull or --check', () => {
+test('update --verbose and --restart parse; --restart does not go with --check', () => {
   assert.equal(parseUpdateArgs(['--verbose']).opts.verbose, true);
   assert.equal(parseUpdateArgs(['--restart']).opts.restart, true);
   assert.equal(parseUpdateArgs(['--restart']).opts.latest, true);
-  assert.ok(parseUpdateArgs(['--restart', '--pull']).error);
   assert.ok(parseUpdateArgs(['--restart', '--check']).error);
 });
 

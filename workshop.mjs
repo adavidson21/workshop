@@ -17,11 +17,12 @@
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
 //   workshop apps [on|off <app>]           List the apps, or turn one on or off (work mode: downloads a separate
 //                                          app if needed and rebuilds the pinned copy). See docs/apps.md.
-//   workshop update [--check] [--tag <tag>] [--<app>-tag <tag>] [--pull]
-//                                          No options: move Workshop, Docket, Runway and Rapport to their newest
-//                                          release tags and rebuild the pinned copy. --check lists the tags and
-//                                          changes nothing. --tag moves to one tag. --pull is the old git pull.
+//   workshop update [--check] [--tag <tag>] [--<app>-tag <tag>]
+//                                          No options: move Workshop and its apps to their newest release tags
+//                                          and rebuild the pinned copy. --check lists the tags and changes
+//                                          nothing. --tag (and --<app>-tag) roll back to one release.
 //                                          --eng-agents <folder> names the eng-agents clone to update.
+//                                          "workshop update --help" lists every option.
 //   workshop version                       Print the agent version.
 //   workshop help                          This help.
 //
@@ -100,23 +101,32 @@ const USAGE = `Usage: workshop <command> [options]
                                  newest release tag (skipping any already there), then rebuild the pinned copy if
                                  work mode is on. Tandem is reinstalled in opencode when opencode's copy is behind.
                                  Tandem's clone is the one next to Workshop, else the one opencode installed from.
-  update --eng-agents <folder>   Same, using the eng-agents clone in <folder> (also goes with --eng-agents-tag).
-  update --verbose               Show every step's full output (Tandem's install, the pinned copy build).
-  update --restart               Also restart Workshop when it moved to a new version (Settings' Update button uses it).
-  update --check                 List the release tags and say which one this is. Changes nothing.
-  update --tag <tag>             Move this checkout to a release tag, then rebuild the pinned copy if work mode is
-         [--docket-tag <tag>]    on. --docket-tag and --runway-tag also move the Docket and Runway checkouts
-         [--runway-tag <tag>]    the pinned copy is built from. --receipts-tag and --notes-tag do the same for Rapport and Folio.
-         [--receipts-tag <tag>]  --eng-agents-tag installs Tandem in opencode at that tag (core-v<version>).
-         [--notes-tag <tag>]
-         [--eng-agents-tag <tag>]
-  update --pull                  Update to the newest code on the current branch (git pull), not a release.
+                                 "workshop update --help" lists the rest (checking, rolling back).
   version                        Print the agent version.
   remote-apps                    List the apps work mode pins from other repos (apps/remote.json), for the installers.
   help                           Show this.
 
 Home folder: ~/.workshop, or set WORKSHOP_HOME. Data folder: dataDir in config.json, default ~/Workshop.
 See docs/security.md.`;
+
+// The options most people never need: shown by "workshop update --help", not in the main help.
+const UPDATE_USAGE = `Usage: workshop update [options]
+
+  (no options)                   Update Workshop, Docket, Runway, Rapport, Folio and Tandem (eng-agents) each to its
+                                 newest release tag, then rebuild the pinned copy if work mode is on.
+  --check                        List the release tags and say which one this is. Changes nothing.
+  --verbose                      Show every step's full output (Tandem's install, the pinned copy build).
+  --restart                      Also restart Workshop when it moved to a new version (Settings' Update button uses it).
+  --eng-agents <folder>          Use the eng-agents clone in <folder> (also goes with --eng-agents-tag).
+
+Rolling back to a release (older ones included):
+  --tag <tag>                    Move Workshop to a release tag, then rebuild the pinned copy if work mode is on.
+  --docket-tag <tag>             Move the Docket checkout the pinned copy is built from.
+  --runway-tag <tag>             The same for Runway.
+  --receipts-tag <tag>           The same for Rapport.
+  --notes-tag <tag>              The same for Folio.
+  --eng-agents-tag <tag>         Install Tandem in opencode at that tag (core-v<version>).
+Run a plain "workshop update" to go back to the newest releases.`;
 
 // --------------------------------------------------------------- helpers
 
@@ -545,15 +555,18 @@ export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes
 /** True when update's options name any tag (Workshop's or a remote app's). */
 const anyTag = opts => !!opts.tag || !!opts.engAgentsTag || REMOTE_APPS.some(a => opts[`${a.key}Tag`]);
 
-/** Read update's options. Returns {opts} or {error}. With no options, update means --latest. */
+/** Read update's options. Returns {opts} or {error}. With no tag and no --check, update moves to the newest
+ *  releases (opts.latest). */
 export function parseUpdateArgs(rest) {
   // --<key>-tag for each app from another repo (apps/remote.json): --docket-tag, --runway-tag, --receipts-tag.
-  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false, verbose: false, restart: false };
+  const opts = { tag: null, ...Object.fromEntries(REMOTE_APPS.map(a => [`${a.key}Tag`, null])), engAgentsTag: null, engAgents: null, latest: false, check: false, verbose: false, restart: false };
   const keys = { '--tag': 'tag', ...Object.fromEntries(REMOTE_APPS.map(a => [`--${a.key}-tag`, `${a.key}Tag`])), '--eng-agents-tag': 'engAgentsTag' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--pull') { opts.pull = true; continue; }
-    if (a === '--latest') { opts.latest = true; continue; }
+    if (a === '--help' || a === '-h') { opts.help = true; continue; }
+    // Removed options: plain "workshop update" is the newest releases, and work mode only runs release tags.
+    if (a === '--latest') return { error: '--latest is gone: a plain "workshop update" moves everything to its newest release.' };
+    if (a === '--pull') return { error: '--pull is gone: Workshop updates only to release tags. Run "workshop update".' };
     if (a === '--check') { opts.check = true; continue; }
     if (a === '--verbose') { opts.verbose = true; continue; }
     if (a === '--restart') { opts.restart = true; continue; }
@@ -571,12 +584,11 @@ export function parseUpdateArgs(rest) {
     }
     return { error: `Unknown option ${a}. Run "workshop help".` };
   }
-  if (opts.pull && anyTag(opts)) return { error: '--pull and --tag do not go together.' };
-  if (opts.latest && (opts.pull || anyTag(opts))) return { error: '--latest picks every tag itself, so it does not go with --tag or --pull.' };
-  if (opts.check && (opts.pull || opts.latest || anyTag(opts))) return { error: '--check only lists the release tags, so it goes on its own.' };
-  if (opts.engAgents && (opts.pull || opts.check)) return { error: '--eng-agents goes with a plain "workshop update" or --eng-agents-tag.' };
-  if (opts.restart && (opts.pull || opts.check)) return { error: '--restart goes with a plain "workshop update" or --tag.' };
-  if (!opts.pull && !opts.check && !anyTag(opts)) opts.latest = true;
+  if (opts.help) return { help: true };
+  if (opts.check && anyTag(opts)) return { error: '--check only lists the release tags, so it goes on its own.' };
+  if (opts.engAgents && opts.check) return { error: '--eng-agents goes with a plain "workshop update" or --eng-agents-tag.' };
+  if (opts.restart && opts.check) return { error: '--restart goes with a plain "workshop update" or --tag.' };
+  if (!opts.check && !anyTag(opts)) opts.latest = true;
   return { opts };
 }
 
@@ -891,7 +903,7 @@ export function pin({ home, repo = REPO, opts = {}, schemas = loadSchemas(), uiD
 export function skippedLines(skipped = []) {
   return skipped.map(({ id, problem }) => {
     const a = REMOTE_APPS.find(x => x.id === id);
-    const fix = a ? `Move ${a.name} to a release that fixes it (workshop update --latest), or fix ${findRemote(a.key) || a.key}/app.json` : `Fix apps/${id}/app.json`;
+    const fix = a ? `Move ${a.name} to a release that fixes it (workshop update), or fix ${findRemote(a.key) || a.key}/app.json` : `Fix apps/${id}/app.json`;
     return `${a ? a.name : id} is not included: ${problem}. ${fix}, then run "workshop pin" again.`;
   });
 }
@@ -923,18 +935,12 @@ async function runPin(rest, io) {
 
 async function runUpdate(rest, io) {
   const parsed = parseUpdateArgs(rest);
+  if (parsed.help) { io.out(UPDATE_USAGE); return 0; }
   if (parsed.error) { io.out(parsed.error); return 1; }
   const { opts } = parsed;
   if (!isCheckout(REPO)) {
     for (const l of manualUpdateLines()) io.out(l);
     return 0;
-  }
-  if (opts.pull) {
-    return new Promise(resolve => {
-      const child = spawn('git', ['-C', REPO, 'pull', '--ff-only'], { stdio: 'inherit' });
-      child.on('error', () => { io.out('Could not run git. Update by hand: git pull.'); resolve(1); });
-      child.on('exit', code => { io.out(`Current version: ${VERSION}. This is the newest code, not a release: for work, use "workshop update --tag <tag>".`); resolve(code ?? 0); });
-    });
   }
   if (opts.check) {
     const f = git(REPO, ['fetch', '--tags', '--quiet', 'origin']);
@@ -1039,7 +1045,7 @@ export function pinNotices(text = '') {
 }
 
 /**
- * What `workshop update --latest` moves to: the newest release tag of Workshop and of each remote app's checkout
+ * What a plain `workshop update` moves to: the newest release tag of Workshop and of each remote app's checkout
  * found (Docket, Runway, Rapport), skipping any that are already there or have no release yet. Tandem (eng-agents next to
  * Workshop) gets engAgentsTag when its checkout is behind or opencode has another Core version than its newest tag.
  * Returns {tags: {tag, <key>Tag..., engAgentsTag}, lines}.
