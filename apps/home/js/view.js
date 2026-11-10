@@ -309,8 +309,10 @@ export function yourDayCard(b, day, now, wrap) {
   const allDone = b.focus.total && b.focus.done === b.focus.total;
   const w = wrap || { wrapped: false, due: now.getHours() >= 15, receipts: 0 };
   const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
-  const btn = w.wrapped ? `<button class="btn ghost" data-open="prioritizer" data-path="shutdown" title="Day wrapped.${esc(offered)}">${ICON.check}Day wrapped</button>`
-    : w.due ? `<button class="btn primary" data-open="prioritizer" data-path="shutdown" title="Wrap up: breadcrumbs and tomorrow's top 3.${esc(offered)}">${ICON.moon}Wrap up</button>`
+  // From Wrap up time the button wraps up; Open Docket stays next to it as a quiet link.
+  const open = `<button class="lnk" data-open="prioritizer" data-path="today">Open Docket</button>`;
+  const btn = w.wrapped ? `${open}<button class="btn ghost" data-open="prioritizer" data-path="shutdown" title="Day wrapped.${esc(offered)}">${ICON.check}Day wrapped</button>`
+    : w.due ? `${open}<button class="btn primary" data-open="prioritizer" data-path="shutdown" title="Wrap up: breadcrumbs and tomorrow's top 3.${esc(offered)}">${ICON.moon}Wrap up</button>`
     : !b.focus.total ? `<button class="btn primary" data-open="prioritizer" data-path="today">${ICON.sun}Pick today's tasks</button>`
     : `<button class="btn primary" data-open="prioritizer" data-path="today">Open Docket</button>`;
   const line = blocks.length ? `<p class="ydnow">${blocks.some(x => x.now) ? '<span class="nowtag">Now</span>' : ''}${nowLine(blocks)}</p>`

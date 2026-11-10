@@ -83,6 +83,7 @@ test('Your day: one button, Wrap up when due, Day wrapped once done, Pick today\
   const empty = render({ ...v, board: { ...v.board, focus: { total: 0, done: 0, tasks: [] } }, wrap: { wrapped: false, due: false, receipts: 0 } });
   assert.match(empty, /data-path="today">[\s\S]*?Pick today's tasks</);
   assert.equal((due.match(/class="btn primary"/g) || []).length, 1, 'one button on the card');
+  assert.match(due, /class="lnk" data-open="prioritizer" data-path="today">Open Docket/, 'and Open Docket as a link next to Wrap up');
 });
 
 test('header (Home 3.0.0): the greeting and one More menu; Weekly status as a button on Friday afternoons', () => {

@@ -46,6 +46,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .stack{display:flex;flex-direction:column;gap:2.25rem}
 /* Your day (Home 3.0.0): the block on now, Today's tasks under their blocks, one footer line, one button */
 .yourday .ch .btn{margin-left:auto}
+.yourday .ch .lnk{margin-left:auto;font-size:.88rem;white-space:nowrap}
+.yourday .ch .lnk+.btn{margin-left:0}
 .yourday .ch .btn svg{width:15px;height:15px}
 .ydcount{font:500 .8rem var(--mono);color:var(--muted);white-space:nowrap}
 .ydnow{margin:0 0 .8rem;font-size:1.02rem}

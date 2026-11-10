@@ -1481,7 +1481,7 @@ def main():
         pg.click('#rail .mark'); pg.wait_for_timeout(800)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
         seen(hf, '.yourday')
-        check('Home shows your day from Docket in one card, with one button into Docket', hf.locator('.yourday').count() == 1 and hf.locator('.yourday .ch [data-open=prioritizer]').count() == 1)
+        check('Home shows your day from Docket in one card, with one button into Docket', hf.locator('.yourday').count() == 1 and hf.locator('.yourday .ch .btn[data-open=prioritizer]').count() == 1)
         hf.click('.hmore summary'); hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Test User'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
         check('Home saves the profile name', 'Test' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Test User')
         hf.fill('.cap-in', 'w keys from the vendor fri')
@@ -1496,7 +1496,7 @@ def main():
         pg.click('#rail .mark'); pg.wait_for_timeout(600)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
         check('Home has one Your day card for Docket, no tiles, Up next, Day plan card or People of its own', hf.locator('.yourday').count() == 1 and hf.locator('.tile').count() == 0 and 'Up next' not in hf.inner_text('#app') and hf.locator('.daycard').count() == 0)
-        hf.click('.yourday .ch [data-open=prioritizer]'); pg.wait_for_timeout(1200)
+        hf.click('.yourday .ch [data-open=prioritizer][data-path=today]'); pg.wait_for_timeout(1200)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check("Your day's button on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
