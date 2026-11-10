@@ -1,9 +1,15 @@
-# Release: creates a release tag and GitHub release from the Actions tab.
+# Release: creates a release tag and GitHub release.
+# Runs on its own when 'checks' passes on a push to main: if the version was bumped, it releases that commit;
+# if that version is already released, it does nothing. To release by hand instead:
 # Actions > Release > Run workflow. Leave Tag blank: it becomes v<version> from agent/version.mjs at the
 # commit you release. Work mode installs and updates only by these tags (Workshop README, Work mode).
 name: Release
 
 on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -23,13 +29,21 @@ permissions:
   contents: write
   actions: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
+    # Automatic runs: only after a green 'checks' run on a push to main (not a PR from a branch named main).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref }}
       - name: Pick the tag
         id: tag
         env:
@@ -64,9 +78,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
           NOTES: ${{ inputs.notes }}
+          AUTO: ${{ github.event_name == 'workflow_run' }}
         run: |
           sha=$(git rev-parse HEAD)
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            if [ "$AUTO" = "true" ]; then
+              echo "$TAG is already released. Nothing to do (bump the version to release)."
+              exit 0
+            fi
             echo "::error::$TAG is already released. Bump the version in agent/version.mjs, then run this again."
             exit 1
           fi
