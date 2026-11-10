@@ -2,10 +2,54 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Runway: one roadmap in the list (an item of runway.index v1)",
   "type": "object",
-  "required": ["id", "title"],
+  "required": [
+    "id",
+    "title"
+  ],
   "properties": {
-    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$", "description": "Also the collection name maps/<id>."},
-    "updatedAt": {"type": "integer", "minimum": 0},
-    "title": {"type": "string", "minLength": 1, "maxLength": 120}
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+      "description": "Also the collection name maps/<id>."
+    },
+    "updatedAt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "soon": {
+      "type": "array",
+      "maxItems": 10,
+      "description": "Milestones and goals in the next 60 days, written when the roadmap is saved (Runway 1.16.0), for Runway's upcoming summary card.",
+      "items": {
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "kind"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "enum": [
+              "milestone",
+              "goal"
+            ]
+          }
+        }
+      }
+    }
   }
 }

@@ -45,3 +45,20 @@ test('summary: the Pending assignment list as a list card, once Pending has load
   assert.deepEqual(buildSummary(v, { loaded: false, items: [] }).map(c => c.id), ['roadmaps'], 'not loaded yet: no card, so readers do not see an empty list by mistake');
   assert.deepEqual(buildSummary(v, { loaded: true, readOnly: true, items: [] }).map(c => c.id), ['roadmaps']);
 });
+
+test('upcoming: milestones and goals in the next 14 days across roadmaps, from each roadmap\'s soon', async () => {
+  const { upcomingCard } = await import('../js/summary.js');
+  const { soonOf, blankDoc } = await import('../js/model.js');
+  const list = [
+    { id: 'm1', title: 'Platform', soon: [{ date: '2026-11-20', title: 'Search live', kind: 'milestone' }, { date: '2026-12-30', title: 'Far', kind: 'goal' }] },
+    { id: 'm2', title: 'Infra', soon: [{ date: '2026-11-12', title: 'Runbooks done', kind: 'goal' }, { date: '2026-11-01', title: 'Past', kind: 'milestone' }] },
+    { id: 'm3', title: 'None' }];
+  const c = upcomingCard(list, '2026-11-10');
+  assert.equal(c.kind, 'list');
+  assert.deepEqual(c.rows.map(r => [r.title, r.due, r.note, r.route]), [['Runbooks done', '2026-11-12', 'Goal, Infra', 'm2'], ['Search live', '2026-11-20', 'Milestone, Platform', 'm1']]);
+  assert.deepEqual(buildSummary({ loaded: true, list }, null, '2026-11-10').map(x => x.id), ['roadmaps', 'upcoming']);
+  const doc = blankDoc('T', new Date(2026, 10, 1));
+  doc.items.push({ id: 'i1', kind: 'item', lane: null, order: 0, parent: null, title: 'Launch', start: '2026-11-25', end: '2026-11-25', size: null, milestone: true, status: '', color: '', notes: '' });
+  doc.meta.goals = [{ date: '2026-12-01', text: 'Ship it' }, { date: '2026-09-01', text: 'Old' }];
+  assert.deepEqual(soonOf(doc, '2026-11-10'), [{ date: '2026-11-25', title: 'Launch', kind: 'milestone' }, { date: '2026-12-01', title: 'Ship it', kind: 'goal' }]);
+});

@@ -42,16 +42,19 @@ const r1 = (n) => Math.round(n * 10) / 10;
  * Place lanes and bars. Options: sched, range {from, to}, hideCollapsed (export: leave folded lanes out),
  * only (only these lane ids), gutter (width of the lane names).
  */
-export function layout(doc, { sched = schedule(doc), range, hideCollapsed = false, only = null, gutter = GUTTER, goalRow = 'auto' } = {}) {
+export function layout(doc, { sched = schedule(doc), range, hideCollapsed = false, only = null, gutter = GUTTER, goalRow = 'auto', fill = 0 } = {}) {
   const GUTTER = gutter;
   // The goals row under the header: one cell per period, always on screen (to add one), in exports only when used.
   const sprint = sprintOf(doc.meta);
   const goalCells = periods(doc.meta.scale, range.from, range.to, sprint).map(p => ({ ...p, text: goalFor(doc, p.start) }));
   const head = HEAD + (goalRow === true || (goalRow === 'auto' && goalCells.some(c => c.text)) ? GOAL_ROW : 0);
   const scale = doc.meta.scale;
-  const px = PX[scale] || PX.month;
   const from = range.from, to = range.to;
   const days = toDay(to) - toDay(from) + 1;
+  // fill: the width to fill on screen (exports leave it out). The scale's day width is the least; a short range
+  // stretches up to 4 times that, so the timeline uses the pane instead of stopping halfway.
+  const base = PX[scale] || PX.month;
+  const px = fill > 0 ? Math.min(base * 4, Math.max(base, (fill - GUTTER - 16) / days)) : base;
   const x = (d) => GUTTER + (toDay(d) - toDay(from)) * px;
   const width = Math.ceil(GUTTER + days * px + 16);
   const hidden = new Set(doc.meta.hidden || []);

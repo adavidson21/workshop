@@ -9,7 +9,8 @@
    Writes follow the data format's loop: stamp against what was read, put with its rev, and on a conflict
    merge with what is stored and put again. A failed write keeps the edit on screen, shows "Not saved yet"
    and retries every 5 seconds. */
-import { APP, VERSION, blankDoc, fromEnvelope, newMapId, toEnvelopeParts, validMapId } from './model.js';
+import { APP, VERSION, blankDoc, fromEnvelope, newMapId, soonOf, toEnvelopeParts, validMapId } from './model.js';
+import { today as todayOf } from './dates.js';
 
 const RETRY_MS = 5000;
 const DEBOUNCE_MS = 350;
@@ -53,7 +54,7 @@ export function createStore(ws, { onChange = () => {}, now = () => new Date(), r
     const base = env[name];
     const after = structuredClone(base);
     if (name === 'index') {
-      after.items = v.list.map(x => ({ id: x.id, title: x.title }));
+      after.items = v.list.map(x => (x.soon && x.soon.length ? { id: x.id, title: x.title, soon: x.soon } : { id: x.id, title: x.title }));
     } else if (name === mapName(v.mapId) && v.doc) {
       const parts = toEnvelopeParts(v.doc);
       after.items = structuredClone(parts.items);
@@ -88,7 +89,19 @@ export function createStore(ws, { onChange = () => {}, now = () => new Date(), r
     if (name === mapName(v.mapId)) v.doc = fromEnvelope(env[name], now());
   }
 
-  const listFrom = (e) => (e.items || []).filter(x => validMapId(x.id)).map(x => ({ id: x.id, title: String(x.title || 'Untitled roadmap').slice(0, 120), changed: x.updatedAt || 0 }));
+  const okSoon = s => s && /^\d{4}-\d{2}-\d{2}$/.test(s.date) && typeof s.title === 'string' && s.title && (s.kind === 'milestone' || s.kind === 'goal');
+  const listFrom = (e) => (e.items || []).filter(x => validMapId(x.id)).map(x => ({ id: x.id, title: String(x.title || 'Untitled roadmap').slice(0, 120), changed: x.updatedAt || 0,
+    ...(Array.isArray(x.soon) && x.soon.length ? { soon: x.soon.filter(okSoon).slice(0, 10).map(s => ({ date: s.date, title: s.title.slice(0, 200), kind: s.kind })) } : {}) }));
+
+  /** Keep the open roadmap's `soon` in the index current. True when it changed (the index then needs a write). */
+  function refreshSoon() {
+    const row = v.doc && v.list.find(x => x.id === v.mapId);
+    if (!row) return false;
+    const next = soonOf(v.doc, todayOf(now()));
+    if (JSON.stringify(next) === JSON.stringify(row.soon || [])) return false;
+    if (next.length) row.soon = next; else delete row.soon;
+    return true;
+  }
 
   /** Write every dirty collection, one at a time. */
   function flush() {
@@ -157,6 +170,7 @@ export function createStore(ws, { onChange = () => {}, now = () => new Date(), r
       v.doc = fromEnvelope(env[mapName(id)], now());
       if (!e) v.doc.meta.title = (v.list.find(x => x.id === id) || {}).title || v.doc.meta.title;
       if (env.settings && (env.settings.meta || {}).lastOpen !== id) touch('settings');
+      if (!v.readOnly && refreshSoon()) touch('index');
       changed();
       return true;
     },
@@ -173,6 +187,7 @@ export function createStore(ws, { onChange = () => {}, now = () => new Date(), r
         const row = v.list.find(x => x.id === v.mapId);
         if (row) { row.title = v.doc.meta.title; names.push('index'); }
       }
+      if (refreshSoon() && !names.includes('index')) names.push('index');
       touch(...names);
       changed();
       return true;
@@ -186,6 +201,7 @@ export function createStore(ws, { onChange = () => {}, now = () => new Date(), r
       env[mapName(id)] = blank(mapName(id), {});
       v.mapId = id;
       v.doc = doc;
+      refreshSoon();
       touch(mapName(id), 'index', 'settings');
       await flush();
       changed();

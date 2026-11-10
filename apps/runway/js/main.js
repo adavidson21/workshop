@@ -37,7 +37,7 @@ else {
 
 let painting = false;
 // Runway's summary for other apps (js/summary.js): written a moment after the roadmap list changes.
-const summary = createSummaryWriter({ data: ws.data, app: 'runway', build: () => buildSummary(store.v, pending.v) });
+const summary = createSummaryWriter({ data: ws.data, app: 'runway', build: () => buildSummary(store.v, pending.v, today()) });
 let summaryKey = '';
 const store = createStore(ws, { onChange: () => {
   const key = store.v.loaded ? JSON.stringify(store.v.list.map(r => [r.id, r.title])) : '';
@@ -227,12 +227,26 @@ function mapShell() {
   ui.shellLocked = locked();
 }
 
+/* The timeline fills its pane (timeline.js layout fill), so it is drawn again when the pane's width changes. */
+let tlSeen = null, tlWidth = 0;
+const tlResize = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+  const w = Math.round(entries[0].contentRect.width);
+  if (Math.abs(w - tlWidth) > 4) { tlWidth = w; requestPaint(); }
+}) : null;
+function watchWidth(el) {
+  if (!el || el === tlSeen || !tlResize) return;
+  if (tlSeen) tlResize.unobserve(tlSeen);
+  tlSeen = el; tlWidth = el.clientWidth; tlResize.observe(el);
+}
+
 function paintMap() {
   if (app.dataset.view !== 'map' || !app.querySelector('.map') || ui.shellLocked !== locked()) mapShell();
   const doc = ui.dragDoc || v.doc;
   const sched = schedule(doc);
   const range = viewRange(doc, sched);
-  const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true });
+  const tlEl = app.querySelector('[data-tl]');
+  const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true, fill: tlEl ? tlEl.clientWidth : 0 });
+  watchWidth(tlEl);
   ui.L = L; ui.range = range;
   if (ui.selected && !doc.items.some(i => i.id === ui.selected)) ui.selected = null;
 

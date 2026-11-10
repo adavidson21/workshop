@@ -290,3 +290,18 @@ export function resizeItem(doc, id, date, edge = 'end', sched = schedule(doc)) {
 export function linksIn(text) {
   return [...String(text || '').matchAll(/\bhttps?:\/\/[^\s<>"')]+/gi)].map(m => m[0]);
 }
+
+/** What is coming up on a roadmap (its `soon` in the index, Runway 1.16.0): milestones that start and goals dated
+    from `day` to `days` later, soonest first, at most 10: [{date, title, kind: 'milestone' | 'goal'}]. */
+export function soonOf(doc, day = today(), days = 60) {
+  if (!doc) return [];
+  const until = addDays(day, days), out = [];
+  const sched = schedule(doc);
+  for (const it of doc.items) {
+    if (it.kind !== 'item' || !it.milestone) continue;
+    const s = sched.get(it.id);
+    if (s && s.start >= day && s.start <= until) out.push({ date: s.start, title: String(it.title || 'Milestone').slice(0, 200), kind: 'milestone' });
+  }
+  for (const g of doc.meta.goals || []) if (isDate(g.date) && g.date >= day && g.date <= until) out.push({ date: g.date, title: String(g.text).slice(0, 200), kind: 'goal' });
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title)).slice(0, 10);
+}

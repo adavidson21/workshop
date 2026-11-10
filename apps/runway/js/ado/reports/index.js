@@ -83,9 +83,8 @@ export function createReports(o) {
         ${d ? '<button class="btn" data-rp="export">Export to Excel</button>' : ''}
         <button class="btn ghost" data-rp="profile">Team profile</button></div>` : '';
     return `<header class="lhead">
-      <p class="eyebrow"><a href="#/" data-rp="home">Runway</a></p>
-      <h1 class="page-title">Team reports</h1>
-      <p class="hint">${esc(sub)}</p>${tools}</header>`;
+      <p class="eyebrow"><a href="#/" data-rp="home">Runway</a> · ${esc(sub)}</p>
+      <h1 class="page-title">Team reports</h1>${tools}</header>`;
   }
 
   function body() {

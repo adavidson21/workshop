@@ -11,7 +11,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15p
 .notice{margin:0;padding:.5rem 1.25rem;background:var(--warn-soft);color:var(--warn);font-size:.86rem;border-bottom:1px solid var(--line)}
 
 /* ---------- the list of roadmaps ---------- */
-.list{max-width:52rem;width:100%;margin:0 auto;padding:2.2rem 1.25rem 3rem}
+/* list pages use the shared page width and gutters (Workshop docs/layout.md) */
+.list{max-width:calc(var(--w-page) + 2 * var(--gutter));width:100%;margin:0 auto;padding:1.5rem var(--gutter) 3rem}
 .lhead{display:grid;gap:.4rem;margin-bottom:1.6rem}
 .lacts{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.9rem}
 .rlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
@@ -187,7 +188,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 @media (max-width:600px){.pubtable th:first-child{width:5rem}}
 
 /* ---------- team reports (moved from Docket) ---------- */
-.rpage{max-width:66rem}
+.rpage{max-width:calc(var(--w-page) + 2 * var(--gutter))}
 .rpage .lhead .eyebrow a{color:inherit;text-decoration:none}
 .rpage .lhead .eyebrow a:hover{color:var(--ink)}
 .rpage .lacts{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.4rem}
@@ -199,7 +200,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .wl-kpi{padding:.8rem .85rem .9rem;text-align:left;border-bottom:1px solid var(--line);box-shadow:1px 0 0 var(--line)}
 .wl-kpi b{display:block;font-family:var(--serif);font-size:2rem;line-height:1.05;font-weight:600;font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
 .wl-kpi span{display:block;margin-top:.35rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.reports{max-width:64rem}
+.reports{max-width:none}
 .reports .wl-kpis{margin-top:.6rem}
 .rp-insight{max-width:48rem;margin:.9rem 0 0;line-height:1.5}
 .rp-sec{margin-top:1.5rem}
@@ -238,21 +239,29 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .rp-days{border:1px solid var(--line);border-radius:var(--r-sm);padding:.3rem .45rem;background:var(--surface);color:var(--ink);font:inherit;font-size:.84rem;min-height:2rem}
 @media (max-width:560px){.rp-bar{grid-template-columns:6.5rem 1fr 2rem}.rp-col span{font-size:.58rem}}
 
-/* ---------- big screens (a 27in monitor, Workshop full screen): use the room ---------- */
+/* ---------- laptop and up: roadmaps as cards ---------- */
+@media (min-width:1100px){
+  .rlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:1rem;border-top:0}
+  .rrow{grid-template-columns:1fr auto;grid-template-rows:auto auto;align-content:start;gap:.5rem 1rem;padding:1rem 1.1rem .8rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface)}
+  .rrow .rtitle{grid-column:1/-1;white-space:normal}
+  .rrow .racts{justify-content:flex-end}
+}
+/* ---------- big screens (Workshop full screen on 1920 and up): use the room ---------- */
 @media (min-width:1600px){
-  .list{max-width:68rem}
   .body{grid-template-columns:minmax(20rem,32rem) 1fr}
   .body.has-panel{grid-template-columns:minmax(20rem,32rem) 1fr 24rem}
   .body[data-mode=timeline].has-panel{grid-template-columns:1fr 24rem}
   .body[data-mode=outline]{grid-template-columns:minmax(0,70rem)}
-  .rpage{max-width:88rem}
-  .reports{max-width:86rem}
   .rp-insight{max-width:60rem}
   .rp-bars,.rp-cols{max-width:60rem}
+  /* Goals and descriptions beside the timeline instead of under it, so the timeline gets the full height
+     (left under it while an item's panel is open, which takes the right side). */
+  .body:not(.has-panel) .tlwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(20rem,26rem);grid-template-rows:auto minmax(0,1fr) auto}
+  .body:not(.has-panel) .tlwrap>*{grid-column:1}
+  .body:not(.has-panel) .tlwrap>[data-r=details]{grid-column:2;grid-row:1/-1;min-height:0;overflow:auto;border-left:1px solid var(--line);background:var(--bg)}
+  .body:not(.has-panel) .tlwrap>[data-r=details] .details{max-height:none;border-top:0}
+  .body:not(.has-panel) .tlwrap>[data-r=details] .dgrid{grid-template-columns:minmax(0,1fr)}
 }
 @media (min-width:2100px){
-  .list{max-width:80rem}
   .body[data-mode=outline]{grid-template-columns:minmax(0,82rem)}
-  .rpage{max-width:104rem}
-  .reports{max-width:100rem}
 }
