@@ -148,4 +148,4 @@ These are exact copies of Workshop files, listed in `workshop-files.json` with t
 
 ### Releasing
 
-Actions, **Release**, Run workflow. The tag is `v<version>` from `app.json`. Bump `app.json` and `sw.js` together.
+A release is made on its own when checks pass on a push to main with a new version (or by hand: Actions, **Release**, Run workflow). The tag is `v<version>` from `app.json`. Bump `app.json` and `sw.js` together.
