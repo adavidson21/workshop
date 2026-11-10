@@ -4,7 +4,6 @@
    an ink rule, and panels with an ink rule on top instead of shadowed, rounded boxes. */
 :root{
   --t1:var(--accent); --t2:color-mix(in srgb,var(--accent) 55%,var(--surface)); --t3:var(--muted); --t4:var(--line);
-  --gutter:clamp(1rem,2.2vw,1.75rem);
   --side-w:240px; --side-mini:56px; --drawer-w:360px;
   --row-h:2.4rem;
   /* Safe areas in the Android app (mobile/): Capacitor sets --safe-area-inset-*; elsewhere env() is 0. */
@@ -419,11 +418,17 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .menu .mhead{padding:.35rem .65rem .2rem;font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .menu .grow-l{margin-left:auto;font-family:var(--mono)}
 
-/* ---------- breakpoints ---------- */
-@media (max-width:1099px){
+/* ---------- breakpoints (docs/layout.md: compact under 1100px, desktop to 1599px, wide from 1600px) ---------- */
+/* The task drawer covers the board below 2100px, so Inbox, Ranked and Today keep their width when a task is open
+   (Today's three columns need about 1300px); from 2100px it sits beside the board. On a desktop the board stays
+   clickable; compact dims it. */
+@media (max-width:2099px){
   .app.drawer-open .drawer{position:fixed;top:0;right:0;bottom:0;z-index:45;box-shadow:var(--shadow-lg)}
+}
+@media (max-width:1099px){
   .app.drawer-open .dscrim{display:block;position:fixed;inset:0;z-index:44;background:color-mix(in srgb,var(--ink) 18%,transparent)}
 }
+@media (min-width:1600px){:root{--drawer-w:420px}}
 @media (max-width:900px){
   .row .age,.row .who{display:none}
 }
@@ -1024,3 +1029,9 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .leftoff input{flex:1;min-width:0;font:inherit;padding:.3rem .45rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .dleftoff{margin:.4rem 0;padding:.4rem .6rem;border-left:3px solid var(--accent);background:var(--surface);font-size:.86rem}
 .dsec .chip.lunchwarn{color:var(--muted);border-style:dashed}
+/* Wide Ranked column: value and effort in words, and the score, without pointing at the row (render.js veff) */
+.row .veff{display:none;flex:none;font:500 .74rem/1 var(--mono);color:var(--muted);white-space:nowrap}
+@container today3 (min-width:1250px){
+  .col-rank .row .veff{display:inline}
+  .col-rank .row .score{opacity:1}
+}

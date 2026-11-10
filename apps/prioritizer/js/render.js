@@ -1,5 +1,5 @@
 import { PR_TIER, prTip } from './ado.js';
-import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, TOUCH, VIEWS, initials, listColor } from './constants.js';
+import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
 import { markSel, syncDrawer } from './drawer.js';
 import { engChip } from './eng.js';
 import { slateFor, slateLabel } from './slate-link.js';
@@ -227,6 +227,8 @@ function row(t, o = {}){
     // On Today, where you left off sits under the title, so the morning starts where yesterday stopped.
     + (crumb ? `<span class="tcol"><span class="title">${esc(title)}</span>${crumb}</span>` : `<span class="title">${esc(title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
+    // Value and effort in words: only on a wide Ranked column (app.css), where the row has the room.
+    + (!t.done && !pv && isTriaged(t) && !o.compact && VALUE[t.value] && t.effort ? `<span class="veff" aria-label="Value ${esc(VALUE[t.value])}, effort ${esc(t.effort)}">${esc(VALUE[t.value])} · ${esc(t.effort)}</span>` : '')
     + scoreHtml
     + (o.start && !t.done && (on('start') || act) ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
     + (o.follow && t.waiting && !t.done && !pv ? `<button class="tfol" data-act="nudged" aria-label="Nudged" data-tip="Nudged: follow up again later">${ICON.nudge}</button><button class="tfol" data-act="gotback" aria-label="Got it back" data-tip="Got it back: stop waiting">${ICON.back}</button>` : '')
