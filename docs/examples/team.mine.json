@@ -3,7 +3,11 @@
   "updatedAt": 1793736000000,
   "name": "My team",
   "areas": [
-    "Project\\Team"
+    "Project\\Team",
+    "Other\\Team"
   ],
-  "connection": ""
+  "connection": "",
+  "areaConnections": {
+    "Other\\Team": "second"
+  }
 }
