@@ -58,6 +58,7 @@ export async function getWorkItem(d, args) {
     title: get(f, 'System.Title', ''),
     type: get(f, 'System.WorkItemType', ''),
     state: get(f, 'System.State', ''),
+    rev: Number(w.rev) || 0,
     project,
     connection: conn.name,
     reason: r.reason,
@@ -95,6 +96,27 @@ export async function getWorkItem(d, args) {
   if (args.comments) out.comments = await comments(ado, conn, project, w.id);
   if (args.history) out.history = await history(ado, w.id);
   return out;
+}
+
+/**
+ * "workitem.find": an id looked up on every connection, since ids are unique only within a collection. Returns
+ * {id, matches: [workitem.get's short shape, plus area and rev], failed: [{connection, message}]}: a 404 is "not
+ * there", anything else (no PAT, server down) is a failure, so a caller never mistakes "could not ask" for "not
+ * there". With one connection it is one read.
+ */
+export async function findWorkItem(d, args) {
+  const matches = [];
+  const failed = [];
+  for (const c of d.cfg.connections) {
+    try {
+      const w = await getWorkItem(d, { id: args.id, connection: c.name, details: true });
+      matches.push({ id: w.id, title: w.title, type: w.type, state: w.state, project: w.project, connection: w.connection, url: w.url, area: w.area || '', rev: w.rev || 0 });
+    } catch (e) {
+      if (e instanceof AdoError && e.upstream === 404) continue;
+      failed.push({ connection: c.name, message: e && e.message ? e.message : 'Could not read it.' });
+    }
+  }
+  return { id: args.id, matches, failed };
 }
 
 /** Story points fields tried in order when a caller names none: Agile's Story Points, then Scrum's Effort. */

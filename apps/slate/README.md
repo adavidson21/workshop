@@ -80,6 +80,10 @@ Every card shows how many days it has been in its step; past a limit (3 days in 
 
 **Decision log.** Each decision (delegated, building it myself, defined and published) adds a note to Notes' inbox with a link back to the item. Nothing is posted anywhere.
 
+## Two collections
+
+If your team's area paths are in more than one Azure DevOps collection (Settings, People & teams, Team area paths: a connection per path), Slate reads each collection's backlog on its own connection and keeps the connection on every card. Work item ids repeat across collections, so a bare `#1234` (quick capture `s #1234`, or **Link ADO item**) is looked up on every connection (`workitem.find`): found once, it is used; found in more than one, the card says **Which collection?** and the panel has a button per match. New items from Publish go to the connection of the area they are made in, and the publish dialog names it.
+
 ## Fields
 
 Cards and the panel show what ADO has for each item. **Fields** (top bar) picks which.

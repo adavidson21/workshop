@@ -8,7 +8,7 @@ import { importConfig, importFile } from './lib/import.mjs';
 import { configFromUrl } from './lib/url.mjs';
 import { authTracker, patStatus } from './lib/pat.mjs';
 import { areasMine, cleanKnown, cleanKnownPrs, sync, syncPrs } from './lib/sync.mjs';
-import { connectionInfo, getWorkItem } from './lib/workitem.mjs';
+import { connectionInfo, findWorkItem, getWorkItem } from './lib/workitem.mjs';
 import { workItemPrs } from './lib/prs.mjs';
 import { iterationsList } from './lib/items.mjs';
 import { BACKLOG_TYPES, backlogList, roadmapList } from './lib/roadmap.mjs';
@@ -154,7 +154,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.12.0',
+  version: '1.13.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -180,9 +180,9 @@ export default {
     'areas.mine': {
       title: 'Area paths of my open work items (for Team area paths)',
       write: false,
-      argsSchema: { type: 'object', properties: {} },
+      argsSchema: { type: 'object', properties: { connection: { type: 'string', maxLength: 40 } } },
       async run(args, ctx) {
-        return guarded(ctx, 'areas.mine', () => areasMine(deps(ctx)));
+        return guarded(ctx, 'areas.mine', () => areasMine(deps(ctx), args || {}));
       }
     },
     'sync.prs': {
@@ -240,6 +240,19 @@ export default {
       },
       async run(args, ctx) {
         return guarded(ctx, 'workitem.get', () => getWorkItem(deps(ctx), args));
+      }
+    },
+
+    'workitem.find': {
+      title: 'Look a work item id up on every connection (ids are unique only within a collection)',
+      write: false,
+      argsSchema: { type: 'object', required: ['id'], properties: { id: { type: 'integer', minimum: 1 } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.find', async () => {
+          const out = await findWorkItem(deps(ctx), args);
+          ctx.log.info(`workitem.find: ${args.id} on ${out.matches.length} connection(s)${out.failed.length ? `, ${out.failed.length} unreadable` : ''}`);
+          return out;
+        });
       }
     },
 

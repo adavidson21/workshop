@@ -84,7 +84,7 @@ test('workitem.get returns title, type, project and the connection used', async 
     const res = expectJson(await call(agent, 'workitem.get', { id: 101 }), 200, 'connector-call-response');
     assert.deepEqual(res.result, {
       id: 101, title: "Fix the user's renewal timeout", type: 'Bug', state: 'Active', project: 'Web App',
-      connection: 'main', reason: 'default connection', url: res.result.url
+      rev: res.result.rev, connection: 'main', reason: 'default connection', url: res.result.url
     });
     assert.match(res.result.url, /\/Main\/Web%20App\/_workitems\/edit\/101$/);
   });

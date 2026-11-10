@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "4.6.1",
+  "version": "4.7.0",
   "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, the data folder, and backups.",
   "icon": "icon.svg",
   "entry": "index.html",
