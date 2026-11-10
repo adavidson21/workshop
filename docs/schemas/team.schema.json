@@ -34,6 +34,14 @@
     "connection": {
       "type": "string",
       "maxLength": 120
+    },
+    "areaConnections": {
+      "type": "object",
+      "description": "Area path to ADO connection name, for areas in another collection than `connection`.",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 120
+      }
     }
   }
 }

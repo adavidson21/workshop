@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.11.0",
+  "version": "2.11.1",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
@@ -45,7 +45,7 @@
     "docs/schemas/sdk-message.schema.json": "27fbc0ca201cfa1664bb9245f07d5c77062523892d60188a745b83063d95bbb7",
     "docs/schemas/session.schema.json": "7085112e4d8690ac99cbd84e6db731656b0cdf94ab2047dbcc20b1addd01861f",
     "docs/schemas/summary-card.schema.json": "c83567190b02d9eea291e3568e4fab3e4b61cc2c2c6d4dc4b8ad8213edd44e2d",
-    "docs/schemas/team.schema.json": "4d9a224efa52b92a388e93f33d66b35adcf07305cfe408a777300d08432a5e3d",
+    "docs/schemas/team.schema.json": "301aec0b6b03b723af57add480886189d0d74c78f026987bacb5b4af0d147732",
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
     "icons/app-maskable-512.png": "8cf0869660599b3856382c2cd83ae76225e4a558629c3944892aea1c2dbc50b2",
