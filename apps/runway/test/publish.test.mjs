@@ -298,8 +298,9 @@ test('the preview and results escape every ADO text and only link http(s)', () =
   assert.ok(!html.includes('<img'), 'title escaped');
   assert.ok(html.includes('&lt;img src=x'));
   assert.ok(!html.includes('javascript:'));
-  assert.match(html, /Publish 1</);
-  assert.match(publishDialog({ rows: [], send: 0, conflicts: 0 }), /data-pub-confirm disabled/);
+  assert.match(html, /Publish 1 <span class="out-mark" data-out="ado"/);
+  assert.match(html, /<strong>Changes Azure DevOps\.<\/strong> Nothing is sent until you click Publish\./);
+  assert.match(publishDialog({ rows: [], send: 0, conflicts: 0 }), /data-pub-confirm data-out-ok disabled/);
   const res = publishResultsDialog([{ itemId: 'a', adoId: 13, title: '<b>x</b>', outcome: 'failed', message: '<script>bad</script>' }]);
   assert.ok(!res.includes('<b>x') && !res.includes('<script>'));
   assert.match(res, /1 failed/);

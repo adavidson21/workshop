@@ -282,7 +282,7 @@ def main():
             const cut = d.items.find(i => i.id === "{ids["103"]}"); cut.who = ["p_one"]; cut.title = "Renamed here";
         }})""")
         pg.wait_for_selector('[data-adopublish]', timeout=3000)
-        check('Publish shows with changes ADO can take', 'Publish (3)' in pg.inner_text('[data-adopublish]'))
+        check('Publish shows with changes ADO can take, marked ADO', 'Publish (3)' in pg.inner_text('[data-adopublish]') and pg.locator('[data-adopublish] .out-mark[data-out=ado]').count() == 1)
         # Meanwhile in ADO: someone reassigns 103 (it will differ), and someone edits 102 right before Publish sends.
         STATE['items'][2]['assignee'] = {'name': 'Dev Two', 'email': 'dev.two@example.test'}; STATE['items'][2]['rev'] += 1
         STATE['race'].add(102)
@@ -299,7 +299,8 @@ def main():
               and any(x[0] == 'Sprint' and x[1] == 'Platform\\Sprint 1' and x[2] for x in mig_rows))
         check('a conflict lists its title change as not sent', 'Not sent' in pg.inner_text('dialog [data-ado-id="103"]') and 'Renamed here' in pg.inner_text('dialog [data-ado-id="103"]'))
         check('nothing is written before you confirm', not any(c[0].startswith('workitem.') for c in STATE['calls'][before:]))
-        check('confirm says how many', pg.inner_text('dialog [data-pub-confirm]').strip() == 'Publish 2')
+        check('confirm says how many, with the ADO mark', pg.inner_text('dialog [data-pub-confirm]').strip().startswith('Publish 2') and pg.locator('dialog [data-pub-confirm] .out-mark[data-out=ado]').count() == 1
+              and 'Changes Azure DevOps' in pg.inner_text('dialog .out-banner'))
         pg.click('dialog [data-pub-confirm]')
         pg.wait_for_selector('dialog [data-pub-result]', timeout=8000)
         res = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('dialog [data-pub-result]')].map(r => [r.dataset.adoId, r.dataset.pubResult]))")

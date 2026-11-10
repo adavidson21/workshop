@@ -1,5 +1,6 @@
 /* Runway's HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
+import { outsideBanner, outsideMark } from '../shared/outside.js';
 import { SCALES, fmt } from './dates.js';
 import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
@@ -338,7 +339,7 @@ export function adoBarHtml(doc, { ready = false, message = '', refreshing = fals
     ${missing ? `<span class="muted">${missing} not found</span>` : ''}
     ${!ready ? `<span class="muted">${esc(message || 'Connect Workshop on this computer to refresh.')} Showing the last copy.</span>` : ''}
     <span class="grow"></span>
-    ${ready && !readOnly && !live && publish > 0 ? `<button class="btn primary" data-adopublish${refreshing || publishing ? ' disabled' : ''} title="Send your changes to ADO, after a preview">${publishing ? 'Publishing' : `Publish (${esc(publish)})`}</button>` : ''}
+    ${ready && !readOnly && !live && publish > 0 ? `<button class="btn primary" data-adopublish${refreshing || publishing ? ' disabled' : ''} title="Send your changes to ADO, after a preview" data-out>${publishing ? 'Publishing' : `Publish (${esc(publish)}) ${outsideMark('ado')}`}</button>` : ''}
     ${ready && !readOnly ? `<button class="btn ghost" data-adorefresh${refreshing ? ' disabled' : ''}>${refreshing ? 'Refreshing' : 'Refresh'}</button><button class="btn ghost" data-adoedit>Change</button>` : ''}
     ${readOnly ? '' : `<button class="btn ghost" data-adostop>${live ? 'Make editable' : 'Stop following'}</button>`}
   </div>`;
@@ -385,9 +386,10 @@ export function publishDialog(plan) {
   const n = plan.send;
   return `<form method="dialog" class="sheet wide pubsheet">
     <h3>Publish to Azure DevOps</h3>
+    ${outsideBanner('ado', 'Nothing is sent until you click Publish.')}
     <p class="hint">Runway sends only what is in bold, through Workshop's ADO connector: titles, Assigned To, start and target dates, and sprints. It never creates work items, adds comments, or changes states or area paths. An item someone changed in ADO since Runway read it is skipped, not overwritten.</p>
     ${plan.rows.length ? `<ul class="publist">${rows}</ul>` : '<p>No changes to publish.</p>'}
-    <footer><span class="hint">${esc(n)} work item${n === 1 ? '' : 's'} to update${plan.conflicts ? `, ${esc(plan.conflicts)} conflict${plan.conflicts === 1 ? '' : 's'}` : ''}</span><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok" data-pub-confirm${n ? '' : ' disabled'}>Publish ${esc(n)}</button></footer>
+    <footer><span class="hint">${esc(n)} work item${n === 1 ? '' : 's'} to update${plan.conflicts ? `, ${esc(plan.conflicts)} conflict${plan.conflicts === 1 ? '' : 's'}` : ''}</span><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok" data-pub-confirm data-out-ok${n ? '' : ' disabled'}>Publish ${esc(n)} ${outsideMark('ado')}</button></footer>
   </form>`;
 }
 

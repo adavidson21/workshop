@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "4e7ac8c237f55ecedf1667bd5751b5ea7a04491a",
+  "commit": "bf13e65a0bae59fd9464e9b2d99e7258a1da678e",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -27,6 +27,7 @@
     "shared/fonts/OFL-Figtree.txt": "shared/fonts/OFL-Figtree.txt",
     "shared/fonts/OFL-Gelasio.txt": "shared/fonts/OFL-Gelasio.txt",
     "shared/handoffs.js": "shared/handoffs.js",
+    "shared/outside.js": "shared/outside.js",
     "shared/pair.js": "shared/pair.js",
     "shared/people.js": "shared/people.js",
     "shared/save-file.js": "shared/save-file.js",
@@ -48,7 +49,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.10.0",
+  "bundle": "2.11.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -75,6 +76,7 @@
     "shared/fonts/OFL-Figtree.txt": "ee23e6c84000126692e112ff067b456470493349f993ceaa8b4d3766dd6fad5d",
     "shared/fonts/OFL-Gelasio.txt": "92a43077648051e82bab440620283dfb16de5520f8b96c7db890cb69d79f6bb8",
     "shared/handoffs.js": "9d2cbe5efe23d81a8b7f348bc0d31f148f6d6619737dfae3a64fcbf7dc6fbcc7",
+    "shared/outside.js": "331c17501ba51cad10163cbba769a1ab194b1d0b66b5c8ef762d6b59f515240f",
     "shared/pair.js": "0c7af3750f93d9b4088e2cfd6220f840558cbfbdc895a35a18ca977dae78b6b1",
     "shared/people.js": "5368a2264d6f8dba820e6c612bf7e919ad55dc454a031afa2143d0d8b6be1ac3",
     "shared/save-file.js": "e22fe1a7bbb3b2eb5a4711c4eaf60064c59f8b631b4c015918a7eddc20042d9e",
