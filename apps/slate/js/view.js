@@ -25,7 +25,17 @@ export function topHtml(ui, notes, areas = []) {
     ${btn('refresh', 'Refresh', { title: 'Read Azure DevOps and Dispatch again' })}
     ${btn('new-idea', 'New idea', { title: 'Your own idea: an agent interviews you to shape it' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
-  </div>${notes.length ? `<div class="notes">${notes.map(noteHtml).join('')}</div>` : ''}`;
+  </div>${notesHtml(notes, ui.notesOpen)}`;
+}
+
+/* Errors and status lines stay in view. Two or more setup notes (the ones with buttons) fold into one line that
+   opens (docs/layout.md, .ws-notices), so the board keeps its height. */
+export function notesHtml(notes, open = false) {
+  if (!notes.length) return '';
+  const setup = notes.filter(n => typeof n !== 'string'), plain = notes.filter(n => typeof n === 'string');
+  const fold = setup.length >= 2;
+  return `${plain.length || !fold ? `<div class="notes">${(fold ? plain : notes).map(noteHtml).join('')}</div>` : ''}${fold
+    ? `<details class="ws-notices slate-notices"${open ? ' open' : ''}><summary>${setup.length} setup notes</summary>${setup.map(n => `<div class="ws-note">${noteHtml(n)}</div>`).join('')}</details>` : ''}`;
 }
 
 /* ---------- board ---------- */
@@ -83,11 +93,14 @@ export function boardHtml(columns, s) {
       <p>${esc(s.backlogNote || (s.noAdo ? 'Add an idea or a request. Ideas waiting in Runway, and requests you capture on Home with s, show here too.' : 'Add an idea or a request, or set your team\'s area paths in Settings, People and teams, so Slate can list your ADO backlog. Ideas waiting in Runway show here too.'))}</p>
       ${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}</div>`;
   }
-  return `<div class="board" style="--cols:${BOARD_COLUMNS.length}">${BOARD_COLUMNS.map(d => {
+  // Empty columns take a narrow strip so the full ones get the width; each still takes drops.
+  const tracks = BOARD_COLUMNS.map(d => (columns[d.key] || []).length ? 'minmax(13.75rem,1fr)' : 'minmax(8.5rem,.45fr)').join(' ');
+  const minW = BOARD_COLUMNS.reduce((n, d) => n + ((columns[d.key] || []).length ? 13.75 : 8.5), 0);
+  return `<div class="board" style="--cols:${BOARD_COLUMNS.length};grid-template-columns:${tracks};min-width:${minW}rem">${BOARD_COLUMNS.map(d => {
     const list = columns[d.key] || [];
     const body = d.key === 'resolved' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
     const hint = s.noAdo && NO_ADO_HINT[d.key] || d.hint;
-    return `<section class="col" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header><h2>${esc(d.title)}${hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key + (s.noAdo && NO_ADO_HINT[d.key] ? '-local' : ''), hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
+    return `<section class="col${list.length ? '' : ' empty-col'}" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header><h2>${esc(d.title)}${hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key + (s.noAdo && NO_ADO_HINT[d.key] ? '-local' : ''), hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
       ${body}</section>`;
   }).join('')}</div>`;
 }

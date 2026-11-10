@@ -22,14 +22,23 @@ body.standalone .slate{height:auto;flex:1;min-height:0}
 .tab.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
 .tab{font-family:var(--serif);font-size:1rem}
 .q{width:15rem;font-family:var(--mono);font-size:.84rem}
+@media (max-width:1099px){.q{width:10rem}.top{gap:.45rem;padding:.6rem var(--gutter)}.top .btn{padding-inline:.6rem}}
 .area{max-width:18rem}
 .notes{padding:.4rem 1.25rem;border-bottom:1px solid var(--line);background:var(--sunk)}
 .note{margin:.15rem 0;font-size:.84rem;color:var(--muted)}
 
-.work{flex:1;display:grid;grid-template-columns:minmax(0,1fr);min-height:0}
-.work:has(> .panel:not([hidden])){grid-template-columns:minmax(0,1fr) min(34rem,44vw)}
-/* Expand (the panel's header button, remembered): room to read drafts and answer the agent, board still beside it. */
-.work.wide:has(> .panel:not([hidden])){grid-template-columns:minmax(16rem,1fr) min(64rem,70vw)}
+.work{flex:1;display:grid;grid-template-columns:minmax(0,1fr);min-height:0;position:relative}
+/* The item panel covers the board below 1600px so the columns keep their width in half a screen (docs/layout.md),
+   and sits beside it from 1600px. */
+.work>.panel:not([hidden]){position:absolute;top:0;right:0;bottom:0;width:min(34rem,92%);z-index:5;box-shadow:var(--shadow-lg)}
+.work.wide>.panel:not([hidden]){width:min(64rem,96%)}
+@media (min-width:1600px){
+  .work>.panel:not([hidden]){position:static;width:auto;box-shadow:none}
+  .work:has(> .panel:not([hidden])){grid-template-columns:minmax(0,1fr) min(34rem,40vw)}
+  /* Expand (the panel's header button, remembered): room to read drafts and answer the agent, board still beside it. */
+  .work.wide:has(> .panel:not([hidden])){grid-template-columns:minmax(16rem,1fr) min(64rem,64vw)}
+}
+.col.empty-col .hint{display:none}
 .main{overflow:auto;min-height:0}
 .board{display:grid;grid-template-columns:repeat(var(--cols),minmax(13.75rem,1fr));gap:0;min-height:100%;min-width:calc(var(--cols) * 13.75rem)}
 .col{border-right:1px solid var(--line);padding:.8rem .65rem 1.5rem;min-width:0}
