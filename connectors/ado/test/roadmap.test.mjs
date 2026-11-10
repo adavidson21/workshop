@@ -46,6 +46,7 @@ test('roadmap returns open Epics and Features in the roadmap shape, with story c
   assert.equal(f711.assignee, null, 'unassigned');
   assert.deepEqual(out.items.find(i => i.id === 712).assignee, { name: 'Dev Two', email: 'dev.two@example.com' }, 'identity objects too');
   // 801 Closed and 803 Resolved count as done; 802 Active does not. 803 is in another area but still counts.
+  // 807 is a Task and 808 is Removed: neither counts.
   assert.deepEqual([f711.storiesTotal, f711.storiesDone], [3, 2]);
   const f712 = out.items.find(i => i.id === 712);
   assert.deepEqual([f712.storiesTotal, f712.storiesDone], [1, 0]);
@@ -54,10 +55,12 @@ test('roadmap returns open Epics and Features in the roadmap shape, with story c
   const wiql = srv.requests.filter(r => r.includes('wit/wiql'));
   assert.match(wiql[0], /\[System\.WorkItemType\] IN \('Epic', 'Feature'\)/);
   assert.match(wiql[0], /\[System\.State\] NOT IN \('Resolved', 'Closed', 'Done', 'Removed'\)/);
-  assert.match(wiql[1], /\[System\.Parent\] IN \(711, 712\)/);
-  assert.match(wiql[1], /\[System\.State\] NOT IN \('Removed'\)/);
-  const light = srv.requests.find(r => r.includes('workitemsbatch') && r.includes('System.Parent'));
+  assert.equal(wiql.length, 1, 'children come from the Features\' child links, not a second WIQL query');
+  assert.equal(srv.requests.some(r => r.includes('wit/wiql') && r.includes('System.Parent')), false, 'ADO Server 2020 refuses [System.Parent] in a WIQL filter');
+  assert.ok(srv.requests.some(r => r.includes('workitemsbatch') && r.includes('"$expand":"All"')), 'Epics and Features are read with their links');
+  const light = srv.requests.find(r => r.includes('workitemsbatch') && r.includes('System.WorkItemType') && !r.includes('$expand'));
   assert.ok(light, 'children are read with only the fields counting needs');
+  assert.equal(out.items.find(i => i.id === 712).parentId, 701, 'parent from the Hierarchy-Reverse link when System.Parent is missing');
   assert.equal(srv.requests.some(r => /^(PATCH|DELETE)/.test(r)), false, 'read-only');
 }));
 

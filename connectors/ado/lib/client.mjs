@@ -179,12 +179,13 @@ export class Ado {
     return (res.workItems || []).map(w => w.id);
   }
 
-  /** Work items by id, as a Map id -> item. Missing ids are left out. */
-  async details(ids) {
+  /** Work items by id, as a Map id -> item. Missing ids are left out. `expand` is ADO's $expand (Links by default;
+      All adds relations too). */
+  async details(ids, expand = 'Links') {
     const out = new Map();
     for (let i = 0; i < ids.length; i += 200) {
       const chunk = ids.slice(i, i + 200);
-      const res = await this.call('POST', 'wit/workitemsbatch', { body: { ids: chunk, $expand: 'Links', errorPolicy: 'omit' } });
+      const res = await this.call('POST', 'wit/workitemsbatch', { body: { ids: chunk, $expand: expand, errorPolicy: 'omit' } });
       for (const w of res.value || []) if (w && w.id) out.set(w.id, w);
     }
     return out;

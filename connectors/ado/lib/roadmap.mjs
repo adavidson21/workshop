@@ -1,5 +1,7 @@
 // The roadmap: Epics and Features in a set of area paths, with how many child stories each Feature has and how
-// many of those are done. Read-only. WIQL for ids, then batch GETs.
+// many of those are done. Read-only. WIQL for ids, then batch GETs. Children are found through each Feature's
+// Hierarchy-Forward links, not a WIQL filter on [System.Parent]: Azure DevOps Server 2020 refuses that filter
+// ("The Parent field is not supported in the filter").
 import { clientFor } from './client.mjs';
 import { checkAreas, itemUrl, itemConnection } from './items.mjs';
 import { asInt, day, get, who, wiqlList } from './util.mjs';
@@ -10,6 +12,19 @@ export const MAX_CHILDREN = 5000;
 export const ROADMAP_TYPES = ['Epic', 'Feature'];
 export const CHILD_TYPES = ['User Story', 'Issue'];
 const CHUNK = 200;
+const CHILD_LINK = 'System.LinkTypes.Hierarchy-Forward';
+const PARENT_LINK = 'System.LinkTypes.Hierarchy-Reverse';
+
+/** Work item ids linked from `w` by link type `rel`, in link order. */
+function linked(w, rel) {
+  const out = [];
+  for (const r of (w && w.relations) || []) {
+    if (!r || r.rel !== rel) continue;
+    const m = /\/workItems\/(\d+)$/i.exec(String(r.url || ''));
+    if (m) out.push(Number(m[1]));
+  }
+  return out;
+}
 
 /** One Epic or Feature in the shape the Roadmap app keeps. `assignee` is {name, email} (email lower case, '' when
     ADO gives none) or null when unassigned. */
@@ -33,16 +48,16 @@ export function roadmapItem(ado, w) {
   };
 }
 
-/** Parent and state of work items, by id, with only the fields counting needs. Missing ids are left out. */
-async function parentsAndStates(ado, ids) {
+/** Type and state of work items, by id, with only the fields counting needs. Missing ids are left out. */
+async function typesAndStates(ado, ids) {
   const out = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
-    const res = await ado.call('POST', 'wit/workitemsbatch', { body: { ids: chunk, fields: ['System.Id', 'System.Parent', 'System.State'], errorPolicy: 'omit' } });
+    const res = await ado.call('POST', 'wit/workitemsbatch', { body: { ids: chunk, fields: ['System.Id', 'System.WorkItemType', 'System.State'], errorPolicy: 'omit' } });
     for (const w of res.value || []) {
       if (!w || !w.id) continue;
       const f = w.fields || {};
-      out.push({ id: w.id, parentId: asInt(get(f, 'System.Parent')), state: get(f, 'System.State', '') || '' });
+      out.push({ id: w.id, type: get(f, 'System.WorkItemType', '') || '', state: get(f, 'System.State', '') || '' });
     }
   }
   return out;
@@ -69,43 +84,47 @@ export async function roadmapList(d, args = {}) {
   const ids = await ado.wiql(where.join(' AND '));
   const truncated = ids.length > MAX_ITEMS;
   const wanted = ids.slice(0, MAX_ITEMS);
-  const details = await ado.details(wanted);
+  const details = await ado.details(wanted, 'All');
   const items = [];
+  const parentOf = new Map(); // child id -> Feature id, from the Features' child links
   for (const id of wanted) {
     const w = details.get(id);
-    if (w) items.push(roadmapItem(ado, w));
+    if (!w) continue;
+    const item = roadmapItem(ado, w);
+    // System.Parent may be missing on older servers; the parent link says the same thing.
+    if (item.parentId == null) item.parentId = linked(w, PARENT_LINK)[0] ?? null;
+    if (item.type === 'Feature') for (const c of linked(w, CHILD_LINK)) if (!parentOf.has(c)) parentOf.set(c, item.id);
+    items.push(item);
   }
 
-  // Child counts: stories under these Features, wherever their area is.
+  // Child counts: User Stories and Issues under these Features, wherever their area is, not removed.
   const features = items.filter(i => i.type === 'Feature');
   const counts = new Map(features.map(f => [f.id, { storiesTotal: 0, storiesDone: 0 }]));
-  let childIds = [];
-  for (let i = 0; i < features.length; i += CHUNK) {
-    const chunk = features.slice(i, i + CHUNK).map(f => f.id);
-    const q = [`[System.WorkItemType] IN (${wiqlList(CHILD_TYPES)})`, `[System.Parent] IN (${chunk.join(', ')})`];
-    if (d.cfg.removedStates.length) q.push(`[System.State] NOT IN (${wiqlList(d.cfg.removedStates)})`);
-    const found = await ado.wiql(q.join(' AND '));
-    childIds.push(...found);
-  }
-  childIds = [...new Set(childIds)];
-  const childrenTruncated = childIds.length > MAX_CHILDREN;
+  const linkedIds = [...parentOf.keys()];
+  const removed = new Set(d.cfg.removedStates);
   const done = new Set(d.cfg.closedStates);
-  for (const c of await parentsAndStates(ado, childIds.slice(0, MAX_CHILDREN))) {
-    const n = counts.get(c.parentId);
-    if (!n) continue;
+  const childIds = [];
+  for (const c of await typesAndStates(ado, linkedIds)) {
+    if (!CHILD_TYPES.includes(c.type) || removed.has(c.state)) continue;
+    childIds.push(c.id);
+    if (childIds.length > MAX_CHILDREN) continue;
+    const n = counts.get(parentOf.get(c.id));
     n.storiesTotal++;
     if (done.has(c.state)) n.storiesDone++;
   }
+  const childrenTruncated = childIds.length > MAX_CHILDREN;
+  const kept = childIds.slice(0, MAX_CHILDREN);
   for (const f of features) Object.assign(f, counts.get(f.id));
 
   if (args.stories) {
     const ended = new Set([...d.cfg.closedStates, ...d.cfg.removedStates]);
-    const kids = await ado.details(childIds.slice(0, MAX_CHILDREN));
-    for (const id of childIds.slice(0, MAX_CHILDREN)) {
+    const kids = await ado.details(kept);
+    for (const id of kept) {
       const w = kids.get(id);
       if (!w) continue;
       const s = roadmapItem(ado, w);
-      if (!counts.has(s.parentId) || !CHILD_TYPES.includes(s.type)) continue;
+      s.parentId = parentOf.get(id);
+      if (!CHILD_TYPES.includes(s.type)) continue;
       if (!args.includeClosed && ended.has(s.state)) continue;
       items.push(s);
     }
