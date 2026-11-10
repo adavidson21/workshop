@@ -1,0 +1,17 @@
+{
+  "id": "p_sample-portal",
+  "updatedAt": 1793736000000,
+  "name": "Sample Portal",
+  "slug": "sample-portal",
+  "alsoCalled": [
+    "Portal",
+    "SP"
+  ],
+  "repos": [
+    "Platform/Sample Portal/portal-ui",
+    "Platform/Sample Portal/portal-api"
+  ],
+  "areas": [
+    "Project\\Team\\Portal"
+  ]
+}

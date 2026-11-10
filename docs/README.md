@@ -17,6 +17,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | People directory | [people.md](people.md) | `settings.people` v2 | `person`, `person-group` | `tests/check-contracts.mjs` (examples) |
 | Summaries for other apps | [summaries.md](summaries.md) | `summary` collections v1 | `summary-card` | `tests/check-contracts.mjs` (examples) |
 | Teams | [teams.md](teams.md) | `settings.teams` v1 | `team` | `tests/check-contracts.mjs` (examples) |
+| Products | [products.md](products.md) | `settings.products` v1 | `product` | `tests/check-contracts.mjs` (examples), `shared/test/products.test.mjs` |
 | Focus hours and lunch | [focus.md](focus.md) | `settings.focus` v1 | `focus-settings`, `focus-day` | `tests/check-contracts.mjs` (examples), `shared/test/focus.test.mjs` |
 | App settings | [app-settings.md](app-settings.md) | `settings.app-settings` v1 | `app-setting` | `tests/check-contracts.mjs` (examples), `shared/test/app-settings.test.mjs` |
 | Site config | [site.md](site.md) | `site: 1` | none | `tests/check-site.mjs` |

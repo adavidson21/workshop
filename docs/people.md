@@ -39,7 +39,7 @@ Schema: [schemas/person.schema.json](schemas/person.schema.json). Example: [exam
 | `team` | Optional. On your team, for team views. Missing means `true` for `self` and `report`, `false` otherwise. |
 | `adoIdentity` | Optional. Email or exact Azure DevOps display name, compared without case. |
 | `role` | Optional. Job title. |
-| `owns` | Optional. What they own: products, repos or area paths, as written (up to 30, each up to 200 characters, no repeats). Slate matches it against what a request touches to suggest who to delegate to. Facts only: never a rating. |
+| `owns` | Optional. What they own: products, repos or area paths, as written (up to 30, each up to 200 characters, no repeats). Slate matches it against what a request touches to suggest who to delegate to; Settings' Products page and Folio's product notes list a product's owners from it ([products.md](products.md)). Facts only: never a rating. |
 | `since` | Optional, no longer edited. `YYYY-MM-DD`; older directories may have it. Apps keep it as they keep any field and do not show it. |
 | `archived` | Optional. Left. Kept so old records still show a name; hidden from pickers, team views and `@` matching. Its handle is free again. |
 

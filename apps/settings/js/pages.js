@@ -26,6 +26,7 @@ export const PAGES = {
   connections: { label: 'Connections', group: 'ado', owner: 'ado' },
   'work-items': { label: 'Work items', group: 'ado', owner: 'ado' },
   'pull-requests': { label: 'Pull requests', group: 'ado', owner: 'ado' },
+  products: { label: 'Products', group: 'code' },
   repos: { label: 'Repos', group: 'code' },
   agents: { label: 'Agents', group: 'code', owner: 'opencode' }
 };

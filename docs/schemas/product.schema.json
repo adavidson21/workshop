@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A product: one item of settings.products v1",
+  "description": "A product you work on, owned by Settings. Folio makes its note, products/<slug>.md. See products.md.",
+  "type": "object",
+  "required": [
+    "id",
+    "updatedAt",
+    "name",
+    "slug"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^p_[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "alsoCalled": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      }
+    },
+    "repos": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "areas": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+      }
+    },
+    "archived": {
+      "type": "boolean"
+    }
+  }
+}

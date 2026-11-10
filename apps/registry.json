@@ -1056,8 +1056,8 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "4.4.0",
-        "description": "Connectors, repos, people and teams, apps, focus hours and lunch, the data folder, and backups.",
+        "version": "4.5.0",
+        "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, the data folder, and backups.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,
@@ -1089,6 +1089,10 @@
           {
             "name": "focus hours",
             "path": "focus"
+          },
+          {
+            "name": "products",
+            "path": "products"
           }
         ],
         "files": [
@@ -1099,12 +1103,14 @@
           "js/people.js",
           "js/people-forms.js",
           "js/people-sheet.js",
+          "js/products-page.js",
           "js/repos.js",
           "js/settings.js",
           "settings.css"
         ],
         "data": [
           "teams",
+          "products",
           "focus"
         ],
         "routes": [
@@ -1129,6 +1135,10 @@
             "title": "Pull request settings"
           },
           {
+            "path": "products",
+            "title": "Products"
+          },
+          {
             "path": "repos",
             "title": "Repos"
           },
@@ -1147,6 +1157,11 @@
             "id": "add-group",
             "title": "Add a group",
             "route": "people"
+          },
+          {
+            "id": "add-product",
+            "title": "Add a product",
+            "route": "products"
           }
         ]
       }
