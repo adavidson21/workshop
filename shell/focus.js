@@ -237,7 +237,8 @@ export function createFocusShell(opts) {
     else label = 'Focus';
     const missedHtml = missed ? `<span class="wf-missed"><span>Lunch missed. Take a late lunch?</span><button class="wf-act" data-fx="take-30">Take 30 min</button><button class="wf-act" data-fx="take-60">Take 60 min</button><button class="wf-act ghost" data-fx="not-today">Not today</button></span>` : '';
     item.innerHTML = `${missedHtml}<button type="button" class="wf-btn" data-fx="menu" aria-haspopup="menu" aria-expanded="${menu ? 'true' : 'false'}"><span class="wf-dot" aria-hidden="true"></span><span class="wf-label">${esc(label)}</span></button>`;
-    if (menu) renderMenu();
+    // Rewriting the item drops the open menu (and Peek with it), so put it back.
+    if (menu) { item.appendChild(menu); renderMenu(); }
   }
   function remainingBlock(g, d) { const m = F.minuteOf(d); return (g.blocks || []).some(b => F.toMin(b.end) > m); }
   function menuItems() {
@@ -258,10 +259,12 @@ export function createFocusShell(opts) {
   }
   function renderMenu() {
     if (!menu) return;
+    const had = menu.contains(document.activeElement) ? document.activeElement.dataset.fx : null;
     const peek = peekOpen ? `<div class="wf-peek" role="group" aria-label="Held items"><p class="eyebrow">Held${f.span ? ` until ${esc(F.fmtTime(f.span.end))}` : ''}</p>${held.length
       ? `<ul>${held.map(p => `<li><button class="wf-held" data-go="${esc(p.app)}" data-path="${esc(p.route)}"><span class="wf-app">${esc(p.name)}</span><span>${esc(p.label)}</span></button></li>`).join('')}</ul>`
       : '<p class="soft">Nothing held yet.</p>'}</div>` : '';
     menu.innerHTML = peek + `<ul role="menu">${menuItems().map(([id, label]) => `<li role="none"><button role="menuitem" data-fx="${id}">${esc(label)}</button></li>`).join('')}</ul>`;
+    if (had) { const b = menu.querySelector(`[data-fx="${had}"]`); if (b) b.focus(); }
   }
   function openMenu(peek = false) {
     closeMenu();
