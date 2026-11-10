@@ -141,6 +141,9 @@ def main():
         pg.click('#wfocus [data-fx=peek]'); pg.wait_for_timeout(800)
         if os.environ.get('DEBUG'): print('PEEK:', pg.inner_text('#wfocus'))
         check('Peek lists held items by app', 'home' in pg.inner_text('#wfocus .wf-peek').lower() and '2 captures picked up' in pg.inner_text('#wfocus .wf-peek'))
+        # The held list reloads after a short wait and the bar redraws every minute; Peek must stay open through both.
+        pg.clock.run_for(61000); pg.wait_for_timeout(800)
+        check('Peek stays open after the held list reloads and the bar redraws', pg.locator('#wfocus .wf-menu .wf-peek').count() == 1 and '2 captures picked up' in pg.inner_text('#wfocus .wf-peek'))
         pg.click('#wfocus .wf-held'); pg.wait_for_timeout(800)
         check('following a Peek link opens the app and focus stays on', frame_of(pg, 'home').is_visible('#app') if False else (pg.title().startswith('Home') and wait_bar(pg, 'Focus until 12:00')))
         pg.evaluate("location.hash = ''"); pg.wait_for_timeout(300)
