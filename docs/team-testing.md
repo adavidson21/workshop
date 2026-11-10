@@ -23,8 +23,7 @@ Before anyone on a team tests Workshop with real work data (work items, repos, r
 
 ## 3. Updating during testing
 
-- Update only to a release tag: `workshop update` lists them, `workshop update --tag <tag> --docket-tag <tag>` (and `--eng-agents-tag <tag>` for Tandem) moves to them and rebuilds the pinned copy. Restart Workshop, then run `workshop doctor` again.
-- Never run `workshop update --pull` on a work computer: that is the newest code, not a release.
+- Update with `workshop update`: it moves everything to its newest release tag and rebuilds the pinned copy. To roll back, `workshop update --tag <tag> --docket-tag <tag>` (and `--eng-agents-tag <tag>` for Tandem); `workshop update --help` lists every option. Restart Workshop, then run `workshop doctor` again.
 - If doctor reports that a pinned file changed, stop using Workshop with work data and run `workshop pin` again from the release; tell the owner.
 
 ## Why these and not more

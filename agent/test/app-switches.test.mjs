@@ -163,7 +163,7 @@ test('pinApps leaves out an app whose app.json is not valid and says why', () =>
     assert.equal(skipped[0].id, 'notes');
     assert.match(skipped[0].problem, /not a valid app manifest .*duplicate item/);
     assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'));
-    assert.match(skippedLines(skipped)[0], /^Folio is not included: its app\.json is not a valid app manifest .*workshop update --latest.*workshop pin/);
+    assert.match(skippedLines(skipped)[0], /^Folio is not included: its app\.json is not a valid app manifest .*workshop update\).*workshop pin/);
 
     // The same manifest without the duplicate is pinned.
     fs.writeFileSync(path.join(notesDir, 'app.json'), JSON.stringify(manifest));

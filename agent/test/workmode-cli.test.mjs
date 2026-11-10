@@ -21,20 +21,17 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: true, check: false, verbose: false, restart: false }, 'plain update means the newest releases');
-  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: true, verbose: false, restart: false });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, latest: true, check: false, verbose: false, restart: false }, 'plain update means the newest releases');
+  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, runwayTag: null, receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, latest: false, check: true, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--check', '--tag', 'v1.0.0']).error);
-  assert.equal(parseUpdateArgs(['--pull']).opts.latest, false);
-  assert.equal(parseUpdateArgs(['--latest']).opts.latest, true);
+  assert.match(parseUpdateArgs(['--pull']).error, /--pull is gone/, 'update never pulls main: release tags only');
+  assert.match(parseUpdateArgs(['--latest']).error, /plain "workshop update"/, 'plain update already means the newest releases');
+  assert.deepEqual(parseUpdateArgs(['--help']), { help: true });
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '-h']), { help: true }, 'help wins over other options');
   assert.equal(parseUpdateArgs(['--receipts-tag', 'v3.0.0']).opts.receiptsTag, 'v3.0.0');
-  assert.ok(parseUpdateArgs(['--pull', '--receipts-tag', 'v3.0.0']).error);
-  assert.ok(parseUpdateArgs(['--latest', '--tag', 'v1.0.0']).error);
-  assert.ok(parseUpdateArgs(['--latest', '--pull']).error);
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, pull: false, latest: false, check: false, verbose: false, restart: false });
-  assert.ok(parseUpdateArgs(['--pull', '--runway-tag', 'v1']).error);
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0', '--runway-tag', 'v0.3.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', runwayTag: 'v0.3.0', receiptsTag: null, notesTag: null, engAgentsTag: null, engAgents: null, latest: false, check: false, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--tag']).error);
-  assert.ok(parseUpdateArgs(['--tag', '--pull']).error);
-  assert.ok(parseUpdateArgs(['--pull', '--tag', 'v1']).error);
+  assert.ok(parseUpdateArgs(['--tag', '--check']).error);
   assert.ok(parseUpdateArgs(['--bogus']).error);
   assert.equal(parsePinArgs(['--no-docket']).opts.noDocket, true);
   assert.equal(parsePinArgs(['--docket', 'x']).opts.docket, path.resolve('x'));
@@ -194,7 +191,7 @@ test('doctor checks opencode\'s providers against the connector\'s approved list
   } finally { rm(home); rm(userHome); rm(path.dirname(defaultDir)); }
 });
 
-test('update --latest picks the newest release tag of each checkout found, Tandem included', { skip: !hasGit && 'git is not installed' }, () => {
+test('a plain update picks the newest release tag of each checkout found, Tandem included', { skip: !hasGit && 'git is not installed' }, () => {
   const { root, origin, g } = repos();
   try {
     const clone = (name, at) => {
@@ -226,7 +223,7 @@ test('update --latest picks the newest release tag of each checkout found, Tande
   } finally { rm(root); }
 });
 
-test('update --latest never moves a checkout back to an older release, and versionAt reads both kinds of repo', { skip: !hasGit && 'git is not installed' }, () => {
+test('a plain update never moves a checkout back to an older release, and versionAt reads both kinds of repo', { skip: !hasGit && 'git is not installed' }, () => {
   const root = tempDir('workshop-wm-nodown-');
   const g = (dir, ...args) => {
     const r = spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@example.org', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args], { encoding: 'utf8' });
