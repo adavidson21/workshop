@@ -606,6 +606,8 @@ def notes_flow(page, nf, where):
     """Notes (WS15) through its page: make notes, link and tag them, paste an image, search, rename, copy."""
     seen(nf, '.side')
     notes_new(page, nf, 'Deploy Runbook')
+    # Folio 3.6.0 opens in Live; these checks read the preview beside the editor, so switch to Split (remembered).
+    if nf.locator('[data-mode=split]').count(): nf.click('[data-mode=split]'); page.wait_for_timeout(200)
     check(f'Notes ({where}): a new note opens with its title as the heading', nf.input_value('#editor').startswith('# Deploy Runbook')
           and 'Deploy Runbook' in nf.inner_text('.tree .current'))
     notes_append(page, nf, 'Steps for a release. #ops\n\n<img src=x onerror="window.__xss=1">\n')
