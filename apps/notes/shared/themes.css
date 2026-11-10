@@ -43,3 +43,9 @@
   --serif:Gelasio,Georgia,"Times New Roman",serif;
   --mono:"DM Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
 }
+/* Layout tokens (docs/layout.md): page gutter, the width of list and form pages, and the line length for long text,
+   by the app frame's width: compact under 1100px, desktop 1100 to 1599px, wide from 1600px. */
+:root{--gutter:20px;--w-page:100%;--w-read:72ch}
+@media (min-width:1100px){:root{--gutter:28px;--w-page:72rem}}
+@media (min-width:1600px){:root{--gutter:36px;--w-page:88rem}}
+@media (min-width:2100px){:root{--gutter:44px;--w-page:104rem}}

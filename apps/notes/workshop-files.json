@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "1574934fe6998e6d69e5a2808c393c8d70170052",
+  "commit": "4e7ac8c237f55ecedf1667bd5751b5ea7a04491a",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -51,7 +51,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.9.0",
+  "bundle": "2.10.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -89,8 +89,8 @@
     "shared/sw-register.js": "3c3e0149634530891476e8bca0a384ee2282a589ee0463a7637161cdb7dc960d",
     "shared/teams.js": "af0852abf524bbff1f8a866413c40b17f03bbdd405c7813de85cfca79a7d9a36",
     "shared/theme.js": "2663fe78a3492d4948cfa19b0904b718b0587bab94d16539df8377d78a29bf0e",
-    "shared/themes.css": "2e749c9679766b04a95a3302470df20432713ceea056716d285008eed011c83e",
-    "shared/ui.css": "94f6001c8c7bd5d0d0bcff5ad8b76ed881e921377026beebeb7504221a9bf35a",
+    "shared/themes.css": "dd0c13e133b808c446470fba88dffcb2c77c1e0823c42735f141e3298eabcbc5",
+    "shared/ui.css": "0a4df496ff4b2c8c5bfb36d99ef4641aee2e29f19f4bfba813367d452eb3551e",
     "shared/workshop-sdk.js": "24fb8906ef82685e260caa98d70c00615d6020e2f12b950e1f2811c75192157d",
     "test/workshop/fake-dir.mjs": "ff2098dc083319cd3829a31fd93f85cf8787318098c610b93b0122b450a60695",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",

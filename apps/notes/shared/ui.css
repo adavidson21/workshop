@@ -27,6 +27,46 @@ kbd{font-family:var(--mono);font-size:.76rem;padding:.02rem .32rem;border:1px so
 .qhint-tip{position:absolute;left:0;top:calc(100% + 6px);z-index:70;width:max-content;max-width:min(18rem,80vw);background:var(--ink);color:var(--bg);font:400 12.5px/1.4 var(--sans);letter-spacing:0;text-transform:none;white-space:normal;text-align:left;padding:.45rem .6rem;border-radius:6px;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .12s}
 .qhint.open>.qhint-tip,.qhint:focus-within>.qhint-tip{opacity:1}
 
+/* ---------- page layout (docs/layout.md). Three sizes of the app's own frame: compact under 1100px (half a
+   screen), desktop 1100 to 1599px, wide from 1600px (2100px only widens). Boards, editors and dashboards run full
+   width with --gutter; list and form pages stay inside --w-page; long text inside --w-read. ---------- */
+/* The size tokens (--gutter, --w-page, --w-read) are in themes.css, so pages that skip ui.css get them too. */
+.ws-page{width:100%;max-width:calc(var(--w-page) + 2 * var(--gutter));margin:0 auto;padding:1.5rem var(--gutter) 4rem}
+.ws-page.full{max-width:none}
+/* One header for every app: eyebrow and title on the left, actions on the right, section tabs below. No subtitle:
+   explanations go in a .qhint next to the title. */
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.6rem 1rem;margin:0 0 1.25rem}
+.page-head>.ph-main{flex:1 1 16rem;min-width:0}
+.page-head .eyebrow{margin-bottom:.3rem}
+.page-head h1,.page-head .page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(26px,2.2vw,34px);letter-spacing:-.015em;line-height:1.15;color:var(--ink);overflow-wrap:anywhere}
+.page-head>.ph-acts{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.45rem;margin-left:auto}
+.page-head>.page-tabs{flex:1 0 100%}
+/* section tabs: underlined, one row, scrolls sideways when it must */
+.page-tabs{display:flex;gap:1.4rem;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.page-tabs::-webkit-scrollbar{display:none}
+.page-tabs>a,.page-tabs>button{position:relative;display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 0 .6rem;font-size:.92rem;font-weight:500;color:var(--muted);text-decoration:none;white-space:nowrap;background:none;border:0}
+.page-tabs>a:hover,.page-tabs>button:hover{color:var(--ink)}
+.page-tabs>.on,.page-tabs>[aria-current=page],.page-tabs>[aria-selected=true]{color:var(--ink)}
+.page-tabs>.on::after,.page-tabs>[aria-current=page]::after,.page-tabs>[aria-selected=true]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+.page-tabs .n{font:12px var(--mono);color:var(--muted)}
+/* several setup notes as one line that opens: <details class="ws-notices"><summary>2 setup notes</summary>... */
+.ws-notices{border-bottom:1px solid var(--line);background:var(--panel);font-size:.86rem;color:var(--muted)}
+.ws-notices>summary{display:flex;align-items:center;gap:.5rem;padding:.45rem var(--gutter);cursor:pointer;list-style:none;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ws-notices>summary::-webkit-details-marker{display:none}
+.ws-notices>summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.ws-notices[open]>summary::before{transform:rotate(45deg)}
+.ws-notices>.ws-note{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;padding:.4rem var(--gutter) .55rem}
+/* dashboard grid: one column compact, two desktop, three wide. Cards span with .w2 (two columns from desktop) and
+   .w3 (the full row on wide). */
+.dash{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem 2.25rem;align-items:start}
+@media (min-width:1100px){.dash{grid-template-columns:repeat(2,minmax(0,1fr))}.dash>.w2,.dash>.w3{grid-column:span 2}}
+@media (min-width:1600px){.dash{grid-template-columns:repeat(3,minmax(0,1fr))}.dash>.w3{grid-column:span 3}}
+/* list and detail side by side from desktop; compact shows one at a time (the app toggles .detail-open) */
+.ws-split{display:grid;grid-template-columns:minmax(0,1fr);gap:0;min-height:0}
+@media (min-width:1100px){.ws-split{grid-template-columns:var(--split-w,minmax(15rem,22rem)) minmax(0,1fr)}.ws-split>.sp-list{border-right:1px solid var(--line);padding-right:1.25rem}.ws-split>.sp-detail{padding-left:1.75rem}}
+@media (max-width:1099px){.ws-split.detail-open>.sp-list,.ws-split:not(.detail-open)>.sp-detail{display:none}}
+.ws-split>*{min-width:0}
+
 /* buttons */
 .btn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.38rem .85rem;border-radius:var(--r-sm);font-size:.86rem;font-weight:500;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--ink);transition:background-color .2s,border-color .2s,color .2s}
 .btn:hover{background:var(--hover);border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}

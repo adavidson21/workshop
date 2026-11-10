@@ -14,7 +14,7 @@ input,textarea{border:1px solid var(--line);border-radius:var(--r-sm);background
 input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
 input[type=checkbox]{min-height:0;width:1rem;height:1rem;accent-color:var(--accent);margin:0}
 
-.notes{--side-w:16.5rem;--panel-w:15rem;--gut:1.75rem;--measure:46rem;flex:1;min-height:0;display:grid;grid-template-columns:var(--side-w) minmax(0,1fr) var(--panel-w);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"tabs tabs tabs" "side main panel"}
+.notes{--side-w:16.5rem;--panel-w:15rem;--gut:var(--gutter,1.75rem);--measure:46rem;flex:1;min-height:0;display:grid;grid-template-columns:var(--side-w) minmax(0,1fr) var(--panel-w);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"tabs tabs tabs" "side main panel"}
 .notes:has(> .panel[hidden]){grid-template-columns:var(--side-w) minmax(0,1fr);grid-template-areas:"tabs tabs" "side main"}
 .sections{grid-area:tabs}.side{grid-area:side}.main{grid-area:main}.panel{grid-area:panel}
 .scrim{display:none}
@@ -270,7 +270,13 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
 
 /* big screens (a 27in monitor, Workshop full screen): wider sidebar, panel and reading measure.
    :has() outranks a plain .notes, so both are listed. */
-@media (min-width:1600px){.notes,.notes:has(> .panel[hidden]){--side-w:19rem;--panel-w:18rem;--gut:2.25rem;--measure:60rem}}
+@media (min-width:1600px){.notes,.notes:has(> .panel[hidden]){--side-w:19rem;--panel-w:18rem;--measure:60rem}}
+/* Half a screen (Workshop docs/layout.md, compact): Split stacks the preview under the editor, so neither is a
+   narrow strip; Edit keeps a readable line length. */
+@media (min-width:761px) and (max-width:1099px){
+  .body.mode-split{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+  .mode-split .editor,.mode-split .cm-editor.cm-folio{border-right:0;border-bottom:1px solid var(--line)}
+}
 @media (min-width:2100px){.notes,.notes:has(> .panel[hidden]){--side-w:21rem;--panel-w:20rem;--measure:72rem}}
 
 /* ---------- Notebook additions ---------- */
