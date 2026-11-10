@@ -200,10 +200,10 @@ test('view: top bar, files, panel and banners say the right things', () => {
   assert.equal(panel(s, { comments: [], summary: '' }, { ...ui, panelOpen: false }), '');
 
   assert.equal(banner(s, {}), '');
-  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. The branch is not pushed yet\./);
+  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. The branch is not pushed yet: Push to origin sends it to the git remote, after a confirm\./);
   assert.match(banner(session({ status: 'approved' }), { pushed: true }), /Approved and pushed/);
-  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, ui), /data-act="push">Push PR</);
-  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushing: true }), /data-act="push" disabled>Pushing\.\.\.</);
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, ui), /data-act="push" data-out>Push to origin <span class="out-mark" data-out="git"/);
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushing: true }), /data-act="push" data-out disabled>Pushing\.\.\.</);
   assert.doesNotMatch(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushed: true }), /data-act="push"/);
   assert.doesNotMatch(panel(s, { comments: [], summary: '' }, ui), /data-act="push"/, 'no Push before Approve');
   assert.match(banner(session({ status: 'revising' }), {}), /agent is revising/);

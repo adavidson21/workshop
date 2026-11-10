@@ -1275,7 +1275,7 @@ def agents_checks(b, watch):
         check('Chat opens on Ask or capture, with the hub box in it', af.locator('.chat-item.new.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
 
         # Ship: copy buttons, then Review instead of Push. The code review (review.html) reads the diff from git
-        # through the connector, and Approve and Push PR pushes the pr.md branch.
+        # through the connector. Approve pushes nothing; Push to origin, after the shared git confirm, pushes the pr.md branch.
         af.click('.tabs [data-tab=ship]'); pg.wait_for_timeout(300)
         ship = af.locator('#item-41610')
         branch = 'dev/bug/41610-rate-limit-headers'
@@ -1288,6 +1288,11 @@ def agents_checks(b, watch):
               and branch in af.inner_text('.rv-meta') and af.locator('.rv-file').count() >= 1)
         check('nothing is pushed before Approve', branch not in ask({'requests': True})['branches'])
         af.locator('[data-act=approve]').click()
+        af.wait_for_selector('[data-act=push]', timeout=20000)
+        check('Approve pushes nothing', branch not in ask({'requests': True})['branches'])
+        af.locator('[data-act=push]').click()
+        af.wait_for_selector('dialog.out-dialog[open]')
+        af.locator('dialog.out-dialog [data-out-ok]').click()
         pushed = False
         for _ in range(60):
             pushed = branch in ask({'requests': True})['branches']
@@ -1295,7 +1300,7 @@ def agents_checks(b, watch):
             pg.wait_for_timeout(250)
         review_state = os.path.join(info['workspace'], '.work', '41610-rate-limit-headers', 'code-review', 'gateway', 'state.json')
         approved = os.path.exists(review_state) and json.load(open(review_state))['status'] == 'approved'
-        check('Approve and Push PR records the verdict and pushes the pr.md branch to origin', pushed and approved)
+        check('Approve records the verdict, and Push to origin pushes the pr.md branch', pushed and approved)
         # The branch reaches origin before Push answers; wait for its toast so it cannot replace the next one.
         toast_has(pg, 'Pushed ')
         af.locator('[data-act=back]').click()

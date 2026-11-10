@@ -1,6 +1,6 @@
 {
   "bundle": 1,
-  "version": "2.10.0",
+  "version": "2.11.0",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
@@ -75,6 +75,7 @@
     "shared/fonts/gelasio-latin-ext-wght-normal.woff2": "2f3f0cd292326e19687d727f87400d91632ab2ab3a0020a187ce22db6f358961",
     "shared/fonts/gelasio-latin-wght-normal.woff2": "ba5b902e472cfe3456eba6b2d8fcf2d237988ff181d8da3cb5cf839de989ab15",
     "shared/handoffs.js": "9d2cbe5efe23d81a8b7f348bc0d31f148f6d6619737dfae3a64fcbf7dc6fbcc7",
+    "shared/outside.js": "331c17501ba51cad10163cbba769a1ab194b1d0b66b5c8ef762d6b59f515240f",
     "shared/pair.js": "0c7af3750f93d9b4088e2cfd6220f840558cbfbdc895a35a18ca977dae78b6b1",
     "shared/people.js": "5368a2264d6f8dba820e6c612bf7e919ad55dc454a031afa2143d0d8b6be1ac3",
     "shared/products.js": "81f0b2ebb56d73034d169c530704a57ec347ef9395f95333c78172557a3f6242",

@@ -3,6 +3,7 @@
    goes through esc(). */
 
 import { STATUS_LETTER, TYPES, RESPONSE_LABEL, typeLabel, rangeLabel, firstLine, fileTree, commentCounts, previousRows, visibleFiles, canRequestChanges } from './review-state.js';
+import { outsideMark } from '../../../shared/outside.js';
 
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -51,7 +52,7 @@ export function banner(session, ui) {
   if (session.status === 'approved') {
     return ui.pushed
       ? `<div class="rv-banner ok">Approved and pushed. Create the pull request from Dispatch.</div>`
-      : `<div class="rv-banner ok">Approved. The branch is not pushed yet.</div>`;
+      : `<div class="rv-banner ok">Approved. The branch is not pushed yet: Push to origin sends it to the git remote, after a confirm.</div>`;
   }
   if (session.status === 'revising') {
     const run = session.revisionRun;
@@ -146,7 +147,7 @@ export function panel(session, draft, ui) {
 
   const can = canRequestChanges(draft);
   const pushRow = session.status === 'approved' && !ui.pushed
-    ? `<div class="rv-verdict"><button class="btn primary" data-act="push"${ui.pushing ? ' disabled' : ''}>${ui.pushing ? 'Pushing...' : 'Push PR'}</button></div>`
+    ? `<div class="rv-verdict"><button class="btn primary" data-act="push" data-out${ui.pushing ? ' disabled' : ''}>${ui.pushing ? 'Pushing...' : `Push to origin ${outsideMark('git')}`}</button></div>`
     : '';
   const actions = open ? (ui.confirmApprove
     ? `<div class="rv-confirm" role="alert"><p>Approving sends no line comments. Discard ${plural(draft.comments.length, 'draft comment')} and approve?</p><div class="rv-verdict"><button class="btn" data-act="approve-cancel">Keep them</button><button class="btn primary" data-act="approve-confirm"${ui.submitting ? ' disabled' : ''}>${esc(ui.approveLabel)}</button></div></div>`

@@ -1,7 +1,7 @@
 // view.js is pure HTML builders: check the board, the panel's steps and More render, and escape what comes from files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, linkAdoDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
+import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
 import { cleanItem, cleanPrefs, newItem, setStage, shapeState, timeline } from '../js/model.js';
 
 const base = (item, extra = {}) => ({
@@ -195,7 +195,7 @@ test('panel: Build it myself as a skip ahead (in More); skip ADO when it has no 
 test('panel: Define offers Approve and publish; the approved step offers Publish and build', () => {
   const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'defining', work: { define: 'refine-x' } });
   const h = panelHtml(base(it, { column: 'define', draft: { kind: 'refine', file: 'refine.md', step: 'approve', ready: false } }));
-  assert.match(h, /data-act="approve-publish"[^>]*>Approve and publish</);
+  assert.match(h, /data-act="approve-publish"[^>]*>Approve and publish <span class="out-mark" data-out="ado"/);
   assert.match(h, /data-act="approve-build"/);
   assert.match(h, /data-act="approve"[^>]*>Approve only</);
   const pub = panelHtml(base(it, { column: 'publish', canAdo: true, draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
@@ -215,10 +215,10 @@ test('panel: In flight and Resolved by step, with Link ADO item when there is no
   assert.doesNotMatch(review, /data-act="check-prs"/);
   const merged = cleanItem({ ...newItem({ title: 'Merged', ado: { id: 7, type: 'Feature' } }), stage: 'dev', merged: '2026-11-05' });
   const m = panelHtml(base(merged, { dev: true, column: 'merged' }));
-  assert.match(m, /data-act="mark-resolved"[^>]*>Mark resolved</);
+  assert.match(m, /data-act="mark-resolved"[^>]*>Mark resolved <span class="out-mark" data-out="ado"/);
   assert.doesNotMatch(m, /id="linkAdo"/);
   const r = panelHtml(base(resolved('w_r', 'Done', 'Web', 9), { dev: true, column: 'resolved' }));
-  assert.match(r, /data-act="close-one"[^>]*>Close as released</);
+  assert.match(r, /data-act="close-one"[^>]*>Close as released <span class="out-mark" data-out="ado"/);
   const start = panelHtml(base(cleanItem({ ...newItem({ title: 'No run' }), stage: 'dev' }), { dev: true, column: 'building' }));
   assert.match(start, /data-act="start"[^>]*>Start as local work</);
 });
@@ -246,7 +246,7 @@ test('panel: triage questions on an ADO item can be posted there; Waiting reads 
   const steps = Object.fromEntries(STEPS());
   const t = nextOf(steps['triage, questions, on ADO']);
   assert.deepEqual(acts(t.shown), ['post-questions', 'ask', 'define']);
-  assert.match(t.shown[0], />Post on #42</);
+  assert.match(t.shown[0], />Post on #42 <span class="out-mark" data-out="ado"/);
   assert.deepEqual(acts(nextOf(steps['triage, questions']).shown), ['ask', 'define'], 'no ADO item: copy only');
   const w = nextOf(steps['waiting, asked on ADO']);
   assert.deepEqual(acts(w.shown), ['answers', 'read-replies', 'define']);
@@ -302,7 +302,8 @@ test('publish dialog: the source link row says what happens to the first item', 
   const h = publishDialogHtml([{ ref: 'epic', op: 'create', type: 'Epic', title: 'Export' }, { ref: 'source', op: 'link', id: 7, type: 'Issue', title: 'Customers want CSV', to: 'epic', toType: 'Epic', toTitle: 'Export' }], { area: '' });
   assert.match(h, /Link #7/);
   assert.match(h, /a Related link to the new Epic \(Export\)/);
-  assert.match(h, /2 changes in Azure DevOps/);
+  assert.match(h, /Changes Azure DevOps\.<\/strong> 2 changes\. Nothing is sent until you click Publish\./);
+  assert.match(h, /type="submit" value="ok" data-out-ok>Publish <span class="out-mark" data-out="ado"/);
 });
 
 test('cards and the panel show the ADO type; your notes show on ADO cards too', async () => {
@@ -326,4 +327,40 @@ test('notes above the board: errors stay in view; two or more setup notes fold i
   assert.match(h, /<div class="notes"><p class="note">Azure DevOps: PAT rejected<\/p><\/div>/);
   assert.match(h, /<details class="ws-notices slate-notices"><summary>2 setup notes<\/summary>/);
   assert.match(notesHtml([a, b], true), /slate-notices" open>/);
+});
+
+test('outside writes: every button that changes ADO carries the mark, and local ones never do', () => {
+  const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'defining', work: { define: 'refine-x' } });
+  const pub = panelHtml(base(it, { column: 'publish', canAdo: true, draft: { kind: 'refine', file: 'refine.md', step: 'publish', ready: true } }));
+  assert.match(pub, /data-act="publish"[^>]*data-out>Publish to ADO <span class="out-mark"/);
+  assert.match(pub, /data-act="publish-build"[^>]*data-out>/);
+  assert.doesNotMatch(pub.match(/<button[^>]*data-act="build-local"[\s\S]*?<\/button>/)[0], /out-mark/, 'skip ADO has no mark');
+  const unmerged = cleanItem({ ...newItem({ title: 'Local' }), stage: 'dev', merged: '2026-11-05' });
+  const m = panelHtml(base(unmerged, { dev: true, column: 'merged' }));
+  assert.doesNotMatch(m.match(/<button[^>]*data-act="mark-resolved"[\s\S]*?<\/button>/)[0], /out-mark/, 'no ADO item: resolved here only');
+});
+
+test('outside writes: Who builds it? says when Build it myself publishes first', () => {
+  const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'decide' });
+  const ready = panelHtml(base(it, { column: 'decide', canAdo: true, draft: { ready: true } }));
+  assert.match(ready, /data-act="myself"[^>]*data-out>Publish and build it myself <span class="out-mark"/);
+  const notReady = panelHtml(base(it, { column: 'decide', canAdo: true, draft: { ready: false } }));
+  assert.match(notReady, /data-act="build-local"[^>]*>Build it myself, skip ADO</);
+  assert.doesNotMatch(notReady, /data-act="myself"/);
+});
+
+test('outside writes: Delegate never assigns in ADO unless you tick it', () => {
+  const h = delegateDialogHtml([{ id: 'p1', name: 'Sam' }], { canBrief: true, canAssign: true });
+  assert.match(h, /<input type="checkbox" name="assign"> Also assign it to them in Azure DevOps <span class="out-mark"/);
+  assert.match(h, /class="out-banner when-assign"/);
+  assert.match(h, /<span class="when-assign">and assign in ADO <span class="out-mark"/);
+  const off = delegateDialogHtml([{ id: 'p1', name: 'Sam' }], { canBrief: false, canAssign: false });
+  assert.match(off, /name="assign" disabled/);
+  assert.doesNotMatch(off, /out-banner/);
+});
+
+test('outside writes: Close as released has the ADO banner and a marked button', () => {
+  const h = closeGroupDialogHtml([{ ado: { id: 3 }, title: 'A' }], 'Web <b>');
+  assert.match(h, /Changes Azure DevOps\.<\/strong> Sets this item in Web &lt;b&gt; to Closed/);
+  assert.match(h, /data-out-ok>Close it <span class="out-mark"/);
 });

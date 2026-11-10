@@ -176,19 +176,34 @@ def main():
         pg.wait_for_selector('.rv-banner.bad')
         check('stale head: clear error, nothing sent, draft kept', 'changed since this review was loaded' in pg.locator('.rv-banner.bad').inner_text() and pg.locator('.rv-entry[data-act=jump]').count() == 1)
 
-        # Approve with drafts asks first. Approve then pushes in the same click; a failed push can be retried.
-        check('the button says it pushes', pg.locator('[data-act=approve]').inner_text() == 'Approve and Push PR')
+        # Approve with drafts asks first. Approve only approves; pushing is its own button with the shared git confirm.
+        check('the approve button only approves', pg.locator('[data-act=approve]').inner_text() == 'Approve')
         check('nothing is pushed before Approve', pg.evaluate('window.__reviewMock.pushes.length') == 0)
         pg.locator('[data-act=approve]').click()
         check('approve with drafts asks before discarding them', pg.locator('.rv-confirm').count() == 1)
-        pg.evaluate('window.__reviewMock.failNextPush()')
         pg.locator('[data-act=approve-confirm]').click()
+        pg.wait_for_selector('[data-act=push]')
+        check('Approve pushes nothing', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'approve'
+              and pg.evaluate('window.__reviewMock.pushes.length') == 0 and 'not pushed yet' in pg.locator('.rv-banner.ok').inner_text())
+        check('Push to origin carries the git mark', pg.locator('[data-act=push] .out-mark[data-out=git]').count() == 1)
+        pg.locator('[data-act=push]').click()
+        pg.wait_for_selector('dialog.out-dialog[open]')
+        check('the push confirm says it changes the git remote, with Cancel focused',
+              'Changes the git remote' in pg.locator('dialog.out-dialog .out-banner').inner_text()
+              and pg.evaluate('() => document.activeElement && document.activeElement.dataset.act') == 'cancel')
+        pg.locator('dialog.out-dialog [data-act=cancel]').click()
+        pg.wait_for_function('() => !document.querySelector("dialog.out-dialog")')
+        check('Cancel pushes nothing', pg.evaluate('window.__reviewMock.pushes.length') == 0)
+        pg.evaluate('window.__reviewMock.failNextPush()')
+        pg.locator('[data-act=push]').click()
+        pg.locator('dialog.out-dialog [data-out-ok]').click()
         pg.wait_for_selector('.rv-banner.bad')
         check('a failed push keeps the verdict and says so', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'approve'
               and 'push did not go through' in pg.locator('.rv-banner.bad').inner_text() and pg.locator('[data-act=approve]').count() == 0)
         pg.locator('[data-act=push]').click()
+        pg.locator('dialog.out-dialog [data-out-ok]').click()
         pg.locator('.rv-banner.ok', has_text='Approved and pushed').wait_for()
-        check('Push PR retries, and the branch is pushed once', pg.evaluate('window.__reviewMock.pushes') == ['shop-api'] and pg.locator('[data-act=push]').count() == 0)
+        check('Push to origin retries, and the branch is pushed once', pg.evaluate('window.__reviewMock.pushes') == ['shop-api'] and pg.locator('[data-act=push]').count() == 0)
 
         # The repo switcher.
         check('repo switcher lists both repos', pg.eval_on_selector_all('[data-act=repo] option', 'els => els.map(e => e.value)') == ['shop-api', 'shop-web'])
