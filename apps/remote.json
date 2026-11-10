@@ -9,7 +9,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "6.5.0",
+        "version": "6.6.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -234,7 +234,7 @@
         "manifestVersion": 1,
         "id": "runway",
         "name": "Runway",
-        "version": "1.15.1",
+        "version": "1.16.0",
         "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -363,7 +363,7 @@
         "manifestVersion": 1,
         "id": "receipts",
         "name": "Rapport",
-        "version": "3.5.0",
+        "version": "3.6.0",
         "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -545,7 +545,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Folio",
-        "version": "3.5.0",
+        "version": "3.8.0",
         "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Mermaid diagrams, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -592,6 +592,14 @@
           {
             "id": "diagram",
             "title": "Insert diagram"
+          },
+          {
+            "id": "toggle-pages",
+            "title": "Show or hide the pages list"
+          },
+          {
+            "id": "toggle-panel",
+            "title": "Show or hide the page panel"
           }
         ],
         "handoffs": {
@@ -602,6 +610,7 @@
         },
         "data": [
           "taken",
+          "products-made",
           "handoffs",
           "summary"
         ],
@@ -623,6 +632,7 @@
           "js/export.js",
           "js/highlight.js",
           "js/history.js",
+          "js/live.js",
           "js/main.js",
           "js/map.js",
           "js/markdown.js",
@@ -630,6 +640,7 @@
           "js/offers.js",
           "js/pickup.js",
           "js/products.js",
+          "js/product-setup.js",
           "js/records.js",
           "js/sections.js",
           "js/slash.js",
@@ -657,6 +668,7 @@
           "shared/fonts/gelasio-latin-wght-normal.woff2",
           "shared/focus.js",
           "shared/handoffs.js",
+          "shared/products.js",
           "shared/pair.js",
           "shared/people.js",
           "shared/save-file.js",
