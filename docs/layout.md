@@ -43,7 +43,7 @@ Boards, editors and dashboards (Home, Docket, Slate, Folio, Runway's editor) run
 
 ## Side panels
 
-A side panel that opens over a board (Docket's task drawer, Slate's item panel) covers the board below 1600px and pushes it from 1600px, so the board keeps its columns in half a screen.
+A side panel that opens over a board (Docket's task drawer, Slate's item panel) covers the board below 1600px and pushes it from 1600px, so the board keeps its columns in half a screen. A board that needs more room than that may cover until a wider size: Docket's Today (three columns) covers below 2100px.
 
 ## Checking
 
