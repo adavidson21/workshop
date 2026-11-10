@@ -1633,7 +1633,7 @@ function teamsService(data) {
     return Teams.mine(env);
   };
   return {
-    /** Your team: {name, areas, connection}, empty when not set up. */
+    /** Your team: {name, areas, connection, areaConnections}, empty when not set up. */
     get: read,
     subscribe(handler) {
       const h = (t) => handler(t);
@@ -1641,7 +1641,7 @@ function teamsService(data) {
       const off = data.subscribe(APP, COLLECTION, async () => { try { handler(await read()); } catch (e) { console.error(e); } });
       return () => { local.delete(h); off(); };
     },
-    /** Saves your team's area paths and connection. Resolves to your team as saved. */
+    /** Saves your team's area paths, connection and a connection per area. Resolves to your team as saved. */
     async setMine(fields) {
       for (let attempt = 0; ; attempt++) {
         const stored = await data.get(APP, COLLECTION);

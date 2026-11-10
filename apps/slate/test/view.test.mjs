@@ -1,7 +1,7 @@
 // view.js is pure HTML builders: check the board, the panel's steps and More render, and escape what comes from files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
+import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, linkPickDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
 import { cleanItem, cleanPrefs, newItem, setStage, shapeState, timeline } from '../js/model.js';
 
 const base = (item, extra = {}) => ({
@@ -363,4 +363,18 @@ test('outside writes: Close as released has the ADO banner and a marked button',
   const h = closeGroupDialogHtml([{ ado: { id: 3 }, title: 'A' }], 'Web <b>');
   assert.match(h, /Changes Azure DevOps\.<\/strong> Sets this item in Web &lt;b&gt; to Closed/);
   assert.match(h, /data-out-ok>Close it <span class="out-mark"/);
+});
+
+test('an id in two collections: the panel asks which, the card says so, Link ADO item offers a pick', () => {
+  const it = cleanItem({ id: 'w_pick', title: '#500', stage: 'new', ado: { id: 500, connection: '', choices: [
+    { connection: 'main', title: 'Main <500>', type: 'User Story', project: 'P' }, { connection: 'apps', title: 'Apps 500', type: 'Bug', project: 'Q' }] } });
+  const html = panelHtml(base(it));
+  assert.match(html, /is in more than one collection/);
+  assert.match(html, /data-act="pick-conn"[^>]*data-conn="main"|data-conn="main"[^>]*data-act="pick-conn"/);
+  assert.match(html, /main: Main &lt;500&gt;/);
+  assert.match(boardHtml({ inbox: [{ ...it, step: '' }] }, { open: null }), /Which collection\?/);
+  const dlg = linkPickDialogHtml(500, [{ connection: 'main', title: 'A' }, { connection: 'apps', title: 'B' }]);
+  assert.match(dlg, /name="conn" value="main" checked/);
+  assert.match(dlg, /value="apps"/);
+  assert.match(publishDialogHtml([{ op: 'create', type: 'User Story', title: 'T' }], { area: 'Q\\T', connection: 'apps' }), /on the apps connection/);
 });

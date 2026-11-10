@@ -62,6 +62,7 @@ function card(c, s) {
   const flags = [];
   if (c.step) flags.push(chip(c.step, c.step === 'Waiting on you' ? 'warn' : 'step'));
   if (c.noAdo) flags.push(chip('No ADO item', 'warn'));
+  if (c.ado && c.ado.choices && c.ado.choices.length > 1) flags.push(chip('Which collection?', 'warn'));
   if (c.fromDispatch) flags.push(chip('From Dispatch', 'soft'));
   if (c.stale) flags.push(chip('Stale', 'warn'));
   if (changedInAdo(c)) flags.push(chip('Changed in ADO', 'warn'));
@@ -549,6 +550,7 @@ export function panelHtml(p) {
       ${links.length ? `<p class="links">${links.join(' · ')}</p>` : ''}
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
     </div>
+    ${pickSection(p)}
     ${nextHtml(n)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
     ${agentSection(p)}
@@ -584,13 +586,13 @@ export function newIdeaDialogHtml() {
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Add</button></div></form>`;
 }
 
-export function publishDialogHtml(plan, { area, build = false }) {
+export function publishDialogHtml(plan, { area, build = false, connection = '' }) {
   const label = (p) => p.op === 'create' ? 'Create' : p.op === 'update' ? `Update #${p.id}` : p.op === 'link' ? `Link #${p.id}` : `Done (#${p.id})`;
   const what = (p) => p.op === 'link' ? `${p.title}: a Related link to the new ${p.toType || 'item'} (${p.toTitle || ''}) and a comment saying where the work went. Slate then follows the new ${p.toType || 'item'}.` : p.title;
   const rows = plan.map(p => `<tr><td>${esc(label(p))}</td><td>${esc(p.type || '')}</td><td>${esc(what(p))}</td></tr>`).join('');
   const n = plan.filter(p => p.op !== 'skip').length;
   return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
-    ${outsideBanner('ado', `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}. Nothing is sent until you click Publish.`)}
+    ${outsideBanner('ado', `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}${connection ? ` on the ${connection} connection` : ''}. Nothing is sent until you click Publish.`)}
     <p>Items are tagged <span class="mono">slate</span>.</p>
     <table class="plan"><thead><tr><th>Change</th><th>Type</th><th>Title</th></tr></thead><tbody>${rows}</tbody></table>
     ${build ? '<p>Then it moves to In flight and Tandem starts on it (Build it myself).</p>' : ''}
@@ -638,6 +640,26 @@ export function linkAdoDialogHtml(w) {
     <dl class="kv"><dt>Title</dt><dd>${esc(w.title)}</dd><dt>Type</dt><dd>${esc(w.type || 'Unknown')}</dd><dt>State</dt><dd>${esc(w.state || 'Unknown')}</dd><dt>Project</dt><dd>${esc(w.project || '')}</dd>${w.area ? `<dt>Area path</dt><dd>${esc(w.area)}</dd>` : ''}</dl>
     <p class="soft">Saved on the card only. Nothing changes in ADO.</p>
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Link it</button></div></form>`;
+}
+
+/** Link ADO item when the id is in more than one collection: pick which one. */
+export function linkPickDialogHtml(id, matches) {
+  const rows = matches.map((m, i) => `<label class="pick-row"><input type="radio" name="conn" value="${esc(m.connection)}"${i === 0 ? ' checked' : ''}>
+    <span><strong>${esc(m.connection)}</strong>: ${esc(m.title)} <span class="soft">(${esc(m.type || 'Unknown')}, ${esc(m.project || 'no project')}${m.state ? `, ${esc(m.state)}` : ''})</span></span></label>`).join('');
+  return `<form method="dialog" class="dlg" data-form="link-pick"><h2>Which #${esc(id)}?</h2>
+    <p>Work item ids repeat across collections, and #${esc(id)} is in more than one of yours.</p>
+    <div class="pick-list">${rows}</div>
+    <p class="soft">Saved on the card only. Nothing changes in ADO.</p>
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Link it</button></div></form>`;
+}
+
+/** A card whose id is in more than one collection: a button per match, until you pick. */
+function pickSection(p) {
+  const it = p.item;
+  const m = (it.ado && it.ado.choices) || [];
+  if (m.length < 2) return '';
+  return `<div class="next"><p>#${esc(it.ado.id)} is in more than one collection. Which one is it?</p>
+    <div class="acts pick-acts">${m.map(x => btn('pick-conn', `${x.connection}: ${x.title || 'Untitled'}`, { extra: ` data-conn="${esc(x.connection)}"`, title: `${x.type || 'Item'} in ${x.project || 'its project'}${x.state ? `, ${x.state}` : ''}` })).join('')}</div></div>`;
 }
 
 /** Close as released: every ADO item that will be set to Closed. */

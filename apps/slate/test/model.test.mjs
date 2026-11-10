@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   backTargets, forwardTargets, cards, changedInAdo, cleanItem, devColumn, moveBack, draftState, filterCards, newItem, parseMilestones, parseRefine, parseTriage,
   areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS,
-  applyRequest, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope, timeline
+  applyRequest, needsAdoTitle, needsAdoConnection, adoFromFind, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, timeline
 } from '../js/model.js';
 
 const NOW = new Date('2026-11-05T15:00:00Z');
@@ -872,3 +872,51 @@ test('manual drafts: templates parse, Status flips, and cleanItem keeps only the
   const plan = publishPlan(src, { ...sc, 'milestones.md': withStatus(sc['milestones.md'], 'APPROVED') });
   assert.deepEqual(plan.map(p => p.ref), ['epic', 'feature 1', 'story 1.1', 'source']);
 });
+
+test('two collections: backlogs merge with their connection, a repeated id gets its own card', () => {
+  const backlog = mergeBacklogs([
+    { connection: 'main', items: [{ id: 500, title: 'Main 500', type: 'User Story', rev: 2 }, { id: 501, title: 'Main 501', type: 'Bug', rev: 1 }] },
+    { connection: 'apps', items: [{ id: 500, title: 'Apps 500', type: 'User Story', rev: 7 }] }
+  ]);
+  assert.deepEqual(backlog.map(b => [b.id, b.connection, !!b.dupe]), [[500, 'main', false], [501, 'main', false], [500, 'apps', true]]);
+  assert.deepEqual(backlog.map(virtualAdoId), ['ado_500', 'ado_501', 'ado_500_apps']);
+  // A stored card on apps 500 is matched to the apps row only; main 500 stays a card of its own.
+  const stored = newItem({ title: 'Mine', ado: { id: 500, type: 'User Story', connection: 'apps' } }, NOW);
+  const list = cards([stored], backlog);
+  assert.equal(list.length, 3);
+  assert.equal(list[0].adoNow.title, 'Apps 500');
+  assert.deepEqual(list.slice(1).map(c => c.id), ['ado_500', 'ado_501']);
+  assert.equal(list[1].ado.connection, 'main');
+});
+
+test('sameAdo: both connections known must match; one unknown matches on the id', () => {
+  assert.equal(sameAdo({ id: 1, connection: 'a' }, { id: 1, connection: 'a' }), true);
+  assert.equal(sameAdo({ id: 1, connection: 'a' }, { id: 1, connection: 'b' }), false);
+  assert.equal(sameAdo({ id: 1, connection: '' }, { id: 1, connection: 'b' }), true);
+  assert.equal(sameAdo({ id: 1 }, { id: 2 }), false);
+});
+
+test('a bare #id on a team with two collections: one match fills it, two wait for a pick', () => {
+  const it = applyRequestItem();
+  assert.equal(needsAdoConnection(it, false), false);
+  assert.equal(needsAdoConnection(it, true), true);
+  const m = (connection, title) => ({ id: 500, connection, title, type: 'User Story', state: 'New', project: 'P', url: 'https://ado.example/x', area: 'P\\T', rev: 3 });
+  const one = adoFromFind(it.ado, { matches: [m('apps', 'Apps 500')], failed: [] });
+  assert.equal(one.connection, 'apps');
+  assert.equal(one.rev, 3);
+  assert.equal(adoFromFind(it.ado, { matches: [], failed: [] }), null);
+  const two = adoFromFind(it.ado, { matches: [m('main', 'Main 500'), m('apps', 'Apps 500')], failed: [] });
+  assert.deepEqual(two.choices.map(c => c.connection), ['main', 'apps']);
+  // Kept through a save while there is no connection, gone once one is set.
+  const kept = cleanItem({ ...it, ado: two });
+  assert.equal(kept.ado.choices.length, 2);
+  assert.equal(needsAdoConnection(kept, true), false);
+  assert.equal(needsAdoTitle(kept), false);
+  assert.equal(cleanItem({ ...it, ado: { ...two, connection: 'main' } }).ado.choices, undefined);
+});
+
+function applyRequestItem() {
+  const list = [];
+  applyRequest(list, { to: 'slate', payload: { kind: 'request', ado: 500, note: 'upgrade' } }, NOW);
+  return list[0];
+}

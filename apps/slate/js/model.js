@@ -117,6 +117,9 @@ export function cleanItem(raw = {}) {
   it.stage = STAGES.includes(raw.stage) ? raw.stage : 'new';
   it.description = str(raw.description, 32000);
   it.ado = raw.ado && Number.isInteger(raw.ado.id) ? { id: raw.ado.id, rev: Number(raw.ado.rev) || 0, type: str(raw.ado.type, 60), url: str(raw.ado.url, 1000), connection: str(raw.ado.connection, 40), area: str(raw.ado.area, 400), state: str(raw.ado.state, 100) } : null;
+  // An id found in more than one collection (workitem.find): the matches, until you pick one.
+  const choices = cleanChoices(raw.ado && raw.ado.choices);
+  if (it.ado && !it.ado.connection && choices.length > 1) it.ado.choices = choices;
   it.runway = raw.runway && typeof raw.runway.map === 'string' && typeof raw.runway.item === 'string' ? { map: raw.runway.map, item: raw.runway.item } : null;
   it.work = {};
   for (const k of ['triage', 'shape', 'define', 'handoff']) if (typeof (raw.work || {})[k] === 'string' && raw.work[k]) it.work[k] = raw.work[k];
@@ -153,6 +156,41 @@ export function cleanItem(raw = {}) {
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
   return it;
 }
+
+/** workitem.find matches kept on a card while it waits for you to pick one: [{connection, title, project, type, state, url, area, rev}]. */
+export function cleanChoices(raw) {
+  return (Array.isArray(raw) ? raw : []).filter(m => m && typeof m.connection === 'string' && m.connection).slice(0, 6)
+    .map(m => ({ connection: str(m.connection, 40), title: oneLine(m.title, 255), project: oneLine(m.project, 200), type: str(m.type, 60), state: str(m.state, 100), url: /^https?:\/\//i.test(String(m.url || '')) ? str(m.url, 1000) : '', area: str(m.area, 400), rev: Number(m.rev) || 0 }));
+}
+
+/* ---------- ADO ids across collections ---------- */
+
+/**
+ * True when two ADO refs ({id, connection}) are the same item. Ids are unique only within a collection
+ * (docs/teams.md rule 3): with both connections known they must match; a ref without one matches on the id.
+ */
+export const sameAdo = (a, b) => !!(a && b && a.id === b.id && (!a.connection || !b.connection || a.connection === b.connection));
+
+/**
+ * One backlog from the reads of each connection's areas ([{connection, items}]): every item carries its
+ * connection, and an id already seen from another connection is marked `dupe` (its card gets its own id).
+ */
+export function mergeBacklogs(reads) {
+  const out = [];
+  const seen = new Set();
+  for (const r of reads || []) {
+    for (const b of r.items || []) {
+      const x = { ...b, connection: b.connection || r.connection || '' };
+      if (seen.has(x.id)) x.dupe = true;
+      seen.add(x.id);
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+/** The id of a backlog item's card before it is stored: `ado_<id>`, plus the connection when the id is a dupe. */
+export const virtualAdoId = (b) => b.dupe ? `ado_${b.id}_${String(b.connection || '').replace(/[^A-Za-z0-9_-]/g, '-')}` : `ado_${b.id}`;
 
 /** The last pull request check (workitem.prs): {status, at, list: [{id, status, title, repository, url}]}, or null. */
 export function cleanPrs(raw) {
@@ -244,15 +282,15 @@ export function skipToDecide(it, now = new Date()) {
 
 /** The board's cards: stored items, then ADO backlog items nobody has acted on (not stored until you do). */
 export function cards(items, backlog = []) {
-  const byAdo = new Map(items.filter(i => i.ado).map(i => [i.ado.id, i]));
+  const withAdo = items.filter(i => i.ado);
   const out = [...items];
   for (const b of backlog) {
-    if (byAdo.has(b.id)) {
-      const it = byAdo.get(b.id);
+    const it = withAdo.find(i => sameAdo(i.ado, b));
+    if (it) {
       it.adoNow = b; // the item as ADO has it now (for "changed in ADO")
       continue;
     }
-    out.push({ ...newItem({ title: b.title, ado: b }), id: `ado_${b.id}`, virtual: true, adoNow: b, createdAt: (b.changed || '').slice(0, 10) || today() });
+    out.push({ ...newItem({ title: b.title, ado: b }), id: virtualAdoId(b), virtual: true, adoNow: b, createdAt: (b.changed || '').slice(0, 10) || today() });
   }
   return out;
 }
@@ -1000,7 +1038,24 @@ export function applyRequest(list, offer, now = new Date()) {
 }
 
 /** A card made from `#<id>` before Slate read the item: its title is still the id. */
-export const needsAdoTitle = (it) => !!(it && it.ado && (it.title === `#${it.ado.id}` || !it.ado.type));
+export const needsAdoTitle = (it) => !!(it && it.ado && !(it.ado.choices && it.ado.choices.length) && (it.title === `#${it.ado.id}` || !it.ado.type));
+
+/** A card whose ADO id has no connection yet, on a team that reads more than one (ask every connection). */
+export const needsAdoConnection = (it, multi) => !!(multi && it && it.ado && !it.ado.connection && !(it.ado.choices && it.ado.choices.length));
+
+/**
+ * What a workitem.find answer does to a card: one match sets the connection and fills the item; more than one
+ * keeps them as choices for you to pick; none leaves the card as it is. Returns the changed ado ref, or null.
+ */
+export function adoFromFind(ado, found) {
+  const m = (found && Array.isArray(found.matches)) ? found.matches : [];
+  if (m.length === 1) return { ...ado, ...pickFields(m[0]) };
+  if (m.length > 1) return { ...ado, choices: cleanChoices(m) };
+  return null;
+}
+
+/** The fields a picked match sets on the card's ado ref. */
+export const pickFields = (m) => ({ connection: str(m.connection, 40), rev: Number(m.rev) || 0, type: str(m.type, 60), url: str(m.url, 1000), area: str(m.area, 400), state: str(m.state, 100) });
 
 /* ---------- release planning (the Resolved column) ---------- */
 

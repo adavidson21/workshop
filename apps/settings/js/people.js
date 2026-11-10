@@ -6,6 +6,7 @@
    people-forms.js turns forms into fields; people-sheet.js does the spreadsheet template and import planning;
    this file draws the two pages. */
 import * as D from '../../../shared/people.js';
+import * as T from '../../../shared/teams.js';
 import { saveFile } from '../../../shared/save-file.js';
 import * as PF from './people-forms.js';
 import * as S from './people-sheet.js';
@@ -40,7 +41,9 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   let preset = null;           // fields for the new person form (Home's Add your name: relation You and the name)
   let query = '', filter = 'all';
   let pending = null;          // {name, plan} while an import waits for Import or Cancel
-  let team = { name: 'My team', areas: [], connection: '' };
+  let team = { name: 'My team', areas: [], connection: '', areaConnections: {} };
+  let conns = [];              // ADO connection names; with 2 or more, each area path can have its own
+  let areaConn = {};           // area path -> connection, as picked on the page (saved with Save)
   const q = s => peopleEl.querySelector(s);
 
   /* ---------- forms ---------- */
@@ -189,17 +192,40 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   }
 
   /* ---------- team area paths ---------- */
+  const connOptions = (cur, blank) => [`<option value="">${esc(blank)}</option>`, ...conns.map(n => `<option value="${esc(n)}"${cur === n ? ' selected' : ''}>${esc(n)}</option>`)].join('')
+    + (cur && !conns.includes(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (not a connection)</option>` : '');
+  const boxAreas = () => T.parseAreas((teamEl.querySelector('#tAreas') || {}).value || '');
+  /** One row per area path with its collection, when there are two or more connections (docs/teams.md). */
+  function paintAreaConns() {
+    const el = teamEl.querySelector('[data-area-conns]');
+    if (!el) return;
+    const areas = boxAreas();
+    el.innerHTML = areas.length ? `<table class="area-conns"><tbody>${areas.map((a, i) => `<tr><td class="mono">${esc(a)}</td><td><label class="sr" for="ac-${i}">Connection for ${esc(a)}</label>
+      <select class="cfg-input" id="ac-${i}" data-area-conn="${esc(a)}">${connOptions(areaConn[a] || '', 'Same as the team')}</select></td></tr>`).join('')}</tbody></table>` : '';
+  }
   function paintTeam() {
     const body = teamEl.querySelector('.team-body');
-    if (!body || body.contains(document.activeElement) && document.activeElement.matches('textarea, input')) return;
+    if (!body || body.contains(document.activeElement) && document.activeElement.matches('textarea, input, select')) return;
+    areaConn = { ...(team.areaConnections || {}) };
+    const many = conns.length > 1;
     body.innerHTML = `<form class="cfg" data-team-form>
       <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(team.areas.join('\n'))}</textarea>
         <p class="cfg-help">One per line. Includes everything under each.</p>
         <p class="acts left"><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
         <div class="areas-suggest" data-areas-list></div></div>
-      <div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(team.connection)}" placeholder="Default">
-        <p class="cfg-help">The Azure DevOps connection to use, by its name in Connections. Empty uses the default.</p></div>
+      ${many ? `<div class="cfg-row"><label for="tConn">Connection</label><select id="tConn" name="connection" class="cfg-input">${connOptions(team.connection, 'Default')}</select>
+        <p class="cfg-help">The Azure DevOps connection for your area paths. Pick another for any path that is in a different collection.</p>
+        <div data-area-conns></div></div>`
+      : `<div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(team.connection)}" placeholder="Default">
+        <p class="cfg-help">The Azure DevOps connection to use, by its name in Connections. Empty uses the default.</p></div>`}
       <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div></form>`;
+    if (many) paintAreaConns();
+  }
+  async function readConns() {
+    try {
+      const c = await ws.connectors.getConfig('ado');
+      conns = ((c && c.config && c.config.connections) || []).map(x => x && x.name).filter(n => typeof n === 'string' && n);
+    } catch { conns = []; }
   }
 
   /* ---------- the pages ---------- */
@@ -319,12 +345,21 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
       const msg = teamEl.querySelector('[data-areas-msg]'), list = teamEl.querySelector('[data-areas-list]');
       msg.textContent = 'Reading your work items...'; b.disabled = true;
       try {
-        const r = await ws.connectors.call('ado', 'areas.mine', {});
-        const areas = (r && r.areas) || [];
+        // With two or more connections, each one is asked, and a ticked path remembers the connection it came from.
+        const many = conns.length > 1;
+        const areas = [];
+        let failed = 0;
+        for (const name of many ? conns : ['']) {
+          try {
+            const r = await ws.connectors.call('ado', 'areas.mine', name ? { connection: name } : {});
+            for (const a of (r && r.areas) || []) areas.push({ ...a, connection: many ? name : '' });
+          } catch (err) { if (!many) throw err; failed++; }
+        }
         const box = teamEl.querySelector('#tAreas');
         const have = new Set(String(box.value).split('\n').map(x => x.trim()).filter(Boolean));
-        msg.textContent = areas.length ? 'Your open work items sit in these area paths. Tick the ones that are your team\'s, then Save.' : 'None of your open work items has an area path.';
-        list.innerHTML = areas.map(a => `<label class="member"><input type="checkbox" data-area="${esc(a.path)}"${have.has(a.path) ? ' checked' : ''}> <span class="mono">${esc(a.path)}</span> <span class="state">${plural(a.count, 'item')}</span></label>`).join('');
+        msg.textContent = (areas.length ? 'Your open work items sit in these area paths. Tick the ones that are your team\'s, then Save.' : 'None of your open work items has an area path.')
+          + (failed ? ` ${plural(failed, 'connection')} could not be read.` : '');
+        list.innerHTML = areas.map(a => `<label class="member"><input type="checkbox" data-area="${esc(a.path)}" data-conn="${esc(a.connection)}"${have.has(a.path) ? ' checked' : ''}> <span class="mono">${esc(a.path)}</span> <span class="state">${plural(a.count, 'item')}${a.connection ? `, ${esc(a.connection)}` : ''}</span></label>`).join('');
       } catch (err) {
         msg.textContent = /not (on|enabled)|disabled|not ready|connector/i.test(errText(err)) ? 'Connect Azure DevOps first (Azure DevOps, Connections), or type the paths in.' : errText(err);
       } finally { b.disabled = false; }
@@ -332,13 +367,18 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     }
   });
   teamEl.addEventListener('change', e => {
+    const sel = e.target.closest('[data-area-conn]');
+    if (sel) { areaConn[sel.dataset.areaConn] = sel.value; return; }
     const c = e.target.closest('[data-area]');
     if (!c) return;
     const box = teamEl.querySelector('#tAreas');
     const lines = String(box.value).split('\n').map(x => x.trim()).filter(Boolean);
     const next = c.checked ? [...new Set([...lines, c.dataset.area])] : lines.filter(x => x !== c.dataset.area);
     box.value = next.join('\n');
+    if (c.checked && c.dataset.conn) areaConn[c.dataset.area] = c.dataset.conn === (teamEl.querySelector('#tConn') || {}).value ? '' : c.dataset.conn;
+    paintAreaConns();
   });
+  teamEl.addEventListener('input', e => { if (e.target.id === 'tAreas') paintAreaConns(); });
 
   teamEl.addEventListener('submit', async e => {
     const tf = e.target.closest('[data-team-form]');
@@ -346,7 +386,8 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     e.preventDefault();
     const fd = new FormData(tf);
     try {
-      team = await ws.teams.setMine({ areas: fd.get('areas'), connection: fd.get('connection') });
+      // With one connection the page shows no per-path picks, so the saved ones are left as they are.
+      team = await ws.teams.setMine({ areas: fd.get('areas'), connection: fd.get('connection'), ...(conns.length > 1 ? { areaConnections: areaConn } : {}) });
       document.activeElement.blur();
       toast('Team area paths saved.', 'success');
       paintTeam();
@@ -356,6 +397,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   try { dir = await ws.people.get(); } catch (e) { q('.people-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; }
   paintPeople();
   ws.people.subscribe(next => { dir = next; if (!editing) paintPeople(); }); // don't redraw under an open form
+  await readConns();
   try { team = await ws.teams.get(); paintTeam(); } catch (e) { teamEl.querySelector('.team-body').innerHTML = `<p class="err">${esc(errText(e))}</p>`; }
   ws.teams.subscribe(next => { team = next; paintTeam(); });
 

@@ -6,15 +6,16 @@ import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
+import * as Teams from '../../../shared/teams.js';
 import { sendersFrom } from '../../../shared/handoffs.js';
 import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
 import {
   APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
-  levelOfType, needsAdoTitle, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
+  levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
 } from './model.js';
 import { outsideConfirmHtml } from '../../../shared/outside.js';
-import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
+import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
@@ -38,7 +39,7 @@ const ui = {
 const TABS = ['board', 'health'];
 const s = {
   conn: { ado: 'Checking…', opencode: 'Checking…' },
-  team: { areas: [], connection: '' },
+  team: { areas: [], connection: '', areaConnections: {} },
   people: People.EMPTY,
   backlog: [], backlogNote: '',
   pending: [],                 // Runway's Pending assignment ideas (its summary's `pending` card rows)
@@ -57,7 +58,7 @@ async function refresh({ backlog = true } = {}) {
   if (refreshing) return refreshing;
   refreshing = (async () => {
     s.conn = await connectorState(ws);
-    try { s.team = await ws.teams.get(); } catch { s.team = { areas: [], connection: '' }; }
+    try { s.team = await ws.teams.get(); } catch { s.team = { areas: [], connection: '', areaConnections: {} }; }
     await readWork();
     if (backlog) await readBacklog();
     if (backlog) await fillAdoTitles();
@@ -92,19 +93,36 @@ async function readWork() {
   try { await store.takeWork(offers); } catch { /* next refresh tries again */ }
 }
 
+/** True when the team's area paths are read on more than one connection (docs/teams.md rule 3). */
+const multiConn = () => Teams.groups(s.team).length > 1;
+const connArg = (name) => (name ? { connection: name } : {});
+/** The connection for a card's ADO calls: its own, else the team's. */
+const connOf = (c) => (c && c.ado && c.ado.connection) || s.team.connection || '';
+/** The backlog row for a card's ADO item, if it is in the backlog. */
+const backlogOf = (it) => (it && it.ado ? s.backlog.find(b => sameAdo(it.ado, b)) : null) || null;
+
+/** The open backlog in the team's areas: one read per connection, merged, each row with its connection. */
 async function readBacklog() {
   s.backlogNote = '';
   if (s.conn.ado !== true) { s.backlog = []; return; }
   if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths (Settings, People & teams, Team area paths) so Slate can list your ADO backlog. Home\'s Get started has a step for it.'; return; }
-  try {
-    const r = await ado(ws, 'backlog', { areas: s.team.areas, pointsFields: store.v.prefs.pointsFields, ...(s.team.connection ? { connection: s.team.connection } : {}) });
-    s.backlog = r.items || [];
-    if (r.truncated) s.backlogNote = `Showing the newest ${s.backlog.length} of ${r.total} open items.`;
-    else await closeFinished();
-  } catch (e) {
-    s.backlog = [];
-    s.backlogNote = `Could not read the ADO backlog: ${e.message}`;
+  const reads = [];
+  const notes = [];
+  let complete = true;
+  for (const g of Teams.groups(s.team)) {
+    const where = g.connection ? ` (${g.connection})` : '';
+    try {
+      const r = await ado(ws, 'backlog', { areas: g.areas, pointsFields: store.v.prefs.pointsFields, ...connArg(g.connection) });
+      reads.push({ connection: r.connection || g.connection, items: r.items || [] });
+      if (r.truncated) { complete = false; notes.push(`Showing the newest ${(r.items || []).length} of ${r.total} open items${where}.`); }
+    } catch (e) {
+      complete = false;
+      notes.push(`Could not read the ADO backlog${where}: ${e.message}`);
+    }
   }
+  s.backlog = mergeBacklogs(reads);
+  s.backlogNote = notes.join(' ');
+  if (complete) await closeFinished();
 }
 
 /**
@@ -113,10 +131,26 @@ async function readBacklog() {
  */
 async function fillAdoTitles() {
   if (s.conn.ado !== true) return;
-  const want = store.v.items.filter(needsAdoTitle).slice(0, 5);
+  const multi = multiConn();
+  const want = store.v.items.filter(it => needsAdoTitle(it) || needsAdoConnection(it, multi)).slice(0, 5);
   for (const it of want) {
-    let w = s.backlog.find(b => b.id === it.ado.id) || null;
-    if (!w) { try { w = await ado(ws, 'workitem.get', { id: it.ado.id, ...(s.team.connection ? { connection: s.team.connection } : {}) }); } catch { w = null; } }
+    // In the backlog once (by id when the card has no connection yet): that row, connection and all.
+    const rows = s.backlog.filter(b => sameAdo(it.ado, b));
+    let w = rows.length === 1 ? rows[0] : null;
+    if (!w && needsAdoConnection(it, multi)) {
+      // Ids are unique only within a collection: ask every connection, and keep the matches if more than one has it.
+      let found = null;
+      try { found = await ado(ws, 'workitem.find', { id: it.ado.id }); } catch { found = null; }
+      const next = found && adoFromFind(it.ado, found);
+      if (!next) continue;
+      const one = found.matches.length === 1 ? found.matches[0] : null;
+      await store.update(it.id, x => {
+        x.ado = { ...x.ado, ...next };
+        if (one && x.title === `#${x.ado.id}`) { x.title = String(one.title || x.title).slice(0, 255); if (one.type) x.level = levelOfType(one.type); }
+      }).catch(() => {});
+      continue;
+    }
+    if (!w) { try { w = await ado(ws, 'workitem.get', { id: it.ado.id, details: true, ...connArg(connOf(it)) }); } catch { w = null; } }
     if (!w || !w.title) continue;
     await store.update(it.id, x => {
       const was = x.title === `#${x.ado.id}`;
@@ -135,13 +169,12 @@ async function fillAdoTitles() {
  */
 const stateChecked = new Map(); // item id -> ms of the last read
 async function closeFinished() {
-  const open = new Set(s.backlog.map(b => b.id));
-  const gone = store.v.items.filter(it => it.ado && ['delegated', 'dev', 'resolved'].includes(it.stage) && !open.has(it.ado.id))
+  const gone = store.v.items.filter(it => it.ado && ['delegated', 'dev', 'resolved'].includes(it.stage) && !backlogOf(it))
     .sort((a, b) => (stateChecked.get(a.id) || 0) - (stateChecked.get(b.id) || 0)).slice(0, 15);
   for (const it of gone) {
     let w = null;
     stateChecked.set(it.id, Date.now());
-    try { w = await ado(ws, 'workitem.get', { id: it.ado.id, details: true, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch { continue; }
+    try { w = await ado(ws, 'workitem.get', { id: it.ado.id, details: true, ...connArg(connOf(it)) }); } catch { continue; }
     if (!w) continue;
     const resolved = /^resolved$/i.test(w.state || '');
     const closed = /^(closed|done|removed)$/i.test(w.state || '');
@@ -168,7 +201,7 @@ async function checkPrs({ only = null } = {}) {
   for (const it of list) {
     prsChecked.set(it.id, Date.now());
     let r = null;
-    try { r = await ado(ws, 'workitem.prs', { id: it.ado.id, ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); } catch (e) { if (only) throw e; continue; }
+    try { r = await ado(ws, 'workitem.prs', { id: it.ado.id, ...connArg(connOf(it)) }); } catch (e) { if (only) throw e; continue; }
     const prs = { status: r.status, at: new Date().toISOString(), list: (r.prs || []).filter(p => p.status !== 'missing').map(p => ({ id: p.id, status: p.status, title: p.title, repository: p.repository, url: p.url })) };
     const same = JSON.stringify({ ...(it.prs || {}), at: '' }) === JSON.stringify({ ...prs, at: '' });
     if (same && r.status !== 'merged') continue;
@@ -330,7 +363,7 @@ function findCard(id) {
   if (!id) return null;
   const stored = store.v.items.find(x => x.id === id);
   if (stored) return stored;
-  if (id.startsWith('ado_')) { const b = s.backlog.find(x => `ado_${x.id}` === id); return b ? cards([], [b])[0] : null; }
+  if (id.startsWith('ado_')) { const b = s.backlog.find(x => virtualAdoId(x) === id); return b ? cards([], [b])[0] : null; }
   if (id.startsWith('rw_')) return pendingCards().find(x => x.id === id) || null;
   return null;
 }
@@ -360,7 +393,7 @@ let summaryTimer = null;
 function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(() => {
-    const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), shapeAsking: it.stage === 'shaping' && shapeState(filesOf(it.work.shape), itemAgent(it)).asking, adoNow: (s.backlog.find(b => it.ado && b.id === it.ado.id)) || null }));
+    const items = store.v.items.map(it => ({ ...it, draftReady: ['approve', 'approve-stories', 'approve-milestones'].includes(draftState(it, filesOf(it.work.define)).step), shapeAsking: it.stage === 'shaping' && shapeState(filesOf(it.work.shape), itemAgent(it)).asking, adoNow: backlogOf(it) }));
     const cards = summaryCards(items, { columnOf, agentOf: itemAgent });
     const held = focusHold.card();
     if (held) cards.push(held);
@@ -484,13 +517,14 @@ function paintPanel() {
 
 /* ---------- the open item's ADO fields (workitem.get with extras), read when the panel opens ---------- */
 
-const connOf = (c) => (c.ado && c.ado.connection) || s.team.connection || '';
+/** The details cache key: the id, and the connection when the card has one (ids repeat across collections). */
+const detailsKey = (c) => `${(c.ado && c.ado.connection) || ''}#${c.ado.id}`;
 const prefsKey = () => JSON.stringify([customRefs(store.v.prefs), store.v.prefs.pointsFields]);
 
 /** Read the item from ADO unless what is cached is for this rev and these field settings. Repaints when done. */
 function wantDetails(c) {
   if (!c || !c.ado || s.conn.ado !== true) return;
-  const key = String(c.ado.id);
+  const key = detailsKey(c);
   const rev = Number((c.adoNow && c.adoNow.rev) || c.ado.rev) || 0;
   const have = s.details.get(key);
   if (have && (have.loading || (have.rev === rev && have.key === prefsKey()))) return;
@@ -500,7 +534,7 @@ function wantDetails(c) {
   ado(ws, 'workitem.get', { id: c.ado.id, details: true, extras: true, pointsFields: store.v.prefs.pointsFields, fields: customRefs(store.v.prefs), ...(conn ? { connection: conn } : {}) })
     .then(w => { d.data = w; })
     .catch(e => { d.error = `Could not read #${key} from ADO: ${e && e.message ? e.message : 'unknown error'}`; })
-    .finally(() => { d.loading = false; const o = findCard(ui.open); if (o && o.ado && String(o.ado.id) === key) paintPanel(); });
+    .finally(() => { d.loading = false; const o = findCard(ui.open); if (o && o.ado && detailsKey(o) === key) paintPanel(); });
 }
 
 const runwayOn = () => s.apps.some(a => a.id === 'runway') || !s.apps.length;
@@ -513,7 +547,7 @@ function mountHealth() {
 function sprintsView() {
   if (s.conn.ado !== true) return sprintsHtml({ note: typeof s.conn.ado === 'string' ? `Sprints come from Azure DevOps. ${s.conn.ado}` : 'Checking Azure DevOps…' });
   if (!s.sprints) { loadSprints(); return '<p class="loading">Reading sprints…</p>'; }
-  const items = store.v.items.filter(it => it.ado && !['done'].includes(it.stage)).map(it => ({ ...it, adoNow: s.backlog.find(b => b.id === it.ado.id) || it.adoNow || null }));
+  const items = store.v.items.filter(it => it.ado && !['done'].includes(it.stage)).map(it => ({ ...it, adoNow: backlogOf(it) || it.adoNow || null }));
   const people = (s.people.people || []).filter(p => !p.archived && p.adoIdentity);
   return sprintsHtml({ sprints: s.sprints, groups: bySprint(items), people, note: s.sprintNote });
 }
@@ -521,8 +555,9 @@ async function loadSprints() {
   if (s.loadingSprints) return;
   s.loadingSprints = true;
   try {
-    const project = (s.backlog[0] && s.backlog[0].url && decodeURIComponent((/\/([^/]+)\/_workitems\//.exec(s.backlog[0].url) || [])[1] || '')) || undefined;
-    const r = await ado(ws, 'iterations.list', { ...(project ? { project } : {}), ...(s.team.connection ? { connection: s.team.connection } : {}) });
+    const first = s.backlog[0];
+    const project = (first && first.url && decodeURIComponent((/\/([^/]+)\/_workitems\//.exec(first.url) || [])[1] || '')) || undefined;
+    const r = await ado(ws, 'iterations.list', { ...(project ? { project } : {}), ...connArg((first && first.connection) || s.team.connection) });
     s.sprints = (r.iterations || []).filter(x => x.path);
     s.sprintNote = s.sprints.length ? '' : 'No sprints in this project yet.';
   } catch (e) { s.sprints = []; s.sprintNote = `Could not read sprints: ${e.message}`; }
@@ -544,8 +579,8 @@ async function ensureStored(c) {
     ui.open = it.id;
     return store.v.items.find(x => x.id === it.id);
   }
-  const b = c.virtual ? s.backlog.find(x => `ado_${x.id}` === c.id) : null;
-  const it = b ? newItem({ title: b.title, ado: { ...b, connection: s.team.connection || '' } }) : newItem({ title: c.title, ado: c.ado && c.ado.id ? { id: c.ado.id, type: 'User Story' } : null });
+  const b = c.virtual ? s.backlog.find(x => virtualAdoId(x) === c.id) : null;
+  const it = b ? newItem({ title: b.title, ado: { ...b, connection: b.connection || s.team.connection || '' } }) : newItem({ title: c.title, ado: c.ado && c.ado.id ? { id: c.ado.id, type: 'User Story' } : null });
   if (c.virtualRun) setStage(it, 'dev');
   await store.change(list => list.push(it));
   ui.open = it.id;
@@ -700,7 +735,7 @@ const ACT = {
     const t = parseTriage(filesOf(c.work.triage)['triage.md']);
     const text = questionsText(c, t);
     showDialog(outsideConfirmHtml({ cls: 'dlg', title: `Post the questions on #${c.ado.id}?`, body: `Adds this comment to its Discussion, where whoever asked can answer:\n\n${text}`, ok: 'Post them' }), async () => {
-      const conn = c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
+      const conn = connArg(connOf(c));
       const w = await ado(ws, 'workitem.get', { id: c.ado.id, ...conn });
       const out = await ado(ws, 'workitem.update', { id: c.ado.id, rev: w.rev, changes: { comment: text }, ...conn }, { confirm: true });
       await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev || x.ado.rev }; x.asked = { id: c.ado.id, at: new Date().toISOString() }; setStage(x, 'waiting'); });
@@ -710,7 +745,7 @@ const ACT = {
   /** Comments on the ADO item since the questions were posted, into the answers box (nothing is saved yet). */
   async 'read-replies'(c) {
     if (!c.ado) return;
-    const w = await ado(ws, 'workitem.get', { id: c.ado.id, comments: true, ...(c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {}) });
+    const w = await ado(ws, 'workitem.get', { id: c.ado.id, comments: true, ...connArg(connOf(c)) });
     const text = repliesSince(w.comments || [], c.asked && c.asked.at);
     if (!text) return ws.toast(`No replies on #${c.ado.id} since the questions went up.`, { kind: 'info' });
     const box = $('answers');
@@ -801,14 +836,14 @@ const ACT = {
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
     const plan = publishPlan(c, files, { area });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
-    showDialog(publishDialogHtml(plan, { area }), () => runPublish(c, plan));
+    showDialog(publishDialogHtml(plan, { area, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan));
   },
   /** Publish, then build it myself: one confirm that lists both. */
   async 'publish-build'(c) {
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
     const plan = publishPlan(c, filesOf(c.work.define), { area });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
-    showDialog(publishDialogHtml(plan, { area, build: true }), () => runPublish(c, plan, { then: 'build' }));
+    showDialog(publishDialogHtml(plan, { area, build: true, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan, { then: 'build' }));
   },
   async delegate(c) {
     const owners = ownersOf(c);
@@ -822,7 +857,7 @@ const ACT = {
       if (form.assign.checked && c.ado) {
         if (!person.adoIdentity) ws.toast(`${person.name} has no ADO identity in People, so ADO was not changed.`, { kind: 'warn' });
         else {
-          const out = await ado(ws, 'workitem.update', { id: c.ado.id, rev: (c.adoNow || c.ado).rev, changes: { assignedTo: person.adoIdentity }, ...(c.ado.connection ? { connection: c.ado.connection } : {}) }, { confirm: true });
+          const out = await ado(ws, 'workitem.update', { id: c.ado.id, rev: (c.adoNow || c.ado).rev, changes: { assignedTo: person.adoIdentity }, ...connArg(connOf(c)) }, { confirm: true });
           await store.update(c.id, x => { x.ado = { ...x.ado, rev: out.rev }; });
         }
       }
@@ -873,16 +908,47 @@ const ACT = {
     const raw = String(($('linkAdo') && $('linkAdo').value) || '').trim().replace(/^#/, '');
     if (!/^\d{1,10}$/.test(raw)) return ws.toast('Type the work item number, like 12345.', { kind: 'warn' });
     if (s.conn.ado !== true) return ws.toast('Turn on the Azure DevOps connector to link an item.', { kind: 'warn' });
-    const conn = s.team.connection ? { connection: s.team.connection } : {};
-    const w = await ado(ws, 'workitem.get', { id: Number(raw), details: true, ...conn });
-    const other = store.v.items.find(x => x.id !== c.id && x.ado && x.ado.id === w.id);
-    if (other) return ws.toast(`#${w.id} is already on the card "${other.title}".`, { kind: 'warn' });
-    showDialog(linkAdoDialogHtml(w), async () => {
+    const id = Number(raw);
+    const save = async (w) => {
+      const other = store.v.items.find(x => x.id !== c.id && x.ado && sameAdo(x.ado, w));
+      if (other) throw new Error(`#${w.id} is already on the card "${other.title}".`);
       await store.update(c.id, x => { x.ado = { id: w.id, rev: 0, type: w.type || '', url: w.url || '', connection: w.connection || '', area: w.area || '', state: w.state || '' }; });
       prsChecked.delete(c.id);
-      ws.toast(`Linked #${w.id}.`, { kind: 'success' });
+      ws.toast(`Linked #${w.id}${multiConn() && w.connection ? ` (${w.connection})` : ''}.`, { kind: 'success' });
       refresh().catch(() => {});
+    };
+    // Your areas in more than one collection: the id is looked up on every connection, and you pick when it is in more than one.
+    if (multiConn()) {
+      const found = await ado(ws, 'workitem.find', { id });
+      const m = found.matches || [];
+      if (!m.length) throw new Error(`#${id} was not found on any connection${found.failed && found.failed.length ? ` that could be read (${found.failed.map(f => f.connection).join(', ')} could not)` : ''}.`);
+      if (m.length === 1) return showDialog(linkAdoDialogHtml(m[0]), () => save(m[0]));
+      return showDialog(linkPickDialogHtml(id, m), (form) => {
+        const pick = m.find(x => x.connection === (new FormData(form)).get('conn'));
+        if (!pick) throw new Error('Pick the collection it is in.');
+        return save(pick);
+      });
+    }
+    const w = await ado(ws, 'workitem.get', { id, details: true, ...connArg(s.team.connection) });
+    const other = store.v.items.find(x => x.id !== c.id && x.ado && sameAdo(x.ado, w));
+    if (other) return ws.toast(`#${w.id} is already on the card "${other.title}".`, { kind: 'warn' });
+    showDialog(linkAdoDialogHtml(w), () => save(w));
+  },
+  /** An id that is in more than one collection: use the one you picked, and fill the card from it. */
+  async 'pick-conn'(c, b) {
+    const it = store.v.items.find(x => x.id === c.id);
+    const m = it && it.ado && (it.ado.choices || []).find(x => x.connection === b.dataset.conn);
+    if (!m) return;
+    const other = store.v.items.find(x => x.id !== it.id && x.ado && x.ado.connection === m.connection && x.ado.id === it.ado.id);
+    if (other) return ws.toast(`#${it.ado.id} in ${m.connection} is already on the card "${other.title}".`, { kind: 'warn' });
+    await store.update(it.id, x => {
+      x.ado = { ...x.ado, ...pickFields(m) };
+      delete x.ado.choices;
+      if (x.title === `#${x.ado.id}` && m.title) { x.title = m.title.slice(0, 255); if (m.type) x.level = levelOfType(m.type); }
     });
+    s.details.delete(`#${it.ado.id}`);
+    ws.toast(`#${it.ado.id} is the one in ${m.connection}.`, { kind: 'success' });
+    refresh().catch(() => {});
   },
   async 'check-prs'(c) {
     await checkPrs({ only: c.id });
@@ -913,7 +979,7 @@ const ACT = {
     const notes = {};
     if (ref && s.conn.ado === true) {
       for (const it of g.items.filter(x => x.ado).slice(0, 50)) {
-        try { const w = await ado(ws, 'workitem.get', { id: it.ado.id, extras: true, fields: [ref], ...(it.ado.connection ? { connection: it.ado.connection } : {}) }); notes[it.id] = (w.custom || {})[ref] || ''; } catch { /* the title still goes in */ }
+        try { const w = await ado(ws, 'workitem.get', { id: it.ado.id, extras: true, fields: [ref], ...connArg(connOf(it)) }); notes[it.id] = (w.custom || {})[ref] || ''; } catch { /* the title still goes in */ }
       }
     }
     const md = releaseNotesMd(g, notes);
@@ -1019,7 +1085,7 @@ function groupOf(key) {
 
 /** Change an ADO item's state, with the rev read just before (someone may have changed it since the board loaded). */
 async function setAdoState(it, state) {
-  const conn = it.ado.connection ? { connection: it.ado.connection } : {};
+  const conn = connArg(connOf(it));
   let rev = it.ado.rev;
   try { const w = await ado(ws, 'workitem.get', { id: it.ado.id, extras: true, ...conn }); rev = w.rev || rev; } catch { /* try with what we have */ }
   if (!rev) { const w = await ado(ws, 'workitem.get', { id: it.ado.id, ...conn }); rev = w.rev; }
@@ -1082,9 +1148,15 @@ async function approveManual(c) {
   ws.toast('Approved.', { kind: 'success' });
 }
 
+/** A card already in ADO stays on its item's connection; new items go to the connection of the area they are made in. */
+function publishConn(c, plan) {
+  const made = plan.find(p => p.fields && p.fields.area);
+  return (c.ado && c.ado.connection) || Teams.connectionForPath(s.team, made ? made.fields.area : '') || s.team.connection || '';
+}
+
 async function runPublish(c, plan, { then = null } = {}) {
   const ids = { ...(c.published || {}) };
-  const conn = c.ado && c.ado.connection ? { connection: c.ado.connection } : s.team.connection ? { connection: s.team.connection } : {};
+  const conn = connArg(publishConn(c, plan));
   let first = null;
   let linkTo = null;
   for (const p of plan) {
@@ -1191,9 +1263,9 @@ document.addEventListener('change', async (e) => {
 function sprintChange(sel) {
   const it = store.v.items.find(x => x.id === (sel.dataset.sprint || sel.dataset.assign));
   if (!it || !it.ado) return;
-  const now = s.backlog.find(b => b.id === it.ado.id) || {};
+  const now = backlogOf(it) || {};
   const rev = now.rev || it.ado.rev;
-  const conn = it.ado.connection ? { connection: it.ado.connection } : {};
+  const conn = connArg(connOf(it));
   let changes, what;
   if (sel.dataset.sprint) {
     if (!sel.value) { ws.toast('Pick a sprint. To take it out of every sprint, change it in ADO.', { kind: 'warn' }); paint(); return; }

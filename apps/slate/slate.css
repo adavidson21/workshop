@@ -228,3 +228,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .dlg:has(input[name=assign]:checked) p.when-assign{display:flex}
 .dlg:has(input[name=assign]:checked) span.when-assign{display:inline}
 .check .out-mark{margin-left:.3rem}
+/* An id in more than one collection: pick which one (panel and Link ADO item). */
+.pick-acts{flex-wrap:wrap}
+.pick-list{display:grid;gap:.4rem;margin:.6rem 0}
+.pick-row{display:flex;gap:.5rem;align-items:baseline;cursor:pointer}

@@ -264,9 +264,10 @@ export async function syncPrs(d, knownList) {
  * "areas.mine": the area paths of your open work items (the same items sync reads), with how many items sit in
  * each, most first. For Settings' Team area paths "Suggest from ADO". Read only. Resolves {areas: [{path, count}]}.
  */
-export async function areasMine(d) {
+export async function areasMine(d, args = {}) {
   const { cfg } = d;
-  const ado = clientFor(syncConnection(cfg), d.env, d.signal);
+  const conn = args.connection ? resolveConnection(cfg, { connection: args.connection }).connection : syncConnection(cfg);
+  const ado = clientFor(conn, d.env, d.signal);
   const types = wiqlList(cfg.types);
   const done = wiqlList([...cfg.closedStates, ...cfg.removedStates]);
   const mine = await ado.wiql(`[System.AssignedTo] = @Me AND [System.WorkItemType] IN (${types}) AND [System.State] NOT IN (${done})`);
@@ -276,5 +277,5 @@ export async function areasMine(d) {
     const a = get(w.fields || {}, 'System.AreaPath', '');
     if (a) counts.set(a, (counts.get(a) || 0) + 1);
   }
-  return { areas: [...counts].map(([path, count]) => ({ path, count })).sort((x, y) => y.count - x.count || x.path.localeCompare(y.path)).slice(0, 50) };
+  return { connection: conn.name, areas: [...counts].map(([path, count]) => ({ path, count })).sort((x, y) => y.count - x.count || x.path.localeCompare(y.path)).slice(0, 50) };
 }

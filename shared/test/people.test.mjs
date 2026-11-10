@@ -266,11 +266,11 @@ test('ws.teams: reads your team from Settings\' teams collection and saves area 
     subscribe() { return () => {}; }
   };
   const teams = _internals.teamsService(data);
-  assert.deepEqual(await teams.get(), { name: 'My team', areas: [], connection: '' });
+  assert.deepEqual(await teams.get(), { name: 'My team', areas: [], connection: '', areaConnections: {} });
   const heard = [];
   teams.subscribe(t => heard.push(t.areas.length));
-  const t = await teams.setMine({ areas: 'Project\\Team\nProject\\Other', connection: 'work' });
-  assert.deepEqual(t, { name: 'My team', areas: ['Project\\Team', 'Project\\Other'], connection: 'work' });
+  const t = await teams.setMine({ areas: 'Project\\Team\nProject\\Other', connection: 'work', areaConnections: { 'Project\\Other': 'apps' } });
+  assert.deepEqual(t, { name: 'My team', areas: ['Project\\Team', 'Project\\Other'], connection: 'work', areaConnections: { 'Project\\Other': 'apps' } });
   assert.equal(stored.schema, 'settings.teams');
   assert.deepEqual(heard, [2]);
   stored = { ...stored, version: 2 };
