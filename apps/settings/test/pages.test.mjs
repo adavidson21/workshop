@@ -95,3 +95,10 @@ test('every page is in a group the nav knows', () => {
   const groups = new Set(P.GROUPS.map(g => g.id));
   for (const [id, p] of Object.entries(P.PAGES)) assert.ok(groups.has(p.group), id);
 });
+
+test('Products sits in Code & agents, above Repos, and works with no connector', () => {
+  assert.equal(P.PAGES.products.group, 'code');
+  assert.equal(P.PAGES.products.owner, undefined);
+  assert.ok(P.ORDER.indexOf('products') < P.ORDER.indexOf('repos'));
+  assert.deepEqual(P.routeToPage('products'), { page: 'products' });
+});

@@ -25,6 +25,7 @@ import * as R from './repos.js';
 import * as P from './pages.js';
 import { mountPeople } from './people.js';
 import { mountFocus } from './focus-page.js';
+import { mountProducts } from './products-page.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -176,7 +177,14 @@ ws.on('route', ({ path } = {}) => {
   if (r.focus === 'you') { if (people) people.command('add-you', r.name); else pendingCommands.push(['add-you', r.name]); }
 });
 // Commands from the palette (Add a person, Add a group) open People & groups with the form.
+let products = null, pendingProduct = false;
 ws.on('command', ({ id } = {}) => {
+  if (id === 'add-product') {
+    wantPage = 'products';
+    if (pages.has('products')) selectPage('products');
+    if (products) products.command(id); else pendingProduct = true;
+    return;
+  }
   if (id !== 'add-person' && id !== 'add-group') return;
   wantPage = 'people';
   selectPage('people');
@@ -1431,6 +1439,15 @@ async function peoplePages() {
   } catch (e) { card('', '', 'people').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }
 
+/* ---------- Products (products-page.js, docs/products.md) ---------- */
+async function productsPage() {
+  try {
+    products = await mountProducts({ ws, toast, el: page('products') });
+    if (pendingProduct && products) { pendingProduct = false; products.command('add-product'); }
+  }
+  catch (e) { card('', '', 'products').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
+}
+
 /* ---------- Focus hours (focus-page.js, docs/focus.md) ---------- */
 async function focusPage() {
   try { await mountFocus({ ws, el: page('focus'), toast }); }
@@ -1452,6 +1469,7 @@ async function start() {
       await folderCard(cfg);
       await peoplePages();
       const list = await connectorsSetup();
+      await productsPage();
       statusCard();
       await reposTab(list);
       updateGates();
@@ -1467,6 +1485,7 @@ async function start() {
     await focusPage();
     await folderCard(null);
     await peoplePages();
+    await productsPage();
   }
   dataCard();
   tipsCard();
