@@ -101,7 +101,7 @@ The Worker is named `receipts` and serves the custom domain `receipts.alexisdavi
 
 ### Releases and work mode
 
-This repo is the only copy of Rapport. Workshop serves it from here (a service binding on its site, and a `receipts` clone next to Workshop in work mode), like Docket and Runway. Work mode installs and updates only by release tag: Actions > Release > Run workflow, with a tag like `v3.0.0`. Workshop's `workshop update --latest` picks up the newest one.
+This repo is the only copy of Rapport. Workshop serves it from here (a service binding on its site, and a `receipts` clone next to Workshop in work mode), like Docket and Runway. Work mode installs and updates only by release tag (like `v3.0.0`). A release is made on its own when checks pass on main with a new version in `app.json`; Actions > Release > Run workflow does it by hand. Workshop's `workshop update --latest` picks up the newest one.
 
 ## License
 
