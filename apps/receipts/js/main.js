@@ -33,7 +33,7 @@ const store = {};
 const blank = name => ({ schema: `${R.APP}.${name}`, version: R.VERSION, rev: 0, items: [], deleted: {}, ...(name === 'config' ? { meta: { ...R.DEFAULT_CONFIG, updatedAt: 0 } } : {}) });
 
 // Rapport's summary for other apps (R.summaryCards): written after loading and after each save of entries.
-const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries, { due: oo && oo.dueList ? oo.dueList() : [], today: R.isoDay(new Date()) }).concat(held.card() ? [held.card()] : []) : null });
+const summary = createSummaryWriter({ data: ws.data, app: R.APP, build: () => store.entries && store.entries.version === R.VERSION ? R.summaryCards(store.entries, { due: oo && oo.dueList ? oo.dueList() : [], upcoming: oo && oo.upcomingList ? oo.upcomingList() : [], cycleEnd: cfg().cycleEnd || '', today: R.isoDay(new Date()) }).concat(held.card() ? [held.card()] : []) : null });
 // Focus hours (Workshop docs/focus.md): receipts picked up during focus or lunch are added as always, without a toast,
 // and counted in Rapport's `held` summary card for Workshop's release toast and Dispatch's digest.
 const held = createHolder(ws, { label: n => `${n} receipt${n === 1 ? '' : 's'} picked up`, route: 'me', onChange: () => summary.schedule() });
@@ -324,17 +324,20 @@ function meView() {
   const all = entries();
   const list = R.filterEntries(all, { about: 'me', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
   const rev = R.buildReview(all, { about: 'me', period, sections: cfg().sections });
-  return `<div class="stats">
+  return feedSplit(`<div class="stats">
       ${stat(rev.total, period.label)}
       ${stat(rev.kinds.win, 'Wins')}
       ${stat(rev.starred, 'Starred')}
       <button class="stat link${rev.gaps.length ? ' warn' : ''}" data-act="go" data-path="review" data-about="me">${`<b class="mono">${rev.gaps.length}</b><span>Sections with no receipts</span>`}</button>
     </div>
     ${offersHtml()}
-    ${composerHtml('me', 'What did you do?')}
-    ${filtersHtml('me')}
-    <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Add one above.')}</div>`;
+    ${composerHtml('me', 'What did you do?')}`,
+    `${filtersHtml('me')}
+    <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Add one above.')}</div>`);
 }
+
+/* On a laptop or larger (app.css), adding sits in a sticky left column beside the list; in half a screen they stack. */
+const feedSplit = (side, main) => `<div class="feedsplit"><div class="fs-side">${side}</div><div class="fs-main">${main}</div></div>`;
 
 function teamView() {
   const ps = people();
@@ -384,11 +387,11 @@ function personView(id) {
     ${S.addingPerson === id ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
     ${p.archived ? '' : oo.panel(id, p.name)}
     <h3 class="section-label rhead">Receipts</h3>
-    <div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
+    ${feedSplit(`<div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
     ${offersHtml(id)}
-    ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
-    ${filtersHtml(key)}
-    <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : `No receipts for ${p.name.split(' ')[0] || 'this report'} yet. Add one above.`)}</div>`;
+    ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}`,
+    `${filtersHtml(key)}
+    <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : `No receipts for ${p.name.split(' ')[0] || 'this report'} yet. Add one above.`)}</div>`)}`;
 }
 
 function upView() {
@@ -400,9 +403,9 @@ function upView() {
   const list = R.filterEntries(all, { about: 'up', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
   const mgr = D.manager(dir) ? oo.findByPerson(D.manager(dir).id) : null;
   return `${mgr ? `<div class="bar"><span class="grow"></span><button class="btn" data-act="go" data-path="1on1s/${esc(mgr.id)}">1:1s with ${esc(mgr.name)}</button></div>` : ''}
-    ${composerHtml('up', 'Support you got, an ask, or feedback to share')}
-    ${filtersHtml('up')}
-    <div class="list">${feedHtml(list, all.some(e => e.about === 'up') ? 'Nothing matches these filters.' : 'No upward notes yet. Add one above.')}</div>`;
+    ${feedSplit(composerHtml('up', 'Support you got, an ask, or feedback to share'),
+    `${filtersHtml('up')}
+    <div class="list">${feedHtml(list, all.some(e => e.about === 'up') ? 'Nothing matches these filters.' : 'No upward notes yet. Add one above.')}</div>`)}`;
 }
 
 function reviewView() {
@@ -510,7 +513,6 @@ function paint() {
   else if (view === 'review') body = reviewView();
   else if (view === 'settings') body = settingsView(folderStatus);
   else body = meView();
-  app.classList.toggle('wide', oo.isWide() || goals.isWide());
   app.innerHTML = `<header class="head">
       <h1 class="page-title">${esc(title)}</h1>
     </header>

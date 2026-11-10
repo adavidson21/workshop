@@ -231,3 +231,16 @@ test('oldReports: Rapport 2.x reports become directory people with their ids', (
   assert.deepEqual(R.oldReports({ ...env, version: 2 }), []);
   assert.deepEqual(R.oldReports({ ...env, schema: 'settings.people' }), []);
 });
+
+test('summary: upcoming lists 1:1s due in the next 14 days and the review cycle end, soonest first', () => {
+  const env = { schema: 'receipts.entries', version: R.VERSION, rev: 1, items: [] };
+  const cards = R.summaryCards(env, { today: '2026-11-10', cycleEnd: '2026-11-20', upcoming: [
+    { id: 'o1', name: 'Dev A', due: '2026-11-12', route: 'team/p_a' },
+    { id: 'o2', name: 'Peer B', due: '2026-12-30', route: '1on1s/o2' },
+    { id: 'o3', name: 'Mgr C', due: '2026-11-10', route: '1on1s/o3' }] });
+  const up = cards.find(c => c.id === 'upcoming');
+  assert.equal(up.kind, 'list');
+  assert.deepEqual(up.rows.map(r => [r.title, r.due, r.note]), [['1:1 with Mgr C', '2026-11-10', '1:1'], ['1:1 with Dev A', '2026-11-12', '1:1'], ['Review cycle ends', '2026-11-20', 'Review']]);
+  assert.equal(up.rows[1].route, 'team/p_a');
+  assert.equal(R.summaryCards(env, {}).find(c => c.id === 'upcoming'), undefined, 'needs today');
+});

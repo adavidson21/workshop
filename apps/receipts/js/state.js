@@ -313,13 +313,22 @@ export function sendersFrom(apps, self = APP, fallback = SENDERS) {
      needs      1:1s that are due (Home's Needs you): a name and how long since the last one, nothing from the notes
      done-week  your own wins logged in the last 7 days (Home's weekly status). Never receipts about anyone else:
                 feedback, growth and concerns about people stay in Rapport.
-   due: [{id, name, days, route}] from the 1:1s page; today: YYYY-MM-DD. */
-export const summaryCards = (entriesEnv, { due = [], today = '' } = {}) => {
+     upcoming   dated things in the next 14 days (Home's Coming up): when each 1:1 is due by cadence, and the review
+                cycle's end. Names and days only.
+   due: [{id, name, days, route}] and upcoming: [{id, name, due, route}] from the 1:1s page; cycleEnd: the review
+   cycle's last day or ''; today: YYYY-MM-DD. */
+export const summaryCards = (entriesEnv, { due = [], upcoming = [], cycleEnd = '', today = '' } = {}) => {
   const live = (entriesEnv && Array.isArray(entriesEnv.items) ? entriesEnv.items : []).filter(e => e && !e.deleted);
   const cards = [{ id: 'entries', kind: 'count', title: 'Receipts', count: live.length, route: 'me' }];
   cards.push({ id: 'needs', kind: 'list', title: '1:1s due', count: due.length, route: '1on1s',
     rows: due.slice(0, 20).map(d => ({ id: String(d.id), title: `1:1 with ${String(d.name || 'someone').slice(0, 180)}`, note: d.days == null ? 'No 1:1 yet' : `${d.days} days since the last one`, route: d.route || '1on1s', flag: 'waiting' })) });
   if (today) {
+    const until = isoDay(new Date(new Date(today + 'T12:00:00').getTime() + 14 * 864e5));
+    const soon = upcoming.filter(u => u && typeof u.due === 'string' && u.due >= today && u.due <= until)
+      .map(u => ({ id: `1on1-${String(u.id)}`, title: `1:1 with ${String(u.name || 'someone').slice(0, 180)}`, due: u.due, note: '1:1', route: u.route || '1on1s' }));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cycleEnd) && cycleEnd >= today && cycleEnd <= until) soon.push({ id: 'cycle-end', title: 'Review cycle ends', due: cycleEnd, note: 'Review', route: 'review' });
+    soon.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+    cards.push({ id: 'upcoming', kind: 'list', title: 'Coming up', count: soon.length, rows: soon.slice(0, 20) });
     const from = isoDay(new Date(new Date(today + 'T12:00:00').getTime() - 6 * 864e5));
     const wins = live.filter(e => (e.about || 'me') === 'me' && e.kind === 'win' && typeof e.date === 'string' && e.date >= from && e.date <= today)
       .sort((a, b) => (a.date < b.date ? 1 : -1));

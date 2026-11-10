@@ -9,7 +9,7 @@
    with view() (the 1:1s tab) and panel() (a report's page). Clicks on this module's controls are handled here
    by their data- attributes. data.js loads and saves; model.js, view.js and markdown.js are pure. */
 import { createOneOnOnes } from './data.js';
-import { DEFAULT_CADENCE, NOTES, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc } from './model.js';
+import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard, startPanelHtml } from './view.js';
 
 /**
@@ -489,5 +489,15 @@ export function createOneOnOnesPage(ws, root, host) {
     if (!v.loaded) return [];
     return rows().filter(r => r.due).map(r => { const rid = reportOf(r.person); return { id: r.person.id, name: r.person.name, days: r.days, route: rid ? `team/${rid}` : `1on1s/${r.person.id}` }; });
   }
-  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, dueList, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
+  // When each 1:1 is next due by cadence (Home's Coming up): the day after the last one plus the cadence, or today.
+  function upcomingList() {
+    if (!v.loaded) return [];
+    const t = today();
+    return rows().map(r => {
+      const rid = reportOf(r.person);
+      const next = r.lastDay ? addDays(r.lastDay, r.person.cadenceDays) : t;
+      return { id: r.person.id, name: r.person.name, due: next < t ? t : next, route: rid ? `team/${rid}` : `1on1s/${r.person.id}` };
+    });
+  }
+  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, dueList, upcomingList, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
 }
