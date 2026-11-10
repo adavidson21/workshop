@@ -32,6 +32,8 @@ function addTask(text, attrs = {}){
   // >@name: handed over, so waiting on them with a follow-up date (delegate-model.js).
   if (p.delegate){ t.waiting = true; t.nudgeOn = followDate(); }
   if (ado) t.ado = ado;
+  // +product (products-link.js): an extra field, only when there is one.
+  if (p.product || attrs.product) t.product = p.product || attrs.product;
   state.tasks.push(t);
   commit();
   return t;

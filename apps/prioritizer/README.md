@@ -123,7 +123,7 @@ Rows and headers use small line icons instead of words; hover (or long-press) an
 
 ### Row fields
 
-The sliders button at the bottom of the sidebar picks which optional fields rows show: ADO item and PR numbers, AI review, agent status, due date, repeat, waiting, untouched a while, people, list color, where you left off, score, and the Start and Today buttons. A preview row shows the result as you go; changes apply on **Save**, and **Reset to defaults** shows everything again. It is one setting for every view, the Day view included, saved with the board so every window and Workshop follow it. It only hides: a view that already leaves a field out still does. Alerts that need you show either way (overdue, a blocking or asked PR, a nudge that is due, still urgent, and Pause on the task you are working on), and a task's details always show everything.
+The sliders button at the bottom of the sidebar picks which optional fields rows show: ADO item and PR numbers, AI review, agent status, due date, repeat, waiting, untouched a while, people, product, list color, where you left off, score, and the Start and Today buttons. A preview row shows the result as you go; changes apply on **Save**, and **Reset to defaults** shows everything again. It is one setting for every view, the Day view included, saved with the board so every window and Workshop follow it. It only hides: a view that already leaves a field out still does. Alerts that need you show either way (overdue, a blocking or asked PR, a nudge that is due, still urgent, and Pause on the task you are working on), and a task's details always show everything.
 
 ## Adding tasks
 
@@ -138,10 +138,13 @@ Press `N` or `/` anywhere. On its own, `Ctrl+K` (`Cmd+K` on a Mac) works too; in
 | `~xs` to `~xl` | Effort | `~m` |
 | `^date` | Due: `today`, `tomorrow`, a weekday, `+3d`, or `YYYY-MM-DD` | `^fri` |
 | `#name` | List or section (prefix match) | `#eng` |
+| `+name` | Product, from Workshop Settings' Products: its name, another name, or the start of one. Archived products are not matched; an unknown `+word` stays in the title | `+lighthouse` |
 
-Example: `Review design doc @Teammate !3 ~s ^fri #eng`
+Example: `Review design doc @Teammate !3 ~s ^fri #eng +lighthouse`
 
-**Cheat sheet:** the add box has a **Cheat sheet** button (or `Ctrl+/`, `Cmd+/` on a Mac, while typing) that opens every tag above with what it does, your own lists as `#tags`, and an example. Click a tag to put it in the box. It stays open or closed the way you left it, per window.
+**Products:** a task can name the product it is for, with `+name` or the **Product** field in its details (shown when Settings has products, or the task already names one). Rows show the product's name (a row field you can hide). Docket only reads your products (`settings.products`, Workshop docs/products.md) and keeps the product's id on the task as `product: 'p_<slug>'`, an extra field older readers keep as is.
+
+**Cheat sheet:** the add box has a **Cheat sheet** button (or `Ctrl+/`, `Cmd+/` on a Mac, while typing) that opens every tag above with what it does, your own lists as `#tags` and products as `+tags`, and an example. Click a tag to put it in the box. It stays open or closed the way you left it, per window.
 
 **Pasting from ADO:** paste a work item from ADO's **Copy to clipboard** (`Issue 12345: Title`) or its URL into the add box, a person's add box, or a task's title, and the task keeps the link: its row gets an ADO chip that opens the item, and its details say **Open Issue #12345 in ADO**. A bare URL starts the title as `ADO 12345: ` for you to finish. Pasted into notes, the URL is kept in the text. If ADO sync later finds the item assigned to you, it takes the task over (no duplicate); until then sync leaves it alone, so an item assigned to someone else is never closed as reassigned. Pasting an item already open on your board offers to open that task instead.
 
@@ -274,6 +277,7 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 | `state.js` | Board shape, migration, sanitize, per-window UI state (view, lens, scope) |
 | `storage.js`, `store.js`, `store-format.js` | Saving through the SDK and keeping windows in step; the file menu; the board as four collections (pure, tested in `test/`) |
 | `quick-add.js`, `actions.js` | Quick add syntax; task actions |
+| `products-link.js` | Your products from Workshop Settings: `+product` matching and the Product field (pure parts tested in `test/products-link.test.mjs`) |
 | `render.js`, `views.js` | Frame, sidebar, header, rows; each view |
 | `row-fields-model.js`, `display.js` | Which optional row fields show (pure, tested in Node); the Row fields sheet behind the sidebar sliders button |
 | `drawer.js`, `overlays.js`, `command-bar.js` | Task details; modal, menus, toast; the command bar |

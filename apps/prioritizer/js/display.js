@@ -23,7 +23,7 @@ const AGENT = '<span class="chip eng" data-tip="Agent status from Dispatch">Plan
 
 function previewHtml(){
   return row(sample(), {start: true, crumb: true, hidden: [...draft],
-    preview: {names: ['Sam Lee', 'Ana Ruiz'], list: {id: 'rf-preview', name: 'Main'}, agent: AGENT}});
+    preview: {names: ['Sam Lee', 'Ana Ruiz'], list: {id: 'rf-preview', name: 'Main'}, agent: AGENT, product: 'Sample product'}});
 }
 
 function draw(sh){

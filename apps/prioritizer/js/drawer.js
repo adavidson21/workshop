@@ -13,11 +13,23 @@ import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
 import { leftOffDrawerHtml } from './left-off.js';
+import { activeProducts, productById } from './products-link.js';
 import { notesFor, shown, taskLink } from './notes-link.js';
 import { slateFor, slateLabel } from './slate-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
 import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
+
+// Product (products-link.js): offered when Settings has products, or the task already names one.
+function productFieldHtml(t){
+  const act = activeProducts(), cur = t.product ? productById(t.product) : null;
+  if (!act.length && !t.product) return '';
+  const list = cur && !act.includes(cur) ? [...act, cur] : act;
+  const opts = `<option value="">None</option>` + list.map(p => `<option value="${esc(p.id)}"${p.id === t.product ? ' selected' : ''}>${esc(p.name)}${p.archived ? ' (archived)' : ''}</option>`).join('')
+    + (t.product && !cur ? `<option value="${esc(t.product)}" selected>${esc(t.product.slice(2))} (not in Settings)</option>` : '');
+  return `<div class="dfld"><label for="dProduct">Product</label><select id="dProduct" data-f="product" data-fk="product">${opts}</select></div>`;
+}
+
 /* Prioritizer: Selection, keyboard navigation between rows, and the task details drawer. */
 /* ---------- selection + keyboard navigation ---------- */
 function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
@@ -103,6 +115,7 @@ function renderDrawer(){
       ${planFieldHtml(t)}
       ${t.pr || (t.ado && !t.ado.pasted) ? '' : repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
+      ${productFieldHtml(t)}
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
         ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
         ${ek ? `<span>${EQ[ek].title}</span>` : ''}${vk ? `<span>${VQ[vk].title}</span>` : ''}${isStale(t) ? '<span class="chip">Stale</span>' : ''}${t.cameBack && !t.done ? `<span class="chip acc">Came back ${esc(dayLabel(t.cameBack).toLowerCase())}</span>` : ''}</div>
@@ -185,6 +198,7 @@ drawer.addEventListener('change', e => {
   else if (f === 'nudge') t.nudgeOn = isDate(v) ? v : null;
   else if (f === 'people') assign(t, v.split(','));
   else if (f === 'list') t.listId = v;
+  else if (f === 'product'){ if (v) t.product = v; else delete t.product; }
   else { if (planFieldChange(t, f, v) || repeatFieldChange(t, f, v)) renderDrawer(); return; }
   commit();
 });

@@ -8,6 +8,7 @@ import { defaultListId, isWaiting, listById, orderedLists, saveUi, state, ui } f
 import { col } from './render.js';
 import { $, esc, fmtLong, todayStr } from './util.js';
 import { nameOf, refOf } from './directory-model.js';
+import { activeProducts, productById, productTag } from './products-link.js';
 /* Prioritizer: The command bar (N or Ctrl+K) for adding tasks. */
 /* ---------- command bar ---------- */
 const cmd = $('#cmd'), cmdInput = $('#cmdInput'), cmdParsed = $('#cmdParsed');
@@ -38,6 +39,7 @@ function cmdPreview(){
   if (p.due) bits.push(`<span class="chip acc">Due ${fmtLong(p.due)}</span>`);
   if (p.urgentFlag) bits.push(`<span class="chip acc">Urgent</span>`);
   if (p.delegate) bits.push(`<span class="chip acc">Waiting on them</span>`);
+  if (p.product) bits.push(`<span class="chip acc">Product ${esc((productById(p.product) || {}).name || '')}</span>`);
   p.people.forEach(n => { const id = refOf(n); bits.push(`<span class="chip acc">${id ? esc(nameOf(id)) : `@${esc(n)} (new contact)`}</span>`); });
   const where = `Adds to <b>${esc(L ? L.name : '')}</b>${toToday() ? ' and Today' : state.view === 'today' && !p.delegate ? ', in the Inbox' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
@@ -54,7 +56,7 @@ if (MAC) $('#cmdCheatKey').innerHTML = '<kbd>&#8984; /</kbd> toggle';
 const listTag = name => '#' + String(name).trim().toLowerCase().replace(/\s+/g, '-');
 const tag = (t, ins = t) => `<button type="button" class="ctag" data-ins="${esc(ins)}">${esc(t)}</button>`;
 function cheatHtml(){
-  const lists = orderedLists().slice(0, 8);
+  const lists = orderedLists().slice(0, 8), prods = activeProducts().slice(0, 12);
   const row = (tags, what) => `<div class="crow"><div class="ctags">${tags}</div><div class="cwhat">${what}</div></div>`;
   return `
     <div class="cgrp"><h4>Who</h4>
@@ -75,8 +77,12 @@ function cheatHtml(){
     <div class="cgrp"><h4>List</h4>
       ${row(lists.length ? lists.map(l => tag(listTag(l.name))).join('') : tag('#list', '#'), 'Start of the list name is enough; a dash for a space')}
     </div>
+    <div class="cgrp"><h4>Product</h4>
+      ${prods.length ? row(prods.map(p => tag(productTag(p))).join(''), 'The start of its name or another name works too')
+        : row(tag('+product', '+'), 'Set up your products in Workshop: Settings, Products')}
+    </div>
     <p class="cnote">Tags can go anywhere in the line. Anything not recognized stays in the title. Paste an ADO work item or its link to keep the link on the task.<br>
-      Example: <span class="mono">Review design doc &gt;@sam !3 ~s ^fri</span></p>`;
+      Example: <span class="mono">Review design doc &gt;@sam !3 ~s ^fri${prods.length ? ' ' + esc(productTag(prods[0])) : ''}</span></p>`;
 }
 function setCheat(open, save = true){
   if (open) cheat.innerHTML = cheatHtml();

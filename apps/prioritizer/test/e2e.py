@@ -300,6 +300,26 @@ def main():
         pg.keyboard.press('Control+/'); pg.wait_for_timeout(100)
         check('Ctrl+/ hides it', pg.locator('#cmdCheat').is_hidden())
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+        # +product: Settings' products (settings.products) name a task's product in Quick add and its details.
+        pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
+          await ws.data.put('products', {schema: 'settings.products', version: 1, rev: 0, deleted: {}, items: [
+            {id: 'p_wiki', slug: 'wiki', name: 'Wiki'}, {id: 'p_lighthouse', slug: 'lighthouse', name: 'Lighthouse', alsoCalled: ['Beacon']}]}); }""")
+        pg.wait_for_timeout(1200)
+        pg.keyboard.press('n'); pg.wait_for_timeout(100)
+        pg.fill('#cmdInput', 'Fix nav +beac'); pg.wait_for_timeout(100)
+        check('+product shows in the preview', 'Product Lighthouse' in pg.inner_text('#cmdParsed'))
+        pg.click('#cmdCheatBtn'); pg.wait_for_timeout(100)
+        check('the cheat sheet lists your products', pg.locator('#cmdCheat [data-ins="+wiki"]').count() == 1)
+        pg.click('#cmdCheatBtn'); pg.keyboard.press('Enter'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Fix nav')")
+        check('+product sets the task product and leaves the title clean', t and t.get('product') == 'p_lighthouse')
+        pg.evaluate(f"id => {P}.openDrawer(id)", t['id']); pg.wait_for_timeout(200)
+        check('its details show the Product field', pg.input_value('#dProduct') == 'p_lighthouse')
+        pg.select_option('#dProduct', 'p_wiki'); pg.wait_for_timeout(200)
+        check('changing it in details saves', pg.evaluate(f"id => {P}.state.tasks.find(t => t.id === id).product", t['id']) == 'p_wiki')
+        pg.select_option('#dProduct', ''); pg.wait_for_timeout(200)
+        check('None clears it', pg.evaluate(f"id => !('product' in {P}.state.tasks.find(t => t.id === id))", t['id']))
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.ado && t.ado.id === 12345).done; }}"""))
         # ---------- Tandem's first-pass PR reviews (js/pr-ai.js, js/pr-ai-model.js) ----------
         pr = lambda i, tier, c: "{key: 'c|P|%d', id: %d, title: 'Change %d', repo: 'api', project: 'P', url: 'https://ado.example.test/c/P/_git/api/pullrequest/%d', author: 'Dev One', tier: '%s', via: [], commit: '%s'}" % (i, i, i, i, tier, c)
@@ -638,7 +658,7 @@ def main():
         pg.evaluate(f"() => {{ {P}.state.view = 'today'; {P}.commit(); }}"); pg.wait_for_timeout(200)
         pg.click('#displayBtn'); pg.wait_for_timeout(200)
         check('the Display button opens Row fields with a preview row', pg.locator('.modal .rowfields').count() == 1 and pg.locator('.modal .rfprev .row').count() == 1
-              and pg.locator('.modal .rfprev .row .who').count() == 1 and pg.locator('.modal [data-rf]').count() == 14)
+              and pg.locator('.modal .rfprev .row .who').count() == 1 and pg.locator('.modal [data-rf]').count() == 15 and pg.locator('.modal .rfprev .row .sig.prod').count() == 1)
         pg.uncheck('.modal [data-rf=score]'); pg.uncheck('.modal [data-rf=people]'); pg.wait_for_timeout(100)
         check('the preview follows the checkboxes', pg.locator('.modal .rfprev .row .score').count() == 0 and pg.locator('.modal .rfprev .row .who').count() == 0)
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-rowfields.png'))

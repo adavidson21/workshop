@@ -65,6 +65,7 @@ const ICON = {
   repeat: svg('<path d="M4 9.5V7.5A2.5 2.5 0 0 1 6.5 5H15M13 3l2 2-2 2M16 10.5v2A2.5 2.5 0 0 1 13.5 15H5M7 13l-2 2 2 2"/>'),
   pr: svg('<circle cx="5.5" cy="4.5" r="1.8"/><circle cx="5.5" cy="15.5" r="1.8"/><circle cx="14.5" cy="15.5" r="1.8"/><path d="M5.5 6.3v7.4M14.5 13.7V8.5A2.5 2.5 0 0 0 12 6H9M10.5 4.2L8.7 6l1.8 1.8"/>'),
   item: svg('<rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 7.5h6M7 10.5h6M7 13.5h3.5"/>'),
+  box: svg('<path d="M10 2.5l6.5 3.6v7.8L10 17.5l-6.5-3.6V6.1z"/><path d="M3.5 6.1L10 9.7l6.5-3.6M10 9.7v7.8"/>'),
   board: svg('<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M7.5 3.5v13M12.5 3.5v13"/>'),
   eye: svg('<path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.3"/>'),
   bolt: svg('<path d="M11 2.5L4.5 11.2H10L9 17.5l6.5-8.7H10z"/>'),

@@ -772,6 +772,7 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .sig.acc{background:var(--accent-soft);color:var(--accent)}
 .sig.soon{background:var(--warn-soft);color:var(--warn)}
 .sig.stale{opacity:.6}
+.sig.prod b{font:500 .76rem var(--sans);max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 button.sig{cursor:pointer}
 button.sig.warn:hover{background:color-mix(in srgb,var(--danger) 18%,var(--surface))}
 .row .meta{gap:.3rem}

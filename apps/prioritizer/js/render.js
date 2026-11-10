@@ -16,6 +16,7 @@ import { peopleFilter, renderArchive, renderPeople, renderToday } from './views.
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
 import { rowShown } from './row-fields-model.js';
+import { productById } from './products-link.js';
 /* Prioritizer: The frame: view switching, sidebar, page header, task rows, capacity line. */
 /* ---------- views ---------- */
 const main = $('#main'), app = $('#app'), drawer = $('#drawer');
@@ -162,7 +163,7 @@ function renderHead(){
 
 /* rows */
 /* One task row. Optional fields follow the Row fields setting (state.rowFields, or o.hidden for the settings
-   preview); alerts that need you show either way. o.preview: {names, list, agent} stand in for the directory,
+   preview); alerts that need you show either way. o.preview: {names, list, agent, product} stand in for the directory,
    the board's lists and the agent's status, so the preview row shows every field. */
 function row(t, o = {}){
   const on = rowShown(o.hidden || (state.rowFields && state.rowFields.hidden));
@@ -212,6 +213,9 @@ function row(t, o = {}){
     const ppl = pv ? pv.names : namesOf(t.who.filter(p => p !== o.skipPerson));
     if (ppl.length) meta += `<span class="who" data-tip="${esc(ppl.join(', '))}" role="img" aria-label="${esc(ppl.join(', '))}">${ppl.slice(0, 2).map(p => `<i class="av">${esc(initials(p))}</i>`).join('')}${ppl.length > 2 ? `<i class="av more">+${ppl.length - 2}</i>` : ''}</span>`;
   }
+  // The product it is for (products-link.js): its name, so it reads at a glance.
+  const prodName = pv ? pv.product : t.product ? (productById(t.product) || {}).name : '';
+  if (prodName && !o.compact && on('product')) meta += sig(ICON.box, `Product: ${prodName}`, 'prod', prodName);
   if ((!o.compact || o.showList) && multi && L && on('list')) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
   const fon = t.focusOn === todayStr();
   // The score is on hover; the priority bar on the left already shows the tier.

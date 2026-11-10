@@ -1,6 +1,7 @@
 // storage.js comes first: it pulls in events.js and, through it, drawer.js before render.js. drawer.js no longer
 // does anything when it loads (its listeners are in drawerInit, called by main.js), but keep this order.
 import { cleanLeftOff } from './left-off-model.js';
+import { cleanProduct } from './products-link.js';
 import { scheduleSave } from './storage.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
 import { isStale, isTriaged } from './model.js';
@@ -50,6 +51,8 @@ function migrateTask(t){
   if ('crumbs' in t){ t.crumbs = cleanCrumbs(t.crumbs); if (!t.crumbs.length) delete t.crumbs; }
   // Where you left off (left-off.js, focus hours): an extra field too, gone once the task is done.
   if ('leftOff' in t){ const lo = cleanLeftOff(t.leftOff); if (lo && !t.done) t.leftOff = lo; else delete t.leftOff; }
+  // The product it is for (products-link.js, Settings' Products): an extra field too, a product id.
+  if ('product' in t){ const pr = cleanProduct(t.product); if (pr) t.product = pr; else delete t.product; }
   delete t.urgent; delete t.important;
 }
 // ADO link on a task: {id, type, state, url, project, due, gone, pasted}. Anything malformed is dropped.

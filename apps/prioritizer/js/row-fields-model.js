@@ -20,6 +20,7 @@ export const ROW_FIELDS = [
   {key: 'waiting', group: 'Follow-up', label: 'Waiting on someone'},
   {key: 'stale', group: 'Health', label: 'Untouched a while'},
   {key: 'people', group: 'Context', label: 'People'},
+  {key: 'product', group: 'Context', label: 'Product'},
   {key: 'list', group: 'Context', label: 'List color'},
   {key: 'crumb', group: 'Context', label: 'Where you left off (Today)'},
   {key: 'score', group: 'Actions', label: 'Score'},
