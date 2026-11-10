@@ -1,6 +1,7 @@
-import { COLORS, EQ, POINTS, VQ } from './constants.js';
+import { COLORS, EQ, POINTS, VALUE, VQ } from './constants.js';
 import { closeDrawer, drawerId, openDrawer } from './drawer.js';
-import { urgency } from './model.js';
+import { isStale, isTriaged, urgency } from './model.js';
+import { unslotDay } from './dayplan.js';
 import { toast } from './overlays.js';
 import { parseQuick } from './quick-add.js';
 import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state, rankedOpen } from './state.js';
@@ -60,9 +61,30 @@ function toggleFocus(id){
   const t = findTask(id); if (!t || t.done) return;
   const on = t.focusOn === todayStr();
   t.focusOn = on ? null : todayStr();
-  if (!on) delete t.cameBack;   // picked for Today: the Came back chip is handled
+  if (!on){
+    delete t.cameBack;   // picked for Today: the Came back chip is handled
+    // Picked straight from the Inbox: it leaves the Inbox, so it gets a value and effort if it has none.
+    if (!isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; }
+    if (isStale(t)) t.ageFrom = todayStr();
+  }
   commit();
+  if (on) unslotDay(id);   // off Today is out of today's block too (one today)
   if (!on && state.view !== 'today') toast('Added to Today');
+}
+/* One-key sorting in the Inbox (Docket 7.0.0): 1 to 4 sets the value and sends the task to Ranked. Effort is M
+   when it has none, which you can change later; a came-back mark is handled and the aging clock restarts. */
+function quickSort(id, value){
+  const t = findTask(id); if (!t || t.done || !(value >= 1 && value <= 4)) return false;
+  const before = {value: t.value, effort: t.effort, ageFrom: t.ageFrom, cameBack: t.cameBack};
+  t.value = value; t.effort = t.effort || 'M'; t.ageFrom = todayStr();
+  delete t.cameBack;
+  commit();
+  toast(`Sorted: ${VALUE[value]}, effort ${t.effort}`, 'Undo', () => {
+    Object.assign(t, {value: before.value, effort: before.effort, ageFrom: before.ageFrom});
+    if (before.cameBack) t.cameBack = before.cameBack;
+    commit();
+  });
+  return true;
 }
 function deleteTask(id){
   const i = state.tasks.findIndex(t => t.id === id); if (i < 0) return;
@@ -130,4 +152,4 @@ function downgradeUrgent(id){
   toast('No longer urgent', 'Undo', () => { t.urgentFlag = true; commit(); });
 }
 
-export { addTask, applyOrder, deleteTask, downgradeUrgent, dropIntoQuadrant, moveTask, toggleDone, toggleFocus, wontDo };
+export { addTask, applyOrder, deleteTask, quickSort, downgradeUrgent, dropIntoQuadrant, moveTask, toggleDone, toggleFocus, wontDo };

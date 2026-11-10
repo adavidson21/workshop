@@ -6,7 +6,7 @@ import { slateFor, slateLabel } from './slate-link.js';
 import { prAiChip } from './pr-ai.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
-import { childrenOf, commit, hiddenCount, inScope, inboxQueue, isWaiting, listById, scopeListIds, scopeName, shown, state, topLists } from './state.js';
+import { childrenOf, commit, hiddenCount, inboxQueue, isWaiting, listById, saveUi, scopeListIds, scopeName, shown, state, topLists, ui } from './state.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
@@ -24,7 +24,20 @@ let openQuad = null, weekOff = 0, doneOpen = false, sel = null;
 // Today's columns: which one you work in ('inbox', 'rank', 'today' or null; where triage keys go and where Left
 // and Right move from), and whether the Inbox is open over the page when the window is too narrow for three.
 let col = null, inboxOpen = false;
-// The Inbox's triage card: tasks skipped this round, the draft being edited, and a task picked from the list.
+// Plan week (Docket 7.0.0): the middle column is the full Ranked list with its lenses, and the Inbox and Today step
+// aside as rails. Off, it is Up next: the top few ranked tasks. Kept in this browser, like the sidebar.
+const planWeek = () => !!ui.planWeek;
+function setPlanWeek(on){
+  on = !!on;
+  if (!on) state.lens = 'rank';
+  if (planWeek() === on && state.view === 'today'){ render(); return; }
+  ui.planWeek = on; saveUi();
+  if (state.view !== 'today'){ state.view = 'today'; }
+  openQuad = null;
+  commit();
+}
+// The Inbox's triage card: the task opened with Enter (or a click), its draft, and tasks skipped this round.
+// With no task picked there is no card: Inbox tasks are rows, sorted with one key (views.js).
 let tri = {seen: new Set(), draft: null, id: null, pick: null};
 const freshTri = () => { tri = {seen: new Set(), draft: null, id: null, pick: null}; };
 // Other modules change this view state through these setters (imported bindings are read-only).
@@ -49,6 +62,8 @@ function setView(v){
   const old = OLD_VIEWS[v];
   if (old){
     if (old.lens) state.lens = old.lens;
+    if (old.plan && !ui.planWeek){ ui.planWeek = true; saveUi(); }
+    if (old.col === 'inbox' && ui.planWeek){ ui.planWeek = false; state.lens = 'rank'; saveUi(); }
     if (old.col === 'inbox'){ state.lens = 'rank'; if (state.view !== 'today' || col !== 'inbox') freshTri(); inboxOpen = true; }
     v = 'today';
   }
@@ -66,6 +81,7 @@ function setView(v){
 function setLens(k){
   if (!(k in LENSES)) return;
   state.lens = k; openQuad = null;
+  if (k !== 'rank' && !ui.planWeek){ ui.planWeek = true; saveUi(); }
   if (state.view !== 'today') state.view = 'today';
   commit();
 }
@@ -75,7 +91,7 @@ function setScope(id){
 function render(){
   if (isWaiting()) return renderWaiting();
   // A view name from before Docket 6.0 (a saved window, a test, another app): Today, with its lens.
-  if (!VIEWS.includes(state.view)){ const o = OLD_VIEWS[state.view] || {}; if (o.lens) state.lens = o.lens; state.view = 'today'; }
+  if (!VIEWS.includes(state.view)){ const o = OLD_VIEWS[state.view] || {}; if (o.lens) state.lens = o.lens; if (o.plan && !ui.planWeek){ ui.planWeek = true; saveUi(); } state.view = 'today'; }
   renderSide();
   renderHead();
   renderNow();
@@ -106,12 +122,12 @@ function renderWaiting(){
 function renderSide(){
   const nav = NAV_OF(state.view);
   const inbox = inboxQueue().length;
-  const today = state.tasks.filter(t => !t.done && inScope(t) && t.focusOn === todayStr()).length;
-  const tips = {today: 'Today: Inbox, Ranked and Today. Shortcut: 1 (3 Inbox, 4 Ranked)'};
-  // Today is where the day happens; the rest are for planning and review.
-  $('#snav').innerHTML = NAV.map(([k, label, ic, key], i) => `${i === 1 ? '<div class="ssec snav-h"><span>Review</span></div>' : ''}<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
-    k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} in the Inbox">${inbox}</span>` : ''}${
-    k === 'today' && today ? `<span class="n" aria-label="${today} on Today">${today}</span>` : ''}</button>`).join('');
+  const tips = {today: `Today: Inbox, Up next and Today${inbox ? `. ${inbox} new to sort` : ''}. Shortcut: 1 (3 Inbox, 4 Plan week)`};
+  // Today is where the day happens; Day plans it in time blocks; People and Done are for review. One count on Today:
+  // what is in the Inbox to sort.
+  const group = {day: 'Plan', people: 'Review'};
+  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `${group[k] ? `<div class="ssec snav-h"><span>${group[k]}</span></div>` : ''}<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
+    k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} new to sort">${inbox}</span>` : ''}</button>`).join('');
   // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of
   // its PRs when "No PRs" is on, since picking it shows them.
   const vis = (t, id) => !t.done && (shown(t) || state.prs === 'none' && id === state.ado.prListId);
@@ -137,6 +153,8 @@ function scopeLabel(){
 }
 // Header actions are round icon buttons; the tooltip and aria-label carry the words.
 const hbtn = (icon, tip, attrs, cls = '') => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(tip.split('.')[0])}" data-tip="${esc(tip)}">${icon}</button>`;
+// The day's two actions also show their words on a wide window (app.css .hbtn.lab); an icon with a tooltip below that.
+const lbtn = (icon, label, tip, attrs) => `<button class="hbtn lab" ${attrs} aria-label="${esc(label)}" data-tip="${esc(tip)}">${icon}<span class="hl">${esc(label)}</span></button>`;
 const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'primary addbtn');
 function renderHead(){
   const v = state.view;
@@ -147,8 +165,8 @@ function renderHead(){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
     const nx = !activeTask() && nextTask();
     tools = (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
-      + hbtn(ICON.day, 'Plan the day in time blocks. Shortcut: 2', 'data-view="day"')
-      + hbtn(ICON.moon, "Wrap up: breadcrumbs and tomorrow's top 3", 'data-shutdown');
+      + lbtn(ICON.day, 'Plan the day', 'Plan the day in time blocks. Shortcut: 2', 'data-view="day"')
+      + lbtn(ICON.moon, 'Wrap up', "Wrap up: breadcrumbs and tomorrow's top 3", 'data-shutdown');
   }
   if (v === 'archive') sub += ` · ${state.tasks.filter(t => t.done && scopeListIds().includes(t.listId)).length} done`;
   if (v === 'people'){
@@ -207,7 +225,7 @@ function row(t, o = {}){
       meta += sig(ICON.cal, `${d < 0 ? 'Overdue. ' : ''}Due ${fmtLong(t.due)}`, d < 0 ? 'warn' : d <= 3 ? 'soon' : '', fmtDay(t.due));
     }
     if (stillUrgent(t)) meta += `<button class="sig warn" data-act="still" data-tip="Urgent for over a week. Click to make it not urgent." aria-label="Still urgent? Click to make it not urgent">${ICON.alert}</button>`;
-    else if (isStale(t) && on('stale')) meta += sig(ICON.stale, `Untouched for ${ageDays(t)} days. It's back in the Inbox.`, 'stale');
+    else if (isStale(t) && on('stale')) meta += sig(ICON.stale, `Stale: untouched for ${ageDays(t)} days. Do it, give it a date, or won't do. Plan week lists them.`, 'stale');
   }
   if (!o.compact && on('people')){
     const ppl = pv ? pv.names : namesOf(t.who.filter(p => p !== o.skipPerson));
@@ -219,7 +237,7 @@ function row(t, o = {}){
   if ((!o.compact || o.showList) && multi && L && on('list')) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
   const fon = t.focusOn === todayStr();
   // The score is on hover; the priority bar on the left already shows the tier.
-  const scoreHtml = t.done || o.noScore || !on('score') ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
+  const scoreHtml = t.done || o.noScore || o.lean || !on('score') ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
     : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in the Inbox." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
   const act = !pv && !t.done && isActive(t.id), crumb = o.crumb && on('crumb') ? rowCrumb(t) : '';
@@ -232,11 +250,13 @@ function row(t, o = {}){
     + (crumb ? `<span class="tcol"><span class="title">${esc(title)}</span>${crumb}</span>` : `<span class="title">${esc(title)}</span>`)
     + (meta ? `<span class="meta">${meta}</span>` : '')
     // Value and effort in words: only on a wide Ranked column (app.css), where the row has the room.
-    + (!t.done && !pv && isTriaged(t) && !o.compact && VALUE[t.value] && t.effort ? `<span class="veff" aria-label="Value ${esc(VALUE[t.value])}, effort ${esc(t.effort)}">${esc(VALUE[t.value])} · ${esc(t.effort)}</span>` : '')
+    + (!t.done && !pv && !o.lean && isTriaged(t) && !o.compact && VALUE[t.value] && t.effort ? `<span class="veff" aria-label="Value ${esc(VALUE[t.value])}, effort ${esc(t.effort)}">${esc(VALUE[t.value])} · ${esc(t.effort)}</span>` : '')
     + scoreHtml
     + (o.start && !t.done && (on('start') || act) ? `<button class="tstart${act ? ' on' : ''}" data-act="start" aria-pressed="${act}" aria-label="${act ? 'Pause' : 'Start'}" data-tip="${act ? 'Pause' : 'Work on this now'}. Shortcut: S">${act ? ICON.pause : ICON.play}</button>` : '')
     + (o.follow && t.waiting && !t.done && !pv ? `<button class="tfol" data-act="nudged" aria-label="Nudged" data-tip="Nudged: follow up again later">${ICON.nudge}</button><button class="tfol" data-act="gotback" aria-label="Got it back" data-tip="Got it back: stop waiting">${ICON.back}</button>` : '')
     + (o.back && t.cameBack && !t.done && !pv ? `<button class="tfol" data-act="dismissback" aria-label="Dismiss" data-tip="Seen it. Keep it where it is in your list">${ICON.x}</button>` : '')
+    // One-key sorting on an Inbox row (views.js): value buttons on hover, the same as 1 to 4.
+    + (o.sort && !t.done && !pv ? `<span class="qsort" role="group" aria-label="Sort by value">${[1, 2, 3, 4].map(v => `<button class="qv" data-qv="${v}" aria-label="${VALUE[v]}" data-tip="${VALUE[v]}. Shortcut: ${v}">${v}</button>`).join('')}</span>` : '')
     + (t.done || pv || o.noAssign ? '' : `<button class="twho${o.assignOn ? ' on' : ''}" data-act="assign" aria-label="Delegate or add people" data-tip="Delegate or add people. Shortcut: A">${ICON.addPerson}</button>`)
     + (t.done || o.noToday || !on('today') ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;
@@ -257,4 +277,4 @@ function capacityCut(open){
   return {cut, sum};
 }
 
-export { col, focusCol, freshTri, inboxOpen, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, tri, weekOff };
+export { col, focusCol, freshTri, inboxOpen, planWeek, setPlanWeek, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, tri, weekOff };

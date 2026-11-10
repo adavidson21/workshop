@@ -94,3 +94,31 @@ test('summary: tasks that came back count until handled', () => {
   const [b] = buildSummary({board: bd, dir, dp: plan(), log, today: TODAY});
   assert.equal(b.days[TODAY].cameBack, 1);
 });
+
+test('needs (Docket 7.0.0): one row per kind with its count, most pressing first, each opening Today', async () => {
+  const { needsCard } = await import('../js/summary.js');
+  const bd = board();
+  bd.tasks.push(
+    {id: 'p1', listId: 'l1', title: 'Review: a', rank: 6, pr: {key: 'k|1', id: 1, tier: 'blocking'}, due: '2026-11-01'},
+    {id: 'p2', listId: 'l1', title: 'Review: b', rank: 7, pr: {key: 'k|2', id: 2, tier: 'blocking', waiting: true}},
+    {id: 'p3', listId: 'l1', title: 'Review: c', rank: 8, pr: {key: 'k|3', id: 3, tier: 'asked'}},
+    {id: 'n1', listId: 'l2', title: 'Ask about it', rank: 9, waiting: true, nudgeOn: '2026-11-04'},
+    {id: 'c1', listId: 'l2', title: 'Came back', rank: 10, cameBack: TODAY});
+  bd.ado = {pending: [{id: 5}, {id: 6}]};
+  const c = needsCard(bd, TODAY);
+  assert.equal(c.id, 'needs'); assert.equal(c.kind, 'list');
+  assert.deepEqual(c.rows.map(r => [r.id, r.title, r.flag || '', r.route]), [
+    ['prs', '1 PR blocked on you', 'urgent', 'today'],
+    ['nudges', '1 follow-up due', 'waiting', 'today'],
+    ['cameback', '1 task came back', 'waiting', 'today'],
+    ['ado', '2 new ADO items', '', 'today'],
+    ['overdue', '1 overdue task', '', 'today']]);   // the overdue PR is a review, not an overdue task
+  assert.deepEqual(needsCard(board(), '2026-10-01').rows, [], 'nothing waiting: no rows');
+});
+
+test('triage counts only tasks to sort: a stale task stays in Ranked (Docket 7.0.0)', () => {
+  const bd = board();
+  bd.tasks[0].ageFrom = '2026-09-01'; bd.tasks[0].due = null;   // value 3: stale after 8 days
+  const [b] = buildSummary({board: bd, dir, dp: plan(), log, today: TODAY});
+  assert.equal(b.days[TODAY].triage, 2, 't2 and t3 (no value or effort), not the stale t1');
+});

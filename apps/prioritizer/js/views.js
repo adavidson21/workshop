@@ -1,74 +1,39 @@
-import { wontDo } from './actions.js';
+import { quickSort, wontDo } from './actions.js';
 import { EFFORTS, EQ, ICON, LENSES, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
-import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, render, row, setView, tri, weekOff } from './render.js';
-import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeListIds, scopeOpen, state, ui } from './state.js';
+import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, tri, weekOff } from './render.js';
+import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeOpen, state, ui } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayStr } from './util.js';
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
-import { dp } from './dayplan.js';
-import { currentSection, dayReady, dayView, fmt12, isWorkday, sectionTasks } from './dayplan-model.js';
+import { dp, dpChange } from './dayplan.js';
+import { carryCandidates, carryOver, carryPending, currentSection, dayReady, dayView, dismissCarry, fmt12, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
 import { adoReview } from './ado.js';
 import { fmtUntil, focusNow, heldUntil } from './focus-hours.js';
-import { heldNeeds } from './focus-hours-model.js';
 import { leftOffPanel } from './left-off.js';
-/* Prioritizer: The views: Today (three columns: Inbox, Ranked, Today), Done with the weekly recap, People.
+/* Prioritizer: The views: Today (Inbox, Up next and Today), Done with the weekly recap, People.
 
-   Today is where the day happens. Work moves left to right: triage it in the Inbox, rank it, pick it for Today.
-   The Ranked column has three lenses (List, Eisenhower, Value / Effort); the matrices need room, so with one on,
-   the Inbox and Today fold into slim rails. Above the columns, Needs you has what is not already a column: new
-   ADO items, PRs blocked on you, follow-ups due, and Today tasks not in a block. */
+   Today is where the day happens (Docket 7.0.0, Workshop claude/today-home-simplify-v1-plan.md). Work moves left to
+   right: sort it in the Inbox, pick from Up next, do it on Today. Today is the widest column: its tasks are grouped
+   under the day's blocks when there is a Day plan, PRs blocked on you are pinned on top, and what you wait on is at
+   the bottom. Up next is the top of the ranking; Plan week opens the full Ranked list with its lenses and capacity,
+   and the Inbox and Today step aside as rails. There is no Needs you strip: every item has a column. */
 
-/* ---------- Needs you ---------- */
-let need = null;   // which Needs you panel is open: 'prs', 'nudges' or null
+/* ---------- old Needs you links ---------- */
+// data-need links from older pages and the ADO row: new ADO items open their review, the rest is Today itself.
 function openNeed(k){
   if (k === 'ado') return adoReview();
   if (k === 'plan') return setView('day');
-  need = need === k ? null : k;
   render();
 }
-function closeNeed(){ if (!need) return false; need = null; render(); return true; }
+const closeNeed = () => false;
 const blockingPr = t => !t.done && t.pr && t.pr.tier === 'blocking' && !t.pr.waiting;
-function unplannedToday(){
-  const sp = dp.sprint, d = todayStr();
-  if (!dayReady(sp) || !isWorkday(sp, d)) return 0;
-  const rec = dayView(dp, d).rec;
-  if (!rec.sections.some(x => !x.lost)) return 0;
-  const slotted = new Set(rec.slots.map(x => x.taskId));
-  return state.tasks.filter(t => inScope(t) && !t.done && t.focusOn === d && !slotted.has(t.id)).length;
-}
-function needs(){
-  const open = scopeOpen();
-  return {
-    ado: ui.ado && ui.ado.on ? state.ado.pending.length : 0,
-    prs: open.filter(blockingPr),
-    nudges: open.filter(nudgeDue),
-    plan: unplannedToday()
-  };
-}
-function needsStrip(all){
-  const f = focusNow(), {n, held} = heldNeeds(all, f.state);
-  const heldLine = held ? `<span class="need held" data-tip="Held during ${f.state === 'lunch' ? 'lunch' : 'focus'}. They come back together when it ends.">${ICON.clock || ''}<b class="num">${held}</b><span>held until ${esc(fmtUntil(heldUntil()))}</span></span>` : '';
-  const chip = (k, count, label, icon, cls = '') => count ? `<button class="need${cls ? ' ' + cls : ''}${need === k ? ' on' : ''}" data-need="${k}" aria-pressed="${need === k}">${icon}<b class="num">${count}</b><span>${label}</span></button>` : '';
-  const html = chip('ado', n.ado, n.ado === 1 ? 'new ADO item' : 'new ADO items', ICON.item)
-    + chip('prs', n.prs.length, n.prs.length === 1 ? 'PR blocked on you' : 'PRs blocked on you', ICON.block, 'warn')
-    + chip('nudges', n.nudges.length, n.nudges.length === 1 ? 'follow-up due' : 'follow-ups due', ICON.bell, 'acc')
-    + chip('plan', n.plan, 'not in a block', ICON.day) + heldLine;
-  return html ? `<div class="needs" role="toolbar" aria-label="Needs you"><span class="needs-h">Needs you</span>${html}</div>` : '';
-}
-function needPanel(all){
-  if (!need) return '';
-  const n = heldNeeds(all, focusNow().state).n;
-  const list = need === 'prs' ? n.prs : need === 'nudges' ? n.nudges : [];
-  if (!list.length){ need = null; return ''; }
-  const title = {prs: 'Pull requests blocked on you', nudges: 'Time to follow up'}[need];
-  return `<section class="needp" aria-label="${title}"><header><h3>${title}</h3><button class="ibtn" data-need="${need}" aria-label="Close" data-tip="Close">${ICON.x}</button></header>
-    <div class="rows">${list.map(t => row(t, {compact: true, showList: true, follow: need === 'nudges'})).join('')}</div></section>`;
-}
+const UP_NEXT = 5;
 
-/* ---------- the Inbox column: triage in place, and work that came back ---------- */
+/* ---------- the Inbox column: one key per task, the full card on Enter ---------- */
+// The card shows only for a task picked with Enter or a click (tri.pick); otherwise the Inbox is a list of rows.
 function triageState(){
   const q = inboxQueue();
-  const cur = (tri.pick && q.find(t => t.id === tri.pick)) || q.find(t => !tri.seen.has(t.id)) || null;
+  const cur = (tri.pick && q.find(t => t.id === tri.pick)) || null;
   return {q, cur};
 }
 function triageCard(cur, pos, total){
@@ -79,16 +44,16 @@ function triageCard(cur, pos, total){
   const d = tri.draft, age = isDate(cur.ageFrom) ? ageDays(cur) : 0, who = cur.who || [];
   const preview = Object.assign({}, cur, {value: d.value, effort: d.effort, due: d.due, urgentFlag: d.urgentFlag});
   const s = score(preview), ek = eKey(preview), vk = vKey(preview);
-  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '  ' : ''}${esc(l.name)}</option>`).join('');
+  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '  ' : ''}${esc(l.name)}</option>`).join('');
   const opt = (on, attr, key, label, extra = '') => `<button class="opt${on ? ' on' : ''}" ${attr} aria-pressed="${on}"${key ? ` aria-keyshortcuts="${key}"` : ''}>${label}${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
-  return `<div class="tri-card" tabindex="-1" aria-live="polite" aria-label="Triage: ${esc(cur.title)}">
+  return `<div class="tri-card" tabindex="-1" aria-live="polite" aria-label="Sort: ${esc(cur.title)}">
     <div class="tri-top"><span class="num">${pos} of ${total}</span>${isDate(cur.cameBack) ? `<span class="chip cb">${ICON.back}Came back</span>` : ''}<span class="grow"></span>
       <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${age}d</span>
-      <button class="ibtn" data-tri-open="${esc(cur.id)}" aria-label="Open details" data-tip="Open details">${ICON.dots}</button></div>
+      <button class="ibtn" data-tri-open="${esc(cur.id)}" aria-label="Open details" data-tip="Open details">${ICON.dots}</button>
+      <button class="ibtn" data-tact="skip" aria-label="Close" data-tip="Close (Esc)">${ICON.x}</button></div>
     <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
     <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
     ${who.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${who.map(id => `<span class="chip">${esc(mentionOf(id))}</span>`).join('')}</div>` : ''}
-    ${d.stale ? `<div class="stale">Stale: ${age} days. Do it, give it a due date, or won't do.</div>` : ''}
     <div class="tri-fields">
       <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
       <div class="tfld"><label>Effort<kbd>Q-T</kbd></label><div class="seg-row">${EFFORTS.map(e => opt(d.effort === e, `data-te="${e}"`, '', e, `<span class="pts">${POINTS[e]}</span>`)).join('')}</div></div>
@@ -97,41 +62,56 @@ function triageCard(cur, pos, total){
       <div class="tfld"><label>Flags</label><div class="opts">
         ${opt(d.urgentFlag, 'data-tt="urgentFlag"', 'U', 'Urgent')}${opt(d.today, 'data-tt="today"', 'Space', 'Today')}</div></div>
     </div>
-    <div class="tri-score">${s != null ? `<span class="num">${fmtScore(s)}</span> · ` : ''}${ek ? EQ[ek].title : 'Unsorted'}${vk ? ` · ${VQ[vk].title}` : ''}</div>
+    ${s != null ? `<div class="tri-score" data-tip="Score: (value + urgency) / effort${ek ? `. ${EQ[ek].title}` : ''}${vk ? `, ${VQ[vk].title}` : ''}"><span class="num">${fmtScore(s)}</span></div>` : ''}
     <div class="tri-foot">
       <button class="btn ghost text-danger" data-tact="wont">Won't do<kbd>0</kbd></button>
-      <button class="btn ghost" data-tact="skip">Skip<kbd>S</kbd></button>
       <span class="grow"></span>
       <button class="btn primary" data-tact="save">Save<kbd>Enter</kbd></button>
     </div>
   </div>`;
 }
-/* During focus and lunch the Inbox folds to a rail with its count (focus hours, Workshop docs/focus.md). Captures still
-   land in it, and a task dropped on the rail goes to the Inbox. "Open it anyway" lasts until the block ends. */
+/* During focus and lunch the Inbox folds to a rail with its count and when it comes back (focus hours, Workshop
+   docs/focus.md). Captures still land in it, and a task dropped on the rail goes to the Inbox. "Open it anyway"
+   lasts until the block ends. */
 let inboxAnyway = '';
 function heldInbox(){ const f = focusNow(); return (f.state === 'focus' || f.state === 'lunch') && inboxAnyway !== (f.span && f.span.key); }
 function openInboxAnyway(){ const f = focusNow(); inboxAnyway = f.span ? f.span.key : ''; render(); }
+const adoNew = () => ui.ado && ui.ado.on ? state.ado.pending.length : 0;
+// New work items from ADO, waiting to be added or skipped: one row at the top of the Inbox (held during focus).
+const adoRow = n => n ? `<button class="adorow" data-need="ado">${ICON.item}<span><b class="num">${n}</b> new from Azure DevOps</span><span class="lnk">Review</span></button>` : '';
+// The short line for a narrow window, where the Inbox is a bar above the columns.
+function inboxBar(q){
+  const back = q.filter(t => isDate(t.cameBack)).length, n = adoNew();
+  if (!q.length && !n) return '';
+  if (heldInbox()) return `<div class="inbar held" role="status">${ICON.triage}<span>Inbox <b class="num">${q.length}</b>, held until ${esc(fmtUntil(heldUntil()))}</span><button class="lnk" data-inbox-anyway>Open anyway</button></div>`;
+  return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>Inbox <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
+}
 function inboxCol(rail){
   const {q, cur} = triageState();
-  if (!cur){ tri.id = null; tri.draft = null; }
-  if (!rail && heldInbox()) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="Inbox: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
-  if (rail) return `<section class="col col-inbox rail" data-col="inbox" aria-label="Inbox"><button class="railbtn" data-lens="rank" data-goto="inbox" data-tip="Inbox: back to List to triage">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
-  const rest = q.filter(t => !cur || t.id !== cur.id);
-  const body = cur ? triageCard(cur, q.indexOf(cur) + 1, q.length)
-    : q.length ? `<div class="colempty">You skipped ${plural(q.length, 'task')}.<p><button class="btn" data-tri-again>Go through again</button></p></div>`
-    : `<div class="colempty"><b>Inbox clear.</b>New tasks and work that comes back land here.</div>`;
+  if (!cur){ tri.id = null; tri.draft = null; tri.pick = null; }
+  const held = heldInbox();
+  if (!rail && held) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="Inbox: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">until ${esc(fmtUntil(heldUntil()))}</span></button></section>`;
+  if (rail) return `<section class="col col-inbox rail dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox"><button class="railbtn" data-planweek="off" data-goto="inbox" data-tip="Inbox: close Plan week to sort it">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
+  const rows = q.map(t => cur && t.id === cur.id ? triageCard(cur, q.indexOf(cur) + 1, q.length) : row(t, {compact: true, back: true, sort: true})).join('');
+  const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> delegate, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
   return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox">
-    <header class="colh"><button class="ibtn railx" data-inbox-toggle aria-label="Inbox" data-tip="Inbox">${ICON.triage}</button><h3>Inbox</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
-    <div class="colbody">${body}${rest.length ? `<div class="rows inrows">${rest.map(t => row(t, {compact: true, back: true, noToday: true})).join('')}</div>` : ''}</div>
+    <header class="colh"><h3>Inbox</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
+    <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>Inbox clear.</b>New tasks and work that comes back land here.</div>`}</div>
   </section>`;
 }
 
-/* ---------- the Ranked column ---------- */
+/* ---------- Up next, and Plan week's Ranked column ---------- */
+let staleOnly = false;
+const toggleStaleOnly = () => { staleOnly = !staleOnly; render(); };
 function rankHtml(){
   const t0 = todayStr();
-  const open = rankedOpen();
+  let open = rankedOpen();
   if (!state.tasks.length) return emptyHTML;
-  if (!open.length) return `<div class="colempty"><b>Nothing ranked yet.</b>Triage the Inbox, or ${TOUCH ? 'tap +' : 'press N'} to add a task.</div><div class="ranklist rows dropzone" data-zone="rank"></div>`;
+  if (!open.length) return `<div class="colempty"><b>Nothing ranked yet.</b>Sort the Inbox, or ${TOUCH ? 'tap +' : 'press N'} to add a task.</div><div class="ranklist rows dropzone" data-zone="rank"></div>`;
+  if (staleOnly){
+    open = open.filter(isStale);
+    return `<div class="ranklist rows">${open.map(t => row(t, {estimate: true, dim: t.focusOn === t0})).join('') || '<div class="colempty">Nothing stale.</div>'}</div>`;
+  }
   const {cut, sum} = capacityCut(open);
   const over = sum > state.capacity;
   let html = '';
@@ -152,7 +132,7 @@ function matrixHtml(kind){
   const open = scopeOpen();
   const un = open.filter(t => !keyFn(t));
   return `<div class="unsorted dropzone" data-zone="none">${un.length
-      ? `<span><b class="num">${un.length}</b> ${un.length === 1 ? 'task needs' : 'tasks need'} ${kind === 'eisen' ? 'a value' : 'a value and effort'}.</span><button class="lnk" data-lens="rank" data-goto="inbox">Triage now</button>`
+      ? `<span><b class="num">${un.length}</b> ${un.length === 1 ? 'task needs' : 'tasks need'} ${kind === 'eisen' ? 'a value' : 'a value and effort'}.</span><button class="lnk" data-planweek="off" data-goto="inbox">Sort now</button>`
       : `<span>${TOUCH ? 'Everything is placed. Change a task\'s value or effort in its details to move it.' : 'Everything is placed. Drop a task here to unsort it.'}</span>`}</div>
     <div class="matrix">
       <div class="axis-x"><span>${ax[0]}</span><span>${ax[1]}</span></div>
@@ -167,36 +147,57 @@ function matrixHtml(kind){
       }).join('')}</div>
     </div>`;
 }
-function rankCol(lens){
-  const open = rankedOpen().length;
-  const tools = lens === 'rank' ? `<label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
-      ${open > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
-  return `<section class="col col-rank" data-col="rank" aria-label="Ranked">
-    <header class="colh"><h3>Ranked</h3>${open ? `<span class="n num">${open}</span>` : ''}
+// PR reviews that don't block you: one line at the end of Up next, open to see them. Pending ones are also placed
+// into Day plan blocks by their group (ado.js), so they show on Today when their block comes.
+let reviewsOpen = false;
+const setReviewsOpen = v => { reviewsOpen = !!v; };
+function reviewsLine(){
+  const t0 = todayStr();
+  const prs = scopeOpen().filter(t => t.pr && !blockingPr(t) && t.focusOn !== t0);
+  if (!prs.length) return '';
+  return `<details class="revline" id="revLine"${reviewsOpen ? ' open' : ''}><summary>${ICON.tri}Reviews <span class="num">${prs.length}</span></summary>
+    <div class="rows">${prs.map(t => row(t, {compact: true, lean: true})).join('')}</div></details>`;
+}
+function upNextHtml(){
+  const t0 = todayStr();
+  const all = rankedOpen(), open = all.filter(t => t.focusOn !== t0);
+  if (!state.tasks.length) return emptyHTML;
+  const top = open.slice(0, UP_NEXT);
+  const list = top.length ? top.map((t, i) => row(t, {rank: i + 1, lean: true})).join('')
+    : `<div class="colempty"><b>Nothing up next.</b>${all.length ? 'Everything ranked is on Today.' : 'Sort the Inbox, or add a task.'}</div>`;
+  return `<div class="ranklist rows dropzone" data-zone="rank">${list}</div>
+    ${all.length > top.length ? `<button class="lnk showall" data-planweek="on">Show all ${all.length}</button>` : ''}${reviewsLine()}`;
+}
+function rankCol(plan, lens){
+  if (!plan){
+    return `<section class="col col-rank upnext" data-col="rank" aria-label="Up next">
+      <header class="colh"><h3>Up next</h3><span class="grow"></span>
+        <button class="btn ghost small" data-planweek="on" data-tip="The full ranking with its lenses and weekly capacity. Shortcut: 4">${ICON.prio}<span>Plan week</span></button></header>
+      <div class="colbody">${upNextHtml()}</div>
+    </section>`;
+  }
+  const open = rankedOpen(), stale = open.filter(isStale).length;
+  const tools = lens === 'rank' ? `${stale ? `<button class="chipbtn${staleOnly ? ' on' : ''}" data-staleonly aria-pressed="${staleOnly}" data-tip="Tasks untouched for twice their value's window">${ICON.stale}Stale <b class="num">${stale}</b></button>` : ''}
+      <label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
+      ${open.length > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
+  return `<section class="col col-rank" data-col="rank" aria-label="Plan week: Ranked">
+    <header class="colh"><h3>Ranked</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}
       <div class="lens" role="tablist" aria-label="Rank by">${Object.entries(LENSES).map(([k, n]) => `<button data-lens="${k}" role="tab" aria-selected="${lens === k}"${lens === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>
-      <span class="grow"></span>${tools}</header>
+      <span class="grow"></span>${tools}<button class="btn primary small" data-planweek="off" data-tip="Back to Up next. Shortcut: 4">Done planning</button></header>
     <div class="colbody">${lens === 'rank' ? rankHtml() : matrixHtml(lens)}</div>
   </section>`;
 }
 
-/* ---------- the Today column ---------- */
-/* The Day view's block on now, its tasks and the next block. Plan the day when today has blocks but nothing planned. */
-function nowCard(){
+/* ---------- the Today column: Reviews, the day's blocks, not scheduled, waiting ---------- */
+/* Today's Day plan, when there is one: its open blocks in order, which is on now, and which are past. */
+function todayPlan(){
   const sp = dp.sprint, d = todayStr();
-  if (!dayReady(sp) || !isWorkday(sp, d)) return '';
-  const rec = dayView(dp, d).rec, open = rec.sections.filter(x => !x.lost);
-  if (!open.length) return `<section class="panel nowcard"><header><h3>Now</h3></header><div class="pempty">No blocks today. <button class="lnk" data-view="day">Plan the day</button></div></section>`;
+  if (!dayReady(sp) || !isWorkday(sp, d)) return null;
+  const rec = dayView(dp, d).rec, secs = rec.sections.filter(x => !x.lost);
+  if (!secs.length) return null;
   const now = new Date(), {current, next} = currentSection(rec, now.getHours() * 60 + now.getMinutes());
-  if (!current && !next) return '';
-  const byId = new Map(state.tasks.map(t => [t.id, t]));
-  const tasks = current ? sectionTasks(rec, current.id, byId).map(x => x.task) : [];
-  const planned = rec.slots.length > 0;
-  const head = current ? `<b>${esc(current.name)}</b>${current.around ? `<span class="mut">${esc(fmt12(current.around))}</span>` : ''}` : '<b>Nothing on now</b>';
-  return `<section class="panel nowcard"><header><h3 data-tip="The Day view's block on now">Now</h3><button class="lnk" data-view="day">${planned ? 'Open Day' : 'Plan the day'}</button></header>
-    <div class="nowb" role="button" tabindex="0" data-view="day">${head}</div>
-    ${current ? (tasks.length ? `<div class="rows">${tasks.map(t => row(t, {compact: true, noScore: true})).join('')}</div>` : `<div class="pempty">Nothing planned in this block.</div>`) : ''}
-    ${next ? `<div class="nownext"><span class="mut">Next</span> ${esc(next.name)}${next.around ? ` <span class="mut">${esc(fmt12(next.around))}</span>` : ''}</div>` : ''}
-  </section>`;
+  const at = current ? secs.indexOf(current) : next ? secs.indexOf(next) : secs.some(x => x.around) ? secs.length : 0;
+  return {rec, secs, current, past: new Set(secs.slice(0, Math.max(0, at)).map(x => x.id))};
 }
 /* What you wait on, grouped by the first person on each task, follow-ups due first. */
 function waitingGroups(waiting){
@@ -204,30 +205,80 @@ function waitingGroups(waiting){
   for (const t of waiting){ const k = (t.who && t.who[0]) || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
   const due = ts => ts.filter(nudgeDue).length, first = ts => ts.map(t => t.nudgeOn || '9').sort()[0];
   return [...groups].sort(([, a], [, b]) => due(b) - due(a) || first(a).localeCompare(first(b)))
-    .map(([id, ts]) => `<div class="wgrp"><div class="sub">${id ? esc(nameOf(id)) : 'No one named'}${due(ts) ? ` <span class="sig acc txt" role="img" aria-label="${plural(due(ts), 'nudge')} due">${ICON.bell}<b>${due(ts)}</b></span>` : ''}</div>
+    .map(([id, ts]) => `<div class="wgrp"><div class="sub">${id ? esc(nameOf(id)) : 'No one named'}${due(ts) ? ` <span class="sig acc txt" role="img" aria-label="${plural(due(ts), 'follow-up')} due">${ICON.bell}<b>${due(ts)}</b></span>` : ''}</div>
       <div class="rows">${ts.map(t => row(t, {compact: true, follow: true, skipPerson: id, noToday: true})).join('')}</div></div>`).join('');
+}
+/* Unfinished tasks from an earlier day: on the Today list before today, and (with a Day plan) in the last working
+   day's blocks. Keep puts them on Today and, when they were in a block, into today's block of the same kind. */
+function leftOver(){
+  const t0 = todayStr();
+  const ids = new Set(state.tasks.filter(t => inScope(t) && !t.done && t.focusOn && t.focusOn < t0).map(t => t.id));
+  const byId = new Map(state.tasks.map(t => [t.id, t]));
+  const plan = dayReady(dp.sprint) && isWorkday(dp.sprint, t0) && carryPending(dp, t0, byId);
+  if (plan) for (const x of carryCandidates(dp, t0, byId).items){ const t = byId.get(x.taskId); if (t && inScope(t) && t.focusOn !== t0) ids.add(x.taskId); }
+  return {ids: [...ids], plan};
+}
+function carryLeft(keep){
+  const t0 = todayStr(), {ids, plan} = leftOver();
+  if (plan) dpChange([t0], () => keep ? carryOver(dp, t0, 'sections', new Map(state.tasks.map(t => [t.id, t]))) : dismissCarry(dp, t0));
+  for (const id of ids){ const t = findTask(id); if (!t) continue; if (keep) t.focusOn = t0; else if (t.focusOn && t.focusOn < t0) t.focusOn = null; }
+  commit();
+}
+function blockGroup(s, tasks, {now, past}){
+  const open = tasks.filter(t => !t.done), done = tasks.length - open.length;
+  const fold = past && !open.length;
+  const time = s.around ? `<span class="tbt num">${esc(fmt12(s.around))}</span>` : '';
+  return `<section class="tblk${now ? ' now' : ''}${fold ? ' fold' : ''}" data-color="${esc(s.color || '')}" aria-label="${esc(s.name)}${now ? ', now' : ''}">
+    <header class="tblk-h">${time}<b>${esc(s.name)}</b>${now ? '<span class="chip acc">Now</span>' : ''}${tasks.length ? `<span class="tbn num">${done}/${tasks.length}</span>` : ''}</header>
+    ${fold ? '' : `<div class="rows dropzone tblk-rows" data-zone="tsec" data-sec="${esc(s.id)}">${open.map(t => row(t, {start: true, crumb: true})).join('') || `<div class="tblk-empty">${TOUCH ? 'Nothing here' : 'Drop a task here to plan it now'}</div>`}</div>`}
+  </section>`;
 }
 function todayCol(rail){
   const t0 = todayStr();
   const focus = state.tasks.filter(t => inScope(t) && isFocus(t)).sort((a,b) => a.rank - b.rank);
-  const open = focus.filter(t => !t.done), done = focus.filter(t => t.done);
-  if (rail) return `<section class="col col-today rail dropzone" data-col="today" data-zone="todayrail" aria-label="Today"><button class="railbtn" data-lens="rank" data-tip="Today: drop a task here to add it, or click to go back to List">${ICON.sun}<b class="num">${open.length}</b><span class="rl">Today</span></button></section>`;
-  const left = state.tasks.filter(t => inScope(t) && !t.done && t.focusOn && t.focusOn < t0);
+  const reviews = scopeOpen().filter(blockingPr);
+  const work = focus.filter(t => !blockingPr(t));
+  const open = work.filter(t => !t.done), done = focus.filter(t => t.done);
+  if (rail) return `<section class="col col-today rail dropzone" data-col="today" data-zone="todayrail" aria-label="Today"><button class="railbtn" data-planweek="off" data-tip="Today: drop a task here to add it, or click to close Plan week">${ICON.sun}<b class="num">${open.length}</b><span class="rl">Today</span></button></section>`;
+  const left = leftOver().ids;
   const waiting = scopeOpen().filter(t => t.waiting).sort((a,b) => (nudgeDue(b) - nudgeDue(a)) || (a.nudgeOn || '9').localeCompare(b.nudgeOn || '9') || a.rank - b.rank);
   const nudges = waiting.filter(nudgeDue).length;
+  // Reviews: PRs blocked on you, pinned on top every day. During lunch they fold to one line (nothing breaks through lunch).
+  const lunch = focusNow().state === 'lunch';
+  const revs = !reviews.length ? '' : lunch
+    ? `<section class="treviews held"><header class="tblk-h"><b>Reviews</b><span class="soft">${plural(reviews.length, 'PR')} blocked on you, held until ${esc(fmtUntil(heldUntil()))}</span></header></section>`
+    : `<section class="treviews" aria-label="Pull requests blocked on you"><header class="tblk-h">${ICON.block}<b>Reviews</b><span class="tbn">${plural(reviews.length, 'PR')} blocked on you</span></header>
+      <div class="rows">${reviews.map(t => row(t, {compact: true, noToday: true})).join('')}</div></section>`;
+  // The day's blocks, when there is a Day plan; tasks on Today with no block are Not scheduled, by rank.
+  const plan = todayPlan();
+  let body = '';
+  if (plan){
+    const byId = new Map(state.tasks.map(t => [t.id, t])), inBlock = new Set();
+    for (const s of plan.secs){
+      const tasks = sectionTasks(plan.rec, s.id, byId).map(x => x.task).filter(t => inScope(t) && !blockingPr(t) && (!t.done || isDoneToday(t)));
+      tasks.forEach(t => inBlock.add(t.id));
+      body += blockGroup(s, tasks, {now: plan.current && plan.current.id === s.id, past: plan.past.has(s.id)});
+    }
+    const loose = open.filter(t => !inBlock.has(t.id));
+    body += `<section class="tblk loose"><header class="tblk-h"><b>Not scheduled</b>${loose.length ? `<span class="tbn num">${loose.length}</span>` : ''}<span class="grow"></span><button class="lnk" data-view="day">Plan the day</button></header>
+      <div class="ranklist rows dropzone" data-zone="today">${loose.map(t => row(t, {start: true, crumb: true})).join('') || `<div class="tblk-empty">${TOUCH ? 'Nothing here' : 'Drag from Up next to add to Today'}</div>`}</div></section>`;
+  } else {
+    body = `<div class="ranklist rows dropzone" data-zone="today">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
+      || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Up next` : `Drag 3 to 5 from Up next, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>`;
+  }
+  const count = work.filter(t => !t.pr), cdone = count.filter(t => t.done).length;
   return `<section class="col col-today" data-col="today" aria-label="Today">
-    <header class="colh"><h3>Today</h3>${focus.length ? `<span class="n"><span class="num">${done.length}</span> of <span class="num">${focus.length}</span> done</span>` : ''}</header>
+    <header class="colh"><h3>Today</h3>${count.length ? `<span class="n"><span class="num">${cdone}</span> of <span class="num">${count.length}</span> done</span>` : ''}</header>
     <div class="colbody">
       ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
-        <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today.">${ICON.sun}<span>Keep</span></button></div>` : ''}
-      ${leftOffPanel()}${nowCard()}
-      ${focus.length ? `<div class="progress"><i style="width:${Math.round(done.length / focus.length * 100)}%"></i></div>` : ''}
-      <div class="ranklist rows dropzone" data-zone="today">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
-        || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Ranked` : `Drag 3 to 5 from Ranked, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>
-      ${open.length > 5 ? `<p class="soft">${open.length} tasks on Today. Keep it to 3 to 5.</p>` : ''}
+        <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today, in the same kind of block.">${ICON.sun}<span>Keep</span></button></div>` : ''}
+      ${leftOffPanel()}${revs}
+      ${count.length ? `<div class="progress"><i style="width:${Math.round(cdone / count.length * 100)}%"></i></div>` : ''}
+      ${body}
+      ${count.filter(t => !t.done).length > 5 ? `<p class="soft">${count.filter(t => !t.done).length} tasks on Today. Keep it to 3 to 5.</p>` : ''}
       ${doneGroup(done)}
       <section class="panel waitp">
-        <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="sig acc txt" style="margin-left:auto" role="img" aria-label="${plural(nudges, 'nudge')} due" data-tip="${plural(nudges, 'nudge')} due">${ICON.bell}<b>${nudges}</b></span>` : ''}</header>
+        <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="sig acc txt" style="margin-left:auto" role="img" aria-label="${plural(nudges, 'follow-up')} due" data-tip="${plural(nudges, 'follow-up')} due">${ICON.bell}<b>${nudges}</b></span>` : ''}</header>
         ${waiting.length ? waitingGroups(waiting) : `<div class="pempty">Nothing handed over. ${TOUCH ? 'Tap a task\'s person button' : 'Press A on a task'} to delegate it.</div>`}
       </section>
     </div>
@@ -235,12 +286,24 @@ function todayCol(rail){
 }
 
 function renderToday(){
-  const wide = state.lens === 'rank', n = needs();
-  main.innerHTML = `${needsStrip(n)}${needPanel(n)}<div class="t3wrap"><div class="today3${wide ? '' : ' lensed'}${wide && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(!wide)}${rankCol(state.lens)}${todayCol(!wide)}</div></div>`;
+  const plan = planWeek(), q = inboxQueue();
+  const lens = plan ? state.lens : 'rank';
+  main.innerHTML = `<div class="t3wrap">${plan ? '' : inboxBar(q)}<div class="today3${plan ? ' planweek lensed' : ''}${!plan && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(plan)}${rankCol(plan, lens)}${todayCol(plan)}</div></div>`;
   main.querySelectorAll('.col').forEach(c => c.classList.toggle('colon', c.dataset.col === col));
   fitTriage();
   if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
 }
+
+/* One-key sorting on an Inbox row (events.js): 1 to 4 sorts it by value, then the next Inbox row is selected. */
+function sortKey(id, k){
+  const q = inboxQueue().map(t => t.id), i = q.indexOf(id);
+  if (i < 0) return false;
+  const next = q[i + 1] || q[i - 1] || null;
+  if (/^[1-4]$/.test(k)){ quickSort(id, +k); return next || true; }
+  if (k === '0'){ wontDo(id); return next || true; }
+  return false;
+}
+function openSortCard(id){ tri.pick = id; tri.id = null; render(); }
 
 // Title and notes grow with their text (field-sizing where the browser has it, scrollHeight otherwise).
 function fitTriage(){
@@ -442,4 +505,4 @@ function renderArchive(){
   </div>`;
 }
 
-export { closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };
+export { carryLeft, openSortCard, setReviewsOpen, toggleStaleOnly, sortKey, closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };

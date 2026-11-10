@@ -20,7 +20,7 @@ import { $, esc, fmtLong, plural, todayStr } from './util.js';
 import { focusSettings } from './focus-hours.js';
 import { lunchOn, makerManagerTemplate, overlapsLunch } from './maker-manager.js';
 
-let date = null, followToday = true, trayFilter = 'all', lastNow = null, secDrag = null;
+let date = null, followToday = true, trayFilter = 'today', lastNow = null, secDrag = null;
 const curDate = () => (followToday || !date) ? todayStr() : date;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const tasksById = () => new Map(state.tasks.map(t => [t.id, t]));
@@ -72,7 +72,8 @@ function renderDay(){
   let banners = '';
   if (info.off) banners += `<div class="banner"><span>${info.holiday ? 'Holiday' : 'Day off'}. Not a ${info.noSprint ? 'workday' : 'sprint day'}.</span>${rec.sections.length ? '' : `<button class="btn" data-dp="addsec">Plan it anyway</button>`}</div>`;
   if (conflict.length) banners += `<div class="banner warn"><span>${conflict.map(t => `"${esc(t.name)}"`).join(' and ')} both match this day. The first one is used.</span><button class="btn" data-dp="settings">Templates</button></div>`;
-  if (!info.off && carryPending(dp, d, byId)){
+  // Today's carry over is on Today (one banner, views.js leftOver); the Day view offers it for other dates.
+  if (!info.off && d !== todayStr() && carryPending(dp, d, byId)){
     const c = carryCandidates(dp, d, byId);
     banners += `<div class="banner"><span>${plural(c.items.length, 'unfinished task')} from ${esc(fmtLong(c.prev))}.</span>
       <button class="btn ghost" data-dp="carry-skip">Dismiss</button><button class="btn" data-dp="carry-tray">Put in the tray</button><button class="btn primary" data-dp="carry-sections">Same blocks today</button></div>`;
@@ -498,8 +499,7 @@ function settingsClick(e, sh){
 
 /* ---------- drag and drop ---------- */
 /* drag-drop.js calls this when a task row is dropped on a block or the tray. */
-function dayDrop(taskId, zone, y){
-  const d = curDate();
+function dayDrop(taskId, zone, y, d = curDate()){
   if (zone.dataset.zone === 'dtray'){ const rec = dayView(dp, d).rec; if (slotOf(rec, taskId)) unplan(taskId); else render(); return; }
   const secId = zone.dataset.sec;
   const rows = [...zone.querySelectorAll(':scope > .row[data-id]')].filter(r => r.dataset.id !== taskId);

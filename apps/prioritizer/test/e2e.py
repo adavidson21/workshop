@@ -104,21 +104,20 @@ def main():
         check('a backup is a Workshop bundle with all three collections', bundle['schema'] == 'workshop.bundle'
               and sorted(c['collection'] for c in bundle['collections']) == ['lists', 'settings', 'tasks'])
 
-        # ---------- The Inbox (Triage in Today's first column): title, notes and list edit in place; typing there never fires shortcuts ----------
+        # ---------- The Inbox (Docket 7.0.0): rows sorted with one key; Enter or a click opens the full card ----------
         P = 'window.__prioritizer'
         tid = pg.evaluate(f"""() => {{ const P = {P}, t = P.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank)[0];
           t.value = null; t.effort = null; P.commit(); return t.id; }}""")
         pg.keyboard.press('3'); pg.wait_for_timeout(300)
-        check('3 focuses Today\'s Inbox, with an editable triage card', pg.evaluate(f'{P}.state.view') == 'today' and pg.locator('.col-inbox.colon #triTitle').count() == 1)
-        for _ in range(20):  # skip ahead to the task this test cleared
-            if pg.locator('#triTitle').count() == 0 or pg.input_value('#triTitle') == pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}').title"): break
-            pg.keyboard.press('s'); pg.wait_for_timeout(150)
+        check('3 focuses Today\'s Inbox: rows, and no card until one is opened', pg.evaluate(f'{P}.state.view') == 'today' and pg.locator('.col-inbox.colon .inrows .row').count() >= 1 and pg.locator('#triTitle').count() == 0)
+        pg.click(f'.col-inbox .inrows .row[data-id="{tid}"] .title'); pg.wait_for_timeout(300)
+        check('clicking an Inbox task opens its card in place', pg.locator('.col-inbox #triTitle').count() == 1 and pg.input_value('#triTitle') == pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}').title"))
         pg.click('#triTitle'); pg.keyboard.press('Control+a'); pg.keyboard.type('Write the Q4 guide'); pg.wait_for_timeout(100)
         pg.click('#triNotes'); pg.keyboard.press('Control+a'); pg.keyboard.type('Start with setup\nthen 2 examples')
         lists = pg.evaluate("() => [...document.querySelectorAll('#triList option')].map(o => o.value)")
         target = lists[-1]
         pg.select_option('#triList', target)
-        pg.locator('body').click(position={'x': 5, 'y': 5}); pg.wait_for_timeout(100)
+        pg.locator('.col-inbox .tri-top .num').click(); pg.wait_for_timeout(100)
         d = pg.evaluate(f'() => {{ const t = {P}.state.tasks.find(t => t.id === "{tid}"); return [t.value, t.effort]; }}')
         check('typing a q or a digit in the title or notes sets no value or effort', d == [None, None])
         pg.keyboard.press('4'); pg.keyboard.press('w'); pg.wait_for_timeout(150)
@@ -127,46 +126,66 @@ def main():
         t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{tid}")')
         check('Enter in the title saves title, notes, list, value and effort', t['title'] == 'Write the Q4 guide' and t['notes'] == 'Start with setup\nthen 2 examples'
               and t['listId'] == target and t['value'] == 4 and t['effort'] == 'S')
+        check('saving closes the card', pg.locator('#triTitle').count() == 0)
+        # One key: 1 to 4 on a selected Inbox row sorts it by value, with effort M when it has none.
+        t2, t3 = pg.evaluate(f"""() => {{ const P = {P}, ts = P.state.tasks.filter(t => !t.done && !t.pr && !t.waiting && t.id !== '{tid}').sort((a, b) => a.rank - b.rank);
+          ts[0].value = null; ts[0].effort = null; ts[1].value = null; ts[1].effort = null; P.state.view = 'today'; P.commit(); return [ts[0].id, ts[1].id]; }}""")
+        pg.wait_for_timeout(200)
+        pg.focus(f'.col-inbox .row[data-id="{t2}"]'); pg.keyboard.press('2'); pg.wait_for_timeout(250)
+        t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{t2}")')
+        check('2 on an Inbox row sorts it: value Low, effort M, out of the Inbox', t['value'] == 2 and t['effort'] == 'M' and pg.locator(f'.col-inbox .row[data-id="{t2}"]').count() == 0)
+        check('a toast says what it did, with Undo', 'Sorted: Low, effort M' in pg.inner_text('#toast'))
+        pg.hover(f'.col-inbox .row[data-id="{t3}"]'); pg.click(f'.col-inbox .row[data-id="{t3}"] .qv[data-qv="4"]'); pg.wait_for_timeout(250)
+        t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{t3}")')
+        check('the value buttons on a hovered Inbox row do the same', t['value'] == 4 and t['effort'] == 'M')
+        stale = pg.evaluate(f"""() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{t3}'); const d = new Date(); d.setDate(d.getDate() - 40);
+          t.ageFrom = d.toLocaleDateString('en-CA'); t.due = null; P.commit(); return P.isStale(t); }}""")
+        pg.wait_for_timeout(200)
+        check('a stale task stays out of the Inbox (Docket 7.0.0)', stale and pg.locator(f'.col-inbox .row[data-id="{t3}"]').count() == 0)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         check('Esc leaves the Inbox', pg.locator('.col.colon').count() == 0)
 
-        # ---------- Today: three columns, moves between them, lenses ----------
-        check('Today has the Inbox, Ranked and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'])
-        check('Triage and Prioritize are gone from the sidebar; Review has Day, People and Done',
-              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'day', 'people', 'archive'])
-        pg.keyboard.press('4'); pg.wait_for_timeout(250)
-        check('4 focuses the Ranked column', pg.locator('.col-rank.colon').count() == 1)
-        pg.keyboard.press('ArrowRight'); pg.wait_for_timeout(150)
-        check('Right moves to the Today column', pg.locator('.col-today.colon').count() == 1)
-        pg.keyboard.press('Escape')
+        # ---------- Today: Inbox, Up next and Today; Plan week ----------
+        check('Today has the Inbox, Up next and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'] and pg.locator('.col-rank.upnext').count() == 1)
+        check('no Needs you strip and no Now card', pg.locator('.needs').count() == 0 and pg.locator('.nowcard').count() == 0)
+        check('the sidebar: Today, then Plan: Day, then Review: People and Done',
+              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'day', 'people', 'archive']
+              and pg.evaluate("() => [...document.querySelectorAll('#snav .snav-h')].map(h => h.textContent.trim().toLowerCase())") == ['plan', 'review'])
         ids = pg.evaluate(f"""() => {{ const P = {P}, t0 = new Date().toLocaleDateString('en-CA');
           P.state.tasks.filter(t => !t.done).forEach(t => {{ t.value = t.value || 3; t.effort = t.effort || 'S'; t.focusOn = null; t.waiting = false; t.nudgeOn = null; t.who = []; t.ageFrom = t0; delete t.cameBack; }});
-          P.commit(); return P.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank).map(t => t.id); }}""")
+          P.commit(); return P.state.tasks.filter(t => !t.done && !t.pr).sort((a, b) => a.rank - b.rank).map(t => t.id); }}""")
         pg.wait_for_timeout(200)
+        check('Up next shows the top 5, then Show all', pg.locator('.col-rank.upnext .ranklist > .row').count() == min(5, len(ids)) and (len(ids) <= 5 or pg.locator('.col-rank [data-planweek=on].showall').count() == 1))
+        pg.keyboard.press('4'); pg.wait_for_timeout(250)
+        check('4 opens Plan week: the full Ranked list with lenses, Inbox and Today as rails', pg.locator('.today3.planweek').count() == 1 and pg.locator('.col-rank [data-lens]').count() == 3
+              and pg.locator('.col-inbox.rail').count() == 1 and pg.locator('.col-today.rail').count() == 1 and pg.locator('.col-rank .ranklist > .row').count() == len(ids))
+        pg.keyboard.press('4'); pg.wait_for_timeout(250)
+        check('4 again closes it', pg.locator('.today3.planweek').count() == 0 and pg.locator('.col-rank.upnext').count() == 1)
         pg.locator(f'.col-rank .row[data-id="{ids[1]}"]').drag_to(pg.locator('.col-today [data-zone=today]')); pg.wait_for_timeout(300)
-        check('dragging a task from Ranked to Today picks it', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[1]}').focusOn") == pg.evaluate("new Date().toLocaleDateString('en-CA')"))
-        check('a picked task stays in Ranked, dimmed', pg.locator(f'.col-rank .row.ontoday[data-id="{ids[1]}"]').count() == 1)
+        check('dragging a task from Up next to Today picks it', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[1]}').focusOn") == pg.evaluate("new Date().toLocaleDateString('en-CA')"))
+        check('a picked task leaves Up next', pg.locator(f'.col-rank .row[data-id="{ids[1]}"]').count() == 0)
         pg.locator(f'.col-today .row[data-id="{ids[1]}"]').drag_to(pg.locator(f'.col-rank .row[data-id="{ids[0]}"]')); pg.wait_for_timeout(300)
-        check('dragging it back to Ranked takes it off Today', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[1]}').focusOn") is None)
+        check('dragging it back to Up next takes it off Today', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[1]}').focusOn") is None)
         pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{ids[2]}'); t.value = null; t.effort = null; P.commit(); }}"); pg.wait_for_timeout(200)
         if pg.locator(f'.col-inbox .row[data-id="{ids[2]}"]').count(): pg.locator(f'.col-inbox .row[data-id="{ids[2]}"]').drag_to(pg.locator('.col-rank [data-zone=rank]')); pg.wait_for_timeout(300)
-        check('a task with no estimate cannot skip the Inbox: it becomes the triage card', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[2]}').effort") is None and pg.locator('#triTitle').count() == 1
-              and pg.input_value('#triTitle') == pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{ids[2]}').title"))
-        pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{ids[2]}'); t.value = 3; t.effort = 'S'; P.commit(); }}"); pg.wait_for_timeout(150)
+        check('a task dragged from the Inbox to Up next is sorted Medium, effort M', pg.evaluate(f"() => {{ const t = {P}.state.tasks.find(t => t.id === '{ids[2]}'); return [t.value, t.effort]; }}") == [3, 'M'])
+        pg.click('.col-rank .colh [data-planweek=on]'); pg.wait_for_timeout(200)
         pg.click('.col-rank [data-lens=eisen]'); pg.wait_for_timeout(200)
-        check('Eisenhower in Ranked turns Inbox and Today into rails', pg.locator('.col-inbox.rail').count() == 1 and pg.locator('.col-today.rail').count() == 1 and pg.locator('.quad').count() == 4)
+        check('Eisenhower in Plan week: four quadrants, Inbox and Today as rails', pg.locator('.col-inbox.rail').count() == 1 and pg.locator('.col-today.rail').count() == 1 and pg.locator('.quad').count() == 4)
         pg.click('.col-today.rail .railbtn'); pg.wait_for_timeout(200)
-        check('a rail goes back to List', pg.evaluate(f'{P}.state.lens') == 'rank' and pg.locator('.col.rail').count() == 0)
+        check('a rail closes Plan week and goes back to List', pg.evaluate(f'{P}.state.lens') == 'rank' and pg.locator('.col.rail').count() == 0 and not pg.evaluate(f'{P}.ui.planWeek'))
         pg.evaluate(f"() => {{ const P = {P}; P.state.view = 'eisen'; P.render(); }}"); pg.wait_for_timeout(150)
-        check('an old view name (eisen) opens Today with that lens', pg.evaluate(f'[{P}.state.view, {P}.state.lens]') == ['today', 'eisen'])
-        pg.evaluate(f"() => {{ const P = {P}; P.state.lens = 'rank'; P.render(); }}")
-        pg.set_viewport_size({'width': 1000, 'height': 800}); pg.wait_for_timeout(200)
-        check('a narrower window folds the Inbox to a button', not pg.is_visible('.col-inbox .colbody') and pg.is_visible('.col-inbox .railx'))
-        pg.click('.col-inbox .railx'); pg.wait_for_timeout(200)
+        check('an old view name (eisen) opens Today in Plan week with that lens', pg.evaluate(f'[{P}.state.view, {P}.state.lens, !!{P}.ui.planWeek]') == ['today', 'eisen', True])
+        pg.keyboard.press('4'); pg.wait_for_timeout(150)
+        pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{ids[3]}'); t.value = null; t.effort = null; P.commit(); }}")
+        pg.set_viewport_size({'width': 960, 'height': 800}); pg.wait_for_timeout(250)
+        check('a narrower window shows the Inbox as a bar above the columns', pg.is_visible('.inbar') and not pg.is_visible('.col-inbox'))
+        pg.click('.inbar'); pg.wait_for_timeout(200)
         check('which opens the Inbox over the page', pg.is_visible('.col-inbox .colbody'))
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         pg.set_viewport_size({'width': 1280, 'height': 800}); pg.wait_for_timeout(200)
+        pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{ids[3]}'); t.value = 3; t.effort = 'S'; P.commit(); }}")
         pg.keyboard.press('1'); pg.wait_for_timeout(150)
         added = pg.evaluate("""async () => { window.__prioritizer.state.view = 'today'; const m = await import('/js/actions.js'); const t = m.addTask('Fresh idea'); return [t.focusOn, window.__prioritizer.inboxQueue ? 1 : 1]; }""")
         pg.wait_for_timeout(150)
@@ -195,6 +214,8 @@ def main():
         check('settings save once the overlap is gone', pg.locator('.dsettings').count() == 0 and pg.evaluate(f'{P}.dp.sprint.workdays.length') == 7)
         secs = pg.evaluate("() => [...document.querySelectorAll('.dsec')].map(s => s.dataset.sec)")
         check('today shows the Planning day template (day 1)', len(secs) == 3 and 'sprint' in pg.inner_text('#phead').lower() and 'day 1 of' in pg.inner_text('#phead').lower())
+        check('the tray starts on the Today list (Docket 7.0.0)', pg.locator('[data-dp=tray-today][aria-selected=true]').count() == 1)
+        pg.click('[data-dp=tray-all]'); pg.wait_for_timeout(200)
         open_ids = pg.evaluate(f"() => {P}.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank).map(t => t.id)")
         # 1) keyboard: select a task, P, then 2 for the second block
         pg.focus(f'.dtray .row[data-id="{open_ids[0]}"]'); pg.keyboard.press('p'); pg.wait_for_timeout(150); pg.keyboard.press('2'); pg.wait_for_timeout(300)
@@ -207,6 +228,22 @@ def main():
         got = pg.evaluate(slots)
         check('tasks slot by keyboard, by drag and from the drawer', got.get(open_ids[0]) == secs[1] and got.get(open_ids[1]) == secs[0] and got.get(open_ids[2]) == secs[0])
         check('slotted tasks leave the tray', pg.locator(f'.dtray .row[data-id="{open_ids[0]}"]').count() == 0)
+        # One today (Docket 7.0.0): a task in today's block is on the Today list, and Today groups it under its block.
+        t0s = pg.evaluate("new Date().toLocaleDateString('en-CA')")
+        check('a task planned into a block today is on the Today list', all(pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{i}').focusOn") == t0s for i in open_ids[:3]))
+        pg.keyboard.press('1'); pg.wait_for_timeout(300)
+        check('Today groups its tasks under the day\'s blocks, with Not scheduled last', pg.locator('.col-today .tblk').count() == len(secs) + 1
+              and pg.locator(f'.col-today .tblk-rows[data-sec="{secs[1]}"] .row[data-id="{open_ids[0]}"]').count() == 1
+              and pg.locator(f'.col-today .tblk-rows[data-sec="{secs[0]}"] .row[data-id="{open_ids[1]}"]').count() == 1
+              and pg.locator('.col-today .tblk.loose').count() == 1)
+        pg.locator(f'.col-today .row[data-id="{open_ids[2]}"]').drag_to(pg.locator(f'.col-today .tblk-rows[data-sec="{secs[1]}"]')); pg.wait_for_timeout(300)
+        check('dragging a task onto another block on Today plans it there', pg.evaluate(slots).get(open_ids[2]) == secs[1])
+        pg.focus(f'.col-today .row[data-id="{open_ids[2]}"]'); pg.keyboard.press('t'); pg.wait_for_timeout(300)
+        check('taking it off Today takes it out of its block too', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{open_ids[2]}').focusOn") is None and open_ids[2] not in pg.evaluate(slots))
+        pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{open_ids[2]}'); t.focusOn = null; P.commit(); }}")
+        pg.keyboard.press('2'); pg.wait_for_timeout(300)
+        pg.click(f'.dtray .row[data-id="{open_ids[2]}"] .title'); pg.wait_for_timeout(200)
+        pg.select_option('#drawer [data-f=plansec]', secs[0]); pg.wait_for_timeout(200); pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         # Lost this block: the first block's tasks go to the next open block (the default).
         pg.click(f'.dsec[data-sec="{secs[0]}"] [data-dp=secmenu]'); pg.click('.menu [data-sm=lose]'); pg.wait_for_timeout(150)
         pg.click('.modal [data-ok]'); pg.wait_for_timeout(300)
@@ -247,7 +284,8 @@ def main():
         check('an every-sprint task is made on day 1 at Low value, due on its sprint day', rec is not None and rec['title'] == 'Backlog refinement' and rec['value'] == 2 and rec['due'] == want_due)
         planned = pg.evaluate(f"() => {{ const P = {P}, d = P.dp.days['{want_due}'], t = P.state.tasks.find(t => t.recur); if (!d || !t) return null; const s = d.slots.find(x => x.taskId === t.id); return s && d.sections.find(x => x.id === s.sectionId).kind; }}")
         check('with Plan into, it is planned in that kind of block on its due day', planned == 'admin')
-        check('it shows the Every sprint symbol', pg.locator('main .sig.recur[aria-label^="Every sprint"]').count() >= 1)
+        check('planned into a block on its due day, it is on that day\'s Today list (one today)', pg.evaluate(f"() => {P}.state.tasks.find(t => t.recur).focusOn") == want_due)
+        check('it shows the Every sprint symbol', 'aria-label="Every sprint' in pg.evaluate(f"() => {P}.row({P}.state.tasks.find(t => t.recur))"))
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !t.recur); P.commit(); }}")
         made = pg.evaluate(f"() => {P}.recurTick()")
         check('deleting it does not bring it back this sprint', made == 0 and pg.evaluate(f"() => {P}.state.tasks.filter(t => t.recur).length") == 0)
@@ -324,7 +362,7 @@ def main():
         # ---------- Tandem's first-pass PR reviews (js/pr-ai.js, js/pr-ai-model.js) ----------
         pr = lambda i, tier, c: "{key: 'c|P|%d', id: %d, title: 'Change %d', repo: 'api', project: 'P', url: 'https://ado.example.test/c/P/_git/api/pullrequest/%d', author: 'Dev One', tier: '%s', via: [], commit: '%s'}" % (i, i, i, i, tier, c)
         r = pg.evaluate(f"""() => {{ const P = {P}; const n = P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'aaaaaaa1')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
-          P.state.scope = 'all'; P.state.view = 'prioritize'; P.state.lens = 'rank'; P.commit();
+          P.state.scope = 'all'; P.state.view = 'today'; P.ui.planWeek = false; P.state.lens = 'rank'; P.commit();
           return [n.prAdded, n.prHeld, P.state.ado.prHeld.map(h => h.item.id), P.state.tasks.filter(t => t.pr && t.pr.id > 700).map(t => [t.pr.id, t.pr.ai && t.pr.ai.state])]; }}""")
         check('with Tandem on, a blocking PR lands at once as being reviewed; asked and team PRs are held', r == [1, 2, [702, 704], [[701, 'pending']]])
         pg.wait_for_timeout(300)
@@ -377,11 +415,12 @@ def main():
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('ADO Settings has the Day plan kind for each PR group', r == ['blocking=reviews', 'pending=admin'])
         pg.evaluate(f"() => {{ const P = {P}; P.state.ado.prSlots = {{blocking: '', pending: ''}}; }}")
-        pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'rank'; P.adoApply({{prs: {{items: [
+        pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'today'; P.ui.planWeek = false; P.adoApply({{prs: {{items: [
           {{key: 'c|p|r|801', id: 801, repo: 'web', title: 'Mine', tier: 'blocking', created: '2026-01-01'}},
           {{key: 'c|p|r|802', id: 802, repo: 'web', title: 'Team one', tier: 'pool', via: ['Team'], created: '2026-01-01'}}]}}}}); P.commit(); }}""")
         pg.wait_for_timeout(200)
-        titles_shown = "() => [...document.querySelectorAll('main .col-rank .row .title, main .col-today [data-zone=today] .row .title')].map(e => e.textContent)"
+        # PR reviews (Docket 7.0.0): blocking ones pinned on Today, the rest in Up next's Reviews line.
+        titles_shown = "() => [...document.querySelectorAll('main .col-today .treviews .row .title, main .col-rank .revline .row .title')].map(e => e.textContent)"
         shown_now = pg.evaluate(titles_shown)
         check('PR rows drop the "Review: " prefix (the PR chip says it)', 'Mine' in shown_now and 'Team one' in shown_now and not any(x.startswith('Review:') for x in shown_now))
         check('an old PR never goes stale or back to Triage', pg.evaluate(f"() => {P}.triageQueue().every(t => !t.pr)"))
@@ -509,9 +548,9 @@ def main():
           const open = P.state.tasks.filter(t => !t.done).sort((a, b) => a.rank - b.rank).slice(0, 2);
           open.forEach(t => t.focusOn = d); P.commit(); return open.map(t => t.id); }}""")
         pg.wait_for_timeout(200)
-        pg.hover(f'.col-today [data-zone=today] > .row[data-id="{fa}"]'); pg.click(f'.col-today [data-zone=today] > .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
+        pg.hover(f'.col-today .row[data-id="{fa}"]'); pg.click(f'.col-today .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         check('Start on a Today row makes it the task in the now bar', pg.is_visible('#nowbar') and pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').title") in pg.inner_text('#nowbar .ntitle')
-              and pg.locator(f'main .col-today [data-zone=today] > .row.active[data-id="{fa}"]').count() == 1)
+              and pg.locator(f'main .col-today .row.active[data-id="{fa}"]').count() == 1)
         check('the focus band sits above the page header, with a timer, Pause and the tab title',
               pg.evaluate("() => document.querySelector('#nowbar').nextElementSibling.id") == 'phead'
               and pg.inner_text('#nowbar .ntime').strip() == '0m' and pg.locator('#nowbar .npause').count() == 1
@@ -522,7 +561,7 @@ def main():
         pg.click('#nowbar [data-now=crumb]'); pg.wait_for_timeout(200)
         check('the band\'s breadcrumb button asks for one', pg.locator('.modal .crumbsheet').count() == 1)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
-        pg.hover(f'.col-today [data-zone=today] > .row[data-id="{fb}"]'); pg.click(f'.col-today [data-zone=today] > .row[data-id="{fb}"] [data-act=start]'); pg.wait_for_timeout(200)
+        pg.hover(f'.col-today .row[data-id="{fb}"]'); pg.click(f'.col-today .row[data-id="{fb}"] [data-act=start]'); pg.wait_for_timeout(200)
         check('switching to another task asks where you left off', pg.locator('.modal .crumbsheet').count() == 1)
         pg.fill('.modal .crumbsheet input', 'next: <b>write</b> the test'); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
         crumbs = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').crumbs")
@@ -533,7 +572,7 @@ def main():
         pg.click('#nowbar [data-now=done]'); pg.wait_for_timeout(300)
         check('Done in the now bar completes the task and stops it', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fb}').done")
               and pg.evaluate(f"() => {P}.focusModel.activeOf({P}.focusLog, new Date().toLocaleDateString('en-CA'))") is None)
-        check('Today shows where you left off, escaped', 'write' in pg.inner_text(f'.col-today [data-zone=today] > .row[data-id="{fa}"] .crumb') and pg.locator('main .crumb b').count() == 0)
+        check('Today shows where you left off, escaped', 'write' in pg.inner_text(f'.col-today .row[data-id="{fa}"] .crumb') and pg.locator('main .crumb b').count() == 0)
         pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
         pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
         cols = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
@@ -542,8 +581,11 @@ def main():
               f'prioritizer/focus/days/{y}' in cols and pg.evaluate(f"() => {P}.focusModel.dayCounts({P}.focusLog, new Date().toLocaleDateString('en-CA')).switches") == 1)
         check('with nothing running, the now bar is hidden and Today has a Start button', not pg.is_visible('#nowbar') and pg.locator('#phead [data-now=startnext]').count() == 1
               and not pg.evaluate('document.title').startswith('\u25CF'))
-        pg.hover(f'.col-today [data-zone=today] > .row[data-id="{fa}"]'); pg.click(f'.col-today [data-zone=today] > .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
+        pg.hover(f'.col-today .row[data-id="{fa}"]'); pg.click(f'.col-today .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-nowbar.png'))
+        # Nothing planned for the next working day yet (Day view tests above may have moved blocks there), so
+        # Wrap up's picks start from today's unfinished tasks.
+        pg.evaluate(f"() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA'); P.state.tasks.forEach(t => {{ if (t.focusOn && t.focusOn > d) t.focusOn = null; }}); P.commit(); }}")
         pg.click('[data-shutdown]'); pg.wait_for_timeout(300)
         check('Wrap up opens the shutdown ritual with the active task to leave a breadcrumb on', pg.locator('.modal .shutdown').count() == 1
               and pg.locator(f'.modal [data-crumb="{fa}"]').count() == 1 and pg.locator(f'.modal [data-pick="{fa}"]:checked').count() == 1)
@@ -585,11 +627,9 @@ def main():
         check('W turns waiting on, with a follow-up date', t['waiting'] and t['nudgeOn'] is not None)
         # Due follow-up: Today shows it in Needs you, Nudged pushes it, Got it back ends the wait and marks it came back.
         pg.evaluate(f"""() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{tid}'); const d = new Date(); d.setDate(d.getDate() - 1);
-          t.nudgeOn = d.toLocaleDateString('en-CA'); P.state.view = 'today'; P.commit(); }}"""); pg.wait_for_timeout(200)
-        check('Today: Needs you shows follow-ups due', pg.locator('.needs [data-need=nudges]').count() == 1)
-        pg.click('.needs [data-need=nudges]'); pg.wait_for_timeout(150)
-        check('the follow-ups panel lists the task with Nudged and Got it back', pg.locator(f'.needp .row[data-id="{tid}"] [data-act=nudged]').count() == 1)
-        pg.click(f'.needp .row[data-id="{tid}"] [data-act=nudged]'); pg.wait_for_timeout(200)
+          t.nudgeOn = d.toLocaleDateString('en-CA'); P.state.view = 'today'; P.ui.planWeek = false; P.commit(); }}"""); pg.wait_for_timeout(200)
+        check('Today: Waiting on others shows the follow-up due, first, with a bell', pg.evaluate(f"() => !!document.querySelector('.col-today .waitp .wgrp .row[data-id=\"{tid}\"] [data-act=nudged]') && document.querySelector('.col-today .waitp .wgrp').contains(document.querySelector('.col-today .waitp .row[data-id=\"{tid}\"]'))") and pg.locator('.col-today .waitp header .sig').count() == 1)
+        pg.click(f'.col-today .waitp .row[data-id="{tid}"] [data-act=nudged]'); pg.wait_for_timeout(200)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
         check('Nudged moves the follow-up forward and leaves a breadcrumb', t['nudgeOn'] > pg.evaluate("new Date().toLocaleDateString('en-CA')") and t['crumbs'][-1]['text'].startswith('Nudged'))
         check('Waiting on others groups by person, with the follow-up buttons', pg.locator(f'.col-today .wgrp .row[data-id="{tid}"] [data-act=gotback]').count() == 1)
@@ -599,23 +639,20 @@ def main():
         inbox_ids = lambda: pg.evaluate("() => [...document.querySelectorAll('.col-inbox .inrows .row[data-id]')].map(r => r.dataset.id)")
         card_title = lambda: pg.input_value('#triTitle') if pg.locator('#triTitle').count() else ''
         check('it shows in the Inbox, marked Came back', tid in inbox_ids() or card_title() == 'Hand this over')
-        pg.keyboard.press('3'); pg.wait_for_timeout(200)
-        for _ in range(12):
-            if card_title() in ('Hand this over', ''): break
-            pg.keyboard.press('s'); pg.wait_for_timeout(120)
-        check('it can be the triage card, which says Came back', card_title() == 'Hand this over' and pg.locator('.tri-card .chip.cb').count() == 1)
+        pg.click(f'.col-inbox .row[data-id="{tid}"] .title'); pg.wait_for_timeout(250)
+        check('clicking it opens its card, which says Came back', card_title() == 'Hand this over' and pg.locator('.tri-card .chip.cb').count() == 1)
         pg.keyboard.press(' '); pg.wait_for_timeout(100); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
         check('saving it from the Inbox (with Today on) handles Came back', 'cameBack' not in t and t['focusOn'] == pg.evaluate("new Date().toLocaleDateString('en-CA')"))
         inbox_n = "async () => (await import('/js/state.js')).inboxQueue().length"
         n0 = pg.evaluate(inbox_n)
         if n0:
-            pg.keyboard.press('Escape'); pg.keyboard.press('3'); pg.wait_for_timeout(200); pg.keyboard.press('3'); pg.keyboard.press('w'); pg.wait_for_timeout(100); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
-            check('triage keys in the Inbox save and go to the next one', pg.evaluate(inbox_n) == n0 - 1 and pg.evaluate(f"{P}.state.view") == 'today')
+            pg.keyboard.press('Escape'); pg.keyboard.press('3'); pg.wait_for_timeout(200); pg.keyboard.press('3'); pg.wait_for_timeout(300)
+            check('one key in the Inbox sorts the first task and moves to the next one', pg.evaluate(inbox_n) == n0 - 1 and pg.evaluate(f"{P}.state.view") == 'today')
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('Esc leaves the Inbox column', pg.locator('.col.colon').count() == 0)
-        check('the sidebar has Today on top and the review views under it', pg.inner_text('#snav .snav-h') .strip().lower() == 'review')
+        check('the sidebar has Today on top and the plan and review views under it', [h.strip().lower() for h in pg.locator('#snav .snav-h').all_inner_texts()] == ['plan', 'review'])
         # People: the Unassigned tray, drag a task onto a card to delegate it.
         uid = pg.evaluate(f"""async () => {{ const m = await import('/js/actions.js'); return m.addTask('Tray task').id; }}""")
         pg.keyboard.press('5'); pg.wait_for_timeout(300)

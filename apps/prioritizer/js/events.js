@@ -1,4 +1,4 @@
-import { addTask, downgradeUrgent, moveTask, toggleDone, toggleFocus } from './actions.js';
+import { addTask, downgradeUrgent, moveTask, quickSort, toggleDone, toggleFocus } from './actions.js';
 import { onAdoClick } from './ado.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
@@ -9,7 +9,7 @@ import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { openDisplay } from './display.js';
-import { app, col, drawer, focusCol, freshTri, inboxOpen, main, openQuad, render, sel, setCol, setDoneOpen, setInboxOpen, setLens, setOpenQuad, setScope, setSel, setView, setWeekOff, tri, weekOff } from './render.js';
+import { app, col, drawer, focusCol, freshTri, inboxOpen, main, openQuad, planWeek, render, sel, setCol, setDoneOpen, setInboxOpen, setLens, setOpenQuad, setPlanWeek, setScope, setSel, setView, setWeekOff, tri, weekOff } from './render.js';
 import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
@@ -17,7 +17,7 @@ import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext,
 import { addPerson } from './directory.js';
 import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
-import { closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setTrayQ, copyText, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
+import { carryLeft, closeNeed, openNeed, openInboxAnyway, openSortCard, setPeopleFilter, setReviewsOpen, setTrayQ, sortKey, toggleStaleOnly, copyText, fitTriage, recapData, recapText, triageKey, triageSave, triageSkip, triageWont } from './views.js';
 import { leftOffClick } from './left-off.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
@@ -51,6 +51,11 @@ document.addEventListener('click', e => {
   // Today: a lens on Ranked (a rail goes back to List), the narrow-window Inbox, and the triage card's extras.
   const ln = t.closest('[data-lens]');
   if (ln){ if (ln.dataset.goto === 'inbox'){ setView('triage'); return; } setLens(ln.dataset.lens); return; }
+  // Plan week on and off (views.js rankCol); from a rail or "Sort now", back to the Inbox.
+  const pw = t.closest('[data-planweek]');
+  if (pw){ if (pw.dataset.goto === 'inbox'){ setView('triage'); return; } setPlanWeek(pw.dataset.planweek === 'on'); return; }
+  if (t.closest('[data-staleonly]')){ toggleStaleOnly(); return; }
+  const qv = t.closest('[data-qv]'); if (qv){ quickSort(qv.closest('[data-id]').dataset.id, +qv.dataset.qv); return; }
   if (t.closest('[data-inbox-anyway]')){ openInboxAnyway(); focusCol('inbox'); return; }
   const lft = t.closest('[data-leftoff]'); if (lft){ leftOffClick(lft); return; }
   if (t.closest('[data-inbox-toggle]')){ setInboxOpen(!inboxOpen); render(); if (inboxOpen) focusCol('inbox'); return; }
@@ -97,12 +102,7 @@ document.addEventListener('click', e => {
   const su = t.closest('[data-act="still"]'); if (su){ downgradeUrgent(su.closest('[data-id]').dataset.id); return; }
   const ec = t.closest('[data-act="eng"]'); if (ec){ engOpen(ec.dataset.ado); return; }
   const pa = t.closest('[data-act="prai"]'); if (pa){ const x = findTask(pa.closest('[data-id]').dataset.id); if (x && x.pr) prAiOpen(x); return; }
-  const lo = t.closest('[data-left]');
-  if (lo){
-    const t0 = todayStr();
-    state.tasks.forEach(x => { if (inScope(x) && !x.done && x.focusOn && x.focusOn < t0) x.focusOn = lo.dataset.left === 'carry' ? t0 : null; });
-    commit(); return;
-  }
+  const lo = t.closest('[data-left]'); if (lo){ carryLeft(lo.dataset.left === 'carry'); return; }
   const pf = t.closest('[data-pfilter]'); if (pf){ setPeopleFilter(pf.dataset.pfilter); return; }
   const nd = t.closest('[data-need]'); if (nd){ openNeed(nd.dataset.need); return; }
   const dp = t.closest('[data-dir-person]');
@@ -124,10 +124,10 @@ document.addEventListener('click', e => {
   }
   if (t.closest('a.sig[href]')) return;   // the ADO chip on a row opens the item, not the drawer
   // A task in the Inbox's list becomes the triage card; anywhere else a click opens its details.
-  const ir = t.closest('.col-inbox .inrows .row[data-id]'); if (ir){ tri.pick = ir.dataset.id; tri.id = null; setCol('inbox'); render(); focusCol('inbox'); return; }
+  const ir = t.closest('.col-inbox .inrows .row[data-id]'); if (ir){ setCol('inbox'); openSortCard(ir.dataset.id); focusCol('inbox'); return; }
   const r = t.closest('.row[data-id]'); if (r && !t.closest('.qform,.pform')){ openDrawer(r.dataset.id); return; }
 });
-document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); }, true);
+document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); if (e.target.id === 'revLine') setReviewsOpen(e.target.open); }, true);
 // The column you work in on Today: where triage keys go, and where Left and Right move from.
 const colOf = el => el && el.closest && el.closest('main .col[data-col]');
 document.addEventListener('mousedown', e => { const c = colOf(e.target); if (c && c.dataset.col !== col) setCol(c.dataset.col); }, true);
@@ -190,6 +190,7 @@ document.addEventListener('keydown', e => {
     if (drawerId) return closeDrawer();
     if (typing){ ae.blur(); return; }
     if (closeNeed()) return;
+    if (state.view === 'today' && tri.pick){ triageSkip(); focusCol('inbox'); return; }   // close the Inbox's card
     if (state.view === 'today' && (col || inboxOpen)){ setCol(null); if (inboxOpen){ setInboxOpen(false); render(); } if (ae && ae.blur) ae.blur(); return; }
     return;
   }
@@ -209,7 +210,17 @@ document.addEventListener('keydown', e => {
   // In Today's Inbox column, Triage's keys set the card (value 1-4, effort Q-T, Enter saves).
   if (state.view === 'today' && col === 'inbox' && tri.draft && !(onButton && (e.key === 'Enter' || e.key === ' ')) && triageKey(e)) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  // A row in the Inbox: 1 to 4 sort it by value, 0 is won't do, Enter opens its card (views.js sortKey).
+  const inboxRow = state.view === 'today' && !tri.draft && sel && main.querySelector(`.col-inbox .row[data-id="${CSS.escape(sel)}"]`);
+  if (inboxRow && /^[0-4]$/.test(k)){
+    e.preventDefault();
+    const next = sortKey(sel, k);
+    if (typeof next === 'string'){ setSel(next); setCol('inbox'); requestAnimationFrame(focusSel); }
+    return;
+  }
+  if (inboxRow && k === 'Enter' && !onButton){ e.preventDefault(); setCol('inbox'); openSortCard(sel); focusCol('inbox'); return; }
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
+  else if (k === '4' && state.view === 'today'){ setPlanWeek(!planWeek()); }
   else if (/^[1-6]$/.test(k)){ setView(NAV_KEYS[k]); }
   else if ((k === 'ArrowLeft' || k === 'ArrowRight') && state.view === 'today'){
     const cols = [...main.querySelectorAll('.col[data-col]:not(.rail)')].map(c => c.dataset.col); if (!cols.length) return;

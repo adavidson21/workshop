@@ -1,7 +1,7 @@
 /* Docket: the day plan's state and saving. The day plan is its own small board (dayplan-model.js), saved through
    the same write loop as the board (store.js) as the dayplan/* collections (dayplan-format.js). Every change the
    Day view makes goes through dpChange, which records it for undo and saves. */
-import { autoPlan, planByKind, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue, sprintsOn } from './dayplan-model.js';
+import { autoPlan, planByKind, slotOf, unslotTask, cleanDayplan, cleanRecurring, cleanSprint, cleanTemplate, createHistory, freshDayplan, recurDue, sprintsOn } from './dayplan-model.js';
 import { COLORS } from './constants.js';
 import { commit, isWaiting, listById, state, topLists } from './state.js';
 import { todayStr } from './util.js';
@@ -18,13 +18,14 @@ async function dayplanBoot(ws, {render, status}){
   dstore = createStore({
     data: ws.data,
     board: () => dp,
-    applied: () => { cleanDayplan(dp); onChange(); },
+    applied: () => { cleanDayplan(dp); syncToday(); onChange(); },
     status,
     format: dayplanFormat()
   });
   await dstore.load();
   dstore.start();
   await linkWorkshop(ws);
+  syncToday();
   recurTick();
   setInterval(recurTick, 60000);
   return dstore;
@@ -61,6 +62,7 @@ function recurTick(){
     made++;
   }
   if (dstore) dstore.schedule();
+  syncToday();   // a repeating task planned into a block is on that day's Today list (one today)
   commit();
   return made;
 }
@@ -134,7 +136,41 @@ function setRecurring(rs){
 }
 /* Keys of other apps' offers already accepted or dismissed (offers.js). Saved in dayplan/settings meta.handled. */
 function setHandled(keys){ dp.handled = keys; save(); }
-function save(){ if (dstore) dstore.schedule(); onChange(); }
+function save(){ if (dstore) dstore.schedule(); syncToday(); onChange(); }
+
+/* One today (Docket 7.0.0): a task in a block on a day, from today on, is on that day's Today list. Slotting
+   (a drag, P, the drawer, a repeating task, a PR placed by its group) and the first load after the update all
+   come through here. Open tasks with no Today date, or one from before today (left over), get the block's date;
+   so does a task on today's list that is now only in a later day's block (moved there). A task in today's block,
+   or already planned for a later day, keeps its own. Taking a task off Today unslots it
+   (unslotDay), and unslotting a task keeps it on Today, as not scheduled. */
+function syncToday(){
+  if (!dstore || isWaiting()) return 0;
+  const t0 = todayStr(), byId = new Map(state.tasks.map(t => [t.id, t]));
+  const todayRec = dp.days[t0], inToday = new Set(todayRec && Array.isArray(todayRec.slots) ? todayRec.slots.map(s => s.taskId) : []);
+  let n = 0;
+  for (const d of Object.keys(dp.days).filter(d => d >= t0).sort()){
+    const rec = dp.days[d];
+    if (!rec || !Array.isArray(rec.slots)) continue;
+    for (const s of rec.slots){
+      const t = byId.get(s.taskId);
+      if (!t || t.done) continue;
+      // Moved from today to a later day's block (Lost this block, the drawer's Plan for): it is that day's now.
+      const movedOn = d > t0 && t.focusOn === t0 && !inToday.has(t.id);
+      if (t.focusOn && t.focusOn >= t0 && !movedOn) continue;
+      t.focusOn = d; n++;
+    }
+  }
+  if (n) commit();
+  return n;
+}
+/* Off Today: out of the day's block too. Saved in undo, like any other change to a day. */
+function unslotDay(taskId, date = todayStr()){
+  const rec = dp.days[date];
+  if (!dstore || !rec || !slotOf(rec, taskId)) return false;
+  dpChange([date], () => unslotTask(dp, date, taskId));
+  return true;
+}
 
 /* A backup's day plan, merged in (storage.js calls this after importing the board). */
 async function importDayplan(bundle){
@@ -146,4 +182,4 @@ async function importDayplan(bundle){
   return cols.length;
 }
 
-export { planPr, workshopLinked, recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };
+export { planPr, syncToday, unslotDay, workshopLinked, recurTick, setHandled, setRecurring, dayplanBoot, dpChange, dpRedo, dpUndo, dstore, ensureYear, history, importDayplan, setSprint, setTemplates, dp };

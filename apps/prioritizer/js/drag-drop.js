@@ -4,9 +4,9 @@ import { toast } from './overlays.js';
 import { render } from './render.js';
 import { commit, findTask, inInbox, listById, state } from './state.js';
 import { isStale, isTriaged } from './model.js';
-import { focusCol, tri } from './render.js';
 import { todayStr } from './util.js';
 import { dayDrop } from './day-view.js';
+import { unslotDay } from './dayplan.js';
 import { dropDelegate } from './delegate.js';
 /* Prioritizer: Drag and drop between lists, quadrants and people (the People view's Unassigned tray delegates),
    plus inline rename. */
@@ -66,24 +66,28 @@ document.addEventListener('drop', e => {
   }
   const zone = z.dataset.zone, from = dragFromPerson; dragFromPerson = null;
   if (zone === 'dsec' || zone === 'dtray') return dayDrop(id, z, e.clientY); // the Day view's blocks and tray
+  if (zone === 'tsec'){ delete t.cameBack; if (!isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; } return dayDrop(id, z, e.clientY, todayStr()); } // a block on Today: plan it there now
   // Today's columns. Within a column a drop reorders; across columns it moves the task, at the place it was dropped.
   if (zone === 'rank' || zone === 'today'){
     const rows = [...z.querySelectorAll(':scope > .row')].map(n => n.dataset.id);
     if (z.querySelector(':scope > .row.dragging')) return applyOrder(rows);
     if (rows.includes(id)) rows.splice(rows.indexOf(id), 1);   // a task on Today is also in Ranked, dimmed
     if (zone === 'rank'){
-      // From the Inbox: a task with no value or effort needs them first, so its triage card opens instead.
-      if (inInbox(t) && !isTriaged(t)){ tri.pick = id; tri.id = null; render(); focusCol('inbox'); toast('Give it a value and effort first. Saving moves it to Ranked.'); return; }
-      if (t.focusOn === todayStr()) t.focusOn = null;
+      // From the Inbox: a task with no value or effort gets Medium and M, as one-key sorting does.
+      if (inInbox(t) && !isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; toast(`Sorted: Medium, effort ${t.effort}`); }
+      if (t.focusOn === todayStr()){ t.focusOn = null; unslotDay(id); }
       if (isStale(t)) t.ageFrom = todayStr();
       delete t.cameBack;
-    } else { t.focusOn = todayStr(); delete t.cameBack; }
+    } else {
+      t.focusOn = todayStr(); delete t.cameBack; unslotDay(id);   // into Not scheduled: out of its block
+      if (!isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; }
+    }
     let after = getAfter(z, e.clientY); if (after && after.dataset.id === id) after = after.nextElementSibling && after.nextElementSibling.classList.contains('row') ? after.nextElementSibling : null;
     const at = after ? rows.indexOf(after.dataset.id) : rows.length;
     rows.splice(at < 0 ? rows.length : at, 0, id);
     return applyOrder(rows);
   }
-  if (zone === 'todayrail'){ if (t.focusOn !== todayStr()){ t.focusOn = todayStr(); delete t.cameBack; commit(); } else render(); return; }
+  if (zone === 'todayrail'){ if (t.focusOn !== todayStr()){ t.focusOn = todayStr(); delete t.cameBack; if (!isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; } commit(); } else render(); return; }
   if (zone === 'inbox') return render();
   if (zone === 'untray'){                          // off a person's card into Unassigned: take them off
     if (!from || !t.who.includes(from)) return render();
@@ -94,7 +98,7 @@ document.addEventListener('drop', e => {
     toast(t.who.length ? 'Took them off' : 'Unassigned', 'Undo', () => { Object.assign(t, before); commit(); });
     return;
   }
-  if (zone === 'unfocus'){ if (t.focusOn === todayStr()){ t.focusOn = null; commit(); } else render(); return; }
+  if (zone === 'unfocus'){ if (t.focusOn === todayStr()){ t.focusOn = null; commit(); unslotDay(id); } else render(); return; }
   if (zone === 'person'){
     const p = z.dataset.person;
     if (from === p) return render();

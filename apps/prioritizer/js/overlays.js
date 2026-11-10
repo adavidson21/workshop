@@ -64,8 +64,9 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Day, Inbox, Ranked, People, Done')}
-      ${r('<kbd>←</kbd> <kbd>→</kbd>', "Move between Today's columns: Inbox, Ranked, Today")}
+      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Day, Inbox, Plan week, People, Done')}
+      ${r('<kbd>1</kbd> to <kbd>4</kbd> on an Inbox row', 'Sort it by value (effort M when empty); <kbd>0</kbd> won\'t do, <kbd>Enter</kbd> its card')}
+      ${r('<kbd>←</kbd> <kbd>→</kbd>', "Move between Today's columns: Inbox, Up next, Today")}
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}

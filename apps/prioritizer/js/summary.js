@@ -14,9 +14,10 @@
      done-week  tasks finished in the last 7 days, newest first (Home's weekly status draft)
      tasks    the 50 highest ranked open tasks, titles and ids (Notes' [[ picker, to link a note to a task)
      blocking PRs blocked on you (Home's Needs you during focus, Workshop docs/focus.md)
+     needs    what waits on you here, one row per kind with its count: PRs blocked on you, follow-ups due, work that
+              came back, new ADO items, overdue tasks (Home's Needs you, Docket 7.0.0)
      held     what Docket held during focus or lunch (the shell's Peek and release toast, Dispatch's digest)
    Days past the last one are stale: readers show nothing for them until Docket opens again. */
-import { WINDOW } from './constants.js';
 import { isTriaged } from './model.js';
 import { addDays, daysBetween, isDate } from './util.js';
 import { dayReady, dayView, fromMin, isTime, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
@@ -28,7 +29,6 @@ const WRAP_NO_SPRINT = '15:00';          // Wrap up with no sprint set: from 3 P
 const WRAP_BEFORE_END = 60;              // otherwise an hour before the Day view's day end, on working days
 
 const str = (s, n) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n);
-const isStaleOn = (t, date) => !t.done && !t.pr && !t.due && !!t.value && isDate(t.ageFrom) && daysBetween(t.ageFrom, date) >= 2 * WINDOW[t.value];
 
 /* ---------- board ---------- */
 export function boardDay(board, date){
@@ -40,10 +40,12 @@ export function boardDay(board, date){
   return {
     total: all.length,
     open: open.length,
-    // tasks: the day's Today tasks by rank, for Notes' daily note ({{docket}}); titles and ids only.
+    // tasks: the day's Today tasks by rank, for Notes' daily note ({{docket}}); titles and ids only. A task in one of
+    // the day's blocks is on its Today list too (dayplan.js syncToday), so focusOn covers both.
+    // triage: what is in the Inbox to sort. Stale tasks stay in Ranked (Docket 7.0.0), so they are not counted.
     focus: {total: focus.length, done: focus.filter(t => t.done).length,
       tasks: [...focus].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).slice(0, 10).map(t => ({id: t.id, title: str(t.title, 300), done: !!t.done}))},
-    triage: open.filter(t => !isTriaged(t) || isStaleOn(t, date)).length,
+    triage: open.filter(t => !isTriaged(t)).length,
     overdue: open.filter(t => isDate(t.due) && t.due < date).length,
     dueWeek: open.filter(t => isDate(t.due) && t.due >= date && t.due <= weekEnd).length,
     // Delegated work: follow-ups due by that day, and tasks that came back and are not handled yet.
@@ -174,10 +176,30 @@ export function blockingCard(board){
   return {id: 'blocking', kind: 'list', title: 'PRs blocked on you', count: rows.length, rows: rows.slice(0, 20)};
 }
 
+/** What waits on you in Docket right now (Workshop docs/summaries.md, `needs`): one row per kind, most pressing
+    first, each opening Today. Home's Needs you shows these next to every other app's. */
+const n = (k, one, many = one + 's') => `${k} ${k === 1 ? one : many}`;
+export function needsCard(board, today){
+  const known = new Set(board.lists.map(l => l.id));
+  const open = board.tasks.filter(t => t && known.has(t.listId) && !t.done);
+  const rows = [];
+  const prs = open.filter(t => t.pr && t.pr.tier === 'blocking' && !t.pr.waiting).length;
+  if (prs) rows.push({id: 'prs', title: `${n(prs, 'PR')} blocked on you`, note: 'Review in Docket', route: 'today', flag: 'urgent'});
+  const nudges = open.filter(t => t.waiting === true && isDate(t.nudgeOn) && t.nudgeOn <= today).length;
+  if (nudges) rows.push({id: 'nudges', title: `${n(nudges, 'follow-up')} due`, note: 'Nudge, or take it back', route: 'today', flag: 'waiting'});
+  const back = open.filter(t => isDate(t.cameBack)).length;
+  if (back) rows.push({id: 'cameback', title: `${n(back, 'task')} came back`, note: 'Sort in the Inbox', route: 'today', flag: 'waiting'});
+  const ado = board.ado && Array.isArray(board.ado.pending) ? board.ado.pending.length : 0;
+  if (ado) rows.push({id: 'ado', title: `${n(ado, 'new ADO item')}`, note: 'Add or skip', route: 'today'});
+  const overdue = open.filter(t => !t.pr && isDate(t.due) && t.due < today).length;
+  if (overdue) rows.push({id: 'overdue', title: `${n(overdue, 'overdue task')}`, note: 'Do it, or move the date', route: 'today'});
+  return {id: 'needs', kind: 'list', title: 'Needs you in Docket', count: rows.length, rows};
+}
+
 /** Every card, without updatedAt (the writer stamps them). board: {lists, tasks}; dir: the people directory;
     dp: the day plan; log: the focus log ({days, handoffs}); today: YYYY-MM-DD; held: the focus hours `held` card
     (focus-hours.js), or null. */
 export function buildSummary({board, dir = D.EMPTY, dp, log, today, held = null}){
-  return [boardCard(board, today, dir), dayCard(dp, log, board, today), listsCard(board), peopleCard(board, dir), doneWeekCard(board, today), tasksCard(board), blockingCard(board)]
+  return [boardCard(board, today, dir), dayCard(dp, log, board, today), listsCard(board), peopleCard(board, dir), doneWeekCard(board, today), tasksCard(board), blockingCard(board), needsCard(board, today)]
     .concat(held ? [held] : []);
 }

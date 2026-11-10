@@ -93,14 +93,13 @@ def main():
 
         # Focus hours off: as before.
         check('focus hours off: the Inbox is a full column', pg.locator('.col-inbox:not(.rail)').count() == 1)
-        check('focus hours off: Needs you shows the follow-up and nothing held', 'follow-up' in pg.inner_text('.needs') and 'held' not in pg.inner_text('.needs'))
+        check('focus hours off: the blocking PR is pinned in Today\'s Reviews, nothing held', 'blocked on you' in pg.inner_text('.treviews') and pg.locator('.treviews.held').count() == 0 and pg.locator('.needs').count() == 0)
 
         # Focus hours on, 10:00: the Inbox folds, Needs you holds all but the blocking PR.
         pg.evaluate(SETTINGS, True); tick(pg, 2000)
         pg.clock.pause_at(at(10, 0)); tick(pg)
-        check('during focus the Inbox folds to a rail with its count', pg.locator('.col-inbox.rail.held').count() == 1 and pg.inner_text('.col-inbox.rail .num').strip() == '1')
-        needs = pg.inner_text('.needs')
-        check('during focus Needs you shows the blocking PR and holds the rest until 1:00', 'blocked on you' in needs and 'follow-up' not in needs and 'held until 1:00' in needs)
+        check('during focus the Inbox folds to a rail with its count and when it comes back', pg.locator('.col-inbox.rail.held').count() == 1 and pg.inner_text('.col-inbox.rail .num').strip() == '1' and 'until 1:00' in pg.inner_text('.col-inbox.rail'))
+        check('during focus the blocking PR still shows in Reviews (it breaks through)', 'blocked on you' in pg.inner_text('.treviews') and pg.locator('.treviews.held').count() == 0)
         add_tasks(pg, [{'id': 'in2', 'title': 'Captured during focus', 'value': None, 'effort': None}]); tick(pg, 1500)
         check('a capture during focus still lands in the Inbox and counts on the rail', pg.inner_text('.col-inbox.rail .num').strip() == '2')
         jsclick(pg, '.col-inbox.rail [data-inbox-anyway]'); tick(pg, 500)
@@ -137,17 +136,17 @@ def main():
         pg.fill('.leftoff input', 'Tokens done; <b>next</b> the grammar'); pg.press('.leftoff input', 'Enter'); tick(pg, 800)
         lo = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === 'wk1').leftOff")
         check('it is saved on the task as leftOff', lo is not None and lo['text'] == 'Tokens done; <b>next</b> the grammar')
-        check('back on the task, it shows above the Now card, escaped', pg.locator('.leftoff:not([data-asking])').count() == 1 and pg.locator('.leftoff b').count() == 0 and '<b>next</b>' in pg.inner_text('.leftoff'))
+        check('back on the task, it shows at the top of Today, escaped', pg.locator('.leftoff:not([data-asking])').count() == 1 and pg.locator('.leftoff b').count() == 0 and '<b>next</b>' in pg.inner_text('.leftoff'))
         pg.evaluate(f"() => {P}.openDrawer('wk1')"); tick(pg, 400)
         check('the drawer shows it too', 'Tokens done' in pg.inner_text('#drawer'))
         pg.keyboard.press('Escape'); tick(pg, 300)
         # During lunch the strip folds entirely.
-        check('during lunch Needs you folds entirely', 'blocked on you' not in pg.inner_text('.needs') and 'held until 1:00' in pg.inner_text('.needs'))
+        check('during lunch Reviews folds to one line (nothing breaks through lunch)', pg.locator('.treviews.held').count() == 1 and 'held until 1:00' in pg.inner_text('.treviews') and pg.locator('.treviews .row').count() == 0)
         jsclick(pg, '.row[data-id="wk1"] [data-act="done"]'); tick(pg, 800)
         lo = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === 'wk1').leftOff")
         check('marking the task done clears it', lo is None)
         pg.clock.pause_at(at(13, 0)); tick(pg, 2000)
-        check('after lunch the Inbox and Needs you are back', pg.locator('.col-inbox:not(.rail)').count() == 1 and 'follow-up' in pg.inner_text('.needs'))
+        check('after lunch the Inbox and Reviews are back', pg.locator('.col-inbox:not(.rail)').count() == 1 and pg.locator('.treviews:not(.held) .row').count() == 1)
 
         check('no page errors', not errors)
         for e in errors: print('  ', e)

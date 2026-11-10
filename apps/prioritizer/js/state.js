@@ -4,7 +4,7 @@ import { cleanLeftOff } from './left-off-model.js';
 import { cleanProduct } from './products-link.js';
 import { scheduleSave } from './storage.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
-import { isStale, isTriaged } from './model.js';
+import { isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
@@ -227,17 +227,18 @@ const isDoneToday = t => t.done && !t.wontDo && t.doneAt === todayStr();
 const scopeOpen = () => state.tasks.filter(t => !t.done && inScope(t)).sort((a,b) => a.rank - b.rank);
 const isFocus = t => t.focusOn === todayStr() && (!t.done || isDoneToday(t));
 function triageQueue(){
-  return state.tasks.filter(t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t)))
+  return state.tasks.filter(t => !t.done && inScope(t) && !isTriaged(t))
     .sort((a,b) => a.ageFrom.localeCompare(b.ageFrom) || a.rank - b.rank);
 }
-// Today's Inbox column: what needs a decision. Tasks to triage (no value or effort, or stale), then work that came
-// back from someone (Got it back), oldest first.
-const inInbox = t => !t.done && inScope(t) && (!isTriaged(t) || isStale(t) || isDate(t.cameBack));
+// Today's Inbox column: what needs a decision. Tasks to sort (no value or effort), then work that came back from
+// someone (Got it back), oldest first. Stale tasks stay in Ranked with their mark (Docket 7.0.0); Plan week filters them.
+const inInbox = t => !t.done && inScope(t) && (!isTriaged(t) || isDate(t.cameBack));
 function inboxQueue(){
   const q = triageQueue(), have = new Set(q.map(t => t.id));
   const back = state.tasks.filter(t => !t.done && inScope(t) && isDate(t.cameBack) && !have.has(t.id)).sort((a,b) => a.cameBack.localeCompare(b.cameBack) || a.rank - b.rank);
   return [...q, ...back];
 }
-// Today's Ranked column: open tasks in rank order, without the Inbox's and what is waiting on someone.
-const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting);
+// Today's Ranked column: open tasks in rank order, without the Inbox's, what is waiting on someone, and PR reviews
+// (blocking ones are pinned on Today; the rest are Up next's Reviews line).
+const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting && !t.pr);
 export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

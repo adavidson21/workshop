@@ -27,7 +27,9 @@ const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
 // Old view names (links, saved windows, the 3 and 4 keys) and where they go now: Today, with a column or a lens.
-const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank'}, prioritize: {col: 'rank'}, rank: {col: 'rank', lens: 'rank'}, eisen: {col: 'rank', lens: 'eisen'}, ve: {col: 'rank', lens: 've'}, focus: {}};
+// The 4 key opens and closes Plan week (events.js).
+// Ranking views open Plan week (Docket 7.0.0), the full Ranked list with its lenses.
+const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 've', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
 const NAV_OF = v => v;
 // ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
