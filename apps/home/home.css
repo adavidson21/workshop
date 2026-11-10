@@ -44,9 +44,37 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 /* sections */
 .cols{animation:rise .6s ease-out .14s both}
 .stack{display:flex;flex-direction:column;gap:2.25rem}
-/* Today: Docket's counts in one card; each opens Docket's Today */
-.todaycard .ch .btn{margin-left:auto}
-.todaycard .tiles{animation:none}
+/* Your day (Home 3.0.0): the block on now, Today's tasks under their blocks, one footer line, one button */
+.yourday .ch .btn{margin-left:auto}
+.yourday .ch .lnk{margin-left:auto;font-size:.88rem;white-space:nowrap}
+.yourday .ch .lnk+.btn{margin-left:0}
+.yourday .ch .btn svg{width:15px;height:15px}
+.ydcount{font:500 .8rem var(--mono);color:var(--muted);white-space:nowrap}
+.ydnow{margin:0 0 .8rem;font-size:1.02rem}
+.ydnow .nowtag{margin:0 .5rem 0 0;padding:.12rem .4rem;border-radius:4px;background:var(--accent-soft)}
+.ydnow.soft{font-size:.92rem}
+.ydtasks{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.ydtasks li{border-bottom:1px solid var(--line)}
+.ydtasks .lnk{display:block;width:100%;text-align:left;padding:.5rem .2rem .5rem 1.2rem;font-size:.95rem;font-weight:400;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ydtasks li.done .lnk{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.ydtasks .ydblk{display:flex;align-items:baseline;gap:.6rem;padding:.55rem .2rem .3rem;border-bottom:0;font:500 11.5px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.ydtasks .ydblk .num{min-width:4.4rem;letter-spacing:0;text-transform:none}
+.ydtasks .ydblk.now{color:var(--accent)}
+.ydfoot{margin:.75rem 0 0;font-size:.88rem;color:var(--muted)}
+.ydfoot .lnk{font-size:.88rem;color:var(--ink)}
+.ydfoot .late{color:var(--danger)}
+/* the header's More menu */
+.hmore{position:relative}
+.hmore>summary{list-style:none;cursor:pointer}
+.hmore>summary::-webkit-details-marker{display:none}
+.hmore[open]>summary{color:var(--ink);border-color:var(--muted);background:var(--surface)}
+.hmenu{position:absolute;right:0;top:calc(100% + .4rem);z-index:30;min-width:13rem;padding:.3rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-lg);display:flex;flex-direction:column}
+.mi{display:flex;align-items:center;gap:.55rem;width:100%;padding:.5rem .6rem;border-radius:var(--r-sm);text-align:left;font-size:.9rem;color:var(--ink)}
+.mi svg{width:16px;height:16px;color:var(--muted);flex:none}
+.mi:hover,.mi:focus-visible{background:var(--hover)}
+.mi.acc svg{color:var(--accent)}
+.hello .htools .btn{display:inline-flex;align-items:center;gap:.4rem;margin:0}
+.hello .htools .btn svg{width:15px;height:15px}
 .card{padding:0}
 .card h2{display:flex;align-items:center;gap:14px;flex:1;margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .card h2::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -219,9 +247,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* big screens (a 27in monitor, Workshop full screen): use the room instead of a narrow centered column */
-/* Dashboard cards (view.js): Today with its tasks, Day plan, Coming up, This week */
-.todaycard .tbody{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem 2rem;align-items:start}
-@media (min-width:1100px){.todaycard.has-list .tbody{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+/* Dashboard cards (view.js): Coming up, This week */
 .ftasks{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule);counter-reset:ft}
 .ftasks li{display:flex;align-items:baseline;gap:.6rem;border-bottom:1px solid var(--line);counter-increment:ft}
 .ftasks li::before{content:counter(ft);width:1.2rem;flex:none;font:500 .8rem var(--mono);color:var(--muted);text-align:right}

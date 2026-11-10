@@ -2,7 +2,7 @@
 // numbers, the day plan and Wrap up are tested in Docket (test/summary.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentCounts, boardFromSummary, fmt12, greeting, initials, profileForm, render, todayCard, withNames, wrapFromDay } from '../js/view.js';
+import { agentCounts, boardFromSummary, fmt12, greeting, initials, profileForm, render, withNames, wrapFromDay, yourDayCard } from '../js/view.js';
 import { directory } from '../../../shared/people.js';
 
 const TODAY = '2026-10-21';
@@ -73,28 +73,51 @@ test('Wrap up from the day card: due from its time, wrapped, and receipts offere
   assert.deepEqual(wrapFromDay(null, 9 * 60), { wrapped: false, due: false, receipts: 0 });
 });
 
-test('Wrap up step: primary when due, says Day wrapped once done', () => {
-  const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0 }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
+test('Your day: one button, Wrap up when due, Day wrapped once done, Pick today\'s tasks when Today is empty', () => {
+  const v = { now: new Date(2026, 10, 4, 16, 45), profile: {}, agents: { state: 'browser' }, board: { total: 3, open: 1, focus: { total: 1, done: 0, tasks: [] }, triage: 0, overdue: 0, dueWeek: 0, upNext: [], team: [] } };
   const due = render({ ...v, wrap: { wrapped: false, due: true, receipts: 2 } });
-  assert.match(due, /class="hbtn primary" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day" title="[^"]*2 receipts offered to Rapport today\."/);
+  assert.match(due, /class="btn primary" data-open="prioritizer" data-path="shutdown" title="[^"]*2 receipts offered to Rapport today\."/);
   const early = render({ ...v, wrap: { wrapped: false, due: false, receipts: 0 } });
-  assert.match(early, /class="hbtn" data-open="prioritizer" data-path="shutdown" aria-label="Wrap up the day"/);
-  assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /class="hbtn done" data-open="prioritizer" data-path="shutdown" aria-label="Day wrapped"/);
+  assert.match(early, /class="btn primary" data-open="prioritizer" data-path="today">Open Docket/);
+  assert.match(render({ ...v, wrap: { wrapped: true, due: true, receipts: 0 } }), /data-path="shutdown"[^>]*>[\s\S]*?Day wrapped</);
+  const empty = render({ ...v, board: { ...v.board, focus: { total: 0, done: 0, tasks: [] } }, wrap: { wrapped: false, due: false, receipts: 0 } });
+  assert.match(empty, /data-path="today">[\s\S]*?Pick today's tasks</);
+  assert.equal((due.match(/class="btn primary"/g) || []).length, 1, 'one button on the card');
+  assert.match(due, /class="lnk" data-open="prioritizer" data-path="today">Open Docket/, 'and Open Docket as a link next to Wrap up');
 });
 
-test('Today card: Docket\'s counts, each opening Docket\'s Today; no Up next, Now or People on Home', () => {
-  const b = board({ total: 4, open: 3, focus: { total: 2, done: 1 }, triage: 1, overdue: 1, dueWeek: 2, nudges: 2, cameBack: 1, upNext: [
-    row('a', { title: 'Late', list: 'Main', listId: 'l1', due: '2026-10-19', people: ['Dana Lee'] })], team: [{ id: 'p_d', name: 'Dana Lee', open: 1, waiting: 0 }] });
-  const html = render({ now: new Date(2026, 9, 20, 9), profile: { name: 'A' }, board: b, agents: { state: 'off' } });
-  assert.match(html, /<h2>Today<\/h2>/);
-  assert.match(html, /class="tile danger"/, 'overdue');
-  assert.match(html, /class="tile warn"[^>]*title="1 task to sort"/, 'triage');
-  assert.match(html, /title="2 follow-ups due on work you handed over"/);
-  assert.match(html, /1 came back/);
-  assert.equal((html.match(/data-path="today"/g) || []).length, 5, 'four tiles and Open Today all open Docket\'s Today');
-  assert.ok(!html.includes('Up next') && !html.includes('Dana Lee') && !html.includes('Open Day'), 'Docket\'s own views stay in Docket');
-  assert.ok(!html.includes('<h2>Dispatch</h2>'));
-  assert.match(todayCard(board({ open: 0 })), /class="tile zero"/);
+test('header (Home 3.0.0): the greeting and one More menu; Weekly status as a button on Friday afternoons', () => {
+  const v = { now: new Date(2026, 10, 4, 9), profile: { name: 'Sam' }, agents: { state: 'browser' }, board: { total: 0, open: 0, focus: { total: 0, done: 0 } } };
+  const html = render(v);
+  const tools = html.slice(html.indexOf('<div class="htools">'), html.indexOf('</header>'));
+  assert.match(tools, /<details class="hmore"/);
+  assert.match(tools, /class="mi" role="menuitem" data-status>/);
+  assert.match(tools, /data-edit-profile>[\s\S]*?Edit profile/);
+  assert.doesNotMatch(tools, /class="hbtn[^"]*" data-open=/, 'no day actions in the header');
+  assert.doesNotMatch(tools, /class="btn" data-status/);
+  const fri = render({ ...v, now: new Date(2026, 10, 6, 14) });
+  assert.match(fri.slice(0, fri.indexOf('</header>')), /class="btn" data-status>/);
+});
+
+test('Your day: the block on now, Today\'s tasks under their blocks, Not scheduled, and one footer line', () => {
+  const now = new Date(2026, 10, 10, 13, 15);
+  const b = board({ total: 6, open: 5, triage: 7, overdue: 2, dueWeek: 1, nudges: 3, cameBack: 1,
+    focus: { total: 4, done: 1, tasks: [{ id: 't1', title: 'Write the plan', done: false }, { id: 't2', title: 'Review PR 77', done: true }, { id: 'x', title: 'Loose <one>', done: false }, { id: 'y', title: 'Another', done: false }] } });
+  const html = yourDayCard(b, day, now, null);
+  assert.match(html, /class="card yourday w2"/);
+  assert.match(html, /<span class="nowtag">Now<\/span><b>Meetings<\/b> until 3:00 PM, then Admin/);
+  assert.match(html, /<li class="ydblk now"><span class="num">1:00 PM<\/span>Meetings<\/li>/);
+  assert.ok(html.indexOf('Write the plan') > html.indexOf('Meetings') && html.indexOf('Not scheduled') > html.indexOf('Write the plan'));
+  assert.match(html, /Not scheduled<\/li>[\s\S]*Loose &lt;one&gt;/);
+  assert.match(html, /1 of 4 done/);
+  assert.match(html, /7 to sort/); assert.match(html, /2 overdue/); assert.match(html, /1 due this week/);
+  assert.doesNotMatch(html, /follow-up|came back/, 'follow-ups and came back are Needs you rows (Docket\'s needs card)');
+  const noPlan = yourDayCard(b, null, now, null);
+  assert.match(noPlan, /No plan today\. <button class="lnk" data-open="prioritizer" data-path="day\/today">Plan the day/);
+  assert.doesNotMatch(noPlan, /ydblk/);
+  const many = yourDayCard(board({ total: 12, open: 12, focus: { total: 12, done: 0, tasks: Array.from({ length: 10 }, (_, i) => ({ id: 'm' + i, title: 'Task ' + i, done: false })) } }), null, now, null);
+  assert.equal((many.match(/data-path="task\//g) || []).length, 8, 'at most 8 tasks');
+  assert.match(many, /and 2 more/);
   assert.equal(initials('DevA'), 'DA');
   assert.equal(initials('Dana Lee'), 'DL');
 });
@@ -120,8 +143,20 @@ test('Needs you: one list from every app, urgent first, with agents added', asyn
   assert.deepEqual(rows.map(r => [r.appName, r.title, r.flag]), [
     ['Dispatch', '1 agent waiting for an answer', 'urgent'], ['Slate', 'Asking', 'urgent'], ['Slate', '#7 Export', ''],
     ['Rapport', '1:1 with Ana', 'waiting']
-  ], 'Docket\'s counts are on the Today card, not repeated here');
+  ]);
   assert.deepEqual(inboxRows([], {}), []);
+});
+
+test('Needs you (Docket 7.0.0): Docket\'s needs rows, and one row for pull requests when Dispatch has one too', async () => {
+  const { inboxRows } = await import('../js/view.js');
+  const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
+  const docket = { app: 'prioritizer', name: 'Docket', cards: cards([{ id: 'prs', title: '2 PRs blocked on you', note: 'Review in Docket', route: 'today', flag: 'urgent' }, { id: 'nudges', title: '1 follow-up due', route: 'today', flag: 'waiting' }]) };
+  const dispatch = { app: 'agents', name: 'Dispatch', cards: cards([{ id: 'prs', title: '5 pull requests waiting for your review', note: 'a, b', route: 'reviews' }]) };
+  const rows = inboxRows([docket, dispatch], {});
+  assert.deepEqual(rows.map(r => [r.appName, r.title, r.note, r.flag]), [
+    ['Docket', '2 PRs blocked on you', '5 pull requests waiting for your review in Dispatch', 'urgent'],
+    ['Docket', '1 follow-up due', '', 'waiting']]);
+  assert.equal(inboxRows([dispatch], {})[0].appName, 'Dispatch', 'without Docket\'s row, Dispatch\'s stays');
 });
 
 test('weekly status: a Markdown draft from every app that logged something', async () => {
@@ -159,18 +194,17 @@ test('dashboard: Coming up from every app\'s upcoming card, soonest first, two w
   assert.equal(upcomingCard([], today), '');
 });
 
-test('dashboard: the page is one .dash grid with Today spanning two columns, Day plan when there is one', async () => {
+test('dashboard: the page is one .dash grid with Your day spanning two columns, and no separate Day plan card', async () => {
   const { dayBlocks } = await import('../js/view.js');
   const now = new Date(2026, 10, 10, 10, 15);
-  const day = { blocks: [{ name: 'Standup', at: '09:00', until: '09:30', tasks: [] }, { name: 'Deep <focus>', at: '10:00', until: '12:00', tasks: [{ id: 't', title: 'Fix', done: true }] }] };
+  const day = { blocks: [{ name: 'Standup', at: '09:00', until: '09:30', tasks: [] }, { name: 'Deep <focus>', at: '10:00', until: '12:00', tasks: [{ id: 'x1', title: 'Ship <it>', done: true }] }] };
   const blocks = dayBlocks(day, 10 * 60 + 15);
   assert.deepEqual(blocks.map(b => [b.past, b.now]), [[true, false], [false, true]]);
   const b = board({ total: 3, open: 3, focus: { total: 2, done: 1, tasks: [{ id: 'x1', title: 'Ship <it>', done: true }, { id: 'x2', title: 'Review', done: false }] } });
   const html = render({ now, profile: {}, board: b, day, agents: { state: 'off' }, upcoming: [], week: [] });
   assert.match(html, /<div class="dash cols">/);
-  assert.match(html, /class="card todaycard w2 has-list"/);
+  assert.match(html, /class="card yourday w2"/);
   assert.match(html, /data-path="task\/x1">Ship &lt;it&gt;</);
-  assert.match(html, /Day plan/);
-  assert.match(html, /Deep &lt;focus&gt; <b class="nowtag">Now<\/b>/);
-  assert.doesNotMatch(render({ now, profile: {}, board: b, agents: { state: 'off' } }), /Day plan/);
+  assert.match(html, /<b>Deep &lt;focus&gt;<\/b> until 12:00 PM/);
+  assert.doesNotMatch(html, /Day plan<\/h2>|class="tile/);
 });

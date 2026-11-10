@@ -28,7 +28,8 @@ export const ICON = {
   play: svg('<path d="M6.5 4.3v11.4l9-5.7z"/>'),
   chev: svg('<path d="M5.5 8l4.5 4.5L14.5 8"/>', 1.6),
   x: svg('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>', 1.6),
-  doc: svg('<path d="M5.5 2.8h6l3.5 3.5v10.9H5.5z"/><path d="M11.5 2.8v3.5H15M8 10h5M8 13h5"/>')
+  doc: svg('<path d="M5.5 2.8h6l3.5 3.5v10.9H5.5z"/><path d="M11.5 2.8v3.5H15M8 10h5M8 13h5"/>'),
+  dots: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>'
 };
 // Round icon button; the tooltip (title) and aria-label carry the words.
 export const hbtn = (icon, label, attrs, cls = '', tip = label) => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(label)}" title="${esc(tip)}">${icon}</button>`;
@@ -92,8 +93,6 @@ export function greeting(now, named = false) {
   return named ? part[0].toUpperCase() + part.slice(1) : 'Good ' + part;
 }
 
-const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="tile${tone ? ' ' + tone : ''}" data-open="prioritizer" data-path="${path}" title="${esc(tip)}">
-  <span class="n num">${n}</span><span class="lbl">${icon}${label}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 
 /* ---------- Needs you, and the week ---------- */
 
@@ -101,9 +100,9 @@ const tile = (icon, n, label, sub, tone, path, tip = label) => `<button class="t
 const RANK = { urgent: 0, '': 1, waiting: 2 };
 
 /**
- * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md) and agents
- * waiting for an answer. Docket's own counts are on the Today card. byApp: [{app, name, cards: Map | null}].
- * Rows: [{app, appName, title, note, route, flag}], urgent first, at most 12.
+ * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md, Docket's
+ * included from Docket 7.0.0) and agents waiting for an answer. byApp: [{app, name, cards: Map | null}].
+ * Rows: [{app, appName, id, title, note, route, flag}], urgent first, at most 12.
  */
 export function inboxRows(byApp, { agents = null } = {}) {
   const out = [];
@@ -113,8 +112,16 @@ export function inboxRows(byApp, { agents = null } = {}) {
     if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) continue;
     for (const r of c.rows.slice(0, 20)) {
       if (!r || typeof r.title !== 'string') continue;
-      out.push({ app: a.app, appName: a.name, title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : '', route: typeof r.route === 'string' ? r.route : '', flag: ['urgent', 'waiting'].includes(r.flag) ? r.flag : '' });
+      out.push({ app: a.app, appName: a.name, id: typeof r.id === 'string' ? r.id : '', title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : '', route: typeof r.route === 'string' ? r.route : '', flag: ['urgent', 'waiting'].includes(r.flag) ? r.flag : '' });
     }
+  }
+  // One row for pull requests: Docket's "PRs blocked on you" (from Docket 7.0.0) keeps its place and takes
+  // Dispatch's "waiting for your review" count as its note, instead of two rows about the same reviews.
+  const docketPrs = out.find(r => r.app === 'prioritizer' && r.id === 'prs');
+  const agentPrs = out.findIndex(r => r.app === 'agents' && r.id === 'prs');
+  if (docketPrs && agentPrs >= 0) {
+    docketPrs.note = `${out[agentPrs].title} in Dispatch`.slice(0, 200);
+    out.splice(agentPrs, 1);
   }
   return out.map((r, i) => [RANK[r.flag] ?? 1, i, r]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]).slice(0, 12);
 }
@@ -167,7 +174,7 @@ export function dayBlocks(day, nowMin) {
   return day.blocks.filter(b => b && typeof b.name === 'string' && isTime(b.at)).slice(0, 24).map(b => {
     const at = toMin(b.at), until = isTime(b.until) ? toMin(b.until) : at;
     return { name: b.name.slice(0, 80), at: b.at, until: isTime(b.until) ? b.until : '', now: nowMin >= at && nowMin < until, past: nowMin >= until,
-      tasks: (Array.isArray(b.tasks) ? b.tasks : []).filter(t => t && typeof t.title === 'string').slice(0, 10).map(t => ({ title: t.title.slice(0, 200), done: !!t.done })) };
+      tasks: (Array.isArray(b.tasks) ? b.tasks : []).filter(t => t && typeof t.title === 'string').slice(0, 10).map(t => ({ id: String(t.id || ''), title: t.title.slice(0, 200), done: !!t.done })) };
   });
 }
 
@@ -234,36 +241,32 @@ export function render(v) {
   const me = v.dir && Array.isArray(v.dir.people) ? v.dir.people.find(x => !x.archived && x.relation === 'self') : null;
   const name = ((me && me.name) || p.name || '').trim(), role = (p.role || (me && me.role) || '').trim();
   const b = v.board && v.board.total ? v.board : null;
-  // The day's actions are round icons in the header: plan the day, then wrap up (the primary one from an hour
-  // before the Day view's day end, from Docket's summary; a check once wrapped). Triage is its tile.
-  const w = v.wrap || { wrapped: false, due: v.now.getHours() >= 15, receipts: 0 };
-  // The weekly status draft: always one click away, the highlighted thing on Friday afternoons.
+  // The header is the greeting and one More menu (Home 3.0.0). The day's actions (pick, plan, wrap up) are on the
+  // Your day card. The weekly status draft is in the menu, and a labeled button on Friday afternoons.
   const friday = v.now.getDay() === 5 && v.now.getHours() >= 12;
-  const statusTool = hbtn(ICON.doc, 'Weekly status', 'data-status', friday ? 'primary' : '', 'Draft your weekly status from what you finished, decided and shipped.');
-  const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
-  const dayTools = b ? hbtn(ICON.day, b.focus.total ? 'Plan today' : "Pick today's tasks", `data-open="prioritizer" data-path="${b.focus.total ? 'day/today' : 'today'}"`, !b.triage && !b.focus.total ? 'primary' : '')
-    + (w.wrapped ? hbtn(ICON.check, 'Day wrapped', 'data-open="prioritizer" data-path="shutdown"', 'done', 'Day wrapped.' + offered)
-      : hbtn(ICON.moon, 'Wrap up the day', 'data-open="prioritizer" data-path="shutdown"', w.due ? 'primary' : '', "Wrap up the day: breadcrumbs and tomorrow's top 3." + offered)) : '';
+  const more = `<details class="hmore" data-more><summary class="hbtn" aria-label="More" title="More">${ICON.dots}</summary>
+      <div class="hmenu" role="menu"><button class="mi" role="menuitem" data-status>${ICON.doc}Weekly status</button>
+        <button class="mi" role="menuitem" data-edit-profile>${ICON.pencil}${name ? 'Edit profile' : 'Add your name'}</button></div></details>`;
   const head = `<header class="hello">
     <div class="who">
       <p class="meta">${role ? esc(role) + ' · ' : ''}${v.now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       <h1>${greeting(v.now, !!name)}${name ? ', ' + esc(name.split(/\s+/)[0]) : ''}</h1>
     </div>
-    ${v.waiting ? '' : `<div class="htools">${dayTools}${statusTool}${hbtn(ICON.pencil, name ? 'Edit profile' : 'Add your name', 'data-edit-profile')}</div>`}
+    ${v.waiting ? '' : `<div class="htools">${friday ? `<button class="btn" data-status>${ICON.doc}Weekly status</button>` : ''}${more}</div>`}
   </header>`;
 
   if (v.waiting) return head + waitingCard(v.embedded);
 
   /* The dashboard (docs/layout.md, .dash): one column in half a screen, two on a laptop, three from 1600px.
-     Home shows and links; triage, ranking and planning happen in each app. */
+     Home shows and links; sorting, ranking and planning happen in each app (Docket's Today for the day). */
   const today = dateStr(v.now);
-  const rest = inboxCard(v.inbox || [], v.focus, v.blocking || []) + dayCard(v.day, v.now)
+  const rest = inboxCard(v.inbox || [], v.focus, v.blocking || [])
     + upcomingCard(v.upcoming, today) + notesCard(v.notes) + agentsCard(v.agents) + weekCard(v.week);
   let first;
   if (!v.board) first = `<section class="card note w2"><h2>Docket</h2><p>${esc(v.boardNote || 'Loading your board.')}</p></section>`;
   else if (!b && v.noSummary) {
     // No summary yet: a new board, or Docket not opened since an update (Home reads only its summary).
-    first = `<section class="card note w2"><h2>Nothing from Docket yet</h2><p>Open Docket once and your board shows up here. New to Docket? Add a few tasks there.</p>
+    first = `<section class="card note w2"><h2>Nothing from Docket yet</h2><p>Open Docket once and your day shows up here. New to Docket? Add a few tasks there.</p>
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>`;
   } else if (!b) {
     const empty = v.adoReady
@@ -271,16 +274,8 @@ export function render(v) {
       : '<h2>No tasks yet</h2><p>Add a few in Docket and they show up here.</p>';
     first = `<section class="card note w2">${empty}
       <p><button class="btn primary" data-open="prioritizer">Open Docket</button></p></section>`;
-  } else first = todayCard(b);
+  } else first = yourDayCard(b, v.day, v.now, v.wrap);
   return head + `<div class="dash cols">${first}${rest}</div>`;
-}
-
-/* Today's Day plan from Docket's `day` card: the blocks with now marked. Only when there is a plan. */
-export function dayCard(day, now) {
-  const blocks = dayBlocks(day, now.getHours() * 60 + now.getMinutes());
-  if (!blocks.length) return '';
-  return `<section class="card daycard"><div class="ch"><h2>Day plan</h2><button class="lnk" data-open="prioritizer" data-path="day/today">Open</button></div>
-    <ol class="blocks">${blocks.map(x => `<li class="${x.now ? 'now' : x.past ? 'past' : ''}"><span class="bt num">${esc(fmt12(x.at))}</span><span class="bn">${esc(x.name)}${x.now ? ' <b class="nowtag">Now</b>' : ''}</span>${x.tasks.length ? `<span class="bk">${x.tasks.filter(t => t.done).length}/${x.tasks.length}</span>` : ''}</li>`).join('')}</ol></section>`;
 }
 
 /* Coming up across apps: each app's `upcoming` card (1:1s, milestones, review dates). */
@@ -297,18 +292,56 @@ export function weekCard(week) {
     <div class="weekcols">${week.map(w => `<div class="wk"><p class="wkh">${esc(w.title)} <span class="num">${w.count}</span></p><ul>${w.rows.slice(0, 4).map(r => `<li>${esc(r.title)}</li>`).join('')}${w.count > 4 ? `<li class="soft">and ${w.count - Math.min(4, w.rows.length)} more</li>` : ''}</ul></div>`).join('')}</div></section>`;
 }
 
-/* Docket's Today, in counts: each opens Docket's Today, where the day happens (its Needs you strip handles them). */
-export function todayCard(b) {
+/* Your day (Home 3.0.0), from Docket's `board` and `day` cards: one line for the block on now and the next, Today's
+   tasks grouped under their blocks when there is a Day plan (then Not scheduled), and one line of what is left to
+   sort or late. One button: pick today's tasks when Today is empty, Wrap up from its time, else Open Docket.
+   Everything opens Docket's Today, where the day happens; Home never sorts or plans. */
+const MAX_TASKS = 8;
+export function nowLine(blocks) {
+  const i = blocks.findIndex(x => x.now), cur = blocks[i], next = blocks.slice(i + 1).find(x => !x.past) || (i < 0 ? blocks.find(x => !x.past) : null);
+  if (cur) return `<b>${esc(cur.name)}</b>${cur.until ? ` until ${esc(fmt12(cur.until))}` : ''}${next ? `, then ${esc(next.name)}` : ''}`;
+  if (next) return `Next: <b>${esc(next.name)}</b> at ${esc(fmt12(next.at))}`;
+  return 'Your blocks are done for today';
+}
+export function yourDayCard(b, day, now, wrap) {
+  const blocks = dayBlocks(day, now.getHours() * 60 + now.getMinutes());
+  const tasks = (b.focus.tasks || []);
   const allDone = b.focus.total && b.focus.done === b.focus.total;
-  const tasks = b.focus.tasks || [];
-  const list = tasks.length ? `<ol class="ftasks" aria-label="On Today">${tasks.map(t => `<li class="${t.done ? 'done' : ''}"><button class="lnk" data-open="prioritizer" data-path="task/${esc(t.id)}">${esc(t.title)}</button></li>`).join('')}</ol>` : '';
-  return `<section class="card todaycard w2${list ? ' has-list' : ''}"><div class="ch"><h2>Today</h2><button class="btn primary" data-open="prioritizer" data-path="today">Open Today</button></div>
-  <div class="tbody"><div class="tiles" aria-label="Today in Docket">
-    ${tile(ICON.sun, b.focus.total ? `${b.focus.done}<small>/${b.focus.total}</small>` : '0', 'On Today', allDone ? 'All done' : `${plural(b.open, 'open task')}`, b.focus.total ? (allDone ? 'good' : '') : 'zero', 'today', b.focus.total ? `${b.focus.done} of ${b.focus.total} on Today done` : 'Nothing on Today yet. Pick 3 to 5.')}
-    ${tile(ICON.triage, b.triage, 'Triage', '', b.triage ? 'warn' : 'zero', 'today', b.triage ? `${plural(b.triage, 'task')} to sort` : 'Nothing to triage')}
-    ${tile(ICON.bell, b.nudges, 'Follow-ups', b.cameBack ? `${b.cameBack} came back` : '', b.nudges ? 'warn' : b.cameBack ? '' : 'zero', 'today', b.nudges ? `${plural(b.nudges, 'follow-up')} due on work you handed over` : 'No follow-ups due')}
-    ${tile(ICON.overdue, b.overdue, 'Overdue', b.dueWeek ? `${b.dueWeek} due this week` : '', b.overdue ? 'danger' : 'zero', 'today')}
-  </div>${list}</div></section>`;
+  const w = wrap || { wrapped: false, due: now.getHours() >= 15, receipts: 0 };
+  const offered = w.receipts ? ` ${plural(w.receipts, 'receipt')} offered to Rapport today.` : '';
+  // From Wrap up time the button wraps up; Open Docket stays next to it as a quiet link.
+  const open = `<button class="lnk" data-open="prioritizer" data-path="today">Open Docket</button>`;
+  const btn = w.wrapped ? `${open}<button class="btn ghost" data-open="prioritizer" data-path="shutdown" title="Day wrapped.${esc(offered)}">${ICON.check}Day wrapped</button>`
+    : w.due ? `${open}<button class="btn primary" data-open="prioritizer" data-path="shutdown" title="Wrap up: breadcrumbs and tomorrow's top 3.${esc(offered)}">${ICON.moon}Wrap up</button>`
+    : !b.focus.total ? `<button class="btn primary" data-open="prioritizer" data-path="today">${ICON.sun}Pick today's tasks</button>`
+    : `<button class="btn primary" data-open="prioritizer" data-path="today">Open Docket</button>`;
+  const line = blocks.length ? `<p class="ydnow">${blocks.some(x => x.now) ? '<span class="nowtag">Now</span>' : ''}${nowLine(blocks)}</p>`
+    : `<p class="ydnow soft">No plan today. <button class="lnk" data-open="prioritizer" data-path="day/today">Plan the day</button></p>`;
+  // Today's tasks, grouped under the blocks they are in; the rest are Not scheduled. At most MAX_TASKS rows.
+  const li = t => `<li class="${t.done ? 'done' : ''}"><button class="lnk" data-open="prioritizer" data-path="task/${esc(t.id)}">${esc(t.title)}</button></li>`;
+  let shown = 0, list = '';
+  const take = ts => { const out = ts.slice(0, Math.max(0, MAX_TASKS - shown)); shown += out.length; return out; };
+  if (blocks.length) {
+    const inBlock = new Set();
+    for (const x of blocks) {
+      x.tasks.forEach(t => inBlock.add(t.id));
+      if (!x.tasks.length || x.past && x.tasks.every(t => t.done)) continue;
+      const ts = take(x.tasks);
+      if (ts.length) list += `<li class="ydblk${x.now ? ' now' : ''}"><span class="num">${esc(fmt12(x.at))}</span>${esc(x.name)}</li>${ts.map(li).join('')}`;
+    }
+    const loose = take(tasks.filter(t => !inBlock.has(t.id)));
+    if (loose.length) list += `<li class="ydblk">Not scheduled</li>${loose.map(li).join('')}`;
+  } else list = take(tasks).map(li).join('');
+  const total = new Set([...tasks.map(t => t.id), ...blocks.flatMap(x => x.tasks.map(t => t.id))]).size;
+  const moreN = total - shown;
+  const foot = [b.triage ? `${b.triage} to sort` : '', b.overdue ? `<span class="late">${b.overdue} overdue</span>` : '', b.dueWeek ? `${b.dueWeek} due this week` : '']
+    .filter(Boolean).map(x => `<button class="lnk" data-open="prioritizer" data-path="today">${x}</button>`).join('<span aria-hidden="true"> · </span>');
+  return `<section class="card yourday w2"><div class="ch"><h2>Your day</h2>${b.focus.total ? `<span class="ydcount num" title="${b.focus.done} of ${b.focus.total} on Today done">${allDone ? 'All done' : `${b.focus.done} of ${b.focus.total} done`}</span>` : ''}${btn}</div>
+    ${line}
+    ${list ? `<ol class="ydtasks" aria-label="On Today">${list}</ol>${moreN > 0 ? `<p class="soft"><button class="lnk" data-open="prioritizer" data-path="today">and ${moreN} more</button></p>` : ''}`
+      : `<p class="soft">Nothing on Today yet. Pick 3 to 5 in Docket.</p>`}
+    ${foot ? `<p class="ydfoot">${foot}</p>` : ''}
+  </section>`;
 }
 
 /* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */

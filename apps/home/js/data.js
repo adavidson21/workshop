@@ -26,7 +26,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     return true;
   }
 
-  /* Docket's numbers, the block on now and Wrap up, from Docket's summary (docs/summaries.md): its `board` and
+  /* Your day: Docket's numbers, today's blocks and Wrap up, from Docket's summary (docs/summaries.md): its `board` and
      `day` cards for today, with names for its ids from the people directory (docs/people.md). No summary yet
      means Docket has not saved one (a new board): an empty board. A summary with no entry for today is stale:
      Home says to open Docket rather than show another day's numbers. */
@@ -83,8 +83,8 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     changed();
   }
 
-  /* Needs you and the week, from every app's summary (docs/summaries.md): `needs` and `done-week` list cards.
-     Docket's board counts (triage, overdue) and agents waiting (the opencode connector) join the inbox here. */
+  /* Needs you and the week, from every app's summary (docs/summaries.md): `needs` and `done-week` list cards,
+     Docket's included. Agents waiting (the opencode connector) join the inbox here. */
   async function loadInbox() {
     try {
       if (!v.apps.length) v.apps = (await ws.apps.list().catch(() => [])).filter(a => a.id !== 'home');
