@@ -92,7 +92,7 @@ Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `t
 
 | Method | Meaning |
 | --- | --- |
-| `ws.teams.get()` | Your team: `{name, areas, connection, areaConnections}`, with empty `areas` when not set up. `areaConnections` holds only entries for paths in `areas` (bundle 2.11.0). Rejects with `unsupported` when another version wrote it. |
+| `ws.teams.get()` | Your team: `{name, areas, connection, areaConnections}`, with empty `areas` when not set up. `areaConnections` holds only entries for paths in `areas` (bundle 2.12.0). Rejects with `unsupported` when another version wrote it. |
 | `ws.teams.subscribe(handler)` | Calls `handler(team)` after every change, from this page or anywhere else. Returns an unsubscribe function. |
 | `ws.teams.setMine({areas, connection, areaConnections})` | Saves your team's area paths (an array, or text with one per line; trimmed, no repeats, up to 20), connection name and, optionally, a connection per area path (left out: the saved ones are kept for paths still listed). Resolves your team as saved. |
 
