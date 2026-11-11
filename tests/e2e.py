@@ -1444,7 +1444,9 @@ def main():
         check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
         check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
-        check('opens on Docket, the first rail app, at the plain address', pg.url == HUB + '/' and pg.title() == 'Docket · Workshop')
+        # Docket is the first rail app: the plain address, which Docket 8.0.0 and later then sets to its place (#/prioritizer/today).
+        docket_at = lambda: pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')
+        check('opens on Docket, the first rail app, at the plain address', docket_at() and pg.title() == 'Docket · Workshop')
         check('Needs you is a button in the top bar, not a page or a rail button', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#panelBtn').is_visible()
               and pg.inner_text('#panelBtn .lbl') == 'Needs you' and pg.locator('#rail .mark.on').count() == 0)
         fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
@@ -1455,7 +1457,7 @@ def main():
         check('and only once', not fp.is_visible('#spanel'))
         fresh.close()
         pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
-        check('the rail button for the first app keeps the plain address', pg.url == HUB + '/')
+        check('the rail button for the first app keeps the plain address (or Docket\'s place)', docket_at())
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
@@ -1507,9 +1509,9 @@ def main():
         pg.locator('.capbar .cap-undo').first.click(); pg.wait_for_timeout(600)
         check('Undo withdraws the capture', pg.locator('.capbar .cap-recent li').count() == 0)
         pg.click('.capbar .cb-backdrop', position={'x': 20, 'y': 400}); pg.wait_for_timeout(200)
-        for alias, want_url in (('#/docket', HUB + '/'), ('#/rapport', HUB + '/#/receipts'), ('#/folio', HUB + '/#/notes')):
+        for alias, ok in (('#/docket', docket_at), ('#/rapport', lambda: pg.url == HUB + '/#/receipts'), ('#/folio', lambda: pg.url.startswith(HUB + '/#/notes'))):
             pg.evaluate(f"location.hash = '{alias}'"); pg.wait_for_timeout(900)
-            check(f'the app name works as an address: {alias}', pg.url == want_url)
+            check(f'the app name works as an address: {alias}', ok())
         pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1000)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
