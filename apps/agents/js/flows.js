@@ -48,11 +48,11 @@ export const FLOWS = [
   {
     id: 'epic', name: 'Plan an epic', tag: 'Epic', when: 'An idea with no work items yet: epic, features and stories.', start: 'epic', kind: 'scope',
     steps: [
-      { key: 'scope', name: 'Scope', file: 'stories.md', what: 'Asks at most 3 questions, then writes the epic (epics.md) and stories with acceptance criteria (stories.md).' },
+      { key: 'scope', name: 'Scope', file: 'stories.md', what: 'Asks at most 3 questions, then writes the epic (epics.md) and light stories (stories.md): what and why, 2 to 5 outcome-only scenarios each. Engineering decides how.' },
       { key: 'stories', name: 'Approve stories', you: true, file: 'stories.md', what: 'Read epics.md and stories.md. Approve them, or send them back with a note.' },
-      { key: 'slice', name: 'Slice', file: 'milestones.md', what: 'Maps each story to real files and puts them in build order (milestones.md).' },
+      { key: 'slice', name: 'Slice', file: 'milestones.md', what: 'Puts features and stories in build order (milestones.md). Each feature gets a short description and a release note; code pointers stay local as notes for the builder.' },
       { key: 'milestones', name: 'Approve milestones', you: true, file: 'milestones.md', what: 'Read milestones.md. Approve it, or send it back with a note.' },
-      { key: 'backlog', name: 'Backlog', file: 'milestones.md', what: 'An ADO import file (backlog.csv), ADO items, or local items, one per story.' }
+      { key: 'backlog', name: 'Backlog', file: 'milestones.md', what: 'An ADO import file (backlog.csv), ADO items, or local items, one per story. Features carry their release note; builder notes stay local.' }
     ]
   },
   {

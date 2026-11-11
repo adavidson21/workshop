@@ -557,9 +557,10 @@ export function unfence(text) {
 /**
  * milestones.md, the way eng-agents core/scripts/ado/Export-Backlog.ps1 reads it: Status, the Epic line (a title,
  * or "#<id> title" for an epic that exists), "## Feature <n>: <title>" sections with "### Story <n>.<m>: <title>"
- * under them, each story with "#### Acceptance criteria" and "#### Work item". Other "## " sections are not items.
- * Returns {status, epic: {title, id, description}, features: [{num, title, description, stories: [{ref, title,
- * description, acceptance, work}]}], errors}.
+ * under them. A feature has a short description and a "#### Release note"; each story has "#### Acceptance criteria"
+ * and "#### Notes for the builder" (older files: "#### Work item"), which stays local. Other "## " sections are not
+ * items. Returns {status, epic: {title, id, description}, features: [{num, title, description, releaseNote,
+ * stories: [{ref, title, description, acceptance, work}]}], errors}.
  */
 export function parseMilestones(text) {
   const out = { status: null, epic: { title: '', id: null, description: '' }, features: [], errors: [] };
@@ -582,7 +583,7 @@ export function parseMilestones(text) {
     }
     if (heading) {
       let m = /^##\s+Feature\s+(\d+)\s*:\s*(.+?)\s*$/.exec(line);
-      if (m) { feature = { num: Number(m[1]), title: m[2], lines: [], stories: [] }; out.features.push(feature); story = null; section = 'feature'; continue; }
+      if (m) { feature = { num: Number(m[1]), title: m[2], lines: [], release: [], stories: [] }; out.features.push(feature); story = null; section = 'feature'; continue; }
       m = /^###\s+Story\s+(\d+)\.(\d+)\s*:\s*(.+?)\s*$/.exec(line);
       if (m) {
         if (!feature) { out.errors.push(`Story ${m[1]}.${m[2]} is not under a feature.`); section = 'ignore'; continue; }
@@ -593,7 +594,8 @@ export function parseMilestones(text) {
         continue;
       }
       if (/^####\s+Acceptance criteria\s*$/i.test(line) && story) { section = 'ac'; continue; }
-      if (/^####\s+Work item\s*$/i.test(line) && story) { section = 'work'; continue; }
+      if (/^####\s+Release notes?\s*$/i.test(line) && feature && !story) { section = 'release'; continue; }
+      if (/^####\s+(Notes for the builder|Work item)\s*$/i.test(line) && story) { section = 'work'; continue; }
       if (/^####\s/.test(line) && story) { story.lines.push(line); section = 'story'; continue; }
       if (/^#\s/.test(line)) continue;
       if (/^##\s/.test(line)) { feature = null; story = null; section = 'ignore'; continue; }
@@ -601,6 +603,7 @@ export function parseMilestones(text) {
     }
     if (section === 'epic') epicLines.push(line);
     else if (section === 'feature') feature.lines.push(line);
+    else if (section === 'release') feature.release.push(line);
     else if (section === 'story') story.lines.push(line);
     else if (section === 'ac') story.ac.push(line);
     else if (section === 'work') story.work.push(line);
@@ -608,7 +611,7 @@ export function parseMilestones(text) {
   const block = (ls) => ls.join('\n').trim();
   out.epic.description = block(epicLines);
   out.features = out.features.map(f => ({
-    num: f.num, title: f.title, description: block(f.lines),
+    num: f.num, title: f.title, description: block(f.lines), releaseNote: f.release.map(l => l.trim()).filter(Boolean).join(' '),
     stories: f.stories.map(s => ({ ref: s.ref, title: s.title, description: block(s.lines), acceptance: unfence(block(s.ac)), work: block(s.work) }))
   }));
   if (!out.epic.title) out.errors.push('No "Epic:" line.');
@@ -644,9 +647,10 @@ export function draftState(item, files = {}) {
  * What Publish will do, before anything is sent: [{ref, op: 'create' | 'update' | 'skip', type, title, parentRef,
  * parentId, id, fields}]. `published` maps refs to ids already created (a run that stopped part way resumes).
  * For a refined story on an existing ADO item it is one update; otherwise one create. For a scope, the epic
- * (unless milestones.md names an existing one), its features and their stories, parents first.
+ * (unless milestones.md names an existing one), its features and their stories, parents first. A feature's release
+ * note goes to `releaseNotesField` (Slate's field settings) when one is set. A story's builder notes stay local.
  */
-export function publishPlan(item, files = {}, { area = '', storyType = 'User Story' } = {}) {
+export function publishPlan(item, files = {}, { area = '', storyType = 'User Story', releaseNotesField = '' } = {}) {
   const published = item.published || {};
   const plan = [];
   const fields = (description, acceptance) => ({ description, ...(acceptance ? { acceptance } : {}), ...(area ? { area } : {}), tags: ['slate'] });
@@ -667,7 +671,8 @@ export function publishPlan(item, files = {}, { area = '', storyType = 'User Sto
     }
     for (const f of m.features) {
       const fref = `feature ${f.num}`;
-      step(fref, { type: 'Feature', title: f.title, parentRef: epicRef, parentId: epicRef ? null : epicId, fields: fields(f.description) });
+      const rn = releaseNotesField && f.releaseNote && !/^<[^>]*>$/.test(f.releaseNote) ? { custom: { [releaseNotesField]: f.releaseNote } } : {};
+      step(fref, { type: 'Feature', title: f.title, parentRef: epicRef, parentId: epicRef ? null : epicId, fields: { ...fields(f.description), ...rn } });
       for (const s of f.stories) step(`story ${s.ref}`, { type: storyType, title: s.title, parentRef: fref, fields: fields(s.description, s.acceptance) });
     }
     // The card's own ADO item (an Issue, say) is not part of what was made: link it to the top item made and
@@ -687,16 +692,19 @@ export function sourceComment(made) {
   return `Shaped in Slate into ${made.type || 'a work item'} #${made.id}: ${made.title || ''}. That is where the work is tracked now; this item is linked to it as Related.`.replace(/: \./, '.');
 }
 
+/** The level of detail eng-agents asks for: what and why, not how, so engineering decides the implementation. */
+const LIGHT_NOTE = '<!-- 2 to 5 scenarios, outcomes only: no button labels, layouts, field names or data shapes unless asked for. Engineering decides how. -->';
+
 /** Templates for Write it myself, in the layouts the parsers read (refine.md; milestones.md with stories.md approved). */
 export function manualDraft(kind, item) {
   const title = String(item.title || 'Untitled').replace(/\s+/g, ' ').trim();
   const about = String(item.description || '').trim();
   if (kind === 'refine') {
-    return { 'refine.md': `# Refine: ${title}\n\nStatus: DRAFT\nType: ${item.level === 'bug' ? 'Bug' : 'User Story'}\n\n## Description\n\nAs a <who>, I want <what>, so that <why>.\n${about ? `\n${about}\n` : ''}\n## Acceptance criteria\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n\n## Notes for the builder\n\n- \n\n## Open questions\n\n- None.\n` };
+    return { 'refine.md': `# Refine: ${title}\n\nStatus: DRAFT\nType: ${item.level === 'bug' ? 'Bug' : 'User Story'}\n\n## Description\n\nAs a <who>, I want <what>, so that <why>.\n${about ? `\n${about}\n` : ''}\n## Acceptance criteria\n\n${LIGHT_NOTE}\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n\n## Notes for the builder\n\n- \n\n## Open questions\n\n- None.\n` };
   }
   return {
     'stories.md': `# Stories: ${title}\n\nStatus: APPROVED\n\nWritten by hand in Slate: the stories are in milestones.md.\n`,
-    'milestones.md': `# Milestones: ${title}\n\nStatus: DRAFT\n\nEpic: ${title}\n\n${about || 'What this delivers, and for whom.'}\n\n## Feature 1: <the first thing that ships>\n\n### Story 1.1: <a story>\n\nAs a <who>, I want <what>, so that <why>.\n\n#### Acceptance criteria\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n`
+    'milestones.md': `# Milestones: ${title}\n\nStatus: DRAFT\n\nEpic: ${title}\n\n${about || 'What this delivers, and for whom.'}\n\n## Feature 1: <the first thing that ships>\n\n<!-- Two or three sentences: what the user can do when it ships, and why. No design. -->\n\n<What it delivers, and why it matters.>\n\n#### Release note\n\n<!-- One or two business-friendly sentences for customers (at most 255 characters). Goes to the release notes field. -->\n\n<What customers can do now.>\n\n### Story 1.1: <a story>\n\nAs a <who>, I want <what>, so that <why>.\n\n#### Acceptance criteria\n\n${LIGHT_NOTE}\n\n\`\`\`gherkin\nScenario: <the main case>\n  Given <where we start>\n  When <what they do>\n  Then <what they see>\n\`\`\`\n`
   };
 }
 
