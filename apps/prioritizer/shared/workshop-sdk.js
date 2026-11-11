@@ -1184,6 +1184,14 @@ function makeShellChannel(ctx) {
         location.href = SHELL_URL.href + hash;
         return Promise.resolve(null);
       }
+      // The page's own hash is its route (docs/sdk.md, Standalone pages): #/<path>.
+      case 'route.set': {
+        const want = '#/' + String(params.path || '').split('/').map(encodeURIComponent).join('/');
+        if (location.hash !== want) {
+          try { history[params.replace ? 'replaceState' : 'pushState'](null, '', location.pathname + location.search + (params.path ? want : '')); } catch (e) { /* sandboxed page */ }
+        }
+        return Promise.resolve(null);
+      }
       case 'toast': inPageToast(params.text, params.action); return Promise.resolve(null);
       case 'badge': {
         const base = document.title.replace(/^\(\d+\)\s*/, '');
@@ -1315,6 +1323,11 @@ export async function connect(options) {
     // The route the app was opened at (docs/sdk.md: route fires "including on first show"). Sent on the
     // next task, so handlers the app adds right after `await connect()` get it.
     if (initial.route) { const path = initial.route; setTimeout(() => shell.emit('route', { path })); }
+  } else {
+    // Standalone: the page's own #/<path> is the route, on load and on Back, Forward or a typed address.
+    const hashPath = () => String((typeof location !== 'undefined' && location.hash) || '').replace(/^#\/?/, '').split('/').map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } }).join('/');
+    if (hashPath()) { const path = hashPath(); setTimeout(() => shell.emit('route', { path })); }
+    if (typeof window.addEventListener === 'function') window.addEventListener('popstate', () => shell.emit('route', { path: hashPath() }));
   }
 
   // Keep the theme current() returns up to date.
@@ -1356,6 +1369,10 @@ export async function connect(options) {
 
     /* shell */
     open(target) { return shell.request('open', { app: target.app, path: target.path }); },
+    // Where this app is now, for the address bar, Back and Forward (docs/sdk.md, Routes).
+    route: {
+      set(path, opts) { return shell.request('route.set', { path: String(path || '').slice(0, 500), replace: !!(opts && opts.replace) }); }
+    },
     toast(text, opts) { return shell.request('toast', Object.assign({ text }, opts)); },
     badge(count, opts) { return shell.request('badge', opts && Number.isInteger(opts.breakThrough) && opts.breakThrough > 0 ? { count, breakThrough: opts.breakThrough } : { count }); },
     notify(opts) { return shell.request('notify', opts); },
@@ -1633,7 +1650,7 @@ function teamsService(data) {
     return Teams.mine(env);
   };
   return {
-    /** Your team: {name, areas, connection}, empty when not set up. */
+    /** Your team: {name, areas, connection, areaConnections}, empty when not set up. */
     get: read,
     subscribe(handler) {
       const h = (t) => handler(t);
@@ -1641,7 +1658,7 @@ function teamsService(data) {
       const off = data.subscribe(APP, COLLECTION, async () => { try { handler(await read()); } catch (e) { console.error(e); } });
       return () => { local.delete(h); off(); };
     },
-    /** Saves your team's area paths and connection. Resolves to your team as saved. */
+    /** Saves your team's area paths, connection and a connection per area. Resolves to your team as saved. */
     async setMine(fields) {
       for (let attempt = 0; ; attempt++) {
         const stored = await data.get(APP, COLLECTION);

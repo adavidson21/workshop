@@ -56,7 +56,7 @@ if (MAC) $('#cmdCheatKey').innerHTML = '<kbd>&#8984; /</kbd> toggle';
 const listTag = name => '#' + String(name).trim().toLowerCase().replace(/\s+/g, '-');
 const tag = (t, ins = t) => `<button type="button" class="ctag" data-ins="${esc(ins)}">${esc(t)}</button>`;
 // Main routes (the sidebar's number keys) and the task keys you reach for most. The full list is the ? sheet.
-const GO = [['1', 'Today'], ['2', 'Day'], ['3', 'Inbox'], ['5', 'People'], ['6', 'Done']];
+const GO = [['1', 'Today'], ['2', 'Day'], ['3', 'Inbox'], ['4', 'Plan week'], ['5', 'People'], ['6', 'Done']];
 const KEYS = [['N /', 'Add a task'], ['J K', 'Next, previous task'], ['X', 'Complete or reopen'], ['T', 'Toggle Today'], ['S', 'Start or pause'],
   ['A', 'Delegate or add people'], ['W', 'Waiting on someone'], ['4', 'Plan the week (on Today)']];
 function cheatHtml(){

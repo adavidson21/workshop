@@ -1,6 +1,7 @@
 import { PR_TIER, prTip } from './ado.js';
 import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
-import { markSel, syncDrawer } from './drawer.js';
+import { closeDrawer, drawerId, markSel, syncDrawer } from './drawer.js';
+import { reportRoute } from './route.js';
 import { engChip } from './eng.js';
 import { slateFor, slateLabel } from './slate-link.js';
 import { prAiChip } from './pr-ai.js';
@@ -34,12 +35,9 @@ function setPlanWeek(on){
   ui.planWeek = on; saveUi();
   if (state.view !== 'today'){ state.view = 'today'; }
   openQuad = null;
+  if (drawerId) closeDrawer(true);
   commit();
 }
-// The Inbox's triage card: the task opened with Enter (or a click), its draft, and tasks skipped this round.
-// With no task picked there is no card: Inbox tasks are rows, sorted with one key (views.js).
-let tri = {seen: new Set(), draft: null, id: null, pick: null};
-const freshTri = () => { tri = {seen: new Set(), draft: null, id: null, pick: null}; };
 // Other modules change this view state through these setters (imported bindings are read-only).
 const setSel = v => { sel = v; }, setOpenQuad = v => { openQuad = v; },
   setWeekOff = v => { weekOff = v; }, setDoneOpen = v => { doneOpen = v; }, setInboxOpen = v => { inboxOpen = v; };
@@ -48,28 +46,32 @@ function setCol(c){
   if (state.view !== 'today') return;
   main.querySelectorAll('.col').forEach(el => el.classList.toggle('colon', el.dataset.col === col));
 }
-/* Focus a column of Today: the triage card in the Inbox, else the column's first row. */
+/* Focus a column of Today: its first row. */
 function focusCol(c){
   setCol(c);
   const el = main.querySelector(`.col[data-col="${c}"]`); if (!el) return;
-  const f = el.querySelector('.tri-card') || el.querySelector('.row[data-id]') || el;
+  const f = el.querySelector('.row[data-id]') || el;
   if (f.classList.contains('row')){ sel = f.dataset.id; markSel(); }
   if (!f.hasAttribute('tabindex')) f.setAttribute('tabindex', '-1');
   f.focus({preventScroll: true}); f.scrollIntoView({block: 'nearest'});
 }
 /* Old views (links from other apps, saved windows, the 3 and 4 keys) open Today with a column or a lens. */
 function setView(v){
-  const old = OLD_VIEWS[v];
+  const old = OLD_VIEWS[v], wasWeek = state.view === 'today' && planWeek();
   if (old){
     if (old.lens) state.lens = old.lens;
     if (old.plan && !ui.planWeek){ ui.planWeek = true; saveUi(); }
     if (old.col === 'inbox' && ui.planWeek){ ui.planWeek = false; state.lens = 'rank'; saveUi(); }
-    if (old.col === 'inbox'){ state.lens = 'rank'; if (state.view !== 'today' || col !== 'inbox') freshTri(); inboxOpen = true; }
+    if (old.col === 'inbox'){ state.lens = 'rank'; inboxOpen = true; }
     v = 'today';
   }
   if (!VIEWS.includes(v)) return;
   const was = state.view;
+  // Today is always Today: leaving Plan week is a route or click to Today like any other place.
+  if (v === 'today' && !old && ui.planWeek){ ui.planWeek = false; state.lens = 'rank'; saveUi(); }
   state.view = v; openQuad = null; sel = null;
+  // The task drawer belongs to the place it was opened in; another place closes it.
+  if (drawerId && (was !== v || wasWeek !== (v === 'today' && planWeek()))) closeDrawer(true);
   if (v !== 'today'){ col = null; inboxOpen = false; }
   else if (old && old.col) col = old.col;
   closeSide();
@@ -102,6 +104,7 @@ function render(){
   else if (v === 'day') renderDay();
   markSel();
   syncDrawer();
+  reportRoute();
 }
 
 /* Waiting for the data folder (state.js, setWaiting): no board, nothing to add or edit, and where to click. */
@@ -120,7 +123,7 @@ function renderWaiting(){
 
 /* sidebar */
 function renderSide(){
-  const nav = NAV_OF(state.view);
+  const nav = state.view === 'today' && planWeek() ? 'week' : NAV_OF(state.view);
   const inbox = inboxQueue().length;
   const tips = {today: `Today: Inbox, Up next and Today${inbox ? `. ${inbox} new to sort` : ''}. Shortcut: 1 (3 Inbox, 4 Plan week)`};
   // Today is where the day happens; Day plans it in time blocks; People and Done are for review. One count on Today:
@@ -158,10 +161,12 @@ const lbtn = (icon, label, tip, attrs) => `<button class="hbtn lab" ${attrs} ari
 const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'primary addbtn');
 function renderHead(){
   const v = state.view;
-  const title = {today: 'Today', people: 'People', archive: 'Done'}[v];
+  const week = v === 'today' && planWeek();
+  const title = week ? 'Plan week' : {today: 'Today', people: 'People', archive: 'Done'}[v];
   if (v === 'day') return dayHead();
   let sub = esc(scopeLabel()), tools = '';
-  if (v === 'today'){
+  if (week) sub = `Rank the week · ${sub}`;
+  else if (v === 'today'){
     sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
     const nx = !activeTask() && nextTask();
     tools = (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
@@ -277,4 +282,4 @@ function capacityCut(open){
   return {cut, sum};
 }
 
-export { col, focusCol, freshTri, inboxOpen, planWeek, setPlanWeek, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, tri, weekOff };
+export { col, focusCol, inboxOpen, planWeek, setPlanWeek, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, weekOff };

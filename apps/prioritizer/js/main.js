@@ -15,7 +15,8 @@ import * as prAiModel from './pr-ai-model.js';
 import { applySide } from './events.js';
 import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
-import { drawerInit, openDrawer, syncDrawer } from './drawer.js';
+import { closeDrawer, drawerId, drawerInit, openDrawer, syncDrawer } from './drawer.js';
+import { reportRoute } from './route.js';
 import { pasteInit } from './paste.js';
 import { dayInit, setDate } from './day-view.js';
 import { maybeOnboard, openTour, tourInit } from './onboarding.js';
@@ -56,21 +57,27 @@ ready.then(ws => {
   startSlateLink(ws, embedded, () => loaded.then(() => { render(); syncDrawer(); }));
   // Your products from Workshop Settings, for +product and the Product field (products-link.js).
   startProductsLink(ws, () => loaded.then(() => { render(); syncDrawer(); }));
+  // #/prioritizer/<path> (Workshop) or #/<path> (Docket's own site): links from other apps, the palette, Back and
+  // Forward. Any place but a task closes the task drawer; Docket then writes where it is (route.js), replacing the
+  // entry, so a one-time path (shutdown) is not repeated on reload.
   ws.on('route', ({path}) => loaded.then(() => {
-    const m = /^task\/(.+)$/.exec(path || '');
+    path = path || '';
+    const m = /^task\/(.+)$/.exec(path);
+    if (!m && path && drawerId) closeDrawer(true);
     if (m && findTask(m[1])) openDrawer(m[1]);
     else if (m) toast("That task isn't in Docket anymore. It may have been deleted.");
-    // #/prioritizer/day/<yyyy-mm-dd> or day/today: the Day view (Workshop Home's Today card links here).
-    const d = /^day(?:\/(\d{4}-\d{2}-\d{2}|today))?$/.exec(path || '');
+    // day/<yyyy-mm-dd> or day/today: the Day view.
+    const d = /^day(?:\/(\d{4}-\d{2}-\d{2}|today))?$/.exec(path);
     if (d){ setView('day'); setDate(!d[1] || d[1] === 'today' ? todayStr() : d[1]); }
-    // #/prioritizer/shutdown: wrap up the day (Workshop Home's Wrap up card links here).
+    // shutdown: wrap up the day.
     if (path === 'shutdown') openShutdown();
-    // #/prioritizer/<view>: Workshop Home and the palette open a view directly. Triage and Prioritize are Today's
-    // Inbox and Ranked columns since Docket 6.0, so their old links focus those.
-    const V = {today: 'today', inbox: 'triage', triage: 'triage', ranked: 'prio', prioritize: 'prio', list: 'rank', eisenhower: 'eisen', 'value-effort': 've', done: 'archive', people: 'people'};
+    // A view, Plan week with a lens, or an old name (Triage and Prioritize are Today's Inbox and Plan week since Docket 6.0).
+    const V = {today: 'today', inbox: 'triage', triage: 'triage', 'plan-week': 'week', 'plan-week/list': 'rank', 'plan-week/eisenhower': 'eisen', 'plan-week/value-effort': 've',
+      ranked: 'prio', prioritize: 'prio', list: 'rank', eisenhower: 'eisen', 'value-effort': 've', done: 'archive', people: 'people'};
     // Team reports moved to Runway (Docket 4.18.0); an old link opens them there.
     if (path === 'reports') ws.open({app: 'runway', path: 'reports'}).catch(() => {});
     if (Object.hasOwn(V, path)) setView(V[path]);
+    reportRoute({replace: true, force: true});
   }));
   ws.on('command', ({id, text}) => {
     // The running task's buttons in Workshop's top bar (focus.js shellStatus).

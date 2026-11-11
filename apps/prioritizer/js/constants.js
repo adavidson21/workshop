@@ -29,7 +29,7 @@ const EMBEDDED = (() => { try { return window.parent !== window && window.parent
 // Old view names (links, saved windows, the 3 and 4 keys) and where they go now: Today, with a column or a lens.
 // The 4 key opens and closes Plan week (events.js).
 // Ranking views open Plan week (Docket 7.0.0), the full Ranked list with its lenses.
-const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 've', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
+const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, week: {col: 'rank', plan: true}, 'plan-week': {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 've', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
 const NAV_OF = v => v;
 // ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
@@ -98,7 +98,8 @@ function initials(name){
 }
 // [key, label, icon, shortcut]. Number keys follow the sidebar, top to bottom.
 // Today on top, then the Review group. 3 and 4 go where Triage and Prioritize were: Today's Inbox and Ranked columns.
-const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
+// Plan week is Today's full ranking (render.js planWeek), shown as a place of its own in the sidebar.
+const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['week','Plan week',ICON.prio,'4'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
 export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

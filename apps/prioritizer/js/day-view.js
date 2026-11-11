@@ -22,6 +22,8 @@ import { lunchOn, makerManagerTemplate, overlapsLunch } from './maker-manager.js
 
 let date = null, followToday = true, trayFilter = 'today', lastNow = null, secDrag = null;
 const curDate = () => (followToday || !date) ? todayStr() : date;
+// The day in Docket's address (route.js): 'today' while following today, else the date shown.
+const dayPath = () => (followToday || !date) ? 'today' : date;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const tasksById = () => new Map(state.tasks.map(t => [t.id, t]));
 const icon = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -710,4 +712,4 @@ function dayInit(){
   }, 30000);
 }
 
-export { I as DAY_ICON, curDate, dayDrop, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate, setDate };
+export { I as DAY_ICON, curDate, dayDrop, dayPath, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate, setDate };

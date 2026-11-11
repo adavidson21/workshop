@@ -1,8 +1,8 @@
 import { quickSort, wontDo } from './actions.js';
 import { EFFORTS, EQ, ICON, LENSES, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
-import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, tri, weekOff } from './render.js';
-import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeOpen, state, ui } from './state.js';
+import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, weekOff } from './render.js';
+import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeListIds, scopeOpen, state, ui } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayStr } from './util.js';
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
 import { dp, dpChange } from './dayplan.js';
@@ -29,47 +29,7 @@ const closeNeed = () => false;
 const blockingPr = t => !t.done && t.pr && t.pr.tier === 'blocking' && !t.pr.waiting;
 const UP_NEXT = 5;
 
-/* ---------- the Inbox column: one key per task, the full card on Enter ---------- */
-// The card shows only for a task picked with Enter or a click (tri.pick); otherwise the Inbox is a list of rows.
-function triageState(){
-  const q = inboxQueue();
-  const cur = (tri.pick && q.find(t => t.id === tri.pick)) || null;
-  return {q, cur};
-}
-function triageCard(cur, pos, total){
-  if (tri.id !== cur.id){
-    tri.id = cur.id;
-    tri.draft = {title: cur.title, notes: cur.notes || '', listId: cur.listId, value: cur.value, effort: cur.effort, due: cur.due, urgentFlag: cur.urgentFlag, today: cur.focusOn === todayStr(), stale: isStale(cur)};
-  }
-  const d = tri.draft, age = isDate(cur.ageFrom) ? ageDays(cur) : 0, who = cur.who || [];
-  const preview = Object.assign({}, cur, {value: d.value, effort: d.effort, due: d.due, urgentFlag: d.urgentFlag});
-  const s = score(preview), ek = eKey(preview), vk = vKey(preview);
-  const lists = orderedLists().map(l => `<option value="${esc(l.id)}"${l.id === d.listId ? ' selected' : ''}>${l.parentId ? '  ' : ''}${esc(l.name)}</option>`).join('');
-  const opt = (on, attr, key, label, extra = '') => `<button class="opt${on ? ' on' : ''}" ${attr} aria-pressed="${on}"${key ? ` aria-keyshortcuts="${key}"` : ''}>${label}${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
-  return `<div class="tri-card" tabindex="-1" aria-live="polite" aria-label="Sort: ${esc(cur.title)}">
-    <div class="tri-top"><span class="num">${pos} of ${total}</span>${isDate(cur.cameBack) ? `<span class="chip cb">${ICON.back}Came back</span>` : ''}<span class="grow"></span>
-      <select id="triList" class="tri-list" aria-label="List">${lists}</select><span aria-hidden="true">·</span><span>${age}d</span>
-      <button class="ibtn" data-tri-open="${esc(cur.id)}" aria-label="Open details" data-tip="Open details">${ICON.dots}</button>
-      <button class="ibtn" data-tact="skip" aria-label="Close" data-tip="Close (Esc)">${ICON.x}</button></div>
-    <textarea id="triTitle" class="tri-title" rows="1" data-tf="title" aria-label="Task title" spellcheck="true">${esc(d.title)}</textarea>
-    <textarea id="triNotes" class="tri-notes" rows="1" data-tf="notes" aria-label="Notes" placeholder="Add notes">${esc(d.notes)}</textarea>
-    ${who.length || cur.waiting ? `<div class="info">${cur.waiting ? '<span class="chip">Waiting</span>' : ''}${who.map(id => `<span class="chip">${esc(mentionOf(id))}</span>`).join('')}</div>` : ''}
-    <div class="tri-fields">
-      <div class="tfld"><label>Value<kbd>1-4</kbd></label><div class="seg-row">${[1,2,3,4].map(v => opt(d.value === v, `data-tv="${v}"`, '', VALUE[v])).join('')}</div></div>
-      <div class="tfld"><label>Effort<kbd>Q-T</kbd></label><div class="seg-row">${EFFORTS.map(e => opt(d.effort === e, `data-te="${e}"`, '', e, `<span class="pts">${POINTS[e]}</span>`)).join('')}</div></div>
-      <div class="tfld"><label for="triDue">Due<kbd>D</kbd></label><div class="opts"><input type="date" id="triDue" value="${d.due || ''}">
-        ${d.due ? `<button class="lnk" data-tdue-clear>Clear</button>` : `<span class="hint">${d.value && isDate(cur.ageFrom) ? `Rises after ${fmtDay(addDays(cur.ageFrom, WINDOW[d.value]))}` : 'Optional'}</span>`}</div></div>
-      <div class="tfld"><label>Flags</label><div class="opts">
-        ${opt(d.urgentFlag, 'data-tt="urgentFlag"', 'U', 'Urgent')}${opt(d.today, 'data-tt="today"', 'Space', 'Today')}</div></div>
-    </div>
-    ${s != null ? `<div class="tri-score" data-tip="Score: (value + urgency) / effort${ek ? `. ${EQ[ek].title}` : ''}${vk ? `, ${VQ[vk].title}` : ''}"><span class="num">${fmtScore(s)}</span></div>` : ''}
-    <div class="tri-foot">
-      <button class="btn ghost text-danger" data-tact="wont">Won't do<kbd>0</kbd></button>
-      <span class="grow"></span>
-      <button class="btn primary" data-tact="save">Save<kbd>Enter</kbd></button>
-    </div>
-  </div>`;
-}
+/* ---------- the Inbox column: one key per task; a click or Enter opens the task in the drawer ---------- */
 /* During focus and lunch the Inbox folds to a rail with its count and when it comes back (focus hours, Workshop
    docs/focus.md). Captures still land in it, and a task dropped on the rail goes to the Inbox. "Open it anyway"
    lasts until the block ends. */
@@ -87,12 +47,11 @@ function inboxBar(q){
   return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>Inbox <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
 }
 function inboxCol(rail){
-  const {q, cur} = triageState();
-  if (!cur){ tri.id = null; tri.draft = null; tri.pick = null; }
+  const q = inboxQueue();
   const held = heldInbox();
   if (!rail && held) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="Inbox: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">until ${esc(fmtUntil(heldUntil()))}</span></button></section>`;
   if (rail) return `<section class="col col-inbox rail dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox"><button class="railbtn" data-planweek="off" data-goto="inbox" data-tip="Inbox: close Plan week to sort it">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
-  const rows = q.map(t => cur && t.id === cur.id ? triageCard(cur, q.indexOf(cur) + 1, q.length) : row(t, {compact: true, back: true, sort: true})).join('');
+  const rows = q.map(t => row(t, {compact: true, back: true, sort: true})).join('');
   const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> delegate, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
   return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox">
     <header class="colh"><h3>Inbox</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
@@ -290,7 +249,6 @@ function renderToday(){
   const lens = plan ? state.lens : 'rank';
   main.innerHTML = `<div class="t3wrap">${plan ? '' : inboxBar(q)}<div class="today3${plan ? ' planweek lensed' : ''}${!plan && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(plan)}${rankCol(plan, lens)}${todayCol(plan)}</div></div>`;
   main.querySelectorAll('.col').forEach(c => c.classList.toggle('colon', c.dataset.col === col));
-  fitTriage();
   if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
 }
 
@@ -302,47 +260,6 @@ function sortKey(id, k){
   if (/^[1-4]$/.test(k)){ quickSort(id, +k); return next || true; }
   if (k === '0'){ wontDo(id); return next || true; }
   return false;
-}
-function openSortCard(id){ tri.pick = id; tri.id = null; render(); }
-
-// Title and notes grow with their text (field-sizing where the browser has it, scrollHeight otherwise).
-function fitTriage(){
-  for (const id of ['triTitle', 'triNotes']){
-    const el = $('#' + id); if (!el || CSS.supports('field-sizing', 'content')) continue;
-    el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px';
-  }
-}
-function triageSave(){
-  const t = findTask(tri.id), d = tri.draft; if (!t || !d) return;
-  const title = String(d.title || '').replace(/\s+/g, ' ').trim();
-  if (title) t.title = title;
-  t.notes = String(d.notes || '').trim();
-  if (d.listId && listById(d.listId)) t.listId = d.listId;
-  t.value = d.value; t.effort = d.effort; t.due = d.due || null; t.urgentFlag = !!d.urgentFlag;
-  if (d.today) t.focusOn = todayStr(); else if (t.focusOn === todayStr()) t.focusOn = null;
-  // kept after triage: restart the aging clock, so a task you just placed doesn't come straight back as stale
-  if (d.stale || isStale(t)) t.ageFrom = todayStr();
-  delete t.cameBack;   // came back and now placed: handled
-  tri.seen.add(t.id); tri.id = null; tri.pick = null;
-  commit();
-}
-function triageSkip(){ if (!tri.id) return; tri.seen.add(tri.id); tri.id = null; tri.pick = null; render(); }
-function triageWont(){ if (!tri.id) return; const id = tri.id; tri.seen.add(id); tri.id = null; tri.pick = null; wontDo(id); }
-function triageKey(e){
-  if (!tri.draft) return false;
-  const d = tri.draft, k = e.key;
-  if (/^[1-4]$/.test(k)){ d.value = +k; }
-  else if ('qwert'.includes(k.toLowerCase()) && k.length === 1){ d.effort = EFFORTS['qwert'.indexOf(k.toLowerCase())]; }
-  else if (k === 'd' || k === 'D'){ e.preventDefault(); const i = $('#triDue'); if (i){ i.focus(); try { i.showPicker && i.showPicker(); } catch(_) {} } return true; }
-  else if (k === 'u' || k === 'U'){ d.urgentFlag = !d.urgentFlag; }
-  else if (k === ' '){ d.today = !d.today; }
-  else if (k === '0'){ e.preventDefault(); triageWont(); return true; }
-  else if (k === 'Enter'){ e.preventDefault(); triageSave(); return true; }
-  else if (k === 's' || k === 'S'){ triageSkip(); return true; }
-  else return false;
-  e.preventDefault();
-  render();
-  return true;
 }
 
 // Everyone else in Workshop's people directory: one click adds a task for them.
@@ -505,4 +422,4 @@ function renderArchive(){
   </div>`;
 }
 
-export { carryLeft, openSortCard, setReviewsOpen, toggleStaleOnly, sortKey, closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, fitTriage, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday, triageKey, triageSave, triageSkip, triageWont };
+export { carryLeft, setReviewsOpen, toggleStaleOnly, sortKey, closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday };

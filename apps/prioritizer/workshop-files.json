@@ -1,6 +1,6 @@
 {
   "repo": "adavidson21/workshop",
-  "commit": "4e7ac8c237f55ecedf1667bd5751b5ea7a04491a",
+  "commit": "be189296b28bb0e291e23e396700290f0b7aa9a7",
   "files": {
     "icons/app-192.png": "icons/app-192.png",
     "icons/app-512.png": "icons/app-512.png",
@@ -56,7 +56,7 @@
     "test/workshop/schemas/summary-card.schema.json": "docs/schemas/summary-card.schema.json",
     "test/workshop/schemas/team.schema.json": "docs/schemas/team.schema.json"
   },
-  "bundle": "2.10.0",
+  "bundle": "2.13.0",
   "sha256": {
     "icons/app-192.png": "99f385aecd24bd43083c191b9656b4b9e2ef6a0da0c74a18eeb13f4bff5001c0",
     "icons/app-512.png": "e423fc135bd9484832e1110005d4169e3ea1bf56791088a6c7ab21aa9ead1f7a",
@@ -92,16 +92,16 @@
     "shared/standalone-bar.js": "1d3a4f8c8b1989b8b5bfcc0a8d0bc973ea4af9fe4ad41f48980962ce55814daa",
     "shared/summary.js": "1cece731121622f7b167b5963e17eaa29e6a642370832f5a666d520944e34414",
     "shared/sw-register.js": "3c3e0149634530891476e8bca0a384ee2282a589ee0463a7637161cdb7dc960d",
-    "shared/teams.js": "af0852abf524bbff1f8a866413c40b17f03bbdd405c7813de85cfca79a7d9a36",
+    "shared/teams.js": "95b4ae530e3e72facec6d0614855b136e6d4b61832db68812eb5f1da5948529a",
     "shared/theme.js": "2663fe78a3492d4948cfa19b0904b718b0587bab94d16539df8377d78a29bf0e",
     "shared/themes.css": "dd0c13e133b808c446470fba88dffcb2c77c1e0823c42735f141e3298eabcbc5",
     "shared/ui.css": "0a4df496ff4b2c8c5bfb36d99ef4641aee2e29f19f4bfba813367d452eb3551e",
     "shared/vendor/LICENSE-SheetJS.txt": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64",
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "24fb8906ef82685e260caa98d70c00615d6020e2f12b950e1f2811c75192157d",
+    "shared/workshop-sdk.js": "dda62458015d5e450446c6b639a04ebcefd800a5042f6c1217a0f0075a8729c1",
     "test/workshop/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382",
-    "test/workshop/schemas/app.schema.json": "aacb2c69036863b58854d651416d8681c20808f83e7c14c011796c5cab904e6a",
+    "test/workshop/schemas/app.schema.json": "00134019d500be35567cfbb6a0de25dc48345923327d1fde3b19f498aa877290",
     "test/workshop/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "test/workshop/schemas/data-bundle.schema.json": "18f46205693248fe5317dc21919b23d45dbd1e12964dffcd98eab3ee5065d3de",
     "test/workshop/schemas/data-envelope.schema.json": "457b2e586e2fc5522e7eb01b3b3cb9a21eca2a6b7a1b5e1755afbc572f5dff7a",
@@ -110,6 +110,6 @@
     "test/workshop/schemas/person.schema.json": "4311c304977caa3d5b6f6707ccb8bdd9bec6a0e3b4802e072b76fa5670cb6d6c",
     "test/workshop/schemas/product.schema.json": "1a12ea1cfed974b009a2f983ea2f0ee0dcae2f584d2ac736008c7eec7d68f20e",
     "test/workshop/schemas/summary-card.schema.json": "c83567190b02d9eea291e3568e4fab3e4b61cc2c2c6d4dc4b8ad8213edd44e2d",
-    "test/workshop/schemas/team.schema.json": "4d9a224efa52b92a388e93f33d66b35adcf07305cfe408a777300d08432a5e3d"
+    "test/workshop/schemas/team.schema.json": "301aec0b6b03b723af57add480886189d0d74c78f026987bacb5b4af0d147732"
   }
 }

@@ -244,33 +244,13 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 
 /* ---------- triage ---------- */
 .tri{max-width:42rem;margin:.6rem auto 0}
-.tri-card{background:var(--surface);border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);padding:1.5rem 1.75rem 1.25rem}
-.tri-top{display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.tri-top .grow{flex:1}
-.tri-list{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;background:transparent;border:1px solid transparent;border-radius:var(--r-sm);padding:.1rem .3rem;max-width:14rem;cursor:pointer}
-.tri-list:hover,.tri-list:focus-visible{border-color:var(--line);color:var(--ink)}
-.tri-title,.tri-notes{display:block;width:100%;margin:0;border:0;border-radius:var(--r-sm);outline:0;resize:none;background:transparent;color:var(--ink);overflow:hidden;field-sizing:content;padding:.1rem .35rem;margin-left:-.35rem;width:calc(100% + .7rem)}
-.tri-title{font-family:var(--serif);font-size:1.75rem;font-weight:600;letter-spacing:-.02em;line-height:1.2}
-.tri-notes{margin-top:.3rem;font-size:.9rem;line-height:1.5;color:var(--muted);min-height:1.6em;max-height:9rem;overflow:auto}
-.tri-title:hover,.tri-notes:hover{background:var(--hover)}
-.tri-title:focus,.tri-notes:focus{background:transparent;box-shadow:0 0 0 1px var(--line)}
-.tri-notes:focus{color:var(--ink)}
-.tri-notes::placeholder{color:var(--muted);opacity:.7}
 .tri .info{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem}
 .tri .stale{margin-top:.9rem;padding:.5rem .7rem;border-radius:var(--r-sm);background:var(--danger-soft);color:var(--danger);font-size:.85rem}
-.tri-fields{margin-top:1.25rem;padding-top:.4rem;border-top:1px solid var(--line)}
-.tfld{display:grid;grid-template-columns:4.5rem minmax(0,1fr);align-items:center;gap:.75rem;margin-top:.8rem}
-.tfld>label{display:flex;flex-direction:column;gap:.1rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.tfld>label kbd{letter-spacing:0;text-transform:none}
 .opts{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
 /* one joined control per field, so a row reads as a single choice */
-.seg-row{display:inline-flex;justify-self:start;flex-wrap:wrap;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;max-width:100%}
 .opt{display:inline-flex;align-items:center;gap:.35rem;min-height:2rem;padding:.25rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm);font-size:.86rem;color:var(--ink);background:var(--surface)}
-.seg-row .opt{border:0;border-radius:0;border-left:1px solid var(--line)}
-.seg-row .opt:first-child{border-left:0}
 .opt:hover{background:var(--hover)}
 .opt.on{background:var(--accent-soft);color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
-.opt:not(.seg-row .opt).on{border-color:var(--accent);box-shadow:none}
 .opt .pts{font-family:var(--mono);font-size:.76rem;color:var(--muted)}
 /* key hints: quiet text, not boxes */
 .tri kbd{border:0;background:transparent;padding:0;min-width:0;font-size:.68rem;color:var(--muted);opacity:.75}
@@ -278,15 +258,6 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .tri .opt kbd,.tri .btn kbd{margin-left:.15rem}
 .tri input[type=date]{border:1px solid var(--line);border-radius:var(--r-sm);padding:.3rem .5rem;background:var(--surface);min-height:2rem;color:var(--ink)}
 .tri .hint{font-size:.8rem}
-.tri-foot{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)}
-.tri-foot .grow{flex:1}
-.tri-foot .btn{gap:.35rem}
-.tri-score{font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
-.tri-score .num{color:var(--ink);font-size:.8rem}
-.tri-help{text-align:center;margin:.9rem 0 0;font-size:.8rem;color:var(--muted)}
-.tri-help kbd{font-size:.72rem}
-.tri-done{text-align:center;padding:3rem 1rem;color:var(--muted)}
-.tri-done b{display:block;font:600 1.9rem/1.2 var(--serif);letter-spacing:-.02em;color:var(--ink);margin-bottom:.45rem}
 
 /* ---------- people ---------- */
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,18rem),1fr));gap:2rem 1.75rem;align-items:start}
@@ -349,6 +320,11 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .d-about .dot{color:var(--muted)}
 .d-about [data-d=copy-link]{margin-left:auto;flex:none}
 .dfld{margin-top:.8rem}
+/* An Inbox task in the drawer: its value sorts it, like 1 to 4 on its row */
+.dsort{margin:.2rem 0 .9rem;padding:.75rem .8rem .7rem;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:var(--r-md);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.dsort>.lbl{display:block;margin-bottom:.45rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.dsort .seg button kbd{margin-left:.35rem;font:500 .66rem var(--mono);color:var(--muted);background:none;border:0;padding:0}
+.dsort .hint{display:block;margin-top:.45rem;font-size:.8rem;color:var(--muted)}
 .dfld>label,.dfld>.lbl{display:block;margin-bottom:.4rem;font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .seg{display:flex;flex-wrap:wrap;gap:.3rem}
 .seg button{min-height:28px;padding:.2rem .6rem;border-radius:var(--r-sm);font-size:.82rem;border:1px solid var(--line);color:var(--ink);background:var(--surface)}
@@ -446,6 +422,10 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 @media (max-width:2099px){
   .app.drawer-open .drawer{position:fixed;top:0;right:0;bottom:0;z-index:45;box-shadow:var(--shadow-lg)}
 }
+/* Over the board, the drawer must not hide the page's own buttons (Plan the day, Wrap up, Add): they move left of it. */
+@media (min-width:1100px) and (max-width:2099px){
+  .app.drawer-open .phead{padding-right:calc(var(--drawer-w) + 1.25rem)}
+}
 @media (max-width:1099px){
   .app.drawer-open .dscrim{display:block;position:fixed;inset:0;z-index:44;background:color-mix(in srgb,var(--ink) 18%,transparent)}
 }
@@ -471,15 +451,9 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
   .axis-x,.axis-y{display:none}
   .row .lst{max-width:5rem}
   .row.top .title{font-size:1rem}
-  .tfld{grid-template-columns:minmax(0,1fr)}
-  .tri-card{padding:1rem}
   kbd{display:none}
   .cmd .help .kb-only{display:none}
   .opt{padding-left:.6rem}
-  .seg-row{display:flex;width:100%;flex-wrap:nowrap}
-  .tri-help{display:none}
-  .tfld>label{flex-direction:row;gap:.5rem}
-  .seg-row .opt{flex:1 1 0;justify-content:center;padding:.25rem .3rem;min-width:0}
 }
 @media (hover:none){
   .tday:not(.on){display:none}
@@ -911,7 +885,6 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .snav-h{padding-top:.9rem}
 .needtri{padding:0;border:0;background:none}
 .tri.inline{margin:0;max-width:none}
-.tri.inline .tri-card:focus{outline:none}
 .wgrp+.wgrp{margin-top:.6rem}
 .wgrp .sub{display:flex;align-items:center;gap:.4rem;margin-top:.4rem}
 .wgrp .sub .sig{margin-left:auto}
@@ -951,23 +924,7 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .railbtn .rl{writing-mode:vertical-rl;transform:rotate(180deg);font-size:.78rem;letter-spacing:.04em}
 .col.rail.drop-over .railbtn{border-color:var(--accent);background:var(--accent-soft)}
 /* the triage card, sized for a column */
-.col-inbox .tri-card{padding:.9rem .95rem .8rem}
-.col-inbox .tri-card:focus{outline:none}
-.col-inbox.colon .tri-card{border-color:var(--muted)}
-.col-inbox .tri-top{margin-bottom:.5rem;flex-wrap:wrap}
-.col-inbox .tri-top .ibtn{width:24px;height:24px}
-.col-inbox .tri-list{max-width:8rem}
-.col-inbox .tri-title{font-size:1.15rem}
-.col-inbox .tri-fields{margin-top:.7rem}
-.col-inbox .tfld{grid-template-columns:minmax(0,1fr);gap:.25rem;padding:.35rem 0}
-.col-inbox .tfld>label{flex-direction:row;gap:.5rem}
-.col-inbox .seg-row{display:flex;width:100%;flex-wrap:nowrap}
-.col-inbox .seg-row .opt{flex:1 1 0;justify-content:center;padding:.22rem .2rem;min-width:0;font-size:.8rem}
-.col-inbox .seg-row .opt .pts{display:none}
 .col-inbox .opt kbd{display:none}
-.col-inbox .tri-score{margin-top:.5rem}
-.col-inbox .tri-foot{margin-top:.6rem;padding-top:.6rem;gap:.25rem}
-.col-inbox .tri-foot .btn{padding-left:.55rem;padding-right:.55rem}
 .col-inbox .tri .stale,.col-inbox .stale{margin-top:.5rem;padding:.4rem .55rem;border-radius:var(--r-sm);background:var(--danger-soft);color:var(--danger);font-size:.8rem}
 .col-inbox .info{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.4rem}
 .col-inbox kbd{border:0;background:transparent;padding:0;min-width:0;font-size:.66rem;color:var(--muted);opacity:.75;margin-left:.15rem}
@@ -1075,7 +1032,6 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .col-inbox .row:hover .qsort,.col-inbox .row.sel .qsort,.col-inbox .row:focus-within .qsort{display:inline-flex}
 @media (hover:none){.col-inbox .qsort{display:inline-flex}}
 .col-inbox .inrows{margin-top:0}
-.col-inbox .inrows>.tri-card{margin:.4rem 0}
 /* the header's day actions: their words show from 1440px wide */
 .hbtn.lab .hl{display:none}
 @media (min-width:1440px){

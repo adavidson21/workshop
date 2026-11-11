@@ -1,11 +1,11 @@
-import { deleteTask, moveTask, toggleDone, toggleFocus, wontDo } from './actions.js';
+import { deleteTask, moveTask, quickSort, toggleDone, toggleFocus, wontDo } from './actions.js';
 import { ADO_GONE, PR_GONE, PR_TIER } from './ado.js';
 import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
 import { prAiAgain, prAiDrawer, prAiOpen } from './pr-ai.js';
 import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
 import { app, drawer, main, render, sel, setSel } from './render.js';
-import { commit, findTask, isWaiting, orderedLists, save, scopeOpen } from './state.js';
+import { commit, findTask, inInbox, isWaiting, orderedLists, save, scopeOpen } from './state.js';
 import { D, getDirectory, mentionOf } from './directory-model.js';
 import { assign } from './directory.js';
 import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
@@ -19,6 +19,7 @@ import { slateFor, slateLabel } from './slate-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
 import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
+import { reportRoute } from './route.js';
 
 // Product (products-link.js): offered when Settings has products, or the task already names one.
 function productFieldHtml(t){
@@ -64,12 +65,14 @@ function openDrawer(id, focusTitle = true){
   renderDrawer();
   markSel();
   if (focusTitle){ const ti = drawer.querySelector('.d-title'); if (ti){ ti.focus(); ti.setSelectionRange(ti.value.length, ti.value.length); } }
+  reportRoute();
 }
 function closeDrawer(silent){
   flushText();
   drawerId = null;
   app.classList.remove('drawer-open');
   drawer.innerHTML = '';
+  reportRoute();
   if (!silent){
     const back = sel && main.querySelector(`.row[data-id="${sel}"]`);
     (back || (drawerReturn && drawerReturn.isConnected ? drawerReturn : null))?.focus?.({preventScroll: true});
@@ -98,7 +101,7 @@ function renderDrawer(){
       ${t.ado ? engDrawer(t) : ''}
       ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
-      ${focusDrawerHtml(t)}${leftOffDrawerHtml(t)}
+      ${sortHtml(t)}${focusDrawerHtml(t)}${leftOffDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       ${aboutHtml(t)}
       <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
@@ -131,6 +134,14 @@ function renderDrawer(){
   const fit = () => { ti.style.height = 'auto'; ti.style.height = ti.scrollHeight + 'px'; };
   fit();
   if (focusKey){ const f = drawer.querySelector(`[data-fk="${focusKey}"]`); if (f) f.focus({preventScroll: true}); }
+}
+/* A task in the Inbox (new, or came back): its value sorts it, like 1 to 4 on its row (actions.js quickSort: effort M
+   if empty, aging restarts, Came back cleared). The drawer is the one place a task opens, the Inbox's included. */
+function sortHtml(t){
+  if (!inInbox(t)) return '';
+  return `<div class="dsort" role="group" aria-label="Sort"><span class="lbl">${t.cameBack ? 'Came back. Sort it again' : 'In your Inbox. Sort it'}</span>
+    <div class="seg">${[1,2,3,4].map(v => `<button data-d="sort" data-v="${v}" data-fk="s${v}">${VALUE[v]}<kbd>${v}</kbd></button>`).join('')}</div>
+    <span class="hint">Sends it to Ranked (effort ${t.effort || 'M'}). Or on Today, Delegate or Won't do below.</span></div>`;
 }
 /* The ADO item is on Slate's board too (slate-link.js): where, and a way there. Inside Workshop only. */
 function slateDrawer(t){
@@ -209,6 +220,7 @@ drawer.addEventListener('click', e => {
   const b = e.target.closest('[data-d]'); if (!b) return;
   const a = b.dataset.d;
   if (a === 'close') return closeDrawer();
+  if (a === 'sort') return quickSort(t.id, +b.dataset.v);
   if (a === 'clear-due'){ t.due = null; return commit(); }
   if (a === 'clear-nudge'){ t.nudgeOn = null; return commit(); }
   if (a === 'urgent'){ t.urgentFlag = !t.urgentFlag; return commit(); }
