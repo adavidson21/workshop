@@ -1,0 +1,35 @@
+name: Workshop test setup
+description: The remote app checkouts, Node and Python, and (with browser) Playwright's Chromium.
+inputs:
+  browser:
+    description: Install Playwright and Chromium
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    # Docket lives in its own repo and is served under /apps/prioritizer/ (apps/remote.json, worker/index.js).
+    # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
+    - uses: actions/checkout@v4
+      with: { repository: adavidson21/docket, path: .remote/prioritizer }
+    # Runway, Rapport (adavidson21/receipts) and Notes are served under /apps/<name>/ the same way, and checked the same way.
+    - uses: actions/checkout@v4
+      with: { repository: adavidson21/runway, path: .remote/runway }
+    - uses: actions/checkout@v4
+      with: { repository: adavidson21/receipts, path: .remote/receipts }
+    - uses: actions/checkout@v4
+      with: { repository: adavidson21/notes, path: .remote/notes }
+    - uses: actions/setup-node@v4
+      with: { node-version: 22 }
+    - uses: actions/setup-python@v5
+      with: { python-version: '3.12' }
+    # No --with-deps: the runner image already has Chrome's system libraries, and apt-get is the step that hangs
+    # for 10 minutes when Ubuntu's mirrors are down. Fall back to it only if Chromium cannot start without it.
+    - if: inputs.browser == 'true'
+      shell: bash
+      run: |
+        pip install playwright
+        python -m playwright install chromium
+        if ! python -c "from playwright.sync_api import sync_playwright as s; p = s().start(); p.chromium.launch().close(); p.stop()"; then
+          echo "::warning::Chromium did not start, installing its system packages."
+          python -m playwright install --with-deps chromium
+        fi
