@@ -1,4 +1,4 @@
-/* Dispatch: view prefs kept in this browser only. Today that is the project filter on Runs and Ship. Projects and
+/* Dispatch: view prefs kept in this browser only. Today that is the project filter on Work. Projects and
    which run is in which live in the opencode connector (.work/_dashboard/projects.json), because agents need them.
 
    Shape (localStorage "dispatch.view"): { project: "all" | "<project id>" }

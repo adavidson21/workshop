@@ -1,63 +1,88 @@
-/* Dispatch 2.0: the tabs, as HTML strings from S (plan: claude/dispatch-ui-v2-plan.md in the Workshop project).
-   One job per tab, full width, no inner sidebar:
-   - Inbox: everything waiting on you, answerable in place. The rail badge counts it.
+/* Dispatch 3.0: the tabs, as HTML strings from S (plans: claude/dispatch-ui-v2-plan.md and
+   claude/dispatch-flows-v1-plan.md in the Workshop project). Four tabs, one job each:
+   - Inbox: everything waiting on you, answerable in place, with the file you are approving. A run that needs you is
+     only here. Go through them shows one at a time, with keys. The rail badge counts it.
    - Chat: the hub and conversations with Tandem (chat.js draws it; main.js moves its element into #chat-slot).
-   - Runs: work items in progress as rows; a run opens its own page (S.ui.run).
-   - Ship: runs at Ship, their PRs grouped by whose turn it is (pr-reviews.js mineHtml).
+   - Work: everything else in flight, every flow (builds, spikes, epics, docs, TSDs), as rows. A row opens its page.
    - Reviews: teammates' PRs and first-pass reviews (pr-reviews.js reviewsHtml).
-   - Research: spikes, docs, TSDs and repo guides; a folder opens a reader (S.ui.doc).
-   No DOM: main.js paints what these return and handles the clicks. */
+   A run's page is driven by its flow (flows.js): the step track is the navigation, the current step shows its file
+   and its buttons. No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
-import { h, md, plural, ago, stamp, fileBtn, bucketOf, asking, itemSession, isBusy, itemKey, itemForFolder, stateVar, track, nextHtml, nextBtns, nextText, autoHtml, agentHtml, leftOffHtml,
-  permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, slateChip, idLink, safeUrl, link, noteCommand, runBtn, liveNote,
-  activityHtml, onboardHtml, pickItem, pickupHtml, looseSessions, GROUPS, reviewHref } from './view.js';
-import { projectChip, projectFilterHtml, inProject, runStatus, statusDot, STATUS, runLabel } from './projects.js';
-import { reviewsHtml, isReviewSession, mineHtml, mineItems, mineState, mineNeedsCount, toReviewCount, reviewsAsking } from './pr-reviews.js';
-import { answerHtml, isHubCommand } from './hub-model.js';
+import { h, md, plural, ago, stamp, fileBtn, fileOf, asking, itemSession, isBusy, itemKey, itemForFolder, stateVar, track, nextHtml, nextBtns, autoHtml, agentHtml, leftOffHtml,
+  permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, slateChip, slateOf, idLink, safeUrl, link, runBtn, autoIs,
+  activityHtml, onboardHtml, pickItem, pickupHtml, looseSessions, openAttr, bucketOf, reviewHref } from './view.js';
+import { projectChip, projectFilterHtml, inProject, runStatus, statusDot, runLabel } from './projects.js';
+import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toReviewCount, reviewsAsking } from './pr-reviews.js';
+import { isHubCommand } from './hub-model.js';
+import { docHtml } from './doc.js';
+import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
+  folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder } from './flows.js';
 
-export const TABS = [['inbox', 'Inbox'], ['chat', 'Chat'], ['runs', 'Runs'], ['ship', 'Ship'], ['reviews', 'Reviews'], ['research', 'Research']];
+export const TABS = [['inbox', 'Inbox'], ['chat', 'Chat'], ['work', 'Work'], ['reviews', 'Reviews']];
 export const TAB_IDS = TABS.map(t => t[0]);
+/** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
+export const OLD_TABS = { runs: 'work', ship: 'work', research: 'work' };
 const L = () => S.L;
 const all = () => (S.D && S.D.items) || [];
 const newest = list => list.slice().sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
 
 // ------------------------------------------------------------------ what goes where
-/** A run that has reached Ship (PR text written) or is done: the Ship tab, not Runs. */
+/** A run that has reached Ship (PR text written) or is done. */
 export const isShip = it => it.kind === 'item' && (it.stage === 'ship' || it.bucket === 'ship' || it.bucket === 'done');
-export const runItems = () => all().filter(it => it.kind === 'item' && !isShip(it));
-export const shipItems = () => newest(all().filter(isShip));
-export const researchItems = () => newest(all().filter(it => it.kind !== 'item' && it.kind !== 'pr'));
-/** Spikes before their folder exists and repo guides: sessions Dispatch started that have no .work item yet. */
-export const researchSessions = () => looseSessions().filter(o => !isReviewSession(o) && !isHubCommand(o.command));
+/** Everything a flow knows, plus folders no flow knows (not PR reviews, which are on Reviews, and not Slate's own). */
+export const workItems = () => all().filter(it => it.kind !== 'pr' && !isSlateFolder(it));
+/** Sessions Dispatch started that have no .work folder yet: a spike, epic, doc or TSD before its folder exists, and repo guides. */
+export const startingSessions = () => looseSessions().filter(o => !isReviewSession(o) && !isHubCommand(o.command));
 
 // ------------------------------------------------------------------ Inbox
-/** Everything waiting on you. asks: agent prompts and questions from any session. gates: runs at a gate or with
- *  autopilot waiting (not ones that are asking: their ask is the row). code: runs with a code review to do.
- *  failed: runs that stopped. prs: teammates' PRs with no first pass yet (one row, the Reviews tab has them). */
+/** Everything waiting on you. asks: agent prompts and questions from any session. gates: runs at a gate (a work item
+ *  waiting for approval or autopilot waiting, an epic's approvals, a TSD to revise or publish; not ones asking you:
+ *  their ask is the row). code: runs with a code review to do. failed: runs that stopped. prs: teammates' PRs with
+ *  no first pass yet (one line; the Reviews tab has them). */
 export function inboxData() {
   const asks = L() ? L().permissions.map(p => ({ kind: 'perm', x: p })).concat(L().questions.map(q => ({ kind: 'q', x: q }))) : [];
   const code = mineItems().filter(it => ['fix', 'review'].includes(mineState(it)));
   const codeSet = new Set(code);
-  const runs = all().filter(it => it.kind === 'item');
-  const gates = newest(runs.filter(it => bucketOf(it) === 'needs' && !asking(it) && !codeSet.has(it)));
-  const failed = newest(runItems().filter(it => runStatus(it) === 'failed' && bucketOf(it) !== 'needs'));
+  const failed = newest(workItems().filter(it => it.kind === 'item' && !isShip(it) && !it.paused && !asking(it) && isStopped(it)));
+  const stopped = new Set(failed);
+  const gates = newest(workItems().filter(it => atGate(it) && !codeSet.has(it) && !stopped.has(it)));
   return { asks, gates, code, failed, prs: toReviewCount() };
+}
+/** A run whose last step failed or says it is blocked, or whose session stopped with an error. */
+export function isStopped(it) {
+  const s = itemSession(it);
+  return !!it.blocked || (!!s && !!s.error && !isBusy(s) && !autoIs(it, 'running'));
 }
 /** The rail badge and the Inbox tab count: rows that need you (teammates' PRs are counted on Reviews). */
 export function inboxCount(d = inboxData()) { return d.asks.length + d.gates.length + d.code.length + d.failed.length; }
+/** Folders that are in the Inbox (asking, at a gate, a code review, stopped): Work leaves them out. */
+export function inboxFolders(d = inboxData()) {
+  const set = new Set([...d.gates, ...d.code, ...d.failed].map(it => it.folder));
+  for (const a of d.asks) if (a.x.folder) set.add(a.x.folder);
+  return set;
+}
+/** The Inbox as one list, for Go through them: every row with a key that stays the same across repaints. */
+export function walkList(d = inboxData()) {
+  const done = (S.ui.walk && S.ui.walk.done) || {};
+  return [].concat(
+    d.asks.map(a => ({ key: 'ask:' + a.x.id, kind: 'ask', a })),
+    d.gates.map(it => ({ key: 'gate:' + it.folder, kind: 'gate', it })),
+    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it })),
+    d.failed.map(it => ({ key: 'failed:' + it.folder, kind: 'failed', it }))
+  ).filter(x => !done[x.key]);
+}
 
 /** Where an agent's prompt comes from, and the button that opens it. */
 export function askSource(sessionID, folder) {
   const it = folder ? itemForFolder(folder) : null;
-  if (it && it.kind === 'item') return { label: runLabel(it), open: `data-open-run="${h(it.folder)}"`, what: 'Run' };
   if (it && it.kind === 'pr') return { label: it.title, open: `data-open-item="${h(it.folder)}"`, what: 'PR review' };
-  if (it) return { label: it.title, open: `data-open-doc="${h(it.folder)}"`, what: { spike: 'Spike', docs: 'Docs', tsd: 'TSD' }[it.kind] || 'Research' };
+  if (it) return { label: runLabel(it), open: `data-open-run="${h(it.folder)}"`, what: flowTag(it) };
   const o = looseSessions().find(x => x.session === sessionID);
   const s = L() && L().sessions[sessionID];
   const title = (s && s.title) || (o && o.command) || 'opencode session';
   if (o && isHubCommand(o.command)) return { label: title, open: 'data-tab="chat"', what: 'Hub' };
   if (o && isReviewSession(o)) return { label: title, open: 'data-tab="reviews"', what: 'PR review' };
-  if (o) return { label: title, open: 'data-tab="research"', what: 'Research' };
+  if (o) return { label: title, open: 'data-tab="work"', what: 'Starting' };
   return { label: title, open: `data-open-chat="${h(sessionID)}"`, what: 'Conversation' };
 }
 /** One session's open prompts and questions, answerable in place (Chat threads and hub cards). */
@@ -68,149 +93,207 @@ export function sessionAsksHtml(sid) {
 }
 function askHtml(a) {
   const src = askSource(a.x.sessionID, a.x.folder);
-  return `<div class="inbox-ask" data-ask="${h(a.x.id)}"><p class="src"><span class="tag">${h(src.what)}</span><span class="st">${h(src.label)}</span>` +
-    `<button type="button" class="lnk plain" ${src.open}>Open</button></p>${a.kind === 'perm' ? permHtml(a.x, false) : questionHtml(a.x, false)}</div>`;
+  return `<div class="inbox-ask icard" data-ask="${h(a.x.id)}"><p class="src"><span class="tag">${h(src.what)}</span><span class="st">${h(src.label)}</span>` +
+    `<button type="button" class="lnk plain" data-hot="o" ${src.open}>Open</button></p>${a.kind === 'perm' ? permHtml(a.x, false) : questionHtml(a.x, false)}</div>`;
 }
 function section(id, title, n, body, hint) {
   return `<section class="group" id="g-${id}" aria-labelledby="gh-${id}"><h3 id="gh-${id}">${h(title)} <span class="n">${n}</span></h3>` + (hint ? `<p class="hint">${md(hint)}</p>` : '') + body + '</section>';
 }
-export function inboxHtml() {
-  const d = inboxData();
-  let html = (S.digestHtml ? S.digestHtml(h) : '') + onboardHtml();
-  if (d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
-  if (d.gates.length) html += section('gates', 'Runs waiting on you', d.gates.length, `<div class="rows">${d.gates.map(it => runRow(it)).join('')}</div>`);
-  if (d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
-  if (d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="rows">${d.failed.map(it => runRow(it)).join('')}</div>`);
-  if (d.prs) {
-    html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-tab="reviews">Open Reviews</button></div>`;
+/** The first button gets the A key in Go through them. */
+const hot = (html, key) => html.replace(/<(button|a) /, `<$1 data-hot="${key}" `);
+
+/** A .work file shown inline: rendered, with Open (the file sheet) and, when it may be edited, Edit. peek: only the
+ *  first part, with Read all to open the rest. */
+export function fileInline(it, name, peek) {
+  if (!name) return '';
+  const f = fileOf(it.folder, name);
+  const body = !f || (f.text == null && !f.error) ? '<p class="dim">Loading.</p>' : f.text == null ? `<p class="err">${h(f.error)}</p>`
+    : f.text.trim() ? `<div class="doc">${docHtml(f.text)}</div>` : '<p class="dim">This file is empty.</p>';
+  const key = 'peek:' + it.folder + '/' + name;
+  const open = !peek || !!S.ui.open[key];
+  const long = f && f.text && f.text.split('\n').length > 14;
+  const more = peek && long ? `<button type="button" class="lnk plain" data-peek="${h(key)}" aria-expanded="${open}">${open ? 'Show less' : 'Read all'}</button>` : '';
+  return `<section class="finline${peek && long && !open ? ' peek' : ''}" aria-label="${h(name)}"><p class="fi-h"><span class="mono">${h(name)}</span>` +
+    `${fileBtn(it.folder, name, 'plain', 'Open')}<button type="button" class="lnk plain" data-file="${h(it.folder)}" data-name="${h(name)}" data-mode="edit">Edit</button></p>` +
+    `<div class="fi-body">${body}</div>${more ? `<p class="fi-more">${more}</p>` : ''}</section>`;
+}
+/** Send back with a note: the note goes under the gate file's Open questions, then the step runs again. */
+export function sendBackHtml(it) {
+  const cmd = sendBackCommand(it);
+  if (!cmd) return '';
+  const key = 'sb:' + it.folder;
+  if (!S.ui.open[key]) return '';
+  const file = gateFile(it);
+  return `<div class="sendback"><label><span class="cfg-t">What should change?</span>` +
+    `<textarea rows="3" data-draft="${h(key)}" placeholder="Say what is wrong or missing. It goes under Open questions in ${h(file || 'the file')}, then Tandem redoes the draft.">${h(S.ui.drafts[key] || '')}</textarea></label>` +
+    `<div class="row"><button type="button" class="btn primary" data-sendback="${h(it.folder)}"${S.ui.busy['sb:' + it.folder] ? ' disabled' : ''}>Send back to Tandem</button>` +
+    `<button type="button" class="btn" data-sb-toggle="${h(it.folder)}">Cancel</button><span class="dim">Runs <code>${h(cmd)}</code></span></div></div>`;
+}
+const CMD_LABEL = { approve: 'Approve', slice: 'Slice', backlog: 'Make the backlog', 'check-docs': 'Fact-check', publish: 'Publish', tsd: 'Run /tsd', scope: 'Scope' };
+function cmdLabel(cmd) { const n = String(cmd || '').split(/\s+/)[0].replace(/^\//, ''); return CMD_LABEL[n] || 'Run'; }
+/** The buttons at a folder's current step (epic, docs, TSD, spike): its next command, and what else fits there. */
+export function folderActs(it, inline) {
+  const f = flowOf(it);
+  const i = stepIndex(it);
+  const out = [];
+  if (f && f.id === 'tsd' && i === 2) {
+    out.push(`<button type="button" class="btn primary" data-file="${h(it.folder)}" data-name="tsd.md" data-mode="edit">Edit tsd.md</button>`);
+    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish', true));
+  } else if (f && f.id === 'tsd' && i === 3) {
+    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish'));
+  } else if (f && f.id === 'spike') {
+    if (i === 1) out.push(`<button type="button" class="btn primary" data-doc-start="${h(it.folder)}" title="Opens Start work with the findings as the description">Start work from this</button>`);
+    const d = fileOf(it.folder, 'findings.md');
+    if (inline && d && d.text) out.push(`<button type="button" class="btn ghost" data-doc-note="${h(it.folder)}">Save as note</button>`);
+  } else if (f && f.id === 'docs' && i === 1) {
+    const cmd = folderCommand(it);
+    if (cmd) out.push(runBtn(it, cmd, 'Fact-check'));
+    else if (inline) out.push(`<span class="docs-path"><input type="text" class="mono" data-draft="dc:${h(it.folder)}" value="${h(S.ui.drafts['dc:' + it.folder] || '')}" placeholder="Path of the doc, like docs/run-locally.md" spellcheck="false" autocomplete="off" aria-label="Path of the doc to fact-check">` +
+      `<button type="button" class="btn primary" data-docs-check="${h(it.folder)}">Fact-check</button></span>`);
+  } else {
+    const cmd = folderCommand(it);
+    if (cmd && !isFinished(it)) out.push(runBtn(it, cmd, cmdLabel(cmd)));
   }
-  if (!inboxCount(d)) {
-    html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
-    const runs = runItems().filter(it => it.kind === 'item');
-    const by = {};
-    runs.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
-    const pick = pickItem(runs, by);
-    if (pick) html += pickupHtml(pick);
-    else if (!all().length && !onboardHtml()) html += startEmpty('No work yet', 'Describe a change or ask a question about the code.');
-  }
-  return html;
+  return out.join('');
+}
+/** One run waiting on you at a gate, as a card: whose turn and what for, the flow so far, the file to read (the first
+ *  part; Read all for the rest), and its buttons: approve, send back with a note, edit the file, open the run. */
+function gateCard(it) {
+  const file = gateFile(it);
+  const sb = sendBackCommand(it);
+  const btns = it.kind === 'item' ? nextBtns(it, false) : folderActs(it, false);
+  return `<article class="icard gate" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+    `<p class="src"><span class="tag">${h(flowTag(it))}</span><button type="button" class="st lnk plain" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `${miniTrack(it)}<button type="button" class="lnk plain" data-hot="o" data-open-run="${h(it.folder)}">Open</button></p>` +
+    `<p class="iturn">${turnHtml(it)}</p>` + (it.kind === 'item' ? autoHtml(it) : '') + fileInline(it, file, true) +
+    `<div class="row acts">${hot(btns, 'a')}` + (sb ? `<button type="button" class="btn ghost" data-hot="s" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back</button>` : '') + '</div>' +
+    sendBackHtml(it) + '</article>';
+}
+function failedCard(it) {
+  return `<article class="icard failed" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+    `<p class="src"><span class="tag">${h(flowTag(it))}</span><button type="button" class="st lnk plain" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `${miniTrack(it)}<button type="button" class="lnk plain" data-hot="o" data-open-run="${h(it.folder)}">Open</button></p>` +
+    `<p class="iturn">${turnHtml(it)}</p><div class="row acts">${hot(nextBtns(it, false), 'a')}</div></article>`;
 }
 function codeRow(it) {
   const st = mineState(it);
   const repo = ((it.pr || []).find(p => p.push && p.push.local && !(p.push.remote && !p.push.unpushed)) || (it.pr || [])[0] || {}).repo;
-  const review = repo && S.conn === 'on' ? `<a class="btn primary" href="${h(reviewHref(it, repo))}" data-review>${st === 'fix' ? 'Open review' : 'Review'}</a>` : '';
-  return `<article class="rrow" style="--state:${stateVar(it)}">${statusDot(st === 'fix' ? 'failed' : 'review')}` +
+  const review = repo && S.conn === 'on' ? `<a class="btn primary" data-hot="a" href="${h(reviewHref(it, repo))}" data-review>${st === 'fix' ? 'Open review' : 'Review'}</a>` : '';
+  return `<article class="rrow" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">${statusDot(st === 'fix' ? 'failed' : 'review')}` +
     `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
-    `<span class="rr-m">${st === 'fix' ? 'The revision needs you' : 'Review before you push'}${repo ? ` · <span class="mono">${h(repo)}</span>` : ''}</span>` +
-    `<span class="rr-act">${review}<button type="button" class="btn ghost" data-tab="ship">Ship</button></span></article>`;
+    `<span class="rr-m">${st === 'fix' ? 'The revision needs you' : 'Review the diff before you push'}${repo ? ` · <span class="mono">${h(repo)}</span>` : ''}</span>` +
+    `<span class="rr-act">${review}<button type="button" class="btn ghost" data-hot="o" data-open-run="${h(it.folder)}">Open</button></span></article>`;
+}
+function walkRowHtml(x) {
+  if (x.kind === 'ask') return askHtml(x.a);
+  if (x.kind === 'gate') return gateCard(x.it);
+  if (x.kind === 'code') return `<div class="rows">${codeRow(x.it)}</div>`;
+  return failedCard(x.it);
+}
+/** Go through them: one row at a time, full width. */
+function walkHtml(d) {
+  const list = walkList(d);
+  const w = S.ui.walk;
+  if (!list.length) {
+    return '<section class="walk done" aria-label="Go through them"><p class="walk-n">That is everything.</p><p class="dim">Nothing else is waiting on you.</p>' +
+      '<div class="row"><button type="button" class="btn primary" data-walk="stop">Back to the Inbox</button></div></section>';
+  }
+  const i = Math.min(Math.max(0, w.i || 0), list.length - 1);
+  const x = list[i];
+  return `<section class="walk" aria-label="Go through them" data-walk-key="${h(x.key)}"><div class="walk-head"><span class="walk-n">${i + 1} of ${list.length}</span>` +
+    `<span class="row"><button type="button" class="btn ghost" data-walk="prev"${i ? '' : ' disabled'}>Previous</button><button type="button" class="btn ghost" data-walk="next"${i < list.length - 1 ? '' : ' disabled'}>Skip</button>` +
+    `<button type="button" class="btn" data-walk="stop">Done</button></span></div>${walkRowHtml(x)}` +
+    '<p class="walk-keys"><kbd>A</kbd> approve or the main button <kbd>S</kbd> send back <kbd>N</kbd> skip <kbd>P</kbd> previous <kbd>O</kbd> open <kbd>Esc</kbd> stop</p></section>';
+}
+export function inboxHtml() {
+  const d = inboxData();
+  const n = inboxCount(d);
+  let html = (S.digestHtml ? S.digestHtml(h) : '') + onboardHtml();
+  if (n && S.ui.walk) return html + walkHtml(d);
+  if (n) {
+    html += `<div class="inbox-head"><p><b>${plural(n, 'thing needs', 'things need')} you.</b> Approve what you have read; send back what needs another pass.</p>` +
+      (n > 1 ? '<button type="button" class="btn primary" data-walk="start" title="One at a time, with keys">Go through them</button>' : '') + '</div>';
+  }
+  if (d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
+  if (d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(gateCard).join('')}</div>`);
+  if (d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
+  if (d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="icards">${d.failed.map(failedCard).join('')}</div>`);
+  if (d.prs) {
+    html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-tab="reviews">Open Reviews</button></div>`;
+  }
+  if (!n) {
+    html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
+    const runs = workItems().filter(it => it.kind === 'item' && !isShip(it));
+    const by = {};
+    runs.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
+    const pick = pickItem(runs, by);
+    if (pick) html += pickupHtml(pick);
+    else if (!all().length && !onboardHtml()) html += startEmpty('No work yet', 'Pick a flow: build a feature, fix a bug, investigate a question, plan an epic, or write docs.');
+  }
+  return html;
 }
 function startEmpty(title, text) {
   return `<div class="empty"><h2>${h(title)}</h2><p>${h(text)}</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>` +
     '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
 }
 
-// ------------------------------------------------------------------ Runs
-const STAGE = { start: 'Start', spec: 'Spec', plan: 'Plan', tasks: 'Tasks', build: 'Build', review: 'Review', pr: 'PR', ship: 'Ship', bug: 'Bug' };
-export const stageName = it => STAGE[it.stage] || it.stage || '';
-/** One run as a row: status, title (opens the run page), where it is, project, and its main button. */
-export function runRow(it) {
-  const st = runStatus(it);
+// ------------------------------------------------------------------ Work
+/** Which group a row is in on Work. */
+export function workGroup(it) {
+  if (isFinished(it)) return 'done';
+  if (it.paused || it.bucket === 'paused') return 'paused';
+  if (isShip(it)) return 'ship';
+  if (autoIs(it, 'running') || isBusy(itemSession(it))) return 'working';
+  return 'next';
+}
+const WORK_GROUPS = [
+  ['working', 'Tandem working', ''],
+  ['next', 'Up next', 'Nothing is running. The button starts the next step.'],
+  ['ship', 'Shipping', 'PR text is written. Push from the code review, create the PR, then Remove the run once it merges.'],
+  ['paused', 'Paused', ''],
+  ['done', 'Done', 'Findings to read, published specs, backlogs made. Remove a folder when you no longer need it.']
+];
+/** The flow filter: All, then each flow with work in it. */
+function flowFilterHtml(list) {
+  const n = id => list.filter(it => (flowOf(it) || {}).id === id).length;
+  const cur = S.ui.flow || 'all';
+  const shown = FLOWS.filter(f => f.id !== 'quick' && n(f.id));
+  const other = list.filter(it => !flowOf(it)).length;
+  if (shown.length + (other ? 1 : 0) < 2) return '';
+  const chip = (id, label, c) => `<button type="button" class="fchip${cur === id ? ' on' : ''}" data-filter-flow="${h(id)}" aria-pressed="${cur === id}"><span>${h(label)}</span><span class="n">${c}</span></button>`;
+  return `<div class="filters" role="group" aria-label="Flow">${chip('all', 'All', list.length)}${shown.map(f => chip(f.id, f.tag + 's', n(f.id))).join('')}${other ? chip('other', 'Other', other) : ''}</div>`;
+}
+function inFlow(it) {
+  const cur = S.ui.flow || 'all';
+  if (cur === 'all') return true;
+  const f = flowOf(it);
+  return cur === 'other' ? !f : !!f && f.id === cur;
+}
+function folderDot(it) {
   const s = itemSession(it);
-  const where = [STATUS[st]];
-  if (stageName(it)) where.push(stageName(it) + (it.stage === 'build' && it.tasks && it.tasks.total ? ` ${it.tasks.done}/${it.tasks.total}` : ''));
-  if (isBusy(s) && s.activity) where.push(s.activity);
-  where.push(`<span title="${h(stamp(it.modifiedMs))}">${ago(it.modifiedMs)}</span>`);
-  const text = nextText(it);
-  return `<article class="rrow" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">${statusDot(st)}` +
-    `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
-    `<span class="rr-m">${where.map(x => (x.startsWith('<') ? x : h(x))).join(' · ')}</span>` +
-    (text ? `<span class="rr-next" title="Next">${text}</span>` : '') +
-    `<span class="rr-act">${projectChip(it)}${nextBtns(it, true)}</span></article>`;
+  const st = asking(it) ? ['review', 'Asking you'] : isBusy(s) ? ['running', 'Running'] : isFinished(it) ? ['done', 'Done'] : ['idle', 'Up next'];
+  return `<span class="sd ${st[0]}" aria-hidden="true" title="${st[1]}"></span>`;
 }
-export function runsHtml() {
-  const runs = runItems();
-  const shown = runs.filter(inProject);
-  let html = `<div class="scope-head"><h2>Runs</h2><span class="dim">Work items in progress. Ready to ship is on Ship; spikes and docs are in Research.</span></div>` + projectFilterHtml(runs);
-  if (!runs.length) return html + startEmpty('No runs in progress', 'Describe a change or start an ADO work item.');
-  if (!shown.length) return html + '<div class="empty small"><p>No runs in this project.</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div></div>';
-  const by = {};
-  shown.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
-  GROUPS.forEach(g => {
-    const list = newest(by[g[0]] || []);
-    if (list.length) html += section(g[0], g[1], list.length, `<div class="rows">${list.map(it => runRow(it)).join('')}</div>`, g[2]);
-  });
-  // Anything with a bucket the groups do not name still shows.
-  const rest = shown.filter(it => !GROUPS.some(g => g[0] === bucketOf(it)));
-  if (rest.length) html += section('other', 'Other', rest.length, `<div class="rows">${newest(rest).map(it => runRow(it)).join('')}</div>`);
-  return html;
-}
-
-// ------------------------------------------------------------------ the run page
-/** The sections under a run's header, and which one is in view. */
-export function runSections(it) {
-  const list = [];
-  if ((it.files || []).includes('brief.md')) list.push(['brief', 'Brief']);
-  list.push(['tasks', 'Tasks' + (it.tasks && it.tasks.total ? ` ${it.tasks.done}/${it.tasks.total}` : '')], ['repos', 'Repos'], ['files', 'Files'], ['activity', 'Activity']);
-  return list;
-}
-export function runPageHtml(it) {
-  const secs = runSections(it);
-  const cur = secs.some(x => x[0] === S.ui.runTab) ? S.ui.runTab : secs[0][0];
-  const back = isShip(it) ? ['ship', 'Ship'] : ['runs', 'Runs'];
-  const meta = [`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`];
-  if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
-  meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`, projectChip(it), slateChip(it), removeBtn(it));
-  const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
-  let body = '';
-  if (cur === 'brief') {
-    const b = S.briefs[it.folder];
-    body = !b || (b.text == null && !b.error) ? '<p class="dim">Loading the brief.</p>' : b.text == null ? `<p class="err">${h(b.error)}</p>` : `<div class="brief-body">${briefText(b.text)}</div>`;
-    body += `<p class="brief-foot">${fileBtn(it.folder, 'brief.md', 'plain', 'Open brief.md')}</p>`;
-  } else if (cur === 'tasks') body = tasksHtml(it) || '<p class="dim">No tasks yet. They are written after the plan is approved.</p>';
-  else if (cur === 'repos') body = reposTable(it) + kitHtml(it);
-  else if (cur === 'files') body = filesHtml(it) || '<p class="dim">No files yet.</p>';
-  else body = activityHtml(it.folder) || '<p class="dim">No activity logged yet.</p>';
-  return `<button type="button" class="lnk back" data-close-run="${back[0]}">&larr; ${back[1]}</button>` +
-    `<article class="item run-page" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
-    `<div class="item-head"><h2 class="t">${idLink(it)}${title}</h2><div class="meta">${meta.join('')}</div></div>` +
-    track(it) + nextHtml(it, true) + (isShip(it) ? prHtml(it) : '') + autoHtml(it) + agentHtml(it) + leftOffHtml(it) +
-    `<nav class="rtabs" aria-label="Run details">${secs.map(([k, n]) => `<button type="button" class="rtab${k === cur ? ' on' : ''}" data-run-tab="${k}" aria-pressed="${k === cur}">${h(n)}</button>`).join('')}</nav>` +
-    `<div class="rtab-body">${body}</div></article>`;
-}
-
-// ------------------------------------------------------------------ Ship
-export function shipHtml() {
-  const ship = shipItems();
-  const shown = ship.filter(inProject);
-  const prs = mineItems().filter(inProject);
-  const rest = shown.filter(it => !prs.includes(it));
-  let html = '<div class="scope-head"><h2>Ship</h2><span class="dim">Runs with PR text: review the diff, push, create the PR, then Remove the run once it merges.</span></div>' + projectFilterHtml(ship);
-  if (!ship.length) return html + '<div class="empty small"><p>Nothing to ship yet. When a run writes its PR text, it shows here.</p></div>';
-  html += mineHtml(prs);
-  if (rest.length) html += section('noprs', 'No PR text yet', rest.length, `<div class="rows">${rest.map(it => runRow(it)).join('')}</div>`);
-  if (!prs.length && !rest.length) html += '<div class="empty small"><p>Nothing to ship in this project.</p></div>';
-  return html;
-}
-
-// ------------------------------------------------------------------ Research
-const KIND = { spike: 'Spike', docs: 'Docs', tsd: 'TSD' };
-/** The file a Research folder opens on: the findings or the document it is about. */
-export function docFile(it) {
-  const f = (it.files || []).filter(x => /\.md$/i.test(x));
-  const want = ['findings.md', 'answer.md', it.kind + '.md', 'tsd.md', 'docs.md', 'draft.md', 'README.md'];
-  return want.find(x => f.includes(x)) || f.find(x => !/^(progress|notes|repos)\.md$/i.test(x)) || null;
-}
-function docRow(it) {
-  const s = itemSession(it);
-  const meta = [`<span class="tag">${KIND[it.kind] || 'Folder'}</span>`];
-  if (it.state) meta.push(h(it.state));
-  if (asking(it)) meta.push('<span class="flag warn">Asking you</span>');
-  else if (isBusy(s)) meta.push('Working');
+/** One piece of work as a row: status, flow, title (opens its page), the step it is at, whose turn, and its main button. */
+export function workRow(it) {
+  const meta = [`<span class="tag">${h(flowTag(it))}</span>`];
+  const sl = stepLine(it);
+  if (sl) meta.push(h(sl));
+  else if (it.state) meta.push(h(it.state));
   meta.push(`<span title="${h(stamp(it.modifiedMs))}">${ago(it.modifiedMs)}</span>`);
-  return `<article class="rrow" id="item-${h(it.folder)}" style="--state:${asking(it) ? 'var(--gate)' : isBusy(s) ? 'var(--go)' : 'var(--line)'}">` +
-    `<span class="sd ${asking(it) ? 'review' : isBusy(s) ? 'running' : 'idle'}" aria-hidden="true"></span>` +
-    `<button type="button" class="rr-t" data-open-doc="${h(it.folder)}">${h(it.title)}</button><span class="rr-m">${meta.join(' · ')}</span>` +
-    `<span class="rr-act">${projectChip(it)}${removeBtn(it)}</span></article>`;
+  const merged = isShip(it) && (slateOf(it) || {}).merged;
+  let turn = turnHtml(it);
+  if (merged) turn = '<span class="turnw t-done">Merged.</span> Remove the run to clean up its folder.';
+  else if (isShip(it) && (it.pr || []).length) turn = `<span class="turnw t-you">Your turn:</span> ${h(MINE_STATE[mineState(it)] || '')}`;
+  let act;
+  if (workGroup(it) === 'working') act = ''; // its page has Stop
+  else if (it.kind === 'item') act = merged ? removeBtn(it) : isShip(it) ? `<button type="button" class="btn" data-open-run="${h(it.folder)}">Open</button>` : nextBtns(it, true);
+  else act = folderActs(it, false);
+  const state = it.kind === 'item' ? stateVar(it) : asking(it) ? 'var(--gate)' : isBusy(itemSession(it)) ? 'var(--go)' : 'var(--line)';
+  return `<article class="rrow" id="item-${h(itemKey(it))}" style="--state:${state}">${it.kind === 'item' ? statusDot(runStatus(it)) : folderDot(it)}` +
+    `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `<span class="rr-m">${meta.join(' · ')}</span>` + (turn ? `<span class="rr-next">${turn}</span>` : '') +
+    `<span class="rr-act">${projectChip(it)}${act}</span></article>`;
 }
 function sessionCard(o) {
   const s = o.s;
@@ -219,44 +302,155 @@ function sessionCard(o) {
   return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(stamp(o.at))}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
     sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
 }
-export function researchHtml() {
-  const docs = researchItems(), live = researchSessions();
-  let html = '<div class="scope-head"><h2>Research</h2><span class="dim">Spikes, docs, TSDs and repo guides. Findings are for reading; turn one into work when it is ready.</span>' +
-    '<button type="button" class="btn" data-start-open="spike">Investigate a question</button></div>';
-  if (live.length) html += section('live', 'Running', live.length, `<div class="items">${live.map(sessionCard).join('')}</div>`, 'Spikes before their folder exists, and repo guides.');
-  if (docs.length) html += section('docs', 'Findings and documents', docs.length, `<div class="rows">${docs.map(docRow).join('')}</div>`);
-  if (!live.length && !docs.length) html += '<div class="empty small"><p>No research yet. Investigate a question, or draft a repo guide from Repos in the menu.</p></div>';
+export function workHtml() {
+  const list = workItems();
+  const inbox = inboxFolders();
+  const waiting = inboxCount();
+  const mine = list.filter(it => !inbox.has(it.folder));
+  const shown = mine.filter(it => inProject(it) && inFlow(it));
+  const live = startingSessions();
+  let html = '<div class="scope-head"><h2>Work</h2><span class="dim">Everything in flight, every flow. What needs you is in the Inbox.</span></div>';
+  if (waiting) html += `<div class="inbox-prs waiting"><span><b>${plural(waiting, 'thing is', 'things are')} waiting on you</b> in the Inbox.</span><button type="button" class="btn primary" data-tab="inbox">Open Inbox</button></div>`;
+  html += flowFilterHtml(mine) + projectFilterHtml(mine);
+  if (live.length) html += section('starting', 'Starting', live.length, `<div class="items">${live.map(sessionCard).join('')}</div>`, 'Sessions with no folder yet: a spike, epic, doc or TSD until its folder exists, and repo guides.');
+  if (!mine.length && !live.length) return html + startEmpty(list.length ? 'Nothing else in flight' : 'No work yet', 'Pick a flow: build a feature, fix a bug, investigate a question, plan an epic, or write docs.');
+  if (!shown.length && mine.length) html += '<div class="empty small"><p>Nothing here with these filters.</p></div>';
+  const by = {};
+  shown.forEach(it => { const g = workGroup(it); (by[g] = by[g] || []).push(it); });
+  WORK_GROUPS.forEach(([k, name, hint]) => {
+    const g = by[k] || [];
+    if (!g.length) return;
+    const sorted = k === 'ship' ? newest(g).sort((a, b) => (+!!(slateOf(b) || {}).merged) - (+!!(slateOf(a) || {}).merged)) : newest(g);
+    html += section(k, name, g.length, `<div class="rows">${sorted.map(workRow).join('')}</div>`, hint);
+  });
   return html;
 }
-export function docPageHtml(it) {
-  const s = itemSession(it);
-  const meta = [`<span class="tag">${KIND[it.kind] || 'Folder'}</span>`, `<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`, projectChip(it), removeBtn(it)];
+
+// ------------------------------------------------------------------ a run's page, driven by its flow
+/** The step in view on a run's page: the one picked, else the one the run is at. */
+export function selectedStep(it) {
+  const steps = stepsOf(flowOf(it), it.lane);
+  const want = S.ui.step[it.folder];
+  if (want && steps.some(s => s.key === want)) return steps.find(s => s.key === want);
+  return currentStep(it) || steps[0] || null;
+}
+/** done, here or later: where a step is relative to the run. */
+export function stepRel(it, step) {
+  const steps = stepsOf(flowOf(it), it.lane);
+  const i = stepIndex(it), j = steps.findIndex(s => s.key === step.key);
+  if (i >= steps.length) return j === steps.length - 1 && !isFinished(it) ? 'here' : 'done';
+  return j < i ? 'done' : j === i ? 'here' : 'later';
+}
+/** The file a step shows inline. Here: the file to read at a gate, else the step's own. Done: what the step wrote. */
+export function stepFile(it, step, rel) {
+  if (!step) return null;
+  const files = it.files || [];
+  if (rel === 'later') return null;
+  if (rel === 'here') {
+    const g = gateFile(it);
+    if (g) return g;
+    if (it.kind === 'item' && ['build', 'ship', 'pr'].includes(step.key)) return null; // tasks, the PR box
+  } else if (it.kind === 'item' && step.key === 'build') return null; // its tasks list
+  if (it.kind === 'item' && step.key === 'start') return files.includes('brief.md') ? 'brief.md' : null;
+  if (it.kind === 'item' && step.key === 'review') return files.includes('review.md') ? 'review.md' : null;
+  if (it.kind === 'item' && step.key === 'pr' && rel === 'done') return null; // shown on Ship
+  return step.file && files.includes(step.file) ? step.file : null;
+}
+function stepPanelHtml(it, step) {
+  const rel = stepRel(it, step);
+  const sub = rel === 'here' ? hereWords(it, step) : rel === 'done' ? 'Done' : step.you ? 'Stops for you' : 'Tandem runs this';
+  let body = '';
+  const file = stepFile(it, step, rel);
+  if (rel === 'here') {
+    if (it.kind === 'item') {
+      body += autoHtml(it) + nextHtml(it, true);
+      if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
+      if (step.key === 'ship' || it.stage === 'ship') body += prHtml(it);
+      if (step.key === 'build') body += tasksHtml(it);
+    } else {
+      const acts = folderActs(it, true);
+      const turn = turnHtml(it);
+      if (!file && it.summary) body += `<p class="pre">${md(it.summary)}</p>`;
+      body += `<div class="do"><span class="act">${turn || h(step.what)}</span>${acts ? `<span class="row" style="margin-left:auto">${acts}</span>` : ''}</div>`;
+      if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
+    }
+    body += fileInline(it, file, false) + agentHtml(it);
+    if (it.kind === 'item') body += leftOffHtml(it);
+  } else if (rel === 'done') {
+    if (it.kind === 'item' && step.key === 'build') body += tasksHtml(it);
+    body += file ? fileInline(it, file, false) : '';
+    if (!file && !(it.kind === 'item' && step.key === 'build')) body += '<p class="dim">Nothing to show for this step.</p>';
+  } else {
+    body += `<p class="dim">${step.you ? 'This step stops for you.' : 'Tandem runs this step.'} It has not started.</p>`;
+  }
+  return `<section class="spanel ${rel}" aria-label="${h(step.name)}"><div class="sp-head"><h3>${h(step.name)}</h3><span class="sp-sub">${h(sub)}</span></div>` +
+    `<p class="sp-what">${h(step.what)}</p>${body}</section>`;
+}
+/** A folder no flow knows (Slate's folders, anything else in .work): its state, next step and files. */
+function plainPageBody(it) {
   let body = '';
   if (it.state) body += `<p class="doc-state"><strong>${h(it.state)}</strong></p>`;
   if (it.summary) body += `<p class="pre">${md(it.summary)}</p>`;
-  if (it.nextText) body += `<div class="next-line"><span class="lbl">Next</span><span>${md(liveNote(it.nextText))}</span>${runBtn(it, noteCommand(it))}</div>`;
-  const file = docFile(it);
-  const d = S.docs[it.folder];
-  let doc = '';
-  if (file) {
-    doc = !d || (d.text == null && !d.error) ? '<p class="dim">Loading.</p>' : d.text == null ? `<p class="err">${h(d.error)}</p>` : `<div class="hub-answer doc-text">${answerHtml(d.text)}</div>`;
-    doc = `<section class="doc-body" aria-label="${h(file)}"><p class="sub-h">${h(file)} ${fileBtn(it.folder, file, 'plain', 'Open raw')}</p>${doc}</section>`;
+  const cmd = folderCommand(it);
+  if (it.nextText) body += `<div class="next-line"><span class="lbl">Next</span><span>${md(it.nextText)}</span>${runBtn(it, cmd)}</div>`;
+  return body + agentHtml(it);
+}
+export function runPageHtml(it) {
+  const f = flowOf(it);
+  const back = S.ui.back === 'inbox' ? ['inbox', 'Inbox'] : ['work', 'Work'];
+  const meta = [`<span class="tag">${h(flowTag(it))}</span>`];
+  if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`, projectChip(it), slateChip(it), removeBtn(it));
+  const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
+  let main;
+  if (f && stepIndex(it) >= 0) {
+    const sel = selectedStep(it);
+    main = flowTrackHtml(it, sel && sel.key) + (sel ? stepPanelHtml(it, sel) : '');
+  } else main = plainPageBody(it);
+  const details = [];
+  if (it.kind === 'item') details.push(`<div class="dsec"><p class="sub-h">Repos</p>${reposTable(it)}${kitHtml(it)}</div>`);
+  const files = filesHtml(it);
+  if (files) details.push(`<div class="dsec">${files}</div>`);
+  const act = it.kind === 'item' ? activityHtml(it.folder) : '';
+  if (act) details.push(`<div class="dsec"><p class="sub-h">Activity</p>${act}</div>`);
+  return `<button type="button" class="lnk back" data-close-run="${back[0]}">&larr; ${back[1]}</button>` +
+    `<article class="item run-page" id="item-${h(itemKey(it))}" style="--state:${it.kind === 'item' ? stateVar(it) : asking(it) ? 'var(--gate)' : 'var(--line)'}">` +
+    `<div class="item-head"><h2 class="t">${it.id ? idLink(it) : ''}${title}</h2><div class="meta">${meta.join('')}</div></div>${main}` +
+    (details.length ? `<details class="run-details"${openAttr('det:' + it.folder, false)}><summary>${it.kind === 'item' ? 'Repos, files and activity' : 'Files'}</summary><div class="detail-body">${details.join('')}</div></details>` : '') +
+    '</article>';
+}
+
+/** The .work files the page in view shows inline, as [folder, file] pairs, for main.js to read (file.read). */
+export function wantedFiles() {
+  const out = [];
+  const add = (it, name) => { if (it && name) out.push([it.folder, name]); };
+  const t = S.ui.tab;
+  if (S.ui.run && (t === 'work' || t === 'inbox')) {
+    const it = itemForFolder(S.ui.run);
+    if (it && it.kind !== 'pr') {
+      const sel = flowOf(it) && stepIndex(it) >= 0 ? selectedStep(it) : null;
+      if (sel) add(it, stepFile(it, sel, stepRel(it, sel)));
+      if (it.kind === 'spike') add(it, (it.files || []).includes('findings.md') ? 'findings.md' : null);
+    }
+    return out;
   }
-  const acts = `<p class="hub-actions"><button type="button" class="btn primary" data-doc-start="${h(it.folder)}" title="Opens Start work with this as the description">Start work from this</button>` +
-    (d && d.text ? `<button type="button" class="btn ghost" data-doc-note="${h(it.folder)}">Save as note</button>` : '') + '</p>';
-  return '<button type="button" class="lnk back" data-close-doc="1">&larr; Research</button>' +
-    `<article class="item doc-page" id="item-${h(it.folder)}" style="--state:${asking(it) ? 'var(--gate)' : 'var(--line)'}">` +
-    `<div class="item-head"><h2 class="t">${h(it.title)}</h2><div class="meta">${meta.join('')}</div></div>${body}${agentHtml(it)}${isBusy(s) ? '' : acts}${doc}` +
-    (it.files && it.files.length ? `<div class="doc-files">${filesHtml(it)}</div>` : '') + '</article>';
+  if (t === 'inbox') {
+    const d = inboxData();
+    const rows = S.ui.walk ? walkList(d).slice(Math.max(0, S.ui.walk.i || 0), (S.ui.walk.i || 0) + 2).filter(x => x.kind === 'gate').map(x => x.it) : d.gates;
+    rows.forEach(it => add(it, gateFile(it)));
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ the tab bar and the page
 function tabCount(id) {
   if (id === 'inbox') { const n = inboxCount(); return n ? `<span class="cnt gate">${n}</span>` : ''; }
-  if (id === 'runs') { const n = runItems().length; return n ? `<span class="n">${n}</span>` : ''; }
-  if (id === 'ship') { const g = mineNeedsCount(), n = shipItems().length; return g ? `<span class="cnt gate" title="${plural(g, 'code review')} to do">${g}</span>` : n ? `<span class="n">${n}</span>` : ''; }
+  if (id === 'work') {
+    const inbox = inboxFolders();
+    const n = workItems().filter(it => !inbox.has(it.folder) && !isFinished(it)).length;
+    return n ? `<span class="n" title="In flight">${n}</span>` : '';
+  }
   if (id === 'reviews') { const a = reviewsAsking(), n = toReviewCount(); return a ? `<span class="cnt gate" title="The reviewer is waiting for you">${a}</span>` : n ? `<span class="cnt" title="${plural(n, 'PR')} waiting on you with no review yet">${n}</span>` : ''; }
-  if (id === 'research') { const n = researchSessions().filter(o => isBusy(o.s)).length + researchItems().filter(it => isBusy(itemSession(it))).length; return n ? `<span class="n" title="Running">${n}</span>` : ''; }
   return '';
 }
 export function tabsHtml() {
@@ -265,19 +459,12 @@ export function tabsHtml() {
     return `<button type="button" class="tab${on ? ' on' : ''}" data-tab="${id}"${on ? ' aria-current="page"' : ''}><span>${h(name)}</span>${tabCount(id)}</button>`;
   }).join('') + '</nav>';
 }
-/** The tab in view. A run page or a Research reader replaces its tab's list. */
+/** The tab in view. A run's page replaces the list it was opened from. */
 export function pageHtml() {
   const t = S.ui.tab;
   if (t === 'chat') return '<div id="chat-slot"></div>';
-  if (t === 'runs' || t === 'ship') {
-    const it = S.ui.run ? itemForFolder(S.ui.run) : null;
-    if (it && it.kind === 'item') return runPageHtml(it);
-    return t === 'runs' ? runsHtml() : shipHtml();
-  }
   if (t === 'reviews') return reviewsHtml();
-  if (t === 'research') {
-    const it = S.ui.doc ? itemForFolder(S.ui.doc) : null;
-    return it ? docPageHtml(it) : researchHtml();
-  }
-  return inboxHtml();
+  const it = S.ui.run ? itemForFolder(S.ui.run) : null;
+  if (it && it.kind !== 'pr') return runPageHtml(it);
+  return t === 'work' ? workHtml() : inboxHtml();
 }

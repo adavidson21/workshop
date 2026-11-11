@@ -17,7 +17,8 @@ import { mountBar } from '../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
-import { TAB_IDS, inboxCount, docFile, sessionAsksHtml } from './pages.js';
+import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList } from './pages.js';
+import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
 import { startChat } from './chat.js';
@@ -257,8 +258,6 @@ async function fetchState() {
     S.D = d; S.L = d.liveMode ? d.liveMode.live : null; S.conn = 'on';
     publishSummary();
     watchPrompts();
-    loadBriefs();
-    loadDoc();
     if (d.projects && pruneView(S.view, new Set(d.projects.projects.map(p => p.id)))) saveViewNow();
     hub.redraw();
     chat.redraw();
@@ -271,36 +270,24 @@ async function fetchState() {
     if (again) { again = false; fetchState(); }
   }
 }
-// brief.md for each item that has one, through file.read (the same action as the file sheet). Read
-// again when the item's folder changes; dropped when the file is gone.
-function loadBriefs() {
-  const items = (S.D && S.D.items) || [];
-  const live = new Set();
-  for (const it of items) {
-    if (!it.files || it.files.indexOf('brief.md') < 0) continue;
-    live.add(it.folder);
-    const b = S.briefs[it.folder];
-    if (b && (b.loading || b.at === it.modifiedMs)) continue;
-    const next = S.briefs[it.folder] = { text: b ? b.text : null, error: null, at: it.modifiedMs, loading: true };
-    read('file.read', { folder: it.folder, file: 'brief.md' })
+// The .work files the page in view shows inline (pages.js wantedFiles: the run page's step, the Inbox's gate files),
+// through file.read, the same action as the file sheet. Read again when the folder changes; dropped when it is gone.
+function loadFiles() {
+  const live = new Set(((S.D && S.D.items) || []).map(it => it.folder));
+  for (const k of Object.keys(S.files)) if (!live.has(k.split('/')[0])) delete S.files[k];
+  if (!S.D || !S.connector || S.connector.state !== 'ready') return;
+  for (const [folder, name] of wantedFiles()) {
+    const it = itemForFolder(folder);
+    if (!it || !(it.files || []).includes(name)) continue;
+    const key = folder + '/' + name;
+    const f = S.files[key];
+    if (f && (f.loading || f.at === it.modifiedMs)) continue;
+    const next = S.files[key] = { text: f ? f.text : null, error: null, at: it.modifiedMs, loading: true };
+    read('file.read', { folder, file: name })
       .then(r => { next.text = r.text; })
       .catch(e => { next.error = errText(e); })
       .finally(() => { next.loading = false; schedule(); });
   }
-  for (const f of Object.keys(S.briefs)) if (!live.has(f)) delete S.briefs[f];
-}
-// The main file of the Research folder that is open (pages.js docFile), read again when the folder changes.
-function loadDoc() {
-  const it = S.ui.doc ? itemForFolder(S.ui.doc) : null;
-  const name = it ? docFile(it) : null;
-  if (!it || !name) return;
-  const d = S.docs[it.folder];
-  if (d && d.name === name && (d.loading || d.at === it.modifiedMs)) return;
-  const next = S.docs[it.folder] = { name, text: d && d.name === name ? d.text : null, error: null, at: it.modifiedMs, loading: true };
-  read('file.read', { folder: it.folder, file: name })
-    .then(r => { next.text = r.text; })
-    .catch(e => { next.error = errText(e); })
-    .finally(() => { next.loading = false; schedule(); });
 }
 let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }
@@ -399,10 +386,11 @@ S.digestHtml = (h) => {
 };
 
 /* ---------- routes ----------
-   #/agents/<tab> opens a tab (inbox, chat, runs, ship, reviews, research); #/agents/runs/<id> a run page;
-   #/agents/research/<folder> a Research folder; #/agents/chat/<session> a conversation; #/agents/hub/<text> asks the
-   hub (from Home's quick capture, where Enter was pressed). #/agents/<id> (Dispatch 1.x, notifications, Home and
-   Docket's links) opens whatever that is: a run page, a review on Reviews, or a Research folder. */
+   #/agents/<tab> opens a tab (inbox, chat, work, reviews; Dispatch 2.x's runs, ship and research open Work);
+   #/agents/work/<id> a run's page (also runs/, ship/ and research/<folder>, from 2.x); #/agents/chat/<session> a
+   conversation; #/agents/hub/<text> asks the hub (from Home's quick capture, where Enter was pressed).
+   #/agents/<id> (Dispatch 1.x, notifications, Home and Docket's links) opens whatever that is: a run's page, or a
+   review on Reviews. */
 let focusWanted = null;
 function focusItem(id) {
   const el = document.getElementById('item-' + id);
@@ -417,9 +405,8 @@ function itemByKey(key) { return ((S.D && S.D.items) || []).find(it => itemKey(i
 function openKey(key) {
   const it = itemByKey(key);
   if (!it) return false;
-  if (it.kind === 'item') openRun(it.folder);
-  else if (it.kind === 'pr') { setTab('reviews'); focusWanted = { id: itemKey(it), until: Date.now() + 15000 }; schedule(); }
-  else openDoc(it.folder);
+  if (it.kind === 'pr') { setTab('reviews'); focusWanted = { id: itemKey(it), until: Date.now() + 15000 }; schedule(); }
+  else openRun(it.folder, 'work');
   return true;
 }
 let keyWanted = null;
@@ -429,9 +416,8 @@ function wantFocus(path) {
   if (/^chat(\/|$)/.test(p)) { const sid = p.replace(/^chat\/?/, '').trim(); setTab('chat'); chat.open(sid || null); return; }
   const [head, rest] = [p.split('/')[0], p.split('/').slice(1).join('/')];
   if (!head) return;
-  if ((head === 'runs' || head === 'ship') && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
-  if (head === 'research' && rest) { openDoc(rest); return; }
-  if (TAB_IDS.includes(head)) { setTab(head); return; }
+  if ((head === 'work' || OLD_TABS[head]) && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
+  if (TAB_IDS.includes(head) || OLD_TABS[head]) { setTab(head); return; }
   // The page may not have the item yet: keep trying for a while as data arrives.
   keyWanted = { key: head, until: Date.now() + 15000 };
   tryKey();
@@ -484,6 +470,7 @@ function paint() {
   if (inChat && inChat.isConnected) { inChat.focus(); if (chatSel) try { inChat.setSelectionRange(chatSel[0], chatSel[1]); } catch (e) { /* not a text field */ } }
   // Entry animations play once: an element that was already on screen keeps still through repaints.
   ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
+  loadFiles();
   if (keyWanted) tryKey();
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;
   sh = app.querySelector('.sheet');
@@ -523,15 +510,24 @@ function closeOverlays(force) {
   if (ui().settings) { ui().settings = null; for (const k of Object.keys(ui().drafts)) if (k.startsWith('cfg:')) delete ui().drafts[k]; }
 }
 
-/* ---------- start work (view.js startSheetHtml) ---------- */
-let lastMode = 'describe', lastLane = 'feature';
+/* ---------- start work: pick a flow (view.js startSheetHtml, flows.js) ---------- */
 function focusFirst(sel) { const box = app.querySelector(sel); if (box) box.focus(); }
-function openStart(mode) {
+const LEGACY_START = { describe: 'quick', spike: 'spike', ado: 'feature' };
+let lastLane = 'feature';
+/** Opens Start work: on the flow picker, or on one flow's form (a flow id, or Dispatch 2.x's describe, ado, spike). */
+function openStart(flow) {
   closeOverlays();
-  ui().start = { mode: mode || lastMode, lane: lastLane, project: startProject(), busy: false, error: null };
+  const f = FLOW_IDS.includes(flow) ? flow : LEGACY_START[flow] || null;
+  ui().start = { flow: f, src: null, lane: lastLane, project: startProject(), busy: false, error: null };
   paint();
-  focusFirst('.start-first');
+  focusFirst(f ? '.start-first' : '.fcard');
 }
+const STARTED = {
+  spike: () => 'Investigating. It is under Starting on Work until its folder exists.',
+  'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show in the Inbox.',
+  'docs.start': () => 'Drafting the doc. Tandem asks where it lives and who reads it; the questions show in the Inbox.',
+  'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show in the Inbox.'
+};
 // The click on Start is the approval for this write action.
 async function startGo() {
   const st = ui().start;
@@ -544,17 +540,58 @@ async function startGo() {
     // Slate tracks every run from start to resolved: tell it about this one (Start was the person's click).
     try { await sendWork(ws, workOffer({ action: r.action, args: r.args, res, from: st.from })); } catch (e) { /* Slate is optional */ }
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
-    lastMode = st.mode; lastLane = st.lane;
+    if (st.flow === 'quick') lastLane = st.lane;
     closeOverlays();
     const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
-    toast(r.action === 'spike' ? 'Investigating. Follow it in Research.'
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. It is on Runs; the agent may ask you to confirm repos.`
-      : `Starting #${r.args.id} as a ${r.args.lane}${pname}. It shows up when its folder is ready.`);
+    toast(STARTED[r.action] ? STARTED[r.action]()
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. It is on Work; the agent may ask you to confirm repos.`
+      : `Starting #${r.args.id} as a ${r.args.lane}${pname}. It shows up on Work when its folder is ready.`);
+    setTab('work');
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
   fetchSoon();
   schedule();
+}
+
+/* ---------- send back with a note, and the Inbox one at a time (pages.js) ---------- */
+// The note goes under the gate file's Open questions (written over the text just read, so nothing Tandem wrote is
+// lost), then the step runs again (docs/pipeline.md, Gates). The click on Send back is the approval for both writes.
+async function sendBack(folder) {
+  const it = itemForFolder(folder);
+  const key = 'sb:' + folder;
+  const note = String(ui().drafts[key] || '').trim();
+  const cmd = it && sendBackCommand(it);
+  const file = it && gateFile(it);
+  if (!it || !cmd || !file) { toast('There is nothing to send back here any more.', true); return; }
+  if (!note) { toast('Say what should change first.', true); focusFirst(`[data-draft="${CSS.escape(key)}"]`); return; }
+  if (ui().busy[key]) return;
+  ui().busy[key] = true; schedule();
+  try {
+    const cur = await read('file.read', { folder, file });
+    await write('file.write', { folder, file, text: addOpenQuestion(cur.text, note), expected: cur.text });
+    await write('run', { folder, command: cmd });
+    delete ui().drafts[key]; ui().open[key] = false;
+    walkDone();
+    toast(`Sent back. Tandem is redoing ${file} with your note.`);
+  } catch (e) { toast(errText(e), true); }
+  finally { delete ui().busy[key]; fetchSoon(); schedule(); }
+}
+// Go through them: a row you acted on leaves the list straight away (the next state confirms it).
+function walkDone() {
+  const w = ui().walk;
+  const el = app.querySelector('.walk[data-walk-key]');
+  if (w && el) { w.done = w.done || {}; w.done[el.getAttribute('data-walk-key')] = 1; }
+}
+function walk(what) {
+  if (what === 'start') { ui().walk = { i: 0, done: {} }; ui().run = null; }
+  else if (what === 'stop') ui().walk = null;
+  else if (ui().walk) {
+    const n = walkList().length;
+    ui().walk.i = Math.max(0, Math.min(n - 1, (ui().walk.i || 0) + (what === 'prev' ? -1 : 1)));
+  }
+  paint();
+  window.scrollTo(0, 0);
 }
 
 /* ---------- repos (view.js repoSheetHtml) ---------- */
@@ -600,15 +637,15 @@ function openRepos() {
 function startFromDoc(folder) {
   const it = itemForFolder(folder);
   if (!it) return;
-  const d = S.docs[it.folder];
+  const d = S.files[it.folder + '/findings.md'];
   ui().drafts['start:title'] = String(it.title || '').slice(0, 200);
-  ui().drafts['start:desc'] = [it.summary || '', d && d.text ? `From .work/${it.folder}/${d.name}:\n\n${d.text}` : `See .work/${it.folder}.`].filter(Boolean).join('\n\n').slice(0, 8000);
-  openStart('describe');
+  ui().drafts['start:desc'] = [it.summary || '', d && d.text ? `From .work/${it.folder}/findings.md:\n\n${d.text}` : `See .work/${it.folder}.`].filter(Boolean).join('\n\n').slice(0, 8000);
+  openStart('quick');
   if (ui().start) ui().start.from = it.folder;
 }
 function draftGuide(folder) {
   closeOverlays();
-  act(() => write('repo.guide', { repo: folder }), () => toast(`Drafting the guide for ${folder}. Follow it in Research.`));
+  act(() => write('repo.guide', { repo: folder }), () => toast(`Drafting the guide for ${folder}. Follow it on Work, under Starting.`));
 }
 
 /* ---------- opencode settings (view.js settingsSheetHtml) ---------- */
@@ -643,26 +680,24 @@ async function saveSettings() {
   schedule();
 }
 
-/* ---------- tabs, the run page, Research folders, projects (pages.js, projects.js, local.js) ---------- */
+/* ---------- tabs, a run's page, projects (pages.js, projects.js, local.js) ---------- */
 function setTab(tab, keep) {
+  tab = OLD_TABS[tab] || tab;
   if (!TAB_IDS.includes(tab)) tab = 'inbox';
-  if (!keep) { ui().run = null; ui().doc = null; }
+  if (!keep) ui().run = null;
+  if (tab !== 'inbox') ui().walk = null;
   ui().tab = tab;
   if (tab === 'reviews') loadInbox(false);
   paint();
   window.scrollTo(0, 0);
 }
-function openRun(folder) {
+/** A run's page, on the tab it was opened from (the Inbox, else Work), which Back returns to. */
+function openRun(folder, from) {
   const it = itemForFolder(folder);
   if (!it) return;
-  const ship = it.kind === 'item' && (it.stage === 'ship' || it.bucket === 'ship' || it.bucket === 'done');
-  ui().run = folder; ui().doc = null;
-  setTab(ship ? 'ship' : 'runs', true);
-}
-function openDoc(folder) {
-  ui().doc = folder; ui().run = null;
-  setTab('research', true);
-  loadDoc();
+  const back = from || (ui().tab === 'inbox' ? 'inbox' : 'work');
+  ui().run = folder; ui().back = back; ui().walk = null;
+  setTab(back, true);
 }
 function setProjectFilter(id) {
   S.view.project = id || 'all';
@@ -847,17 +882,34 @@ app.addEventListener('click', ev => {
   if (tb) { setTab(tb.getAttribute('data-tab')); return; }
   const orun = t.closest('[data-open-run]');
   if (orun) { openRun(orun.getAttribute('data-open-run')); return; }
+  const stp = t.closest('[data-step]');
+  if (stp && ui().run) { ui().step[ui().run] = stp.getAttribute('data-step'); paint(); return; }
+  const wk = t.closest('[data-walk]');
+  if (wk) { walk(wk.getAttribute('data-walk')); return; }
+  const pk = t.closest('[data-peek]');
+  if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = !ui().open[k]; paint(); return; }
+  const sbt = t.closest('[data-sb-toggle]');
+  if (sbt) { const k = 'sb:' + sbt.getAttribute('data-sb-toggle'); ui().open[k] = !ui().open[k]; paint(); if (ui().open[k]) focusFirst(`[data-draft="${CSS.escape(k)}"]`); return; }
+  const sbg = t.closest('[data-sendback]');
+  if (sbg) { sendBack(sbg.getAttribute('data-sendback')); return; }
+  const dck = t.closest('[data-docs-check]');
+  if (dck) {
+    const folder = dck.getAttribute('data-docs-check');
+    const path = String(ui().drafts['dc:' + folder] || '').trim();
+    if (!/^[^\s`'"<>|;&]{1,300}$/.test(path)) { toast('Type the path of the doc to fact-check, like docs/run-locally.md.', true); return; }
+    act(() => write('run', { folder, command: '/check-docs ' + path }), () => toast('Fact-checking ' + path + ' in a new session'), folder);
+    return;
+  }
+  const ff = t.closest('[data-filter-flow]');
+  if (ff) { ui().flow = ff.getAttribute('data-filter-flow') || 'all'; paint(); return; }
   const oit = t.closest('[data-open-item]');
   if (oit) { openKey(oit.getAttribute('data-open-item')); return; }
   const odoc = t.closest('[data-open-doc]');
-  if (odoc) { openDoc(odoc.getAttribute('data-open-doc')); return; }
+  if (odoc) { openRun(odoc.getAttribute('data-open-doc')); return; }
   const ochat = t.closest('[data-open-chat]');
   if (ochat) { setTab('chat'); chat.open(ochat.getAttribute('data-open-chat')); return; }
   const crun = t.closest('[data-close-run]');
   if (crun) { setTab(crun.getAttribute('data-close-run')); return; }
-  if (t.closest('[data-close-doc]')) { setTab('research'); return; }
-  const rt = t.closest('[data-run-tab]');
-  if (rt) { ui().runTab = rt.getAttribute('data-run-tab'); paint(); return; }
   const fp = t.closest('[data-filter-project]');
   if (fp) { setProjectFilter(fp.getAttribute('data-filter-project')); return; }
   if (t.closest('[data-projects-open]')) { closeOverlays(); ui().projects = true; paint(); return; }
@@ -865,7 +917,7 @@ app.addEventListener('click', ev => {
   const dst = t.closest('[data-doc-start]');
   if (dst) { startFromDoc(dst.getAttribute('data-doc-start')); return; }
   const dnote = t.closest('[data-doc-note]');
-  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.docs[it.folder]; if (d && d.text) hub.noteOf(it.title, d.text); return; }
+  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.files[it.folder + '/findings.md']; if (d && d.text) hub.noteOf(it.title, d.text); return; }
   if (t.closest('[data-proj-new]')) { openProject(null); return; }
   const pe = t.closest('[data-proj-edit]');
   if (pe) { openProject(pe.getAttribute('data-proj-edit')); return; }
@@ -883,12 +935,14 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-settings]')) { ws.open({ app: 'settings' }).catch(() => {}); return; }
   if (t.closest('[data-cfg-open]')) { openSettings(); return; }
   const so = t.closest('[data-start-open]');
-  if (so) { const m = so.getAttribute('data-start-open'); openStart(['describe', 'ado', 'spike'].includes(m) ? m : null); return; }
+  if (so) { openStart(so.getAttribute('data-start-open')); return; }
   if (t.closest('[data-start-go]')) { startGo(); return; }
+  const fl = t.closest('[data-flow]');
+  if (fl && ui().start) { ui().start.flow = fl.getAttribute('data-flow') || null; ui().start.error = null; paint(); focusFirst(ui().start.flow ? '.start-first' : '.fcard'); return; }
+  const ssrc = t.closest('[data-start-src]');
+  if (ssrc && ui().start) { ui().start.src = ssrc.getAttribute('data-start-src'); ui().start.error = null; paint(); focusFirst('.start-first'); return; }
   const sl = t.closest('[data-start-lane]');
   if (sl && ui().start) { ui().start.lane = sl.getAttribute('data-start-lane'); ui().start.error = null; paint(); return; }
-  const sm = t.closest('[data-start-mode]');
-  if (sm && ui().start) { ui().start.mode = sm.getAttribute('data-start-mode'); ui().start.error = null; paint(); focusFirst('.start-first'); return; }
   if (t.closest('[data-repo-open]')) { openRepo(); return; }
   if (t.closest('[data-repo-go]')) { repoGo(); return; }
   const gb = t.closest('[data-guide]');
@@ -922,7 +976,7 @@ app.addEventListener('click', ev => {
     return;
   }
   const fb = t.closest('[data-file]');
-  if (fb) { openFile(fb.getAttribute('data-file'), fb.getAttribute('data-name')); return; }
+  if (fb) { openFile(fb.getAttribute('data-file'), fb.getAttribute('data-name'), fb.getAttribute('data-mode')); return; }
   const rm = t.closest('[data-remove]');
   if (rm) {
     closeOverlays(); ui().remove = rm.getAttribute('data-remove'); paint();
@@ -939,6 +993,7 @@ app.addEventListener('click', ev => {
     }).then(() => { rg.disabled = false; });
     return;
   }
+  if (t.closest('.walk [data-hot="a"]') && t.closest('[data-run], [data-auto]')) walkDone();
   const run = t.closest('[data-run]');
   if (run) {
     const folder = run.getAttribute('data-run'), command = run.getAttribute('data-cmd');
@@ -1010,14 +1065,28 @@ app.addEventListener('change', ev => {
   p[i] = [...form.querySelectorAll(`input[name="${CSS.escape(ev.target.name)}"]:checked`)].map(x => x.value);
 });
 document.addEventListener('keydown', ev => {
-  if (ev.key !== 'Escape') return;
-  if (ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().repos || ui().project || ui().projects || ui().move) { closeOverlays(); paint(); }
+  const overlay = ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().repos || ui().project || ui().projects || ui().move;
+  if (ev.key === 'Escape' && overlay) { closeOverlays(); paint(); return; }
+  // Go through them: keys for the row in view, unless you are typing.
+  if (!ui().walk || overlay || ui().tab !== 'inbox' || ui().run || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const tg = ev.target;
+  if (tg && (/^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName) || tg.isContentEditable)) return;
+  const k = ev.key.toLowerCase();
+  const press = key => { const b = app.querySelector(`.walk [data-hot="${key}"]`); if (b && !b.disabled) { ev.preventDefault(); b.click(); } };
+  if (ev.key === 'Escape') { ev.preventDefault(); walk('stop'); }
+  else if (k === 'n' || ev.key === 'ArrowRight') { ev.preventDefault(); walk('next'); }
+  else if (k === 'p' || ev.key === 'ArrowLeft') { ev.preventDefault(); walk('prev'); }
+  else if (k === 'a') press('a');
+  else if (k === 's') press('s');
+  else if (k === 'o') press('o');
 });
 app.addEventListener('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && dk && dk.startsWith('file:')) { ev.preventDefault(); saveFile(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
-  if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title')) { ev.preventDefault(); startGo(); return; }
+  if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title' || dk === 'start:target')) { ev.preventDefault(); startGo(); return; }
+  if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('sb:')) { ev.preventDefault(); sendBack(dk.slice(3)); return; }
+  if (ev.key === 'Enter' && dk && dk.startsWith('dc:')) { ev.preventDefault(); const b = app.querySelector(`[data-docs-check="${CSS.escape(dk.slice(3))}"]`); if (b) b.click(); return; }
   if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('start:')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('repo:')) { ev.preventDefault(); repoGo(); return; }
   if (ev.key === 'Enter' && dk === 'rv:url') { ev.preventDefault(); startReview(ev.target.value); return; }

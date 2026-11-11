@@ -1,6 +1,6 @@
 /* Dispatch: projects, as HTML strings from S. A project groups runs (the opencode connector's `state.projects`,
    lib/projects.mjs; project.create, project.update, project.delete, run.assign). Runs with no project are in the
-   built-in Inbox project. In Dispatch 2.0 projects are a filter on the Runs and Ship tabs (S.view.project, kept in
+   built-in Inbox project. In Dispatch 3.0 projects are a filter on the Work tab (S.view.project, kept in
    this browser by local.js), plus a chip on each run and a list in the overflow menu. With an older connector that
    has no projects, every run is in Inbox and the project controls are hidden. */
 import { S } from './state.js';
@@ -134,7 +134,7 @@ export function projectsSheetHtml() {
       (p.repo ? `<span class="mono dim">${h(p.repo)}</span>` : '') +
       (p.builtIn ? '<span class="dim">Built in</span>' : `<button type="button" class="btn" data-proj-edit="${h(p.id)}">Edit</button>`) + '</li>';
   }).join('');
-  const body = '<p>Runs and Ship can show one project at a time. Each run\'s project chip moves it.</p>' + `<ul class="plist">${rows}</ul>`;
+  const body = '<p>Work can show one project at a time. Each run\'s project chip moves it.</p>' + `<ul class="plist">${rows}</ul>`;
   return sheet('projs-h', 'Projects', body, '<button type="button" class="btn primary" data-proj-new="1">New project</button><span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Close</button>');
 }
 

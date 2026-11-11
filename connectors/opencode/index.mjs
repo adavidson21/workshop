@@ -13,7 +13,7 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startReview, startSpike } from "./lib/workspace.mjs";
+import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
@@ -350,6 +350,25 @@ const actions = {
     async run(args) {
       needReady();
       return startSpike(args);
+    },
+  },
+  // Dispatch's Write docs and Technical spec flows. Each runs one Tandem command in a new session, like a spike.
+  "docs.start": {
+    title: "Draft or update documentation from the code (/docs, then fact-check with /check-docs)",
+    write: true,
+    argsSchema: obj(["target"], { target: str("What to document", { minLength: 1, maxLength: 500 }) }),
+    async run(args) {
+      needReady();
+      return startDocs(args);
+    },
+  },
+  "tsd.start": {
+    title: "Draft a technical spec with diagrams for a product or repos (/tsd)",
+    write: true,
+    argsSchema: obj(["target"], { target: str("A product name from the repo map, or repo folders separated by spaces", { minLength: 1, maxLength: 300 }) }),
+    async run(args) {
+      needReady();
+      return startTsd(args);
     },
   },
   // Slate's PM steps (lib/slate.mjs). Each runs a Tandem command in a new session, like a spike.

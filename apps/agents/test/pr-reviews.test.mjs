@@ -255,46 +255,47 @@ test('a reviewer asking you something shows in the Inbox with a link to Reviews,
   S.L.questions.push({ id: 'q_rv', sessionID: 'ses_rv3', folder: 'pr-812', questions: [{ question: 'Which base branch?', options: [] }] });
   assert.equal(inboxData().asks.length, 1);
   const page = render();
-  assert.match(page, /<span class="tag">PR review<\/span><span class="st">Add discount to cart total<\/span><button type="button" class="lnk plain" data-open-item="pr-812">Open<\/button>/);
+  assert.match(page, /<span class="tag">PR review<\/span><span class="st">Add discount to cart total<\/span><button type="button" class="lnk plain" data-hot="o" data-open-item="pr-812">Open<\/button>/);
   assert.match(page, /data-qsend="q_rv"/);
   assert.match(page, /data-tab="reviews"><span>Reviews<\/span><span class="cnt gate" title="The reviewer is waiting for you">1<\/span>/);
   assert.ok(inboxCount() >= 1);
 });
-test('Ship: your runs at Ship with their PRs, grouped by whose turn it is, with Open run and Remove', () => {
+test('3.0 a run at Ship: its code review is in the Inbox, its PR box on its page, and Shipping on Work once reviewed', () => {
   const it = S.D.items.find(i => i.folder === '41610-rate-limit-headers');
   assert.deepEqual(mineItems().map(i => i.folder), [it.folder]);
   assert.equal(mineState(it), 'review', 'branch only local, connected: review before you push');
   assert.equal(mineNeedsCount(), 1);
-  assert.match(render(), /data-tab="ship"><span>Ship<\/span><span class="cnt gate" title="1 code review to do">1<\/span>/);
-  S.ui.tab = 'ship';
   let page = render();
-  assert.match(page, /<h2>Ship<\/h2>/);
-  assert.match(page, /<h3 id="gh-mine-you">Your turn <span class="n">1<\/span>/);
-  assert.match(page, /id="item-41610"/);
-  assert.match(page, /Review before you push/);
-  assert.match(page, /href="review\.html\?id=41610&amp;repo=gateway"/, 'the code review link, same as on the run page');
-  assert.match(page, /data-open-run="41610-rate-limit-headers">Open run</);
+  assert.match(page, /<h3 id="gh-code">Code reviews to do <span class="n">1<\/span>/);
+  assert.match(page, /<a class="btn primary" data-hot="a" href="review\.html\?id=41610&amp;repo=gateway" data-review>Review<\/a>/, 'the code review link, same as on the run page');
+  S.ui.tab = 'work';
+  assert.doesNotMatch(render(), /id="item-41610"/, 'a run in the Inbox is only in the Inbox');
+  // Its page: the Ship step has the PR box.
+  S.ui.run = it.folder;
+  page = render();
+  assert.match(page, /class="fstep here you sel"><button type="button" data-step="ship"/);
+  assert.match(page, /class="prbox"/);
+  assert.match(page, /Review before you push:<\/span><a class="btn primary" href="review\.html\?id=41610&amp;repo=gateway"/);
   assert.match(page, /data-remove="41610-rate-limit-headers"/, 'Remove once it merges');
-  assert.doesNotMatch(page, /<aside>/);
+  S.ui.run = null;
 
   S.D.reviews = { [it.folder]: { gateway: { status: 'revising', revision: 2, run: { status: 'running' } } } };
   assert.equal(mineState(it), 'revising');
-  assert.match(mineHtml(), /With the agent/);
   assert.equal(mineNeedsCount(), 0);
+  page = render();
+  assert.match(page, /<h3 id="gh-ship">Shipping <span class="n">1<\/span>/, 'with the agent: on Work');
+  assert.match(page, /id="item-41610".*The agent is revising/s);
   S.D.reviews[it.folder].gateway.run.status = 'failed';
   assert.equal(mineState(it), 'fix');
   S.D.reviews[it.folder].gateway = { status: 'approved', revision: 2 };
-  assert.match(mineHtml(), /Ready for a PR/);
+  assert.match(render(), /Approved, push from the review/);
   it.pr[0].push = { local: true, remote: true, unpushed: 0 };
   assert.equal(mineState(it), 'pushed');
+  S.slate = new Map([[it.folder, { route: 'x', merged: true }]]);
+  assert.match(render(), /id="item-41610".*Merged\..*data-remove="41610-rate-limit-headers"/s, 'merged (Slate saw it): Remove');
+  S.slate = new Map();
   it.pr[0].push = { local: true, remote: false, unpushed: null };
   S.D.reviews = {};
   S.conn = 'off';
   assert.equal(mineState(it), 'push', 'not connected: push by hand');
-});
-test('Ship with nothing yet says where it comes from', () => {
-  S.D.items = S.D.items.filter(i => i.stage !== 'ship');
-  S.ui.tab = 'ship';
-  assert.match(render(), /When a run writes its PR text, it shows here/);
-  assert.match(render(), /data-tab="ship" aria-current="page"><span>Ship<\/span><\/button>/);
 });

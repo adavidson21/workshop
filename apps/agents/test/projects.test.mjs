@@ -41,14 +41,14 @@ const memStorage = () => { const m = new Map(); return { getItem: k => (m.has(k)
 
 beforeEach(() => load());
 
-test('no sidebar: Runs has project chips with counts, and All projects is the default', () => {
-  S.ui.tab = 'runs';
+test('no sidebar: Work has project chips with counts, and All projects is the default', () => {
+  S.ui.tab = 'work';
   const html = render();
   assert.doesNotMatch(html, /class="side|data-side-/);
   assert.match(html, /<div class="filters" role="group" aria-label="Project">/);
-  assert.match(html, /class="fchip on" data-filter-project="all" aria-pressed="true"><span>All projects<\/span><span class="n">4<\/span>/);
-  assert.match(html, /data-filter-project="orders-api"[^>]*>.*?<span>Orders API<\/span><span class="n">2<\/span>/);
-  assert.match(html, /data-filter-project="billing"[^>]*>.*?<span>Billing<\/span><span class="n">0</, 'counts are runs on this tab: the Billing TSD is in Research');
+  assert.match(html, /class="fchip on" data-filter-project="all" aria-pressed="true"><span>All projects<\/span><span class="n">4<\/span>/, 'everything on Work: what is in the Inbox is not');
+  assert.match(html, /data-filter-project="orders-api"[^>]*>.*?<span>Orders API<\/span><span class="n">1<\/span>/, '41300 waits in the Inbox');
+  assert.match(html, /data-filter-project="billing"[^>]*>.*?<span>Billing<\/span><span class="n">1</, 'the Billing TSD is on Work too');
 });
 
 test('Needs you lists runs waiting on you across all projects, newest first', () => {
@@ -56,7 +56,7 @@ test('Needs you lists runs waiting on you across all projects, newest first', ()
   assert.deepEqual(needs.sort(), ['41300-export-retry-fails', '41502-csv-export']);
 });
 
-test('a run with no project is in Inbox; the filter narrows Runs and seeds Start work', () => {
+test('a run with no project is in Inbox; the filter narrows Work and seeds Start work', () => {
   assert.equal(projectOf(item('41455-audit-log-filter')), INBOX);
   assert.equal(projectOf(item('tsd-billing-api')), 'billing');
   assert.deepEqual(runsIn('orders-api').map(i => i.folder).sort(), ['41207-fix-login-timeout', '41300-export-retry-fails']);
@@ -64,7 +64,7 @@ test('a run with no project is in Inbox; the filter narrows Runs and seeds Start
   assert.equal(startProject(), 'orders-api');
   assert.ok(inProject(item('41207-fix-login-timeout')));
   assert.ok(!inProject(item('41455-audit-log-filter')));
-  S.ui.tab = 'runs';
+  S.ui.tab = 'work';
   const html = render();
   assert.match(html, /id="item-41207"/);
   assert.doesNotMatch(html, /id="item-41455"/, 'Inbox run hidden');
@@ -80,11 +80,11 @@ test('a filter for a project that is gone falls back to all projects', () => {
   assert.equal(pruneView(S.view, new Set(['orders-api'])), false);
 });
 
-test('an empty project says so and offers Start work', () => {
+test('an empty project says so', () => {
   S.D.projects.projects.push({ id: 'empty', name: 'Empty', color: 'rose' });
   S.view.project = 'empty';
-  S.ui.tab = 'runs';
-  assert.match(render(), /No runs in this project\..*data-start-open="1"/s);
+  S.ui.tab = 'work';
+  assert.match(render(), /Nothing here with these filters\./);
 });
 
 test('run status: needs review, ready to ship, paused, up next', () => {
@@ -97,13 +97,14 @@ test('run status: needs review, ready to ship, paused, up next', () => {
 
 test('starting from a project sends it; from Inbox it does not', () => {
   const drafts = { 'start:title': 'Add retries' };
-  assert.deepEqual(startRequest({ mode: 'describe', lane: 'feature', project: 'orders-api' }, drafts).args, { title: 'Add retries', lane: 'feature', project: 'orders-api' });
-  assert.deepEqual(startRequest({ mode: 'describe', lane: 'feature', project: INBOX }, drafts).args, { title: 'Add retries', lane: 'feature' });
-  assert.deepEqual(startRequest({ mode: 'ado', lane: 'bug', project: 'billing' }, { 'start:id': '123' }).args, { id: '123', lane: 'bug', project: 'billing' });
+  assert.deepEqual(startRequest({ flow: 'quick', lane: 'feature', project: 'orders-api' }, drafts).args, { title: 'Add retries', lane: 'feature', project: 'orders-api' });
+  assert.deepEqual(startRequest({ flow: 'quick', lane: 'feature', project: INBOX }, drafts).args, { title: 'Add retries', lane: 'feature' });
+  S.D.tandem = { ado: true };
+  assert.deepEqual(startRequest({ flow: 'bug', src: 'ado', project: 'billing' }, { 'start:id': '123' }).args, { id: '123', lane: 'bug', project: 'billing' });
 });
 
 test('the start sheet picks a project when there are any', () => {
-  S.ui.start = { mode: 'describe', lane: 'feature', project: 'billing', busy: false, error: null };
+  S.ui.start = { flow: 'quick', lane: 'feature', project: 'billing', busy: false, error: null };
   const html = render();
   assert.match(html, /<select data-start-project="1">/);
   assert.match(html, /<option value="billing" selected>Billing<\/option>/);
@@ -123,7 +124,7 @@ test('an older connector with no projects: everything in Inbox, no project contr
   S.ui.menu = { kind: 'more', top: 0, right: 0 };
   assert.doesNotMatch(render(), /data-projects-open/);
   S.ui.menu = null;
-  S.ui.start = { mode: 'describe', lane: 'feature', project: INBOX, busy: false, error: null };
+  S.ui.start = { flow: 'quick', lane: 'feature', project: INBOX, busy: false, error: null };
   assert.doesNotMatch(render(), /data-start-project/);
 });
 
@@ -178,7 +179,7 @@ test('view prefs: only the project filter; bad storage gives the defaults; the 1
 test('project names are escaped', () => {
   S.D.projects.projects.push({ id: 'x', name: '<img src=x onerror=alert(1)>', color: 'red' });
   S.D.projects.runs['41455-audit-log-filter'] = 'x';
-  S.ui.tab = 'runs';
+  S.ui.tab = 'work';
   assert.doesNotMatch(render(), /<img src=x/);
   assert.doesNotMatch(projectsSheetHtml(), /<img src=x/);
 });
