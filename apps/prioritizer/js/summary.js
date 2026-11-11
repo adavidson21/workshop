@@ -188,7 +188,7 @@ export function needsCard(board, today){
   const nudges = open.filter(t => t.waiting === true && isDate(t.nudgeOn) && t.nudgeOn <= today).length;
   if (nudges) rows.push({id: 'nudges', title: `${n(nudges, 'follow-up')} due`, note: 'Nudge, or take it back', route: 'today', flag: 'waiting'});
   const back = open.filter(t => isDate(t.cameBack)).length;
-  if (back) rows.push({id: 'cameback', title: `${n(back, 'task')} came back`, note: 'Sort in the Inbox', route: 'today', flag: 'waiting'});
+  if (back) rows.push({id: 'cameback', title: `${n(back, 'task')} came back`, note: 'Sort it on Today', route: 'today', flag: 'waiting'});
   const ado = board.ado && Array.isArray(board.ado.pending) ? board.ado.pending.length : 0;
   if (ado) rows.push({id: 'ado', title: `${n(ado, 'new ADO item')}`, note: 'Add or skip', route: 'today'});
   const overdue = open.filter(t => !t.pr && isDate(t.due) && t.due < today).length;

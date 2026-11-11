@@ -12,7 +12,7 @@ import { $, daysBetween, esc, fmtDay, fmtLong, today, todayStr } from './util.js
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
 import { dp } from './dayplan.js';
-import { fmt12, repeatLabel } from './dayplan-model.js';
+import { fmt12, repeatLabel, sprintInfo, sprintsOn } from './dayplan-model.js';
 import { peopleFilter, renderArchive, renderPeople, renderToday } from './views.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
@@ -110,7 +110,7 @@ function render(){
 /* Waiting for the data folder (state.js, setWaiting): no board, nothing to add or edit, and where to click. */
 function renderWaiting(){
   $('#snav').innerHTML = '';
-  $('#slists').innerHTML = '';
+  if ($('#slists')) $('#slists').innerHTML = '';
   $('#phead').innerHTML = '';
   $('#main').innerHTML = `<div class="empty waiting-empty" role="status"><b>Allow Workshop to use your folder to see your board</b>`
     + (embedded ? 'Click <span class="kbdlike">Allow</span> in the bar at the top of Workshop. Chrome asks again after it restarts.'
@@ -125,12 +125,12 @@ function renderWaiting(){
 function renderSide(){
   const nav = state.view === 'today' && planWeek() ? 'week' : NAV_OF(state.view);
   const inbox = inboxQueue().length;
-  const tips = {today: `Today: Inbox, Up next and Today${inbox ? `. ${inbox} new to sort` : ''}. Shortcut: 1 (3 Inbox, 4 Plan week)`};
-  // Today is where the day happens; Day plans it in time blocks; People and Done are for review. One count on Today:
-  // what is in the Inbox to sort.
-  const group = {day: 'Plan', people: 'Review'};
-  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `${group[k] ? `<div class="ssec snav-h"><span>${group[k]}</span></div>` : ''}<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
-    k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} new to sort">${inbox}</span>` : ''}</button>`).join('');
+  const tips = {today: `Today: To sort, Up next and Today${inbox ? `. ${inbox} to sort` : ''}. Shortcut: 1 (3 To sort, 2 plan the day)`, week: 'Week: rank everything against your capacity. Shortcut: 4'};
+  // Four places (Docket 9.0.0): Today is where the day happens (its Day plan included), Week ranks, People and Done
+  // are for review. One count, on Today: what is waiting to be sorted. Lists are a filter under the page title.
+  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
+    k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} to sort">${inbox}</span>` : ''}</button>`).join('');
+  if (!$('#slists')) return;
   // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of
   // its PRs when "No PRs" is on, since picking it shows them.
   const vis = (t, id) => !t.done && (shown(t) || state.prs === 'none' && id === state.ado.prListId);
@@ -159,17 +159,30 @@ const hbtn = (icon, tip, attrs, cls = '') => `<button class="hbtn${cls ? ' ' + c
 // The day's two actions also show their words on a wide window (app.css .hbtn.lab); an icon with a tooltip below that.
 const lbtn = (icon, label, tip, attrs) => `<button class="hbtn lab" ${attrs} aria-label="${esc(label)}" data-tip="${esc(tip)}">${icon}<span class="hl">${esc(label)}</span></button>`;
 const addBtn = () => hbtn(ICON.plus, 'Add a task. Shortcut: N', 'data-add', 'primary addbtn');
+// Today's sprint, as a pill under the day's name: "Sprint 22, day 3 of 10" (nothing without sprints).
+function sprintPill(){
+  const d = todayStr(), info = sprintsOn(dp.sprint) ? sprintInfo(dp.sprint, d) : null;
+  if (!info) return '';
+  const text = info.off ? `Sprint ${info.id}, ${info.holiday ? 'holiday' : 'day off'}` : `Sprint ${info.id}, day ${info.day} of ${info.total}`;
+  return `<button class="hpill quiet" data-view="day" data-tip="Plan the day in time blocks. Shortcut: 2">${esc(text)}</button>`;
+}
+// The day stepper: Today in the middle, the arrows open the plan for the working day before or after (Day view).
+const dayStepper = () => `<div class="dstep" role="group" aria-label="Day"><button class="ibtn" data-dayjump="prev" aria-label="Previous working day" data-tip="Previous working day">${ICON.chevL}</button>`
+  + `<span class="dstep-l">Today</span><button class="ibtn" data-dayjump="next" aria-label="Next working day" data-tip="Next working day">${ICON.chevR}</button></div>`;
 function renderHead(){
   const v = state.view;
   const week = v === 'today' && planWeek();
-  const title = week ? 'Plan week' : {today: 'Today', people: 'People', archive: 'Done'}[v];
+  // Today's page is named for the day (Docket 9.0.0): "Wednesday", with the date beside it.
+  const now = new Date();
+  const title = week ? 'This week' : v === 'today' ? now.toLocaleDateString(undefined, {weekday: 'long'}) : {people: 'People', archive: 'Done'}[v];
   if (v === 'day') return dayHead();
-  let sub = esc(scopeLabel()), tools = '';
-  if (week) sub = `Rank the week · ${sub}`;
+  let sub = esc(scopeLabel()), tools = '', date = '', pills = '';
+  if (week) sub = esc(scopeLabel());
   else if (v === 'today'){
-    sub = `${new Date().toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'})} · ${sub}`;
+    date = now.toLocaleDateString(undefined, {month: 'long', day: 'numeric'});
+    pills = sprintPill();
     const nx = !activeTask() && nextTask();
-    tools = (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
+    tools = dayStepper() + (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
       + lbtn(ICON.day, 'Plan the day', 'Plan the day in time blocks. Shortcut: 2', 'data-view="day"')
       + lbtn(ICON.moon, 'Wrap up', "Wrap up: breadcrumbs and tomorrow's top 3", 'data-shutdown');
   }
@@ -180,7 +193,7 @@ function renderHead(){
       + hbtn(ICON.addPerson, 'Add a person', 'data-addperson');
   }
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
-    <div class="ptitle"><h1>${title}</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
+    <div class="ptitle"><div class="ptl"><h1>${title}</h1>${date ? `<span class="pdate">${esc(date)}</span>` : ''}</div><div class="psub">${pills}<button class="scopebtn" data-scopemenu aria-label="Lists: ${esc(scopeLabel())}" data-tip="Pick a list, add one, or filter pull requests">${sub}${ICON.chevD}</button></div></div>
     ${tools ? `<div class="htools${v === 'today' || v === 'people' ? ' icons' : ''}">${tools}</div>` : ''}${v !== 'archive' ? `<div class="hadd">${addBtn()}</div>` : ''}`;
 }
 
@@ -230,7 +243,7 @@ function row(t, o = {}){
       meta += sig(ICON.cal, `${d < 0 ? 'Overdue. ' : ''}Due ${fmtLong(t.due)}`, d < 0 ? 'warn' : d <= 3 ? 'soon' : '', fmtDay(t.due));
     }
     if (stillUrgent(t)) meta += `<button class="sig warn" data-act="still" data-tip="Urgent for over a week. Click to make it not urgent." aria-label="Still urgent? Click to make it not urgent">${ICON.alert}</button>`;
-    else if (isStale(t) && on('stale')) meta += sig(ICON.stale, `Stale: untouched for ${ageDays(t)} days. Do it, give it a date, or won't do. Plan week lists them.`, 'stale');
+    else if (isStale(t) && on('stale')) meta += sig(ICON.stale, `Stale: untouched for ${ageDays(t)} days. Do it, give it a date, or won't do. Week lists them.`, 'stale');
   }
   if (!o.compact && on('people')){
     const ppl = pv ? pv.names : namesOf(t.who.filter(p => p !== o.skipPerson));
@@ -243,7 +256,7 @@ function row(t, o = {}){
   const fon = t.focusOn === todayStr();
   // The score is on hover; the rank number already says the order.
   const scoreHtml = t.done || o.noScore || o.lean || !on('score') ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
-    : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in the Inbox." role="img" aria-label="No estimate">${ICON.noest}</span>`
+    : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Sort it to give it one." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column
   const act = !pv && !t.done && isActive(t.id), crumb = o.crumb && on('crumb') ? rowCrumb(t) : '';
   // A PR's chip already says it's a review, so the row drops the "Review: " its title starts with.
@@ -262,7 +275,7 @@ function row(t, o = {}){
     + (o.back && t.cameBack && !t.done && !pv ? `<button class="tfol" data-act="dismissback" aria-label="Dismiss" data-tip="Seen it. Keep it where it is in your list">${ICON.x}</button>` : '')
     // One-key sorting on an Inbox row (views.js): value buttons on hover, the same as 1 to 4.
     + (o.sort && !t.done && !pv ? `<span class="qsort" role="group" aria-label="Sort by value">${[1, 2, 3, 4].map(v => `<button class="qv" data-qv="${v}" aria-label="${VALUE[v]}" data-tip="${VALUE[v]}. Shortcut: ${v}">${v}</button>`).join('')}</span>` : '')
-    + (t.done || pv || o.noAssign ? '' : `<button class="twho${o.assignOn ? ' on' : ''}" data-act="assign" aria-label="Delegate or add people" data-tip="Delegate or add people. Shortcut: A">${ICON.addPerson}</button>`)
+    + (t.done || pv || o.noAssign ? '' : `<button class="twho${o.assignOn ? ' on' : ''}" data-act="assign" aria-label="Hand off or add people" data-tip="Hand off or add people. Shortcut: A">${ICON.addPerson}</button>`)
     + (t.done || o.noToday || !on('today') ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;
 }

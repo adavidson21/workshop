@@ -113,7 +113,7 @@ function renderDrawer(){
         <button data-d="waiting" data-fk="wait" aria-pressed="${t.waiting}"${t.waiting ? ' class="on"' : ''}>Waiting on someone</button></div></div>
       ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div>
         ${t.done ? '' : `<div class="drow dfollow"><button class="btn" data-d="nudged" data-fk="nudged" data-tip="You followed up: move the date and leave a breadcrumb">${ICON.nudge}<span>Nudged</span></button><button class="btn" data-d="gotback" data-fk="gotback" data-tip="It came back: stop waiting and put it back on your list">${ICON.back}<span>Got it back</span></button></div>`}</div>` : ''}
-      <div class="dfld"><label for="dPeople">People</label><div class="drow"><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">${t.done ? '' : `<button class="btn" data-d="assign" data-fk="assign" data-tip="Pick someone and hand it over (A)">${ICON.addPerson}<span>Delegate</span></button>`}</div>
+      <div class="dfld"><label for="dPeople">People</label><div class="drow"><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">${t.done ? '' : `<button class="btn" data-d="assign" data-fk="assign" data-tip="Pick someone and hand it over (A)">${ICON.addPerson}<span>Hand off</span></button>`}</div>
         <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
       ${t.pr || (t.ado && !t.ado.pasted) ? '' : repeatFieldHtml(t)}
@@ -139,9 +139,9 @@ function renderDrawer(){
    if empty, aging restarts, Came back cleared). The drawer is the one place a task opens, the Inbox's included. */
 function sortHtml(t){
   if (!inInbox(t)) return '';
-  return `<div class="dsort" role="group" aria-label="Sort"><span class="lbl">${t.cameBack ? 'Came back. Sort it again' : 'In your Inbox. Sort it'}</span>
+  return `<div class="dsort" role="group" aria-label="Sort"><span class="lbl">${t.cameBack ? 'Came back. Sort it again' : 'To sort. How much does it matter?'}</span>
     <div class="seg">${[1,2,3,4].map(v => `<button data-d="sort" data-v="${v}" data-fk="s${v}">${VALUE[v]}<kbd>${v}</kbd></button>`).join('')}</div>
-    <span class="hint">Sends it to Ranked (effort ${t.effort || 'M'}). Or on Today, Delegate or Won't do below.</span></div>`;
+    <span class="hint">Sends it to Ranked (effort ${t.effort || 'M'}). Or Hand off, or Won't do below.</span></div>`;
 }
 /* The ADO item is on Slate's board too (slate-link.js): where, and a way there. Inside Workshop only. */
 function slateDrawer(t){

@@ -10,7 +10,7 @@ const TIERS  = [2, 1, 0.5];                 // score cutoffs for tiers 1 to 3; b
 const EQ = {
   do:       {title: 'Do first', sub: 'Important and urgent'},
   schedule: {title: 'Schedule', sub: 'Important, not urgent'},
-  delegate: {title: 'Delegate', sub: 'Urgent, not important'},
+  delegate: {title: 'Hand off', sub: 'Urgent, not important'},
   drop:     {title: 'Drop',     sub: 'Not urgent, not important'}
 };
 const VQ = {
@@ -21,7 +21,9 @@ const VQ = {
 };
 // Views with a page of their own. Triage and Prioritize (List, Eisenhower, Value / Effort) are columns of Today.
 const VIEWS = ['today','day','people','archive'];
-const LENSES = {rank: 'List', eisen: 'Eisenhower', ve: 'Value / Effort'};
+// Week's two lenses (Docket 9.0.0): the ranked list and the Eisenhower matrix. Value / Effort was retired; its old
+// names open the matrix.
+const LENSES = {rank: 'Ranked', eisen: 'Do first, schedule, hand off'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 // A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
@@ -29,8 +31,9 @@ const EMBEDDED = (() => { try { return window.parent !== window && window.parent
 // Old view names (links, saved windows, the 3 and 4 keys) and where they go now: Today, with a column or a lens.
 // The 4 key opens and closes Plan week (events.js).
 // Ranking views open Plan week (Docket 7.0.0), the full Ranked list with its lenses.
-const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, week: {col: 'rank', plan: true}, 'plan-week': {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 've', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
-const NAV_OF = v => v;
+const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, week: {col: 'rank', plan: true}, 'plan-week': {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 'eisen', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
+// The Day view is Today's plan for a date (Docket 9.0.0), so the sidebar shows Today while you are on it.
+const NAV_OF = v => v === 'day' ? 'today' : v;
 // ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
 const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
@@ -96,10 +99,10 @@ function initials(name){
   const cap = [...s.slice(1)].find(c => c >= 'A' && c <= 'Z' || c >= '0' && c <= '9');
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
-// [key, label, icon, shortcut]. Number keys follow the sidebar, top to bottom.
-// Today on top, then the Review group. 3 and 4 go where Triage and Prioritize were: Today's Inbox and Ranked columns.
-// Plan week is Today's full ranking (render.js planWeek), shown as a place of its own in the sidebar.
-const NAV = [['today','Today',ICON.today,'1'],['day','Day',ICON.day,'2'],['week','Plan week',ICON.prio,'4'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
+// [key, label, icon, shortcut]. Four places (Docket 9.0.0): Today, Week, People, Done. The Day view is Today's plan
+// for a date (the arrows on Today, Plan the day, and the 2 key), not a place of its own. 3 focuses Today's To sort
+// column. Week is Today's full ranking (render.js planWeek), shown as a place of its own in the sidebar.
+const NAV = [['today','Today',ICON.today,'1'],['week','Week',ICON.prio,'4'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
 export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };

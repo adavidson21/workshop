@@ -30,8 +30,6 @@
       <span class="logo" aria-hidden="true"><svg viewBox="0 0 26 26"><path fill="currentColor" d="M5 3h16a3 3 0 0 1 3 3v4.2a2.8 2.8 0 0 0 0 5.6V20a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-4.2a2.8 2.8 0 0 0 0-5.6V6a3 3 0 0 1 3-3Z"/><path d="M8 9.5h10M8 13h10M8 16.5h6" fill="none" stroke="var(--surface)" stroke-width="1.8" stroke-linecap="round"/></svg></span><b>Docket</b>
     </div>
     <nav class="snav" id="snav" aria-label="Views"></nav>
-    <div class="ssec"><span>Lists</span><button class="ibtn" id="addList" aria-label="New list" data-tip="New list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button></div>
-    <div class="slists" id="slists"></div>
     <div class="sfoot">
       <button class="ibtn collapse-btn" id="collapseBtn" aria-label="Collapse sidebar" data-tip="Collapse sidebar">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/></svg>
@@ -42,10 +40,10 @@
       <button class="ibtn" id="adoBtn" aria-label="Azure DevOps sync" data-ado="off">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9.5A6 6 0 0 0 5.2 6.2M4 10.5a6 6 0 0 0 10.8 3.3"/><path d="M16.3 4.8v4.7h-4.6M3.7 15.2v-4.7h4.6"/><path class="mk-x" d="M8.6 8.6l2.8 2.8M11.4 8.6l-2.8 2.8"/></svg>
       </button>
-      <button class="ibtn" id="displayBtn" aria-label="Row fields" data-tip="Row fields">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/><circle cx="7" cy="6" r="1.6" fill="var(--bg)"/><circle cx="13" cy="10" r="1.6" fill="var(--bg)"/><circle cx="9" cy="14" r="1.6" fill="var(--bg)"/></svg>
-      </button>
       <span class="grow"></span>
+      <button class="ibtn setbtn" id="setBtn" aria-label="Settings" aria-haspopup="menu" data-tip="Settings: day and sprint, row fields, Azure DevOps, files">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/><circle cx="7" cy="6" r="1.6" fill="var(--bg)"/><circle cx="13" cy="10" r="1.6" fill="var(--bg)"/><circle cx="9" cy="14" r="1.6" fill="var(--bg)"/></svg><span class="lbl">Settings</span>
+      </button>
       <input type="file" id="importFile" accept=".xlsx,.xls,.csv,.json" hidden>
     </div>
   </aside>

@@ -1255,3 +1255,37 @@ body.focusing .phead{padding-top:1.4rem}
 body .ws-bar{border-bottom:0}
 body .ws-crumbs{font:600 .9rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
 body .ws-crumbs .here{color:var(--ink)}
+
+/* Docket 9.0.0: the page is named for its day ("Wednesday" and the date), pills under it, the day stepper, lists in
+   the scope menu, and Settings at the foot of the sidebar */
+.ptl{display:flex;align-items:baseline;gap:.4rem .9rem;flex-wrap:wrap}
+.pdate{font:500 clamp(1.05rem,1.4vw,1.4rem)/1.1 var(--serif);letter-spacing:-.01em;color:var(--muted)}
+.psub{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}
+.psub .scopebtn{margin:0}
+.hpill{display:inline-flex;align-items:center;gap:.35rem;height:1.95rem;padding:0 .8rem;border-radius:999px;border:1px solid var(--line2);font:500 .84rem/1 var(--sans);color:color-mix(in srgb,var(--ink) 80%,var(--bg));background:transparent;white-space:nowrap}
+.hpill.quiet{border-color:transparent;background:var(--surface)}
+button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(--line2)}
+.dstep{display:inline-flex;align-items:center;height:2.5rem;border:1px solid var(--line2);border-radius:10px}
+.dstep .ibtn{width:2.3rem;height:2.3rem;border-radius:9px}
+.dstep-l{font:600 .88rem/1 var(--sans);padding:0 .2rem}
+.snav{flex:1}
+.sfoot{gap:.2rem}
+.setbtn{width:auto!important;padding:0 .7rem 0 .55rem;gap:.45rem;display:inline-flex;align-items:center;border-radius:10px;font:600 .86rem/1 var(--sans);color:var(--ink)}
+.setbtn svg{width:18px;height:18px}
+.setbtn:hover{background:var(--surface)}
+.app.collapsed .setbtn .lbl{display:none}
+.app.collapsed .setbtn{padding:0;width:2.2rem!important;justify-content:center}
+.menu .mrow{display:flex;align-items:stretch}
+.menu .mrow>button:first-child{flex:1;min-width:0}
+.menu .mrow.sub>button:first-child{padding-left:1.7rem}
+.menu .mrow .mopt{flex:none;width:2rem;display:grid;place-items:center;opacity:.55}
+.menu .mrow .mopt:hover,.menu .mrow .mopt:focus-visible{opacity:1}
+.menu .mrow .mopt svg{width:14px;height:14px}
+.menu button .dot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--muted));display:inline-block;flex:none;margin-right:.55rem}
+.menu button[data-sc]{display:flex;align-items:center;gap:.2rem;min-width:13rem}
+.menu button[data-sc] .mut{margin-left:.8rem}
+.menu button[data-newlist]{display:flex;align-items:center;gap:.5rem;color:var(--accent);font-weight:600}
+.menu button[data-newlist] svg{width:14px;height:14px}
+@media (max-width:759px){.dstep{display:none}}
+.ptl h1{order:0}
+.ptl .pdate{order:1}

@@ -55,10 +55,10 @@ function body(name){
     ${state.lists.some(l => l.name === 'Samples') ? '' : `<p class="tsmall">Just looking? <button class="lnk" data-samples>Load ${SAMPLES.length} sample tasks</button> in a "Samples" list. Delete the list to remove them all.</p>`}`;
   if (name === 'decide') return `<h3>How Docket decides</h3>
     <ul class="tlist">
-      <li><b>Value</b> (Trivial to High) and <b>effort</b> (XS to XL) are the two things you set, usually in Today's <b>Inbox</b>, one key each (1 to 4; effort starts at M).</li>
+      <li><b>Value</b> (Trivial to High) and <b>effort</b> (XS to XL) are the two things you set, usually in Today's <b>To sort</b> column, one key each (1 to 4; effort starts at M).</li>
       <li>A <b>due date</b> is optional. Without one, a task gets an implied one from its age, so nothing sits forever.</li>
-      <li>The <b>score</b> is value plus urgency over effort. Your own order in <b>Ranked</b> (<b>Plan week</b>) always has the final say.</li>
-      <li><b>Today</b> is your short list, 3 to 5 tasks, on the same page. Work moves left to right: Inbox, Up next, Today. <b>Day</b> turns it into time blocks, and Today groups your tasks under them.</li>
+      <li>The <b>score</b> is value plus urgency over effort. Your own order in <b>Week</b> always has the final say.</li>
+      <li><b>Today</b> is your short list, 3 to 5 tasks, on the same page. Work moves left to right: To sort, Up next, Today. <b>Plan the day</b> turns it into time blocks, and Today groups your tasks under them.</li>
     </ul>
     ${state.tasks.some(t => !t.done && (t.value == null || t.effort == null)) ? `<div class="tcard">You have tasks without a value or effort. <button class="btn" data-triage>Triage them now</button> <span class="tsmall">(ends the tour)</span></div>` : ''}`;
   if (name === 'days') {
@@ -96,7 +96,7 @@ function body(name){
     <p>${state.tasks.filter(t => !t.done).length ? `You have ${plural(state.tasks.filter(t => !t.done).length, 'open task')}.` : 'No tasks yet.'}</p>
     <table class="keys"><tbody>
       <tr><td>${TOUCH ? 'The + button' : '<kbd>N</kbd>'}</td><td>Add a task from anywhere</td></tr>
-      ${TOUCH ? '' : '<tr><td><kbd>1</kbd> to <kbd>6</kbd></td><td>Today, Day, Inbox, Plan week, People, Done</td></tr><tr><td><kbd>T</kbd> / <kbd>X</kbd></td><td>Add the selected task to Today / complete it</td></tr><tr><td><kbd>P</kbd></td><td>In Day, plan the selected task into a block</td></tr>'}
+      ${TOUCH ? '' : '<tr><td><kbd>1</kbd> to <kbd>6</kbd></td><td>Today, plan the day, To sort, Week, People, Done</td></tr><tr><td><kbd>T</kbd> / <kbd>X</kbd></td><td>Add the selected task to Today / complete it</td></tr><tr><td><kbd>P</kbd></td><td>In Day, plan the selected task into a block</td></tr>'}
       <tr><td>${TOUCH ? '' : '<kbd>?</kbd>'}</td><td>${TOUCH ? '' : 'All shortcuts, and this tour again'}</td></tr>
     </tbody></table>`;
 }

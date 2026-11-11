@@ -63,7 +63,11 @@ def jsclick(pg, sel):
 
 def view(pg, key):
     """Switches view by its number key, from outside any field (the triage card may hold the focus)."""
-    jsclick(pg, '#snav [data-nav="%s"]' % {'1': 'today', '2': 'day'}[key])
+    # The Day view is no longer in the sidebar (Docket 9.0.0): Today's Plan the day opens it.
+    if key == '2':
+        jsclick(pg, '#snav [data-nav="today"]'); jsclick(pg, '#phead [data-view="day"]')
+    else:
+        jsclick(pg, '#snav [data-nav="today"]')
 
 
 def tick(pg, ms=61000):

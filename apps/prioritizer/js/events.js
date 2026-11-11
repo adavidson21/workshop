@@ -1,12 +1,13 @@
 import { addTask, downgradeUrgent, moveTask, quickSort, toggleDone, toggleFocus } from './actions.js';
-import { onAdoClick } from './ado.js';
+import { adoSetup, onAdoClick } from './ado.js';
+import { openSettings as daySettings, stepDay } from './day-view.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
 import { closeDrawer, copyTaskLink, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
 import { prAiOpen } from './pr-ai.js';
-import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
+import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, popMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
 import { openPersonMenu } from './people.js';
 import { openDisplay } from './display.js';
 import { app, col, drawer, focusCol, inboxOpen, main, openQuad, planWeek, render, sel, setCol, setDoneOpen, setInboxOpen, setLens, setOpenQuad, setPlanWeek, setScope, setSel, setView, setWeekOff, weekOff } from './render.js';
@@ -48,6 +49,8 @@ document.addEventListener('click', e => {
   const pm = t.closest('[data-pmenu]'); if (pm){ e.stopPropagation(); openPersonMenu(pm.dataset.pmenu, pm); return; }
   const nv = t.closest('[data-nav]'); if (nv){ setView(nv.dataset.nav); return; }
   const v = t.closest('[data-view]'); if (v){ setView(v.dataset.view); return; }
+  // Today's day arrows: the plan for the working day before or after (the Day view).
+  const dj = t.closest('[data-dayjump]'); if (dj){ setView('day'); stepDay(dj.dataset.dayjump === 'prev' ? -1 : 1); return; }
   // Today: a lens on Ranked (a rail goes back to List), the narrow-window Inbox, and the triage card's extras.
   const ln = t.closest('[data-lens]');
   if (ln){ if (ln.dataset.goto === 'inbox'){ setView('triage'); return; } setLens(ln.dataset.lens); return; }
@@ -68,7 +71,7 @@ document.addEventListener('click', e => {
   if (t.closest('#addList')){ if (isWaiting()) return; askText('New list', '', name => { const n = {id: uid(), name, parentId: null}; state.lists.push(n); state.scope = n.id; commit(); }, 'Create'); return; }
   if (t.closest('#syncBtn')){ onSyncClick(t.closest('#syncBtn')); return; }
   if (t.closest('#adoBtn')){ onAdoClick(t.closest('#adoBtn')); return; }
-  if (t.closest('#displayBtn')){ openDisplay(); return; }
+  if (t.closest('#setBtn')){ openSettingsMenu(t.closest('#setBtn')); return; }
   if (t.closest('#themeBtn')){ openThemeMenu(t.closest('#themeBtn')); return; }
   if (t.closest('[data-add]')){ openCmd(); return; }
   if (t.closest('[data-suggest]')){ suggestPreview(); return; }
@@ -274,5 +277,21 @@ document.addEventListener('mouseover', e => {
   tipTimer = setTimeout(() => { if (tipFor === el && el.isConnected){ placeTip(el); tipEl.classList.add('show'); } }, 320);
 });
 ['mousedown','dragstart','scroll','keydown'].forEach(ev => document.addEventListener(ev, hideTip, true));
+
+/* Settings (Docket 9.0.0): one button at the foot of the sidebar for everything that sets Docket up. Saving and ADO
+   keep their own icons beside it, since those also show when something needs you. */
+function openSettingsMenu(anchor){
+  popMenu(`<div class="mhead">Settings</div><button data-set="day">Day and sprint</button><button data-set="rows">Row fields</button>`
+    + `<button data-set="ado">Azure DevOps</button><button data-set="files">Files and backups</button>`, anchor)
+    .addEventListener('click', e => {
+      const b = e.target.closest('[data-set]'); if (!b) return;
+      closeMenu();
+      const k = b.dataset.set;
+      if (k === 'day') daySettings();
+      if (k === 'rows') openDisplay();
+      if (k === 'ado') adoSetup();
+      if (k === 'files') onSyncClick($('#syncBtn') || anchor);
+    });
+}
 
 export { applySide, backStep, closeSide, hideTip, placeTip, tipFor };

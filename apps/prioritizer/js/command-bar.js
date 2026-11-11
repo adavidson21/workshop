@@ -41,7 +41,7 @@ function cmdPreview(){
   if (p.delegate) bits.push(`<span class="chip acc">Waiting on them</span>`);
   if (p.product) bits.push(`<span class="chip acc">Product ${esc((productById(p.product) || {}).name || '')}</span>`);
   p.people.forEach(n => { const id = refOf(n); bits.push(`<span class="chip acc">${id ? esc(nameOf(id)) : `@${esc(n)} (new contact)`}</span>`); });
-  const where = `Adds to <b>${esc(L ? L.name : '')}</b>${toToday() ? ' and Today' : state.view === 'today' && !p.delegate ? ', in the Inbox' : ''}`;
+  const where = `Adds to <b>${esc(L ? L.name : '')}</b>${toToday() ? ' and Today' : state.view === 'today' && !p.delegate ? ', in To sort' : ''}`;
   cmdParsed.innerHTML = cmdInput.value.trim()
     ? bits.join('') + `<span style="margin-left:auto">${where}</span>`
     : (cmdAdded ? `<span class="added">Added "${esc(cmdAdded)}". Keep going, or ${TOUCH ? 'tap Done' : 'press Esc'}.</span>` : `<span>${where}</span>`);
@@ -56,16 +56,16 @@ if (MAC) $('#cmdCheatKey').innerHTML = '<kbd>&#8984; /</kbd> toggle';
 const listTag = name => '#' + String(name).trim().toLowerCase().replace(/\s+/g, '-');
 const tag = (t, ins = t) => `<button type="button" class="ctag" data-ins="${esc(ins)}">${esc(t)}</button>`;
 // Main routes (the sidebar's number keys) and the task keys you reach for most. The full list is the ? sheet.
-const GO = [['1', 'Today'], ['2', 'Day'], ['3', 'Inbox'], ['4', 'Plan week'], ['5', 'People'], ['6', 'Done']];
+const GO = [['1', 'Today'], ['2', 'Plan the day'], ['3', 'To sort'], ['4', 'Week'], ['5', 'People'], ['6', 'Done']];
 const KEYS = [['N /', 'Add a task'], ['J K', 'Next, previous task'], ['X', 'Complete or reopen'], ['T', 'Toggle Today'], ['S', 'Start or pause'],
-  ['A', 'Delegate or add people'], ['W', 'Waiting on someone'], ['4', 'Plan the week (on Today)']];
+  ['A', 'Hand off or add people'], ['W', 'Waiting on someone'], ['4', 'Week']];
 function cheatHtml(){
   const lists = orderedLists().slice(0, 8), prods = activeProducts().slice(0, 12);
   const row = (tags, what) => `<div class="crow"><div class="ctags">${tags}</div><div class="cwhat">${what}</div></div>`;
   return `
     <div class="cgrp"><h4>Who</h4>
       ${row(tag('@name', '@'), 'Involve a person or group (handle or name; a new name adds a contact)')}
-      ${row(tag('>@name', '>@'), 'Delegate: waiting on them, with a follow-up date')}
+      ${row(tag('>@name', '>@'), 'Hand off: waiting on them, with a follow-up date')}
     </div>
     <div class="cgrp"><h4>Priority</h4>
       ${row([1, 2, 3, 4].map(n => tag('!' + n)).join(''), `Value: ${[1, 2, 3, 4].map(n => `${n} ${VALUE[n]}`).join(', ')}`)}

@@ -31,7 +31,7 @@ function delegateTo(t, tokens, waiting = true){
   if (waiting) M.delegate(t, followDate());
   commit();
   const names = namesOf(tokens.filter(x => D.isRef(x))).join(', ') || tokens.map(x => String(x).replace(/^@/, '')).join(', ');
-  if (waiting) undoToast(`Delegated to ${names}. Follow up ${fmtDay(t.nudgeOn)}`, t, before, [['Just involve them', () => { const c = findTask(t.id); if (c){ c.waiting = false; c.nudgeOn = null; commit(); } }]]);
+  if (waiting) undoToast(`Handed off to ${names}. Follow up ${fmtDay(t.nudgeOn)}`, t, before, [['Just involve them', () => { const c = findTask(t.id); if (c){ c.waiting = false; c.nudgeOn = null; commit(); } }]]);
   else undoToast(`Added ${names}`, t, before);
 }
 

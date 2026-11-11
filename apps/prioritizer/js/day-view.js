@@ -43,19 +43,29 @@ function setDate(d){
   main.scrollTop = 0;
 }
 
+/* Today's arrows: the working day before or after today. */
+function stepDay(dir){
+  const d = todayStr();
+  setDate(nextWorkday(dp.sprint, d, dir) || addDays(d, dir));
+}
+
 /* ---------- header ---------- */
 function dayHead(){
   const d = curDate(), on = sprintsOn(dp.sprint), info = on ? sprintInfo(dp.sprint, d) : null;
   const where = !on ? (dayView(dp, d).info.off ? (dp.sprint.holidays.includes(d) ? 'Holiday' : 'Day off') : 'Workday')
     : info ? (info.off ? `Sprint ${info.id} · ${info.holiday ? 'Holiday' : 'Day off'}` : `Sprint ${info.id}, day ${info.day} of ${info.total}`) : 'No sprint set';
-  const sub = `${esc(where)} · ${esc(fmtLong(d))} · ${esc(scopeLabel())}`;
+  // The plan for a day (Docket 9.0.0: Today's plan, not a place of its own): named for its day, like Today.
+  const dt = new Date(d + 'T12:00:00');
+  const name = dt.toLocaleDateString(undefined, {weekday: 'long'}), date = dt.toLocaleDateString(undefined, {month: 'long', day: 'numeric'});
   $('#phead').innerHTML = `<button class="ibtn menu-btn" id="menuBtn" aria-label="Open menu">${ICON.menu}</button>
-    <div class="ptitle"><h1>Day</h1><button class="scopebtn" data-scopemenu aria-label="Change scope">${sub}${ICON.chevD}</button></div>
+    <div class="ptitle"><div class="ptl"><h1>${esc(name)}</h1><span class="pdate">${esc(date)}${d === todayStr() ? ', planning today' : ''}</span></div>
+      <div class="psub"><span class="hpill quiet">${esc(where)}</span><button class="scopebtn" data-scopemenu aria-label="Lists: ${esc(scopeLabel())}">${esc(scopeLabel())}${ICON.chevD}</button></div></div>
     <div class="htools">
+      <button class="btn small" data-view="today" data-tip="Back to Today. Shortcut: 1">${ICON.chevL}<span>Today</span></button>
       <div class="dnav"><button class="ibtn" data-dp="prev" aria-label="Previous working day" data-tip="Previous working day ([)">${ICON.chevL}</button>
         <input type="date" id="dpDate" value="${d}" aria-label="Day to plan">
         <button class="ibtn" data-dp="next" aria-label="Next working day" data-tip="Next working day (])">${ICON.chevR}</button>
-        ${d !== todayStr() ? `<button class="ibtn" data-dp="today" aria-label="Back to today" data-tip="Back to today">${ICON.today}</button>` : ''}</div>
+        ${d !== todayStr() ? `<button class="ibtn" data-dp="today" aria-label="Plan today" data-tip="Plan today">${ICON.today}</button>` : ''}</div>
       ${history.canUndo ? `<button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)">${I.undo}</button>` : ''}
       ${history.canRedo ? `<button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)">${I.redo}</button>` : ''}
       <button class="ibtn" data-dp="daymenu" aria-haspopup="menu" aria-label="This day" data-tip="This day: add a block, shift, reset">${ICON.dots}</button>
@@ -712,4 +722,4 @@ function dayInit(){
   }, 30000);
 }
 
-export { I as DAY_ICON, curDate, dayDrop, dayPath, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate, setDate };
+export { I as DAY_ICON, stepDay, curDate, dayDrop, dayPath, dayHead, dayInit, openSettings, planFieldChange, planFieldClick, planFieldHtml, renderDay, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate, setDate };

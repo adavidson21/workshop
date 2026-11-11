@@ -1,4 +1,4 @@
-import { EMBEDDED, ICON } from './constants.js';
+import { EMBEDDED, ICON, listColor } from './constants.js';
 import { applyOrder } from './actions.js';
 import { hideTip } from './events.js';
 import { byScore, fmtScore, isTriaged, score } from './model.js';
@@ -52,7 +52,7 @@ function confirmBox(title, msg, okLabel, cb){
 const LEGEND = [
   ['block', 'warn', 'Blocking: a PR waits on you'], ['eye', 'acc', 'Asked to review'], ['bell', 'acc', 'Time to nudge'],
   ['cal', 'soon', 'Due soon (red when overdue)'], ['alert', 'warn', 'Still urgent? Click to calm it'], ['stale', 'stale', 'Untouched a while'],
-  ['wait', '', 'Waiting on someone (with the follow-up date)'], ['back', 'acc', 'Came back from someone'], ['addPerson', '', 'Delegate or add people (A)'], ['repeat', '', 'Every sprint'], ['item', 'ado', 'ADO work item'], ['pr', 'ado', 'Pull request'],
+  ['wait', '', 'Waiting on someone (with the follow-up date)'], ['back', 'acc', 'Came back from someone'], ['addPerson', '', 'Hand off or add people (A)'], ['repeat', '', 'Every sprint'], ['item', 'ado', 'ADO work item'], ['pr', 'ado', 'Pull request'],
   ['sun', '', 'On Today (T)'], ['play', '', 'Start (S)'], ['bolt', '', 'Interrupted (I)'], ['swap', '', 'Switched tasks'],
   ['day', '', 'Plan the day'], ['moon', '', 'Wrap up'], ['wand', '', 'Suggest order'], ['gauge', '', 'Weekly capacity']
 ];
@@ -64,9 +64,9 @@ function showHelp(){
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
       ${EMBEDDED ? r('<kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Workshop commands') : ''}
-      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, Day, Inbox, Plan week, People, Done')}
-      ${r('<kbd>1</kbd> to <kbd>4</kbd> on an Inbox row', 'Sort it by value (effort M when empty); <kbd>0</kbd> won\'t do, <kbd>Enter</kbd> its card')}
-      ${r('<kbd>←</kbd> <kbd>→</kbd>', "Move between Today's columns: Inbox, Up next, Today")}
+      ${r('<kbd>1</kbd> to <kbd>6</kbd>', 'Today, plan the day, To sort, Week, People, Done')}
+      ${r('<kbd>1</kbd> to <kbd>4</kbd> on a row in To sort', 'Sort it by value (effort M when empty); <kbd>0</kbd> won\'t do, <kbd>Enter</kbd> its card')}
+      ${r('<kbd>←</kbd> <kbd>→</kbd>', "Move between Today's columns: To sort, Up next, Today")}
       ${r('<kbd>?</kbd>', 'This list')}
       ${r('<kbd>J</kbd> <kbd>K</kbd>', 'Next, previous task')}
       ${r('<kbd>Enter</kbd>', 'Open the selected task')}
@@ -74,13 +74,13 @@ function showHelp(){
       ${r('<kbd>I</kbd>', 'Log an interruption')}
       ${r('<kbd>X</kbd>', 'Complete or reopen')}
       ${r('<kbd>T</kbd>', 'Toggle Today')}
-      ${r('<kbd>A</kbd>', 'Delegate or add people')}
+      ${r('<kbd>A</kbd>', 'Hand off or add people')}
       ${r('<kbd>W</kbd>', 'Waiting on someone, on or off')}
       ${r('<kbd>L</kbd>', 'Copy a link to the task, for a note')}
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>
-    <table class="keys"><tbody><tr><td colspan="2"><h4>In the Inbox</h4></td></tr>
+    <table class="keys"><tbody><tr><td colspan="2"><h4>In To sort</h4></td></tr>
       ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'Value: Trivial, Low, Medium, High')}
       ${r('<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>', 'Effort: XS, S, M, L, XL')}
       ${r('<kbd>D</kbd> / <kbd>U</kbd> / <kbd>Space</kbd>', 'Due date / Urgent / Today')}
@@ -129,11 +129,20 @@ function openScopeMenu(anchor){
   const opt = (k, label, n) => `<button data-prs="${k}" role="menuitemradio" aria-checked="${state.prs === k}"${state.prs === k ? ' class="on"' : ''}>${label}${n != null ? `<span class="mut grow-l">${n}</span>` : ''}</button>`;
   const prHtml = prs.length ? `<div class="sep"></div><div class="mhead">Pull requests</div>`
     + opt('all', 'All', prs.length) + opt('mine', 'Only ones that need me', mine) + opt('none', 'None') : '';
-  popMenu(`<button data-sc="all"${state.scope === 'all' ? ' class="on"' : ''}>All lists</button>` + orderedLists().map(l =>
-    `<button data-sc="${l.id}"${state.scope === l.id ? ' class="on"' : ''}>${l.parentId ? '   ↳ ' : ''}${esc(l.name)}</button>`).join('') + prHtml, anchor)
+  // Lists live here (Docket 9.0.0), not in the sidebar: pick one, open its options, or add a new one.
+  const open = ids => state.tasks.filter(t => !t.done && ids.includes(t.listId)).length;
+  const n = l => open(l.parentId ? [l.id] : [l.id, ...childrenOf(l.id).map(c => c.id)]);
+  const item = l => `<div class="mrow${l.parentId ? ' sub' : ''}"><button data-sc="${l.id}" role="menuitemradio" aria-checked="${state.scope === l.id}"${state.scope === l.id ? ' class="on"' : ''}><i class="dot lc${listColor(l.id)}"></i><span class="grow">${esc(l.name)}</span><span class="mut">${n(l) || ''}</span></button>`
+    + `<button class="mopt" data-lm="${l.id}" aria-label="Options for ${esc(l.name)}">${ICON.dots}</button></div>`;
+  const one = state.lists.length === 1;
+  popMenu(`<div class="mhead">Lists</div>` + (one ? '' : `<button data-sc="all" role="menuitemradio" aria-checked="${state.scope === 'all'}"${state.scope === 'all' ? ' class="on"' : ''}><i class="dot"></i><span class="grow">All lists</span><span class="mut">${state.tasks.filter(t => !t.done).length || ''}</span></button>`)
+    + orderedLists().map(item).join('') + `<button data-newlist>${ICON.plus}<span>New list</span></button>` + prHtml, anchor)
     .addEventListener('click', e => {
       const p = e.target.closest('[data-prs]');
       if (p){ closeMenu(true); state.prs = p.dataset.prs; commit(); return; }
+      const lm = e.target.closest('[data-lm]');
+      if (lm){ openListMenu(lm.dataset.lm, anchor); return; }
+      if (e.target.closest('[data-newlist]')){ closeMenu(); askText('New list', '', name => { const L = {id: uid(), name, parentId: null}; state.lists.push(L); state.scope = L.id; commit(); }, 'Create'); return; }
       const b = e.target.closest('[data-sc]'); if (!b) return; closeMenu(); setScope(b.dataset.sc);
     });
 }

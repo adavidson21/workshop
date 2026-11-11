@@ -142,16 +142,18 @@ def main():
         # ---------- Today: Inbox, Up next and Today; Plan week ----------
         check('Today has the Inbox, Up next and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'] and pg.locator('.col-rank.upnext').count() == 1)
         check('no Needs you strip and no Now card', pg.locator('.needs').count() == 0 and pg.locator('.nowcard').count() == 0)
-        check('the sidebar: Today, then Plan: Day and Plan week, then Review: People and Done',
-              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'day', 'week', 'people', 'archive']
-              and pg.evaluate("() => [...document.querySelectorAll('#snav .snav-h')].map(h => h.textContent.trim().toLowerCase())") == ['plan', 'review'])
+        check('the sidebar: four places, Today, Week, People and Done (Docket 9.0.0), no group headings and no lists',
+              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'week', 'people', 'archive']
+              and pg.locator('#snav .snav-h').count() == 0 and pg.locator('#slists').count() == 0)
+        check('Today is named for its day, with the date and the day arrows', pg.inner_text('#phead h1') == pg.evaluate("new Date().toLocaleDateString(undefined, {weekday: 'long'})")
+              and pg.locator('#phead .pdate').count() == 1 and pg.locator('#phead [data-dayjump]').count() == 2)
         ids = pg.evaluate(f"""() => {{ const P = {P}, t0 = new Date().toLocaleDateString('en-CA');
           P.state.tasks.filter(t => !t.done).forEach(t => {{ t.value = t.value || 3; t.effort = t.effort || 'S'; t.focusOn = null; t.waiting = false; t.nudgeOn = null; t.who = []; t.ageFrom = t0; delete t.cameBack; }});
           P.commit(); return P.state.tasks.filter(t => !t.done && !t.pr).sort((a, b) => a.rank - b.rank).map(t => t.id); }}""")
         pg.wait_for_timeout(200)
         check('Up next shows the top 5, then Show all', pg.locator('.col-rank.upnext .ranklist > .row').count() == min(5, len(ids)) and (len(ids) <= 5 or pg.locator('.col-rank [data-planweek=on].showall').count() == 1))
         pg.keyboard.press('4'); pg.wait_for_timeout(250)
-        check('4 opens Plan week: the full Ranked list with lenses, Inbox and Today as rails', pg.locator('.today3.planweek').count() == 1 and pg.locator('.col-rank [data-lens]').count() == 3
+        check('4 opens Week: the full ranked list with its two lenses, To sort and Today as rails', pg.locator('.today3.planweek').count() == 1 and pg.locator('.col-rank [data-lens]').count() == 2
               and pg.locator('.col-inbox.rail').count() == 1 and pg.locator('.col-today.rail').count() == 1 and pg.locator('.col-rank .ranklist > .row').count() == len(ids))
         pg.keyboard.press('4'); pg.wait_for_timeout(250)
         check('4 again closes it', pg.locator('.today3.planweek').count() == 0 and pg.locator('.col-rank.upnext').count() == 1)
@@ -616,7 +618,7 @@ def main():
         pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
         check('Enter delegates to the first match: waiting with a follow-up date', len(t['who']) == 1 and t['waiting'] and t['nudgeOn'] is not None)
-        check('a toast offers Undo and Just involve them', 'Delegated to' in pg.inner_text('#toast') and 'Just involve them' in pg.inner_text('#toast'))
+        check('a toast offers Undo and Just involve them', 'Handed off to' in pg.inner_text('#toast') and 'Just involve them' in pg.inner_text('#toast'))
         pg.click('#toast button:has-text("Just involve them")'); pg.wait_for_timeout(200)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
         check('Just involve them keeps the person and stops waiting', len(t['who']) == 1 and not t['waiting'] and t['nudgeOn'] is None)
@@ -650,14 +652,13 @@ def main():
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('Esc leaves the Inbox column', pg.locator('.col.colon').count() == 0)
-        check('the sidebar has Today on top and the plan and review views under it', [h.strip().lower() for h in pg.locator('#snav .snav-h').all_inner_texts()] == ['plan', 'review']
-              and pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'day', 'week', 'people', 'archive'])
+        check('the sidebar has the four places', pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'week', 'people', 'archive'])
         # ---------- Places (Docket 8.0.0): Plan week in the sidebar, the drawer closes on a new place, Done renders ----------
         some0 = pg.evaluate(f"() => {P}.state.tasks.find(t => !t.done && t.value && t.effort && !t.waiting && !t.pr).id")
         pg.evaluate(f"id => {P}.openDrawer(id)", some0); pg.wait_for_timeout(200)
         pg.click('#snav .sitem[data-nav=week]'); pg.wait_for_timeout(300)
         check('Plan week from the sidebar closes an open task', not pg.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
-        check('Plan week is a place: its own title, sidebar item and address', pg.inner_text('#phead h1') == 'Plan week' and pg.locator('#snav .sitem.on[data-nav=week]').count() == 1
+        check('Week is a place: its own title, sidebar item and address', pg.inner_text('#phead h1') == 'This week' and pg.locator('#snav .sitem.on[data-nav=week]').count() == 1
               and pg.locator('.today3.planweek').count() == 1 and pg.url.endswith('#/plan-week'))
         some = pg.evaluate(f"() => {P}.state.tasks.find(t => !t.done && t.value && t.effort && !t.waiting && !t.pr).id")
         pg.evaluate(f"id => {P}.openDrawer(id)", some); pg.wait_for_timeout(200)
@@ -665,9 +666,9 @@ def main():
         pg.click('#snav .sitem[data-nav=people]'); pg.wait_for_timeout(300)
         check('going to another place closes the drawer', not pg.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url.endswith('#/people'))
         pg.go_back(); pg.wait_for_timeout(400)
-        check('Back returns to Plan week (not to the drawer)', pg.inner_text('#phead h1') == 'Plan week' and pg.url.endswith('#/plan-week'))
+        check('Back returns to Week (not to the drawer)', pg.inner_text('#phead h1') == 'This week' and pg.url.endswith('#/plan-week'))
         pg.click('#snav .sitem[data-nav=today]'); pg.wait_for_timeout(300)
-        check('Today in the sidebar leaves Plan week', pg.inner_text('#phead h1') == 'Today' and pg.locator('.today3.planweek').count() == 0 and pg.url.endswith('#/today'))
+        check('Today in the sidebar leaves Week', pg.inner_text('#phead h1') == pg.evaluate("new Date().toLocaleDateString(undefined, {weekday: 'long'})") and pg.locator('.today3.planweek').count() == 0 and pg.url.endswith('#/today'))
         pg.click('#snav .sitem[data-nav=archive]'); pg.wait_for_timeout(300)
         check('Done renders its own page (not Today\'s columns)', pg.inner_text('#phead h1') == 'Done' and pg.locator('.today3').count() == 0 and pg.url.endswith('#/done'))
         pg.reload(); pg.wait_for_timeout(2500)
@@ -716,7 +717,7 @@ def main():
         check('with nothing hidden every field shows', rf['shownAll'])
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         pg.evaluate(f"() => {{ {P}.state.view = 'today'; {P}.commit(); }}"); pg.wait_for_timeout(200)
-        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        pg.click('#setBtn'); pg.wait_for_timeout(150); pg.click('.menu [data-set=rows]'); pg.wait_for_timeout(200)
         check('the Display button opens Row fields with a preview row', pg.locator('.modal .rowfields').count() == 1 and pg.locator('.modal .rfprev .row').count() == 1
               and pg.locator('.modal .rfprev .row .who').count() == 1 and pg.locator('.modal [data-rf]').count() == 15 and pg.locator('.modal .rfprev .row .sig.prod').count() == 1)
         pg.uncheck('.modal [data-rf=score]'); pg.uncheck('.modal [data-rf=people]'); pg.wait_for_timeout(100)
@@ -724,7 +725,7 @@ def main():
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-rowfields.png'))
         pg.click('.modal [data-close].btn'); pg.wait_for_timeout(150)
         check('Cancel changes nothing', pg.evaluate(f"{P}.state.rowFields.hidden") == [])
-        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        pg.click('#setBtn'); pg.wait_for_timeout(150); pg.click('.menu [data-set=rows]'); pg.wait_for_timeout(200)
         pg.uncheck('.modal [data-rf=score]'); pg.uncheck('.modal [data-rf=people]')
         pg.click('.modal [data-rfsave]'); pg.wait_for_timeout(300)
         check('Save hides the fields on the board', sorted(pg.evaluate(f"{P}.state.rowFields.hidden")) == ['people', 'score']
@@ -732,7 +733,7 @@ def main():
         pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
         pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
         check('row fields survive a reload', sorted(pg.evaluate(f"{P}.state.rowFields.hidden")) == ['people', 'score'] and pg.locator('main .row .score').count() == 0)
-        pg.click('#displayBtn'); pg.wait_for_timeout(200)
+        pg.click('#setBtn'); pg.wait_for_timeout(150); pg.click('.menu [data-set=rows]'); pg.wait_for_timeout(200)
         pg.click('.modal [data-rfreset]'); pg.click('.modal [data-rfsave]'); pg.wait_for_timeout(300)
         check('Reset to defaults shows everything again', pg.evaluate(f"{P}.state.rowFields.hidden") == [])
 

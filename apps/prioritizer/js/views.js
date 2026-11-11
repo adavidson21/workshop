@@ -43,19 +43,19 @@ const adoRow = n => n ? `<button class="adorow" data-need="ado">${ICON.item}<spa
 function inboxBar(q){
   const back = q.filter(t => isDate(t.cameBack)).length, n = adoNew();
   if (!q.length && !n) return '';
-  if (heldInbox()) return `<div class="inbar held" role="status">${ICON.triage}<span>Inbox <b class="num">${q.length}</b>, held until ${esc(fmtUntil(heldUntil()))}</span><button class="lnk" data-inbox-anyway>Open anyway</button></div>`;
-  return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>Inbox <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
+  if (heldInbox()) return `<div class="inbar held" role="status">${ICON.triage}<span>To sort <b class="num">${q.length}</b>, held until ${esc(fmtUntil(heldUntil()))}</span><button class="lnk" data-inbox-anyway>Open anyway</button></div>`;
+  return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>To sort <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
 }
 function inboxCol(rail){
   const q = inboxQueue();
   const held = heldInbox();
-  if (!rail && held) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="Inbox: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">until ${esc(fmtUntil(heldUntil()))}</span></button></section>`;
-  if (rail) return `<section class="col col-inbox rail dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox"><button class="railbtn" data-planweek="off" data-goto="inbox" data-tip="Inbox: close Plan week to sort it">${ICON.triage}<b class="num">${q.length}</b><span class="rl">Inbox</span></button></section>`;
+  if (!rail && held) return `<section class="col col-inbox rail held dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort, held until ${esc(fmtUntil(heldUntil()))}"><button class="railbtn" data-inbox-anyway data-tip="To sort: held until ${esc(fmtUntil(heldUntil()))}. Click to open it anyway.">${ICON.triage}<b class="num">${q.length}</b><span class="rl">until ${esc(fmtUntil(heldUntil()))}</span></button></section>`;
+  if (rail) return `<section class="col col-inbox rail dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort"><button class="railbtn" data-planweek="off" data-goto="inbox" data-tip="To sort: leave Week to sort it">${ICON.triage}<b class="num">${q.length}</b><span class="rl">To sort</span></button></section>`;
   const rows = q.map(t => row(t, {compact: true, back: true, sort: true})).join('');
-  const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> delegate, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
-  return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="Inbox">
-    <header class="colh"><h3>Inbox</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
-    <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>Inbox clear.</b>New tasks and work that comes back land here.</div>`}</div>
+  const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> hand off, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
+  return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort">
+    <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
+    <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>All sorted.</b>New tasks and work that comes back land here.</div>`}</div>
   </section>`;
 }
 
@@ -66,7 +66,7 @@ function rankHtml(){
   const t0 = todayStr();
   let open = rankedOpen();
   if (!state.tasks.length) return emptyHTML;
-  if (!open.length) return `<div class="colempty"><b>Nothing ranked yet.</b>Sort the Inbox, or ${TOUCH ? 'tap +' : 'press N'} to add a task.</div><div class="ranklist rows dropzone" data-zone="rank"></div>`;
+  if (!open.length) return `<div class="colempty"><b>Nothing ranked yet.</b>Sort what's new, or ${TOUCH ? 'tap +' : 'press N'} to add a task.</div><div class="ranklist rows dropzone" data-zone="rank"></div>`;
   if (staleOnly){
     open = open.filter(isStale);
     return `<div class="ranklist rows">${open.map(t => row(t, {estimate: true, dim: t.focusOn === t0})).join('') || '<div class="colempty">Nothing stale.</div>'}</div>`;
@@ -123,7 +123,7 @@ function upNextHtml(){
   if (!state.tasks.length) return emptyHTML;
   const top = open.slice(0, UP_NEXT);
   const list = top.length ? top.map((t, i) => row(t, {rank: i + 1, lean: true})).join('')
-    : `<div class="colempty"><b>Nothing up next.</b>${all.length ? 'Everything ranked is on Today.' : 'Sort the Inbox, or add a task.'}</div>`;
+    : `<div class="colempty"><b>Nothing up next.</b>${all.length ? 'Everything ranked is on Today.' : 'Sort what\'s new, or add a task.'}</div>`;
   return `<div class="ranklist rows dropzone" data-zone="rank">${list}</div>
     ${all.length > top.length ? `<button class="lnk showall" data-planweek="on">Show all ${all.length}</button>` : ''}${reviewsLine()}`;
 }
@@ -131,7 +131,7 @@ function rankCol(plan, lens){
   if (!plan){
     return `<section class="col col-rank upnext" data-col="rank" aria-label="Up next">
       <header class="colh"><h3>Up next</h3><span class="grow"></span>
-        <button class="btn ghost small" data-planweek="on" data-tip="The full ranking with its lenses and weekly capacity. Shortcut: 4">${ICON.prio}<span>Plan week</span></button></header>
+        <button class="btn ghost small" data-planweek="on" data-tip="The full ranking with its lenses and weekly capacity. Shortcut: 4">${ICON.prio}<span>Plan the week</span></button></header>
       <div class="colbody">${upNextHtml()}</div>
     </section>`;
   }
@@ -139,10 +139,10 @@ function rankCol(plan, lens){
   const tools = lens === 'rank' ? `${stale ? `<button class="chipbtn${staleOnly ? ' on' : ''}" data-staleonly aria-pressed="${staleOnly}" data-tip="Tasks untouched for twice their value's window">${ICON.stale}Stale <b class="num">${stale}</b></button>` : ''}
       <label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
       ${open.length > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
-  return `<section class="col col-rank" data-col="rank" aria-label="Plan week: Ranked">
-    <header class="colh"><h3>Ranked</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}
+  return `<section class="col col-rank" data-col="rank" aria-label="Week: Ranked">
+    <header class="colh"><h3>Everything open</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}
       <div class="lens" role="tablist" aria-label="Rank by">${Object.entries(LENSES).map(([k, n]) => `<button data-lens="${k}" role="tab" aria-selected="${lens === k}"${lens === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>
-      <span class="grow"></span>${tools}<button class="btn primary small" data-planweek="off" data-tip="Back to Up next. Shortcut: 4">Done planning</button></header>
+      <span class="grow"></span>${tools}<button class="btn primary small" data-planweek="off" data-tip="Back to Today. Shortcut: 4">Done planning</button></header>
     <div class="colbody">${lens === 'rank' ? rankHtml() : matrixHtml(lens)}</div>
   </section>`;
 }
@@ -198,7 +198,7 @@ function todayCol(rail){
   const reviews = scopeOpen().filter(blockingPr);
   const work = focus.filter(t => !blockingPr(t));
   const open = work.filter(t => !t.done), done = focus.filter(t => t.done);
-  if (rail) return `<section class="col col-today rail dropzone" data-col="today" data-zone="todayrail" aria-label="Today"><button class="railbtn" data-planweek="off" data-tip="Today: drop a task here to add it, or click to close Plan week">${ICON.sun}<b class="num">${open.length}</b><span class="rl">Today</span></button></section>`;
+  if (rail) return `<section class="col col-today rail dropzone" data-col="today" data-zone="todayrail" aria-label="Today"><button class="railbtn" data-planweek="off" data-tip="Today: drop a task here to add it, or click to go back to Today">${ICON.sun}<b class="num">${open.length}</b><span class="rl">Today</span></button></section>`;
   const left = leftOver().ids;
   const waiting = scopeOpen().filter(t => t.waiting).sort((a,b) => (nudgeDue(b) - nudgeDue(a)) || (a.nudgeOn || '9').localeCompare(b.nudgeOn || '9') || a.rank - b.rank);
   const nudges = waiting.filter(nudgeDue).length;
@@ -238,7 +238,7 @@ function todayCol(rail){
       ${doneGroup(done)}
       <section class="panel waitp">
         <header><h3>Waiting on others</h3>${waiting.length ? `<span class="n">${waiting.length}</span>` : ''}${nudges ? `<span class="sig acc txt" style="margin-left:auto" role="img" aria-label="${plural(nudges, 'follow-up')} due" data-tip="${plural(nudges, 'follow-up')} due">${ICON.bell}<b>${nudges}</b></span>` : ''}</header>
-        ${waiting.length ? waitingGroups(waiting) : `<div class="pempty">Nothing handed over. ${TOUCH ? 'Tap a task\'s person button' : 'Press A on a task'} to delegate it.</div>`}
+        ${waiting.length ? waitingGroups(waiting) : `<div class="pempty">Nothing handed over. ${TOUCH ? 'Tap a task\'s person button' : 'Press A on a task'} to hand it off.</div>`}
       </section>
     </div>
   </section>`;
@@ -310,7 +310,7 @@ function renderPeople(){
       <header><h3 data-tip="Open tasks with no one on them">Unassigned</h3><span class="n">${trayTasks().length || ''}</span></header>
       <input type="search" id="ptrayQ" class="ptray-q" placeholder="Filter" aria-label="Filter unassigned tasks" value="${esc(trayQ)}" autocomplete="off">
       <div class="rows">${trayRows()}</div>
-      <p class="soft">${TOUCH ? 'Tap a task\'s person button to delegate it.' : 'Drag a task onto a person, or select it and press A, to delegate it.'}</p>
+      <p class="soft">${TOUCH ? 'Tap a task\'s person button to hand it off.' : 'Drag a task onto a person, or select it and press A, to hand it off.'}</p>
     </aside>`;
   const cardHtml = ({it, direct, viaGroups, all, wait, rest, nud, load}) => {
     const p = it.id;
@@ -329,7 +329,7 @@ function renderPeople(){
     </section>`;
   };
   const body = cards.length ? `<div class="people">${cards.map(cardHtml).join('')}</div>`
-    : `<div class="empty"><b>${team ? 'No one on your team has anything open.' : 'No people yet.'}</b>${team ? 'Switch to Everyone, or delegate a task from Unassigned.' : `Type @name in any task, like "Review design doc @teammate", or ${TOUCH ? 'tap' : 'click'} Person. Groups like @leadership are set up in Workshop's People app.`}</div>`;
+    : `<div class="empty"><b>${team ? 'No one on your team has anything open.' : 'No people yet.'}</b>${team ? 'Switch to Everyone, or hand off a task from Unassigned.' : `Type @name in any task, like "Review design doc @teammate", or ${TOUCH ? 'tap' : 'click'} Person. Groups like @leadership are set up in Workshop's People app.`}</div>`;
   main.innerHTML = `<div class="pview">${tray}<div class="pmain">${body}${fromWorkshop(live)}</div></div>`;
 }
 
