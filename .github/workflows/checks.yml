@@ -5,28 +5,17 @@ on:
   pull_request:
   push:
     branches: [main]
+# A newer push to the same pull request cancels the run still going. Pushes to main always finish (Release needs them).
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  checks:
+  unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      # Docket lives in its own repo and is served under /apps/prioritizer/ (apps/remote.json, worker/index.js).
-      # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
-      - uses: actions/checkout@v4
-        with: { repository: adavidson21/docket, path: .remote/prioritizer }
-      # Runway (adavidson21/runway) is served under /apps/runway/ the same way, and checked the same way.
-      - uses: actions/checkout@v4
-        with: { repository: adavidson21/runway, path: .remote/runway }
-      # Rapport (adavidson21/receipts) is served under /apps/receipts/ the same way, and checked the same way.
-      - uses: actions/checkout@v4
-        with: { repository: adavidson21/receipts, path: .remote/receipts }
-      # Notes (adavidson21/notes) is served under /apps/notes/ the same way, and checked the same way.
-      - uses: actions/checkout@v4
-        with: { repository: adavidson21/notes, path: .remote/notes }
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
+      - uses: ./.github/actions/setup
       - run: node tests/check-themes.mjs
       - run: node tests/check-vendor.mjs
       - run: node tests/check-offline.mjs
@@ -40,15 +29,35 @@ jobs:
       - run: node --test "worker/test/*.test.mjs"
       - run: node --test "tests/contract/*.test.mjs"
       - run: node --test "connectors/*/test/*.test.mjs"
-      - run: pip install playwright && python -m playwright install --with-deps chromium
-      - run: python tests/e2e.py
-      - run: python tests/review-e2e.py
-      - run: python tests/workmode-e2e.py
-      - run: python tests/focus-e2e.py
-      - run: python tests/popout-e2e.py
-      - run: python tests/layout-e2e.py
+  # The browser tests, split into runs of about the same length that go side by side. e2e.py's two halves: E2E_PART.
+  e2e:
+    name: e2e (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: hub
+            run: E2E_PART=hub python tests/e2e.py
+          - name: agent
+            run: E2E_PART=agent python tests/e2e.py
+          - name: layout, review, work mode
+            run: |
+              python tests/layout-e2e.py
+              python tests/review-e2e.py
+              python tests/workmode-e2e.py
+          - name: focus, popout
+            run: |
+              python tests/focus-e2e.py
+              python tests/popout-e2e.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: { browser: 'true' }
+      - run: ${{ matrix.run }}
       - name: Layout screenshots
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && startsWith(matrix.name, 'layout') }}
         uses: actions/upload-artifact@v4
         with: { name: layout-screenshots, path: tests/out/layout/, if-no-files-found: ignore }
       # Tests must use temp folders only. A fresh runner has neither folder, so finding one means a test wrote there.
@@ -56,6 +65,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           node -e "const fs=require('fs'),p=require('path'),h=require('os').homedir();const found=['Workshop','.workshop'].map(n=>p.join(h,n)).filter(d=>fs.existsSync(d));if(found.length){console.error('Created by a test: '+found.join(', '));process.exit(1)}"
+  # One result for unit and e2e under the old job name, so a required "checks" status keeps working.
+  checks:
+    if: ${{ always() }}
+    needs: [unit, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "unit: ${{ needs.unit.result }}, e2e: ${{ needs.e2e.result }}"
+          [ "${{ needs.unit.result }}" = success ] && [ "${{ needs.e2e.result }}" = success ]
   agent:
     strategy:
       fail-fast: false

@@ -48,6 +48,9 @@ RUNWAY = os.environ.get('RUNWAY_DIR') or os.path.join(ROOT, '.remote', 'runway')
 RECEIPTS = os.environ.get('RECEIPTS_DIR') or os.path.join(ROOT, '.remote', 'receipts')
 NOTES = os.environ.get('NOTES_DIR') or os.path.join(ROOT, '.remote', 'notes')
 REMOTE_DIRS = {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS, 'notes': NOTES}
+# E2E_PART=hub runs part 1 (browser mode, Home, Docket on its own); E2E_PART=agent runs parts 2 to 6. CI runs the two
+# halves side by side (.github/workflows/checks.yml). Unset runs everything.
+PART = os.environ.get('E2E_PART') or 'all'
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -1417,6 +1420,7 @@ def string_waits():
 
 
 def main():
+    if PART not in ('all', 'hub', 'agent'): sys.exit(f'E2E_PART is hub, agent or unset, not {PART!r}.')
     bad = string_waits()
     if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
     if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
@@ -1449,123 +1453,125 @@ def main():
             page.on('console', lambda m: csp.append(m.text) if 'Content Security Policy' in m.text else None)
         pg = ctx.new_page(); watch(pg)
 
-        # Settings saved under the EM Hub names, as an existing install has them.
-        pg.goto(HUB + '/manifest.webmanifest')
-        pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('prioritizer.theme', 'ivory'); }""")
+        if PART in ('all', 'hub'):
+            # Settings saved under the EM Hub names, as an existing install has them.
+            pg.goto(HUB + '/manifest.webmanifest')
+            pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('prioritizer.theme', 'ivory'); }""")
 
-        pg.goto(HUB + '/'); pg.wait_for_timeout(800)
-        keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme'].map(k => [k, localStorage.getItem(k)]))")
-        check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
-        check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
-        check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
-        # Docket is the first rail app: the plain address, which Docket 8.0.0 and later then sets to its place (#/prioritizer/today).
-        docket_at = lambda: pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')
-        check('opens on Docket, the first rail app, at the plain address', docket_at() and pg.title() == 'Docket · Workshop')
-        check('Needs you is a button in the top bar, not a page or a rail button', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#panelBtn').is_visible()
-              and pg.inner_text('#panelBtn .lbl') == 'Needs you' and pg.locator('#rail .mark.on').count() == 0)
-        fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
-        fp.goto(HUB + '/'); fp.wait_for_timeout(3000)
-        ff = next((f for f in fp.frames if '/apps/home/' in f.url), None)
-        check('on a new browser the Needs you panel opens once, with Get started', fp.is_visible('#spanel') and ff is not None and 'Set up Workshop' in ff.inner_text('#app'))
-        fp.reload(); fp.wait_for_timeout(3000)
-        check('and only once', not fp.is_visible('#spanel'))
-        fresh.close()
-        pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
-        check('the rail button for the first app keeps the plain address (or Docket\'s place)', docket_at())
-        frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
-        check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
-        add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
-        add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
-        check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-        frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
-        check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
-        frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
+            pg.goto(HUB + '/'); pg.wait_for_timeout(800)
+            keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme'].map(k => [k, localStorage.getItem(k)]))")
+            check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
+            check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
+            check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
+            # Docket is the first rail app: the plain address, which Docket 8.0.0 and later then sets to its place (#/prioritizer/today).
+            docket_at = lambda: pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')
+            check('opens on Docket, the first rail app, at the plain address', docket_at() and pg.title() == 'Docket · Workshop')
+            check('Needs you is a button in the top bar, not a page or a rail button', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#panelBtn').is_visible()
+                  and pg.inner_text('#panelBtn .lbl') == 'Needs you' and pg.locator('#rail .mark.on').count() == 0)
+            fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
+            fp.goto(HUB + '/'); fp.wait_for_timeout(3000)
+            ff = next((f for f in fp.frames if '/apps/home/' in f.url), None)
+            check('on a new browser the Needs you panel opens once, with Get started', fp.is_visible('#spanel') and ff is not None and 'Set up Workshop' in ff.inner_text('#app'))
+            fp.reload(); fp.wait_for_timeout(3000)
+            check('and only once', not fp.is_visible('#spanel'))
+            fresh.close()
+            pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
+            check('the rail button for the first app keeps the plain address (or Docket\'s place)', docket_at())
+            frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+            check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
+            check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
+            add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
+            add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
+            check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
+            frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
+            check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
+            frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-        pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
-        af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
-        check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
-        check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
-        if af:
-            check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
-            af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
-            check('clicking the unavailable AI button explains it under the input', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
-            af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
-            check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
-            af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
-            sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
-            check('Accept in the hub saves an accepted note handoff', sent == [['notes', True, 'note']] and af.locator('#hub .hub-row.sent').count() == 1)
-            af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
-            check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
-            af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
-            check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
-        check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
-        pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
-        check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
+            pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
+            af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
+            check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
+            check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
+            if af:
+                check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
+                af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
+                check('clicking the unavailable AI button explains it under the input', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
+                af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
+                check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
+                af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
+                sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
+                check('Accept in the hub saves an accepted note handoff', sent == [['notes', True, 'note']] and af.locator('#hub .hub-row.sent').count() == 1)
+                af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
+                check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
+                af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
+                check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
+            check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
+            pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
+            check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
 
-        pg.click('#panelBtn'); pg.wait_for_timeout(800)
-        hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        seen(hf, '.card.inbox')
-        check('the Needs you panel opens over the app, with no copy of Docket\'s day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
-              and hf.locator('#capture').count() == 0 and pg.url.endswith('#/agents'))
-        pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
-        check('Esc closes the panel', not pg.is_visible('#spanel'))
-        pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(800)
-        check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
-        pg.click('#spanelScrim', position={'x': 40, 'y': 300}); pg.wait_for_timeout(300)
-        check('a click on the page behind closes the panel', not pg.is_visible('#spanel'))
-        pg.click('#capBtn'); pg.wait_for_timeout(800)
-        pg.fill('.capbar .cap-in', 'w keys from the vendor fri')
-        check('quick capture previews a waiting-on task before Enter', 'waiting on' in pg.inner_text('.capbar .cap-preview').lower())
-        pg.press('.capbar .cap-in', 'Enter'); pg.wait_for_timeout(600)
-        saved = pg.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.waiting, i.text]); }")
-        check('quick capture saves an accepted handoff to Docket', saved == [['prioritizer', True, True, 'Keys from the vendor']] and pg.locator('.capbar .cap-recent li').count() == 1)
-        pg.locator('.capbar .cap-undo').first.click(); pg.wait_for_timeout(600)
-        check('Undo withdraws the capture', pg.locator('.capbar .cap-recent li').count() == 0)
-        pg.click('.capbar .cb-backdrop', position={'x': 20, 'y': 400}); pg.wait_for_timeout(200)
-        for alias, ok in (('#/docket', docket_at), ('#/rapport', lambda: pg.url == HUB + '/#/receipts'), ('#/folio', lambda: pg.url.startswith(HUB + '/#/notes'))):
-            pg.evaluate(f"location.hash = '{alias}'"); pg.wait_for_timeout(900)
-            check(f'the app name works as an address: {alias}', ok())
-        pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1000)
-        frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
-        pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
-        check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
-        pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
-        check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/slate'))
-        pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
+            pg.click('#panelBtn'); pg.wait_for_timeout(800)
+            hf = next(f for f in pg.frames if '/apps/home/' in f.url)
+            seen(hf, '.card.inbox')
+            check('the Needs you panel opens over the app, with no copy of Docket\'s day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
+                  and hf.locator('#capture').count() == 0 and pg.url.endswith('#/agents'))
+            pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+            check('Esc closes the panel', not pg.is_visible('#spanel'))
+            pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(800)
+            check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
+            pg.click('#spanelScrim', position={'x': 40, 'y': 300}); pg.wait_for_timeout(300)
+            check('a click on the page behind closes the panel', not pg.is_visible('#spanel'))
+            pg.click('#capBtn'); pg.wait_for_timeout(800)
+            pg.fill('.capbar .cap-in', 'w keys from the vendor fri')
+            check('quick capture previews a waiting-on task before Enter', 'waiting on' in pg.inner_text('.capbar .cap-preview').lower())
+            pg.press('.capbar .cap-in', 'Enter'); pg.wait_for_timeout(600)
+            saved = pg.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.waiting, i.text]); }")
+            check('quick capture saves an accepted handoff to Docket', saved == [['prioritizer', True, True, 'Keys from the vendor']] and pg.locator('.capbar .cap-recent li').count() == 1)
+            pg.locator('.capbar .cap-undo').first.click(); pg.wait_for_timeout(600)
+            check('Undo withdraws the capture', pg.locator('.capbar .cap-recent li').count() == 0)
+            pg.click('.capbar .cb-backdrop', position={'x': 20, 'y': 400}); pg.wait_for_timeout(200)
+            for alias, ok in (('#/docket', docket_at), ('#/rapport', lambda: pg.url == HUB + '/#/receipts'), ('#/folio', lambda: pg.url.startswith(HUB + '/#/notes'))):
+                pg.evaluate(f"location.hash = '{alias}'"); pg.wait_for_timeout(900)
+                check(f'the app name works as an address: {alias}', ok())
+            pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1000)
+            frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+            want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
+            pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
+            check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
+            pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
+            check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/slate'))
+            pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
-        browser_mode_checks(ctx, pg, frame, watch)
+            browser_mode_checks(ctx, pg, frame, watch)
 
-        sp = ctx.new_page(); watch(sp)
-        sp.goto(HUB + '/apps/prioritizer/')
-        # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
-        # every app's files (Dispatch's code viewer among them) on this first visit.
-        try:
-            sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
-        except Exception:
-            pass
-        check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() in (4, 5))  # Docket 6.0: Today, Day, People, Done (before: Today, Day, Triage, Prioritize, People)
-        check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
-        tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
-        before = sp.evaluate(tasks)
-        check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
+            sp = ctx.new_page(); watch(sp)
+            sp.goto(HUB + '/apps/prioritizer/')
+            # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
+            # every app's files (Dispatch's code viewer among them) on this first visit.
+            try:
+                sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+            except Exception:
+                pass
+            check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() in (4, 5))  # Docket 6.0: Today, Day, People, Done (before: Today, Day, Triage, Prioritize, People)
+            check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
+            tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
+            before = sp.evaluate(tasks)
+            check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
-        # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-        check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Figtree', 'DM Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
-        check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
-        with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
-        xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
-        with open(xlsx, 'rb') as f: check('Excel export writes an xlsx file', f.read(2) == b'PK')
-        sp.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fix login'); P.commit(); }")
-        sp.set_input_files('#importFile', xlsx); sp.wait_for_timeout(500)
-        sp.click('[data-imp=replace]'); sp.wait_for_timeout(300)
-        check('Excel import restores the exported tasks', sp.evaluate(tasks) == before)
+            # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
+            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Figtree', 'DM Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
+            check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
+            with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
+            xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
+            with open(xlsx, 'rb') as f: check('Excel export writes an xlsx file', f.read(2) == b'PK')
+            sp.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fix login'); P.commit(); }")
+            sp.set_input_files('#importFile', xlsx); sp.wait_for_timeout(500)
+            sp.click('[data-imp=replace]'); sp.wait_for_timeout(300)
+            check('Excel import restores the exported tasks', sp.evaluate(tasks) == before)
 
-        agent_checks(b, watch)
-        storage_checks(b, watch)
-        folder_checks(b, watch)
-        agents_checks(b, watch)
+        if PART in ('all', 'agent'):
+            agent_checks(b, watch)
+            storage_checks(b, watch)
+            folder_checks(b, watch)
+            agents_checks(b, watch)
 
         check('no page errors', not errors)
         if errors: print('  ' + '\n  '.join(errors))
