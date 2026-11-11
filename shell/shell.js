@@ -471,7 +471,10 @@ function handleRequest(app, method, p) {
     case 'route.set': {
       app.reportsRoute = true;
       app.lastPath = typeof p.path === 'string' ? p.path.slice(0, 500) : '';
-      if (app === panelApp || current !== app.id) return null;
+      // Only while the address is still this app's: a message sent just before you switched apps (the new hash is
+      // set, its hashchange not handled yet) must not write this app back over it.
+      const at = parseHash().id || homeId();
+      if (app === panelApp || current !== app.id || at !== app.id) return null;
       const want = addressOf(app);
       if (location.hash !== want) history[p.replace ? 'replaceState' : 'pushState'](null, '', want || location.pathname + location.search);
       return null;
