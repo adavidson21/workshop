@@ -154,7 +154,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.13.1',
+  version: '1.14.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -287,7 +287,8 @@ export default {
           connection: { type: 'string', maxLength: 40 },
           areas: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 400 } },
           includeClosed: { type: 'boolean' },
-          stories: { type: 'boolean' }
+          stories: { type: 'boolean' },
+          fields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } }
         }
       },
       async run(args, ctx) {

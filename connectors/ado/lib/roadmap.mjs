@@ -48,6 +48,16 @@ export function roadmapItem(ado, w) {
   };
 }
 
+/** `item` with `custom`: each field in `fields` (reference names) as plain text, at most `max` characters. No
+    fields asked for: `item` as it is. Shared by `roadmap` (Runway's release notes) and `backlog` (Slate). */
+export function withFields(item, w, fields, max = 500) {
+  if (!Array.isArray(fields) || !fields.length) return item;
+  const f = (w && w.fields) || {};
+  item.custom = {};
+  for (const ref of fields) item.custom[ref] = fieldText(get(f, ref)).slice(0, max);
+  return item;
+}
+
 /** Type and state of work items, by id, with only the fields counting needs. Missing ids are left out. */
 async function typesAndStates(ado, ids) {
   const out = [];
@@ -69,7 +79,9 @@ async function typesAndStates(ado, ids) {
  * state that counts as done (closedStates).
  * With stories: true, those children are also returned in items (same shape, parentId is the Feature), open ones
  * only unless includeClosed. Callers that do not ask get Epics and Features only, as before.
- * args: {connection?, areas[], includeClosed?, stories?}
+ * With fields (reference names), each item also has `custom` with those fields as plain text (at most 2000
+ * characters each), so Runway can show a release notes field.
+ * args: {connection?, areas[], includeClosed?, stories?, fields?}
  * @param {object} d {cfg, env, signal}
  */
 export async function roadmapList(d, args = {}) {
@@ -90,7 +102,7 @@ export async function roadmapList(d, args = {}) {
   for (const id of wanted) {
     const w = details.get(id);
     if (!w) continue;
-    const item = roadmapItem(ado, w);
+    const item = withFields(roadmapItem(ado, w), w, args.fields, 2000);
     // System.Parent may be missing on older servers; the parent link says the same thing.
     if (item.parentId == null) item.parentId = linked(w, PARENT_LINK)[0] ?? null;
     if (item.type === 'Feature') for (const c of linked(w, CHILD_LINK)) if (!parentOf.has(c)) parentOf.set(c, item.id);
@@ -122,7 +134,7 @@ export async function roadmapList(d, args = {}) {
     for (const id of kept) {
       const w = kids.get(id);
       if (!w) continue;
-      const s = roadmapItem(ado, w);
+      const s = withFields(roadmapItem(ado, w), w, args.fields, 2000);
       s.parentId = parentOf.get(id);
       if (!CHILD_TYPES.includes(s.type)) continue;
       if (!args.includeClosed && ended.has(s.state)) continue;
@@ -147,11 +159,7 @@ export function backlogItem(ado, w, args = {}) {
     storyPoints: pointsOf(f, args.pointsFields && args.pointsFields.length ? args.pointsFields : POINTS_FIELDS),
     commentCount: asInt(get(f, 'System.CommentCount'))
   };
-  if (args.fields && args.fields.length) {
-    out.custom = {};
-    for (const ref of args.fields) out.custom[ref] = fieldText(get(f, ref)).slice(0, 500);
-  }
-  return out;
+  return withFields(out, w, args.fields);
 }
 
 /**

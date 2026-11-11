@@ -114,6 +114,15 @@ test('roadmap with stories and includeClosed returns done stories too', () => wi
   assert.deepEqual(ids, [801, 802, 803, 804, 805]);
 }));
 
+test('roadmap with fields adds them to every item as plain text (Runway\'s release notes)', () => withAdo(async ({ d }) => {
+  const out = await roadmapList(d, { areas: [TEAM_A], stories: true, fields: ['Custom.ReleaseNotes'] });
+  assert.deepEqual(out.items.find(i => i.id === 711).custom, { 'Custom.ReleaseNotes': 'Exports are faster' });
+  assert.deepEqual(out.items.find(i => i.id === 701).custom, { 'Custom.ReleaseNotes': '' }, 'empty when the item has none');
+  assert.deepEqual(out.items.find(i => i.id === 802).custom, { 'Custom.ReleaseNotes': '' }, 'stories too');
+  const plain = await roadmapList(d, { areas: [TEAM_A] });
+  assert.equal(plain.items.some(i => 'custom' in i), false, 'no fields asked for: no custom');
+}));
+
 test('roadmap without stories returns no stories', () => withAdo(async ({ d }) => {
   const out = await roadmapList(d, { areas: [TEAM_A] });
   assert.equal(out.items.some(i => i.type === 'User Story' || i.type === 'Issue'), false);

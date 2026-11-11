@@ -46,7 +46,7 @@ export function roadmapScenario() {
         workItems: {
           701: wi(701, 5, f('Epic', 'Active', 'Synthetic version 1', { 'System.AssignedTo': 'Dev One <Dev.One@example.com>', 'Microsoft.VSTS.Scheduling.StartDate': '2026-10-01T00:00:00Z', 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-15T00:00:00Z' })),
           702: wi(702, 2, f('Epic', 'New', 'Synthetic version 2', { 'System.IterationPath': 'Web App' })),
-          711: wi(711, 9, f('Feature', 'Active', 'Synthetic feature 711', { 'System.Parent': 701, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-20T00:00:00Z' }), [...up(701), ...kids(801, 802, 803, 807, 808)]),
+          711: wi(711, 9, f('Feature', 'Active', 'Synthetic feature 711', { 'System.Parent': 701, 'Microsoft.VSTS.Scheduling.TargetDate': '2026-11-20T00:00:00Z', 'Custom.ReleaseNotes': '<p>Exports are <b>faster</b></p>' }), [...up(701), ...kids(801, 802, 803, 807, 808)]),
           // No System.Parent field (older servers): the parent comes from the Hierarchy-Reverse link.
           712: wi(712, 3, f('Feature', 'New', 'Synthetic feature 712', { 'System.AssignedTo': { displayName: 'Dev Two', uniqueName: 'dev.two@example.com' }, 'System.AreaPath': 'Web App\\Team A\\Sub' }), [...up(701), ...kids(804)]),
           713: wi(713, 4, f('Feature', 'Closed', 'Synthetic closed feature 713', { 'System.Parent': 702 }), [...up(702), ...kids(805)]),
