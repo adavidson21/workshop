@@ -1121,7 +1121,7 @@ def folder_checks(b, watch):
     no_key = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
     p3.keyboard.press('Control+k'); p3.wait_for_timeout(300); p3.keyboard.type('add a task'); p3.keyboard.press('Enter'); p3.wait_for_timeout(400)
     no_palette = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
-    check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and not pf3.locator('#addList').is_visible())
+    check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and not pf3.locator('#setBtn').is_visible())   # Docket 9.0.0: the sidebar's foot has Settings (lists moved into the list pill)
     before = pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None])
     pf3.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w9', title: 'Typed while waiting', listId: P.state.lists[0].id}); P.commit(); }")
     p3.wait_for_timeout(1200)
@@ -1132,7 +1132,7 @@ def folder_checks(b, watch):
     check('after Allow, the saved board appears', 'Edited in tab one' in got and 'Typed while waiting' not in got and pf3.locator('.waiting-empty').count() == 0
           and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
     pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
-    check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#addList').is_visible())
+    check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#setBtn').is_visible())   # Docket 9.0.0: the sidebar's foot has Settings (lists moved into the list pill)
 
     # Home waits the same way: a message instead of an empty page, no profile editing, then loads on Allow.
     p4 = ctx.new_page(); watch(p4)
@@ -1557,7 +1557,8 @@ def main():
             check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
             # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Figtree', 'DM Mono'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
+            # Docket has its own look since 8.1.0 (brand/brand.css): Schibsted Grotesk headings, Docket Text for the rest.
+            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Schibsted Grotesk', 'Docket Text'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
             check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
             with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
             xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
