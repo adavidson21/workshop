@@ -9,7 +9,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "8.0.0",
+        "version": "9.0.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -27,15 +27,19 @@
           },
           {
             "path": "inbox",
-            "title": "Today, with the Inbox"
+            "title": "Today, with To sort"
           },
           {
             "path": "plan-week",
-            "title": "Plan week"
+            "title": "Week"
+          },
+          {
+            "path": "week",
+            "title": "Week"
           },
           {
             "path": "plan-week/:lens",
-            "title": "Plan week with a lens (eisenhower, value-effort)"
+            "title": "Week with the matrix (eisenhower)"
           },
           {
             "path": "day/:date",
@@ -114,12 +118,12 @@
           },
           {
             "id": "plan-week",
-            "title": "Plan week",
+            "title": "Plan the week",
             "route": "plan-week"
           },
           {
             "id": "triage",
-            "title": "Sort the Inbox",
+            "title": "Sort what is new",
             "route": "inbox"
           },
           {
@@ -146,6 +150,12 @@
         ],
         "files": [
           "app.css",
+          "brand/brand.css",
+          "brand/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2",
+          "brand/fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2",
+          "brand/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2",
+          "brand/fonts/schibsted-grotesk-latin-ext-wght-normal.woff2",
+          "brand/fonts/schibsted-grotesk-latin-wght-normal.woff2",
           "icons/app-192.png",
           "icons/app-512.png",
           "icons/app-maskable-512.png",
@@ -175,19 +185,17 @@
           "js/events.js",
           "js/excel.js",
           "js/focus-format.js",
-          "js/focus-hours.js",
           "js/focus-hours-model.js",
+          "js/focus-hours.js",
           "js/focus-model.js",
           "js/focus.js",
           "js/left-off-model.js",
           "js/left-off.js",
-          "js/maker-manager.js",
           "js/main.js",
+          "js/maker-manager.js",
           "js/model.js",
           "js/native.js",
           "js/notes-link.js",
-          "js/products-link.js",
-          "js/slate-link.js",
           "js/offers-model.js",
           "js/offers.js",
           "js/onboarding.js",
@@ -196,10 +204,12 @@
           "js/people.js",
           "js/pr-ai-model.js",
           "js/pr-ai.js",
+          "js/products-link.js",
           "js/quick-add.js",
           "js/render.js",
           "js/route.js",
           "js/row-fields-model.js",
+          "js/slate-link.js",
           "js/state.js",
           "js/storage.js",
           "js/store-format.js",
@@ -211,6 +221,7 @@
           "shared/app-settings.js",
           "shared/app-sw.js",
           "shared/device-fs.js",
+          "shared/focus.js",
           "shared/fonts/dm-mono-latin-400-normal.woff2",
           "shared/fonts/dm-mono-latin-500-normal.woff2",
           "shared/fonts/dm-mono-latin-ext-400-normal.woff2",
@@ -222,7 +233,6 @@
           "shared/fonts/fonts.css",
           "shared/fonts/gelasio-latin-ext-wght-normal.woff2",
           "shared/fonts/gelasio-latin-wght-normal.woff2",
-          "shared/focus.js",
           "shared/handoffs.js",
           "shared/pair.js",
           "shared/people.js",
