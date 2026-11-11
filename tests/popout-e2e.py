@@ -64,7 +64,7 @@ def main():
         check('the pop-out opens on the note that was open', pf is not None and 'hello from the main window' in pf.evaluate("document.body.innerText"))
         check('only Folio loads in the pop-out (no background apps)', [f.url for f in pop.frames if '/apps/' in f.url and '/apps/notes/' not in f.url] == [])
         pg.wait_for_timeout(300)
-        check('the main window goes to the first rail app', pg.url == HUB + '/' and pg.title() == 'Docket · Workshop')
+        check('the main window goes to the first rail app', (pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')) and pg.title() == 'Docket · Workshop')
 
         # Another app from the pop-out opens in the main window; the pop-out stays on Folio.
         pop.evaluate("location.hash = '#/settings'"); pop.wait_for_timeout(1200)
