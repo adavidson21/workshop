@@ -241,7 +241,7 @@ function row(t, o = {}){
   if (prodName && !o.compact && on('product')) meta += sig(ICON.box, `Product: ${prodName}`, 'prod', prodName);
   if ((!o.compact || o.showList) && multi && L && on('list')) meta += `<span class="lst" data-tip="${esc(L.name)}" role="img" aria-label="List: ${esc(L.name)}"><i class="lc${listColor(L.id)}"></i></span>`;
   const fon = t.focusOn === todayStr();
-  // The score is on hover; the priority bar on the left already shows the tier.
+  // The score is on hover; the rank number already says the order.
   const scoreHtml = t.done || o.noScore || o.lean || !on('score') ? '' : s != null ? `<span class="score" data-tip="Score: (value + urgency) / effort">${fmtScore(s)}</span>`
     : o.estimate && !t.done ? `<span class="score none" data-tip="No estimate yet. Set value and effort in the Inbox." role="img" aria-label="No estimate">${ICON.noest}</span>`
     : t.done ? '' : '<span class="score"></span>';   // keeps the list dots in one column

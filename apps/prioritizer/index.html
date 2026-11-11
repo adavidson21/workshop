@@ -6,10 +6,9 @@
 <!-- Only this site, plus Workshop on this computer (127.0.0.1) once paired -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self' http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Docket</title>
-<meta name="theme-color" content="#F4F1EA">
+<meta name="theme-color" content="#F4F2F3">
 <!-- sets the theme before first paint so there's no flash -->
 <script src="shared/theme.js"></script>
-<link rel="stylesheet" href="shared/fonts/fonts.css">
 <script src="shared/vendor/xlsx.full.min.js" defer></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
@@ -19,6 +18,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Docket">
 <link rel="stylesheet" href="shared/themes.css">
+<!-- Docket's own look: burgundy, Schibsted Grotesk and Atkinson Hyperlegible Next (brand/brand.css) -->
+<link rel="stylesheet" href="brand/brand.css">
 <link rel="stylesheet" href="shared/ui.css">
 <link rel="stylesheet" href="app.css">
 </head>
@@ -26,7 +27,7 @@
 <div class="app" id="app">
   <aside class="side" id="side" aria-label="Sidebar">
     <div class="sbrand">
-      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="var(--on-accent)"><rect x="5" y="5" width="6.2" height="6.2" rx="1.8"/><path d="M6.6 8.3l1.2 1.1 2-2.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><rect x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/><rect x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".38"/></g></svg></span><b>Docket</b>
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 26 26"><path fill="currentColor" d="M5 3h16a3 3 0 0 1 3 3v4.2a2.8 2.8 0 0 0 0 5.6V20a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-4.2a2.8 2.8 0 0 0 0-5.6V6a3 3 0 0 1 3-3Z"/><path d="M8 9.5h10M8 13h10M8 16.5h6" fill="none" stroke="var(--surface)" stroke-width="1.8" stroke-linecap="round"/></svg></span><b>Docket</b>
     </div>
     <nav class="snav" id="snav" aria-label="Views"></nav>
     <div class="ssec"><span>Lists</span><button class="ibtn" id="addList" aria-label="New list" data-tip="New list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button></div>

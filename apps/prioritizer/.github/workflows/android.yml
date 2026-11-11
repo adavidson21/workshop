@@ -9,9 +9,9 @@ name: android
 on:
   push:
     branches: [main]
-    paths: ['mobile/**', 'index.html', 'app.css', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+    paths: ['mobile/**', 'index.html', 'app.css', 'brand/**', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
   pull_request:
-    paths: ['mobile/**', 'index.html', 'app.css', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
+    paths: ['mobile/**', 'index.html', 'app.css', 'brand/**', 'js/**', 'shared/**', 'icons/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
 concurrency:

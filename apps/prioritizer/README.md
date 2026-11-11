@@ -8,6 +8,8 @@ Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
 
+**Its own look** (Docket 8.1.0): Docket is the first Workshop app with a look of its own, as a trial for the rest. Burgundy is the brand color; Schibsted Grotesk sets headings and Atkinson Hyperlegible Next everything you read, with Schibsted's figures so times and numbers read clean (both OFL, self-hosted in `brand/fonts/`). Today's column is the one raised white sheet on its page, the running task is a merlot band on Docket's own site (inside Workshop it is in Workshop's top bar), and labels are in sentence case. Colors and fonts are in `brand/brand.css`, loaded after Workshop's shared themes, so nothing in Workshop's bundle changes. Product vision and plan: Workshop project docs `claude/docket-vision.md` and `claude/docket-redesign-v1-plan.md`.
+
 ## First run
 
 A brand new board (no tasks) opens a short tour: where your board is saved, adding your first tasks (with the tags, or **Load sample tasks** into a "Samples" list you can delete in one go), how Docket decides, and two optional steps: your sprint and example Day templates (or **I don't work in sprints**, for weekday templates), then every-sprint tasks like Sprint planning, Backlog refinement and Release. Every step can be skipped, and closing it counts as skipping. It shows once per board (the date is saved as `meta.onboarded` in `prioritizer.settings`), never on a board that already has tasks, and any time from the keyboard help (`?`, **Show the tour**) or the empty-board buttons.
@@ -24,7 +26,7 @@ Everything else is derived, so the views can't disagree:
 
 - **Eisenhower:** important means Medium or High value; urgent means due within 3 days, overdue, or flagged urgent.
 - **Value / Effort:** high value means Medium or High; low effort means XS or S.
-- **Score:** (value + urgency) / effort points, shown next to each task. The bar on the left of a row is its priority tier.
+- **Score:** (value + urgency) / effort points, shown next to each task.
 
 Your manual rank always has the final say. **Suggest order** previews a score-based order before you accept it.
 
@@ -122,7 +124,7 @@ Delegating is one step, and nothing is sent anywhere: Docket only keeps track of
 Rows and headers use small line icons instead of words; hover (or long-press) any of them for what it means, and `?` lists them all. Color shows up only when something needs you:
 
 - On a row: a red circle for a PR blocked on you or a task that's been urgent too long, amber for due soon (red when overdue), blue for time to nudge or asked to review. Quiet gray for stale, waiting, every sprint, and ADO or PR links (with their number).
-- People are initials; the list is a colored dot (each list keeps its color, in the sidebar too). The score shows on hover; the bar on the left is the tier.
+- People are initials; the list is a colored dot (each list keeps its color, in the sidebar too). The score shows on hover; the rank number says the order.
 - Header buttons are round icons: start the next task, plan the day, wrap up, suggest order, weekly capacity, and the solid + to add a task.
 - The bar under the header shows only while a task is running, with interrupted, pause and done, and today's switch and interruption counts.
 

@@ -4,6 +4,7 @@
 //   www/index.html   Docket
 //   www/js/          Docket's modules
 //   www/shared/      the SDK, device storage, themes, fonts and SheetJS (copied from Workshop)
+//   www/brand/       Docket's own look: brand.css and its fonts
 //   www/icons/       favicons
 //
 // Left out on purpose: tests, sw.js (the app ships its files, so a cached copy
@@ -20,7 +21,7 @@ const REPO = resolve(MOBILE, '..');
 const WWW = join(MOBILE, 'www');
 
 // Everything the app gets, relative to the repo root.
-export const COPY = ['index.html', 'app.css', 'icon.svg', 'js', 'shared', 'icons'];
+export const COPY = ['index.html', 'app.css', 'icon.svg', 'brand', 'js', 'shared', 'icons'];
 
 export function build({ repo = REPO, www = WWW } = {}) {
   rmSync(www, { recursive: true, force: true });

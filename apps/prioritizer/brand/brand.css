@@ -1,0 +1,41 @@
+/* Docket's own look (redesign v1, Nov 2026; Workshop project doc claude/docket-redesign-v1-plan.md).
+   Docket is the first Workshop app with a look of its own: burgundy, Schibsted Grotesk headings and Atkinson
+   Hyperlegible Next text. Loaded after shared/themes.css, so it replaces the shared colors and fonts for Docket only;
+   app.css builds on these tokens. Nothing here changes Workshop's bundle.
+
+   Fonts are self-hosted (OFL, brand/fonts/). "Docket Text" is Atkinson's letters with Schibsted's figures: Atkinson's
+   zero is slashed, which made times like 12:00 noisy, so digits come from the heading face and read clean. */
+@font-face{font-family:"Schibsted Grotesk";font-style:normal;font-display:swap;font-weight:400 900;src:url(fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Schibsted Grotesk";font-style:normal;font-display:swap;font-weight:400 900;src:url(fonts/schibsted-grotesk-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+/* Docket Text: letters from Atkinson Hyperlegible Next, everything but 0 to 9 */
+@font-face{font-family:"Docket Text";font-style:normal;font-display:swap;font-weight:200 800;src:url(fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-002F,U+003A-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Docket Text";font-style:italic;font-display:swap;font-weight:200 800;src:url(fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2) format("woff2");unicode-range:U+0000-002F,U+003A-00FF,U+0131,U+0152-0153,U+2000-206F,U+20AC,U+2122,U+2212}
+@font-face{font-family:"Docket Text";font-style:normal;font-display:swap;font-weight:200 800;src:url(fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+/* ...and its figures from Schibsted Grotesk */
+@font-face{font-family:"Docket Text";font-style:normal;font-display:swap;font-weight:200 900;src:url(fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2");unicode-range:U+0030-0039}
+@font-face{font-family:"Docket Text";font-style:italic;font-display:swap;font-weight:200 900;src:url(fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2");unicode-range:U+0030-0039}
+
+/* Light: burgundy on a rose-tinted mist (not cream), white for raised work. Dark: the same, lifted. Text stays at WCAG
+   AA (4.5:1) for ink, muted, accent, danger and warn on both bg and surface. Burgundy is the brand, never an alarm:
+   late and blocking use rust (danger), due soon uses amber (warn). */
+:root,
+:root[data-theme=light]{--bg:#F4F2F3;--surface:#FFFFFF;--panel:#ECE6E8;--ink:#22191C;--muted:#6B6064;--line:#E5DEE1;--eyebrow:#6B6064;--accent:#7A1B36;--on-accent:#FFFFFF;--danger:#A9380B;--warn:#875100;
+  --merlot:#3E0D1D;--merlot-ink:#FFF4F6;--merlot-soft:#E2B9C5;--raise:0 1px 0 rgb(62 13 29/.04),0 10px 30px rgb(62 13 29/.07);color-scheme:light}
+:root[data-theme=dark]{--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
+  --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);color-scheme:dark}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme]){--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
+    --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);color-scheme:dark}
+}
+:root{
+  --sans:"Docket Text","Atkinson Hyperlegible Next","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  --serif:"Schibsted Grotesk","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  /* No mono face in Docket: numbers and keys use the text face (its figures are Schibsted's). */
+  --mono:"Docket Text","Segoe UI",system-ui,sans-serif;
+  --rule:var(--line);
+  --line2:color-mix(in srgb,var(--ink) 18%,var(--line));
+  --accent-soft:color-mix(in srgb,var(--accent) 11%,var(--surface));
+  --r-sm:8px;
+  --r-md:14px;
+  --r-lg:20px;
+}
