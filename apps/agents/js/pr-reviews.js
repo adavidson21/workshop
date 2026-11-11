@@ -13,8 +13,8 @@
    - One list: each PR waiting on you is one entry. A PR with a review shows the review card (with its
      tier); a PR with none shows a row with Review. Reviews of PRs no longer waiting on you are listed
      after it, under Earlier reviews.
-   - Ship (its own tab): the pull requests of your own runs (pr.md, at Ship), with where each repo's code review
-     stands, grouped by whose turn it is. The run page has the same PR box. */
+   - Your runs' pull requests (pr.md, at Ship): where each repo's code review stands (mineState). The Inbox lists the
+     code reviews to do; a run's page has its PR box; Work shows the rest under Shipping. */
 import { S } from './state.js';
 import { h, md, copyBtn, plural, ago, link, fileBtn, removeBtn, sessionBox, looseSessions, itemSession, itemPerms, itemQs, isBusy, asking, prHtml, itemKey, idLink, safeUrl, stateVar, stamp, slateOf } from './view.js';
 import { projectChip } from './projects.js';
@@ -361,7 +361,7 @@ export function mineItems() {
   return ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && it.stage === 'ship' && (it.pr || []).length)
     .sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
 }
-/** Runs whose PR is waiting on you (a code review to do, or a revision that needs you). The Ship tab count. */
+/** Runs whose PR is waiting on you (a code review to do, or a revision that needs you): the Inbox's Code reviews to do. */
 export function mineNeedsCount() { return mineItems().filter(it => ['fix', 'review'].includes(mineState(it))).length; }
 
 const MINE_GROUPS = [
@@ -381,7 +381,8 @@ function mineCard(it) {
     `<div class="item-head"><h4 class="t">${it.id ? idLink(it) : ''}${title}</h4><div class="meta">${meta.join('')}</div></div>` + prHtml(it) + '</article>';
 }
 
-/** The Ship tab's PR groups, for the runs in `list` (default: every run with PRs). Runs Slate saw merge come first. */
+/** Dispatch 2.x's Ship tab PR groups, for the runs in `list` (default: every run with PRs). Runs Slate saw merge come first.
+ *  Dispatch 3.0 shows a run's PR box on its page and its code review in the Inbox; this stays for other callers. */
 export function mineHtml(list = mineItems()) {
   let html = '';
   if (!list.length) return '';

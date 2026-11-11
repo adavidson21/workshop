@@ -28,17 +28,16 @@ const count = (html, re) => (html.match(re) || []).length;
 
 beforeEach(() => load());
 
-test('2.0 the page is a header with six tabs; every item is on its tab', () => {
+test('3.0 the page is a header with four tabs; every folder is in one place: the Inbox, Work or Reviews', () => {
   const html = render();
   assert.match(html, /<nav class="tabs" aria-label="Dispatch">/);
-  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['inbox', 'chat', 'runs', 'ship', 'reviews', 'research']);
+  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['inbox', 'chat', 'work', 'reviews']);
   assert.match(html, /class="tab on" data-tab="inbox" aria-current="page"/, 'Inbox is the default tab');
   assert.match(html, /class="pill on"[^>]*><span class="led"><\/span>Live/);
   assert.doesNotMatch(html, /class="side|<aside|Repos with work in progress|Recent activity/, 'no sidebar and no side column');
-  const where = { item: ['runs', 'ship'], spike: ['research'], tsd: ['research'], docs: ['research'] };
   for (const it of S.D.items) {
-    const tabs = (where[it.kind] || ['reviews']).filter(t => { S.ui.tab = t; return new RegExp(`id="item-${it.id || it.folder}"`).test(render()); });
-    assert.equal(tabs.length, 1, it.folder + ' is on exactly one tab');
+    const tabs = ['inbox', 'work', 'reviews'].filter(t => { S.ui.tab = t; return new RegExp(`id="item-${it.id || it.folder}"`).test(render()); });
+    assert.equal(tabs.length, 1, it.folder + ' is in exactly one place: ' + tabs.join(', '));
   }
 });
 test('1.2.0 clearer track: checked, current and faint stages', () => {
@@ -83,35 +82,56 @@ test('1.4.0 the autopilot box shows only while autopilot runs or waits for you',
   assert.equal(autoHtml(it), '');
 });
 
-test('2.0 Runs: rows grouped by Needs you, In progress and Paused; Ship and Research hold the rest', () => {
-  S.ui.tab = 'runs';
+test('3.0 Work: rows grouped Tandem working, Up next, Shipping, Paused and Done, with the flow, the step and whose turn', () => {
+  S.ui.tab = 'work';
   const html = render();
-  assert.match(html, /<h3 id="gh-needs">Needs you <span class="n">2<\/span>/);
-  assert.match(html, /<h3 id="gh-active">In progress <span class="n">1<\/span>/);
+  assert.match(html, /<div class="inbox-prs waiting"><span><b>3 things are waiting on you<\/b> in the Inbox\.<\/span><button type="button" class="btn primary" data-tab="inbox">Open Inbox/);
+  assert.match(html, /<h3 id="gh-working">Tandem working <span class="n">1<\/span>/, '41207 has a busy session');
   assert.match(html, /<h3 id="gh-paused">Paused <span class="n">1<\/span>/);
   assert.match(html, /<article class="rrow" id="item-41207"[^>]*><span class="sd running"[^>]*><\/span><button type="button" class="rr-t" data-open-run="41207-fix-login-timeout"><span class="num">#41207<\/span>/);
-  assert.doesNotMatch(html, /id="item-41610"/, 'ready to ship is on Ship');
-  assert.doesNotMatch(html, /id="item-spike-cache-options"/, 'spikes are in Research');
-  assert.match(html, /data-tab="runs" aria-current="page"><span>Runs<\/span><span class="n">4<\/span>/);
+  assert.match(html, /<span class="tag">Feature<\/span> · Step 5 of 8: Build 2\/3/);
+  assert.match(html, /<span class="turnw t-tandem">Tandem:<\/span>/);
+  assert.match(html, /<span class="turnw t-hold">Paused:<\/span> Waiting on design/);
+  assert.doesNotMatch(html, /id="item-41300"|id="item-41502"|id="item-41610"/, 'what waits on you is only in the Inbox');
+  assert.match(html, /class="filters" role="group" aria-label="Flow"><button type="button" class="fchip on" data-filter-flow="all"/);
+  S.ui.flow = 'spike';
+  assert.doesNotMatch(render(), /id="item-41207"/, 'the flow filter narrows the rows');
+  assert.match(render(), /id="item-spike-cache-options"/);
+  assert.match(html, /<h3 id="gh-next">Up next <span class="n">1<\/span>.*id="item-tsd-billing-api".*Step 2 of 4: Fact-check.*data-cmd="\/check-docs \.work\/tsd-billing-api\/tsd\.md"[^>]*>Fact-check</s);
+  assert.match(html, /id="item-41207".*?<span class="rr-act"><\/span>/s, 'no buttons while Tandem works on it: its page has Stop');
+  assert.match(html, /data-tab="work" aria-current="page"><span>Work<\/span><span class="n" title="In flight">3<\/span>/, 'in flight: not done, not in the Inbox');
 });
-test('2.0 a run opens its own page: track, next step, agent, then Brief, Tasks, Repos, Files and Activity', () => {
-  S.ui.tab = 'runs'; S.ui.run = '41207-fix-login-timeout';
+test('3.0 a run opens its own page: the flow track is its navigation, the step shows its file and buttons, details folded', () => {
+  S.ui.tab = 'work'; S.ui.run = '41207-fix-login-timeout';
   let html = render();
-  assert.match(html, /data-close-run="runs">&larr; Runs</);
+  assert.match(html, /data-close-run="work">&larr; Work</);
   assert.match(html, /<article class="item run-page" id="item-41207"/);
-  assert.match(html, /<div class="track"/);
-  assert.deepEqual([...html.matchAll(/data-run-tab="(\w+)"/g)].map(m => m[1]), ['tasks', 'repos', 'files', 'activity'], 'no Brief without brief.md');
-  assert.match(html, /class="rtab on" data-run-tab="tasks"/);
-  assert.match(html, /Tasks <span class="bar"/);
-  S.ui.runTab = 'repos';
-  assert.match(render(), /<th>Repo<\/th>/);
-  S.ui.runTab = 'activity';
-  assert.match(render(), /<ul class="timeline">/);
-  // A run at Ship opens on the Ship tab, with its PR box.
-  S.ui.tab = 'ship'; S.ui.run = '41610-rate-limit-headers'; S.ui.runTab = 'brief';
+  assert.deepEqual([...html.matchAll(/data-step="(\w+)"/g)].map(m => m[1]), ['start', 'spec', 'plan', 'tasks', 'build', 'review', 'pr', 'ship']);
+  assert.match(html, /<ol class="flow" aria-label="Step 5 of 8: Build, Working">/);
+  assert.match(html, /<li class="fstep done you"><button type="button" data-step="spec" aria-pressed="false"/, 'a ring on the steps that stop for you');
+  assert.match(html, /<li class="fstep here sel"><button type="button" data-step="build" aria-pressed="true"/, 'the step it is at is in view');
+  assert.match(html, /<section class="spanel here" aria-label="Build">.*Tasks <span class="bar"/s);
+  assert.match(html, /<details class="run-details" data-key="det:41207-fix-login-timeout"><summary>Repos, files and activity<\/summary>.*<th>Repo<\/th>.*<ul class="timeline">/s);
+  assert.doesNotMatch(html, /data-run-tab=/, 'no sub-tabs');
+  // A done step shows what it wrote, read through file.read.
+  S.ui.step['41207-fix-login-timeout'] = 'spec';
   html = render();
-  assert.match(html, /data-close-run="ship">&larr; Ship</);
-  assert.match(html, /class="prbox"/);
+  assert.match(html, /<section class="spanel done" aria-label="Spec">.*<span class="mono">spec\.md<\/span>.*Loading\./s);
+  S.files['41207-fix-login-timeout/spec.md'] = { text: '# Spec\n\nRenewal lasts **30 minutes**.', at: 1 };
+  assert.match(render(), /Renewal lasts <strong>30 minutes<\/strong>/);
+  S.ui.step['41207-fix-login-timeout'] = 'review';
+  assert.match(render(), /<section class="spanel later" aria-label="Review">.*Tandem runs this step\. It has not started\./s);
+  S.files = {};
+  // A run at a gate, opened from the Inbox: the gate file inline, its buttons, Send back with a note.
+  S.ui.tab = 'inbox'; S.ui.back = 'inbox'; S.ui.run = '41300-export-retry-fails';
+  html = render();
+  assert.match(html, /data-close-run="inbox">&larr; Inbox</);
+  assert.match(html, /<section class="spanel here" aria-label="Root cause">/);
+  assert.match(html, /data-act="approve-start"[^>]*>Approve and build</);
+  assert.match(html, /<span class="mono">bug\.md<\/span>/);
+  assert.match(html, /data-sb-toggle="41300-export-retry-fails" aria-expanded="false">Send back with a note</);
+  S.ui.open['sb:41300-export-retry-fails'] = true;
+  assert.match(render(), /<textarea rows="3" data-draft="sb:41300-export-retry-fails".*data-sendback="41300-export-retry-fails"[^>]*>Send back to Tandem<.*Runs <code>\/bug 41300<\/code>/s);
   assert.match(pickupHtml(item('41300-export-retry-fails')), /class="btn remove" data-remove="41300-export-retry-fails"[^>]*>Abandon</);
 });
 test('1.2.0 the remove dialog lists work still in the repos and the commands to delete branches', () => {
@@ -178,14 +198,16 @@ test('2.0 Inbox: every prompt answerable in place with where it came from, then 
   S.L.questions.push({ id: 'que_1', sessionID: 'ses_0001abc', folder: '41207-fix-login-timeout', questions: [{ header: 'Branch', question: 'Which branch?', options: [{ label: 'main' }, { label: 'dev', description: 'the dev branch' }] }] });
   const html = render();
   assert.match(html, /<h3 id="gh-asks">Agents asking you <span class="n">3<\/span>/);
-  assert.match(html, /<span class="tag">Run<\/span><span class="st">#41207 Fix login timeout on renewal<\/span><button type="button" class="lnk plain" data-open-run="41207-fix-login-timeout">Open<\/button>/);
+  assert.match(html, /<span class="tag">Feature<\/span><span class="st">#41207 Fix login timeout on renewal<\/span><button type="button" class="lnk plain" data-hot="o" data-open-run="41207-fix-login-timeout">Open<\/button>/);
   assert.match(html, /data-perm="per_2" data-answer="once"/);
   assert.match(html, /<span class="tag">Conversation<\/span>.*data-open-chat="ses_tui"/s);
   assert.match(html, /<input type="radio" name="que_1-0" value="dev" data-qpick="que_1" data-qi="0">.*the dev branch/s);
   assert.match(html, /data-qsend="que_1">Answer</);
-  assert.match(html, /<h3 id="gh-gates">Runs waiting on you <span class="n">2<\/span>/);
+  assert.match(html, /<h3 id="gh-gates">Ready for your review <span class="n">1<\/span>/, '41300 waits for bug.md');
   assert.match(html, /<h3 id="gh-code">Code reviews to do <span class="n">1<\/span>/);
+  assert.match(html, /<h3 id="gh-failed">Stopped or blocked <span class="n">1<\/span>/, '41502 is blocked');
   assert.match(html, /data-tab="inbox" aria-current="page"><span>Inbox<\/span><span class="cnt gate">6<\/span>/);
+  assert.match(html, /<b>6 things need you\.<\/b>.*data-walk="start"[^>]*>Go through them</s);
   assert.deepEqual(prompts().map(p => p.id), ['per_1', 'per_2', 'que_1']);
 });
 
@@ -283,8 +305,8 @@ test('an empty .work says how to start', () => {
   S.D.repos = [];
   html = render();
   assert.match(html, /class="gstep open">.*Add a repo.*data-repo-open="1"/s, 'no repos: adding one is next');
-  S.ui.tab = 'runs';
-  assert.match(render(), /No runs in progress.*data-start-open="1">Start work/s);
+  S.ui.tab = 'work';
+  assert.match(render(), /No work yet.*data-start-open="1">Start work/s);
 });
 test('the setup guide is one install command, then connect', () => {
   S.mode = 'browser'; S.connector = null; S.D = null; S.origin = 'https://dispatch.example.org';
@@ -355,36 +377,61 @@ test('opencode settings: a form from the connector schema; hosted pages edit onl
   S.agentUrl = null;
 });
 
-test('start work: describe it (default), an ADO number when ADO is set up, or investigate', () => {
+test('3.0 start work: pick a flow, then fill it in; each flow sends its own action', () => {
   load(clone(FIXTURE));
   let html = render();
   assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start work/s, 'the header has the button');
-  S.ui.start = { mode: 'describe', lane: 'feature', busy: false, error: null };
+  S.ui.start = { flow: null, lane: 'feature', busy: false, error: null };
   S.L.opencode = { ...(S.L.opencode || {}), connected: true };
   html = render();
   assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
-  assert.match(html, /data-start-mode="describe" aria-pressed="true"/);
-  assert.doesNotMatch(html, /data-start-mode="ado"/, 'no ADO tab when Tandem has no ADO set up');
-  assert.match(html, /data-draft="start:title"/);
-  assert.doesNotMatch(html, /start:repro/, 'no repro steps for a feature');
-  S.ui.start.lane = 'bug';
-  assert.match(render(), /data-draft="start:repro"/);
-  S.D.tandem = { ado: true };
-  S.ui.start.mode = 'ado';
+  assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['feature', 'bug', 'quick', 'spike', 'epic', 'docs', 'tsd']);
+  assert.match(html, /data-flow="feature".*8 steps, 3 stops for you.*Hands-off after you approve/s);
+  assert.match(html, /data-flow="spike"[^>]*>.*2 steps, 1 stop for you/s);
+  // Feature: no ADO set up, so it is described.
+  S.ui.start.flow = 'feature';
   html = render();
-  assert.match(html, /data-start-mode="ado" aria-pressed="true".*Work item number/s);
-  S.ui.start.mode = 'spike';
+  assert.match(html, /<h3 id="start-h">Build a feature<\/h3>.*data-flow="">&larr; All flows/s);
+  assert.match(html, /<ol class="fline"><li class="">Set up<\/li><li class="you">Spec<\/li>/);
+  assert.doesNotMatch(html, /data-start-src/, 'no ADO choice when Tandem has no ADO set up');
+  assert.match(html, /data-draft="start:title"/);
+  assert.doesNotMatch(html, /start:repro|data-start-lane/, 'no repro steps and no lane pick for a feature');
+  S.ui.start.flow = 'bug';
+  assert.match(render(), /data-draft="start:repro"/);
+  S.ui.start.flow = 'quick';
+  assert.match(render(), /data-start-lane="feature" aria-pressed="true"/, 'Quick change picks the lane');
+  S.D.tandem = { ado: true };
+  S.ui.start.flow = 'feature';
+  html = render();
+  assert.match(html, /data-start-src="ado" aria-pressed="true".*Work item number/s, 'ADO first when it is set up');
+  S.ui.start.src = 'describe';
+  assert.match(render(), /data-start-src="describe" aria-pressed="true".*data-draft="start:title"/s);
+  S.ui.start.flow = 'spike';
   assert.match(render(), /data-draft="start:topic".*data-start-go="1">Investigate</s);
+  S.ui.start.flow = 'epic';
+  assert.match(render(), /data-draft="start:idea"/);
+  S.ui.start.flow = 'docs';
+  assert.match(render(), /data-draft="start:target"/);
+  S.ui.start.flow = 'tsd';
+  assert.match(render(), /Product or repos.*data-draft="start:target"/s);
   S.L.opencode.connected = false;
   assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
 
   const req = (st, drafts) => startRequest({ lane: 'feature', ...st }, drafts);
-  assert.deepEqual(req({ mode: 'describe' }, { 'start:title': '  Add  CSV export ', 'start:desc': 'For the reports page.' }), { action: 'start.local', args: { title: 'Add CSV export', lane: 'feature', description: 'For the reports page.' } });
-  assert.deepEqual(req({ mode: 'describe', lane: 'bug' }, { 'start:title': 'Export fails', 'start:repro': '1. Export twice' }), { action: 'start.local', args: { title: 'Export fails', lane: 'bug', repro: '1. Export twice' } });
-  assert.match(req({ mode: 'describe' }, {}).error, /title/);
-  assert.deepEqual(req({ mode: 'ado' }, { 'start:id': '#9988776' }), { action: 'start', args: { id: '9988776', lane: 'feature' } });
-  assert.deepEqual(req({ mode: 'spike' }, { 'start:topic': 'How does\nlogin work?' }), { action: 'spike', args: { topic: 'How does login work?' } });
-  assert.match(req({ mode: 'spike' }, {}).error, /investigate/);
+  assert.match(req({ flow: null }, {}).error, /Pick a flow/);
+  assert.deepEqual(req({ flow: 'quick' }, { 'start:title': '  Add  CSV export ', 'start:desc': 'For the reports page.' }), { action: 'start.local', args: { title: 'Add CSV export', lane: 'feature', description: 'For the reports page.' } });
+  assert.deepEqual(req({ flow: 'quick', lane: 'bug' }, { 'start:title': 'Export fails', 'start:repro': '1. Export twice' }), { action: 'start.local', args: { title: 'Export fails', lane: 'bug', repro: '1. Export twice' } });
+  assert.deepEqual(req({ flow: 'bug', src: 'describe' }, { 'start:title': 'Export fails' }), { action: 'start.local', args: { title: 'Export fails', lane: 'bug' } }, 'the flow sets the lane');
+  assert.match(req({ flow: 'quick' }, {}).error, /title/);
+  assert.deepEqual(req({ flow: 'feature', src: 'ado' }, { 'start:id': '#9988776' }), { action: 'start', args: { id: '9988776', lane: 'feature' } });
+  assert.deepEqual(req({ flow: 'bug', src: 'ado' }, { 'start:id': '9988776' }), { action: 'start', args: { id: '9988776', lane: 'bug' } });
+  assert.deepEqual(req({ flow: 'spike' }, { 'start:topic': 'How does\nlogin work?' }), { action: 'spike', args: { topic: 'How does login work?' } });
+  assert.match(req({ flow: 'spike' }, {}).error, /investigate/);
+  assert.deepEqual(req({ flow: 'epic' }, { 'start:idea': 'Change request tickets' }), { action: 'scope.start', args: { idea: 'Change request tickets' } });
+  assert.deepEqual(req({ flow: 'docs' }, { 'start:target': 'How to run\nthe gateway' }), { action: 'docs.start', args: { target: 'How to run the gateway' } });
+  assert.deepEqual(req({ flow: 'tsd' }, { 'start:target': 'Billing  gateway' }), { action: 'tsd.start', args: { target: 'Billing gateway' } });
+  assert.match(req({ flow: 'tsd' }, { 'start:target': 'a;b' }).error, /product name/);
+  assert.deepEqual(req({ mode: 'describe' }, { 'start:title': 'Old' }), { action: 'start.local', args: { title: 'Old', lane: 'feature' } }, "Dispatch 2.x's modes still work");
 
   assert.deepEqual(startCheck(' #9988776 ', 'bug'), { id: '9988776', lane: 'bug' });
   assert.match(startCheck('abc', 'feature').error, /work item number/);
@@ -445,25 +492,29 @@ test('AI: the checklist and a banner say how to connect one; unknown is not trea
   assert.equal(aiState(), 'on');
 });
 
-test('2.0 Research: running spikes and guides with a reply box, findings as rows, a reader with Start work from this', () => {
+test("3.0 Work: sessions starting with a reply box, spikes and TSDs as rows, and a spike's page with its findings", () => {
   load(clone(FIXTURE));
   S.L.sessions.ses_loose = { id: 'ses_loose', title: '/spike how does login work', status: 'idle', command: '/spike how does login work', text: 'Two options.', folder: null };
   S.L.others = [{ session: 'ses_loose', command: '/spike how does login work', at: S.now - 60000 }];
   assert.equal(looseSessions().length, 1);
-  S.ui.tab = 'research';
+  S.ui.tab = 'work';
   let html = render();
-  assert.match(html, /<h3 id="gh-live">Running <span class="n">1<\/span>.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
-  assert.match(html, /<h3 id="gh-docs">Findings and documents <span class="n">2<\/span>.*data-open-doc="spike-cache-options">Cache options for the catalog/s);
+  assert.match(html, /<h3 id="gh-starting">Starting <span class="n">1<\/span>.*\/spike how does login work.*data-dismiss="ses_loose".*Two options\..*data-reply="ses_loose"/s);
+  assert.match(html, /<h3 id="gh-done">Done <span class="n">1<\/span>.*data-open-run="spike-cache-options">Cache options for the catalog/s);
+  assert.match(html, /<span class="tag">Spike<\/span> · Step 2 of 2: Read the findings/);
+  assert.match(html, /<span class="tag">TSD<\/span> · Step 2 of 4: Fact-check/);
   S.L.sessions.ses_loose.folder = 'spike-login';
   assert.equal(looseSessions().length, 0, 'once its folder exists, it is drawn with that item');
-  S.ui.doc = 'spike-cache-options';
-  S.docs['spike-cache-options'] = { name: 'findings.md', text: '# Findings\n\nUse **memory**.', at: 1 };
+  S.ui.run = 'spike-cache-options';
+  S.files['spike-cache-options/findings.md'] = { text: '# Findings\n\nUse **memory**.', at: 1 };
   html = render();
-  assert.match(html, /data-close-doc="1">&larr; Research</);
-  assert.match(html, /<article class="item doc-page" id="item-spike-cache-options"/);
+  assert.match(html, /data-close-run="work">&larr; Work</);
+  assert.match(html, /<article class="item run-page" id="item-spike-cache-options"/);
+  assert.match(html, /<ol class="flow" aria-label="Step 2 of 2: Read the findings, Done">/);
   assert.match(html, /data-doc-start="spike-cache-options"[^>]*>Start work from this</);
-  assert.match(html, /<b>memory<\/b>/, 'the findings render as escaped markdown');
-  S.docs = {};
+  assert.match(html, /data-doc-note="spike-cache-options">Save as note</);
+  assert.match(html, /<strong>memory<\/strong>/, 'the findings render as escaped markdown');
+  S.files = {};
 });
 test('brief.md from /start: a Brief card at the top of the item, escaped, open until the spec stage', () => {
   load(clone(FIXTURE));
@@ -472,7 +523,7 @@ test('brief.md from /start: a Brief card at the top of the item, escaped, open u
   // A fresh item: repos set up, no spec yet.
   Object.assign(fresh, { stage: 'spec', gates: { spec: null, plan: null, bug: null, review: null }, files: ['workitem.md', 'brief.md', 'repos.md'] });
   assert.match(briefHtml(fresh), /Loading the brief\./, 'loading until file.read answers');
-  S.briefs[fresh.folder] = { text: '# Brief: 41455 Audit log filter\n\n<!-- note for the agent -->\n## Goal\n\nFilter by `person-one` <script>alert(1)</script>\n\n## Done means\n\n- [ ] **Filter** works\n', error: null };
+  S.files[fresh.folder + '/brief.md'] = { text: '# Brief: 41455 Audit log filter\n\n<!-- note for the agent -->\n## Goal\n\nFilter by `person-one` <script>alert(1)</script>\n\n## Done means\n\n- [ ] **Filter** works\n', error: null };
   const card = briefHtml(fresh);
   assert.match(card, /^<details class="brief" data-key="b:41455-audit-log-filter" open><summary>Brief<\/summary>/, 'open by default before the spec');
   assert.match(card, /<p class="sub-h">Goal<\/p><div class="pre">Filter by <code>person-one<\/code> &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/div>/, 'escaped, inline code kept');
@@ -488,6 +539,7 @@ test('brief.md from /start: a Brief card at the top of the item, escaped, open u
   assert.match(briefHtml(fresh), /data-key="b:41455-audit-log-filter" open>/, 'a hand toggle wins');
   // Bug lane: closed once bug.md exists.
   assert.equal(briefOpen(item('41300-export-retry-fails')), false);
-  S.briefs[fresh.folder] = { text: null, error: 'Not found.' };
+  S.files[fresh.folder + '/brief.md'] = { text: null, error: 'Not found.' };
   assert.match(briefHtml(fresh), /<p class="err">Not found\.<\/p>/);
+  S.files = {};
 });

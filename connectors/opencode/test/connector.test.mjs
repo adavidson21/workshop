@@ -206,6 +206,33 @@ for (const kind of ["v1", "v2"]) {
       fs.rmSync(path.join(ws.dir, ".work", "pr-812"), { recursive: true, force: true });
     });
 
+    test("docs.start and tsd.start run /docs and /tsd in a new session, joined to their folder once it exists", async () => {
+      await rejects(call("tsd.start", { target: "../etc" }, ctx()), "bad_request", /product name or repo folders/);
+      await rejects(call("docs.start", { target: "   " }, ctx()), "bad_request", /what to document/);
+      const route = (sid) => (kind === "v1" ? `POST /session/${sid}/command` : `POST /api/session/${sid}/command`);
+      const args = (b) => (kind === "v1" ? b.arguments : b.text);
+      const name = (b) => (kind === "v1" ? b.command : b.name);
+      const d = await call("docs.start", { target: "How to run\nthe gateway locally" }, ctx());
+      await waitFor(() => fake.count(route(d.session)) === 1, "the /docs call");
+      assert.equal(name(fake.bodiesFor(route(d.session)).at(-1)), "docs");
+      assert.equal(args(fake.bodiesFor(route(d.session)).at(-1)), "How to run the gateway locally", "one line");
+      const t = await call("tsd.start", { target: "  Billing   gateway " }, ctx());
+      await waitFor(() => fake.count(route(t.session)) === 1, "the /tsd call");
+      assert.equal(name(fake.bodiesFor(route(t.session)).at(-1)), "tsd");
+      assert.equal(args(fake.bodiesFor(route(t.session)).at(-1)), "Billing gateway");
+      let st = await call("state", {}, ctx());
+      assert.ok(st.liveMode.live.others.some((o) => o.session === d.session && o.command === "/docs How to run the gateway locally"), "listed in others until its folder exists");
+      fs.mkdirSync(path.join(ws.dir, ".work", "docs-run-gateway-locally"));
+      fs.writeFileSync(path.join(ws.dir, ".work", "docs-run-gateway-locally", "sources.md"), "| Claim | Source |\n");
+      await call("refresh", {}, ctx());
+      await waitFor(async () => (await call("state", {}, ctx())).liveMode.live.items["docs-run-gateway-locally"]?.current === d.session, "the /docs session to join its folder");
+      st = await call("state", {}, ctx());
+      assert.equal(st.items.find((i) => i.folder === "docs-run-gateway-locally").kind, "docs");
+      await finish(d.session);
+      await finish(t.session);
+      fs.rmSync(path.join(ws.dir, ".work", "docs-run-gateway-locally"), { recursive: true, force: true });
+    });
+
     test("oneonone.draft runs /one-on-one <packet path> in a new session; oneonone.result reads draft.md back", async () => {
       const args = { personId: "p_test1", date: "2026-11-03" };
       const dir = path.join(ctx().home, "data", "_connectors", "opencode", "oneonones", "p_test1-2026-11-03");

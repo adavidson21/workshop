@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const VERSION = "1.7.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.8.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";

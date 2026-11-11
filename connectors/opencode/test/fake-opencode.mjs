@@ -17,7 +17,7 @@ const json = (res, status, body) => {
  * @param {string[]} [o.commands]
  * @param {string[]|null} [o.providers]  connected AI provider ids (null: the provider route is missing)
  */
-export async function startFakeOpencode({ kind, version, password = null, username = "opencode", commands = ["start", "spec", "plan", "approve", "tasks", "do-task", "review", "pr", "bug", "spike", "onboard-repo", "pr-review", "one-on-one"], providers = ["anthropic"] }) {
+export async function startFakeOpencode({ kind, version, password = null, username = "opencode", commands = ["start", "spec", "plan", "approve", "tasks", "do-task", "review", "pr", "bug", "spike", "docs", "tsd", "check-docs", "publish", "onboard-repo", "pr-review", "one-on-one"], providers = ["anthropic"] }) {
   const s = {
     kind,
     version: version || (kind === "v2" ? "2.0.4" : "1.14.2"),

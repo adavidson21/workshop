@@ -2,9 +2,12 @@
    Kept in one object so the view can be tested in Node without a page or a connection. */
 const freshUi = () => ({
   open: {}, drafts: {}, picks: {}, busy: {}, menu: null, remove: null, file: null, settings: null, start: null, repo: null,
-  // tab: inbox | chat | runs | ship | reviews | research (pages.js). run: the folder of the run page open in Runs,
-  // runTab: the section shown on it. doc: the folder open in Research.
-  tab: 'inbox', run: null, runTab: 'brief', doc: null,
+  // tab: inbox | chat | work | reviews (pages.js). run: the folder whose page is open (any flow), back: the tab it
+  // returns to. step: the step in view on a run page, per folder (flows.js). walk: Go through them in the Inbox
+  // ({i, done: {key: 1}}), or null.
+  tab: 'inbox', run: null, back: null, step: {}, walk: null,
+  // flow: the Work tab's flow filter ('all' or a flow id).
+  flow: 'all',
   // project: the project sheet; projects: the projects list (overflow menu); move: the move sheet.
   project: null, projects: false, move: null,
   // prReview: the paste box on the Reviews tab ({open, busy, error}).
@@ -26,8 +29,7 @@ export const S = {
   // PRs waiting on you, from the ADO connector's sync.prs (main.js loadInbox). state: idle, loading, ok, error, off.
   inbox: { state: 'idle', items: [], notes: [], error: null, at: 0 },
   slate: new Map(),     // ADO id -> {route, note, title}: the Slate request a run came from (Slate's summary)
-  briefs: {},           // brief.md per item folder, read through file.read: {text, error, at, loading}
-  docs: {},             // the main file of a spike, docs or TSD folder, read through file.read: {name, text, error, at, loading}
+  files: {},            // .work files shown inline ("<folder>/<file>"), read through file.read: {text, error, at, loading}
   // UI state that must survive repaints: open sections, drafts, question picks, busy buttons, overlays, the tab.
   ui: freshUi()
 };

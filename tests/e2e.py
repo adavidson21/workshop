@@ -1212,9 +1212,9 @@ def agents_checks(b, watch):
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Dispatch 2.0 has six tabs and no sidebar', af.eval_on_selector_all('.tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'chat', 'runs', 'ship', 'reviews', 'research']
+        check('Dispatch 3.0 has four tabs and no sidebar', af.eval_on_selector_all('.tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'chat', 'work', 'reviews']
               and af.locator('.side, aside').count() == 0)
-        check('#/agents/<id> opens that run on its own page, on its tab', seen(af, '.run-page#item-41610') and af.get_attribute('.tab.on', 'data-tab') == 'ship')
+        check('#/agents/<id> opens that run on its own page, on Work', seen(af, '.run-page#item-41610') and af.get_attribute('.tab.on', 'data-tab') == 'work')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/agents') and af.locator('.brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
@@ -1223,33 +1223,42 @@ def agents_checks(b, watch):
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
         check('Agents draws with shared/themes.css colors', bg == ('rgb(22, 21, 20)' if want == 'dark' else 'rgb(244, 241, 234)'))
 
-        # Every .work folder has one place: runs on Runs or Ship, spikes and TSDs in Research.
+        # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
-        for tab in ('runs', 'ship', 'research'):
+        for tab in ('inbox', 'work'):
             af.click(f'.tabs [data-tab={tab}]'); pg.wait_for_timeout(250)
             found += af.eval_on_selector_all('.page [id^="item-"]', 'els => els.map(e => e.id)')
-        check('every .work folder is on its tab', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
+        check('every .work folder is in one place', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
         af.click('.tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
         inbox = af.text_content('.page')
-        check('the Inbox has the runs waiting on you and the code review to do', 'Runs waiting on you' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
+        check('the Inbox has the run to review and the code review to do', 'Ready for your review' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
+        check('the Inbox card shows the file you are approving (file.read)', seen(af, '#item-41300 .finline .doc') and 'Root cause' in af.inner_text('#item-41300 .finline'))
 
-        # The run page: the track, the main button, and a write action sent with confirm from the click.
+        # Go through them: one at a time, with keys.
+        af.click('[data-walk=start]'); pg.wait_for_timeout(300)
+        check('Go through them shows one row at a time', af.locator('.walk .icard, .walk .rrow').count() == 1 and '1 of' in af.inner_text('.walk-n').lower())
+        af.locator('body').press('n'); pg.wait_for_timeout(250)
+        check('N skips to the next one', '2 of' in af.inner_text('.walk-n').lower())
+        af.locator('body').press('Escape'); pg.wait_for_timeout(250)
+        check('Esc stops', af.locator('.walk').count() == 0 and af.locator('#g-gates').count() == 1)
+
+        # The run page: the flow track, the main button, and a write action sent with confirm from the click.
         af.click('.page [data-open-run="41300-export-retry-fails"] >> nth=0')
         run = af.locator('.run-page')
         seen(af, '.run-page#item-41300')
         check('a run opens its page with its own Abandon button', run.get_attribute('id') == 'item-41300' and run.locator('.item-head [data-remove]').inner_text() == 'Abandon')
-        check('the track: checked, current and faint stages', run.locator('.stop.done').count() == 1 and run.locator('.stop.here .name').inner_text() == 'Bug' and run.locator('.stop:not(.done):not(.here)').count() == 3)
+        check('the flow track: checked, current and later steps', run.locator('.fstep.done').count() == 1 and run.locator('.fstep.here .nm').inner_text() == 'Root cause' and run.locator('.fstep.later').count() == 4)
         approve = run.locator('.do [data-run]')
         check('one main button per step; the command is in the tooltip', run.locator('.do .btn.primary').count() == 1 and '/approve 41300' in approve.get_attribute('title'))
         approve.click(); pg.wait_for_timeout(1500)
         r = ask({'requests': True})
         cmds = [x['body'] for x in r['bodies'] if x['route'].endswith('/command')]
         check('Approve only runs /approve in opencode through the connector', {'command': 'approve', 'arguments': '41300'} in cmds and 'Started /approve 41300' in pg.inner_text('#toast'))
-        af.click('.run-page [data-run-tab=files]')
-        check('the run page has Tasks, Repos, Files and Activity', af.eval_on_selector_all('.rtab', 'els => els.map(e => e.dataset.runTab)') == ['tasks', 'repos', 'files', 'activity'] and af.locator('.rtab-body [data-name="bug.md"]').count() == 1)
+        af.click('.run-page .run-details > summary')
+        check('the run page folds Repos, files and activity under the step', af.locator('.run-details[open] [data-name="bug.md"]').count() == 1 and af.locator('.rtab').count() == 0)
 
         # A file opens in the app.
-        run.locator('.rtab-body [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
+        run.locator('.run-details [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
         check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
         check('the file sheet offers Open in Folio', af.locator('.sheet [data-open-notebook]').count() == 1)
         # Approve just started a session on this run, so the sheet is read-only until Tandem stops (lib/docs.mjs refuses too).
@@ -1257,7 +1266,7 @@ def agents_checks(b, watch):
               af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
         af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
         af.click('[data-close-run]')
-        check('Back from a run page returns to its list', seen(af, '.page .rrow#item-41207') and af.get_attribute('.tab.on', 'data-tab') == 'runs')
+        check('Back from a run page returns to the Inbox it was opened from', seen(af, '#g-code') and af.get_attribute('.tab.on', 'data-tab') == 'inbox')
 
         # Prompts: shown in the Inbox with where they came from, counted on the rail badge, answered there.
         before = int(pg.inner_text('.app-btn[data-app=agents] .badge') or 0)
@@ -1274,10 +1283,12 @@ def agents_checks(b, watch):
         af.click('.tabs [data-tab=chat]'); pg.wait_for_timeout(400)
         check('Chat opens on Ask or capture, with the hub box in it', af.locator('.chat-item.new.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
 
-        # Ship: copy buttons, then Review instead of Push. The code review (review.html) reads the diff from git
-        # through the connector. Approve pushes nothing; Push to origin, after the shared git confirm, pushes the pr.md branch.
-        af.click('.tabs [data-tab=ship]'); pg.wait_for_timeout(300)
-        ship = af.locator('#item-41610')
+        # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
+        # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
+        # shared git confirm, pushes the pr.md branch.
+        af.click('.tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
+        af.click('#item-41610 [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
+        ship = af.locator('.run-page#item-41610')
         branch = 'dev/bug/41610-rate-limit-headers'
         check('the PR card has Copy title, Copy description, and Review instead of Push', ship.locator('button.copy', has_text='Copy title').count() == 1
               and ship.locator('button.copy', has_text='Copy description').count() == 1 and ship.locator('[data-review]', has_text='Review').count() == 1
@@ -1307,9 +1318,10 @@ def agents_checks(b, watch):
         af.wait_for_selector('#item-41610', timeout=20000)
         check('Back to Dispatch returns to the run', af.locator('.run-page#item-41610').count() == 1)
 
-        # Remove: the dialog, typing the name, and the folder gone (from Research).
-        af.click('.tabs [data-tab=research]'); pg.wait_for_timeout(300)
-        af.locator('#item-spike-cache-options [data-remove]').click(); pg.wait_for_timeout(300)
+        # Remove: the dialog, typing the name, and the folder gone (from the spike's page on Work).
+        af.click('.tabs [data-tab=work]'); pg.wait_for_timeout(300)
+        af.click('#item-spike-cache-options [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
+        af.locator('.run-page#item-spike-cache-options .item-head [data-remove]').click(); pg.wait_for_timeout(300)
         go = af.locator('[data-remove-go]')
         check('Remove asks you to type the name first', go.is_disabled() and 'cannot be undone' in af.inner_text('.sheet'))
         af.fill('.sheet input[data-draft]', 'spike-cache-options'); go.click(); pg.wait_for_timeout(1500)
@@ -1348,26 +1360,28 @@ def agents_checks(b, watch):
         sp.goto(HOSTED + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
         check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.run-page#item-41502').count() == 1)
 
-        # Projects (through the connector) as a filter on Runs and Ship; the filter stays in this browser.
+        # Projects (through the connector) as a filter on Work; the filter stays in this browser.
         check('the Inbox tab counts what waits on you', int(sp.inner_text('.tabs [data-tab=inbox] .cnt') or 0) >= 1)
-        sp.click('.tabs [data-tab=ship]')
-        check('Ship lists runs at Ship with their PRs, on one column', seen(sp, '#item-41610') and sp.inner_text('.scope-head h2') == 'Ship' and sp.locator('aside').count() == 0)
-        sp.click('#item-41610 [data-open-run]')
-        check('Open run goes from Ship to the run page', seen(sp, '.run-page#item-41610'))
+        sp.click('.tabs [data-tab=work]')
+        check('Work lists what is in flight, on one column, and points at the Inbox', seen(sp, '#item-41207') and sp.inner_text('.scope-head h2') == 'Work' and sp.locator('aside').count() == 0 and sp.locator('.inbox-prs.waiting').count() == 1)
+        sp.click('#item-41207 [data-open-run]')
+        check('a row opens its run page', seen(sp, '.run-page#item-41207'))
         sp.click('.tabs [data-tab=reviews]')
         check('Reviews is its own tab', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Reviews')
         sp.click('[data-more-menu]'); sp.click('[data-projects-open]'); sp.click('[data-proj-new]')
         sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]'); sp.wait_for_timeout(800)
-        sp.click('.tabs [data-tab=runs]')
-        check('New project saves through the connector and Runs shows only its runs', seen(sp, '.fchip.on') and 'Orders API' in sp.inner_text('.fchip.on') and sp.locator('.page .rrow').count() == 0)
+        sp.click('.tabs [data-tab=work]')
+        check('New project saves through the connector and Work shows only its runs', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]') and sp.locator('.page .rrow').count() == 0)
         sp.click('[data-filter-project=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")'); sp.wait_for_timeout(800)
         sp.click('.fchip:has-text("Orders API")')
         check('a run moves to a project from its chip', seen(sp, '.page .rrow#item-41207') and sp.locator('.page .rrow').count() == 1)
         sp.click('.top-start')
-        check('Start work starts in the project filtered to', sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
+        check('Start work opens on the flow picker, the presets in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['feature', 'bug', 'quick', 'spike', 'epic', 'docs', 'tsd'])
+        sp.click('.fcard[data-flow=quick]')
+        check('a flow shows its steps, and starts in the project filtered to', seen(sp, '.fline') and sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
         sp.keyboard.press('Escape')
-        sp.reload(); seen(sp, '.tabs'); sp.click('.tabs [data-tab=runs]')
-        check('the project filter stays in this browser after a reload', seen(sp, '.fchip.on') and 'Orders API' in sp.inner_text('.fchip.on'))
+        sp.reload(); seen(sp, '.tabs'); sp.click('.tabs [data-tab=work]')
+        check('the project filter stays in this browser after a reload', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]'))
 
         # Settings, Repos: Hide leaves a workspace repo out (opencode hiddenRepos), Show brings it back.
         pg.goto(HOSTED + '/#/settings/repos'); pg.wait_for_timeout(800)

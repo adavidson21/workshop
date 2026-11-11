@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "2.5.0",
-  "description": "Work items, the opencode agents working on them, and first-pass PR reviews.",
+  "version": "3.0.0",
+  "description": "Flows for the opencode agents: build a feature, fix a bug, investigate, plan an epic, write docs. Your Inbox, the work in flight, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 20,
@@ -217,6 +217,7 @@
     "vendor/monaco/vs/yaml-C-RIivnc.js",
     "js/summary.js",
     "js/digest.js",
-    "js/slate-handoff.js"
+    "js/slate-handoff.js",
+    "js/flows.js"
   ]
 }

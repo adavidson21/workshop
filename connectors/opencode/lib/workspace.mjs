@@ -168,6 +168,34 @@ export function startSpike({ topic }) {
 }
 const spikeFolders = () => ((model && model.items) || []).filter((i) => /^spike-/.test(i.folder)).map((i) => i.folder);
 
+/** The .work folders with a prefix, from the last read of .work. */
+const foldersWith = (prefix) => ((model && model.items) || []).filter((i) => i.folder.startsWith(prefix)).map((i) => i.folder);
+/** A find() for linkFrom: the first <prefix> folder that was not there when the session started. */
+const firstNew = (prefix) => {
+  const before = new Set(foldersWith(prefix));
+  return () => foldersWith(prefix).find((f) => !before.has(f)) || null;
+};
+
+/** /docs <what to document>: the writer asks where the doc lives and who reads it, then writes it and
+ *  .work/docs-<name>/sources.md for the fact check. Linked to that folder once it exists. */
+export function startDocs({ target }) {
+  const t = String(target || "").replace(/[\r\n]+/g, " ").trim();
+  if (!t) throw httpError(400, "Say what to document.");
+  if (t.length > 500) throw httpError(400, "Keep it under 500 characters.");
+  return runLoose("docs", t, firstNew("docs-"));
+}
+
+// What /tsd takes: a product name from the repo map, or repo folders separated by spaces (eng-agents core/commands/tsd.md).
+export const TSD_TARGET = /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,299}$/;
+/** /tsd <product or repo folders>: a technical spec with diagrams, in .work/tsd-<name>/. Linked to that folder once
+ *  it exists (an existing tsd- folder for the same product is updated in place, so the session links when it changes). */
+export function startTsd({ target }) {
+  const t = String(target || "").replace(/\s+/g, " ").trim();
+  if (!t) throw httpError(400, "Name the product, or the repo folders.");
+  if (!TSD_TARGET.test(t) || /(^|[\/])\.\.([\/]|$)/.test(t)) throw httpError(400, "A product name or repo folders separated by spaces: letters, numbers, spaces, dots, dashes, underscores and /.");
+  return runLoose("tsd", t, firstNew("tsd-"));
+}
+
 /**
  * The PR number in an Azure DevOps pull request link (.../_git/<repo>/pullrequest/<number>), and the link
  * without its query or hash. Null if it is not one.
