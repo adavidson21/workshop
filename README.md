@@ -8,7 +8,7 @@ One page for an engineering manager's whole day: what to work on next, new reque
 
 | App | What it's for | Needs |
 | --- | --- | --- |
-| **Home** | Your day at a glance and the **Get started** checklist | Nothing |
+| **Needs you** | A panel from the top bar on every app: what waits on you across apps, what's coming up, Weekly status and the **Get started** checklist | Nothing |
 | **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps adds your work items and PRs) |
 | **Slate** | Take a request from idea to delegated or built | Nothing (Azure DevOps or Dispatch make it more useful) |
 | **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
@@ -75,9 +75,9 @@ Work mode runs Workshop from a copy on your computer that changes only when you 
 
 If your company blocks piping a script into PowerShell, use the by-hand steps in [docs/install.md, Work mode](docs/install.md#work-mode). To add Dispatch at work (only if your company allows a coding agent), see [Dispatch in work mode](docs/install.md#work-mode).
 
-### Step 2: Follow Get started on Home
+### Step 2: Follow Get started
 
-Home opens with a **Get started** checklist. Each step ticks itself off when it's done, tells you exactly what to do, and can be skipped:
+The first time, the **Needs you** panel opens with a **Get started** checklist (it opens from the top bar any time after). Each step ticks itself off when it's done, tells you exactly what to do, and can be skipped:
 
 1. **Connect Workshop:** pick Work computer or Personal computer.
 2. **Add yourself** in Settings, People.
@@ -87,16 +87,16 @@ Home opens with a **Get started** checklist. Each step ticks itself off when it'
 6. **Add your team** and its area paths (skipped without Azure DevOps).
 7. **Add your first task** in Docket and **log your first receipt** in Rapport.
 
-When the checklist is done, you're set up. **Hide** puts it away; **Get started** next to your name brings it back.
+When the checklist is done, you're set up. **Hide** puts it away; **Get started** in the panel's More menu brings it back.
 
 ## Your day in Workshop
 
-- **Morning:** open **Home**. **Needs you** lists everything waiting on you. Then **Plan today**.
+- **Morning:** Workshop opens on **Docket's Today**. **Needs you** in the top bar (its count is on the button) lists everything waiting on you in the other apps.
 - **Any time:** press `Ctrl+.` (`Cmd+.` on a Mac) to capture from anywhere: `t` task, `w` waiting on someone, `r` receipt, `n` note, `p` roadmap idea, `?` ask Tandem.
 - **New requests:** **Slate**.
 - **Building:** **Dispatch**.
 - **1:1s:** **Rapport** preps you with what changed since last time.
-- **End of day:** **Wrap up** on Home. On Fridays, **Weekly status** drafts your update.
+- **End of day:** **Wrap up** on Docket's Today. On Fridays, **Weekly status** in Needs you drafts your update.
 
 Shortcuts: `Alt+1`, `Alt+2` and so on switch apps. `Ctrl+K` (`Cmd+K`) opens the command palette.
 

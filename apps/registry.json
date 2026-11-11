@@ -5,13 +5,14 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "home",
-        "name": "Home",
-        "version": "3.0.0",
-        "description": "Everything at a glance: what needs you across apps, your day in one card, what is coming up and what you finished.",
+        "name": "Needs you",
+        "version": "4.0.0",
+        "description": "What needs you across apps, what is coming up and what you finished this week. Opens from the top bar on every app.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 0,
-        "home": true,
+        "panel": true,
+        "background": true,
         "modes": [
           "local",
           "hosted",
@@ -41,7 +42,6 @@
           "home.css",
           "js/data.js",
           "js/main.js",
-          "js/capture.js",
           "js/setup.js",
           "js/view.js"
         ]

@@ -7,7 +7,7 @@
    Adding an app is adding an apps/<id>/ folder with an app.json. No shell or service worker edit is needed.
 
    A manifest app is a same-origin page in a frame, kept loaded while hidden so its state survives
-   switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open,
+   switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open, route.set,
    toast, badge, notify, status.set, status.clear, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
@@ -25,6 +25,8 @@ let apps = [];            // [{id, manifest, base, frame?, ...}]
 let byId = {};
 let railApps = [];        // apps with a rail button: every app but the home page
 let homeApp = null;       // the app with home: true, opened by the logo and the plain address
+let panelApp = null;      // the app with panel: true, shown over the current app from a top bar button (Needs you)
+let aliasTo = {};         // app names and string aliases -> app id, for addresses like #/docket (docs/app-manifest.md, Addresses)
 let hostedBy = {};        // hosted app id -> {host, path}: shown inside another app (docs/app-manifest.md, Hosted apps)
 let connectors = [];      // GET /api/connectors, agent backend only
 let current = null;
@@ -73,7 +75,7 @@ async function loadApps() {
   const off = await appsOff();
   apps = list.map(a => ({ id: a.manifest.id, manifest: a.manifest, base: String(a.base).replace(/^\//, '') }))
     .filter(a => !a.manifest.modes || a.manifest.modes.includes(env.mode))
-    .filter(a => a.manifest.home === true || a.id === 'settings' || !off.has(a.id))
+    .filter(a => a.manifest.home === true || a.manifest.panel === true || a.id === 'settings' || !off.has(a.id))
     .sort((a, b) => (a.manifest.order ?? Infinity) - (b.manifest.order ?? Infinity) || a.manifest.name.localeCompare(b.manifest.name));
   // An app shown inside another one (manifest `hosts`) leaves the rail and the palette while both are on; its
   // addresses open in the host (resolveApp).
@@ -83,7 +85,15 @@ async function loadApps() {
   apps = apps.filter(a => !hostedBy[a.id]);
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
   homeApp = apps.find(a => a.manifest.home === true) || null;
-  railApps = apps.filter(a => a !== homeApp);
+  panelApp = apps.find(a => a.manifest.panel === true && a !== homeApp) || null;
+  railApps = apps.filter(a => a !== homeApp && a !== panelApp);
+  // Names and aliases as addresses: an id always wins, then the first app by order.
+  aliasTo = {};
+  const key = w => String(w).toLowerCase().replace(/\s+/g, '');
+  for (const a of apps) for (const w of [a.manifest.name, ...(a.manifest.aliases || []).filter(x => typeof x === 'string')]) {
+    const k = key(w);
+    if (k && !byId[k] && !aliasTo[k]) aliasTo[k] = a.id;
+  }
 }
 
 // The first required connector of an app that is not usable right now, or null.
@@ -135,7 +145,7 @@ async function loadIcon(app) {
   try {
     const r = await fetch(app.base + (app.manifest.icon || 'icon.svg'));
     const clean = r.ok && cleanSvg(await r.text());
-    const slot = document.querySelector(`.app-btn[data-app="${app.id}"] .ico`);
+    const slot = document.querySelector(`.app-btn[data-app="${app.id}"] .ico, #panelBtn[data-app="${app.id}"] .ico`);
     if (clean && slot) slot.innerHTML = clean;
   } catch (e) { /* keep the blank icon */ }
 }
@@ -152,11 +162,13 @@ function renderTopbar() {
       + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span>`;
   bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${crumbs}</nav>`
     + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
+    + (panelApp && !SOLO ? `<button type="button" class="panelbtn" id="panelBtn" data-app="${panelApp.id}" aria-expanded="false" aria-controls="spanel" title="${esc(panelApp.manifest.description || panelApp.manifest.name)}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(panelApp.manifest.name)}</span><span class="badge num" hidden></span></button>` : '')
     + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
     + (SOLO ? `<button type="button" class="popbtn" id="popBtn" title="Back to Workshop" aria-label="Back to Workshop">${BACK_ICON}</button>`
       : `<button type="button" class="popbtn" id="popBtn" hidden>${POP_ICON}</button>`)
     + WorkshopTheme.toggleHtml();
   $('#capBtn').addEventListener('click', () => capture().toggle());
+  if ($('#panelBtn')) { $('#panelBtn').addEventListener('click', togglePanel); loadIcon(panelApp); }
   $('#popBtn').addEventListener('click', () => SOLO ? popIn() : popOut(current));
   focus.mount(bar, $('#capBtn'));
 }
@@ -194,7 +206,7 @@ function popOut(id, path = '') {
   if (app.frame && current === id) sendTo(app, 'visible', { visible: false }); // unsaved edits save first
   const win = window.open(url, 'workshop-solo-' + id, `popup,width=${w},height=${h}`);
   if (!win) { toast('Your browser blocked the window. Allow pop-ups for this site and try again.', null, null, 8000, 'warn'); return; }
-  if (current === id) go(homeId());
+  if (current === id) { const other = homeId() !== id ? homeId() : (railApps.find(a => a.id !== id) || {}).id; if (other) go(other); }
 }
 // From a pop-out window: the main Workshop window (opened or brought forward), at an address.
 function toMain(hash) {
@@ -208,6 +220,46 @@ function popIn() {
   if (app && app.frame) sendTo(app, 'visible', { visible: false });
   setTimeout(() => { toMain('#/' + SOLO); window.close(); }, 150);
 }
+
+/* ---------- the panel app (manifest panel: true, docs/app-manifest.md): Needs you, over the app you are in ----------
+   Opened from its top bar button, #/<id> or ws.open. A click on the dimmed page, Esc or the button closes it. The
+   app keeps loading in the background (its badge is on the button), so opening it is instant. */
+function panelPane() {
+  let el = document.getElementById('spanel');
+  if (!el) {
+    const scrim = document.createElement('div');
+    scrim.className = 'spanel-scrim'; scrim.id = 'spanelScrim'; scrim.hidden = true;
+    scrim.addEventListener('click', closePanel);
+    el = document.createElement('aside');
+    el.className = 'spanel'; el.id = 'spanel'; el.hidden = true;
+    el.setAttribute('aria-label', panelApp ? panelApp.manifest.name : 'Panel');
+    el.innerHTML = '<section class="spane"></section>';
+    document.body.append(scrim, el);
+  }
+  return el.querySelector('.spane');
+}
+const panelOpen = () => { const el = document.getElementById('spanel'); return !!el && !el.hidden; };
+function openPanel() {
+  if (!panelApp || SOLO || panelOpen()) return;
+  const pane = panelPane();
+  document.getElementById('spanel').hidden = false;
+  document.getElementById('spanelScrim').hidden = false;
+  document.body.classList.add('panel-open');
+  const b = $('#panelBtn'); if (b) { b.setAttribute('aria-expanded', 'true'); b.classList.add('on'); }
+  if (!mounted.has(panelApp.id)) ensureMounted(panelApp, pane);
+  sendTo(panelApp, 'visible', { visible: true });
+  focusFrame(panelApp);
+}
+function closePanel() {
+  if (!panelOpen()) return;
+  document.getElementById('spanel').hidden = true;
+  document.getElementById('spanelScrim').hidden = true;
+  document.body.classList.remove('panel-open');
+  const b = $('#panelBtn'); if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('on'); }
+  sendTo(panelApp, 'visible', { visible: false });
+  const app = byId[current]; if (app) focusFrame(app);
+}
+function togglePanel() { panelOpen() ? closePanel() : openPanel(); }
 
 function markRail() {
   markTopbar();
@@ -231,7 +283,7 @@ function setBadge(appId, count, breakThrough) {
 }
 function renderBadges() { for (const id of badgeRaw.keys()) paintBadge(id); }
 function paintBadge(appId) {
-  const el = document.querySelector(`.app-btn[data-app="${appId}"] .badge`);
+  const el = document.querySelector(`.app-btn[data-app="${appId}"] .badge, #panelBtn[data-app="${appId}"] .badge`);
   if (!el) return;
   const count = focus.badgeFor(badgeRaw.get(appId));
   const n = Number.isInteger(count) ? Math.max(0, Math.min(999, count)) : 0;
@@ -252,6 +304,8 @@ function resolveApp(id, path = '') {
     const toId = typeof to === 'string' ? to : to.id;
     if (byId[toId]) { if (typeof to !== 'string') path = [to.path, path].filter(Boolean).join('/'); id = toId; }
   }
+  // Then an app's name or alias (#/docket, #/rapport); an id or a renamed address always wins.
+  if (!byId[id] && aliasTo[String(id).toLowerCase()]) id = aliasTo[String(id).toLowerCase()];
   const h = hostedBy[id];
   if (h && byId[h.host]) return { id: h.host, path: [h.path, path].filter(Boolean).join('/') };
   return { id, path };
@@ -262,6 +316,7 @@ function parseHash() {
   return { id: byId[r.id] ? r.id : null, path: r.path };
 }
 function paneOf(app) {
+  if (app === panelApp) return panelPane();
   let pane = document.getElementById('pane-' + app.id);
   if (!pane) {
     pane = document.createElement('section');
@@ -276,7 +331,13 @@ function mountBackground() {
   for (const app of apps) if (app.manifest.background && !mounted.has(app.id)) ensureMounted(app, paneOf(app));
 }
 function route() {
-  const parsed = parseHash();
+  let parsed = parseHash();
+  // #/<panel app>: open the panel over the app you are in (or the first one, on a fresh load).
+  if (panelApp && parsed.id === panelApp.id) {
+    openPanel();
+    if (current && byId[current]) { history.replaceState(null, '', addressOf(byId[current]) || location.pathname + location.search); return; }
+    parsed = { id: null, path: '' };
+  } else closePanel();
   if (SOLO && byId[SOLO] && parsed.id !== SOLO) {
     // A pop-out window shows only its app; anything else opens in the main window.
     if (parsed.id) toMain(location.hash);
@@ -298,12 +359,22 @@ function route() {
   focusFrame(app);
   setTitle();
   markRail();
-  // Tidy the address: home is the bare page, and a one-time path is dropped so a reload does not repeat it.
-  const want = id === homeId() && !SOLO ? '' : '#/' + id;
+  // Tidy the address: home is the bare page, and a one-time path is dropped so a reload does not repeat it. An app
+  // that reports where it is (ws.route.set, docs/sdk.md Routes) keeps its path; it answers a one-time path itself.
+  const want = app.reportsRoute ? addressOf(app, parsed.path) : id === homeId() && !SOLO ? '' : '#/' + id;
   if (location.hash !== want) history.replaceState(null, '', want || location.pathname + location.search);
+}
+const encPath = path => String(path).split('/').map(encodeURIComponent).join('/');
+/** The address for an app at a path (its last reported one when none is given): '' for the home page with none. */
+function addressOf(app, path) {
+  const p = path || app.lastPath || '';
+  if (!p && app.id === homeId() && !SOLO) return '';
+  return '#/' + app.id + (p ? '/' + encPath(p) : '');
 }
 function go(id, path) {
   ({ id, path } = resolveApp(id, path || ''));
+  if (panelApp && id === panelApp.id) { if (SOLO) toMain('#/' + id); else openPanel(); return; }
+  closePanel();
   const h = '#/' + id + (path ? '/' + String(path).split('/').map(encodeURIComponent).join('/') : '');
   if (SOLO && id !== SOLO) { toMain(h); return; }
   if (location.hash === h) route(); else location.hash = h;
@@ -388,11 +459,21 @@ function handleRequest(app, method, p) {
       const queued = app.pendingCommands || [];
       app.pendingCommands = [];
       if (queued.length) setTimeout(() => queued.forEach(c => sendTo(app, 'command', { id: c })));
-      return { theme: themeNow(), route, visible: current === app.id };
+      return { theme: themeNow(), route, visible: app === panelApp ? panelOpen() : current === app.id };
     }
     case 'open': {
       if (!byId[resolveApp(p.app).id]) throw fail('not_found', `There is no ${p.app} app here.`);
       go(p.app, p.path || '');
+      return null;
+    }
+    // Where the app is now (docs/sdk.md, Routes): the address follows it. pushState and replaceState fire no
+    // hashchange, so nothing is sent back; Back and Forward to these entries send a route event (route).
+    case 'route.set': {
+      app.reportsRoute = true;
+      app.lastPath = typeof p.path === 'string' ? p.path.slice(0, 500) : '';
+      if (app === panelApp || current !== app.id) return null;
+      const want = addressOf(app);
+      if (location.hash !== want) history[p.replace ? 'replaceState' : 'pushState'](null, '', want || location.pathname + location.search);
       return null;
     }
     case 'toast': {
@@ -601,6 +682,7 @@ function comboOf(e) {
 }
 function onKey(e) {
   if (e.key === 'Escape' && palette) { e.preventDefault(); closePalette(); return; }
+  if (e.key === 'Escape' && panelOpen()) { e.preventDefault(); e.stopPropagation(); closePanel(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'Period') { e.preventDefault(); e.stopPropagation(); closePalette(); capture().toggle(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); palette ? closePalette() : openPalette(); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);

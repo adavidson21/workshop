@@ -214,7 +214,8 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     tid = frame.evaluate("window.__prioritizer.state.tasks.find(t => t.title === 'Fix login').id")
     pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
-    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url == HUB + '/#/prioritizer')
+    # Docket is the first rail app, so its plain address is the bare page; from Docket 8.0.0 it writes where it is.
+    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/prioritizer/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
     pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
@@ -557,8 +558,8 @@ def notes_ecosystem(pg, nf):
     nf.click('[data-act=send][data-kind=task]'); pg.wait_for_timeout(1200)
     check('Notes: a sent action item shows Sent', 'sent' in nf.inner_text('.sendables').lower())
     nf.click('#preview .app-link'); pg.wait_for_timeout(1500)
-    # The shell opens Docket at the route, then tidies the address to #/prioritizer (shell.js, route).
-    check('Notes: clicking a ws: link opens that app', pg.url.endswith('#/prioritizer'))
+    # The shell opens Docket at the route, then tidies the address (Docket is the plain address), or Docket 8.0.0 writes its place.
+    check('Notes: clicking a ws: link opens that app', pg.url == HUB + '/' or '#/prioritizer/' in pg.url)
     df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
     pg.wait_for_timeout(1500)
     check('Docket adds the sent action item as a task, with no second click', 'Draft the rollout plan' in df.inner_text('body'))
@@ -589,15 +590,12 @@ def notes_ecosystem(pg, nf):
         about = df.inner_text('.d-about') if df.locator('.d-about').count() else ''
         check("Docket: the task's details list the note that links to it, and Copy link", 'Copy link' in about and today.split('\n')[0].lstrip('# ') in about)
         if 'Copy link' not in about or today.split('\n')[0].lstrip('# ') not in about: print('      about:', about)
-    pg.click('#rail .mark'); pg.wait_for_timeout(1500)
-    hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-    home_text = hf.inner_text('#app').lower()
-    check('Home shows Recent notes from Notes\' summary', 'recent notes' in home_text and 'team sync' in home_text)
-    if 'recent notes' not in home_text: print('      Home:', home_text[:300].replace('\n', ' | '))
-    # Plan 5: "n today: ..." in Home's quick capture lands in today's note.
-    hf.fill('.cap-in', 'n today: Priya asked about the offsite')
-    check('quick capture: n today: says it goes to today\'s note', "today's note" in hf.inner_text('.cap-preview').lower())
-    hf.press('.cap-in', 'Enter'); pg.wait_for_timeout(600)
+    # Plan 5: "n today: ..." in the top bar's Capture lands in today's note.
+    pg.click('#capBtn'); pg.wait_for_timeout(800)
+    pg.fill('.capbar .cap-in', 'n today: Priya asked about the offsite')
+    check('quick capture: n today: says it goes to today\'s note', "today's note" in pg.inner_text('.capbar .cap-preview').lower())
+    pg.press('.capbar .cap-in', 'Enter'); pg.wait_for_timeout(600)
+    pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
     pg.evaluate("location.hash = '#/notes/today'"); pg.wait_for_timeout(2500)
     nf = next(f for f in pg.frames if '/apps/notes/' in f.url)
     check('Notes: the capture is a bullet under ## Notes in today\'s note', '- Priya asked about the offsite' in nf.input_value('#editor'))
@@ -734,7 +732,7 @@ def agent_checks(b, watch):
         check('the paired hub runs in hosted mode', ap.evaluate('document.documentElement.dataset.mode') == 'hosted')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
         check('sample apps in the site\'s registry appear in the rail', rail[0] == 'prioritizer' and 'pages' in rail and 'board' in rail and rail[-1] == 'settings')
-        check('the hub opens Home at the plain address', any('/apps/home/' in f.url for f in ap.frames) and ap.title() == 'Home · Workshop')
+        check('the hub opens the first rail app at the plain address', ap.title() == 'Docket · Workshop' and not ap.is_visible('#spanel'))
         ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
         check('Docket loads in the hub', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
         pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
@@ -1135,19 +1133,17 @@ def folder_checks(b, watch):
 
     # Home waits the same way: a message instead of an empty page, no profile editing, then loads on Allow.
     p4 = ctx.new_page(); watch(p4)
-    p4.goto(HUB + '/'); p4.wait_for_timeout(1800)
+    p4.goto(HUB + '/#/home'); p4.wait_for_timeout(1800)
     hf4 = next(f for f in p4.frames if '/apps/home/' in f.url)
     seen(hf4, '.waiting')
-    check('meanwhile Home says to allow the folder instead of showing an empty page',
+    check('meanwhile the Needs you panel says to allow the folder instead of showing an empty list',
           'Allow Workshop to use your folder to see your day' in hf4.inner_text('#app') and 'in the bar at the top of Workshop' in hf4.inner_text('#app')
-          and hf4.locator('.yourday').count() == 0 and 'No tasks yet' not in hf4.inner_text('#app'))
-    check('while waiting, Home offers no profile editing and saves nothing',
-          hf4.locator('[data-edit-profile]').count() == 0 and pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) is None)
+          and hf4.locator('.card.inbox').count() == 0)
+    check('while waiting, the panel saves nothing', pg.evaluate(OPFS, ['Workshop/home/setup.json', None]) is None)
+    p4.keyboard.press('Escape'); p4.wait_for_timeout(200)
     p4.locator('#folderBar [data-allow]').click()
-    seen(hf4, '.yourday')
-    check('after Allow, Home loads the board without a reload', hf4.locator('.waiting').count() == 0 and hf4.locator('.yourday').count() == 1)
-    hf4.click('.hmore summary'); hf4.click('[data-edit-profile]'); hf4.fill('input[name=name]', 'Riley Park'); hf4.click('.pform .btn.primary'); p4.wait_for_timeout(600)
-    check('and Home saves the profile to the folder again', 'Riley Park' in (pg.evaluate(OPFS, ['Workshop/home/profile.json', None]) or ''))
+    seen(hf4, '.card.inbox')
+    check('after Allow, the panel loads Needs you without a reload', hf4.locator('.waiting').count() == 0 and hf4.locator('.card.inbox').count() == 1)
 
     # Notes on the folder: the notes and images are files in Workshop/notes/.
     p4.evaluate("location.hash = '#/notes'"); p4.wait_for_timeout(1500)
@@ -1421,6 +1417,14 @@ def main():
     serve(8804, functools.partial(WithSamples, directory=ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch()
+        # The Needs you panel opens by itself once per browser while Get started is unfinished (apps/home). Every
+        # context here is a new browser, so mark it seen, except where the first-run check asks for a fresh one.
+        new_context = b.new_context
+        def seen_context(*a, fresh=False, **k):
+            c = new_context(*a, **k)
+            if not fresh: c.add_init_script("try { localStorage.setItem('workshop.home.introduced', '1') } catch (e) {}")
+            return c
+        b.new_context = seen_context
         ctx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
         errors, csp, requests = [], [], []
         # Every request from every page and frame, including the service worker's.
@@ -1440,13 +1444,18 @@ def main():
         check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
         check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
-        check('opens on Home at the plain address', pg.url == HUB + '/' and pg.title() == 'Home · Workshop' and any('/apps/home/' in f.url for f in pg.frames))
-        hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        check('Home has no rail button, and the logo shows it is open', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#rail .mark.on').count() == 1)
-        seen(hf, '.hello h1')
-        check('Home with an empty board says so', 'No tasks yet' in hf.inner_text('#app'))
+        check('opens on Docket, the first rail app, at the plain address', pg.url == HUB + '/' and pg.title() == 'Docket · Workshop')
+        check('Needs you is a button in the top bar, not a page or a rail button', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#panelBtn').is_visible()
+              and pg.inner_text('#panelBtn .lbl') == 'Needs you' and pg.locator('#rail .mark.on').count() == 0)
+        fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
+        fp.goto(HUB + '/'); fp.wait_for_timeout(3000)
+        ff = next((f for f in fp.frames if '/apps/home/' in f.url), None)
+        check('on a new browser the Needs you panel opens once, with Get started', fp.is_visible('#spanel') and ff is not None and 'Set up Workshop' in ff.inner_text('#app'))
+        fp.reload(); fp.wait_for_timeout(3000)
+        check('and only once', not fp.is_visible('#spanel'))
+        fresh.close()
         pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
-        check('the logo is not marked when another app is open', pg.locator('#rail .mark.on').count() == 0 and pg.url == HUB + '/#/prioritizer')
+        check('the rail button for the first app keeps the plain address', pg.url == HUB + '/')
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
         check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
@@ -1478,27 +1487,31 @@ def main():
         pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
         check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
 
-        pg.click('#rail .mark'); pg.wait_for_timeout(800)
+        pg.click('#panelBtn'); pg.wait_for_timeout(800)
         hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        seen(hf, '.yourday')
-        check('Home shows your day from Docket in one card, with one button into Docket', hf.locator('.yourday').count() == 1 and hf.locator('.yourday .ch .btn[data-open=prioritizer]').count() == 1)
-        hf.click('.hmore summary'); hf.click('[data-edit-profile]'); hf.fill('input[name=name]', 'Test User'); hf.click('.pform .btn.primary'); pg.wait_for_timeout(500)
-        check('Home saves the profile name', 'Test' in hf.inner_text('.hello h1') and hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); return (await ws.data.get('profile')).meta.name; }") == 'Test User')
-        hf.fill('.cap-in', 'w keys from the vendor fri')
-        check('quick capture previews a waiting-on task before Enter', 'waiting on' in hf.inner_text('.cap-preview').lower())
-        hf.press('.cap-in', 'Enter'); pg.wait_for_timeout(600)
-        saved = hf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.waiting, i.text]); }")
-        check('quick capture saves an accepted handoff to Docket', saved == [['prioritizer', True, True, 'Keys from the vendor']] and hf.locator('.cap-recent li').count() == 1)
-        hf.locator('.cap-undo').first.click(); pg.wait_for_timeout(600)
-        check('Undo withdraws the capture', hf.locator('.cap-recent li').count() == 0)
-        hf.fill('.cap-in', 'what version is the sample api on?'); hf.press('.cap-in', 'Enter'); pg.wait_for_timeout(800)
-        check('a question in quick capture opens Dispatch', pg.url.endswith('#/agents'))
-        pg.click('#rail .mark'); pg.wait_for_timeout(600)
-        hf = next(f for f in pg.frames if '/apps/home/' in f.url)
-        check('Home has one Your day card for Docket, no tiles, Up next, Day plan card or People of its own', hf.locator('.yourday').count() == 1 and hf.locator('.tile').count() == 0 and 'Up next' not in hf.inner_text('#app') and hf.locator('.daycard').count() == 0)
-        hf.click('.yourday .ch [data-open=prioritizer][data-path=today]'); pg.wait_for_timeout(1200)
+        seen(hf, '.card.inbox')
+        check('the Needs you panel opens over the app, with no copy of Docket\'s day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
+              and hf.locator('#capture').count() == 0 and pg.url.endswith('#/agents'))
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+        check('Esc closes the panel', not pg.is_visible('#spanel'))
+        pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(800)
+        check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
+        pg.click('#spanelScrim', position={'x': 40, 'y': 300}); pg.wait_for_timeout(300)
+        check('a click on the page behind closes the panel', not pg.is_visible('#spanel'))
+        pg.click('#capBtn'); pg.wait_for_timeout(800)
+        pg.fill('.capbar .cap-in', 'w keys from the vendor fri')
+        check('quick capture previews a waiting-on task before Enter', 'waiting on' in pg.inner_text('.capbar .cap-preview').lower())
+        pg.press('.capbar .cap-in', 'Enter'); pg.wait_for_timeout(600)
+        saved = pg.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.waiting, i.text]); }")
+        check('quick capture saves an accepted handoff to Docket', saved == [['prioritizer', True, True, 'Keys from the vendor']] and pg.locator('.capbar .cap-recent li').count() == 1)
+        pg.locator('.capbar .cap-undo').first.click(); pg.wait_for_timeout(600)
+        check('Undo withdraws the capture', pg.locator('.capbar .cap-recent li').count() == 0)
+        pg.click('.capbar .cb-backdrop', position={'x': 20, 'y': 400}); pg.wait_for_timeout(200)
+        for alias, want_url in (('#/docket', HUB + '/'), ('#/rapport', HUB + '/#/receipts'), ('#/folio', HUB + '/#/notes')):
+            pg.evaluate(f"location.hash = '{alias}'"); pg.wait_for_timeout(900)
+            check(f'the app name works as an address: {alias}', pg.url == want_url)
+        pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1000)
         frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check("Your day's button on Home opens Docket's Today", '#/prioritizer' in pg.url and frame.evaluate("window.__prioritizer.state.view") == 'today')
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
         check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)

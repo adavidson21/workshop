@@ -70,6 +70,7 @@ def main():
         b = p.chromium.launch(executable_path=os.environ.get('CHROME') or None)
         for w, h in SIZES:
             ctx = b.new_context(viewport={'width': w, 'height': h})
+            ctx.add_init_script("try { localStorage.setItem('workshop.home.introduced', '1') } catch (e) {}")
             pg = ctx.new_page()
             errors = []
             pg.on('pageerror', lambda e: errors.append(str(e)))

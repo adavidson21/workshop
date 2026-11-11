@@ -22,7 +22,7 @@ Use these three. A component may add its own breakpoint only when it needs one (
 | `--w-page` | 100% | 72rem | 88rem | 104rem | List and form pages |
 | `--w-read` | 72ch | 72ch | 72ch | 72ch | Long text: notes, descriptions, setup copy |
 
-Boards, editors and dashboards (Home, Docket, Slate, Folio, Runway's editor) run full width with `--gutter`. List and form pages (Rapport, Settings, Runway's list, Dispatch) use `.ws-page`, which centers inside `--w-page`.
+Boards, editors and dashboards (Docket, Slate, Folio, Runway's editor) run full width with `--gutter`. List and form pages (Rapport, Settings, Runway's list, Dispatch) use `.ws-page`, which centers inside `--w-page`.
 
 ## Pieces
 

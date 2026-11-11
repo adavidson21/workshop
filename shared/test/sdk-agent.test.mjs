@@ -249,3 +249,20 @@ test('a paired page (hosted) uses the stored agent and token', async () => {
     pageOn(agent.url, agent.token);
   }
 });
+
+test('standalone: the page hash is a route event, and ws.route.set writes #/<path> with history (docs/sdk.md, Routes)', async () => {
+  const calls = [];
+  globalThis.history = { pushState: (s, t, u) => calls.push(['push', u]), replaceState: (s, t, u) => calls.push(['replace', u]) };
+  globalThis.location.hash = '#/task/t%201';
+  try {
+    const ws = await sdk.connect({ app: 'notes' });
+    const routes = [];
+    ws.on('route', p => routes.push(p.path));
+    await new Promise(r => setTimeout(r, 5));
+    assert.deepEqual(routes, ['task/t 1']);
+    await ws.route.set('day/2026-11-11');
+    await ws.route.set('people', { replace: true });
+    await ws.route.set('task/t 1', { replace: true });  // already the page's hash: nothing to write
+    assert.deepEqual(calls, [['push', '/apps/notes/index.html#/day/2026-11-11'], ['replace', '/apps/notes/index.html#/people']]);
+  } finally { globalThis.location.hash = ''; delete globalThis.history; }
+});
