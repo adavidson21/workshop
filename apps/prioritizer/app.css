@@ -416,6 +416,13 @@ button.chip.warn:hover{color:var(--danger);background:color-mix(in srgb,var(--da
 .cmd .cheat .ctag{font:400 .76rem var(--mono);color:var(--ink);background:var(--accent-soft);border-radius:3px;padding:.05rem .3rem;cursor:pointer}
 .cmd .cheat .ctag:hover{background:color-mix(in srgb,var(--accent) 26%,var(--surface))}
 .cmd .cheat .cwhat{color:var(--muted);line-height:1.35}
+.cmd .cheat .ctag.go{display:inline-flex;align-items:center;gap:.3rem;font-family:var(--sans)}
+.cmd .cheat .ctag.go kbd{font-size:.68rem;padding:0 .25rem}
+.cmd .cheat .ctags kbd{font-size:.7rem}
+.cmd .cheat .ckeys{grid-column:1/-1}
+.cmd .cheat .kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:0 1.4rem}
+.cmd .cheat .cheat-all{margin-top:.3rem;color:var(--muted);font-size:.76rem;display:inline-flex;align-items:center;gap:.3rem}
+.cmd .cheat .cheat-all:hover{color:var(--ink)}
 .cmd .cheat .cnote{grid-column:1/-1;margin:0;color:var(--muted);line-height:1.5}
 .cmd .cheat .cnote .mono{color:var(--ink)}
 .rename{font:inherit;color:var(--ink);border:0;outline:2px solid var(--accent);background:var(--surface);border-radius:4px;padding:0 .3rem;min-width:3ch;width:100%}

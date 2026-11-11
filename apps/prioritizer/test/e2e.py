@@ -335,8 +335,13 @@ def main():
         pg.fill('#cmdInput', ''); pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         pg.keyboard.press('n'); pg.wait_for_timeout(100)
         check('it stays open the next time', pg.locator('#cmdCheat').is_visible())
+        check('it lists the main routes and keys', pg.locator('#cmdCheat [data-go]').count() == 5 and pg.locator('#cmdCheat [data-allkeys]').count() == 1)
         pg.keyboard.press('Control+/'); pg.wait_for_timeout(100)
         check('Ctrl+/ hides it', pg.locator('#cmdCheat').is_hidden())
+        pg.keyboard.press('Control+/'); pg.click('#cmdCheat [data-go="2"]'); pg.wait_for_timeout(200)
+        check('a Go to route closes the box and opens that view', pg.evaluate(f"() => {P}.state.view") == 'day' and not pg.evaluate("() => document.getElementById('cmd').classList.contains('open')"))
+        pg.keyboard.press('1'); pg.wait_for_timeout(200)
+        pg.keyboard.press('n'); pg.keyboard.press('Control+/'); pg.wait_for_timeout(100)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         # +product: Settings' products (settings.products) name a task's product in Quick add and its details.
         pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});

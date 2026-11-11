@@ -1,11 +1,11 @@
 import { addTask } from './actions.js';
-import { TOUCH, VALUE } from './constants.js';
+import { NAV_KEYS, TOUCH, VALUE } from './constants.js';
 import { hideTip } from './events.js';
-import { closeMenu } from './overlays.js';
+import { closeMenu, showHelp } from './overlays.js';
 import { parseQuick } from './quick-add.js';
 import { takePasted } from './paste.js';
 import { defaultListId, isWaiting, listById, orderedLists, saveUi, state, ui } from './state.js';
-import { col } from './render.js';
+import { col, setView } from './render.js';
 import { $, esc, fmtLong, todayStr } from './util.js';
 import { nameOf, refOf } from './directory-model.js';
 import { activeProducts, productById, productTag } from './products-link.js';
@@ -55,6 +55,10 @@ const MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
 if (MAC) $('#cmdCheatKey').innerHTML = '<kbd>&#8984; /</kbd> toggle';
 const listTag = name => '#' + String(name).trim().toLowerCase().replace(/\s+/g, '-');
 const tag = (t, ins = t) => `<button type="button" class="ctag" data-ins="${esc(ins)}">${esc(t)}</button>`;
+// Main routes (the sidebar's number keys) and the task keys you reach for most. The full list is the ? sheet.
+const GO = [['1', 'Today'], ['2', 'Day'], ['3', 'Inbox'], ['5', 'People'], ['6', 'Done']];
+const KEYS = [['N /', 'Add a task'], ['J K', 'Next, previous task'], ['X', 'Complete or reopen'], ['T', 'Toggle Today'], ['S', 'Start or pause'],
+  ['A', 'Delegate or add people'], ['W', 'Waiting on someone'], ['4', 'Plan the week (on Today)']];
 function cheatHtml(){
   const lists = orderedLists().slice(0, 8), prods = activeProducts().slice(0, 12);
   const row = (tags, what) => `<div class="crow"><div class="ctags">${tags}</div><div class="cwhat">${what}</div></div>`;
@@ -81,6 +85,13 @@ function cheatHtml(){
       ${prods.length ? row(prods.map(p => tag(productTag(p))).join(''), 'The start of its name or another name works too')
         : row(tag('+product', '+'), 'Set up your products in Workshop: Settings, Products')}
     </div>
+    <div class="cgrp"><h4>Go to</h4>
+      ${row(GO.map(([k, label]) => `<button type="button" class="ctag go" data-go="${k}">${TOUCH ? '' : `<kbd>${k}</kbd>`}${label}</button>`).join(''), TOUCH ? 'Closes this and opens it' : 'Press the number outside this box, or click to go')}
+    </div>
+    ${TOUCH ? '' : `<div class="cgrp ckeys"><h4>Keys</h4><div class="kgrid">
+      ${KEYS.map(([k, what]) => `<div class="crow"><div class="ctags">${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</div><div class="cwhat">${what}</div></div>`).join('')}</div>
+      <button type="button" class="cheat-all" data-allkeys>All shortcuts <kbd>?</kbd></button>
+    </div>`}
     <p class="cnote">Tags can go anywhere in the line. Anything not recognized stays in the title. Paste an ADO work item or its link to keep the link on the task.<br>
       Example: <span class="mono">Review design doc &gt;@sam !3 ~s ^fri${prods.length ? ' ' + esc(productTag(prods[0])) : ''}</span></p>`;
 }
@@ -93,6 +104,9 @@ function setCheat(open, save = true){
 }
 cheatBtn.addEventListener('click', () => { setCheat(cheat.hidden); cmdInput.focus(); });
 cheat.addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if (go){ closeCmd(); setView(NAV_KEYS[go.dataset.go]); return; }
+  if (e.target.closest('[data-allkeys]')){ closeCmd(); showHelp(); return; }
   const b = e.target.closest('[data-ins]'); if (!b) return;
   const v = cmdInput.value, s = cmdInput.selectionStart ?? v.length, end = cmdInput.selectionEnd ?? s;
   const before = v.slice(0, s), after = v.slice(end);
