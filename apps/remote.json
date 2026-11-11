@@ -9,7 +9,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "7.0.0",
+        "version": "8.0.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -22,28 +22,36 @@
         ],
         "routes": [
           {
-            "path": "task/:id",
-            "title": "Open a task"
-          },
-          {
             "path": "today",
             "title": "Today"
           },
           {
+            "path": "inbox",
+            "title": "Today, with the Inbox"
+          },
+          {
+            "path": "plan-week",
+            "title": "Plan week"
+          },
+          {
+            "path": "plan-week/:lens",
+            "title": "Plan week with a lens (eisenhower, value-effort)"
+          },
+          {
             "path": "day/:date",
-            "title": "Plan a day"
-          },
-          {
-            "path": "triage",
-            "title": "Triage"
-          },
-          {
-            "path": "prioritize",
-            "title": "Prioritize"
+            "title": "Plan a day (a date, or today)"
           },
           {
             "path": "people",
             "title": "People"
+          },
+          {
+            "path": "done",
+            "title": "Done"
+          },
+          {
+            "path": "task/:id",
+            "title": "Open a task"
           },
           {
             "path": "shutdown",
@@ -80,7 +88,7 @@
           },
           {
             "name": "triage",
-            "path": "triage"
+            "path": "inbox"
           }
         ],
         "commands": [
@@ -105,9 +113,14 @@
             "route": "day/today"
           },
           {
+            "id": "plan-week",
+            "title": "Plan week",
+            "route": "plan-week"
+          },
+          {
             "id": "triage",
-            "title": "Triage",
-            "route": "triage"
+            "title": "Sort the Inbox",
+            "route": "inbox"
           },
           {
             "id": "shutdown-day",
@@ -185,6 +198,7 @@
           "js/pr-ai.js",
           "js/quick-add.js",
           "js/render.js",
+          "js/route.js",
           "js/row-fields-model.js",
           "js/state.js",
           "js/storage.js",
