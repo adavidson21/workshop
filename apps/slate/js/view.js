@@ -591,9 +591,11 @@ export function publishDialogHtml(plan, { area, build = false, connection = '' }
   const what = (p) => p.op === 'link' ? `${p.title}: a Related link to the new ${p.toType || 'item'} (${p.toTitle || ''}) and a comment saying where the work went. Slate then follows the new ${p.toType || 'item'}.` : p.title;
   const rows = plan.map(p => `<tr><td>${esc(label(p))}</td><td>${esc(p.type || '')}</td><td>${esc(what(p))}</td></tr>`).join('');
   const n = plan.filter(p => p.op !== 'skip').length;
+  const withNote = plan.find(p => p.op === 'create' && p.fields && p.fields.custom);
+  const rnKey = withNote ? Object.keys(withNote.fields.custom)[0] : '';
   return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
     ${outsideBanner('ado', `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}${connection ? ` on the ${connection} connection` : ''}. Nothing is sent until you click Publish.`)}
-    <p>Items are tagged <span class="mono">slate</span>.</p>
+    <p>Items are tagged <span class="mono">slate</span>.${rnKey ? ` Features carry their release note in <span class="mono">${esc(rnKey)}</span>.` : ''}</p>
     <table class="plan"><thead><tr><th>Change</th><th>Type</th><th>Title</th></tr></thead><tbody>${rows}</tbody></table>
     ${build ? '<p>Then it moves to In flight and Tandem starts on it (Build it myself).</p>' : ''}
     <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok" data-out-ok${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'} ${outsideMark('ado')}</button></div></form>`;

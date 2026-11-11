@@ -45,6 +45,9 @@ async function fetchItem(ado, id, relations = false) {
   }
 }
 
+/** A field reference name other than a System.* field: "Custom.ReleaseNotes", "Microsoft.VSTS.Common.Risk". */
+export const CUSTOM_REF = /^(?!System\.)[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
+
 /** JSON Patch operations for a change set. `current` is the item's fields (for tags). */
 export function patchOps(changes, currentFields = {}) {
   const ops = [];
@@ -81,6 +84,16 @@ export function patchOps(changes, currentFields = {}) {
   // Long text: plain text or Markdown as written, sent as escaped HTML with line breaks kept (what ADO stores).
   if (changes.description !== undefined) set('System.Description', textToHtml(changes.description));
   if (changes.acceptance !== undefined) set('Microsoft.VSTS.Common.AcceptanceCriteria', textToHtml(changes.acceptance));
+  // Other fields by reference name (Slate's release notes field), sent as plain text. Never System.* fields:
+  // those have their own keys above.
+  if (changes.custom !== undefined) {
+    const entries = Object.entries(changes.custom || {});
+    if (entries.length > 5) throw new SettingsError('At most 5 custom fields at a time.');
+    for (const [ref, value] of entries) {
+      if (!CUSTOM_REF.test(ref)) throw new SettingsError(`"${ref}" is not a field reference name this can set.`);
+      set(ref, String(value ?? ''));
+    }
+  }
   if ((changes.tagsAdd && changes.tagsAdd.length) || (changes.tagsRemove && changes.tagsRemove.length)) {
     set('System.Tags', mergeTags(get(currentFields, 'System.Tags'), changes.tagsAdd || [], changes.tagsRemove || []));
   }
@@ -138,7 +151,8 @@ export const CREATE_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog I
 
 /**
  * "workitem.create" (Slate's Publish). args: {type, title, project?, connection?, parent?, fields: {description?,
- * acceptance?, area?, iteration?, assignedTo?, priority?, tags?}}. Creates one item, with a parent link when
+ * acceptance?, area?, iteration?, assignedTo?, priority?, tags?, custom?}}. `custom` is other fields by reference
+ * name as plain text (Slate: a feature's release note). Creates one item, with a parent link when
  * `parent` is given, and returns it in the itemShape shape. The project is `project`, else the parent's, else the
  * connection's. Nothing is created when a field is refused: ADO validates the whole patch first.
  */
@@ -160,7 +174,8 @@ export async function createWorkItem(d, args) {
     ...(f.iteration ? { iteration: f.iteration } : {}),
     ...(f.assignedTo ? { assignedTo: f.assignedTo } : {}),
     ...(f.priority ? { priority: f.priority } : {}),
-    ...(f.tags && f.tags.length ? { tagsAdd: f.tags } : {})
+    ...(f.tags && f.tags.length ? { tagsAdd: f.tags } : {}),
+    ...(f.custom && Object.keys(f.custom).length ? { custom: f.custom } : {})
   }, {});
   if (parent) {
     ops.push({ op: 'add', path: '/relations/-', value: { rel: 'System.LinkTypes.Hierarchy-Reverse', url: parent.url || `${ado.base}/_apis/wit/workItems/${parent.id}` } });

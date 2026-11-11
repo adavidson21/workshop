@@ -834,14 +834,14 @@ const ACT = {
     const files = filesOf(c.work.define);
     // A new request goes to the area you are looking at, else your team's first area path.
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
-    const plan = publishPlan(c, files, { area });
+    const plan = publishPlan(c, files, { area, releaseNotesField: store.v.prefs.releaseNotesField });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
     showDialog(publishDialogHtml(plan, { area, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan));
   },
   /** Publish, then build it myself: one confirm that lists both. */
   async 'publish-build'(c) {
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
-    const plan = publishPlan(c, filesOf(c.work.define), { area });
+    const plan = publishPlan(c, filesOf(c.work.define), { area, releaseNotesField: store.v.prefs.releaseNotesField });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
     showDialog(publishDialogHtml(plan, { area, build: true, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan, { then: 'build' }));
   },

@@ -182,6 +182,22 @@ test('workitem.create makes an item under a parent, in the parent\'s project, wi
   assert.match(post, /"path":"\/fields\/System\.Description","value":"As a buyer<br>I want a CSV"/);
 }));
 
+test('patchOps: custom fields by reference name, never System.* ones', () => {
+  assert.deepEqual(patchOps({ custom: { 'Custom.ReleaseNotes': 'You can now export orders.' } }), [
+    { op: 'add', path: '/fields/Custom.ReleaseNotes', value: 'You can now export orders.' }
+  ]);
+  assert.throws(() => patchOps({ custom: { 'System.State': 'Closed' } }), /reference name/);
+  assert.throws(() => patchOps({ custom: { ReleaseNotes: 'x' } }), /reference name/);
+  assert.throws(() => patchOps({ custom: Object.fromEntries([1, 2, 3, 4, 5, 6].map(n => [`Custom.F${n}`, 'x'])) }), /At most 5/);
+});
+
+test('workitem.create sends custom fields (a release note) by reference name', () => withAdo(async ({ d, srv }) => {
+  await createWorkItem(d, { type: 'User Story', title: 'Export', parent: 501, fields: { description: 'Buyers can export orders.', custom: { 'Custom.ReleaseNotes': 'You can now export your orders.' } } });
+  const post = srv.requests.find(r => r.startsWith('POST') && r.includes('$User%20Story'));
+  assert.ok(post, 'POST to wit/workitems/$User Story');
+  assert.match(post, /"path":"\/fields\/Custom\.ReleaseNotes","value":"You can now export your orders\."/);
+}));
+
 test('workitem.create refuses an unknown type and a missing project before calling ADO', () => withAdo(async ({ d, srv }) => {
   await assert.rejects(createWorkItem(d, { type: 'Spaceship', title: 'x' }), /Type must be one of/);
   const noProject = { ...d, cfg: { ...d.cfg, connections: d.cfg.connections.map(c => ({ ...c, project: '' })) } };

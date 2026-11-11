@@ -75,7 +75,11 @@ The second orders release.
 
 ## Feature 1: Export
 
-- Goal: export
+Buyers can take their orders out of the app.
+
+#### Release note
+
+You can now export your orders.
 
 ### Story 1.1: CSV export
 
@@ -88,7 +92,7 @@ Scenario: one
   Given x
 \`\`\`
 
-#### Work item
+#### Notes for the builder
 
 - Repos: \`web-app\`
 
@@ -194,6 +198,10 @@ test('milestones.md is read the way Export-Backlog.ps1 reads it', () => {
   assert.deepEqual(m.features.map(f => [f.num, f.title, f.stories.map(s => s.ref)]), [[1, 'Export', ['1.1', '1.2']], [2, 'Import', ['2.1']]]);
   assert.equal(m.features[0].stories[0].acceptance, 'Scenario: one\n  Given x');
   assert.equal(m.features[0].stories[0].work, '- Repos: `web-app`');
+  assert.equal(m.features[0].description, 'Buyers can take their orders out of the app.');
+  assert.equal(m.features[0].releaseNote, 'You can now export your orders.');
+  assert.equal(m.features[1].releaseNote, '');
+  assert.equal(parseMilestones(MILESTONES.replace('#### Notes for the builder', '#### Work item')).features[0].stories[0].work, '- Repos: `web-app`', 'older files still read');
   const existing = parseMilestones(MILESTONES.replace('Epic: Orders v2.1', 'Epic: #900 Orders v2.1'));
   assert.equal(existing.epic.id, 900);
   assert.deepEqual(parseMilestones('Status: DRAFT\n\n## Feature 1: A\n').errors, ['No "Epic:" line.', 'Feature 1 has no stories.']);
@@ -233,6 +241,14 @@ test('publish plan: one create or update for a refined story; parents first for 
     ['epic', 'create', 'Epic', null], ['feature 1', 'create', 'Feature', 'epic'], ['story 1.1', 'create', 'User Story', 'feature 1'],
     ['story 1.2', 'create', 'User Story', 'feature 1'], ['feature 2', 'create', 'Feature', 'epic'], ['story 2.1', 'create', 'User Story', 'feature 2']
   ]);
+  assert.equal(plan[1].fields.custom, undefined, 'no release notes field set: nothing extra is sent');
+  assert.doesNotMatch(plan[2].fields.description, /web-app|Notes for the builder/, 'builder notes stay local');
+  const withNotes = publishPlan(s, sf, { releaseNotesField: 'Custom.ReleaseNotes' });
+  assert.deepEqual(withNotes[1].fields.custom, { 'Custom.ReleaseNotes': 'You can now export your orders.' });
+  assert.equal(withNotes[4].fields.custom, undefined, 'a feature with no release note sends none');
+  assert.equal(withNotes[2].fields.custom, undefined, 'stories carry no release note');
+  const placeholder = publishPlan(s, { ...sf, 'milestones.md': MILESTONES.replace('You can now export your orders.', '<What customers can do now.>') }, { releaseNotesField: 'Custom.ReleaseNotes' });
+  assert.equal(placeholder[1].fields.custom, undefined, 'a template placeholder is not sent');
   s.published = { epic: 10, 'feature 1': 11 };
   assert.deepEqual(publishPlan(s, sf).slice(0, 2).map(p => [p.op, p.id]), [['skip', 10], ['skip', 11]]);
   const ex = publishPlan(newItem({ title: 'z' }, NOW), {});

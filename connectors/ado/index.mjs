@@ -154,7 +154,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.14.0',
+  version: '1.15.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -395,7 +395,13 @@ export default {
               iteration: { type: 'string', minLength: 1, maxLength: 400 },
               assignedTo: { type: 'string', maxLength: 300 },
               priority: { type: 'integer', minimum: 1, maximum: 4 },
-              tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } }
+              tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
+              custom: {
+                type: 'object',
+                description: 'Other fields by reference name, as plain text (at most 5; not System.* fields). Slate: a feature\'s release note.',
+                propertyNames: { type: 'string', maxLength: 200, pattern: '^(?!System\\.)[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$' },
+                additionalProperties: { type: 'string', maxLength: 4000 }
+              }
             }
           }
         }
