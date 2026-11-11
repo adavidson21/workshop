@@ -41,9 +41,17 @@ export function periodName(doc, p) {
   }
 }
 
+/** An item's description as shown under the timeline and in images: its notes without the line that is just its
+    ADO link (the title links there instead). */
+export function shownNotes(it) {
+  const url = it.ado && it.ado.url ? String(it.ado.url).trim() : '';
+  return String(it.notes || '').split('\n').filter(l => !url || l.trim() !== url).join('\n').trim();
+}
+
 /**
  * What the roadmap delivers in a date range: the goal of each period that has one, and every item in the
- * range that has a description (its notes), lane by lane. Used under the timeline and in image exports.
+ * range that has a description (its notes) or ADO release notes, lane by lane. Used under the timeline and in
+ * image exports. Items carry `url` (their ADO link, or '') and `releaseNotes` (ADO's release notes field, or '').
  */
 export function summary(doc, range) {
   const sched = schedule(doc);
@@ -55,8 +63,11 @@ export function summary(doc, range) {
   for (const l of lanes) {
     for (const it of doc.items.filter(x => x.kind === 'item' && (x.lane || null) === l.id).sort((a, b) => a.order - b.order)) {
       const s = sched.get(it.id);
-      if (!it.notes.trim() || !s || s.end < range.from || s.start > range.to) continue;
-      items.push({ id: it.id, lane: l.id ? l.title : '', title: it.title, start: s.start, end: s.end, milestone: it.milestone, status: it.status, notes: it.notes.trim() });
+      const notes = shownNotes(it);
+      const releaseNotes = String((it.ado && it.ado.releaseNotes) || '').trim();
+      if ((!notes && !releaseNotes) || !s || s.end < range.from || s.start > range.to) continue;
+      const url = it.ado && /^https?:\/\//i.test(String(it.ado.url || '')) ? String(it.ado.url) : '';
+      items.push({ id: it.id, lane: l.id ? l.title : '', title: it.title, start: s.start, end: s.end, milestone: it.milestone, status: it.status, notes, url, releaseNotes });
     }
   }
   return { goals, items };
@@ -100,6 +111,10 @@ export function summarySvg(doc, range, w, theme = 'light') {
       const when = it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`;
       o.push(`<text x="20" y="${y}" font-size="12" fill="${T.ink}"><tspan font-weight="600">${esc(it.title)}</tspan><tspan fill="${T.muted}">  ${esc([it.lane, when, it.status !== 'planned' ? it.status : ''].filter(Boolean).join(' · '))}</tspan></text>`); y += 17;
       for (const l of wrap(it.notes, chars - 4)) { o.push(`<text x="32" y="${y}" font-size="12" fill="${T.muted}">${esc(l)}</text>`); y += 16; }
+      if (it.releaseNotes) {
+        o.push(`<text x="32" y="${y}" font-family='${FONTS.mono}' font-size="9.5" letter-spacing=".5" fill="${T.eyebrow}">RELEASE NOTES</text>`); y += 15;
+        for (const l of wrap(it.releaseNotes, chars - 6)) { o.push(`<text x="32" y="${y}" font-size="12" fill="${T.ink}">${esc(l)}</text>`); y += 16; }
+      }
       y += 6;
     }
   }

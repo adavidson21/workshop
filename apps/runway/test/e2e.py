@@ -139,6 +139,32 @@ def main():
         pg.keyboard.press('Escape'); pg.keyboard.press('Escape')
         pg.wait_for_timeout(150)
 
+        # Hide the outline (Timeline view with a rail on the left) and bring it back.
+        pg.click('[data-ocollapse]')
+        pg.wait_for_timeout(150)
+        check('hiding the outline leaves a rail that brings it back', not pg.is_visible('.outline') and pg.is_visible('[data-oexpand]') and pg.get_attribute('.body', 'data-mode') == 'timeline')
+        pg.click('[data-oexpand]')
+        pg.wait_for_timeout(150)
+        check('the rail shows the outline again', pg.is_visible('[data-outline]') and pg.get_attribute('.body', 'data-mode') == 'split')
+
+        # A big backlog: many unscheduled items, filtered as you type, and the timeline keeps its room with an item open.
+        many = pg.input_value('[data-outline]') + ''.join(f'\n- Backlog item {n}' for n in range(120))
+        pg.fill('[data-outline]', many)
+        pg.wait_for_timeout(700)
+        pg.click('.ufilter')
+        pg.keyboard.type('item 11')
+        pg.wait_for_timeout(250)
+        check('the Unscheduled filter narrows the list and keeps its focus', pg.locator('[data-tray]').count() == 11 and pg.evaluate('document.activeElement.matches("[data-unsfilter]")') and '11 of' in pg.inner_text('[data-unscount]'))
+        pg.fill('.ufilter', '')
+        pg.wait_for_timeout(150)
+        pg.click(f'[data-tl] g.bar[data-id="{idx["id"]}"] rect >> nth=0')
+        pg.wait_for_timeout(200)
+        tl_h = pg.evaluate('document.querySelector("[data-tl]").getBoundingClientRect().height')
+        check('with a big backlog and an item open, the timeline stays in view', pg.is_visible('[data-panel]') and tl_h >= 190)
+        pg.keyboard.press('Escape')
+        pg.fill('[data-outline]', many.split('\n- Backlog item 0')[0])
+        pg.wait_for_timeout(700)
+
         # Fold a lane, then export.
         pg.evaluate(f'(() => {{ const l = {R}.ui.L.lanes[1]; document.querySelector(`[data-tl] g.lane[data-lane="${{l.id}}"] rect`).dispatchEvent(new PointerEvent("pointerdown", {{bubbles: true, button: 0, pointerId: 9}})); document.querySelector("[data-tl]").dispatchEvent(new PointerEvent("pointerup", {{bubbles: true, pointerId: 9}})); }})()')
         pg.wait_for_timeout(200)

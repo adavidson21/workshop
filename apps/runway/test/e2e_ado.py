@@ -29,7 +29,8 @@ STATE = {
         {'id': 101, 'rev': 1, 'type': 'Epic', 'title': 'Docs Portal', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': '', 'parentId': None,
          'startDate': '2027-01-04', 'targetDate': '2027-03-31', 'url': 'https://ado.example.test/_workitems/edit/101'},
         {'id': 102, 'rev': 1, 'type': 'Feature', 'title': 'Content migration', 'state': 'Active', 'area': 'Platform\\Docs', 'iteration': 'Platform\\Sprint 1',
-         'parentId': 101, 'startDate': None, 'targetDate': None, 'assignee': {'name': 'Dev One', 'email': 'dev.one@example.test'}, 'storiesTotal': 4, 'storiesDone': 1, 'url': 'https://ado.example.test/_workitems/edit/102'},
+         'parentId': 101, 'startDate': None, 'targetDate': None, 'assignee': {'name': 'Dev One', 'email': 'dev.one@example.test'}, 'storiesTotal': 4, 'storiesDone': 1, 'url': 'https://ado.example.test/_workitems/edit/102',
+         'custom': {'Custom.ReleaseNotes': 'Docs live on the <b>new</b> site'}},
         {'id': 103, 'rev': 1, 'type': 'Feature', 'title': 'Search cutover', 'state': 'New', 'area': 'Platform\\Docs', 'iteration': '',
          'parentId': 101, 'startDate': '2027-02-01', 'targetDate': '2027-02-20', 'assignee': {'name': 'New Person', 'email': 'new.person@example.test'}, 'url': 'https://ado.example.test/_workitems/edit/103'},
         {'id': 104, 'rev': 1, 'type': 'Feature', 'title': '<img src=x onerror="window.__pwned=1">', 'state': 'Closed', 'area': 'Platform\\Monitor',
@@ -210,6 +211,13 @@ def main():
         check('refresh rebuilds a live roadmap from ADO', True)
         check('roadmap action got the area paths', any(c[0] == 'roadmap' and c[1].get('areas') == ['Platform\\Docs', 'Platform\\Monitor'] for c in STATE['calls']))
         check('only read actions were called', all(c[0] in ('roadmap', 'iterations.list') for c in STATE['calls']))
+        check('roadmap action asked for the release notes field', any(c[0] == 'roadmap' and c[1].get('fields') == ['Custom.ReleaseNotes'] for c in STATE['calls']))
+        pg.evaluate(f'() => {{ {R}.ui.detailsOpen = true; {R}.paint(); }}')
+        pg.wait_for_timeout(150)
+        det = pg.locator('[data-details]')
+        mig_link = det.locator('a.dname', has_text='Content migration v2')
+        check("what's getting done: the work item title links to ADO, without the URL written out", mig_link.count() == 1 and mig_link.get_attribute('href') == 'https://ado.example.test/_workitems/edit/102' and 'https://ado.example.test' not in det.inner_text())
+        check("what's getting done: release notes show under the feature, escaped", 'Docs live on the <b>new</b> site' in det.inner_text() and det.locator('b').count() == 0)
 
         # Owners from Assigned To: matched by ADO identity; someone People lacks can be added from the panel.
         doc = pg.evaluate(f'() => {R}.store.v.doc')

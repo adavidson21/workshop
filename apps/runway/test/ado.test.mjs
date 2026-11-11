@@ -194,7 +194,7 @@ test('createAdo: reports the connector state and reads through roadmap and itera
   const r = await ado.refresh(blankDoc(), { areas: ['Platform\\Docs'], connection: 'work', mode: 'live' });
   assert.equal(r.doc.meta.ado.mode, 'live');
   assert.ok(calls.every(c => c[0] === 'ado' && ['roadmap', 'iterations.list'].includes(c[1])));
-  assert.deepEqual(calls[0][2], { connection: 'work', areas: ['Platform\\Docs'] });
+  assert.deepEqual(calls[0][2], { connection: 'work', areas: ['Platform\\Docs'], fields: ['Custom.ReleaseNotes'] });
   await assert.rejects(ado.pull({ areas: '' }), /area path/);
   ws.connectors.list = async () => { throw new Error('down'); };
   assert.equal((await ado.check()).ready, false);
@@ -339,4 +339,30 @@ test('linked: an item linked before owners came from ADO takes them, and an old 
   assert.ok(useRemote(doc, it.id));
   assert.equal(it.title, 'Old title');
   assert.deepEqual(it.who, ['p_two']);
+});
+
+test('release notes: field defaults to Custom.ReleaseNotes, can be changed or cleared, and is asked for', async () => {
+  const { roadmapArgs, releaseNotesOf } = await import('../js/ado/model.js');
+  assert.equal(SRC.releaseNotesField, 'Custom.ReleaseNotes');
+  assert.deepEqual(roadmapArgs(SRC).fields, ['Custom.ReleaseNotes']);
+  const mine = cleanSource({ areas: 'A', releaseNotesField: ' Acme.Notes ' });
+  assert.equal(mine.releaseNotesField, 'Acme.Notes');
+  const none = cleanSource({ areas: 'A', releaseNotesField: '' });
+  assert.equal(none.releaseNotesField, '');
+  assert.equal(roadmapArgs(none).fields, undefined);
+  assert.equal(cleanSource({ areas: 'A', releaseNotesField: 'bad name!' }).releaseNotesField, '');
+  assert.equal(releaseNotesOf({ custom: { 'Custom.ReleaseNotes': 'Faster\r\n\n\n\nexports ' } }, SRC), 'Faster\n\nexports');
+  assert.equal(releaseNotesOf({}, SRC), '');
+  assert.equal(releaseNotesOf({ custom: { 'Custom.ReleaseNotes': 'x' } }, none), '');
+});
+
+test('release notes: pulled, kept on refresh, and updated when ADO changes them', () => {
+  const notes = { 2: { 'Custom.ReleaseNotes': 'Docs moved to the new site' } };
+  const withNotes = (n) => ITEMS().map(x => (n[x.id] ? { ...x, custom: n[x.id] } : x));
+  const data = pulled(result(withNotes(notes)), ITER, SRC);
+  assert.equal(data.items.find(i => i.key === '2').ado.releaseNotes, 'Docs moved to the new site');
+  assert.equal(data.items.find(i => i.key === '3').ado.releaseNotes, '');
+  const first = mergeLinked(blankDoc(), data, SRC, result(withNotes(notes))).doc;
+  const next = mergeLinked(first, pulled(result(withNotes({ 2: { 'Custom.ReleaseNotes': 'Now with redirects' } })), ITER, SRC), SRC, result(ITEMS())).doc;
+  assert.equal(next.items.find(i => i.ado && i.ado.id === 2).ado.releaseNotes, 'Now with redirects');
 });

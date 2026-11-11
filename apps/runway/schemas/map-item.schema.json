@@ -33,6 +33,7 @@
       "ownDates": {"type": "boolean", "description": "ADO has its own start or target date, so its dates do not come from the sprint."},
       "startDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Start Date, YYYY-MM-DD, or null."},
       "targetDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Target Date, YYYY-MM-DD, or null."},
+      "releaseNotes": {"type": "string", "maxLength": 2000, "description": "ADO's release notes field (the roadmap's meta.ado.releaseNotesField) as plain text, or empty. Shown under What's getting done."},
       "titlePrefix": {"type": "string", "description": "What Runway puts before a User Story's ADO title (its Feature and ' > '); empty for others."},
       "base": {"$ref": "#/$defs/adoFields", "description": "What the last refresh brought."},
       "remote": {"$ref": "#/$defs/adoFields", "description": "ADO's values when they differ from yours."},

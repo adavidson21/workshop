@@ -10,7 +10,7 @@
    Refresh never writes to ADO. Only Publish (publish.js, from a button) does.
 
    meta.ado: {mode, areas[], types[], lanes: 'area' | 'epic', connection, includeClosed, fetchedAt, total, truncated}
-   item.ado: {id, connection, rev, type, state, url, assignee, iteration, project, ownDates, base: {title, start, end, status, who}, remote?, missing?}
+   item.ado: {id, connection, rev, type, state, url, assignee, iteration, project, ownDates, releaseNotes, base: {title, start, end, status, who}, remote?, missing?}
      assignee ADO's Assigned To, {name, email}, or null
      iteration its sprint (Iteration Path), project its ADO project, ownDates true when ADO has its own start or
               target date (so its bar does not come from the sprint), startDate and targetDate ADO's own dates
@@ -59,12 +59,21 @@ export function cleanSource(src) {
     types: types.length ? types : [...DEFAULT_TYPES],
     lanes: LANE_MODES.includes(src.lanes) ? src.lanes : 'area',
     connection: clip(String(src.connection || '').trim(), 40),
-    includeClosed: !!src.includeClosed
+    includeClosed: !!src.includeClosed,
+    releaseNotesField: fieldRef(src.releaseNotesField)
   };
 }
 
+export const RELEASE_NOTES_FIELD = 'Custom.ReleaseNotes';
+/** A field reference name for release notes: the default when never set, '' when cleared or not a reference name. */
+const fieldRef = x => {
+  if (x === undefined || x === null) return RELEASE_NOTES_FIELD;
+  const v = String(x).trim();
+  return /^[A-Za-z][A-Za-z0-9_.]{0,199}$/.test(v) ? v : '';
+};
+
 /** The connector's arguments for a source. */
-export const roadmapArgs = src => ({ areas: src.areas, ...(src.includeClosed ? { includeClosed: true } : {}), ...(src.types.includes('User Story') ? { stories: true } : {}), ...(src.connection ? { connection: src.connection } : {}) });
+export const roadmapArgs = src => ({ areas: src.areas, ...(src.releaseNotesField ? { fields: [src.releaseNotesField] } : {}), ...(src.includeClosed ? { includeClosed: true } : {}), ...(src.types.includes('User Story') ? { stories: true } : {}), ...(src.connection ? { connection: src.connection } : {}) });
 
 /** Projects whose sprint dates are worth asking for (iterations.list). */
 export function projectsOf(items, areas) {
@@ -121,6 +130,14 @@ const where = w => ({
 });
 
 const cleanAssignee = a => (a && (a.name || a.email) ? { name: clip(a.name || a.email, 200), email: clip(String(a.email || '').toLowerCase(), 300) } : null);
+
+/** A work item's release notes as plain text (the connector's `custom`, from the source's releaseNotesField), or ''.
+    Needs Workshop's ADO connector with `roadmap` `fields` (1.14.0); older ones send none. */
+export function releaseNotesOf(w, src) {
+  const ref = src && src.releaseNotesField;
+  const v = ref && w && w.custom && typeof w.custom === 'object' ? w.custom[ref] : '';
+  return clip(String(v || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim(), 2000);
+}
 
 /** The description Runway shows for a work item: type, id, state, story progress, then its ADO link. */
 export function describe(w) {
@@ -188,7 +205,7 @@ export function pulled(result, iterations, src, { dir = null } = {}) {
     const fields = { title: clip(name, 200), start: p.start, end: p.end, status: statusOf(w.state), ...(who ? { who } : {}) };
     items.push({
       key: String(w.id), laneKey: laneOf(w), ...fields, milestone, notes: describe(w),
-      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), assignee: cleanAssignee(w.assignee), ...where(w), titlePrefix: f ? name.slice(0, name.length - String(w.title || `${w.type} #${w.id}`).trim().length) : '', base: { ...fields } }
+      ado: { id: Number(w.id), connection, rev: Number(w.rev) || 0, type: String(w.type || ''), state: String(w.state || ''), url: httpUrl(w.url), assignee: cleanAssignee(w.assignee), ...where(w), releaseNotes: releaseNotesOf(w, src), titlePrefix: f ? name.slice(0, name.length - String(w.title || `${w.type} #${w.id}`).trim().length) : '', base: { ...fields } }
     });
   }
   // A Feature sits under its Epic when the Epic is an item in the same lane.
@@ -275,7 +292,7 @@ export function mergeLinked(doc, data, src, result) {
     }
     const base = pick(cur.ado.base || cur, fields);
     const mine = pick(cur, fields);
-    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url, assignee: it.ado.assignee, iteration: it.ado.iteration, project: it.ado.project, ownDates: it.ado.ownDates, startDate: it.ado.startDate, targetDate: it.ado.targetDate, titlePrefix: it.ado.titlePrefix };
+    const link = { ...cur.ado, connection: it.ado.connection, rev: it.ado.rev, type: it.ado.type, state: it.ado.state, url: it.ado.url, assignee: it.ado.assignee, iteration: it.ado.iteration, project: it.ado.project, ownDates: it.ado.ownDates, startDate: it.ado.startDate, targetDate: it.ado.targetDate, titlePrefix: it.ado.titlePrefix, releaseNotes: it.ado.releaseNotes || '' };
     delete link.missing;
     // The new base, with the old base's owners when this refresh brought none.
     const nextBase = { ...pick(cur.ado.base || cur), ...remote };

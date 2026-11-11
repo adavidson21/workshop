@@ -2,7 +2,7 @@
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
 import { outsideBanner, outsideMark } from '../shared/outside.js';
 import { SCALES, fmt } from './dates.js';
-import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, levels, linksIn, parentChoices, schedule } from './model.js';
+import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, itemColor, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
 import { summary } from './export.js';
 import { adoOwner, choices, mentionOf, namesOf } from './people.js';
@@ -23,6 +23,8 @@ const ICON = {
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
   gear: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 2.5v3M13 2.5v3"/></svg>',
   down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></svg>',
+  chevL: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5L5 8l4.5 4.5M13 3v10"/></svg>',
+  chevR: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5L11 8l-4.5 4.5M3 3v10"/></svg>',
   close: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
 };
 export { ICON };
@@ -134,15 +136,59 @@ export function rangeHtml(v, range, locked = false, owner = '') {
   </div>`;
 }
 
-export function trayHtml(doc, sched = schedule(doc)) {
+/* ---------- Unscheduled: items with no dates, as a list (big ADO backlogs have hundreds) ---------- */
+
+/** Items with no dates, lane by lane in lane order ("No lane" last), each lane in item order. */
+export function unscheduled(doc, sched = schedule(doc)) {
   const loose = doc.items.filter(i => i.kind === 'item' && !sched.get(i.id));
-  if (!loose.length) return '';
-  const lane = (id) => (doc.lanes.find(l => l.id === id) || {}).title;
-  return `<div class="tray" aria-label="Unscheduled">
-    <span class="eyebrow">Unscheduled</span>
-    ${loose.map(i => `<button class="chip" draggable="true" data-tray="${esc(i.id)}" title="Drag onto the timeline, or click to set dates">${esc(i.title)}${lane(i.lane) ? `<span class="muted"> · ${esc(lane(i.lane))}</span>` : ''}</button>`).join('')}
-  </div>`;
+  const lanes = [...[...doc.lanes].sort((a, b) => a.order - b.order), { id: null, title: 'No lane' }];
+  return lanes.map(l => ({ id: l.id, title: l.title, items: loose.filter(i => (i.lane || null) === l.id).sort((a, b) => a.order - b.order) }))
+    .filter(g => g.items.length);
 }
+
+const fold = s => String(s || '').toLowerCase();
+/** Whether an unscheduled item matches the filter text: its title, lane, owners or ADO id (with or without #). */
+export function unsMatch(it, laneTitle, q) {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = fold([it.title, laneTitle, namesOf(it.who || []).join(' '), it.ado ? `#${it.ado.id} ${it.ado.type || ''}` : ''].join(' '));
+  return words.every(w => hay.includes(w));
+}
+
+/** The rows of the Unscheduled list for a filter: lane headings, then one row per item. `dim` is the ids the
+    owner filter fades. Resolves {html, shown, total}. */
+export function unsListHtml(doc, sched = schedule(doc), { filter = '', dim = new Set() } = {}) {
+  const groups = unscheduled(doc, sched);
+  const lv = levels(doc);
+  let shown = 0, total = 0;
+  const parts = [];
+  for (const g of groups) {
+    total += g.items.length;
+    const rows = g.items.filter(it => unsMatch(it, g.title, filter));
+    if (!rows.length) continue;
+    shown += rows.length;
+    parts.push(`<section class="ugroup"><h5 class="ulane">${esc(g.title)} <span class="count">${rows.length}</span></h5><ul class="ulist">${rows.map(it => {
+      const level = lv.get(it.id) || 0;
+      const c = itemColor(it, level);
+      const meta = [it.milestone ? 'Milestone' : it.ado ? (it.ado.type || '') : level ? LEVELS[level] : '', it.ado ? `#${it.ado.id}` : '', namesOf(it.who || []).join(', ')].filter(Boolean).join(' · ');
+      return `<li><button class="urow${dim.has(it.id) ? ' dim' : ''}" draggable="true" data-tray="${esc(it.id)}" title="Drag onto the timeline, or click to set dates"><span class="idot" style="--c:${PALETTE.light[c] || PALETTE.light.gray};--cd:${PALETTE.dark[c] || PALETTE.dark.gray}" aria-hidden="true"></span><span class="ut">${esc(it.title)}</span><span class="um">${esc(meta)}</span></button></li>`;
+    }).join('')}</ul></section>`);
+  }
+  if (total && !shown) parts.push('<p class="hint unone">Nothing unscheduled matches that.</p>');
+  return { html: parts.join(''), shown, total };
+}
+
+/** The Unscheduled tray: a folding, filterable list under the timeline. Empty when every item has dates. */
+export function trayHtml(doc, sched = schedule(doc), { filter = '', open = true, dim = new Set() } = {}) {
+  const { html, shown, total } = unsListHtml(doc, sched, { filter, dim });
+  if (!total) return '';
+  return `<details class="uns" data-uns${open ? ' open' : ''} aria-label="Unscheduled">
+    <summary><span>Unscheduled</span> <span class="hint" data-unscount>${unsCount(shown, total)}</span></summary>
+    <div class="ubar"><input type="search" class="ufilter" data-unsfilter value="${esc(filter)}" placeholder="Filter by title, lane, owner or #id" aria-label="Filter unscheduled items" autocomplete="off" spellcheck="false"><span class="hint">Drag a row onto the timeline to give it dates.</span></div>
+    <div class="ubody" data-unslist>${html}</div>
+  </details>`;
+}
+export const unsCount = (shown, total) => (shown === total ? `${total} item${total === 1 ? '' : 's'}` : `${shown} of ${total}`);
 
 export function warningsHtml(warnings) {
   if (!warnings.length) return '';
@@ -181,7 +227,9 @@ export function detailsHtml(doc, range, open = true) {
         : `<p class="hint">No goals in these dates. Click a cell in the goals row above the lanes, or write <code>goal: ${doc.meta.scale === 'sprint' ? 'S1' : doc.meta.scale === 'quarter' ? 'Q1' : 'Jan'} | ...</code> in the outline.</p>`}
     </div>
     <div class="dcol"><h4 class="section-label">What's getting done</h4>
-      ${items.length ? `<ul class="dlist">${items.map(it => `<li><button class="dname" data-pick="${esc(it.id)}">${esc(it.title)}</button><span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : '', namesOf(ownersOf(doc, it.id)).join(', ')].filter(Boolean).join(' · '))}</span><p>${esc(it.notes)}</p></li>`).join('')}</ul>`
+      ${items.length ? `<ul class="dlist">${items.map(it => `<li>${it.url
+        ? `<a class="dname" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer" title="Open in Azure DevOps">${esc(it.title)}</a>`
+        : `<button class="dname" data-pick="${esc(it.id)}" title="Show on the timeline">${esc(it.title)}</button>`}<span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : '', namesOf(ownersOf(doc, it.id)).join(', ')].filter(Boolean).join(' · '))}</span>${it.notes ? `<p>${esc(it.notes)}</p>` : ''}${it.releaseNotes ? `<div class="rnotes"><span class="eyebrow">Release notes</span><p>${esc(it.releaseNotes)}</p></div>` : ''}</li>`).join('')}</ul>`
         : '<p class="hint">Add a description to an item (its panel, or indented lines under it in the outline) to say what it delivers.</p>'}
     </div>`;
   return `<details class="details" data-details${open ? ' open' : ''}><summary>Goals and descriptions <span class="hint">${goals.length} goal${goals.length === 1 ? '' : 's'}, ${items.length} described</span></summary><div class="dgrid">${body}</div></details>`;
@@ -346,7 +394,7 @@ export function adoBarHtml(doc, { ready = false, message = '', refreshing = fals
 }
 
 /** Choose what to read from ADO. `mode` false hides the live or linked choice (adding to an existing roadmap). */
-export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, chooseMode = true, heading = 'From Azure DevOps' } = {}) {
+export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, releaseNotesField = 'Custom.ReleaseNotes', chooseMode = true, heading = 'From Azure DevOps' } = {}) {
   const t = (x, label) => `<label class="pc"><input type="checkbox" name="type" value="${x}"${types.includes(x) ? ' checked' : ''}> ${label}</label>`;
   return `<form method="dialog" class="sheet wide">
     <h3>${esc(heading)}</h3>
@@ -359,6 +407,7 @@ export function adoDialog({ title = '', areas = [], connection = '', types = ['E
     <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic', 'Epics')}${t('Feature', 'Features')}${t('User Story', 'User Stories, named Feature &gt; Story')}</fieldset>
       <label class="pf inline"><span>Lanes by</span><select name="lanes"><option value="area"${lanes !== 'epic' ? ' selected' : ''}>Area path</option><option value="epic"${lanes === 'epic' ? ' selected' : ''}>Epic</option></select></label></div>
     <label class="pc"><input type="checkbox" name="closed"${includeClosed ? ' checked' : ''}> Include closed work items</label>
+    <label class="pf"><span>Release notes field</span><input name="releaseNotesField" class="mono" value="${esc(releaseNotesField)}" maxlength="200" pattern="[A-Za-z][A-Za-z0-9_.]*" placeholder="Custom.ReleaseNotes" autocomplete="off" spellcheck="false"><small class="hint">ADO has no standard release notes field, so this is its reference name in yours. Shown under What&#39;s getting done. Leave empty for none.</small></label>
     <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Reading changes nothing in ADO. Only Publish writes, after a preview.</small></label>
     <footer><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${chooseMode ? 'Create' : 'Add'}</button></footer>
   </form>`;

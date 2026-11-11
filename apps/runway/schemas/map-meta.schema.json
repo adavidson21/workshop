@@ -25,6 +25,7 @@
       "lanes": {"enum": ["area", "epic"]},
       "connection": {"type": "string", "maxLength": 40},
       "includeClosed": {"type": "boolean"},
+      "releaseNotesField": {"type": "string", "maxLength": 200, "description": "Reference name of the release notes field to read (default Custom.ReleaseNotes); empty reads none. Missing means the default."},
       "fetchedAt": {"type": "string"},
       "total": {"type": "integer"},
       "truncated": {"type": "boolean"}}}

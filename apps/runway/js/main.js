@@ -21,7 +21,7 @@ import { createSummaryWriter, readCards } from '../shared/summary.js';
 import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,
-  settingsDialog, toolbarHtml, trayHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog, publishDialog, publishResultsDialog
+  settingsDialog, toolbarHtml, trayHtml, unsCount, unsListHtml, warningsHtml, detailsHtml, goalDialog, adoBarHtml, adoDialog, publishDialog, publishResultsDialog
 } from './view.js';
 
 const app = document.getElementById('app');
@@ -126,7 +126,9 @@ const ui = {
   pendingRoute: null,
   opened: null,
   owner: (() => { try { return localStorage.getItem('runway.owner') || ''; } catch (e) { return ''; } })(),
-  detailsOpen: (() => { try { return localStorage.getItem('runway.details') !== 'closed'; } catch (e) { return true; } })()
+  detailsOpen: (() => { try { return localStorage.getItem('runway.details') !== 'closed'; } catch (e) { return true; } })(),
+  unsOpen: (() => { try { return localStorage.getItem('runway.unscheduled') !== 'closed'; } catch (e) { return true; } })(),
+  unsFilter: ''
 };
 let unsubMap = null;
 
@@ -208,7 +210,9 @@ function mapShell() {
       ${v.readOnly ? `<p class="notice">${v.readOnly}</p>` : ''}
       <div data-r="adobar"></div>
       <div class="body" data-mode="${ui.mode}">
+        <button class="orail" data-oexpand aria-label="Show the outline" data-tip="Show the outline">${ICON.chevR}<span>Outline</span></button>
         <section class="outline" aria-label="Outline">
+          <div class="ohead"><span class="eyebrow">Outline</span><span class="grow"></span><button class="ibtn" data-ocollapse aria-label="Hide the outline" data-tip="Hide the outline">${ICON.chevL}</button></div>
           <textarea class="ta mono" spellcheck="false" wrap="off" aria-label="Outline" data-outline${locked() ? ' readonly' : ''}></textarea>
           <div data-r="warns"></div>
           ${OUTLINE_HELP}
@@ -262,7 +266,7 @@ function paintMap() {
   const scroll = tl.scrollLeft;
   tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner) });
   tl.scrollLeft = scroll;
-  setHtml(app.querySelector('[data-r="tray"]'), trayHtml(doc, sched));
+  paintTray(doc, sched);
   setHtml(app.querySelector('[data-r="details"]'), detailsHtml(doc, range, ui.detailsOpen));
   const ta = app.querySelector('[data-outline]');
   if (document.activeElement !== ta && ta.value !== ui.outline) ta.value = ui.outline;
@@ -273,6 +277,24 @@ function paintMap() {
     setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly, workItems: workItemsApp ? `Open in ${workItemsApp.name}` : null }) : '');
   }
   app.querySelector('.body').classList.toggle('has-panel', !!ui.selected);
+}
+
+/** The Unscheduled list. While you type in its filter only the rows and the count are redrawn, so the box keeps
+    its focus and caret. */
+function paintTray(doc, sched) {
+  const tray = app.querySelector('[data-r="tray"]');
+  const dim = notFor(doc.items, ui.owner);
+  const box = tray.querySelector('[data-unsfilter]');
+  if (box && document.activeElement === box) {
+    const r = unsListHtml(doc, sched, { filter: ui.unsFilter, dim });
+    if (r.total) {
+      setHtml(tray.querySelector('[data-unslist]'), r.html);
+      tray.querySelector('[data-unscount]').textContent = unsCount(r.shown, r.total);
+      tray.__html = null;
+      return;
+    }
+  }
+  setHtml(tray, trayHtml(doc, sched, { filter: ui.unsFilter, open: ui.unsOpen, dim }));
 }
 
 /** The outline text follows the roadmap unless you are typing in it. */
@@ -527,10 +549,27 @@ app.addEventListener('click', e => {
   if (pick) { select(pick.dataset.pick); return; }
 });
 app.addEventListener('toggle', e => {
-  if (!e.target.matches || !e.target.matches('[data-details]')) return;
-  ui.detailsOpen = e.target.open;
-  try { localStorage.setItem('runway.details', e.target.open ? 'open' : 'closed'); } catch (err) { /* private mode */ }
+  if (!e.target.matches) return;
+  if (e.target.matches('[data-details]')) {
+    ui.detailsOpen = e.target.open;
+    try { localStorage.setItem('runway.details', e.target.open ? 'open' : 'closed'); } catch (err) { /* private mode */ }
+  } else if (e.target.matches('[data-uns]')) {
+    ui.unsOpen = e.target.open;
+    try { localStorage.setItem('runway.unscheduled', e.target.open ? 'open' : 'closed'); } catch (err) { /* private mode */ }
+  }
 }, true);
+app.addEventListener('input', e => {
+  if (!e.target.matches || !e.target.matches('[data-unsfilter]')) return;
+  ui.unsFilter = e.target.value.slice(0, 200);
+  requestPaint();
+});
+
+/** Hide or show the outline: hiding it is the Timeline view, with a thin rail on the left to bring it back. */
+function setMode(mode) {
+  ui.mode = mode;
+  try { localStorage.setItem('runway.mode', ui.mode); } catch (err) { /* private mode */ }
+  requestPaint();
+}
 
 /* ---------- list page events ---------- */
 
@@ -568,7 +607,9 @@ app.addEventListener('click', async e => {
   }
   if (app.dataset.view !== 'map') return;
   if ('home' in t.dataset) { e.preventDefault(); go(''); }
-  else if (t.dataset.mode) { ui.mode = t.dataset.mode; try { localStorage.setItem('runway.mode', ui.mode); } catch (err) { /* private mode */ } requestPaint(); }
+  else if (t.dataset.mode) setMode(t.dataset.mode);
+  else if ('ocollapse' in t.dataset) setMode('timeline');
+  else if ('oexpand' in t.dataset) setMode('split');
   else if ('settings' in t.dataset) settings();
   else if ('export' in t.dataset) exportFlow();
   else if ('fit' in t.dataset) edit(d => { d.meta.range = null; });
@@ -600,7 +641,8 @@ async function sourceForm(base, opts) {
     types: [...f.querySelectorAll('[name="type"]:checked')].map(x => x.value),
     lanes: f.lanes.value,
     connection: f.connection.value,
-    includeClosed: f.closed.checked
+    includeClosed: f.closed.checked,
+    releaseNotesField: f.releaseNotesField.value
   });
   if (!src) { toast('Add at least one area path.', 'warn'); return null; }
   return { src, title: f.title ? f.title.value.trim().slice(0, 120) : '' };

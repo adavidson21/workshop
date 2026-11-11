@@ -43,9 +43,19 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15p
 
 .body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(18rem,26rem) 1fr;grid-template-rows:minmax(0,1fr)}
 .body.has-panel{grid-template-columns:minmax(18rem,26rem) 1fr 20rem}
-.body[data-mode=timeline]{grid-template-columns:1fr}
-.body[data-mode=timeline].has-panel{grid-template-columns:1fr 20rem}
+/* Timeline view: the outline folds to a thin rail on the left that brings it back */
+.body[data-mode=timeline]{grid-template-columns:2.25rem 1fr}
+.body[data-mode=timeline].has-panel{grid-template-columns:2.25rem 1fr 20rem}
 .body[data-mode=timeline] .outline{display:none}
+.orail{display:none}
+.body[data-mode=timeline] .orail{display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:.7rem 0;border-right:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.orail:hover{color:var(--ink);background:var(--hover)}
+.orail svg{width:16px;height:16px;flex:none}
+.orail span{writing-mode:vertical-rl;font:500 11.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.ohead{display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem .35rem 1.1rem;border-bottom:1px solid var(--line)}
+.ohead .eyebrow{margin:0}
+.ohead .ibtn svg{width:16px;height:16px}
+.body[data-mode=outline] [data-ocollapse]{display:none}
 .body[data-mode=outline]{grid-template-columns:minmax(0,52rem)}
 .body[data-mode=outline] .tlwrap,.body[data-mode=outline] .side{display:none}
 .body[data-mode=outline] .outline{border-right:0;justify-self:stretch}
@@ -59,18 +69,44 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15p
 .ohelp summary{cursor:pointer;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .ohelp pre{margin:.5rem 0 .2rem;white-space:pre-wrap;font-size:.8rem;line-height:1.55;color:var(--ink)}
 
-.tlwrap{display:flex;flex-direction:column;min-width:0;min-height:0}
+/* The timeline always keeps room: what sits under it (Unscheduled, goals and descriptions) scrolls in its own box
+   instead of pushing the timeline out of view. */
+.tlwrap{display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
 .rbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.5rem 1rem;border-bottom:1px solid var(--line)}
-.tl{flex:1;min-height:0;overflow:auto;outline:none;touch-action:pan-x pan-y}
+.tl{flex:1 1 auto;min-height:max(12rem,45%);overflow:auto;outline:none;touch-action:pan-x pan-y}
+.tlwrap>[data-r=tray]{flex:0 1 auto;max-height:28vh;overflow:auto;min-height:2.4rem}
+.tlwrap>[data-r=tray]:empty{display:none}
+.tlwrap>[data-r=tray]:has(>.uns[open]){min-height:min(10rem,28vh)}
+.tlwrap>[data-r=details]:has(>.details[open]){min-height:min(7rem,32vh)}
+.tlwrap>[data-r=details]{flex:0 1 auto;max-height:32vh;overflow:auto;min-height:2.4rem}
+.tlwrap>[data-r=details] .details{max-height:none}
 .tl:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
 .tl svg{display:block;user-select:none;-webkit-user-select:none}
 .tl .bar{cursor:grab;touch-action:none}
 .tl .bar:active{cursor:grabbing}
 .tl .grip{cursor:ew-resize}
 .tl .lane{cursor:pointer}
-.tray{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding:.55rem 1rem;border-top:1px solid var(--line);background:var(--surface)}
-.chip{padding:.25rem .6rem;border:1px dashed var(--line);border-radius:999px;font-size:.8rem;background:var(--bg);cursor:grab}
-.chip:hover{border-color:var(--accent)}
+/* Unscheduled: a folding list, filterable, lane by lane, in columns when there is room */
+.uns{border-top:1px solid var(--line);background:var(--surface)}
+.uns>summary{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:.6rem;padding:.5rem 1rem;cursor:pointer;background:var(--surface);font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.uns>summary .hint{font:400 .78rem var(--sans);letter-spacing:0;text-transform:none}
+.ubar{position:sticky;top:2.1rem;z-index:1;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:0 1rem .5rem;background:var(--surface)}
+.ufilter{flex:0 1 22rem;min-width:10rem;min-height:2rem;padding:.25rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit;font-size:.84rem}
+.ubody{padding:0 1rem .8rem;columns:18rem auto;column-gap:1.5rem}
+.ugroup{break-inside:avoid-column;margin-bottom:.6rem}
+.ugroup:first-child .ulane{margin-top:0}
+.ulane{margin:.2rem 0 .2rem;font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;gap:.4rem}
+.ulane .count{font-variant-numeric:tabular-nums;opacity:.8}
+.ulist{list-style:none;margin:0;padding:0}
+.ulist li{break-inside:avoid}
+.urow{display:flex;align-items:baseline;gap:.5rem;width:100%;padding:.22rem .35rem;border-radius:4px;text-align:left;font-size:.84rem;color:var(--ink);cursor:grab}
+.urow:hover{background:var(--hover)}
+.urow:active{cursor:grabbing}
+.urow.dim{opacity:.4}
+.urow .idot{position:relative;top:1px;width:8px;height:8px}
+.urow .ut{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.urow .um{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem;color:var(--muted)}
+.unone{margin:.2rem 0 0}
 
 /* the item panel */
 .side{min-height:0;overflow:auto;border-left:1px solid var(--line);background:var(--surface)}
@@ -134,6 +170,10 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
   .body>*{flex:none}
   .body[data-mode=split] .outline{order:2;border-right:0;border-top:1px solid var(--line)}
   .body[data-mode=split] .ta{min-height:16rem}
+  .body[data-mode=timeline] .orail{display:none}
+  .ohead [data-ocollapse]{display:none}
+  .tlwrap{overflow:visible}
+  .tlwrap>[data-r=details]{max-height:none}
   .tl{flex:none;height:min(26rem,60vh)}
   .side{border-left:0;border-top:1px solid var(--line);order:1}
   .rrow{grid-template-columns:1fr auto}
@@ -141,7 +181,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 }
 @media (hover:none) and (pointer:coarse){
   .seg button{min-height:40px}
-  .chip{min-height:36px}
+  .urow{min-height:36px;align-items:center}
 }
 
 /* goals row and the details under the timeline */
@@ -149,7 +189,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .tl .goal .ph{opacity:0;transition:opacity .15s}
 .tl .goal:hover .ph,.tl .goal:focus .ph{opacity:1}
 .tl .goal:hover rect{fill:var(--hover)}
-.details{flex:none;max-height:42%;overflow:auto;border-top:1px solid var(--line);background:var(--bg)}
+.details{flex:none;overflow:auto;border-top:1px solid var(--line);background:var(--bg)}
 .details>summary{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;cursor:pointer;background:var(--bg);font:500 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
 .details>summary .hint{font:400 .78rem var(--sans);letter-spacing:0;text-transform:none}
 .dgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:1.5rem;padding:.3rem 1rem 1.1rem}
@@ -159,6 +199,11 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .dlist p{margin:0;font-size:.86rem;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
 .dname{justify-self:start;text-align:left;font-weight:600;font-size:.9rem;color:var(--ink);border-radius:4px}
 .dname:hover{color:var(--accent)}
+a.dname{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+a.dname:hover{text-decoration-color:currentColor}
+.rnotes{margin-top:.25rem;padding:.35rem 0 .1rem .7rem;border-left:2px solid var(--line)}
+.rnotes .eyebrow{display:block;margin:0 0 .1rem;font-size:10.5px}
+.rnotes p{color:var(--ink)}
 .dcol code{font-family:var(--mono);font-size:.84rem;background:var(--panel);padding:.05rem .3rem;border-radius:4px}
 @media (max-width:900px){.dgrid{grid-template-columns:1fr}.details{max-height:none}}
 
@@ -256,9 +301,10 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
   .rp-bars,.rp-cols{max-width:60rem}
   /* Goals and descriptions beside the timeline instead of under it, so the timeline gets the full height
      (left under it while an item's panel is open, which takes the right side). */
-  .body:not(.has-panel) .tlwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(20rem,26rem);grid-template-rows:auto minmax(0,1fr) auto}
+  .body:not(.has-panel) .tlwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(20rem,26rem);grid-template-rows:auto minmax(14rem,1fr) auto;overflow:hidden}
   .body:not(.has-panel) .tlwrap>*{grid-column:1}
   .body:not(.has-panel) .tlwrap>[data-r=details]{grid-column:2;grid-row:1/-1;min-height:0;overflow:auto;border-left:1px solid var(--line);background:var(--bg)}
+  .body:not(.has-panel) .tlwrap>[data-r=details]{max-height:none}
   .body:not(.has-panel) .tlwrap>[data-r=details] .details{max-height:none;border-top:0}
   .body:not(.has-panel) .tlwrap>[data-r=details] .dgrid{grid-template-columns:minmax(0,1fr)}
 }
