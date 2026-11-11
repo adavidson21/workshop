@@ -183,3 +183,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 .solo .rail{display:none}
 .solo .hub{grid-template-columns:minmax(0,1fr);grid-template-rows:none}
 .solo .topbar{min-height:48px;padding-left:20px}
+
+/* The panel app (manifest panel: true): Needs you, from its button in the top bar, over the app you are in */
+.panelbtn{position:relative;display:inline-flex;align-items:center;gap:.4rem;margin-left:auto;min-height:2.1rem;padding:.3rem .8rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:.86rem;font-weight:500;color:var(--ink)}
+.panelbtn:hover,.panelbtn.on{background:var(--hover)}
+.panelbtn .ico{display:inline-flex}
+.panelbtn .ico svg{width:15px;height:15px}
+.panelbtn .badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--on-accent);font:600 .7rem/18px var(--mono);text-align:center}
+.panelbtn .badge[hidden]{display:none}
+.wstatus:not([hidden])~.panelbtn,.panelbtn~.capbtn{margin-left:0}
+.spanel-scrim{position:fixed;inset:60px 0 0 0;z-index:40;background:color-mix(in srgb,#000 14%,transparent)}
+.spanel-scrim[hidden]{display:none}
+.spanel{position:fixed;top:60px;right:0;bottom:0;z-index:41;width:min(28rem,100vw);display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow-lg);animation:spanel .14s ease}
+.spanel[hidden]{display:none}
+.spane{flex:1;display:flex;flex-direction:column;min-height:0}
+.spane>iframe{flex:1;width:100%;min-height:0;border:0;background:var(--bg)}
+@keyframes spanel{from{transform:translateX(12px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.spanel{animation:none}}
+@media (max-width:640px){.panelbtn .lbl{display:none}.panelbtn{padding:.3rem .55rem}}
+@media (max-width:720px){.spanel,.spanel-scrim{top:56px}}

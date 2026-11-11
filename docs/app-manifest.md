@@ -54,6 +54,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `entry` | yes | Path to the app's HTML page in the app folder. The shell loads it in a same-origin frame. |
 | `order` | no | Number. Rail position, low first. Ties and missing values sort by `name`. |
 | `home` | no | `true` makes this app the home page. The Workshop logo at the top of the rail and the plain address (no `#`) open it, and it gets no rail button or `Alt+<n>`. If several apps set it, the first by `order` wins. Without a home app, the logo and the plain address open the first app on the rail. |
+| `panel` | no | `true` shows this app as a panel over the app you are in, opened from a button in the top bar (its icon and name), instead of a page with a rail button. Its `ws.badge` count shows on that button. `#/<id>` and `ws.open` to it open the panel over the current app; `Esc`, the button again or a click outside closes it. Use it for something you glance at from anywhere, like Needs you. Ignored with `home`. |
 | `background` | no | `true` loads the app, hidden, when Workshop opens instead of on its first visit, so a status it keeps in the top bar (`ws.status`, [sdk.md](sdk.md) Status) shows from the start. Docket uses it for the running task. Use it only for that: every background app costs a page load at start. |
 | `modes` | no | Run modes the app works in: any of `local`, `hosted`, `browser` ([run-modes.md](run-modes.md)). Default: all three. The shell hides an app in a mode it does not list. |
 | `routes` | no | Deep links the app handles, as patterns after `#/<id>/`. Segments starting with `:` are parameters. The shell passes the rest of the hash to the app (SDK `route` event); patterns document what is valid and power `open()` from other apps. |
@@ -69,6 +70,10 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `settings` | no | On/off switches for the whole app, shown under it on Settings' Apps tab: up to 20 of `{id, type: "boolean", title, description?, default}`. The app reads them with `ws.appSettings` ([app-settings.md](app-settings.md)). Bundle 2.7.0. |
 | `files` | no | Extra files to precache for offline use, relative to the app folder. The entry page and icon are always included. |
 
+
+## Addresses
+
+`#/<id>/<path>` opens an app. The shell also takes the app's `name` (lowercase, spaces removed) and its string `aliases`, so `#/docket/today` opens Docket (id `prioritizer`) at `today`, and `#/rapport` opens Rapport (id `receipts`). An id always wins over a name or alias, and the shell writes the id back to the address.
 
 ## Hosted apps
 

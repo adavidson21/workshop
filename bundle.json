@@ -1,10 +1,10 @@
 {
   "bundle": 1,
-  "version": "2.12.0",
+  "version": "2.13.0",
   "files": {
     "docs/schemas/app-setting.schema.json": "7dec4747208ea2c9faecd402dfba852971fbb926fcfe367b5052df2881d71dd7",
     "docs/schemas/app-switches.schema.json": "550f681d5ae5690b7e7e3673f48d1a68424966e07de2224fca99a4809ab26091",
-    "docs/schemas/app.schema.json": "aacb2c69036863b58854d651416d8681c20808f83e7c14c011796c5cab904e6a",
+    "docs/schemas/app.schema.json": "00134019d500be35567cfbb6a0de25dc48345923327d1fde3b19f498aa877290",
     "docs/schemas/apps-response.schema.json": "f938ac427aabdbdeb06c253509fabce8db878f051283262556b03ed42f054685",
     "docs/schemas/common.schema.json": "330bc935a85a9ef135cbb382e89e075f59b1a265842f5d07cc55b9dd24ab492d",
     "docs/schemas/config-form.schema.json": "fd5a00cc1e4d58ce36079ebcd79c19520d816351f3243ef4678e6118349dbade",
@@ -42,7 +42,7 @@
     "docs/schemas/person-group.schema.json": "7ddba893c6aaee2e1c0acc72c1814d47962412867b3f978166f4660868a2a040",
     "docs/schemas/person.schema.json": "4311c304977caa3d5b6f6707ccb8bdd9bec6a0e3b4802e072b76fa5670cb6d6c",
     "docs/schemas/product.schema.json": "1a12ea1cfed974b009a2f983ea2f0ee0dcae2f584d2ac736008c7eec7d68f20e",
-    "docs/schemas/sdk-message.schema.json": "27fbc0ca201cfa1664bb9245f07d5c77062523892d60188a745b83063d95bbb7",
+    "docs/schemas/sdk-message.schema.json": "f331e8837e824bb4be6d2a1c5afabbb9aff8db4ae509e94c22c5ab0c6e0438cd",
     "docs/schemas/session.schema.json": "7085112e4d8690ac99cbd84e6db731656b0cdf94ab2047dbcc20b1addd01861f",
     "docs/schemas/summary-card.schema.json": "c83567190b02d9eea291e3568e4fab3e4b61cc2c2c6d4dc4b8ad8213edd44e2d",
     "docs/schemas/team.schema.json": "301aec0b6b03b723af57add480886189d0d74c78f026987bacb5b4af0d147732",
@@ -92,7 +92,7 @@
     "shared/vendor/README.md": "96aa92ed51dfe90ad089c66674bd034c8d42f10107745c4ff9898d99fbba17c9",
     "shared/vendor/SHA256SUMS": "cbe03842a584cb4fa23da99057e2873459623d54900ab2f64536d2835055c090",
     "shared/vendor/xlsx.full.min.js": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41",
-    "shared/workshop-sdk.js": "6a16fcf87e36626fabd326a89036581247f7ed57c2eea92c472276857e8648a2",
+    "shared/workshop-sdk.js": "dda62458015d5e450446c6b639a04ebcefd800a5042f6c1217a0f0075a8729c1",
     "tests/lib/schema.mjs": "ed7bd2026a6b3e2f97779fab7726e2dbb61566396444c2126a1f8092fd2ab382"
   }
 }

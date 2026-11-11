@@ -1,6 +1,6 @@
 # Turning apps on and off
 
-Every app except Home and Settings has an on/off switch: **Settings, Apps**, or the `workshop apps` command. An app that is off leaves the rail. In work mode it also leaves the pinned copy, so it is not served at all.
+Every app except Needs you (`home`) and Settings has an on/off switch: **Settings, Apps**, or the `workshop apps` command. An app that is off leaves the rail. In work mode it also leaves the pinned copy, so it is not served at all.
 
 ## The command
 
@@ -30,7 +30,7 @@ The Apps tab has the same switches. Changes come from Workshop on this computer 
 {"off": ["notes", "runway"]}
 ```
 
-No file means every app is on. Home and Settings are never turned off, even if the file lists them. `workshop pin` and `workshop update` leave out the apps that are off.
+No file means every app is on. Needs you (`home`) and Settings are never turned off, even if the file lists them. `workshop pin` and `workshop update` leave out the apps that are off.
 
 ## API
 

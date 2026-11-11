@@ -1,12 +1,12 @@
 /* Workshop shell: the capture bar. One place to capture a task, waiting-on, receipt, note or roadmap idea, or to ask
-   Tandem, from any app: the Capture button in the top bar, or Ctrl+. (Cmd+. on a Mac). It is Home's quick capture
-   (shared/capture-box.js, the same rules and Recent list, saved to Home's `handoffs` collection), so a capture made
-   here shows in Home's Recent too, and Docket, Rapport, Notes and Runway add it when they next load.
+   Tandem, from any app: the Capture button in the top bar, or Ctrl+. (Cmd+. on a Mac). It is the one quick capture
+   (shared/capture-box.js, its rules and Recent list), saved as the `home` app (Needs you) to its `handoffs`
+   collection, so Docket, Rapport, Folio, Runway and Slate add it when they next load.
 
-   The SDK is connected as Home the first time the bar opens, so pages that never capture pay nothing for it. */
+   The SDK is connected as `home` the first time the bar opens, so pages that never capture pay nothing for it. */
 import { connect } from '../shared/workshop-sdk.js';
 import { mountCapture } from '../shared/capture-box.js';
-import { useApps } from '../shared/capture.js';
+import { TARGETS, useApps } from '../shared/capture.js';
 import { readCards, targetsFor } from '../shared/summary.js';
 
 const localDay = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -18,13 +18,15 @@ export const CAPTURE_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="curren
  * the panel closes. Returns {open(), close(), toggle(), isOpen()}.
  */
 export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
-  let panel = null, box = null, ws = null, src = {}, ready = null;
+  let panel = null, box = null, ws = null, src = {}, ready = null, refresh = null;
 
   async function setup() {
     ws = await connect({ app: 'home' });
     const apps = await ws.apps.list().catch(() => []);
     useApps(apps);
-    const takers = [...new Set(apps.filter(a => Array.isArray(a.capture) && (a.capture.includes('task') || a.capture.includes('idea'))).map(a => a.id))];
+    // The apps that take tasks, ideas and notes (TARGETS follows the manifests after useApps): their summaries'
+    // `targets` cards name lists, roadmaps and note folders ("p <roadmap>: ...", "n <folder>: ...", "n today: ...").
+    const takers = [...new Set([TARGETS.task, TARGETS.idea, TARGETS.note].filter(Boolean))];
     const read = async () => {
       const [dir, ...sums] = await Promise.all([ws.people.get().catch(() => null), ...takers.map(a => ws.data.get('summary', { app: a }).catch(() => null))]);
       const summaries = sums.map((env, i) => readCards(env, takers[i]));
@@ -32,10 +34,14 @@ export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
         today: localDay(),
         people: dir ? dir.items.filter(it => !it.archived) : [],
         lists: (targetsFor(summaries, 'task') || []).map(r => r.title),
-        maps: (targetsFor(summaries, 'idea') || []).map(r => ({ id: r.id, title: r.title }))
+        maps: (targetsFor(summaries, 'idea') || []).map(r => ({ id: r.id, title: r.title })),
+        folders: (targetsFor(summaries, 'note') || []).map(r => ({ id: r.id, title: r.title }))
       };
     };
-    await read().catch(() => {});
+    refresh = () => read().catch(() => {});
+    await refresh();
+    for (const a of takers) ws.data.subscribe('summary', refresh, { app: a });
+    ws.people.subscribe(refresh);
     box = mountCapture(panel.querySelector('.cb-box'), {
       ws, sender: 'home',
       context: () => ({ ...src, today: localDay() }),
@@ -62,7 +68,8 @@ export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
       });
     }
     panel.hidden = false;
-    if (!ready) ready = setup().catch(() => { panel.querySelector('.cb-box').innerHTML = '<p class="cb-err">Capture is not available right now. Try again from Home.</p>'; });
+    if (!ready) ready = setup().catch(() => { panel.querySelector('.cb-box').innerHTML = '<p class="cb-err">Capture is not available right now. Try again in a moment.</p>'; });
+    else if (refresh) refresh();
     ready.then(() => { const i = panel && panel.querySelector('.cap-in'); if (i) i.focus(); });
   }
   function close() {

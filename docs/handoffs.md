@@ -2,7 +2,7 @@
 
 A handoff is one app offering an item to another app, which the person then accepts or dismisses there. Example: Docket's Wrap up offers today's finished tasks to Rapport (app id `receipts`, formerly Receipts) as possible receipts.
 
-A handoff can also carry something the person already accepted where they typed it (an **accepted** offer). Example: a capture from Home's quick capture or the Dispatch hub ([hub.md](hub.md)). The receiver adds it the next time it loads, without asking again.
+A handoff can also carry something the person already accepted where they typed it (an **accepted** offer). Example: a capture from the top bar's quick capture or the Dispatch hub ([hub.md](hub.md)). The receiver adds it the next time it loads, without asking again.
 
 Apps can read each other's collections but never write them ([sdk.md](sdk.md), Data). Handoffs keep that rule: the sender writes to its own collection, and the receiver reads it and keeps its own record of what it handled.
 

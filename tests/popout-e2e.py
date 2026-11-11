@@ -42,7 +42,7 @@ def main():
 
         pg.goto(HUB + '/'); pg.wait_for_timeout(800)
         check('the main window names itself, so pop-outs can find it', pg.evaluate('window.name') == 'workshop-main')
-        check('no pop-out button on Home', pg.locator('#popBtn').is_hidden())
+        check('the first app, at the plain address, has a pop-out button', pg.locator('#popBtn').is_visible())
 
         pg.goto(HUB + '/#/notes'); pg.wait_for_timeout(1500)
         nf = frame_of(pg, 'notes')
@@ -64,7 +64,7 @@ def main():
         check('the pop-out opens on the note that was open', pf is not None and 'hello from the main window' in pf.evaluate("document.body.innerText"))
         check('only Folio loads in the pop-out (no background apps)', [f.url for f in pop.frames if '/apps/' in f.url and '/apps/notes/' not in f.url] == [])
         pg.wait_for_timeout(300)
-        check('the main window goes Home', pg.url == HUB + '/' and frame_of(pg, 'home') is not None)
+        check('the main window goes to the first rail app', (pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')) and pg.title() == 'Docket · Workshop')
 
         # Another app from the pop-out opens in the main window; the pop-out stays on Folio.
         pop.evaluate("location.hash = '#/settings'"); pop.wait_for_timeout(1200)

@@ -1,23 +1,18 @@
-/* Home: a summary of your day across Workshop, opened by the Workshop logo (app.json home: true).
-   Reads Prioritizer's board and the opencode connector
-   read-only through the SDK, and keeps one small
-   collection of its own: profile (home.profile v1, no items; meta: {name, role}). data.js loads and saves,
+/* Home, the Needs you panel (app.json panel: true, Home 4.0.0): opened from the top bar on every app. What needs
+   you across apps, what is coming up, what you finished this week, and Get started. Reads other apps through their
+   summaries and the opencode connector, read only; keeps its own setup collection (home.setup v1). data.js loads,
    view.js builds the HTML, this file owns the page. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { createHome } from './data.js';
-import { ICON, esc, profileForm, render, statusDraft } from './view.js';
+import { ICON, esc, heldInbox, render, statusDraft } from './view.js';
 import { card as setupCard, createSetup, strip as setupStrip } from './setup.js';
-import { startCapture } from './capture.js';
 import { watchFocus } from '../../../shared/focus.js';
 
 const app = document.getElementById('app');
 const ws = await connect({ app: 'home' });
 document.documentElement.classList.toggle('embed', ws.embedded);
 
-/* ---------- quick capture (capture.js), drawn once and never repainted, so typing is never lost ---------- */
-const capture = startCapture(ws, document.getElementById('capture'));
-
-let editing = false, visible = true;
+let visible = false;
 const home = createHome(ws, { onChange: () => paint() });
 const v = home.v;
 
@@ -37,7 +32,7 @@ function settingsTarget() {
 // default: the next step and n of total), or the full card while you work through it (per window).
 // The setup checklist's markup and where it goes: into the hello tools (hidden) or after the hello.
 function setupPart() {
-  if (editing || home.waiting || !setup.s.loaded) return null;
+  if (home.waiting || !setup.s.loaded) return null;
   const view = setup.view();
   if (setup.s.hidden) {
     const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
@@ -62,10 +57,8 @@ function placeSetup(part) {
 const ENTERS = ['.hello', '.setup', '.su-strip', '.cols', '.card.note'];
 let lastKey = null, lastFirst = null;
 function paint() {
-  if (home.waiting) editing = false;
-  v.adoReady = !!(setup.s.facts && setup.s.facts.ado && setup.s.facts.ado.state === 'ready');
-  const html = editing ? profileForm(v.profile) : render(v);
-  const part = editing ? null : setupPart();
+  const html = render(v);
+  const part = setupPart();
   // Skip a repaint that would draw the same thing: rebuilding the page under the pointer drops and
   // re-applies :hover, which flickers (most repaints come from agent events and the minute timer).
   const key = html + '\u0000' + (part ? part.into + part.html : '');
@@ -75,15 +68,25 @@ function paint() {
   placeSetup(part);
   lastKey = key; lastFirst = app.firstChild;
   ENTERS.forEach((q, i) => { if (had[i]) app.querySelectorAll(q).forEach(el => el.classList.add('still')); });
-  if (editing) { const f = app.querySelector('input[name=name]'); if (f) f.focus(); }
+  badge();
+}
+// The count on the top bar button: what Needs you shows (during focus, only the blocking pull requests break
+// through; the shell hides the rest of the count, docs/focus.md).
+let lastBadge = null;
+function badge() {
+  if (home.waiting) return;
+  const all = heldInbox(v.inbox || [], null, v.blocking || []).rows.length;
+  const key = all + '/' + (v.blocking || []).length;
+  if (key === lastBadge) return;
+  lastBadge = key;
+  ws.badge(all, { breakThrough: (v.blocking || []).length }).catch(() => {});
 }
 
 // Changes from other windows. Nothing to read while Home waits for the folder; Allow reloads everything.
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
 ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
-ws.data.subscribe('summary', later(home.loadNotes, 300), { app: 'notes' });
-ws.people.subscribe(() => { boardLater(); setupLater(); });
+ws.people.subscribe(() => setupLater());
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
 if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
@@ -125,19 +128,7 @@ app.addEventListener('click', e => {
   if (t.closest('[data-apps-ok]')) { openStep = null; saving(setup.appsOk); return; }
   if (t.closest('[data-setup-done]')) { showDone = !showDone; paint(); return; }
   if (t.closest('[data-setup-check]')) { setup.load().then(() => ws.toast('Checked', { kind: 'success' })); home.loadBoard(); return; }
-  if (t.closest('[data-status]')) { openStatus(); return; }
-  if (t.closest('[data-edit-profile]')) { if (!home.waiting) { editing = true; paint(); } return; }
-  if (t.closest('[data-cancel]')) { editing = false; paint(); }
-});
-app.addEventListener('submit', async e => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  const next = { name: String(f.get('name') || '').trim().slice(0, 80), role: String(f.get('role') || '').trim().slice(0, 80) };
-  try { await home.saveProfile(next); editing = false; paint(); }
-  catch (err) {
-    if (home.waiting) ws.toast('Allow Workshop to use your folder first, then edit your profile.', { kind: 'error' });
-    else ws.toast("Couldn't save your profile. Try again.", { kind: 'error' });
-  }
+  if (t.closest('[data-status]')) { openStatus(); }
 });
 /* The weekly status draft: Markdown from every app's week, in a box to edit, then Copy. Nothing is sent. */
 const statusDlg = document.getElementById('status');
@@ -168,17 +159,21 @@ async function copyText(text, b) {
 }
 document.addEventListener('keydown', e => {
   const menu = app.querySelector('details.hmore[open]');
-  if (e.key === 'Escape' && menu) { menu.open = false; menu.querySelector('summary').focus(); return; }
-  if (e.key === 'Escape' && editing) { editing = false; paint(); return; }
-  // "/" anywhere on Home (not while typing) jumps to quick capture.
-  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) { e.preventDefault(); capture.focus(); }
-});
+  if (e.key === 'Escape' && menu) { menu.open = false; menu.querySelector('summary').focus(); e.stopPropagation(); }
+}, true);
 
-// Fresh numbers when Home comes back into view, and once a minute while it is shown (the date and
-// "overdue" change at midnight; the counts change when you work in other apps).
-const refresh = () => { if (visible && !editing && !home.waiting) { home.loadBoard(); home.loadAgents(); home.loadInbox(); setup.load(); } };
-ws.on('visible', p => { visible = !!p.visible; refresh(); });
+// Fresh rows when the panel opens, and every minute (it loads in the background, so the badge stays current).
+const refresh = () => { if (!home.waiting) { home.loadAgents(); home.loadInbox(); if (visible) { home.loadBoard(); setup.load(); } } };
+ws.on('visible', p => { visible = !!p.visible; if (visible) refresh(); });
 setInterval(refresh, 60000);
 
 paint();
 await Promise.all([home.loadAll(), setup.load()]);
+// Someone new: open the panel once on this browser, so Get started is seen (Workshop opens on the first app now).
+try {
+  const view = setup.view();
+  if (ws.embedded && !setup.s.hidden && !view.complete && !localStorage.getItem('workshop.home.introduced')) {
+    localStorage.setItem('workshop.home.introduced', '1');
+    ws.open({ app: 'home' }).catch(() => {});
+  }
+} catch (e) { /* no storage: skip */ }

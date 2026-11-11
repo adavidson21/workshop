@@ -85,13 +85,13 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 
 ## Captures
 
-The person reviews each proposal in the hub (or quick capture on Home) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
+The person reviews each proposal in the hub (or the top bar's Capture) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
 
 Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
 
 Requests (`s <text>`, `s #<id> <note>`, or a line that starts with `#<id>`) are rules only too. They go to Slate's New: with an ADO id, to the card for that item (made if Slate has none yet); otherwise a new request card. The review line says `Slate · New` or `Slate · #<id>`.
 
-Notes go to Quick Notes (Home) or Notes' `inbox/` (Dispatch). `n <folder>: <text>` with one of Notes' folders makes a new note in that folder, and `n today: <text>` adds the text under `## Notes` in today's note. The folder names come from Notes' `targets` card ([summaries.md](summaries.md)); case and a dash versus a space don't matter, and the start of exactly one folder name is enough. A name no folder has is part of the text, so `n Remember: call the vendor` stays as typed. The review line says where it goes (`Notes · runbooks/ · new note "..."`, `Notes · today's note`).
+Notes go to Quick Notes (Capture) or Notes' `inbox/` (Dispatch). `n <folder>: <text>` with one of Notes' folders makes a new note in that folder, and `n today: <text>` adds the text under `## Notes` in today's note. The folder names come from Notes' `targets` card ([summaries.md](summaries.md)); case and a dash versus a space don't matter, and the start of exactly one folder name is enough. A name no folder has is part of the text, so `n Remember: call the vendor` stays as typed. The review line says where it goes (`Notes · runbooks/ · new note "..."`, `Notes · today's note`).
 
 ### Which app takes a capture
 

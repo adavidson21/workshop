@@ -26,6 +26,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | Method | Meaning |
 | --- | --- |
 | `ws.open(target)` | Go to another app or a route. `target` is `{app, path?}`, for example `{app: 'agents', path: '41207'}`. Same as `#/agents/41207`. |
+| `ws.route.set(path, {replace?})` | Tells the shell where this app is now, so the address bar, Back and Forward, refresh and bookmarks follow it (see Routes below). `path` is what comes after `#/<app>/`, empty for the app itself. Default adds a history entry; `replace: true` changes the current one. The shell sends no `route` event back for it. Standalone it writes `#/<path>` on the page itself. |
 | `ws.toast(text, {kind?, action?, hold?, breakThrough?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. `hold: true` marks an interruption (a pickup, new items from a sync) that the shell drops during a focus or lunch span; the app counts it in its `held` card ([focus.md](focus.md)). `breakThrough: true` with `hold` shows it during focus anyway (blocking pull requests only), never during lunch. |
 | `ws.badge(count, {breakThrough?})` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. During a focus or lunch span the shell hides it and restores it after ([focus.md](focus.md)); during focus it shows `breakThrough` instead (the part of `count` that comes only from blocking pull requests), if that is above 0. |
 | `ws.notify({title, body?, route?})` | System notification if the user allowed them, else a toast. Clicking it opens `route` in this app. |
@@ -40,10 +41,19 @@ Events:
 | Event | Payload | When |
 | --- | --- | --- |
 | `theme` | `{key, scheme}` | The user changed the theme. Apps that use `shared/themes.css` and `data-theme` get it applied automatically; the event is for canvas and charts. |
-| `route` | `{path}` | The part of the hash after `#/<app>/` changed, including on first show. |
+| `route` | `{path}` | The part of the hash after `#/<app>/` changed, including on first show, and on Back or Forward to an entry the app set with `ws.route.set`. Standalone, the page's own `#/<path>` on load and when it changes. |
 | `command` | `{id, text?}` | A palette command, shortcut, manifest command, toast action or status action for this app ran. `text` is what the user typed into a status action's prompt. |
 | `visible` | `{visible}` | The app was shown or hidden in the shell. |
 | `online` | `{online}` | The agent became reachable or unreachable. |
+
+### Routes
+
+An app that calls `ws.route.set` owns its address: the shell keeps `#/<app>/<path>` as the app last set it, instead of tidying it to `#/<app>`.
+
+- Call it whenever the place changes: a view, an open item, a date. Use the default (a new history entry) for a new place, and `replace: true` for small changes in the same place (an item opened in a side panel, a date stepped by one, a lens) and when answering a `route` event, so Back and Forward keep working.
+- A path that only does something once (wrap up, a command) should be answered with `ws.route.set(<where the app is now>, {replace: true})`, so a reload does not repeat it.
+- Apps that never call it keep today's behaviour: the shell delivers the path and tidies the address to `#/<app>`.
+- The shell also accepts an app's name and its manifest `aliases` (strings only) in the address, so `#/docket/today` opens Docket like `#/prioritizer/today` ([app-manifest.md](app-manifest.md), Addresses).
 
 ### Apps
 
@@ -206,7 +216,7 @@ Every message is an object with `workshop: 1`. Schema [sdk-message](schemas/sdk-
 | `response` | shell to app | `id` of the request, `ok`, then `result` or `error: {code, message}` |
 | `event` | shell to app | `event`, `payload` |
 
-Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
+Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `route.set`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
 
 Rules:
 
@@ -216,7 +226,7 @@ Rules:
 
 ## Standalone pages
 
-When an app page is opened outside the shell (`ws.embedded === false`), shell methods still work: `open` changes `location` to the shell URL with that hash, `toast` shows a small in-page message, `badge` prefixes `document.title` with `(n)`, `notify` uses the Notification API if allowed, `status.set` and `status.clear` reject with `not_found` (there is no top bar, so the app shows its own), and `commands.register` binds its shortcut on the page. Data and connectors work as usual.
+When an app page is opened outside the shell (`ws.embedded === false`), shell methods still work: `open` changes `location` to the shell URL with that hash, `route.set` writes `#/<path>` on the page (and the page's own hash is sent as `route` events, on load and when it changes), `toast` shows a small in-page message, `badge` prefixes `document.title` with `(n)`, `notify` uses the Notification API if allowed, `status.set` and `status.clear` reject with `not_found` (there is no top bar, so the app shows its own), and `commands.register` binds its shortcut on the page. Data and connectors work as usual.
 
 ## Examples
 
