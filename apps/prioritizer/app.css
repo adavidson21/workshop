@@ -1062,10 +1062,14 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 }
 
 /* =====================================================================================================================
-   Docket's own look (redesign v1, brand/brand.css has the colors and fonts). Calm and crafted: one raised white
-   sheet per page (Today's column), one bold moment (the merlot Now band), burgundy for what is yours, sentence-case
-   labels, rows on hairlines inside a surface. Rules here come last so they win over the older ones above.
+   Docket's own look (redesign v1; Workshop's brand theme, shared/brand/brand.css, has the colors and fonts). Calm and
+   crafted: one raised white sheet per page (Today's column), one bold moment (the merlot Now band), burgundy for what
+   is yours, sentence-case labels, rows on hairlines inside a surface. Rules here come last so they win over the older
+   ones above.
    ===================================================================================================================== */
+/* No mono face in Docket: numbers and keys use the text face (its figures are Schibsted's). The shared theme keeps
+   DM Mono for apps that show code. */
+:root{--mono:"Docket Text","Segoe UI",system-ui,sans-serif}
 body{background:var(--bg);font-size:1rem;line-height:1.45}
 h1,h2,h3,h4,.ptitle h1,.panel h3,.colh h3,.quad h3,.pname,.recap h3,.arch-head h3,.sheet h3,.dsec-h h3,.empty b,.focus-empty b,.colempty b{font-family:var(--serif)}
 .num,.mono{font-variant-numeric:lining-nums}

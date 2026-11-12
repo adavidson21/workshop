@@ -1,10 +1,12 @@
-/* Docket's own look (redesign v1, Nov 2026; Workshop project doc claude/docket-redesign-v1-plan.md).
-   Docket is the first Workshop app with a look of its own: burgundy, Schibsted Grotesk headings and Atkinson
-   Hyperlegible Next text. Loaded after shared/themes.css, so it replaces the shared colors and fonts for Docket only;
-   app.css builds on these tokens. Nothing here changes Workshop's bundle.
+/* Workshop's brand theme (2026 redesign): burgundy, Schibsted Grotesk headings and Atkinson Hyperlegible Next text.
+   Opt-in while the apps are redesigned one by one (Docket first, then Folio): an app links it after shared/themes.css
+   and it replaces the shared colors and fonts for that app only. Once every app is redesigned, it becomes the default.
+   Plan: Workshop project docs claude/docket-redesign-v1-plan.md and claude/folio-redesign-v1-plan.md.
 
-   Fonts are self-hosted (OFL, brand/fonts/). "Docket Text" is Atkinson's letters with Schibsted's figures: Atkinson's
-   zero is slashed, which made times like 12:00 noisy, so digits come from the heading face and read clean. */
+   Fonts are self-hosted here (OFL, shared/brand/fonts/). "Docket Text" is Atkinson's letters with Schibsted's figures:
+   Atkinson's zero is slashed, which made times like 12:00 noisy, so digits come from the heading face. The name stays
+   "Docket Text" because Docket shipped it first. The mono face is left to themes.css (DM Mono) for code and Markdown
+   source; an app that wants none sets its own. */
 @font-face{font-family:"Schibsted Grotesk";font-style:normal;font-display:swap;font-weight:400 900;src:url(fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"Schibsted Grotesk";font-style:normal;font-display:swap;font-weight:400 900;src:url(fonts/schibsted-grotesk-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 /* Docket Text: letters from Atkinson Hyperlegible Next, everything but 0 to 9 */
@@ -30,8 +32,6 @@
 :root{
   --sans:"Docket Text","Atkinson Hyperlegible Next","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
   --serif:"Schibsted Grotesk","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
-  /* No mono face in Docket: numbers and keys use the text face (its figures are Schibsted's). */
-  --mono:"Docket Text","Segoe UI",system-ui,sans-serif;
   --rule:var(--line);
   --line2:color-mix(in srgb,var(--ink) 18%,var(--line));
   --accent-soft:color-mix(in srgb,var(--accent) 11%,var(--surface));
@@ -39,3 +39,8 @@
   --r-md:14px;
   --r-lg:20px;
 }
+
+/* Workshop's top bar on an app's own site (shared/standalone-bar.js), in the same voice: sentence case, no mono. */
+body .ws-bar{border-bottom:0}
+body .ws-crumbs{font:600 .9rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+body .ws-crumbs .here{color:var(--ink)}
