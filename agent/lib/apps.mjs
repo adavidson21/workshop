@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { VERSION } from '../version.mjs';
 import { writeJsonAtomic } from './fsutil.mjs';
-import { REMOTE_APPS, BUILD_FILE, pinInto, uiDirOf } from './pinned.mjs';
+import { BUILD_FILE, pinInto, uiDirOf } from './pinned.mjs';
 
 export const APPS_FILE = 'apps.json';
 export const ALWAYS_ON = new Set(['home', 'settings']);
@@ -63,21 +63,7 @@ export function readManifest(dir, id, schemas) {
   return { manifest };
 }
 
-/** Where `workshop apps on <app>` puts a new download: a <key> folder next to Workshop (docket, runway). */
-export const downloadDir = (key, repo) => path.join(path.dirname(repo), key);
-
-/** A separate app's checkout the pinned copy is built from: <repo>/.remote/<id>, else a <key> folder next to
- *  the repo (docket, runway). `key` is a REMOTE_APPS key. Null when there is none. */
-export function findRemote(key, repo) {
-  const a = REMOTE_APPS.find(x => x.key === key);
-  if (!a) return null;
-  for (const dir of [path.join(repo, '.remote', a.id), downloadDir(a.key, repo)]) {
-    if (fs.existsSync(path.join(dir, 'app.json'))) return dir;
-  }
-  return null;
-}
-
-/** Find an app by what a person types: its id (prioritizer), its repo name (docket) or its name (Docket). */
+/** Find an app by what a person types: its id (prioritizer), its key or its name (Docket). */
 export function findApp(word, apps) {
   const w = String(word || '').trim().toLowerCase();
   return apps.find(a => a.id === w || a.key === w || a.name.toLowerCase() === w) || null;
@@ -144,44 +130,26 @@ export function readBuild(uiDir) {
 }
 
 /**
- * Build work mode's pinned copy, leaving out the apps turned off. `remotes` can name a checkout for a
- * separate app ({runway: '/path'}) or leave one out ({runway: null}); otherwise each is found with
- * findRemote. `gitInfo(dir, prev)` gives {commit, ref} (gitHead by default; the `workshop` command passes
- * one that runs git). Returns {build, dirs, off}.
+ * Build work mode's pinned copy, leaving out the apps turned off. `gitInfo(dir, prev)` gives {commit, ref}
+ * (gitHead by default; the `workshop` command passes one that runs git). Returns {build, off, skipped}.
  */
-export function pinApps({ home, repo, schemas, uiDir = uiDirOf(home), remotes = {}, gitInfo = gitHead, version = VERSION }) {
+export function pinApps({ home, repo, schemas, uiDir = uiDirOf(home), gitInfo = gitHead, version = VERSION }) {
   const off = readOff(home);
   const prev = readBuild(uiDir) || {};
-  const dirs = {};
   const info = { workshop: { version, ...(gitInfo(repo, prev.workshop) || {}) } };
-  for (const a of REMOTE_APPS) {
-    const given = remotes[a.key];
-    if (given && !fs.existsSync(path.join(given, 'app.json'))) throw new Error(`${given} is not a ${a.name} checkout (no app.json).`);
-    const dir = off.has(a.id) ? null : given !== undefined ? given : findRemote(a.key, repo);
-    dirs[a.key] = dir;
-    if (!dir) continue;
-    let v;
-    try { v = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8')).version; } catch { /* checked by buildPinned */ }
-    info[a.key] = { version: v, ...(gitInfo(dir, prev[a.key]) || {}) };
-  }
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   // Apps whose app.json is not valid are left out of the registry, so not in the rail; `skipped` says which and why.
   let skipped = [];
-  const build = pinInto(uiDir, { repo, remotes: dirs, registry: d => { skipped = []; return buildRegistry(d, schemas, off, skipped); }, info, skip: [...off] });
-  return { build, dirs, off, skipped };
+  const build = pinInto(uiDir, { repo, registry: d => { skipped = []; return buildRegistry(d, schemas, off, skipped); }, info, skip: [...off] });
+  return { build, off, skipped };
 }
 
 // ---------------------------------------------------------------- the list Settings and `workshop apps` show
 
-/** apps/remote.json's entries, with their manifest snapshot. */
-function remoteEntries(repo) {
-  try { return JSON.parse(fs.readFileSync(path.join(repo, 'apps', 'remote.json'), 'utf8')).apps || []; } catch { return []; }
-}
-
 /**
- * Every app with its switch (docs/apps.md, GET /api/app-switches). Built-in apps come from apps/, apps in
- * their own repos from apps/remote.json. In work mode, `inWorkshop` says whether the pinned copy has the app;
- * otherwise it is the same as `on`, since the site serves every app.
+ * Every app with its switch (docs/apps.md, GET /api/app-switches), from apps/. Every app is part of Workshop, so
+ * `separate` is always false. In work mode, `inWorkshop` says whether the pinned copy has the app; otherwise it
+ * is the same as `on`, since the site serves every app.
  */
 export function appSwitches({ home, repo, schemas, workMode, uiDir = uiDirOf(home) }) {
   const off = readOff(home);
@@ -190,35 +158,15 @@ export function appSwitches({ home, repo, schemas, workMode, uiDir = uiDirOf(hom
   if (workMode) {
     try { pinnedIds = new Set((JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8')).apps || []).map(a => a.manifest.id)); } catch { pinnedIds = new Set(); }
   }
-  const builtIn = buildRegistry(path.join(repo, 'apps'), schemas).apps.map(a => a.manifest)
-    .filter(m => !REMOTE_APPS.some(r => r.id === m.id));
-  const list = builtIn.map(m => ({ id: m.id, key: m.id, name: m.name, description: m.description || '', order: m.order ?? null, separate: false }));
-  for (const r of remoteEntries(repo)) {
-    const a = REMOTE_APPS.find(x => x.id === r.id);
-    if (!a) continue;
-    const m = r.manifest || {};
-    list.push({ id: a.id, key: a.key, name: a.name, description: m.description || '', order: m.order ?? null, separate: true, repo: r.repo });
-  }
+  const builtIn = buildRegistry(path.join(repo, 'apps'), schemas).apps.map(a => a.manifest);
+  const list = builtIn.map(m => ({ id: m.id, key: m.id, name: m.name, description: m.description || '', order: m.order ?? null }));
   list.sort((x, y) => (x.order ?? Infinity) - (y.order ?? Infinity) || x.name.localeCompare(y.name));
   return {
     workMode: workMode === true,
     pinned: workMode ? build !== null : null,
     apps: list.map(a => {
       const on = !off.has(a.id);
-      const out = { id: a.id, name: a.name, description: a.description, on, canTurnOff: !ALWAYS_ON.has(a.id), separate: a.separate, inWorkshop: workMode ? pinnedIds.has(a.id) : on };
-      if (a.separate) {
-        const dir = findRemote(a.key, repo);
-        out.key = a.key;
-        out.repo = a.repo;
-        out.downloaded = dir !== null;
-        out.folder = dir || downloadDir(a.key, repo);
-        const g = dir ? gitHead(dir, build && build[a.key]) : null;
-        out.ref = g ? g.ref : null;
-        // What to run on this computer to download it (work mode only needs it; the site serves every app).
-        out.command = dir ? null : `workshop apps on ${a.key}`;
-        // A download whose app.json is not valid is left out of the pinned copy; say why instead of "run workshop pin".
-        out.problem = dir ? readManifest(dir, a.id, schemas).problem || null : null;
-      }
+      const out = { id: a.id, name: a.name, description: a.description, on, canTurnOff: !ALWAYS_ON.has(a.id), separate: false, inWorkshop: workMode ? pinnedIds.has(a.id) : on };
       return out;
     })
   };

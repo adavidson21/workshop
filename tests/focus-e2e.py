@@ -2,7 +2,7 @@
 """End-to-end check of focus hours and lunch (docs/focus.md) in headless Chromium, with a fake clock.
 
   pip install playwright && python -m playwright install chromium
-  python tests/focus-e2e.py          (needs the .remote/ checkouts, like tests/e2e.py)
+  python tests/focus-e2e.py
 
 Browser mode on a static site (127.0.0.1:8812). Monday 9 November 2026, focus 09:00 to 12:00, lunch 12:00 to
 13:00 (the defaults). Other apps' summaries (a held card, Docket's blocking PRs and Day plan) are written here

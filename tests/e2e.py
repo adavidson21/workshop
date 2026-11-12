@@ -2,14 +2,9 @@
 """End-to-end check of Workshop in headless Chromium.
 
   pip install playwright && python -m playwright install chromium
-  git clone https://github.com/adavidson21/docket .remote/prioritizer   # Docket (apps/remote.json)
-  git clone https://github.com/adavidson21/receipts .remote/receipts    # Rapport
-  git clone https://github.com/adavidson21/notes .remote/notes          # Notes
   python tests/e2e.py
 
-Docket's and Rapport's code live in their own repos and the Worker serves them under /apps/prioritizer/ and
-/apps/receipts/ (worker/index.js). Here the static server and the agent's apps folder do the same from the
-checkouts in .remote/ (or DOCKET_DIR, RECEIPTS_DIR).
+Every app is in apps/ (Docket, Runway, Rapport and Folio had their own repos until Nov 2026).
 
 Five parts:
   1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
@@ -40,16 +35,8 @@ HUB = 'http://127.0.0.1:8802'
 HOSTED = 'http://localhost:8803'
 # The same site plus two sample apps (tests/fixtures/apps), for the rail and required-connector checks.
 SAMPLES = 'http://localhost:8804'
-def _remote_ids():
-    """Apps still served from another repo (apps/remote.json); the rest live in apps/<id>/ here."""
-    try:
-        with open(os.path.join(ROOT, 'apps', 'remote.json'), encoding='utf-8') as f:
-            return [a['id'] for a in json.load(f).get('apps', [])]
-    except (OSError, ValueError):
-        return []
-REMOTE_IDS = _remote_ids()
 def _app_dir(app_id, env):
-    return os.environ.get(env) or os.path.join(ROOT, '.remote', app_id) if app_id in REMOTE_IDS else os.path.join(ROOT, 'apps', app_id)
+    return os.environ.get(env) or os.path.join(ROOT, 'apps', app_id)
 DOCKET = _app_dir('prioritizer', 'DOCKET_DIR')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
@@ -57,7 +44,7 @@ DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scrip
 RUNWAY = _app_dir('runway', 'RUNWAY_DIR')
 RECEIPTS = _app_dir('receipts', 'RECEIPTS_DIR')
 NOTES = _app_dir('notes', 'NOTES_DIR')
-REMOTE_DIRS = {k: v for k, v in {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS, 'notes': NOTES}.items() if k in REMOTE_IDS}
+REMOTE_DIRS = {}  # every app is in apps/ (they had their own repos until Nov 2026)
 # E2E_PART=hub runs part 1 (browser mode, Home, Docket on its own); E2E_PART=agent runs parts 2 to 6. CI runs the two
 # halves side by side (.github/workflows/checks.yml). Unset runs everything.
 PART = os.environ.get('E2E_PART') or 'all'
@@ -301,7 +288,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
     check('#/runway opens Runway itself', wf is not None and pg.url.endswith('#/runway'))
     if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
-        print(f'SKIP  Runway in browser mode (no checkout in {RUNWAY}; git clone https://github.com/adavidson21/runway .remote/runway)')
+        print(f'SKIP  Runway in browser mode (missing at {RUNWAY})')
     elif wf:
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
@@ -1438,12 +1425,6 @@ def main():
     if PART not in ('all', 'hub', 'agent'): sys.exit(f'E2E_PART is hub, agent or unset, not {PART!r}.')
     bad = string_waits()
     if bad: sys.exit('Pass a function to wait_for_function, for example "() => ...", not an expression (CSP refuses it): ' + ', '.join(bad))
-    if not os.path.isfile(os.path.join(DOCKET, 'app.json')):
-        sys.exit(f'Docket is not checked out at {DOCKET}. Run: git clone https://github.com/adavidson21/docket .remote/prioritizer')
-    if not os.path.isfile(os.path.join(RECEIPTS, 'app.json')):
-        sys.exit(f'Rapport is not checked out at {RECEIPTS}. Run: git clone https://github.com/adavidson21/receipts .remote/receipts')
-    if not os.path.isfile(os.path.join(NOTES, 'app.json')):
-        sys.exit(f'Notes is not checked out at {NOTES}. Run: git clone https://github.com/adavidson21/notes .remote/notes')
     serve(8802, functools.partial(Static, directory=ROOT))
     serve(8803, functools.partial(Static, directory=ROOT))
     WithSamples.registry = samples_registry(tempfile.mkdtemp())

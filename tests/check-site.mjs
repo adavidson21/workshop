@@ -2,8 +2,8 @@
 // Site addresses live in one place, shared/site.js (docs/site.md). This fails when code that runs (the agent,
 // shell, shared files, apps, connectors, Worker, installers) names a site of the owner's domain or a GitHub repo
 // anywhere else, outside comments. Checked exceptions: scripts/bootstrap.* and scripts/install.* (plain shell,
-// so every address in them must be one in site.js), wrangler.jsonc (its routes must be site.js hosts and its
-// services the bindings in apps/remote.json), and apps/remote.json (each site and repo must match site.js).
+// so every address in them must be one in site.js) and wrangler.jsonc (its routes must be site.js hosts, and it
+// binds no other Worker: every app is part of this site).
 // Exit 1 on a problem. Node 22, no dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -67,7 +67,7 @@ function codeLines(text, file) {
 
 for (const f of files) {
   const r = rel(f);
-  if (r === SITE_FILE || r === 'apps/remote.json' || r === 'apps/registry.json') continue;
+  if (r === SITE_FILE || r === 'apps/registry.json') continue;
   const lines = codeLines(fs.readFileSync(f, 'utf8'), r);
   lines.forEach((line, i) => {
     for (const m of line.match(ADDRESS) || []) {
@@ -83,18 +83,12 @@ for (const f of files) {
   });
 }
 
-// wrangler.jsonc: routes are site.js hosts; services are the bindings in apps/remote.json.
-const remote = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'remote.json'), 'utf8')).apps || [];
+// wrangler.jsonc: routes are site.js hosts, and no service bindings (every app is served from this site).
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8').split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n'));
 const shellHosts = new Set([hostOf(SITE.workshop), hostOf(SITE.dispatch)]);
 for (const r of wrangler.routes || []) if (!shellHosts.has(r.pattern)) problems.push(`wrangler.jsonc: route ${r.pattern} is not Workshop's or Dispatch's host in ${SITE_FILE}`);
 for (const h of shellHosts) if (!(wrangler.routes || []).some(r => r.pattern === h)) problems.push(`wrangler.jsonc: no route for ${h} (${SITE_FILE})`);
-const bindings = new Set((wrangler.services || []).map(s => s.binding));
-for (const app of remote) {
-  if (app.site !== SITE.apps[app.id]) problems.push(`apps/remote.json: ${app.id} site ${app.site} is not SITE.apps.${app.id} in ${SITE_FILE}`);
-  if (!Object.values(SITE.repos).includes(app.repo)) problems.push(`apps/remote.json: ${app.id} repo ${app.repo} is not in SITE.repos`);
-  if (app.binding && !bindings.has(app.binding)) problems.push(`wrangler.jsonc: no service binding ${app.binding} for ${app.id} (apps/remote.json)`);
-}
+if ((wrangler.services || []).length) problems.push('wrangler.jsonc: no service bindings: every app is served from this site (docs/site.md).');
 
 if (problems.length) { console.error('Site address checks failed:\n- ' + problems.join('\n- ')); process.exit(1); }
 console.log(`site ok: ${files.length} runtime files, addresses only in ${SITE_FILE}`);

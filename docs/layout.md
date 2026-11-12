@@ -1,6 +1,6 @@
 # Page layout
 
-How every Workshop app lays out its page, so they look like one product in half a screen and full screen. The tokens live in `shared/themes.css` and the pieces in `shared/ui.css` (both in the platform bundle, [bundle.md](bundle.md)). Plan: `claude/desktop-layout-v1-plan.md` in the Workshop project.
+How every Workshop app lays out its page, so they look like one product in half a screen and full screen. The tokens live in `shared/themes.css` and the pieces in `shared/ui.css`. Plan: `claude/desktop-layout-v1-plan.md` in the Workshop project.
 
 ## Sizes
 

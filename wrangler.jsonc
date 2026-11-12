@@ -1,7 +1,6 @@
 // Cloudflare Worker for workshop.alexisdavidson.org and dispatch.alexisdavidson.org.
-// The site is this repo's static files; worker/index.js routes the Dispatch domain and serves apps from other
-// sites (apps/remote.json) under /apps/<id>/ (see that file).
-// DOCKET is the "docket" Worker (adavidson21/docket, docket.alexisdavidson.org): /apps/prioritizer/ comes from it.
+// The site is this repo's static files, every app included; worker/index.js routes the Dispatch domain, serves the
+// installers and redirects retired app domains to Pop out (see that file).
 {
   "name": "workshop",
   "main": "worker/index.js",
@@ -11,9 +10,6 @@
     "binding": "ASSETS",
     "run_worker_first": true
   },
-  "services": [
-    { "binding": "DOCKET", "service": "docket" }
-  ],
   "routes": [
     { "pattern": "workshop.alexisdavidson.org", "custom_domain": true },
     { "pattern": "dispatch.alexisdavidson.org", "custom_domain": true }

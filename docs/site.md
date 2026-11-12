@@ -6,7 +6,7 @@ Version: `site: 1`.
 
 ## The file
 
-`shared/site.js`, a plain ES module with no imports, so the agent (Node), the shell, every app and the tests can all import it. Apps in their own repos copy it with the other shared files ([bundle.md](bundle.md)).
+`shared/site.js`, a plain ES module with no imports, so the agent (Node), the shell, every app and the tests can all import it.
 
 ```js
 export const SITE = {
@@ -26,7 +26,7 @@ export const SITE = {
 | `name` | The product name people see. |
 | `workshop` | Workshop's own site (the shell). |
 | `dispatch` | Dispatch's own site. |
-| `apps` | The site of each app that has one of its own, by app id. Matches `apps/remote.json` for apps served from another site. |
+| `apps` | The retired site of each app that had one of its own, by app id. The Worker redirects them to Pop out (below). |
 | `allowedSites` | Sites a new install allows ([config.md](config.md), `hosted.origins`). Each still needs a click in the pairing window. |
 | `crumbs` | Breadcrumbs back to the owner's site: shown on pages whose host is `domain` or a subdomain of it. |
 | `repos` | GitHub `owner/repo` of each repo the installer or a page links to, by short name. |

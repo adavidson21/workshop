@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Docket day plan: sprint settings (meta.sprint of prioritizer.dayplan/settings v1)",
+  "type": "object",
+  "required": ["anchor", "lengthWeeks", "workdays", "holidays", "dayStart", "dayEnd"],
+  "properties": {
+    "enabled": {"type": "boolean", "description": "Sprints on (the default). False: Day templates match weekdays and every-sprint tasks make nothing. Missing means true."},
+    "anchor": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}], "description": "The first day of any sprint."},
+    "lengthWeeks": {"type": "integer", "minimum": 1, "maximum": 8},
+    "workdays": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 6}, "uniqueItems": true, "description": "0 is Sunday."},
+    "holidays": {"type": "array", "items": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}},
+    "dayStart": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"},
+    "dayEnd": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+  }
+}

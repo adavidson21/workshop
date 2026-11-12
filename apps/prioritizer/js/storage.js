@@ -1,0 +1,221 @@
+/* Prioritizer: where the board is saved, and the file menu (the folder icon in the sidebar).
+
+   The board is saved through the SDK as files in the prioritizer folder of the Workshop data folder
+   (~/Workshop/prioritizer/ by default; other apps can read them): by the agent, or in browser mode by Chrome
+   in a folder chosen in Settings. Before a folder is chosen, browser mode saves in this browser's storage.
+   store.js does the saving and keeps windows in step; this module connects it to the board, the status icon
+   and the file menu.
+
+   First run: if nothing is saved yet and this browser has a board from the localStorage versions of
+   Prioritizer (same site), it is moved in once and the old copy is left in place untouched. A board on
+   another site can't be read from here, so the file menu imports a file exported there: an Excel copy,
+   or a Workshop backup (.json). */
+import { KEY } from './constants.js';
+import { hideTip, placeTip, tipFor } from './events.js';
+import { exportXlsx, importFile as importExcel } from './excel.js';
+import { closeMenu, closeModal, popMenu, showModal, toast } from './overlays.js';
+import { render } from './render.js';
+import { isWaiting, sanitize, setState, setWaiting, state } from './state.js';
+import { createStore } from './store.js';
+import { envelopesFromBundle, legacyToEnvelopes } from './store-format.js';
+import { adoptNames } from './directory.js';
+import { getDirectory } from './directory-model.js';
+import { $, esc, plural, todayStr } from './util.js';
+import { ready } from './ws.js';
+import { connectAction, connectItems } from './connect.js';
+import { saveFile } from '../../../shared/save-file.js';
+import { dayplanBoot, dp, importDayplan } from './dayplan.js';
+import { focusBoot, focusLog, importFocus } from './focus.js';
+import { offersBoot } from './offers.js';
+import { buildSummary } from './summary.js';
+import { heldCard } from './focus-hours.js';
+import { createSummaryWriter } from '../../../shared/summary.js';
+import { fillFollowUps } from './delegate.js';
+
+const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage
+let store = null, dstore = null, fstore = null, ws = null, booted = false, status = {state: 'saved'};
+// The board, the day plan and the focus log save separately; the folder icon shows the worst of them.
+const parts = {board: {state: 'saved'}, day: {state: 'saved'}, focus: {state: 'saved'}};
+const RANK = {error: 3, readonly: 2, saving: 1, saved: 0};
+const statusFrom = part => s => { parts[part] = s; setStatus(Object.values(parts).reduce((w, p) => RANK[p.state] > RANK[w.state] ? p : w, parts.board)); if (s.state === 'saved' && summary) summary.schedule(); };
+/* Docket's summary for other apps (summary.js, Workshop docs/summaries.md): rewritten after every save, once
+   loaded, and when the date changes. Not while the board is waiting, read-only or failed to load. */
+let summary = null, summaryDay = null;
+function summaryBoot(){
+  summary = createSummaryWriter({data: ws.data, app: 'prioritizer', build: () => (!store || isWaiting() || Object.values(parts).some(p => p.state === 'readonly'))
+    ? null : buildSummary({board: state, dir: getDirectory(), dp, log: focusLog, today: todayStr(), held: heldCard()})});
+  summaryDay = todayStr();
+  summary.flush();
+  setInterval(() => { if (todayStr() !== summaryDay){ summaryDay = todayStr(); summary.schedule(); } }, 60000);
+}
+
+/** Rewrite the summary soon: the people directory changed (names, groups), which it counts by. */
+function refreshSummary(){ if (summary) summary.schedule(); }
+
+function where(){
+  if (!ws) return 'nowhere';
+  return ws.backend === 'agent' ? 'on this computer, in Workshop\'s data folder'
+    : ws.storage === 'device' ? 'on this phone, in the app\'s storage'
+    : ws.storage === 'folder' ? 'in your Workshop folder' : 'in this browser';
+}
+function setStatus(s){
+  const was = status.state;
+  status = s;
+  const b = $('#syncBtn'); if (!b) return;
+  b.dataset.sync = s.state === 'saved' ? 'on' : s.state === 'saving' ? 'saving' : 'error';
+  b.dataset.tip = s.state === 'error' ? (s.retry === false ? 'Not saving. Click for details.' : 'Not saved yet. Retrying. Click for details.')
+    : s.state === 'readonly' ? 'Read only: saved by a newer Workshop'
+    : `Saved ${where()}. Backups and imports.`;
+  b.setAttribute('aria-label', s.state === 'error' ? 'Files: not saved yet' : 'Files and saving');
+  if (tipFor === b) placeTip(b);
+  if (s.state === 'error' && was !== 'error' && s.retry !== false) toast('Changes are not saved yet. Retrying.');
+  if (s.state === 'readonly' && was !== 'readonly') toast('This board was saved by a newer Workshop. Update Workshop to make changes here.', 20000);
+  if (s.state === 'saved' && was === 'error') toast('Saved');
+}
+
+function readLegacy(){
+  try {
+    if (localStorage.getItem(MOVED_KEY)) return null;
+    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    return raw && Array.isArray(raw.lists) && raw.lists.length ? raw : null;
+  } catch (e){ return null; }
+}
+
+/* Load the board. Resolves once it is on screen-ready in `state`. */
+async function boot(){
+  ws = await ready;
+  if (!ws){
+    // No storage at all (should not happen): show the old browser copy if any, and say nothing is saved.
+    const raw = readLegacy();
+    if (raw) setState(sanitize(JSON.parse(JSON.stringify(raw))));
+    booted = true;
+    setStatus({state: 'error', error: new Error('Storage is not available.'), retry: false});
+    return;
+  }
+  store = createStore({
+    data: ws.data,
+    board: () => state,
+    applied: () => { setState(sanitize(state)); if (booted){ render(); adoptNames(); } },
+    status: statusFrom('board')
+  });
+  let empty;
+  try { ({empty} = await store.load()); }
+  catch (e){
+    if (e && e.code === 'unavailable' && ws.backend === 'browser'){
+      // Chrome must be asked again for the data folder (a bar in the shell has the button). Until then the
+      // board is not shown and cannot be edited (state.js, setWaiting); it loads once access is back.
+      store = null; booted = true;
+      setWaiting(true);
+      setStatus({state: 'error', error: new Error('waiting for you to allow the Workshop folder'), retry: false});
+      const off = ws.on('online', ({online}) => { if (online && !store){ off(); boot().then(render); } });
+      return;
+    }
+    // For example a damaged data file (the agent leaves it untouched and says so). Show what loaded,
+    // save nothing, and say why, rather than risk writing over the user's data.
+    setWaiting(false);
+    store = null; booted = true;
+    setStatus({state: 'error', error: e, retry: false});
+    toast(`Could not load your board: ${e.message || e}. Nothing will be saved until this is fixed.`, 60000);
+    return;
+  }
+  setWaiting(false);
+  if (empty){
+    const raw = readLegacy();
+    if (raw){
+      await store.seed(legacyToEnvelopes(sanitize(JSON.parse(JSON.stringify(raw)))));
+      try { localStorage.setItem(MOVED_KEY, new Date().toISOString()); } catch (e){}
+    }
+  }
+  store.start();
+  // The day plan (the Day view) saves next to the board. If it can't load, the board still works.
+  try { dstore = await dayplanBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('day')}); }
+  catch (e){ dstore = null; toast(`Could not load your day plan: ${e.message || e}. The Day view won't save until this is fixed.`, 30000); }
+  // Every-sprint offers from other apps (inside Workshop only). If they can't load, nothing is offered.
+  if (dstore) try { await offersBoot(ws, {render: () => { if (booted) render(); }}); } catch (e){ /* no offers */ }
+  // The focus log (breadcrumbs' timeline, the switch counter) saves next to them too, on the same terms.
+  try { fstore = await focusBoot(ws, {render: () => { if (booted) render(); }, status: statusFrom('focus')}); }
+  catch (e){ fstore = null; toast(`Could not load your focus log: ${e.message || e}. Start and pause won't save until this is fixed.`, 30000); }
+  ws.on('online', ({online}) => { if (online){ store.refresh(); if (dstore) dstore.refresh(); if (fstore) fstore.refresh(); } });
+  addEventListener('pagehide', () => { if (store.unsaved) store.flushAll(); if (dstore && dstore.unsaved) dstore.flushAll(); if (fstore && fstore.unsaved) fstore.flushAll(); });
+  addEventListener('beforeunload', e => { if (status.state === 'error'){ e.preventDefault(); e.returnValue = ''; } });
+  booted = true;
+  summaryBoot();
+  fillFollowUps();   // once per board: waiting tasks without a follow-up date get one (delegate.js)
+  if (store.isNew && ws.backend === 'agent'){
+    toast('Moving from the old Prioritizer website? Export your board there, then import the file here.', 'Import', () => $('#importFile').click(), 15000);
+  }
+}
+
+/* Called on every change to the board (state.js save()). */
+const scheduleSave = () => { if (store) store.schedule(); };
+
+/* ---------- file menu ---------- */
+function onSyncClick(btn){
+  hideTip();
+  const why = esc(status.error && status.error.message || 'unknown error');
+  const note = status.state === 'error' ? `<div class="mnote warn">${status.retry === false ? `Not saving: ${why}` : `Not saved yet: ${why}. Retrying every few seconds.`}</div>`
+    : status.state === 'readonly' ? `<div class="mnote warn">Read only. This board was saved by a newer Workshop.</div>`
+    : `<div class="mnote">Saved ${esc(where())}.</div>`;
+  const verb = ws && ws.storage === 'device' ? 'Save' : 'Download'; // the app hands files to the share sheet
+  popMenu(note + `<button data-s="download">${verb} an Excel copy</button><button data-s="backup">${verb} a backup (.json)</button>`
+    + `<button data-s="import">Import a file</button>` + (status.state === 'error' && store ? `<div class="sep"></div><button data-s="retry">Try saving now</button>` : '')
+    + connectItems(ws), btn)
+    .addEventListener('click', e => {
+      const b = e.target.closest('[data-s]'); if (!b) return;
+      closeMenu();
+      if (connectAction(b.dataset.s)) return;
+      if (b.dataset.s === 'download') exportXlsx();
+      if (b.dataset.s === 'backup') downloadBackup();
+      if (b.dataset.s === 'import') $('#importFile').click();
+      if (b.dataset.s === 'retry' && store) store.flushAll();
+    });
+}
+
+/* A Workshop bundle of Prioritizer's collections (docs/data-format.md, Bundles). */
+async function downloadBackup(){
+  if (!ws){ toast('Storage is not available.'); return; }
+  try {
+    if (store) await store.idle();
+    if (dstore) await dstore.idle();
+    if (fstore) await fstore.idle();
+    const bundle = await ws.data.export({apps: ['prioritizer']});
+    // The summary is made from the rest (summary.js), so a backup leaves it out; it is written again on load.
+    bundle.collections = bundle.collections.filter(c => c.collection !== 'summary');
+    const how = await saveFile(`workshop-${todayStr()}.json`, JSON.stringify(bundle, null, 2) + '\n', 'application/json');
+    if (how !== 'canceled') toast(how === 'shared' ? 'Backup saved' : 'Backup downloaded');
+  } catch (e){ toast('Could not make a backup.'); }
+}
+
+/* The import button takes an Excel file (as before) or a Workshop backup (.json). */
+function importFile(file){
+  if (isWaiting()){ toast('Allow Workshop to use your folder first. Then import the file.'); return; }
+  if (/\.json$/i.test(file.name) || file.type === 'application/json') return importBackup(file);
+  return importExcel(file);
+}
+async function importBackup(file){
+  if (!store){ toast('Storage is not available.'); return; }
+  let envs, bundle;
+  try { bundle = JSON.parse(await file.text()); envs = envelopesFromBundle(bundle); }
+  catch (e){ toast(e instanceof SyntaxError ? 'That file is not a Workshop backup.' : e.message); return; }
+  const n = envs.tasks ? envs.tasks.items.length : 0;
+  await store.idle();
+  if (store.isNew){ await store.seed(envs); await importDay(bundle); render(); toast(`Imported ${plural(n, 'task')}`); return; }
+  showModal(`<div class="sheet small" role="dialog" aria-modal="true" aria-label="Import a backup"><h3>Import ${plural(n, 'task')}</h3>
+    <p>The backup is merged into your board. Where both have the same task, the one changed last is kept.</p>
+    <footer><span class="grow"></span><button class="btn" data-close>Cancel</button><button class="btn primary" data-merge>Merge</button></footer></div>`,
+    s => s.addEventListener('click', async e => {
+      if (!e.target.closest('[data-merge]')) return;
+      closeModal();
+      await store.importEnvelopes(envs);
+      await importDay(bundle);
+      render();
+      toast(`Imported ${plural(n, 'task')}`);
+    }));
+}
+
+async function importDay(bundle){
+  try { await importDayplan(bundle); } catch (e){ toast(e.message || 'Could not import the day plan.'); }
+  try { await importFocus(bundle); } catch (e){ toast(e.message || 'Could not import the focus log.'); }
+}
+
+export { boot, downloadBackup, refreshSummary, dstore, fstore, importFile, onSyncClick, scheduleSave, store };

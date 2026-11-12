@@ -4,7 +4,7 @@ How the code is laid out, how to add an app, and how to test and ship. For using
 
 ## Addresses
 
-Docket and Dispatch also open on their own pages (https://docket.alexisdavidson.org and `apps/agents/`), with the same top bar as the other tools: breadcrumbs and the light/dark toggle. Opening `apps/prioritizer/` on its own here goes to Docket's site. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
+Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
 
 ## Layout
 
@@ -26,7 +26,11 @@ shared/                 used by the shell and every app
   test/                 SDK tests
 apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
-  remote.json           apps from another site, served under /apps/<id>/ by the Worker (Docket, Runway, Rapport)
+  prioritizer/          Docket
+  runway/               Runway
+  receipts/             Rapport
+  notes/                Folio
+  slate/                Slate
   agents/               Dispatch (Tandem's runs, on the opencode connector)
   people/               People (the people directory and your team's area paths)
   settings/             Settings
@@ -47,18 +51,6 @@ An app is a folder. No shell or service worker edits.
 
 The rail, routes, `Alt+<n>`, shortcuts and the palette come from `app.json`. See `apps/settings/` for a small app.
 
-### Apps from another site
-
-An app can live in its own repo and deploy to its own site, and still open inside Workshop. Docket works this way. The shell only frames pages from its own origin, so the Worker (`worker/index.js`) serves the app's site under `/apps/<id>/`:
-
-- `apps/remote.json` lists each one: its `id`, `site`, `repo`, the name of a service `binding` in `wrangler.jsonc` (optional; without it the Worker fetches the site over the internet), and a snapshot of its `app.json`.
-- `/apps/<id>/<path>` comes from `<site>/<path>`. A deploy of the app's site shows up in Workshop right away.
-- `/apps/registry.json` gets the app's live `app.json` from its site, so a new file or command needs no Workshop change. The snapshot is the fallback if the site is down; `node shell/registry.mjs --refresh-remote` updates it.
-- Opening `/apps/<id>/` on its own (not in the shell) goes to the app's site, its standalone address.
-- The app keeps exact copies of the `shared/` files it uses, so it also runs on its own. After changing one of those here, update the copies in the app's repo (Docket: `node scripts/sync-workshop.mjs --update`).
-- CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` `git clone https://github.com/adavidson21/runway .remote/runway` and `git clone https://github.com/adavidson21/receipts .remote/receipts`.
-- Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
-
 ### Boundaries
 
 Everything is in this repo, so the boundaries between the apps, the shell, the shared files, the agent and the connectors are written down in [shared.md](shared.md) and checked by CI: `node tests/check-boundaries.mjs` (who may use whose files), `node tests/check-extract.mjs` (each app's tests pass with only its own folder and the shared folders), `python tests/switches-e2e.py` (Workshop works with any one app off), and the SDK refuses data reads outside the contracts. Read shared.md before adding a shared file or reading another app's data.
@@ -73,7 +65,7 @@ Edit `shared/themes.css` only, then update `THEMES` and `SWATCH` in `shared/them
 
 ## Running it locally
 
-Serve the site with any static web server, for example `python -m http.server 8000`, then open `http://localhost:8000/` (browser mode). Docket comes from `.remote/prioritizer/` in CI and `tests/e2e.py`; a plain static server shows it only if you serve that checkout under `/apps/prioritizer/`.
+Serve the site with any static web server, for example `python -m http.server 8000`, then open `http://localhost:8000/` (browser mode). Every app is in `apps/`.
 
 To use the agent with it:
 
@@ -88,14 +80,17 @@ Open the address it prints once (Workshop on this computer, which signs this bro
 ```
 node tests/check-themes.mjs              theme.js matches themes.css
 node tests/check-offline.mjs             every file the pages and app modules load is cached by sw.js
-node tests/check-remote.mjs              apps from another site: Home still reads Docket's tasks (needs .remote/)
-node shell/registry.mjs --check          apps/registry.json lists every app folder and remote app
+node tests/check-boundaries.mjs          who may use whose files (docs/shared.md)
+node tests/check-extract.mjs             each app's tests pass with only its folder and the shared folders
+node shell/registry.mjs --check          apps/registry.json lists every app folder
 node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and the mock agent
 node --test "apps/*/test/*.test.mjs"     apps' own tests
-node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, apps from another site
+node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, retired app domains
 node tests/check-vendor.mjs              vendored libraries match their pinned SHA256SUMS (--write after updating one)
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage (needs .remote/prioritizer)
-python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy, Docket, Runway and Rapport inside it, no hosted access
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage
+python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy with every app, no hosted access
+python tests/switches-e2e.py             Workshop with each app switched off
+python apps/<id>/test/e2e.py             an app on its own page (Docket, Runway, Folio)
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).
@@ -104,4 +99,4 @@ python tests/workmode-e2e.py             work mode in headless Chromium: the pin
 
 A Cloudflare Worker serves the repo root (`wrangler.jsonc`; Cloudflare's Git integration runs `npx wrangler deploy` on every push to `main`). Files that are not part of the site are listed in `.assetsignore`. When you ship a change, bump `VERSION` in `sw.js` so open windows offer a "New version" reload, and run `node shell/registry.mjs` if an app's `app.json` changed.
 
-Workshop lives at https://workshop.alexisdavidson.org. Docket deploys from its own repo to https://docket.alexisdavidson.org, and the `DOCKET` service binding in `wrangler.jsonc` connects the two (see Apps from another site). If the site moves to another host, update `shared/site.js` (every site address lives there; `tests/check-site.mjs` finds any other); browser storage does not move between hosts, so export from the old one and import on the new one.
+Workshop lives at https://workshop.alexisdavidson.org, every app included. If the site moves to another host, update `shared/site.js` (every site address lives there; `tests/check-site.mjs` finds any other); browser storage does not move between hosts, so export from the old one and import on the new one.

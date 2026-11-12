@@ -3,8 +3,6 @@
 // precached by sw.js. The shell and shared/ must be in CORE in sw.js; an app's own files must be its entry,
 // its icon, or listed in its app.json "files" (sw.js caches those from the app registry). ES module imports
 // are followed, so every module an app imports is covered too. Also checks that every listed file exists.
-// Apps from another site (apps/remote.json) are checked against a checkout of their repo in .remote/<id>/
-// (CI makes one); without it they are skipped, since their own repo checks their files.
 // Exit 1 if not. Node 22, no dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,15 +12,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rel = f => path.relative(root, f).split(path.sep).join('/');
 const errors = [];
-const skipped = [];
 
-// Remote apps: /apps/<id>/... is the root of .remote/<id>/ when that checkout is here.
-const remoteFile = path.join(root, 'apps', 'remote.json');
-const remote = fs.existsSync(remoteFile) ? JSON.parse(fs.readFileSync(remoteFile, 'utf8')).apps.map(r => r.id) : [];
-function abs(file) {
-  for (const id of remote) if (file.startsWith(`apps/${id}/`)) return path.join(root, '.remote', id, file.slice(`apps/${id}/`.length));
-  return path.join(root, file);
-}
+const abs = file => path.join(root, file);
 
 // Evaluate sw.js with stub worker globals to read CORE.
 const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
@@ -37,12 +28,7 @@ const registry = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'registry.js
 const pages = [{ page: 'index.html', owned: null }];
 for (const a of registry.apps) {
   const base = a.base.replace(/^\//, '');
-  let m = a.manifest;
-  if (remote.includes(m.id)) {
-    if (!fs.existsSync(path.join(root, '.remote', m.id, 'app.json'))) { skipped.push(m.id); continue; }
-    // The Worker serves the app's live app.json (worker/index.js), so check against the checkout's, not the snapshot.
-    m = JSON.parse(fs.readFileSync(path.join(root, '.remote', m.id, 'app.json'), 'utf8'));
-  }
+  const m = a.manifest;
   const owned = new Set([base + (m.entry || 'index.html'), base + (m.icon || 'icon.svg'), ...(m.files || []).map(f => base + f)]);
   for (const f of owned) if (!fs.existsSync(abs(f))) errors.push(`${base}app.json lists ${f.slice(base.length)}, which does not exist.`);
   pages.push({ page: base + (m.entry || 'index.html'), base, owned, id: m.id });
@@ -88,5 +74,4 @@ for (const p of pages) {
 }
 
 if (errors.length) { console.error('Offline cache list is out of date:\n- ' + [...new Set(errors)].join('\n- ')); process.exit(1); }
-console.log(`offline ok: ${core.size} core files, ${registry.apps.length - skipped.length} apps, every page asset and module covered`
-  + (skipped.length ? ` (skipped ${skipped.join(', ')}: no checkout in .remote/)` : ''));
+console.log(`offline ok: ${core.size} core files, ${registry.apps.length} apps, every page asset and module covered`);

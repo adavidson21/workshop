@@ -8,7 +8,7 @@ Version: the `settings.people` collection is version 2.
 
 Settings' collection `people`, schema `settings.people`, stored at `<dataDir>/settings/people.json` in the usual envelope ([data-format.md](data-format.md)). Items are people and groups.
 
-Apps never read or write this collection with `ws.data`. They use `ws.people` ([sdk.md](sdk.md), People), which parses it with `shared/people.js`, checks every change against the rules below and writes it. That module is part of the platform bundle ([bundle.md](bundle.md)), so every app matches handles and expands groups the same way.
+Apps never read or write this collection with `ws.data`. They use `ws.people` ([sdk.md](sdk.md), People), which parses it with `shared/people.js`, checks every change against the rules below and writes it. Every app uses that one module, so every app matches handles and expands groups the same way.
 
 ### People
 
@@ -76,7 +76,7 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 4. **Someone is involved through their groups.** When an app asks "what involves John", it matches John's id and the ids of the active groups he is in (`reach()` and `involves()`). An archived group, or an archived member, does not count.
 5. **`@` matching.** `find()` takes a handle (with or without `@`), then an exact name without case, then a first name only one active person has. Anything else matches nothing; apps then offer to add a contact.
 6. **Same data folder only.** The directory is whatever the app's backend holds at `settings/people`: shared by every app in Workshop and every site using the same folder. An app on its own site with browser storage has its own directory in that store, which it can add to with `ws.people` like anywhere else.
-7. **Version 1 is upgraded; any other unknown version is read only.** Version 1 (people only, no handles, written by Settings before groups and before People was its own app) reads as version 2 with `upgrade()`: every item becomes a person and gets a handle no active person before it has. The first `ws.people` read saves it as version 2, so apps that pin an older bundle read it too. A directory of any other version reads as empty with `unreadable: true`, and `ws.people` refuses to change it (code `unsupported`). Apps say so instead of acting as if no one is there.
+7. **Version 1 is upgraded; any other unknown version is read only.** Version 1 (people only, no handles, written by Settings before groups and before People was its own app) reads as version 2 with `upgrade()`: every item becomes a person and gets a handle no active person before it has. The first `ws.people` read saves it as version 2, so older readers read it too. A directory of any other version reads as empty with `unreadable: true`, and `ws.people` refuses to change it (code `unsupported`). Apps say so instead of acting as if no one is there.
 8. **Escape names.** Names and handles are user text; apps escape them before putting them on a page.
 
 ## Who uses it

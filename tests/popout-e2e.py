@@ -30,7 +30,7 @@ def frame_of(page, app):
 
 def main():
     if not os.path.isfile(os.path.join(e2e.NOTES, 'app.json')):
-        sys.exit(f'Folio is not checked out at {e2e.NOTES}. Run: git clone https://github.com/adavidson21/notes .remote/notes')
+        sys.exit(f'Folio is missing at {e2e.NOTES}.')
     e2e.serve(8822, functools.partial(e2e.Static, directory=e2e.ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch(**({'executable_path': os.environ['CHROME_PATH']} if os.environ.get('CHROME_PATH') else {}))
