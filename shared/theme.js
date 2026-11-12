@@ -15,7 +15,7 @@
   const OLD_KEYS = ['em.theme', 'prioritizer.theme']; // earlier names, newest first
   const THEMES = {system: 'System', light: 'Light', dark: 'Dark'};
   // [background, accent] per theme, for the browser's theme-color.
-  const SWATCH = {light: ['#F4F1EA', '#4F6B78'], dark: ['#161514', '#A9BCC6']};
+  const SWATCH = {light: ['#F4F2F3', '#7A1B36'], dark: ['#141012', '#E38AA3']};
   // Themes from before the editorial redesign, mapped to the closer of the two.
   const RETIRED = {slate: 'light', ivory: 'light', rose: 'light', solarized: 'light', graphite: 'dark', nord: 'dark', dracula: 'dark'};
   const dark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : {matches: false};

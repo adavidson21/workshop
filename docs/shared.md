@@ -32,10 +32,9 @@ Apps may use these. Each module's header comment says what it exports and how to
 | --- | --- |
 | `shared/workshop-sdk.js` | The SDK: everything that leaves an app goes through it ([sdk.md](sdk.md)). |
 | `shared/theme.js` | Applies and remembers the theme. Load it in `<head>`. |
-| `shared/themes.css` | The themes: colors and type for the shell and every app. |
+| `shared/themes.css` | The themes: colors, app colors (`data-app`) and type for the shell and every app. |
 | `shared/ui.css` | Buttons, menus, toast, tooltip and other shared pieces. |
 | `shared/fonts/` | Self-hosted fonts and `fonts.css`. |
-| `shared/brand/` | The brand theme (opt-in) and its fonts. |
 | `shared/summary.js` | Writing and reading summaries ([summaries.md](summaries.md)). |
 | `shared/handoffs.js` | Who sends an app handoff offers ([handoffs.md](handoffs.md)). |
 | `shared/people.js` | The people directory and groups ([people.md](people.md)). |

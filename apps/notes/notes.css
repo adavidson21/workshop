@@ -510,7 +510,7 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .title-hint.lp{font:600 2rem/1.25 var(--serif);letter-spacing:-.015em}
 
 /* =====================================================================================================================
-   Folio 4.0.0: Workshop's shared look (../../shared/brand/brand.css, the same as Docket's). Places in the sidebar instead of
+   Folio 4.0.0: Workshop's shared look (../../shared/themes.css since Workshop 6.46.0). Places in the sidebar instead of
    a row of tabs, one header line over the note, a readable column in every view, sentence-case labels, burgundy for
    what is open and yours. Workshop project docs claude/folio-vision.md and claude/folio-redesign-v1-plan.md.
    ===================================================================================================================== */

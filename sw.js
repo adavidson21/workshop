@@ -9,7 +9,7 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '6.45.1';
+const VERSION = '6.46.0';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
@@ -17,14 +17,11 @@ const CORE = [
   './shared/themes.css', './shared/ui.css', './shared/theme.js', './shared/sw-register.js',
   './shared/workshop-sdk.js', './shared/pair.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js',
   './shared/capture.js', './shared/capture-box.js', './shared/capture.css', './shared/people.js', './shared/teams.js', './shared/products.js', './shared/app-settings.js', './shared/outside.js',
-  './shared/fonts/fonts.css', './shared/fonts/gelasio-latin-wght-normal.woff2', './shared/fonts/gelasio-latin-ext-wght-normal.woff2',
-  './shared/fonts/figtree-latin-wght-normal.woff2', './shared/fonts/figtree-latin-ext-wght-normal.woff2',
-  './shared/fonts/figtree-latin-wght-italic.woff2', './shared/fonts/figtree-latin-ext-wght-italic.woff2',
+  './shared/fonts/fonts.css', './shared/fonts/schibsted-grotesk-latin-wght-normal.woff2', './shared/fonts/schibsted-grotesk-latin-ext-wght-normal.woff2',
+  './shared/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2', './shared/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2',
+  './shared/fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2',
   './shared/fonts/dm-mono-latin-400-normal.woff2', './shared/fonts/dm-mono-latin-ext-400-normal.woff2',
   './shared/fonts/dm-mono-latin-500-normal.woff2', './shared/fonts/dm-mono-latin-ext-500-normal.woff2',
-  './shared/brand/brand.css', './shared/brand/fonts/schibsted-grotesk-latin-wght-normal.woff2', './shared/brand/fonts/schibsted-grotesk-latin-ext-wght-normal.woff2',
-  './shared/brand/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2', './shared/brand/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2',
-  './shared/brand/fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2',
   './shared/vendor/xlsx.full.min.js',
   './icons/favicon.svg', './icons/favicon-32.png', './icons/app-192.png', './icons/app-512.png',
   './icons/app-maskable-512.png', './icons/app-touch-180.png'

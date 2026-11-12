@@ -1062,7 +1062,7 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 }
 
 /* =====================================================================================================================
-   Docket's own look (redesign v1; Workshop's brand theme, shared/brand/brand.css, has the colors and fonts). Calm and
+   Docket's own look (redesign v1; Workshop's shared/themes.css has the colors and fonts). Calm and
    crafted: one raised white sheet per page (Today's column), one bold moment (the merlot Now band), burgundy for what
    is yours, sentence-case labels, rows on hairlines inside a surface. Rules here come last so they win over the older
    ones above.
