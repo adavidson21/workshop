@@ -210,3 +210,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 @media (prefers-reduced-motion:reduce){.spanel{animation:none}}
 @media (max-width:640px){.panelbtn .lbl{display:none}.panelbtn{padding:.3rem .55rem}}
 @media (max-width:720px){.spanel,.spanel-scrim{top:56px}}
+/* A pop-out window wears its app's color (themes.css, data-app-color): a band along the top and a swatch by the
+   app's name, so several windows side by side are easy to tell apart. */
+.solo .topbar{box-shadow:inset 0 3px 0 var(--accent)}
+.solo .crumbs .here{display:inline-flex;align-items:center;gap:.5rem}
+.solo .crumbs .here::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--accent);flex:none}
