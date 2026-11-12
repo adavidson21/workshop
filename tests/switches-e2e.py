@@ -2,7 +2,7 @@
 """B7 (docs/shared.md): Workshop works with any one app switched off.
 
   pip install playwright && python -m playwright install chromium
-  python tests/switches-e2e.py        (apps from another repo need .remote/<id>, like tests/e2e.py)
+  python tests/switches-e2e.py
 
 Browser mode on a static site (127.0.0.1:8823). For each app that can be switched off, a fresh browser with only
 that app off (Settings' browser switch, localStorage workshop.appsOff): the app is gone from the rail, every other
@@ -48,7 +48,7 @@ def switchable():
 
 def main():
     apps = switchable()
-    if len(apps) < 2: sys.exit('Fewer than two apps to check. Are the .remote/ checkouts there?')
+    if len(apps) < 2: sys.exit('Fewer than two apps to check.')
     e2e.serve(8823, functools.partial(e2e.Static, directory=e2e.ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch(**({'executable_path': os.environ['CHROME_PATH']} if os.environ.get('CHROME_PATH') else {}))

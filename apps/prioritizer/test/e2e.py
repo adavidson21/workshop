@@ -4,17 +4,21 @@ serves it, with no Workshop agent. Checks that the page loads with no errors, pi
 old localStorage board in once, saves and reloads, makes backups, and registers its own service worker.
 
   pip install playwright && python -m playwright install chromium
-  python test/e2e.py
+  python apps/prioritizer/test/e2e.py
 
 Docket inside Workshop (the shell, the agent, two windows in sync) is checked by Workshop's tests/e2e.py,
 which runs against a checkout of this repo. Exit 1 if any check fails."""
 import functools, http.server, json, os, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIX = os.path.join(ROOT, 'test', 'fixtures')
+# Docket is apps/prioritizer/ in Workshop: its files are in APP_DIR, and the static site is Workshop's root (Docket's
+# page loads Workshop's shared files).
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(APP_DIR))
+FIX = os.path.join(APP_DIR, 'test', 'fixtures')
 PORT = 8812
 SITE = f'http://127.0.0.1:{PORT}'
+APP = SITE + '/apps/prioritizer/'
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -56,7 +60,7 @@ def main():
         # A board saved by the localStorage versions moves into browser storage once.
         pg.goto(SITE + '/manifest.webmanifest')
         pg.evaluate("raw => localStorage.setItem('prioritizer.v1', raw)", json.dumps(legacy))
-        pg.goto(SITE + '/')
+        pg.goto(APP)
         pg.wait_for_function('window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000)
         pg.wait_for_timeout(1200)
         check('Docket opens on its own at the site root', pg.title() == 'Docket')
@@ -80,8 +84,8 @@ def main():
         pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'});
           const d = await ws.people.get(); await ws.people.add({kind: 'group', name: 'Leadership', members: d.people.map(p => p.id)}); }""")
         pg.wait_for_timeout(600)
-        added = pg.evaluate("""async () => { const m = await import('/js/actions.js'); const t1 = m.addTask('Ask about budget @leadership'); const t2 = m.addTask('Call @newperson');
-          await new Promise(r => setTimeout(r, 800)); const {getDirectory, namesOf} = await import('/js/directory-model.js');
+        added = pg.evaluate("""async () => { const m = await import('/apps/prioritizer/js/actions.js'); const t1 = m.addTask('Ask about budget @leadership'); const t2 = m.addTask('Call @newperson');
+          await new Promise(r => setTimeout(r, 800)); const {getDirectory, namesOf} = await import('/apps/prioritizer/js/directory-model.js');
           const out = [namesOf(t1.who), namesOf(window.__prioritizer.state.tasks.find(t => t.id === t2.id).who)];
           const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== t1.id && t.id !== t2.id); P.commit(); await P.saved(); return out; }""")
         check('Quick add: @leadership assigns the group, @newperson adds a contact', added == [['Leadership'], ['Newperson']])
@@ -94,9 +98,9 @@ def main():
         menu = pg.inner_text('.menu')
         check('the file menu says the board is saved in this browser', 'Saved in this browser' in menu and 'Download a backup' in menu)
         check('no Connect item off https (pairing needs the real site)', 'Use Workshop on this computer' not in menu)
-        items = pg.evaluate("""async () => { const m = await import('/js/connect.js');
+        items = pg.evaluate("""async () => { const m = await import('/apps/prioritizer/js/connect.js');
           return [m.connectItems({mode: 'browser', storage: 'indexeddb'}), m.connectItems({mode: 'hosted', storage: 'agent'}), m.connectItems({mode: 'browser', storage: 'device'})]; }""")
-        check('paired, the file menu offers to stop using Workshop on this computer; never in the Android app', 'Stop using Workshop on this computer' in items[1] and items[2] == '')
+        check('paired, the file menu offers to stop using Workshop on this computer', 'Stop using Workshop on this computer' in items[1] and items[2] == '')
         pg.keyboard.press('Escape')
         with pg.expect_download() as dl: pg.evaluate('window.__prioritizer.downloadBackup()')
         path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(path)
@@ -219,7 +223,7 @@ def main():
         pg.set_viewport_size({'width': 1280, 'height': 800}); pg.wait_for_timeout(200)
         pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.id === '{ids[3]}'); t.value = 3; t.effort = 'S'; P.commit(); }}")
         pg.keyboard.press('1'); pg.wait_for_timeout(150)
-        added = pg.evaluate("""async () => { window.__prioritizer.state.view = 'today'; const m = await import('/js/actions.js'); const t = m.addTask('Fresh idea'); return [t.focusOn, window.__prioritizer.inboxQueue ? 1 : 1]; }""")
+        added = pg.evaluate("""async () => { window.__prioritizer.state.view = 'today'; const m = await import('/apps/prioritizer/js/actions.js'); const t = m.addTask('Fresh idea'); return [t.focusOn, window.__prioritizer.inboxQueue ? 1 : 1]; }""")
         pg.wait_for_timeout(150)
         check('a new task on Today lands in the Inbox, not on Today', added[0] is None and pg.locator('.col-today .row').filter(has_text='Fresh idea').count() == 0)
         pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fresh idea'); P.commit(); }}")
@@ -520,9 +524,9 @@ def main():
         host = ctx.new_page()
         host.on('pageerror', lambda e: errors.append('host: ' + str(e)))
         host.goto(SITE + '/manifest.webmanifest')
-        host.evaluate("() => { document.body.innerHTML = ''; const f = document.createElement('iframe'); f.src = '/'; f.style.cssText = 'width:1240px;height:760px;border:0'; document.body.appendChild(f); }")
+        host.evaluate("() => { document.body.innerHTML = ''; const f = document.createElement('iframe'); f.src = '/apps/prioritizer/'; f.style.cssText = 'width:1240px;height:760px;border:0'; document.body.appendChild(f); }")
         host.wait_for_timeout(500)
-        fr = next(f for f in host.frames if f.url.rstrip('/') == SITE)
+        fr = next(f for f in host.frames if f.url.rstrip('/') == APP.rstrip('/'))
         for _ in range(80):
             if fr.evaluate('() => !!(window.__prioritizer && window.__prioritizer.dp && window.__prioritizer.dp.sprint.anchor)'): break
             host.wait_for_timeout(250)
@@ -638,13 +642,13 @@ def main():
         # ---------- delegating: quick add >@, the Assign picker, follow-ups, Got it back, People tray ----------
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         pg.evaluate(f"() => {{ {P}.state.view = 'today'; {P}.commit(); }}"); pg.wait_for_timeout(200)
-        dg = pg.evaluate(f"""async () => {{ const P = {P}, m = await import('/js/actions.js'), M = await import('/js/delegate-model.js');
+        dg = pg.evaluate(f"""async () => {{ const P = {P}, m = await import('/apps/prioritizer/js/actions.js'), M = await import('/apps/prioritizer/js/delegate-model.js');
           const t = m.addTask('Draft the RFC >@leadership'); await new Promise(r => setTimeout(r, 300));
           const d = new Date().toLocaleDateString('en-CA');
           return {{waiting: t.waiting, who: t.who.length, nudge: t.nudgeOn, want: M.addWorkdays(d, 2, P.dp.sprint), parsed: P.parseQuick('x >@sam @kim')}}; }}""")
         check('Quick add >@name delegates: waiting, with a follow-up 2 working days out', dg['waiting'] and dg['who'] == 1 and dg['nudge'] == dg['want'])
         check('Quick add: @name involves, >@name delegates', dg['parsed']['people'] == ['sam', 'kim'] and dg['parsed']['delegate'] is True)
-        tid = pg.evaluate(f"""async () => {{ const m = await import('/js/actions.js'); const t = m.addTask('Hand this over !3 ~s'); return t.id; }}""")
+        tid = pg.evaluate(f"""async () => {{ const m = await import('/apps/prioritizer/js/actions.js'); const t = m.addTask('Hand this over !3 ~s'); return t.id; }}""")
         pg.evaluate(f"() => {{ {P}.state.view = 'rank'; {P}.commit(); }}"); pg.wait_for_timeout(200)
         pg.click(f'main .row[data-id="{tid}"] .title'); pg.wait_for_timeout(150)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
@@ -681,7 +685,7 @@ def main():
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{tid}')")
         check('sorting it from the drawer handles Came back', 'cameBack' not in t and t['value'] == 3 and tid not in inbox_ids())
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
-        inbox_n = "async () => (await import('/js/state.js')).inboxQueue().length"
+        inbox_n = "async () => (await import('/apps/prioritizer/js/state.js')).inboxQueue().length"
         n0 = pg.evaluate(inbox_n)
         if n0:
             pg.keyboard.press('Escape'); pg.keyboard.press('3'); pg.wait_for_timeout(200); pg.keyboard.press('3'); pg.wait_for_timeout(300)
@@ -710,12 +714,12 @@ def main():
         check('Done renders its own page (not Today\'s columns)', pg.inner_text('#phead h1') == 'Done' and pg.locator('.today3').count() == 0 and pg.url.endswith('#/done'))
         pg.reload(); pg.wait_for_timeout(2500)
         check('a reload stays on Done', pg.evaluate(f'{P}.state.view') == 'archive' and pg.url.endswith('#/done'))
-        pg.goto(SITE + f'/#/task/{some}'); pg.wait_for_timeout(2500)
+        pg.goto(APP + f'#/task/{some}'); pg.wait_for_timeout(2500)
         check('a bookmarked task address opens that task', pg.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.input_value('#drawer .d-title') == pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{some}').title"))
-        pg.goto(SITE + '/#/today'); pg.wait_for_timeout(2500)
+        pg.goto(APP + '#/today'); pg.wait_for_timeout(2500)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         # People: the Unassigned tray, drag a task onto a card to delegate it.
-        uid = pg.evaluate(f"""async () => {{ const m = await import('/js/actions.js'); return m.addTask('Tray task').id; }}""")
+        uid = pg.evaluate(f"""async () => {{ const m = await import('/apps/prioritizer/js/actions.js'); return m.addTask('Tray task').id; }}""")
         pg.keyboard.press('5'); pg.wait_for_timeout(300)
         check('People has an Unassigned tray with tasks that have no one on them', pg.locator(f'.ptray .row[data-id="{uid}"]').count() == 1)
         pg.fill('#ptrayQ', 'zzz-no-match'); pg.wait_for_timeout(100)
@@ -779,12 +783,12 @@ def main():
         check('it registers its own service worker for the whole site', scope == SITE + '/')
         pg.wait_for_timeout(1500)
         cached = pg.evaluate("caches.keys().then(ks => Promise.all(ks.map(k => caches.open(k).then(c => c.keys())))).then(all => all.flat().map(r => new URL(r.url).pathname))")
-        check('the service worker precaches the files app.json lists', '/js/people.js' in cached and '/shared/workshop-sdk.js' in cached and '/icons/favicon.svg' in cached)
+        check('the service worker precaches the files app.json lists', '/apps/prioritizer/js/people.js' in cached and '/shared/workshop-sdk.js' in cached and '/icons/favicon.svg' in cached)
         # ---------- first-run tour, on a brand new board in a fresh browser profile ----------
         ctx2 = b.new_context(viewport={'width': 1280, 'height': 800})
         p2 = ctx2.new_page()
         p2.on('pageerror', lambda e: errors.append('tour: ' + str(e)))
-        p2.goto(SITE + '/'); p2.wait_for_function('window.__prioritizer', timeout=15000); p2.wait_for_timeout(1200)
+        p2.goto(APP); p2.wait_for_function('window.__prioritizer', timeout=15000); p2.wait_for_timeout(1200)
         check('a brand new board opens the tour', p2.locator('.sheet.tour').count() == 1 and 'Welcome to Docket' in p2.inner_text('.sheet.tour'))
         check('it says where the board is saved', 'saved in this browser' in p2.inner_text('.sheet.tour'))
         p2.click('.tour [data-next]'); p2.wait_for_timeout(150)
@@ -815,11 +819,11 @@ def main():
         # ---------- Use sprints off: the setup screen's skip, weekday templates, the gear switch ----------
         ctx3 = b.new_context(viewport={'width': 1280, 'height': 800})
         # A Workshop site's registry declares Docket's settings (Workshop docs/app-settings.md), so Docket links them.
-        with open(os.path.join(ROOT, 'app.json')) as f: manifest = json.load(f)
+        with open(os.path.join(APP_DIR, 'app.json')) as f: manifest = json.load(f)
         ctx3.route('**/apps/registry.json', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps({'apps': [{'base': '/apps/prioritizer/', 'manifest': manifest}]})))
         p3 = ctx3.new_page()
         p3.on('pageerror', lambda e: errors.append('sprints: ' + str(e)))
-        p3.goto(SITE + '/'); p3.wait_for_function('window.__prioritizer', timeout=15000); p3.wait_for_timeout(1200)
+        p3.goto(APP); p3.wait_for_function('window.__prioritizer', timeout=15000); p3.wait_for_timeout(1200)
         if p3.locator('.sheet.tour').count(): p3.click('.tour [data-skip]'); p3.wait_for_timeout(150)
         Q = 'window.__prioritizer'
         p3.keyboard.press('2'); p3.wait_for_timeout(300)

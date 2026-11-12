@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cardsFor, involves, mentionOf, namesOf, others, refOf, resolve, via } from '../js/directory-model.js';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 
 const DIR = directory({ schema: 'settings.people', version: 2, rev: 1, deleted: {}, items: [
   { id: 'p_me', kind: 'person', updatedAt: 1, name: 'Engineer A', handle: 'engineer', relation: 'self' },

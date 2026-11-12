@@ -98,9 +98,9 @@ Any app can read another app's files ([sdk.md](sdk.md), Files), which suits file
 
 Rapport sets `"privateFiles": true`.
 
-## Apps from another site
+## Every app is a folder here
 
-An app can live in its own repo and site and still appear here: list it in `apps/remote.json` instead of adding a folder. Its `app.json` follows this document as usual, with paths relative to the root of its site. The Worker serves that site under `/apps/<id>/`, so the shell's frame stays same-origin, and `apps/registry.json` lists it from the snapshot in `remote.json` (the Worker swaps in the live `app.json`). Docket (`id` `prioritizer`, https://docket.alexisdavidson.org) is the first. See "Apps from another site" in [development.md](development.md#apps-from-another-site).
+Docket, Runway, Rapport and Folio had repos and sites of their own until Nov 2026; they are folders in `apps/` now, like every app. Their old domains redirect to the app in a pop-out window ([site.md](site.md), Retired sites).
 
 The agent's own app list (`GET /api/apps`) lists app folders only. The shell never reads it: it always comes from the hosted site and reads `apps/registry.json`.
 

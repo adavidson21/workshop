@@ -25,7 +25,7 @@ const VIEWS = ['today','day','people','archive'];
 // names open the matrix.
 const LENSES = {rank: 'Ranked', eisen: 'Do first, schedule, hand off'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
-// A touch screen with no mouse (phones, tablets, the Android app): hints say "tap", keyboard hints are hidden.
+// A touch screen with no mouse (phones, tablets): hints say "tap", keyboard hints are hidden.
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const EMBEDDED = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch(e){ return false; } })();
 // Old view names (links, saved windows, the 3 and 4 keys) and where they go now: Today, with a column or a lens.

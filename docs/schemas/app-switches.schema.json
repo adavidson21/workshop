@@ -63,7 +63,7 @@
             "type": "boolean"
           },
           "separate": {
-            "description": "True for an app in its own repo (apps/remote.json).",
+            "description": "Always false: every app is part of Workshop (apps from their own repos ended in Nov 2026).",
             "type": "boolean"
           },
           "inWorkshop": {

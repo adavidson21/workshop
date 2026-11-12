@@ -10,7 +10,7 @@
    A handled key is `<app>:<offer id>:<fingerprint of its text and payload>`, so an offer the sender changes after
    you handled it shows again (to update the item), while one sent again unchanged does not. */
 
-import { sendersFrom as sharedSendersFrom } from '../shared/handoffs.js';
+import { sendersFrom as sharedSendersFrom } from '../../../shared/handoffs.js';
 
 /* The apps Docket reads offers from: app id to the name shown for it. An app read but not named here shows by its
    id. A new sender follows Workshop docs/handoffs.md (Receivers) and is added here by its app id. Home's quick

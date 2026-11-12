@@ -19,11 +19,9 @@ jobs:
       - run: node tests/check-themes.mjs
       - run: node tests/check-vendor.mjs
       - run: node tests/check-offline.mjs
-      - run: node tests/check-remote.mjs
       - run: node tests/check-site.mjs
       - name: Boundaries between apps, shell, shared files, agent and connectors (docs/shared.md)
         run: node tests/check-boundaries.mjs
-      - run: node scripts/bundle.mjs --check
       - run: node tests/check-contracts.mjs
       - run: node shell/registry.mjs --check
       - run: node --test "shared/test/*.test.mjs"
@@ -51,11 +49,15 @@ jobs:
               python tests/layout-e2e.py
               python tests/review-e2e.py
               python tests/workmode-e2e.py
-          - name: apps on their own pages
+          - name: Runway and Folio on their own pages
             run: |
               python apps/runway/test/e2e.py
               python apps/runway/test/e2e_ado.py
               python apps/notes/test/e2e.py
+          - name: Docket on its own page
+            run: |
+              python apps/prioritizer/test/e2e.py
+              python apps/prioritizer/test/focus-e2e.py
           - name: focus, popout, switches
             run: |
               python tests/focus-e2e.py
@@ -94,10 +96,6 @@ jobs:
       # Keep LF line endings on Windows: the contract tests read docs/*.md with \n-based patterns.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
-      # The ADO connector's parity tests ran Docket's ado_helper.py; Docket 5.4.0 retired it, so they skip unless a
-      # checkout still has it.
-      - uses: actions/checkout@v4
-        with: { repository: adavidson21/docket, path: .remote/prioritizer }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       # The one-line installer runs in Windows PowerShell 5.1 (irm ... | iex), so parse it with that.

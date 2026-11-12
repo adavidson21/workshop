@@ -146,7 +146,7 @@ For hosted and browser modes, the static site carries `apps/registry.json` with 
 
 ### `GET /api/app-switches`
 
-Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/app-switches.schema.json), example [app-switches.work-mode.json](examples/app-switches.work-mode.json). Built-in apps come from `apps/`, apps in their own repos from `apps/remote.json`; for those it also says whether they are downloaded on this computer and, when not, the command that downloads them. In work mode, `inWorkshop` says whether the pinned copy has the app.
+Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/app-switches.schema.json), example [app-switches.work-mode.json](examples/app-switches.work-mode.json). Every app comes from `apps/` (`separate` is always false since apps in their own repos ended in Nov 2026). In work mode, `inWorkshop` says whether the pinned copy has the app.
 
 ### `PUT /api/app-switches/<id>`
 

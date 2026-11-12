@@ -4,14 +4,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { data as sdk } from '../shared/workshop-sdk.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { data as sdk } from '../../../shared/workshop-sdk.js';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import * as F from '../js/focus-model.js';
 import { focusEnvelopeFromBoard, focusEnvelopesFromBundle, focusFormat } from '../js/focus-format.js';
 import { createStore } from '../js/store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const schemas = SchemaSet.fromDir(path.join(HERE, 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(path.join(HERE, '..', '..', '..', 'docs', 'schemas'));
 const clone = v => JSON.parse(JSON.stringify(v));
 const D = '2026-11-03';
 let tick = 0;

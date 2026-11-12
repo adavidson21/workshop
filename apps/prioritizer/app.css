@@ -6,7 +6,7 @@
   --t1:var(--accent); --t2:color-mix(in srgb,var(--accent) 55%,var(--surface)); --t3:var(--muted); --t4:var(--line);
   --side-w:240px; --side-mini:56px; --drawer-w:360px;
   --row-h:2.4rem;
-  /* Safe areas in the Android app (mobile/): Capacitor sets --safe-area-inset-*; elsewhere env() is 0. */
+  /* Safe areas on phones with a notch; elsewhere env() is 0. */
   --sa-top:var(--safe-area-inset-top,env(safe-area-inset-top,0px));
   --sa-bottom:var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px));
   --sa-left:var(--safe-area-inset-left,env(safe-area-inset-left,0px));
@@ -31,7 +31,7 @@ main{flex:1;min-height:0;overflow:auto;padding:.25rem var(--gutter) 2.5rem}
 /* inside Workshop the rail already names the app, and on its own page the top bar's crumbs do, so no second logo and title */
 .embedded .sbrand,.standalone .sbrand{display:none}
 .embedded .snav,.standalone .snav{padding-top:.75rem}
-/* on its own page: the top bar (shared/standalone-bar.js) above the app */
+/* on its own page: the top bar (../../shared/standalone-bar.js) above the app */
 body.standalone{display:flex;flex-direction:column}
 body.standalone>.app{flex:1;min-height:0;height:auto}
 .snav{padding:.2rem .5rem;display:flex;flex-direction:column;gap:1px}
@@ -477,7 +477,7 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .waiting-empty .acts{margin-top:1rem}
 .waiting-empty .sub{margin-top:1rem;font-size:.84rem}
 
-/* ---------- touch screens (phones, tablets, the Android app) ----------
+/* ---------- touch screens (phones, tablets) ----------
    Fingers need room: every control is at least 44px, rows 48px, and text a size that reads on a phone.
    Keyboard hints are hidden (.kb-only), "Today" is always shown on Up next, and a long press on a row
    drags it (drag-drop.js). Safe areas keep content clear of the status and gesture bars. */

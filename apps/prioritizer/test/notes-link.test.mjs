@@ -5,9 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { notesAbout, shown, taskLink } from '../js/notes-link.js';
 import { tasksCard } from '../js/summary.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
-const schemas = SchemaSet.fromDir(path.join(path.dirname(fileURLToPath(import.meta.url)), 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'docs', 'schemas'));
 
 test('Copy link: a Markdown ws: link with safe link text', () => {
   assert.equal(taskLink({id: 't_k2f9', title: 'Fix the [login] timeout'}), '[Fix the (login) timeout](ws:prioritizer/task/t_k2f9)');

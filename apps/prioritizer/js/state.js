@@ -9,7 +9,7 @@ import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
 import { cleanCrumbs } from './focus-model.js';
-import { isRef } from '../shared/people.js';
+import { isRef } from '../../../shared/people.js';
 import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
 import { cleanRowFields } from './row-fields-model.js';
 import { cleanFollow } from './delegate-model.js';

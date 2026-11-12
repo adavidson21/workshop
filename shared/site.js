@@ -11,7 +11,7 @@ export const SITE = Object.freeze({
   name: 'Workshop',
   workshop: WORKSHOP,
   dispatch: DISPATCH,
-  // Apps with a site of their own, by app id (apps/remote.json lists the ones Workshop shows from there).
+  // Apps that had a site of their own, by app id. Retired: these domains redirect to Pop out (docs/site.md).
   apps: Object.freeze({
     prioritizer: DOCKET,
     runway: 'https://runway.alexisdavidson.org',

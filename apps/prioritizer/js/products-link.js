@@ -4,7 +4,7 @@
    No products set up (or Docket on its own with none) means the tag and the field are simply not offered.
 
    matchProduct is pure (test/products-link.test.mjs); startProductsLink keeps the list fresh. */
-import { ID, list, slugOf } from '../shared/products.js';
+import { ID, list, slugOf } from '../../../shared/products.js';
 
 export const PRODUCT_ID = ID;
 

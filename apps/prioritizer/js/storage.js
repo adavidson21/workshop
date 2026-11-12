@@ -23,13 +23,13 @@ import { getDirectory } from './directory-model.js';
 import { $, esc, plural, todayStr } from './util.js';
 import { ready } from './ws.js';
 import { connectAction, connectItems } from './connect.js';
-import { saveFile } from '../shared/save-file.js';
+import { saveFile } from '../../../shared/save-file.js';
 import { dayplanBoot, dp, importDayplan } from './dayplan.js';
 import { focusBoot, focusLog, importFocus } from './focus.js';
 import { offersBoot } from './offers.js';
 import { buildSummary } from './summary.js';
 import { heldCard } from './focus-hours.js';
-import { createSummaryWriter } from '../shared/summary.js';
+import { createSummaryWriter } from '../../../shared/summary.js';
 import { fillFollowUps } from './delegate.js';
 
 const MOVED_KEY = 'prioritizer.v1.moved'; // set once the localStorage board was moved into Workshop storage

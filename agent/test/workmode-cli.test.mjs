@@ -21,25 +21,23 @@ test('release tags are plain names, never options or paths', () => {
 });
 
 test('update, pin and install read their options', () => {
-  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, docketTag: null, engAgentsTag: null, engAgents: null, latest: true, check: false, verbose: false, restart: false }, 'plain update means the newest releases');
-  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, docketTag: null, engAgentsTag: null, engAgents: null, latest: false, check: true, verbose: false, restart: false });
+  assert.deepEqual(parseUpdateArgs([]).opts, { tag: null, engAgentsTag: null, engAgents: null, latest: true, check: false, verbose: false, restart: false }, 'plain update means the newest releases');
+  assert.deepEqual(parseUpdateArgs(['--check']).opts, { tag: null, engAgentsTag: null, engAgents: null, latest: false, check: true, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--check', '--tag', 'v1.0.0']).error);
   assert.match(parseUpdateArgs(['--pull']).error, /--pull is gone/, 'update never pulls main: release tags only');
   assert.match(parseUpdateArgs(['--latest']).error, /plain "workshop update"/, 'plain update already means the newest releases');
   assert.deepEqual(parseUpdateArgs(['--help']), { help: true });
   assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '-h']), { help: true }, 'help wins over other options');
-  assert.equal(parseUpdateArgs(['--docket-tag', 'v3.0.0']).opts.docketTag, 'v3.0.0');
-  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '--docket-tag', 'v4.7.0']).opts, { tag: 'v1.0.0', docketTag: 'v4.7.0', engAgentsTag: null, engAgents: null, latest: false, check: false, verbose: false, restart: false });
+  // Docket, Runway, Rapport and Folio are part of Workshop now: their tag options are gone, with a plain reason.
+  for (const k of ['docket', 'runway', 'receipts', 'notes']) assert.match(parseUpdateArgs([`--${k}-tag`, 'v3.0.0']).error, /part of Workshop now/);
+  assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0']).opts, { tag: 'v1.0.0', engAgentsTag: null, engAgents: null, latest: false, check: false, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--tag']).error);
   assert.ok(parseUpdateArgs(['--tag', '--check']).error);
   assert.ok(parseUpdateArgs(['--bogus']).error);
-  assert.equal(parsePinArgs(['--no-docket']).opts.noDocket, true);
-  assert.equal(parsePinArgs(['--docket', 'x']).opts.docket, path.resolve('x'));
-  assert.ok(parsePinArgs(['--docket']).error);
-  assert.ok(parsePinArgs(['--docket', 'x', '--no-docket']).error);
-  assert.equal(parsePinArgs(['--no-docket']).opts.noDocket, true);
-  assert.equal(parsePinArgs(['--docket', 'y']).opts.docket, path.resolve('y'));
-  assert.ok(parsePinArgs(['--docket', 'y', '--no-docket']).error);
+  // pin has no options; the old --<app> <folder> and --no-<app> are accepted and ignored, so older scripts still work.
+  assert.deepEqual(parsePinArgs([]).opts, {});
+  assert.deepEqual(parsePinArgs(['--docket', 'x', '--no-runway', '--receipts', 'y', '--no-notes']).opts, {});
+  assert.ok(parsePinArgs(['--bogus']).error);
   assert.equal(parseInstallArgs(['--work-mode']).opts.workMode, true);
   assert.ok(parseInstallArgs(['--work-mode', '--allow', 'https://x.example.org']).error, 'no site can pair in work mode');
 });
@@ -63,15 +61,14 @@ test('pin builds a checked copy from this install, and doctor reports it', async
   const home = tempDir('workshop-wm-pin-');
   const defaultDir = path.join(tempDir('workshop-wm-data-'), 'Workshop');
   try {
-    const r = pin({ home, repo: REPO, opts: { noDocket: true } });
-    assert.equal(r.docketDir, null);
-    assert.equal(r.build.docket, null);
-    assert.equal(r.build.docket, null);
+    const r = pin({ home, repo: REPO });
     assert.ok(r.build.files['index.html']);
+    for (const id of ['prioritizer', 'runway', 'receipts', 'notes']) assert.ok(r.build.files[`apps/${id}/index.html`], `${id} is part of the copy`);
+    assert.ok(!Object.keys(r.build.files).some(f => /^apps\/[^/]+\/test\//.test(f)), 'no app tests in the copy');
     assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
 
     // Pinning again keeps the previous copy beside it.
-    pin({ home, repo: REPO, opts: { noDocket: true } });
+    pin({ home, repo: REPO });
     assert.ok(fs.existsSync(path.join(home, 'ui.previous', 'build.json')));
     assert.ok(!fs.existsSync(path.join(home, 'ui.next')));
 
@@ -80,7 +77,7 @@ test('pin builds a checked copy from this install, and doctor reports it', async
     let d = await doctorReport({ home, env: {}, platform: 'linux', nodeVersion: 'v22.22.0', probe: noAgent, defaultDir });
     let text = d.lines.join('\n');
     assert.equal(d.code, 0, text);
-    assert.match(text, /Work mode: on\. Pinned copy: Workshop .*no Docket.*all \d+ files match build\.json/);
+    assert.match(text, /Work mode: on\. Pinned copy: Workshop .*, built .*all \d+ files match build\.json/);
     assert.match(text, /Hosted mode: on \(not used: work mode is on/);
 
     // A changed file fails doctor.
@@ -93,36 +90,6 @@ test('pin builds a checked copy from this install, and doctor reports it', async
     d = await doctorReport({ home, env: {}, platform: 'linux', nodeVersion: 'v22.22.0', probe: noAgent, defaultDir });
     assert.match(d.lines.join('\n'), /Work mode: off\./);
   } finally { rm(home); rm(path.dirname(defaultDir)); }
-});
-
-test('pin includes an app from its own checkout (Docket), so work mode shows it', () => {
-  const home = tempDir('workshop-wm-pin3-');
-  const runway = tempDir('workshop-wm-docket-');
-  try {
-    fs.writeFileSync(path.join(runway, 'app.json'), JSON.stringify({ manifestVersion: 1, id: 'prioritizer', name: 'Docket', version: '0.1.0', icon: 'icon.svg', entry: 'index.html', order: 30, modes: ['local', 'hosted', 'browser'] }));
-    fs.writeFileSync(path.join(runway, 'index.html'), '<!doctype html><title>Docket</title>');
-    fs.writeFileSync(path.join(runway, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-    fs.mkdirSync(path.join(runway, 'scripts'));
-    fs.writeFileSync(path.join(runway, 'scripts', 'build.mjs'), '');
-    fs.writeFileSync(path.join(runway, '.assetsignore'), 'scripts\n');
-    const r = pin({ home, repo: REPO, opts: { docket: runway } });
-    assert.equal(r.dirs.docket, runway);
-    assert.equal(r.build.docket.version, '0.1.0');
-    assert.ok(r.build.files['apps/prioritizer/index.html']);
-    assert.ok(!r.build.files['apps/prioritizer/scripts/build.mjs'], '.assetsignore is honored');
-    const reg = JSON.parse(fs.readFileSync(path.join(home, 'ui', 'apps', 'registry.json'), 'utf8'));
-    assert.ok(reg.apps.some(a => a.manifest.id === 'prioritizer'), 'Docket is in the rail');
-    assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
-    assert.throws(() => pin({ home, repo: REPO, opts: { docket: home } }), /not a Docket checkout/);
-  } finally { rm(home); rm(runway); }
-});
-
-test('pin refuses a folder that is not a Docket checkout', () => {
-  const home = tempDir('workshop-wm-pin2-');
-  try {
-    assert.throws(() => pin({ home, repo: REPO, opts: { docket: home } }), /not a Docket checkout/);
-    assert.ok(!fs.existsSync(path.join(home, 'ui')), 'nothing is built');
-  } finally { rm(home); }
 });
 
 /** A git repo with a remote ("origin") holding tags v1.0.0 and v1.1.0, and a clone of it. */
@@ -214,8 +181,8 @@ test('a plain update picks the newest release tag of each checkout found, Tandem
     assert.equal(latestTag(ea, 'core-v'), 'core-v2.1.0', 'not an old short tag like core-v9');
     const userHome = path.join(root, 'home');
     const plan = planLatest(ws, () => {}, { userHome });
-    assert.deepEqual(plan.tags, { tag: 'v1.1.0', engAgentsTag: 'core-v2.1.0' }, 'Docket is already newest; Tandem is behind');
-    assert.ok(plan.lines.some(l => /Docket: already at v1\.1\.0/.test(l)), plan.lines.join('\n'));
+    assert.deepEqual(plan.tags, { tag: 'v1.1.0', engAgentsTag: 'core-v2.1.0' }, 'Workshop and Tandem are behind');
+    assert.ok(!plan.lines.some(l => /Docket/.test(l)), 'Docket is part of Workshop: no line of its own');
     assert.ok(plan.lines.some(l => /Tandem \(eng-agents\): not installed in opencode -> core-v2\.1\.0/.test(l)), plan.lines.join('\n'));
     assert.ok(parseUpdateArgs(['--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag === 'core-v2.1.0');
     assert.equal(fs.readFileSync(path.join(ws, 'f.txt'), 'utf8'), 'one', 'planning changes nothing');
@@ -260,9 +227,9 @@ test('a plain update never moves a checkout back to an older release, and versio
     assert.equal(versionAt(path.join(root, 'nowhere')), null);
 
     const plan = planLatest(ws, () => {}, { userHome: path.join(root, 'home'), dispatchOn: false });
-    assert.deepEqual(plan.tags, { docketTag: 'v1.1.0' }, plan.lines.join('\n'));
+    assert.deepEqual(plan.tags, {}, plan.lines.join('\n'));
     assert.ok(plan.lines.some(l => /Workshop: 1\.2\.0 here is newer than the newest release \(v1\.1\.0\)\. Left as it is/.test(l)), plan.lines.join('\n'));
-    assert.ok(plan.lines.some(l => /Docket: v1\.0\.0 -> v1\.1\.0/.test(l)), plan.lines.join('\n'));
+    assert.ok(!plan.lines.some(l => /Docket/.test(l)), 'an old app checkout next to Workshop is ignored');
     assert.equal(versionAt(ws), '1.2.0', 'planning changes nothing');
   } finally { rm(root); }
 });

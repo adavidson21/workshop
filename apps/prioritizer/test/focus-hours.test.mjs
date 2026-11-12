@@ -5,8 +5,8 @@ import { cleanDayplan, freshDayplan } from '../js/dayplan-model.js';
 import { heldLabel, heldNeeds } from '../js/focus-hours-model.js';
 import { MANAGER_NAME, lunchOn, makerManagerSections, makerManagerTemplate, overlapsLunch } from '../js/maker-manager.js';
 import { cleanLeftOff, setLeftOff } from '../js/left-off-model.js';
-import { SchemaSet } from './workshop/schema.mjs';
-import * as F from '../shared/focus.js';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
+import * as F from '../../../shared/focus.js';
 
 const TODAY = '2026-11-04';
 const plan = sections => cleanDayplan(Object.assign(freshDayplan(), {
@@ -48,7 +48,7 @@ test('the blocking card lists PRs blocked on you, and the held card goes into th
   const held = {id: 'held', kind: 'held', block: `${TODAY}T09:00`, count: 3, label: '3 new ADO items', route: 'today'};
   const cards = buildSummary({board, dp: freshDayplan(), log: null, today: TODAY, held});
   assert.ok(cards.find(c => c.id === 'held'));
-  const S = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
+  const S = SchemaSet.fromDir(new URL('../../../docs/schemas/', import.meta.url).pathname);
   for (const c of cards) assert.deepEqual(S.validate('summary-card', Object.assign({updatedAt: 1}, c)), [], c.id);
   assert.equal(buildSummary({board, dp: freshDayplan(), log: null, today: TODAY}).some(c => c.id === 'held'), false);
 });

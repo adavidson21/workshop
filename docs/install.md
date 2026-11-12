@@ -108,8 +108,4 @@ In Chrome or Edge, open Workshop and click **Install** on the rail (or the insta
 
 It installs per user from the browser, with no admin rights or executable. If Install never appears on a work laptop, your company's browser policy may block web app installs. On a phone, use "Add to Home Screen".
 
-## Docket on Android
-
-Docket is also an Android app, with its board saved in the app's own storage on the phone (never on a server, and not cleared like browser storage). Android visitors to Docket's page get a "Get the app" banner linking to the latest build. It is built in Docket's repo: see [mobile/README.md](https://github.com/adavidson21/docket/blob/main/mobile/README.md) there.
-
 The install dialog shows `shared/screenshots/wide.png` and `shared/screenshots/narrow.png` (sample data). Regenerate them when the look changes a lot.

@@ -5,7 +5,7 @@
    looked up here at render time, and a person counts as on a task when it is assigned to them or to an active
    group they are in (shared/people.js `reach`). The directory itself is read and changed with ws.people
    (directory.js). */
-import * as D from '../shared/people.js';
+import * as D from '../../../shared/people.js';
 
 let current = D.EMPTY;
 

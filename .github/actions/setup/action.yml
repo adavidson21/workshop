@@ -1,5 +1,5 @@
 name: Workshop test setup
-description: The remote app checkouts, Node and Python, and (with browser) Playwright's Chromium.
+description: Node and Python, and (with browser) Playwright's Chromium.
 inputs:
   browser:
     description: Install Playwright and Chromium
@@ -7,10 +7,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # Docket lives in its own repo and is served under /apps/prioritizer/ (apps/remote.json, worker/index.js).
-    # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
-    - uses: actions/checkout@v4
-      with: { repository: adavidson21/docket, path: .remote/prioritizer }
     - uses: actions/setup-node@v4
       with: { node-version: 22 }
     - uses: actions/setup-python@v5

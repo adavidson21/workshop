@@ -6,7 +6,7 @@
    Nothing in the data waits: sync and pickups run as always. With focus hours off nothing here changes Docket.
    The rules are in shared/focus.js; this file holds the one watch and the holder, and the "where I left off" prompt
    the Today column shows when a focus block ends, lunch starts or focus starts now. */
-import { createHolder, isHeldNow, resolveFocus, watchFocus } from '../shared/focus.js';
+import { createHolder, isHeldNow, resolveFocus, watchFocus } from '../../../shared/focus.js';
 import { ready } from './ws.js';
 
 const OFF = resolveFocus({});

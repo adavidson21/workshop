@@ -59,11 +59,12 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
   const home = tempHome();
   try {
     await writeOff(home, new Set(['notes', 'receipts']));
-    const { build, off } = pinApps({ home, repo: REPO, schemas, remotes: { docket: null } });
+    const { build, off } = pinApps({ home, repo: REPO, schemas });
     assert.deepEqual([...off].sort(), ['notes', 'receipts']);
+    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Folio files');
     assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/receipts/')), 'no Rapport files');
-    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Notes files');
     assert.ok(build.files['apps/home/index.html'], 'Home is still there');
+    assert.ok(build.files['apps/prioritizer/index.html'], 'Docket is part of the copy');
     const reg = JSON.parse(fs.readFileSync(path.join(home, 'ui', 'apps', 'registry.json'), 'utf8'));
     assert.ok(!ids(reg).includes('notes'));
     assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
@@ -71,8 +72,8 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
     contractSchemas.assert('app-switches', view, 'appSwitches');
     assert.equal(view.apps.find(a => a.id === 'notes').inWorkshop, false);
     assert.equal(view.apps.find(a => a.id === 'home').canTurnOff, false);
-    assert.equal(view.apps.find(a => a.id === 'prioritizer').separate, true);
-    assert.equal(view.apps.find(a => a.id === 'receipts').inWorkshop, false);
+    assert.ok(view.apps.every(a => a.separate === false), 'every app is part of Workshop');
+    assert.equal(view.apps.find(a => a.id === 'prioritizer').inWorkshop, true);
   } finally { rmHome(home); }
 });
 
@@ -81,7 +82,7 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: ['https://workshop.example.org'], features: { hostedMode: false, workMode: true } }));
-  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null } });
+  pinApps({ home, repo: REPO, schemas, uiDir });
   const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), uiDir });
   try {
     let r = await get(agent, '/api/app-switches');
@@ -107,12 +108,6 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal((await put(agent, '/api/app-switches/slate', { on: 'yes' })).status, 400);
     assert.equal((await put(agent, '/api/app-switches/slate', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
-    // Turning on an app that is not downloaded saves the switch and says what to run; nothing is downloaded.
-    r = await put(agent, '/api/app-switches/prioritizer', { on: false });
-    r = await put(agent, '/api/app-switches/prioritizer', { on: true });
-    assert.equal(r.status, 200, r.text);
-    const docket = r.json.apps.find(a => a.id === 'prioritizer');
-    if (!docket.downloaded) assert.equal(r.json.download, 'workshop apps on docket');
   } finally { await agent.stop(); rmHome(home); }
 });
 
@@ -150,26 +145,29 @@ test('GET /api/doctor: the health check for Settings, from this computer only', 
 
 test('pinApps leaves out an app whose app.json is not valid and says why', () => {
   const home = tempHome();
+  const repo = path.join(home, 'repo');
   const uiDir = path.join(home, 'ui');
-  const appDir = path.join(home, 'docket-checkout');
   try {
-    // Notes v2.6.1 listed a file twice; the app schema wants unique files. Docket is the app still from another repo.
-    const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'remote.json'), 'utf8')).apps.find(a => a.id === 'prioritizer').manifest;
-    fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify({ ...manifest, files: [...manifest.files, manifest.files[0]] }));
-    fs.writeFileSync(path.join(appDir, 'index.html'), '<!doctype html>');
-    const { skipped } = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: appDir } });
+    // A small Workshop: the shell page and one app whose manifest lists a file twice (Notes v2.6.1 did; the schema
+    // wants unique files).
+    fs.mkdirSync(path.join(repo, 'apps', 'pages'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'index.html'), '<!doctype html>');
+    const manifest = { manifestVersion: 1, id: 'pages', name: 'Pages', version: '1.0.0', icon: 'icon.svg', entry: 'index.html', files: ['a.js'] };
+    fs.writeFileSync(path.join(repo, 'apps', 'pages', 'index.html'), '<!doctype html>');
+    fs.writeFileSync(path.join(repo, 'apps', 'pages', 'a.js'), '');
+    fs.writeFileSync(path.join(repo, 'apps', 'pages', 'app.json'), JSON.stringify({ ...manifest, files: ['a.js', 'a.js'] }));
+    const { skipped } = pinApps({ home, repo, schemas, uiDir, gitInfo: () => null });
     assert.equal(skipped.length, 1);
-    assert.equal(skipped[0].id, 'prioritizer');
+    assert.equal(skipped[0].id, 'pages');
     assert.match(skipped[0].problem, /not a valid app manifest .*duplicate item/);
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('prioritizer'));
-    assert.match(skippedLines(skipped)[0], /^Docket is not included: its app\.json is not a valid app manifest .*workshop update\).*workshop pin/);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('pages'));
+    assert.match(skippedLines(skipped)[0], /^pages is not included: its app\.json is not a valid app manifest .*workshop update\).*workshop pin/);
 
     // The same manifest without the duplicate is pinned.
-    fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify(manifest));
-    const again = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: appDir } });
+    fs.writeFileSync(path.join(repo, 'apps', 'pages', 'app.json'), JSON.stringify(manifest));
+    const again = pinApps({ home, repo, schemas, uiDir, gitInfo: () => null });
     assert.deepEqual(again.skipped, []);
-    assert.ok(ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('prioritizer'));
+    assert.ok(ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('pages'));
   } finally { rmHome(home); }
 });
 

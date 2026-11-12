@@ -1,6 +1,6 @@
 import { connectorNote, prMatchKey, reachNote, shouldAutoConnect } from './ado-status.js';
 import { focusNow, heldNow, holdCount } from './focus-hours.js';
-import { PAIR_KEY } from '../shared/pair.js';
+import { PAIR_KEY } from '../../../shared/pair.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, COLORS, VALUE } from './constants.js';
 import { flushText } from './drawer.js';
 import { hideTip, placeTip, tipFor } from './events.js';

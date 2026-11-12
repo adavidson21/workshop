@@ -21,8 +21,8 @@
 import { isTriaged } from './model.js';
 import { addDays, daysBetween, isDate } from './util.js';
 import { dayReady, dayView, fromMin, isTime, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
-import { HORIZON, horizon } from '../shared/summary.js';
-import * as D from '../shared/people.js';
+import { HORIZON, horizon } from '../../../shared/summary.js';
+import * as D from '../../../shared/people.js';
 
 export { HORIZON, horizon };
 const WRAP_NO_SPRINT = '15:00';          // Wrap up with no sprint set: from 3 PM every day

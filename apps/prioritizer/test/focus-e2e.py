@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Docket with focus hours and lunch (Workshop docs/focus.md), on its own site in headless Chrome, with a fake clock.
 
-  python test/focus-e2e.py
+  python apps/prioritizer/test/focus-e2e.py
 
 Monday 9 November 2026. Settings' focus hours (09:00 to 12:00, lunch 12:00 to 13:00) are written here through the
 SDK as Workshop's Settings would. Checks: with focus hours off Docket looks as before; during focus the Inbox folds
@@ -10,9 +10,13 @@ and blocking cards; the Maker/Manager template and "Overlaps lunch"; where I lef
 import datetime, functools, http.server, os, sys, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Docket is apps/prioritizer/ in Workshop: its files are in APP_DIR, and the static site is Workshop's root (Docket's
+# page loads Workshop's shared files).
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(APP_DIR))
 PORT = 8813
 SITE = f'http://127.0.0.1:{PORT}'
+APP = SITE + '/apps/prioritizer/'
 P = 'window.__prioritizer'
 
 
@@ -84,7 +88,7 @@ def main():
         errors = []
         pg.on('pageerror', lambda e: errors.append(str(e)))
         pg.clock.install(time=at(8, 29)); pg.clock.pause_at(at(8, 30))
-        pg.goto(SITE + '/'); tick(pg, 3000)
+        pg.goto(APP); tick(pg, 3000)
         pg.wait_for_function('() => window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000)
         # A board: an Inbox task, a PR blocked on you, a follow-up due.
         add_tasks(pg, [

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import * as M from '../js/dayplan-model.js';
 import { dpApplyEnvelope, dpEnvelopeFromBoard } from '../js/dayplan-format.js';
 import { HANDLED_MAX, applyOffer, cleanOffer, markHandled, matchFor, offerKey, pendingOffers } from '../js/offers-model.js';

@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSummary, horizon, wrapAt, HORIZON } from '../js/summary.js';
 import { freshDayplan, cleanDayplan } from '../js/dayplan-model.js';
-import { SchemaSet } from './workshop/schema.mjs';
-import { directory } from '../shared/people.js';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
+import { directory } from '../../../shared/people.js';
 
 const dir = directory({schema: 'settings.people', version: 2, rev: 1, items: [
   {id: 'p_one', kind: 'person', name: 'Person One', handle: 'person', relation: 'report'},
@@ -32,7 +32,7 @@ const plan = () => cleanDayplan(Object.assign(freshDayplan(), {
 const log = {days: {[TODAY]: {id: TODAY, events: [{at: 'x', type: 'shutdown'}]}}, handoffs: [{id: 'h1', to: 'receipts', date: TODAY}, {id: 'h2', to: 'notes', date: TODAY}]};
 
 test('summary: every card matches docs/summaries.md (summary-card schema)', () => {
-  const schemas = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
+  const schemas = SchemaSet.fromDir(new URL('../../../docs/schemas/', import.meta.url).pathname);
   for (const c of buildSummary({board: board(), dir, dp: plan(), log, today: TODAY})){
     assert.deepEqual(schemas.validate('summary-card', Object.assign({updatedAt: 1}, c)), [], c.id);
   }

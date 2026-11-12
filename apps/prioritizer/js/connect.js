@@ -1,8 +1,8 @@
 /* Docket on its own site (docket.alexisdavidson.org): Connect to Workshop on this computer, from the file menu.
    Paired, the board is files in Workshop's data folder (shared with Workshop's Home) and ADO sync can use
    Workshop's connector. The pairing itself is shared/pair.js, the same code as Workshop's Connect button.
-   Not offered inside Workshop (the shell pairs) or in the Android app (no agent on a phone). */
-import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
+   Not offered inside Workshop (the shell pairs). */
+import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { esc } from './util.js';
 import { embedded } from './ws.js';

@@ -1,10 +1,6 @@
 # Docket
 
-Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`) runs in three places, all from this repo:
-
-- **On its own** at https://docket.alexisdavidson.org, with nothing else installed. The board is saved in your browser. With Workshop installed on your computer, the folder icon has **Use Workshop on this computer**: it pairs this site with Workshop (the same Connect as in Workshop), and the board becomes files in Workshop's data folder, shared with Workshop's Home. To bring a browser board along, download a backup before connecting and import it after.
-- **Inside [Workshop](https://github.com/adavidson21/workshop)** at https://workshop.alexisdavidson.org, as one of its apps. Workshop's Worker proxies `/apps/prioritizer/*` to this site, so every deploy here shows up in Workshop too. With Workshop's agent running, the board is files on your computer that Workshop's Home also reads.
-- **On Android** as an app built from `mobile/` (see [mobile/README.md](mobile/README.md)). The board stays on the phone.
+Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`) is an app in [Workshop](https://github.com/adavidson21/workshop) (`apps/prioritizer/`, moved from adavidson21/docket on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. With Workshop's agent running, the board is files on your computer that other apps read through Docket's summary. The Android app was retired in 10.0.0.
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
 
@@ -185,7 +181,7 @@ Themes live in `shared/themes.css`, copied from Workshop (see Files from Worksho
 
 Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waiting on your review, show up as tasks in an **ADO** list, and in All lists next to everything else. Read-only for now.
 
-**How it connects:** only through Workshop's ADO connector, on the same computer. That works inside Workshop, and on Docket's own site (https://docket.alexisdavidson.org) once the site is paired with Workshop (folder icon, **Use Workshop on this computer**). The connector keeps its connections (server, collection, project, which repos to watch for PRs) in Workshop's settings, and your PAT stays in an environment variable on your computer: it never touches the page. In the Android app, and on Docket's own site without Workshop, there is no ADO sync.
+**How it connects:** only through Workshop's ADO connector, on the same computer. That works inside Workshop. The connector keeps its connections (server, collection, project, which repos to watch for PRs) in Workshop's settings, and your PAT stays in an environment variable on your computer: it never touches the page.
 
 **Setup:**
 
@@ -273,11 +269,11 @@ Stages update when the connector reports a change, and when you switch back to t
 
 ## Install it as a desktop app
 
-Open https://docket.alexisdavidson.org in Chrome or Edge and choose Install in the address bar. Docket installs as its own app and opens offline. To use it with the rest of your tools, install Workshop instead: see the [Workshop README](https://github.com/adavidson21/workshop#install-it-as-a-desktop-app).
+Install Workshop: see the [Workshop README](https://github.com/adavidson21/workshop#install-it-as-a-desktop-app). Pop Docket out to give it its own window.
 
 ## Code
 
-No build step. `index.html` is the page; `app.json` describes the app to Workshop ([docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md)) and lists the files to keep for offline use; `app.css` is Docket's own styles (shared buttons, menus and themes come from `shared/`). `sw.js` and `manifest.webmanifest` make the standalone site installable and offline-ready. The code is in `js/`, one ES module per concern:
+No build step. `index.html` is the page; `app.json` describes the app to Workshop ([docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md)) and lists the files to keep for offline use; `app.css` is Docket's own styles (shared buttons, menus and themes come from Workshop's `shared/`). Workshop's service worker keeps it working offline. The code is in `js/`, one ES module per concern:
 
 | File | What's in it |
 | --- | --- |
@@ -308,19 +304,11 @@ No build step. `index.html` is the page; `app.json` describes the app to Worksho
 
 Each module imports what it uses. Modules import each other in a cycle, so code that runs at load must not use another module's state: put that in an init function `main.js` calls (like `adoInit`). Imported bindings are read-only; change another module's variable through its setter (like `setSel`). When you add a file, add it to `files` in `app.json` (`test/app-files.test.mjs` catches a miss). Talk to the shell, data and connectors only through `ws.js`.
 
-`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (`test/e2e.py` here, and Workshop's `tests/e2e.py`, which runs against this repo). `node --test "test/*.test.mjs"` tests the storage format, the day plan, the save engine and the file list in Node; `python test/e2e.py` runs Docket on its own in headless Chrome. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
+`window.__prioritizer` is the only global: it exposes the model and sync functions for automated checks (`test/e2e.py` here, and Workshop's `tests/e2e.py`). From Workshop's root, `node --test "apps/prioritizer/test/*.test.mjs"` tests the storage format, the day plan, the save engine and the file list in Node; `python apps/prioritizer/test/e2e.py` runs Docket's page in headless Chrome. `test/fixtures/` holds a synthetic board exported by version 4.0.0 (Excel and its localStorage copy) for the round-trip and move checks.
 
 ### Files from Workshop
 
-These are exact copies of Workshop files, listed in `workshop-files.json` with the Workshop commit they came from: `shared/` (the SDK, themes, fonts, file saving, the top bar, SheetJS), `icons/`, and the data contract schemas in `test/workshop/`. Docket keeps them so it runs on its own, and so Docket inside Workshop reads and writes data exactly as Workshop's other apps do.
-
-- **Never edit them here.** Change the file in Workshop, then run `node scripts/sync-workshop.mjs --update` to copy the latest and pin that commit.
-- CI runs `node scripts/sync-workshop.mjs --check`, which fails if any copy differs from the pinned commit.
-- Add `--from <path to a workshop checkout>` to either to read from disk instead of GitHub.
-
-### Deploying
-
-`npx wrangler deploy` publishes this repo to the `docket` Cloudflare Worker at https://docket.alexisdavidson.org (`wrangler.jsonc`; `.assetsignore` keeps tests, scripts and `mobile/` off the site). Workshop reaches it through a service binding to that Worker, so keep the Worker's name. Docket's data id stays `prioritizer`: saved boards, Workshop's Home and the ADO connector all use it.
+Docket uses Workshop's public shared files (`../../shared/`, listed in Workshop's `docs/shared.md`) and nothing from other apps; `tests/check-boundaries.mjs` checks it. A merge to Workshop's `main` deploys it; bump `version` in `app.json` when shipping a change. Docket's data id stays `prioritizer`.
 
 ### Storage format
 
@@ -355,4 +343,4 @@ Boards migrate automatically on first load: High/Low value becomes High (4) or L
 
 ## License
 
-[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts and libraries keep their own licenses: `shared/fonts/OFL-*.txt` and `shared/vendor/LICENSE-SheetJS.txt`.
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts and libraries keep their own licenses: Workshop's `shared/fonts/OFL-*.txt` and `shared/vendor/LICENSE-SheetJS.txt`.

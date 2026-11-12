@@ -3,7 +3,7 @@ import { score } from './model.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { commit, listById, migrateTask, orderedLists, sanitize, setState, state, topLists } from './state.js';
 import { dateStr, isDate, plural, todayStr, uid } from './util.js';
-import { saveFile } from '../shared/save-file.js';
+import { saveFile } from '../../../shared/save-file.js';
 import { namesOf } from './directory-model.js';
 import { adoptNames } from './directory.js';
 /* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
@@ -11,7 +11,7 @@ import { adoptNames } from './directory.js';
 const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
 const NO_XLSX = 'Excel tools did not load. Reload the page.';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-// An Excel file as a download, or the share sheet in the Android app (shared/save-file.js).
+// An Excel file as a download (shared/save-file.js).
 async function saveWorkbook(wb, name, done){
   try {
     const how = await saveFile(name, XLSX.write(wb, {bookType: 'xlsx', type: 'array'}), XLSX_TYPE);

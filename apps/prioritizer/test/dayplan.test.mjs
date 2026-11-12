@@ -5,14 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { data as sdk } from '../shared/workshop-sdk.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { data as sdk } from '../../../shared/workshop-sdk.js';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import * as M from '../js/dayplan-model.js';
 import { dayplanFormat, dpEnvelopeFromBoard, dpEnvelopesFromBundle } from '../js/dayplan-format.js';
 import { createStore } from '../js/store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const schemas = SchemaSet.fromDir(path.join(HERE, 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(path.join(HERE, '..', '..', '..', 'docs', 'schemas'));
 const clone = v => JSON.parse(JSON.stringify(v));
 const settle = () => new Promise(r => setTimeout(r, 15));
 const POINTS = {XS: 1, S: 2, M: 3, L: 5, XL: 8};

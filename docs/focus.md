@@ -2,7 +2,7 @@
 
 Protected focus time and a protected lunch that every app respects. During a focus or lunch block, interruptions (attention-grabbing UI: badges, pickup toasts, new-item toasts, the parts of Needs you that can wait) are held and released together when the block ends. Nothing in the data is held: every app keeps syncing and saving. Lunch is also watched: working through it shows a quiet offer to take it now, and a missed lunch is offered again until 15:00.
 
-Version: the `settings.focus` collection is version 1. The shared code is `shared/focus.js` in the platform bundle ([bundle.md](bundle.md)).
+Version: the `settings.focus` collection is version 1. The shared code is `shared/focus.js`.
 
 With focus hours off (the default until the Settings page is saved), every app behaves exactly as without this feature.
 
