@@ -41,12 +41,16 @@ export function sectionsHtml(state) {
     if (id === 'tandem') { const n = tandem.items.filter(i => i.review).length; return n ? `<span class="sec-badge" title="${n} waiting on your review">${n}</span>` : ''; }
     return '';
   };
-  const sideOpen = !ui.sideClosed, panelOpen = !ui.panelClosed;
+  const sideOpen = !ui.sideClosed;
   return `<button class="ibtn drawer-btn" data-act="drawer" aria-label="Pages" title="Pages">${ICON.drawer}</button>
     <button class="ibtn fold-btn side-btn" data-act="side" aria-pressed="${sideOpen}" aria-label="${sideOpen ? 'Hide' : 'Show'} the pages list" title="${sideOpen ? 'Hide' : 'Show'} the pages list (Ctrl+\\)">${ICON.sideL}</button>
     <p class="nb-name">Folio</p>
-    <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>
-    ${ui.path ? `<button class="ibtn fold-btn panel-btn" data-act="panel" aria-pressed="${panelOpen}" aria-label="${panelOpen ? 'Hide' : 'Show'} the page panel" title="${panelOpen ? 'Hide' : 'Show'} outline, backlinks and tags (Ctrl+Shift+\\)">${ICON.sideR}</button>` : ''}`;
+    <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>`;
+}
+/* The page panel's fold button (outline, backlinks, tags). Folio 4.0.0: in the note's header, not the section tabs. */
+function panelBtn(ui) {
+  const panelOpen = !ui.panelClosed;
+  return `<button class="ibtn fold-btn panel-btn" data-act="panel" aria-pressed="${panelOpen}" aria-label="${panelOpen ? 'Hide' : 'Show'} the page panel" title="${panelOpen ? 'Hide' : 'Show'} outline, backlinks and tags (Ctrl+Shift+\\)">${ICON.sideR}</button>`;
 }
 
 /* ---------- sidebar: the open section's pages ---------- */
@@ -226,13 +230,13 @@ export function header(state) {
     ['trash', 'Move to the trash']
   ];
   return `<div class="note-head">
-    <div class="crumbs"><span class="mono soft">${esc(dirOf(ui.path) ? dirOf(ui.path) + '/' : '')}${esc(baseName(ui.path))}</span>
+    <div class="crumbs"><span class="path" title="${esc(ui.path)}">${dirOf(ui.path) ? `<span class="dir">${esc(dirOf(ui.path))}/</span>` : ''}<span class="file mono">${esc(baseName(ui.path))}</span></span>
       <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
     <div class="head-actions">
       ${segHtml(state)}
       <button class="btn ghost" data-act="copy-wiki" title="Copy with images, to paste into the wiki or any editor">Copy for wiki</button>
-      <button class="btn text-danger" data-act="trash" title="Move to the trash">Trash</button>
-      ${menuHtml(ui, items)}
+      <button class="ibtn trash-btn" data-act="trash" title="Move to the trash" aria-label="Trash">${ICON.trash}</button>
+      ${menuHtml(ui, items)}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
 }
@@ -268,7 +272,7 @@ function tandemHeader(state) {
     <div class="head-actions">
       ${segHtml(state)}
       <button class="btn ghost" data-act="open-dispatch" title="This run in Dispatch">Open in Dispatch</button>
-      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md']])}
+      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md']])}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui, true) || lock || gate}`;
 }
