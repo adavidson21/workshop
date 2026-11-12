@@ -24,13 +24,14 @@ export function previewText(meta, dayplan, now = new Date()) {
 }
 
 const hm = m => m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') + 'm' : ''}` : `${m}m`;
-/** History table rows as text: [{date, focus, lunch, released}]. */
+/** History table rows as text: [{date, focus, lunch, released, evening}]; evening says "worked late" after Keep working tonight. */
 export function historyText(rows) {
   return rows.map(r => ({
     date: new Date(r.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
     focus: r.planned ? `${hm(r.kept)} of ${hm(r.planned)}` : '',
     lunch: LUNCH_WORD[r.lunch] || '',
-    released: r.released ? String(r.released) : ''
+    released: r.released ? String(r.released) : '',
+    evening: r.late ? 'Worked late' : ''
   }));
 }
 

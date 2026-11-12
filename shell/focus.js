@@ -1,6 +1,7 @@
 /* Workshop shell: focus hours and lunch (docs/focus.md). The bar item (Focus, Focus until 12:00 · 7 held,
-   Lunch until 1:00, Focus skipped today, Lunch missed), its menu, Peek, the release toast, the lunch cover,
-   lunch detection bars, palette commands, and holding rail badges and held toasts.
+   Lunch until 1:00, Focus skipped today, Lunch missed, Day's done, Day starts at 9:00), its menu, Peek, the release
+   toast, the lunch and Day's done covers, the heads-up line, lunch detection bars, palette commands, and holding
+   rail badges and held toasts.
 
    The shell writes Settings' `focus` day items itself: it connects to the SDK as app `settings` (docs/focus.md,
    Items). Rules and day item changes are in shared/focus.js; this file is the page around them.
@@ -21,13 +22,14 @@ const RELEASED_KEY = 'workshop.focus.released';
 export function createFocusShell(opts) {
   const now = opts.now || (() => new Date());
   let ws = null, watch = null, f = F.resolveFocus({}), held = [], heldTotal = 0;
-  let item = null, menu = null, peekOpen = false, cover = null, coverTimer = null, bar = null;
+  let item = null, menu = null, peekOpen = false, cover = null, coverTimer = null, bar = null, firstFocus = true;
   let prev = f;
-  const shownCover = new Set();      // lunch block keys this tab covered once
+  const shownCover = new Set();      // lunch block keys (and Day's done span keys) this tab covered once
   const shownBar = new Set();        // lunch block keys whose working-through bar showed
   const activity = F.createActivity({ now: () => now().getTime(), visible: () => document.visibilityState === 'visible' });
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel(F.CHANNEL) : null;
-  if (channel) channel.addEventListener('message', e => { if (e.data && e.data.kind === 'released') rememberReleased(e.data.key); });
+  const seen = F.createSeen({ channel, onChange: () => render() });   // heads-up lines dismissed, once per event per browser
+  if (channel) channel.addEventListener('message', e => { if (e.data && e.data.kind === 'released') rememberReleased(e.data.key); seen.receive(e.data); });
 
   /* ---------- reading and writing ---------- */
   async function start() {
@@ -91,8 +93,15 @@ export function createFocusShell(opts) {
     if (before.state === 'lunch' && (next.state !== 'lunch' || next.until !== before.until)) lunchEnded(before);
     // The span ended: release once.
     const was = before.span && before.span.key, is = next.span && next.span.key;
-    if (was && was !== is) release(was, before.state);
+    if (was && was !== is) release(was, releaseKind(before));
+    // A tab opened after the morning hold ended (nobody was here at the start of the day): release it now, once.
+    if (firstFocus && next.enabled && before.state === 'off') {
+      const night = (next.spans || []).find(sp => sp.night && sp.key === `${next.date}T00:00` && sp.end && F.toMin(sp.end) <= F.minuteOf(now()));
+      if (night && night.key !== is) release(night.key, 'morning');
+    }
+    firstFocus = false;
     if (next.state === 'lunch') showCover(next);
+    else if (next.state === 'dayDone' && next.source === 'end') showDone(next);
     else hideCover();
     opts.renderBadges();
     readHeld();
@@ -118,12 +127,22 @@ export function createFocusShell(opts) {
     try { const done = JSON.parse(localStorage.getItem(RELEASED_KEY) || '[]'); if (Array.isArray(done) && !done.includes(key)) localStorage.setItem(RELEASED_KEY, JSON.stringify(done.concat([key]).slice(-60))); } catch (e) { /* ignore */ }
   }
 
+  // Which release toast: focus, lunch, or for Day's done morning (the day started), late (Keep working tonight) or
+  // night (midnight, with no morning hold after it).
+  function releaseKind(g) {
+    if (g.state === 'lunch') return 'lunch';
+    if (g.state !== 'dayDone') return 'focus';
+    if (g.source === 'morning') return 'morning';
+    const day = watch && watch.day;
+    return day && day.late ? 'late' : 'night';
+  }
   function release(key, kind) {
     claimOnce(`release:${key}`, async () => {
       if (channel) try { channel.postMessage({ kind: 'released', key: `release:${key}` }); } catch (e) { /* closed */ }
       const parts = await heldCards(key);
       const total = parts.reduce((n, p) => n + p.count, 0);
-      showRelease(F.releaseText(parts, kind === 'lunch' ? 'lunch' : 'focus'), parts);
+      const text = F.releaseText(parts, kind);
+      if (text) showRelease(text, parts);
       if (total) await updateDay((it, _f, d) => F.addReleased(it, F.dateStr(d), total));
     });
   }
@@ -174,6 +193,7 @@ export function createFocusShell(opts) {
     if (f.state === 'lunch') {
       const key = lunchKey(f);
       if (F.workingThrough(f, activeInLunch(f, d.getTime()), shownBar.has(key))) { shownBar.add(key); showBar('through'); }
+      render();
       return;
     }
     if (bar && bar.dataset.kind === 'through') hideBar();
@@ -212,6 +232,30 @@ export function createFocusShell(opts) {
     document.body.appendChild(cover);
     cover.querySelector('[data-fx="cover-minute"]').focus();
   }
+  // Day's done (docs/focus.md): once per evening span in each tab. Wrap up when the day is not wrapped yet; Just a
+  // minute hides it for DONE_PAUSE_MINUTES. Quick capture sits above it.
+  function showDone(g) {
+    const key = g.span && `done:${g.span.key}`;
+    if (!key || shownCover.has(key) || cover) return;
+    shownCover.add(key);
+    drawDone();
+  }
+  function drawDone() {
+    const entry = watch && watch.entry;
+    const wrap = !(entry && entry.wrapped === true);
+    cover = document.createElement('div');
+    cover.className = 'lunch-cover done-cover'; cover.setAttribute('role', 'dialog'); cover.setAttribute('aria-modal', 'true'); cover.setAttribute('aria-labelledby', 'doneTitle');
+    cover.innerHTML = `<div class="lunch-box"><p class="eyebrow">Day's done</p><h2 id="doneTitle">Day's done.</h2>
+      <p>Badges and pickups wait until tomorrow morning. Quick capture (Ctrl+.) still works.</p>
+      <div class="acts">${wrap ? '<button class="btn primary" data-fx="wrap-up">Wrap up</button>' : ''}<button class="btn" data-fx="done-minute">Just a minute</button></div></div>`;
+    document.body.appendChild(cover);
+    cover.querySelector('button').focus();
+  }
+  function doneMinute() {
+    const key = f.span && f.span.key;
+    hideCover();
+    coverTimer = setTimeout(() => { if (f.state === 'dayDone' && f.source === 'end' && f.span && f.span.key === key && !cover) drawDone(); }, F.DONE_PAUSE_MINUTES * 60000);
+  }
   function hideCover() {
     clearTimeout(coverTimer); coverTimer = null;
     if (cover) { cover.remove(); cover = null; }
@@ -234,16 +278,24 @@ export function createFocusShell(opts) {
     if (f.state === 'focus') label = `Focus until ${F.fmtTime(f.until)}${heldTotal ? ` · ${heldTotal} held` : ''}`;
     else if (f.state === 'lunch') label = `Lunch until ${F.fmtTime(f.until)}`;
     else if (f.state === 'skipped') label = 'Focus skipped today';
+    else if (f.state === 'dayDone') label = f.source === 'morning' ? `Day starts at ${F.fmtTime(f.until)}` : "Day's done";
     else label = 'Focus';
     const missedHtml = missed ? `<span class="wf-missed"><span>Lunch missed. Take a late lunch?</span><button class="wf-act" data-fx="take-30">Take 30 min</button><button class="wf-act" data-fx="take-60">Take 60 min</button><button class="wf-act ghost" data-fx="not-today">Not today</button></span>` : '';
-    item.innerHTML = `${missedHtml}<button type="button" class="wf-btn" data-fx="menu" aria-haspopup="menu" aria-expanded="${menu ? 'true' : 'false'}"><span class="wf-dot" aria-hidden="true"></span><span class="wf-label">${esc(label)}</span></button>`;
+    const hu = F.headsUp(f, now());
+    const headsHtml = hu && !seen.has(hu.key) ? `<span class="wf-heads" role="status" data-heads="${esc(hu.key)}"><span>${esc(hu.text)}</span><button class="wf-act ghost" data-fx="heads-dismiss" aria-label="Dismiss: ${esc(hu.text)}">Dismiss</button></span>` : '';
+    item.innerHTML = `${headsHtml}${missedHtml}<button type="button" class="wf-btn" data-fx="menu" aria-haspopup="menu" aria-expanded="${menu ? 'true' : 'false'}"><span class="wf-dot" aria-hidden="true"></span><span class="wf-label">${esc(label)}</span></button>`;
     // Rewriting the item drops the open menu (and Peek with it), so put it back.
     if (menu) { item.appendChild(menu); renderMenu(); }
   }
   function remainingBlock(g, d) { const m = F.minuteOf(d); return (g.blocks || []).some(b => F.toMin(b.end) > m); }
   function menuItems() {
     const d = now(), out = [];
-    if (f.state === 'focus' || f.state === 'lunch') out.push(['peek', 'Peek at held items']);
+    if (F.isHeldNow(f)) out.push(['peek', 'Peek at held items']);
+    if (f.state === 'dayDone') {
+      out.push(f.source === 'morning' ? ['start-day', 'Start my day now'] : ['keep-working', 'Keep working tonight']);
+      out.push(['settings', 'Focus hours settings']);
+      return out;
+    }
     if (f.state === 'off') {
       for (const m of [25, 50, 90]) { const e = F.startNowEnd(f, d, m); if (e) out.push([`start-${m}`, `Start focus now, ${m} min${e.lunch ? ` (until ${F.fmtTime(e.end)}, lunch)` : ''}`]); }
       const nx = F.startNowEnd(f, d, 'next');
@@ -260,7 +312,8 @@ export function createFocusShell(opts) {
   function renderMenu() {
     if (!menu) return;
     const had = menu.contains(document.activeElement) ? document.activeElement.dataset.fx : null;
-    const peek = peekOpen ? `<div class="wf-peek" role="group" aria-label="Held items"><p class="eyebrow">Held${f.span ? ` until ${esc(F.fmtTime(f.span.end))}` : ''}</p>${held.length
+    const until = f.span ? (f.span.end ? ` until ${esc(F.fmtTime(f.span.end))}` : ' until morning') : '';
+    const peek = peekOpen ? `<div class="wf-peek" role="group" aria-label="Held items"><p class="eyebrow">Held${until}</p>${held.length
       ? `<ul>${held.map(p => `<li><button class="wf-held" data-go="${esc(p.app)}" data-path="${esc(p.route)}"><span class="wf-app">${esc(p.name)}</span><span>${esc(p.label)}</span></button></li>`).join('')}</ul>`
       : '<p class="soft">Nothing held yet.</p>'}</div>` : '';
     menu.innerHTML = peek + `<ul role="menu">${menuItems().map(([id, label]) => `<li role="none"><button role="menuitem" data-fx="${id}">${esc(label)}</button></li>`).join('')}</ul>`;
@@ -296,6 +349,11 @@ export function createFocusShell(opts) {
       case 'skip-lunch': hideBar(); hideCover(); return updateDay((it, g, d) => F.skipLunch(it, d));
       case 'not-today': return updateDay((it, g, d) => F.notToday(it, d));
       case 'cover-minute': return justAMinute();
+      case 'done-minute': return doneMinute();
+      case 'wrap-up': hideCover(); return opts.go('prioritizer', 'shutdown');
+      case 'keep-working': hideCover(); return updateDay((it, g, d) => F.keepWorking(it, d));
+      case 'start-day': return updateDay((it, g, d) => F.startDay(it, d));
+      case 'heads-dismiss': { const hu = F.headsUp(f, now()); if (hu) seen.dismiss(hu.key); return render(); }
       case 'settings': return opts.go('settings', 'focus');
     }
   }
@@ -332,7 +390,11 @@ export function createFocusShell(opts) {
       const c = [];
       if (f.state === 'off') c.push({ title: 'Start focus', run: () => run(remainingBlock(f, now()) ? 'start-next' : 'start-50') });
       if (f.state === 'focus') c.push({ title: 'End focus early', run: () => run('end-early') });
-      if (f.state === 'focus' || f.state === 'lunch') c.push({ title: 'Peek held items', run: () => openMenu(true) });
+      if (F.isHeldNow(f)) c.push({ title: 'Peek held items', run: () => openMenu(true) });
+      if (f.state === 'dayDone') {
+        c.push(f.source === 'morning' ? { title: 'Start my day now', run: () => run('start-day') } : { title: 'Keep working tonight', run: () => run('keep-working') });
+        return c;
+      }
       if (f.state === 'off' || f.state === 'focus') c.push({ title: 'Skip focus today', run: () => run('skip') });
       if (f.state === 'skipped') c.push({ title: 'Undo skip focus today', run: () => run('undo-skip') });
       if (f.state !== 'lunch') c.push({ title: 'Take lunch now', run: () => run('take-60') });

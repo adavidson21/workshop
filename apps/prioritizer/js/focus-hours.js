@@ -43,6 +43,6 @@ export const heldCard = () => holder ? holder.card() : null;
 /** HH:MM the held span ends, for "held until 12:00". */
 export function heldUntil(){ const f = focusNow(); return f.span ? f.span.end : f.until || ''; }
 /** "12:00" as Docket shows times in focus lines ("1:00"). */
-export function fmtUntil(s){ if (!s) return ''; const h = +s.slice(0, 2); return `${h % 12 || 12}:${s.slice(3)}`; }
+export function fmtUntil(s){ if (!s) return 'morning'; const h = +s.slice(0, 2); return `${h % 12 || 12}:${s.slice(3)}`; }
 /** Settings' focus hours (the collection's meta) or null, for the Maker/Manager template and the lunch warning. */
 export const focusSettings = () => watch ? watch.settings : null;

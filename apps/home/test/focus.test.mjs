@@ -18,6 +18,8 @@ test('focus: only blocking PRs show, the rest is held until the span ends; lunch
   assert.deepEqual(f.rows, blocking); assert.equal(f.held, 2); assert.equal(f.until, '13:00');
   const l = heldInbox(rows, { state: 'lunch', until: '13:00', span: { end: '13:00' } }, blocking);
   assert.deepEqual(l.rows, []); assert.equal(l.held, 3);
+  const d = heldInbox(rows, { state: 'dayDone', source: 'end', until: null, span: { end: null } }, blocking);
+  assert.deepEqual(d.rows, [], "Day's done folds everything, blocking PRs too"); assert.equal(d.held, 3); assert.equal(d.until, '');
   assert.deepEqual(blockingRows(null), []);
 });
 
@@ -27,6 +29,8 @@ test('the page says how many are held and until when', () => {
   assert.match(html, /2 items held until 12:00/);
   assert.match(html, /PR 12: Fix login/);
   assert.doesNotMatch(html, /Decide on X/);
+  assert.match(render(Object.assign({}, v, { focus: { state: 'dayDone', source: 'end', until: null, span: { end: null } } })), /3 items held until morning/);
+  assert.match(render(Object.assign({}, v, { focus: { state: 'dayDone', source: 'morning', until: '09:00', span: { end: '09:00' } } })), /3 items held until 9:00/);
   const off = render(Object.assign({}, v, { focus: { state: 'off' } }));
   assert.match(off, /Decide on X/);
   assert.doesNotMatch(off, /held until/);
