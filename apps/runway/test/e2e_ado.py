@@ -352,7 +352,7 @@ def main():
         ds = [c for c in STATE['calls'] if c[0] == 'dataset']
         check('saving the profile pulls one dataset with the areas, people and window', len(ds) == 1 and ds[0][1].get('areas') == ['Platform\\Wiki']
               and ds[0][1].get('people') == ['dev.one@example.test'] and ds[0][1].get('days') == 42)
-        check('Priority churn shows the escalation', 'escalated to P1' in pg.inner_text('.rpage').lower() or 'ESCALATED TO P1' in pg.inner_text('.rpage'))
+        check('Priority churn shows the escalation', 'escalated to p1' in pg.inner_text('.rpage').lower())
         pg.click('.rpage [data-tab="other"]'); pg.wait_for_timeout(200)
         txt = pg.inner_text('.rpage .reports')
         check("Other teams' work lists the item outside the areas, as text", '<img src=x' in txt and pg.evaluate('() => !window.__pwned')
