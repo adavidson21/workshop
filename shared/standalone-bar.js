@@ -15,10 +15,10 @@ const LIFEKIT = onCrumbsDomain(location.hostname);
 
 const CSS = `
 .ws-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex:none;min-height:60px;padding:0 20px 0 28px;box-sizing:border-box;background:var(--bg);border-bottom:1px solid var(--line)}
-.ws-crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ws-crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:600 .95rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
 .ws-crumbs a{color:inherit;text-decoration:none;padding:4px 0;border-radius:2px}
 .ws-crumbs a:hover{color:var(--ink)}
-.ws-crumbs span[aria-hidden]{margin:0 8px;opacity:.5}
+.ws-crumbs span[aria-hidden]{margin:0 8px;opacity:.45;font-weight:400}
 .ws-crumbs .here{color:var(--ink)}
 .ws-bar .theme-toggle{position:static;width:38px;height:38px;display:grid;place-items:center;padding:0;margin:0;flex:none;cursor:pointer;
   border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);transition:color .2s,border-color .2s,transform .2s;-webkit-tap-highlight-color:transparent}
