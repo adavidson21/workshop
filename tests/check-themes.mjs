@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Checks that shared/theme.js (THEMES, SWATCH) matches shared/themes.css: same themes, same order,
-// and each swatch uses that theme's --bg and --accent. Exit 1 on drift. Node 18+, no dependencies.
+// and each swatch uses the brand's --bg and --accent for that theme. Exit 1 on drift. Node 18+, no dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const css = fs.readFileSync(path.join(root, 'shared/themes.css'), 'utf8');
 const js = fs.readFileSync(path.join(root, 'shared/theme.js'), 'utf8');
+const brandTokens = JSON.parse(fs.readFileSync(path.join(root, 'shared/brand/tokens.json'), 'utf8'));
 
 // Run theme.js with just enough of a browser to read what it exports.
 const store = {};
@@ -31,10 +32,10 @@ if (JSON.stringify(cssThemes.map(([k]) => k)) !== JSON.stringify(jsThemes.map(([
   errors.push(`Theme keys or order differ.\n  themes.css: ${cssThemes.map(([k]) => k).join(', ')}\n  theme.js:   ${jsThemes.map(([k]) => k).join(', ')}`);
 for (const [k, name] of cssThemes) {
   if (THEMES[k] && THEMES[k] !== name) errors.push(`${k}: name is "${name}" in themes.css but "${THEMES[k]}" in theme.js.`);
-  const rule = css.match(new RegExp(`\\[data-theme=${k}\\]\\s*\\{([^}]*)\\}`));
-  if (!rule) { errors.push(`${k}: no [data-theme=${k}] rule in themes.css.`); continue; }
-  const v = n => (rule[1].match(new RegExp(`--${n}:\\s*([^;]+)`)) || [])[1];
-  const want = [v('bg'), v('accent')].map(s => s && s.trim().toUpperCase());
+  // Colors come from the brand library copy (shared/brand/tokens.json): the swatch is that theme's --bg and garnet --accent.
+  const brand = brandTokens.color[k];
+  if (!brand) { errors.push(`${k}: the brand has no ${k} theme (shared/brand/tokens.json).`); continue; }
+  const want = [brand['--bg'].hex, brand['--accent'].hex].map(s => s.toUpperCase());
   const have = (SWATCH[k] || []).map(s => s.toUpperCase());
   if (JSON.stringify(want) !== JSON.stringify(have)) errors.push(`${k}: swatch should be [${want}] (bg, accent), theme.js has [${have}].`);
 }

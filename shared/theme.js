@@ -1,6 +1,6 @@
 /* Shared theme handling for the Workshop shell and every app inside it.
    Load it synchronously in <head>, after the theme-color meta tag: it sets data-theme before first
-   paint, so there is no flash. The colors themselves live in themes.css. Keep THEMES and SWATCH
+   paint, so there is no flash. The colors come from the brand library through themes.css. Keep THEMES and SWATCH
    in step with it (`node tests/check-themes.mjs` checks).
 
    Two themes, Light and Dark, like tools.alexisdavidson.org. Until you pick one with the toggle,
@@ -15,7 +15,20 @@
   const OLD_KEYS = ['em.theme', 'prioritizer.theme']; // earlier names, newest first
   const THEMES = {system: 'System', light: 'Light', dark: 'Dark'};
   // [background, accent] per theme, for the browser's theme-color.
-  const SWATCH = {light: ['#F4F2F3', '#7A1B36'], dark: ['#141012', '#E38AA3']};
+  const SWATCH = {light: ['#FAF6F1', '#7A1B36'], dark: ['#1A1517', '#E59AAE']};
+  // Each app's brand jewel accent, from data-app-color on <html> (themes.css has the matching --c-* colors).
+  // Apps not listed stay garnet, the brand default. Sets the brand's data-accent, now and whenever data-app-color changes.
+  const APP_ACCENT = {notes: 'sapphire', slate: 'sapphire', agents: 'tourmaline', receipts: 'tourmaline', runway: 'amethyst'};
+  (function syncAccent() {
+    const el = document.documentElement;
+    const set = () => {
+      const a = APP_ACCENT[el.dataset && el.dataset.appColor];
+      if (!el.dataset) return;
+      if (a) el.dataset.accent = a; else delete el.dataset.accent;
+    };
+    set();
+    if (typeof MutationObserver === 'function') new MutationObserver(set).observe(el, {attributes: true, attributeFilter: ['data-app-color']});
+  })();
   // Themes from before the editorial redesign, mapped to the closer of the two.
   const RETIRED = {slate: 'light', ivory: 'light', rose: 'light', solarized: 'light', graphite: 'dark', nord: 'dark', dracula: 'dark'};
   const dark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : {matches: false};
