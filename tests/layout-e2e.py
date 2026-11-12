@@ -9,11 +9,14 @@ screen (2560), in browser mode on a static copy of the site, with a little data 
 Fails when an app's page scrolls sideways (a board may scroll inside its own area), or when a list page grows past
 its width token. Screenshots go to tests/out/layout/ (CI keeps them as an artifact). Exit 1 if any check fails.
 """
-import functools, http.server, os, sys, threading
+import functools, http.server, json, os, sys, threading
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REMOTE = {a: os.environ.get(f'{a.upper()}_DIR') or os.path.join(ROOT, '.remote', a) for a in ('prioritizer', 'runway', 'receipts', 'notes')}
+# Apps still from another repo (apps/remote.json) are served from their .remote/<id>/ checkouts; the rest are in apps/.
+with open(os.path.join(ROOT, 'apps', 'remote.json'), encoding='utf-8') as _f:
+    _REMOTE_IDS = [a['id'] for a in json.load(_f).get('apps', [])]
+REMOTE = {a: os.environ.get(f'{a.upper()}_DIR') or os.path.join(ROOT, '.remote', a) for a in _REMOTE_IDS}
 OUT = os.path.join(ROOT, 'tests', 'out', 'layout')
 SIZES = [(960, 1000), (1440, 900), (1920, 1080), (2560, 1440)]
 APPS = ['home', 'prioritizer', 'slate', 'agents', 'receipts', 'notes', 'runway', 'settings']
