@@ -188,7 +188,8 @@ Get-Repo 'workshop'
 if ($Dispatch) { Get-Repo 'eng-agents' }
 # The apps the pinned copy is built from: Workshop's apps/remote.json, through workshop remote-apps (folder, id, name,
 # required or optional, repo). Each has a <FOLDER>_TAG variable (DOCKET_TAG, RUNWAY_TAG, ...). A Workshop release from
-# before that command (agent 1.5.0) gets the four apps it shipped with.
+# before that command (agent 1.5.0) gets the four apps it shipped with. An empty answer from a newer release means
+# every app is in Workshop itself: nothing else to download.
 $RemoteApps = @()
 if ($Work) {
   # try and Continue: Windows PowerShell 5.1 turns a native command's stderr into an error under Stop.
@@ -198,7 +199,7 @@ if ($Work) {
     $lines = @(& $node (Join-Path (Join-Path $Root 'workshop') 'workshop.mjs') remote-apps 2>$null)
     $ok = ($LASTEXITCODE -eq 0)
   } catch { $ok = $false } finally { $ErrorActionPreference = $eap }
-  if (-not $ok -or -not ($lines | Where-Object { $_ })) {
+  if (-not $ok) {
     $lines = @("docket`tprioritizer`tDocket`trequired`tadavidson21/docket", "runway`trunway`tRunway`toptional`tadavidson21/runway",
       "receipts`treceipts`tRapport`toptional`tadavidson21/receipts", "notes`tnotes`tFolio`toptional`tadavidson21/notes")
   }

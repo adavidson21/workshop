@@ -89,10 +89,12 @@ test('the write loop: create, read, stale put conflicts, merge and put again', a
   assert.deepEqual(final.items.map(i => [i.id, i.title]).sort(), [['p1', 'One, edited'], ['p2', 'Two']]);
 });
 
-test('put writes only this app, and get can read another app', async () => {
+test('put writes only this app, and get reads another app only through the contracts', async () => {
   const notes = await sdk.connect({ app: 'notes' });
   const board = await sdk.connect({ app: 'board' });
-  assert.ok(await board.data.get('pages', { app: 'notes' }), 'other apps can read');
+  // docs/shared.md, B5: another app's own collections are refused; its summary is the contract.
+  await assert.rejects(board.data.get('pages', { app: 'notes' }), e => e.code === 'forbidden');
+  assert.equal(await board.data.get('summary', { app: 'notes' }), null, 'a summary never written reads as null');
   // data.put has no app option: the app is always the connected one.
   await assert.rejects(board.data.put('pages', { schema: 'notes.pages', version: 1, rev: 0, items: [] }), e => e.code === 'bad_request');
   assert.ok(notes);

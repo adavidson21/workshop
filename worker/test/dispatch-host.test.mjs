@@ -1,7 +1,7 @@
 // worker/index.js: dispatch.alexisdavidson.org serves Dispatch (apps/agents/) as the whole site.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { dispatchPath, DISPATCH_HOST } from '../../../worker/index.js';
+import worker, { dispatchPath, DISPATCH_HOST } from '../index.js';
 import fs from 'node:fs';
 
 test('Dispatch paths map under apps/agents/; shared files are served as they are', () => {
@@ -23,7 +23,7 @@ test('only the Dispatch host is rewritten', async () => {
 });
 
 test('/install.ps1 and /install.sh serve the bootstrap scripts with this site filled in', async () => {
-  const files = { '/scripts/bootstrap.ps1': fs.readFileSync(new URL('../../../scripts/bootstrap.ps1', import.meta.url), 'utf8'), '/scripts/bootstrap.sh': fs.readFileSync(new URL('../../../scripts/bootstrap.sh', import.meta.url), 'utf8') };
+  const files = { '/scripts/bootstrap.ps1': fs.readFileSync(new URL('../../scripts/bootstrap.ps1', import.meta.url), 'utf8'), '/scripts/bootstrap.sh': fs.readFileSync(new URL('../../scripts/bootstrap.sh', import.meta.url), 'utf8') };
   const env = { ASSETS: { fetch: async r => { const p = new URL(r.url).pathname; return files[p] ? new Response(files[p]) : new Response('nope', { status: 404 }); } } };
   for (const [path, marker] of [['/install.ps1', "$Site = 'https://dispatch.alexisdavidson.org'"], ['/install.sh', "SITE='https://dispatch.alexisdavidson.org'"]]) {
     const res = await worker.fetch(new Request('https://dispatch.alexisdavidson.org' + path), env);

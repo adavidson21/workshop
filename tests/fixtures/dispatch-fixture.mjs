@@ -1,7 +1,7 @@
 // For tests/e2e.py: a synthetic workspace (docs/examples/work plus a git repo with a bare origin) and a fake
 // opencode 1.x server, both from the opencode connector's test helpers. No work data.
 //
-//   node apps/agents/test/fixture.mjs
+//   node tests/fixtures/dispatch-fixture.mjs
 //
 // Prints one JSON line {workspace, opencode, origin} when ready (origin: the bare repo gateway pushes to).
 // Then reads commands, one JSON object per line:
@@ -9,8 +9,8 @@
 //   {"requests": true}                                                          the requests seen, and branches at origin
 // and answers each with one JSON line. Stops when stdin closes.
 import readline from "node:readline";
-import { makeWorkspace } from "../../../connectors/opencode/test/harness.mjs";
-import { startFakeOpencode } from "../../../connectors/opencode/test/fake-opencode.mjs";
+import { makeWorkspace } from "../../connectors/opencode/test/harness.mjs";
+import { startFakeOpencode } from "../../connectors/opencode/test/fake-opencode.mjs";
 
 const ws = makeWorkspace({ repos: true });
 const fake = await startFakeOpencode({ kind: "v1" });

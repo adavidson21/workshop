@@ -20,6 +20,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Products | [products.md](products.md) | `settings.products` v1 | `product` | `tests/check-contracts.mjs` (examples), `shared/test/products.test.mjs` |
 | Focus hours and lunch | [focus.md](focus.md) | `settings.focus` v1 | `focus-settings`, `focus-day` | `tests/check-contracts.mjs` (examples), `shared/test/focus.test.mjs` |
 | App settings | [app-settings.md](app-settings.md) | `settings.app-settings` v1 | `app-setting` | `tests/check-contracts.mjs` (examples), `shared/test/app-settings.test.mjs` |
+| Boundaries and shared files | [shared.md](shared.md) | 1 | none | `tests/check-boundaries.mjs`, `tests/check-extract.mjs`, `tests/switches-e2e.py`, `shared/test/sdk-contract-reads.test.mjs` |
 | Site config | [site.md](site.md) | `site: 1` | none | `tests/check-site.mjs` |
 | Platform bundle | [bundle.md](bundle.md) | `bundle: 1` | none | `scripts/bundle.mjs --check` |
 | Hub request and answer | [hub.md](hub.md) | `route.json` v1 | `hub-route` | `tests/check-contracts.mjs` (examples) |
