@@ -37,7 +37,7 @@ const mounted = new Set();
    another app goes to the main Workshop window (named MAIN_WINDOW), which comes to the front. */
 const SOLO = new URLSearchParams(location.search).get('solo') || null;
 // A pop-out window takes its app's color (shared/themes.css), so windows side by side are easy to tell apart.
-if (SOLO && /^[a-z][a-z0-9-]{0,39}$/.test(SOLO)) document.documentElement.dataset.app = SOLO;
+if (SOLO && /^[a-z][a-z0-9-]{0,39}$/.test(SOLO)) document.documentElement.dataset.appColor = SOLO;
 const MAIN_WINDOW = 'workshop-main';
 if (SOLO) document.documentElement.classList.add('solo');
 else if (!window.name) window.name = MAIN_WINDOW;

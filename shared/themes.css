@@ -4,7 +4,7 @@
   Workshop's look (2026 redesign, Docket first, every app since Nov 12): a rose-tinted mist page with white for raised
   work, Schibsted Grotesk headings and "Docket Text" (Atkinson Hyperlegible Next) for everything else, sentence-case
   labels, DM Mono only for code, Markdown source and keys. Burgundy is the brand. Each app has its own color (below),
-  set by data-app on its <html>, so popped-out windows are easy to tell apart. There are two themes, Light and Dark,
+  set by data-app-color on its <html>, so popped-out windows are easy to tell apart. There are two themes, Light and Dark,
   picked with the round toggle in the top right corner (or the device setting until you use it).
   Plan: Workshop project docs claude/workshop-vision.md and claude/workshop-redesign-v1-plan.md.
 
@@ -35,13 +35,13 @@
     --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#AEB1F3;--c-agents:#7CD2C6;--c-slate:#A5C2D8;--c-runway:#C6ADF3;--c-receipts:#93D3AE;
     --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#14153A;--c-agents-on:#04241F;--c-slate-on:#0F1F2B;--c-runway-on:#22113D;--c-receipts-on:#0C2817;color-scheme:dark}
 }
-/* App colors: an app's <html data-app="<id>"> makes its color the accent. Docket, Settings, Needs you and the shell
+/* App colors: an app's <html data-app-color="<id>"> makes its color the accent. Docket, Settings, Needs you and the shell
    keep burgundy, as does any app not listed here. */
-:root[data-app=notes]{--accent:var(--c-notes);--on-accent:var(--c-notes-on)}
-:root[data-app=agents]{--accent:var(--c-agents);--on-accent:var(--c-agents-on)}
-:root[data-app=slate]{--accent:var(--c-slate);--on-accent:var(--c-slate-on)}
-:root[data-app=runway]{--accent:var(--c-runway);--on-accent:var(--c-runway-on)}
-:root[data-app=receipts]{--accent:var(--c-receipts);--on-accent:var(--c-receipts-on)}
+:root[data-app-color=notes]{--accent:var(--c-notes);--on-accent:var(--c-notes-on)}
+:root[data-app-color=agents]{--accent:var(--c-agents);--on-accent:var(--c-agents-on)}
+:root[data-app-color=slate]{--accent:var(--c-slate);--on-accent:var(--c-slate-on)}
+:root[data-app-color=runway]{--accent:var(--c-runway);--on-accent:var(--c-runway-on)}
+:root[data-app-color=receipts]{--accent:var(--c-receipts);--on-accent:var(--c-receipts-on)}
 :root{
   --hover:color-mix(in srgb,var(--ink) 5%,var(--surface));
   --sunk:color-mix(in srgb,var(--ink) 4%,var(--bg));
