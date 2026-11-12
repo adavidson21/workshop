@@ -1,5 +1,7 @@
-/* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css.
-   Serif title, sections on hairlines (not boxed), mono labels, explanations behind a quiet ? hint. */
+/* Settings. Colors from ../../shared/themes.css, buttons and toast from ../../shared/ui.css. Workshop's look: the
+   nav has the app's name on top, the page's name is the headline, sections are raised white sheets, labels are
+   sentence case, explanations behind a quiet ? hint. The last section is the Settings 5.0.0 redesign
+   (Workshop project claude/workshop-redesign-v1-plan.md). */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 code,.mono{font-family:var(--mono);font-size:.86em}
@@ -290,3 +292,24 @@ label.btn{cursor:pointer}
 .gd-needs{color:var(--muted);font-size:.8rem}
 .gd-none[hidden]{display:none}
 .gd-more{margin-top:1rem}
+
+/* ---------- Settings 5.0.0: Workshop's look. "Settings" is the nav's title (like Folio's sidebar), the open page's
+   name is the headline, every section is a raised white sheet, and labels, tags, states and table heads are
+   sentence case in the text face. Mono stays for code, paths and health output. ---------- */
+.mode-note{margin:0 0 1rem;max-width:44rem;font-size:.92rem;line-height:1.5;color:var(--muted)}
+.mode-note:empty{display:none}
+.side-title{margin:.15rem .6rem 1rem;font:700 1.3rem/1.2 var(--serif);letter-spacing:-.02em}
+.nav-label{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.nav-item[aria-current=page]{font-weight:650}
+.page-title{margin:.1rem 0 1rem;font:700 clamp(1.7rem,2.2vw,2.1rem)/1.15 var(--serif);letter-spacing:-.025em}
+#content>.card,#content .panel>.card{border-top:0;margin:0 0 1rem;padding:1.15rem 1.3rem 1.3rem;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--raise)}
+.card h2,.conn h3,.app-row h3{font-weight:700;letter-spacing:-.015em}
+.cfg fieldset{border-color:var(--line2)}
+.cfg legend,.gd-head{font:600 .82rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.cfg-input{background:var(--surface);border-color:var(--line2)}
+.state,.pill-tag,.count,.rows .act{font:600 .8rem/1.5 var(--sans);letter-spacing:0;text-transform:none}
+.rows th,.fh-hist th{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.gd-app{font:600 .8rem/1.4 var(--sans)}
+.gd-item,.gd-item:last-child{border-color:var(--line)}
+.people-sub,.preview h3{font-weight:700}
+@media (max-width:760px){.side-title{margin:0 0 .6rem}}

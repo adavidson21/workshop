@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "home",
   "name": "Needs you",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "What needs you across apps, what is coming up and what you finished this week. Opens from the top bar on every app.",
   "icon": "icon.svg",
   "entry": "index.html",
