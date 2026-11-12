@@ -12,7 +12,7 @@ import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
 import { dayLabel } from './views.js';
 import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
 import { focusDrawerClick, focusDrawerHtml } from './focus.js';
-import { leftOffDrawerHtml } from './left-off.js';
+import { FIRST_STEP_LEN, setFirstStep } from './first-step-model.js';
 import { activeProducts, productById } from './products-link.js';
 import { notesFor, shown, taskLink } from './notes-link.js';
 import { slateFor, slateLabel } from './slate-link.js';
@@ -96,12 +96,13 @@ function renderDrawer(){
       <button class="ibtn" data-d="close" data-fk="close" aria-label="Close details" data-tip="Close (Esc)">${ICON.x}</button></div>
     <div class="dbody">
       <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
+      ${t.done ? '' : `<input class="d-first" data-f="firstStep" data-fk="firstStep" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="First step (optional)" aria-label="First step" value="${esc(t.firstStep || '')}">`}
       ${t.ado ? `<div class="dado"><a href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.ado.type || 'item')} #${t.ado.id} in ADO</a><span>${esc(t.ado.state)}${t.ado.project ? ' · ' + esc(t.ado.project) : ''}</span>${t.ado.gone ? `<span class="chip">${ADO_GONE[t.ado.gone]}</span>` : ''}</div>` : ''}
       ${t.ado ? slateDrawer(t) : ''}
       ${t.ado ? engDrawer(t) : ''}
       ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
-      ${sortHtml(t)}${focusDrawerHtml(t)}${leftOffDrawerHtml(t)}
+      ${sortHtml(t)}${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       ${aboutHtml(t)}
       <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
@@ -189,16 +190,17 @@ drawer.addEventListener('input', e => {
     e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px';
     const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v) t.title = v;
   } else if (f === 'notes') t.notes = e.target.value.trim();
+  else if (f === 'firstStep') setFirstStep(t, e.target.value);
   else return;
   clearTimeout(textTimer);
   textTimer = setTimeout(() => { textTimer = null; save(); renderMainOnly(); }, 400);
 });
 drawer.addEventListener('keydown', e => {
-  if (e.target.dataset.f === 'title' && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+  if ((e.target.dataset.f === 'title' || e.target.dataset.f === 'firstStep') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
 });
 // flush typed text on blur; only re-render once focus has actually left the drawer, so a click on a drawer button isn't lost
 drawer.addEventListener('focusout', e => {
-  if (e.target.dataset.f !== 'title' && e.target.dataset.f !== 'notes') return;
+  if (!['title', 'notes', 'firstStep'].includes(e.target.dataset.f)) return;
   flushText();
   setTimeout(() => { if (!drawer.contains(document.activeElement)) syncDrawer(); }, 0);
 });

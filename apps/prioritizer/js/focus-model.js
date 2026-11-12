@@ -223,4 +223,45 @@ function addCrumb(t, text, at){
 }
 const lastCrumb = t => t && t.crumbs && t.crumbs.length ? t.crumbs[t.crumbs.length - 1] : null;
 
-export { HANDOFF_DAYS, HANDOFF_KINDS, cleanHandoff, offerReceipt, offerWrapNote, withdrawWrapNote, wrapLines, wrapNote, pruneHandoffs, receiptId, receiptOffer, withdrawOffer, CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };
+/* Focus hours' old "where you left off" note (t.leftOff = {text, at}, Docket 6.4.0 to 10.0.0) is now a breadcrumb.
+   The copy runs on every load and is idempotent: it adds the note as a breadcrumb at its own time unless a
+   breadcrumb with the same text is already there (saving the note always left one too). t.leftOff itself is never
+   changed or removed (data rules: keep unknown fields). Returns true if a breadcrumb was added. */
+function copyLeftOff(t, now = new Date().toISOString()){
+  const lo = t && t.leftOff;
+  if (!lo || typeof lo !== 'object' || typeof lo.text !== 'string') return false;
+  const text = lo.text.replace(/\s+/g, ' ').trim().slice(0, CRUMB_LEN);
+  if (!text || (t.crumbs || []).some(c => c && c.text === text)) return false;
+  t.crumbs = cleanCrumbs([...(t.crumbs || []), {at: isIso(lo.at) ? lo.at : now, text}]);
+  return t.crumbs.some(c => c.text === text);
+}
+
+/* ---------- when to ask for a breadcrumb ---------- */
+/* Focus hours' moments that ask "Where did you leave off?" about the running task: lunch starts, a focus block ends,
+   or focus starts now. prev and f are focus states (shared/focus.js). One reason per change, or null. */
+function crumbTrigger(prev, f){
+  if (!prev || !f || !prev.enabled) return null;
+  if (f.state === 'lunch' && prev.state !== 'lunch') return 'Lunch';
+  if (prev.state === 'focus' && f.state !== 'focus') return 'Focus ended';
+  if (f.state === 'focus' && f.source === 'manual' && prev.state !== 'focus') return 'Focus started';
+  return null;
+}
+/* One prompt per event, never two: an automatic ask is skipped while a prompt is open, or when the same task was
+   asked about in the last ASK_QUIET_MS (a pause, a switch, a block end and lunch can all land together).
+   note(id, now) records an ask you made yourself (Pause), so a block end right after it does not ask again. */
+const ASK_QUIET_MS = 2 * 60000;
+function createAskGate(quietMs = ASK_QUIET_MS){
+  let last = null;
+  const note = (id, now) => { last = {id, at: now}; };
+  return {
+    note,
+    ask(id, now, open = false){
+      if (!id || open) return false;
+      if (last && last.id === id && now - last.at >= 0 && now - last.at < quietMs) return false;
+      note(id, now);
+      return true;
+    }
+  };
+}
+
+export { ASK_QUIET_MS, copyLeftOff, createAskGate, crumbTrigger, HANDOFF_DAYS, HANDOFF_KINDS, cleanHandoff, offerReceipt, offerWrapNote, withdrawWrapNote, wrapLines, wrapNote, pruneHandoffs, receiptId, receiptOffer, withdrawOffer, CRUMB_LEN, MAX_CRUMBS, MAX_EVENTS, activeOf, activeSince, addCrumb, addEvent, cleanCrumbs, cleanEvent, cleanLog, cleanRecord, dayCounts, dropEvent, freshLog, lastCrumb, shutdown, startTask, stopActive, taskClosed, touchedOn };

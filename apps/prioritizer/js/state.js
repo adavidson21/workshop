@@ -1,6 +1,6 @@
 // storage.js comes first: it pulls in events.js and, through it, drawer.js before render.js. drawer.js no longer
 // does anything when it loads (its listeners are in drawerInit, called by main.js), but keep this order.
-import { cleanLeftOff } from './left-off-model.js';
+import { cleanFirstStep } from './first-step-model.js';
 import { cleanProduct } from './products-link.js';
 import { scheduleSave } from './storage.js';
 import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
@@ -8,7 +8,7 @@ import { isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
 import { isDate, todayStr, uid } from './util.js';
-import { cleanCrumbs } from './focus-model.js';
+import { cleanCrumbs, copyLeftOff } from './focus-model.js';
 import { isRef } from '../../../shared/people.js';
 import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
 import { cleanRowFields } from './row-fields-model.js';
@@ -49,8 +49,11 @@ function migrateTask(t){
   if (!t.pr) delete t.pr;
   // Re-entry breadcrumbs (focus.js): an extra field older readers keep as is, so tasks stay at v3.
   if ('crumbs' in t){ t.crumbs = cleanCrumbs(t.crumbs); if (!t.crumbs.length) delete t.crumbs; }
-  // Where you left off (left-off.js, focus hours): an extra field too, gone once the task is done.
-  if ('leftOff' in t){ const lo = cleanLeftOff(t.leftOff); if (lo && !t.done) t.leftOff = lo; else delete t.leftOff; }
+  // Focus hours' old left-off note (Docket 6.4.0 to 10.0.0) becomes a breadcrumb, once (focus-model.js copyLeftOff).
+  // t.leftOff stays as it is and is never read again.
+  copyLeftOff(t);
+  // First step (first-step-model.js): an extra field too, one short line.
+  if ('firstStep' in t){ const fs = cleanFirstStep(t.firstStep); if (fs) t.firstStep = fs; else delete t.firstStep; }
   // The product it is for (products-link.js, Settings' Products): an extra field too, a product id.
   if ('product' in t){ const pr = cleanProduct(t.product); if (pr) t.product = pr; else delete t.product; }
   delete t.urgent; delete t.important;

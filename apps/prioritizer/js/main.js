@@ -23,7 +23,7 @@ import { dayInit, setDate } from './day-view.js';
 import { maybeOnboard, openTour, tourInit } from './onboarding.js';
 import { dp, recurTick } from './dayplan.js';
 import * as focusModel from './focus-model.js';
-import { focusCommand, focusLog, fstore, openShutdown } from './focus.js';
+import { focusCommand, focusLog, focusTransition, fstore, openShutdown } from './focus.js';
 import { toggleDone } from './actions.js';
 import { activeTask, startNext } from './focus.js';
 import * as dayModel from './dayplan-model.js';
@@ -38,7 +38,6 @@ import { ready, embedded } from './ws.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { startDirectory } from './directory.js';
 import { focusHoursBoot } from './focus-hours.js';
-import { askLeftOff, leftOffBoot, onLeftOffSaved } from './left-off.js';
 import { refreshSummary } from './storage.js';
 
 // Inside the shell the rail names the app (no second logo), and the shell owns the light/dark toggle, the service worker, Alt+<n> and Ctrl+K.
@@ -90,6 +89,7 @@ ready.then(ws => {
     if (id === 'shortcuts') showHelp();
     if (id === 'shutdown-day') loaded.then(openShutdown);
     if (id === 'start-next') loaded.then(startNext);
+    if (id === 'stuck') loaded.then(() => focusCommand('focus-stuck'));
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
   ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));
@@ -111,17 +111,9 @@ window.__prioritizer = {
 };
 
 drawerInit(); dayInit(); tourInit(); pasteInit();
-// Focus hours and lunch (Workshop docs/focus.md): hold what can wait, and ask where you left off when a block ends,
-// lunch starts or focus starts now.
-leftOffBoot({active: activeTask});
-onLeftOffSaved((t, text) => focusModel.addCrumb(t, text, new Date().toISOString()));
-focusHoursBoot({render: () => loaded.then(render), summary: refreshSummary, transition: (prev, f) => {
-  const t = activeTask();
-  if (!t || !prev.enabled) return;
-  if (f.state === 'lunch' && prev.state !== 'lunch') askLeftOff(t.id, 'Lunch');
-  else if (prev.state === 'focus' && f.state !== 'focus') askLeftOff(t.id, 'Focus ended');
-  else if (f.state === 'focus' && f.source === 'manual' && prev.state !== 'focus') askLeftOff(t.id, 'Focus started');
-}});
+// Focus hours and lunch (Workshop docs/focus.md): hold what can wait, and ask for a breadcrumb on the running task
+// when a block ends, lunch starts or focus starts now (focus.js focusTransition, one prompt per event).
+focusHoursBoot({render: () => loaded.then(render), summary: refreshSummary, transition: focusTransition});
 adoInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.

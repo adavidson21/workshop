@@ -9,6 +9,7 @@ import { fmtDay, todayStr, uid } from './util.js';
 import { focusTaskClosed } from './focus.js';
 import { assign } from './directory.js';
 import { followDate } from './delegate.js';
+import { clearFirstStep } from './first-step-model.js';
 /* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
 /* ---------- task actions ---------- */
 function addTask(text, attrs = {}){
@@ -45,14 +46,16 @@ function toggleDone(id){
   t.doneAt = t.done ? todayStr() : null;
   if (!t.done) t.wontDo = false;
   if (t.done) delete t.cameBack;
-  if (t.done) delete t.leftOff;   // where you left off is moot once it is done (left-off.js)
+  if (t.done) clearFirstStep(t);   // done clears the first step (first-step-model.js); starting does not
   if (t.done) focusTaskClosed(id);
   commit();
 }
 function wontDo(id){
   const t = findTask(id); if (!t) return;
   const prev = {done: t.done, doneAt: t.doneAt, wontDo: t.wontDo};
+  if (t.firstStep) prev.firstStep = t.firstStep;
   t.done = true; t.wontDo = true; t.doneAt = todayStr();
+  clearFirstStep(t);
   focusTaskClosed(id);
   commit();
   toast(`Won't do: ${t.title}`, 'Undo', () => { Object.assign(t, prev); commit(); });

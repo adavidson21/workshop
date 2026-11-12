@@ -623,6 +623,12 @@ def main():
         check('with nothing running, the now bar is hidden and Today has a Start button', not pg.is_visible('#nowbar') and pg.locator('#phead [data-now=startnext]').count() == 1
               and not pg.evaluate('document.title').startswith('\u25CF'))
         pg.hover(f'.col-today .row[data-id="{fa}"]'); pg.click(f'.col-today .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
+        pg.click('#nowbar [data-now=pause]'); pg.wait_for_timeout(200)
+        check('Pause asks for a breadcrumb in the one breadcrumb prompt', pg.locator('.modal .crumbsheet').count() == 1 and pg.locator('.leftoff').count() == 0)
+        pg.fill('.modal .crumbsheet input', 'paused at the second case'); pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+        check('the pause breadcrumb is the newest on the task, and the band hides', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').crumbs.at(-1).text") == 'paused at the second case'
+              and not pg.is_visible('#nowbar'))
+        pg.hover(f'.col-today .row[data-id="{fa}"]'); pg.click(f'.col-today .row[data-id="{fa}"] [data-act=start]'); pg.wait_for_timeout(200)
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-nowbar.png'))
         # Nothing planned for the next working day yet (Day view tests above may have moved blocks there), so
         # Wrap up's picks start from today's unfinished tasks.
@@ -631,6 +637,14 @@ def main():
         check('Wrap up opens the shutdown ritual with the active task to leave a breadcrumb on', pg.locator('.modal .shutdown').count() == 1
               and pg.locator(f'.modal [data-crumb="{fa}"]').count() == 1 and pg.locator(f'.modal [data-pick="{fa}"]:checked').count() == 1)
         pg.fill(f'.modal [data-crumb="{fa}"]', 'pick up at the date edge case')
+        unpicked = pg.evaluate("() => { const c = document.querySelector('.modal [data-pick]:not(:checked)'); return c ? c.dataset.pick : null; }")
+        check('each picked task for tomorrow has an optional first step line; unpicked ones do not show it',
+              pg.is_visible(f'.modal [data-step="{fa}"]') and (unpicked is None or not pg.is_visible(f'.modal [data-step="{unpicked}"]')))
+        if unpicked:
+            pg.check(f'.modal [data-pick="{unpicked}"]'); pg.wait_for_timeout(100)
+            check('ticking a pick shows its first step line', pg.is_visible(f'.modal [data-step="{unpicked}"]'))
+            pg.uncheck(f'.modal [data-pick="{unpicked}"]'); pg.wait_for_timeout(100)
+        pg.fill(f'.modal [data-step="{fa}"]', 'Reread the <b>edge</b> case')
         pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'docket-shutdown.png'))
         pg.click('.modal .shutdown .btn.primary'); pg.wait_for_timeout(400)
         res = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA'), t = P.state.tasks.find(t => t.id === '{fa}');
@@ -638,6 +652,7 @@ def main():
             next: P.dayModel.nextWorkday(P.dp.sprint, d), active: P.focusModel.activeOf(P.focusLog, d)}}; }}""")
         check('wrapping up lines the pick up for the next working day, saves the breadcrumb and stops the task',
               res['focusOn'] == res['next'] and res['crumb'] == 'pick up at the date edge case' and res['wrapped'] and res['active'] is None)
+        check('Wrap up saves the first step typed for a pick', pg.evaluate(f"() => {P}.state.tasks.find(t => t.id === '{fa}').firstStep") == 'Reread the <b>edge</b> case')
 
         # ---------- delegating: quick add >@, the Assign picker, follow-ups, Got it back, People tray ----------
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)

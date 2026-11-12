@@ -15,12 +15,11 @@ import { app, col, drawer, focusCol, inboxOpen, main, openQuad, planWeek, render
 import { commit, findTask, inScope, isWaiting, saveUi, scopeListIds, state, ui } from './state.js';
 import { importFile, onSyncClick } from './storage.js';
 import { $, isDate, plural, todayStr, uid } from './util.js';
-import { activeTask, askCrumb, logInterrupt, openShutdown, pauseTask, startNext, toggleStart } from './focus.js';
+import { activeTask, askCrumb, imBack, logInterrupt, notNow, openShutdown, openStuck, pauseTask, startNext, toggleStart } from './focus.js';
 import { addPerson } from './directory.js';
 import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
 import { carryLeft, closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setReviewsOpen, setTrayQ, sortKey, toggleStaleOnly, copyText, recapData, recapText } from './views.js';
-import { leftOffClick } from './left-off.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -62,7 +61,6 @@ document.addEventListener('click', e => {
   if (t.closest('[data-staleonly]')){ toggleStaleOnly(); return; }
   const qv = t.closest('[data-qv]'); if (qv){ quickSort(qv.closest('[data-id]').dataset.id, +qv.dataset.qv); return; }
   if (t.closest('[data-inbox-anyway]')){ openInboxAnyway(); focusCol('inbox'); return; }
-  const lft = t.closest('[data-leftoff]'); if (lft){ leftOffClick(lft); return; }
   if (t.closest('[data-inbox-toggle]')){ setInboxOpen(!inboxOpen); render(); if (inboxOpen) focusCol('inbox'); return; }
   const sc = t.closest('[data-scope]'); if (sc){ setScope(sc.dataset.scope); return; }
   if (t.closest('[data-scopemenu]')){ openScopeMenu(t.closest('[data-scopemenu]')); return; }
@@ -87,6 +85,9 @@ document.addEventListener('click', e => {
     if (a === 'done' && cur) toggleDone(cur.id);
     if (a === 'interrupt') logInterrupt();
     if (a === 'crumb' && cur) askCrumb(cur.id, 'Leave a breadcrumb');
+    if (a === 'stuck' && cur) openStuck(nw);
+    if (a === 'back') imBack();
+    if (a === 'backlater') notNow();
     if (a === 'startnext') startNext();
     if (a === 'opennext') openDrawer(nw.dataset.id);
     return;

@@ -3,15 +3,19 @@
    (store.js) as the focus/days/<yyyy> collections (focus-format.js). Breadcrumbs are saved on the task.
 
    Everything is local: nothing watches other apps or the computer. A switch is counted only when you start a
-   task while another unfinished one is active, and an interruption only when you log one. */
-import { focusNow } from './focus-hours.js';
-import { askLeftOff } from './left-off.js';
+   task while another unfinished one is active, and an interruption only when you log one.
+
+   Breadcrumbs are the one "Where did you leave off?" system. Pause, switching tasks and focus hours' moments (a
+   focus block ends, lunch starts, focus starts now) all ask through the same one-line prompt, at most one per
+   event (F.createAskGate). Stuck, on the band, steps away for 5 minutes or makes the task smaller (a first step,
+   or Split). */
 import * as F from './focus-model.js';
+import { FIRST_STEP_LEN, cleanFirstStep, setFirstStep, splitTask } from './first-step-model.js';
 import { focusEnvelopesFromBundle, focusFormat } from './focus-format.js';
 import { createStore } from './store.js';
 import { commit, findTask, isDoneToday, isFocus, isWaiting, state } from './state.js';
-import { $, esc, fmtDay, plural, todayStr } from './util.js';
-import { closeModal, showModal, toast } from './overlays.js';
+import { $, esc, fmtDay, plural, todayStr, uid } from './util.js';
+import { closeMenu, closeModal, modal, popMenu, showModal, toast } from './overlays.js';
 import { dp } from './dayplan.js';
 import { isWorkday, nextWorkday, toMin } from './dayplan-model.js';
 import { embedded, ready, ws } from './ws.js';
@@ -62,18 +66,20 @@ function startTask(id){
   const t = findTask(id);
   if (isWaiting() || !t || t.done) return;
   const {left} = F.startTask(log, todayStr(), id, nowIso(), isOpen);
+  away = null;
   save();
-  // With focus hours on, the Today column asks inline (left-off.js); otherwise the breadcrumb sheet, as before.
-  if (left && !(focusNow().enabled && askLeftOff(left, 'You switched tasks'))) askCrumb(left, 'You switched tasks. Where did you leave off?');
+  if (left) autoAsk(left, 'You switched tasks. Where did you leave off?');
 }
 /* From Docket, Pause asks for a breadcrumb here. From the shell's top bar the shell already asked: `text` is
    what was typed (or undefined if skipped), and nothing opens inside Docket, which may be hidden. */
 function pauseTask(fromShell = false, text){
   const id = F.stopActive(log, todayStr(), nowIso(), 'pause');
   if (!id) return;
+  gate.note(id, Date.now());
   if (fromShell){ const t = findTask(id); if (t && text && F.addCrumb(t, text, nowIso())) commit(); save(); return; }
   save();
   askCrumb(id);
+  return id;
 }
 /* The task Start next picks: Today's top open task, else the top of your rank that isn't waiting on someone. */
 function nextTask(){
@@ -98,6 +104,20 @@ function focusTaskClosed(id){
 }
 
 /* ---------- breadcrumbs ---------- */
+/* One prompt per event: asks that come by themselves (a switch, focus hours' moments) go through the gate, and
+   never open over another sheet. */
+const gate = F.createAskGate();
+function autoAsk(id, title){
+  if (!isOpen(id) || !gate.ask(id, Date.now(), !!(modal && modal.classList.contains('open')))) return false;
+  askCrumb(id, title);
+  return true;
+}
+/* Focus hours changed state (main.js, focus-hours.js): ask about the running task when a block ends, lunch starts
+   or focus starts now. */
+function focusTransition(prev, f){
+  const why = F.crumbTrigger(prev, f), t = activeTask();
+  if (why && t) autoAsk(t.id, `${why}. Where did you leave off?`);
+}
 function askCrumb(id, title = 'Where did you leave off?'){
   const t = findTask(id);
   if (!t || t.done) return;
@@ -159,19 +179,25 @@ function renderNow(){
   const d = todayStr(), t = activeTask(), n = F.dayCounts(log, d);
   document.body.classList.toggle('focusing', !!t && !isWaiting());
   shellStatus(isWaiting() ? null : t);
-  if (isWaiting() || !t){ el.hidden = true; el.innerHTML = ''; setTitle(null); return; }
-  const c = F.lastCrumb(t), m = runMinutes();
+  if (isWaiting() || !t){ renderBack(el); setTitle(null); return; }
+  el.classList.remove('back');
+  const c = F.lastCrumb(t), m = runMinutes(), step = t.firstStep;
   // Counts show once there is something to count; zeros are noise. Icon and number; the words are in the label.
   const words = [n.switches ? switches(n.switches) : '', n.interrupts ? plural(n.interrupts, 'interruption') : ''].filter(Boolean).join(' · ');
   const counts = words ? `<span class="ncount" role="img" aria-label="${words}" data-tip="Today: ${words}. Counted only from what you start and log here.">`
     + (n.switches ? `<span>${ICON.swap}${n.switches}</span>` : '') + (n.interrupts ? `<span>${ICON.bolt}${n.interrupts}</span>` : '') + '</span>' : '';
   const ib = (act, icon, tip, cls = '') => `<button class="hbtn sm${cls ? ' ' + cls : ''}" data-now="${act}" aria-label="${tip.split('.')[0]}" data-tip="${tip}">${icon}</button>`;
   el.hidden = false;
-  el.innerHTML = `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="nlabel">Focus</span>
-        <button class="ntitle" data-now="open" data-tip="Open the task">${esc(t.title)}</button>
-        <span class="ntime${m >= LONG_RUN_MIN ? ' long' : ''}" data-tip="${m >= LONG_RUN_MIN ? 'Running a while. Pause if you stepped away.' : 'Time on this task since you started it'}">${fmtRun(m)}</span></div>
+  el.classList.toggle('hasstep', !!step);
+  // With a first step, it is the big line and the title is the small one under it.
+  const time = `<span class="ntime${m >= LONG_RUN_MIN ? ' long' : ''}" data-tip="${m >= LONG_RUN_MIN ? 'Running a while. Pause if you stepped away.' : 'Time on this task since you started it'}">${fmtRun(m)}</span>`;
+  const title = `<button class="ntitle" data-now="open" data-tip="Open the task">${esc(t.title)}</button>`;
+  el.innerHTML = `<div class="nmain"><div class="nline"><span class="dotlive" aria-hidden="true"></span><span class="nlabel">${step ? 'First step' : 'Focus'}</span>
+        ${step ? `<span class="nstep">${esc(step)}</span>` : title}${time}</div>
+      ${step ? `<div class="nsub">${title}</div>` : ''}
       ${c ? `<div class="ncrumb" data-tip="Your last breadcrumb, ${esc(crumbAge(c.at))}">${esc(c.text)}</div>` : ''}</div>
     <div class="nact">${counts}${ib('crumb', ICON.crumb, 'Leave a breadcrumb')}${ib('interrupt', ICON.bolt, 'Interrupted. Something pulled you away. Shortcut: I')}
+      <button class="btn nstuck" data-now="stuck" aria-haspopup="menu" data-tip="Stuck? Step away for 5 minutes, or make it smaller">Stuck</button>
       <button class="btn npause" data-now="pause" data-tip="Pause and leave a breadcrumb. Shortcut: S">${ICON.pause}<span>Pause</span></button>${ib('done', ICON.check20, 'Done', 'primary')}</div>`;
   setTitle(t, m);
 }
@@ -186,13 +212,13 @@ let shellOn = false, shellSent = '';
 function shellStatus(t){
   if (!embedded) return;
   const c = t && F.lastCrumb(t);
-  const st = t ? {text: t.title, detail: c ? c.text : '', since: F.activeSince(log, todayStr()) || undefined, route: `task/${t.id}`,
+  const st = !t ? backStatus() : {text: t.firstStep || t.title, detail: t.firstStep ? t.title : c ? c.text : '', since: F.activeSince(log, todayStr()) || undefined, route: `task/${t.id}`,
     actions: [
       {label: 'Leave a breadcrumb', command: 'focus-crumb', icon: 'note', prompt: {title: 'Leave a breadcrumb', placeholder: 'Next step', maxLength: F.CRUMB_LEN, skip: false}},
       {label: 'Interrupted', command: 'focus-interrupt', icon: 'bolt'},
       {label: 'Pause', command: 'focus-pause', icon: 'pause', prompt: {title: 'Where did you leave off?', placeholder: c ? c.text : 'Next step', maxLength: F.CRUMB_LEN}},
       {label: 'Done', command: 'focus-done', icon: 'done', primary: true}
-    ]} : null;
+    ]};
   const key = JSON.stringify(st);
   if (key === shellSent) return;
   shellSent = key;
@@ -207,6 +233,9 @@ function focusCommand(id, text){
   if (id === 'focus-pause') pauseTask(true, text);
   if (id === 'focus-interrupt') logInterrupt();
   if (id === 'focus-crumb' && t && text && F.addCrumb(t, text, nowIso())){ commit(); toastHere('Breadcrumb saved'); }
+  if (id === 'focus-back') imBack();
+  if (id === 'focus-back-later') notNow();
+  if (id === 'focus-stuck') openStuck();
 }
 /* Inside Workshop, is Docket the app on screen? A hidden pane gives its frame no size. */
 const shownHere = () => !embedded || document.documentElement.clientWidth > 0;
@@ -216,6 +245,7 @@ function toastHere(msg){
 }
 /* Every 30 seconds: refresh the timer without a full render. */
 function nowTick(){
+  if (away && !activeTask() && Date.now() >= away.until && !away.shown) onChange();
   const t = activeTask(), el = $('#nowbar .ntime');
   if (!t || !el) return;
   const m = runMinutes();
@@ -233,6 +263,91 @@ function awayCheck(){
   else toast(`Still on "${t.title}"?`, 'Pause', () => pauseTask(), 15000);
 }
 document.addEventListener('visibilitychange', awayCheck);
+
+/* ---------- Stuck ---------- */
+/* Two ways out, nothing counted beyond the pause and breadcrumb they already make:
+   Step away 5 min pauses (asking for a breadcrumb) and, 5 minutes later, offers I'm back in one quiet line where
+   the band was (or in Workshop's top bar). Make it smaller asks for a first step, or splits off the rest. */
+const STEP_AWAY_MIN = 5;
+let away = null;   // {id, until, shown}: stepped away from task id until `until` (ms)
+
+function openStuck(anchor){
+  const t = activeTask();
+  if (!t || isWaiting()) return;
+  const items = `<button data-m="away" role="menuitem">Step away ${STEP_AWAY_MIN} min</button><button data-m="smaller" role="menuitem">Make it smaller</button>`;
+  const pick = m => { if (m === 'away') stepAway(); if (m === 'smaller') makeSmaller(t.id); };
+  if (anchor && anchor.isConnected && anchor.offsetParent){
+    popMenu(items, anchor, 'right').addEventListener('click', e => {
+      const b = e.target.closest('[data-m]'); if (!b) return;
+      closeMenu(); pick(b.dataset.m);
+    });
+    return;
+  }
+  // From Workshop's palette (Docket's band is hidden there): the same two choices in a small sheet.
+  showModal(`<div class="sheet small stucksheet" role="dialog" aria-modal="true" aria-label="Stuck"><h3>Stuck?</h3><p class="sub">${esc(t.title)}</p>
+    <div class="stuck-pick">${items}</div><footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button></footer></div>`,
+    f => f.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b){ closeModal(); pick(b.dataset.m); } }));
+}
+function stepAway(){
+  const id = pauseTask();
+  if (!id) return;
+  away = {id, until: Date.now() + STEP_AWAY_MIN * 60000, shown: false};
+  setTimeout(() => { if (away && away.id === id && !activeTask()) onChange(); }, STEP_AWAY_MIN * 60000 + 50);
+  onChange();
+}
+const backDue = () => !!away && !activeTask() && isOpen(away.id) && Date.now() >= away.until;
+function imBack(){
+  const a = away; away = null;
+  if (a && isOpen(a.id)) startTask(a.id); else onChange();
+}
+function notNow(){ away = null; onChange(); }
+/* The quiet line after stepping away: no sound, no toast. */
+function renderBack(el){
+  const due = backDue(), t = due && findTask(away.id);
+  el.classList.remove('hasstep');
+  if (!t){ el.hidden = true; el.innerHTML = ''; el.classList.remove('back'); return; }
+  away.shown = true;
+  el.hidden = false; el.classList.add('back');
+  el.innerHTML = `<div class="nmain"><div class="nline"><span class="nlabel">Break's over</span><span class="nback">Back to ${esc(t.title)}?</span></div></div>
+    <div class="nact"><button class="lnk" data-now="backlater">Not now</button><button class="btn primary" data-now="back">${ICON.play}<span>I'm back</span></button></div>`;
+}
+function backStatus(){
+  if (!backDue()) return null;
+  const t = findTask(away.id);
+  return {text: `Back to ${t.title}?`, detail: "Break's over", route: `task/${t.id}`,
+    actions: [{label: 'Not now', command: 'focus-back-later'}, {label: "I'm back", command: 'focus-back', icon: 'play', primary: true}]};
+}
+/* Make it smaller: a first step, or Split (the rest becomes its own task; this one stays on Today). */
+function makeSmaller(id){
+  const t = findTask(id);
+  if (!t || t.done) return;
+  showModal(`<form class="sheet small smallersheet" role="dialog" aria-modal="true" aria-label="Make it smaller"><h3>Make it smaller</h3>
+    <p class="sub">${esc(t.title)}</p>
+    <label class="lbl" for="stuckStep">First step</label>
+    <input id="stuckStep" name="step" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="The smallest thing you could do next" value="${esc(t.firstStep || '')}">
+    <p class="soft">Or split it: this task keeps the part you can do now, and the rest becomes its own task in the same list.</p>
+    <label class="lbl" for="stuckRest">The rest</label>
+    <input id="stuckRest" name="rest" maxlength="300" autocomplete="off" placeholder="What is left, as its own task">
+    <footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn" data-split>Split</button><button class="btn primary">Save first step</button></footer></form>`,
+    f => {
+      const step = f.querySelector('[name=step]'), rest = f.querySelector('[name=rest]');
+      step.focus();
+      f.addEventListener('submit', e => {
+        e.preventDefault();
+        const changed = setFirstStep(t, step.value);
+        closeModal();
+        if (changed) commit();
+      });
+      f.querySelector('[data-split]').addEventListener('click', () => {
+        if (!rest.value.trim()){ rest.focus(); return; }
+        setFirstStep(t, step.value);
+        const n = splitTask(state.tasks, t, rest.value, {id: uid(), today: todayStr()});
+        closeModal();
+        commit();
+        if (n) toastHere(`Split. "${n.title}" is its own task now.`);
+      });
+    });
+}
 
 /* ---------- shutdown ritual ---------- */
 /* Tomorrow: the next working day by the Day view's sprint settings (weekends and holidays skipped). */
@@ -270,7 +385,8 @@ function openShutdown(){
           <input data-crumb="${t.id}" maxlength="${F.CRUMB_LEN}" autocomplete="off" placeholder="${esc((F.lastCrumb(t) || {}).text || 'Next step')}"></label>`).join('')}`
       : '<p class="soft">No unfinished tasks were started today.</p>')}
     ${sec(3, `Tomorrow's top 3 <span class="sd-when">${esc(fmtDay(next))}</span>`, pool.length
-      ? `<div class="sd-pick">${pool.map(t => `<label class="chk"><input type="checkbox" data-pick="${t.id}"${picked.has(t.id) ? ' checked' : ''}> <span>${esc(t.title)}</span></label>`).join('')}</div>
+      ? `<p class="soft">A first step for each pick is optional.</p><div class="sd-pick">${pool.map(t => `<div class="sd-pickrow"><label class="chk"><input type="checkbox" data-pick="${t.id}"${picked.has(t.id) ? ' checked' : ''}> <span>${esc(t.title)}</span></label>
+          <input class="sd-step" data-step="${t.id}" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="First step (optional)" aria-label="First step for ${esc(t.title)}" value="${esc(t.firstStep || '')}"${picked.has(t.id) ? '' : ' hidden'}></div>`).join('')}</div>
         <p class="soft sd-over" hidden>More than 3 picked.</p>`
       : '<p class="soft">Nothing open.</p>')}
     <label class="chk sd-remind"><input type="checkbox" data-remind${prefs.remind ? ' checked' : ''}> Remind me on this device ${REMIND_BEFORE_MIN} minutes before my day ends (${esc(dp.sprint.dayEnd)}, set in Day settings)</label>
@@ -279,13 +395,23 @@ function openShutdown(){
     f => {
       const over = f.querySelector('.sd-over');
       const count = () => { if (over) over.hidden = f.querySelectorAll('[data-pick]:checked').length <= 3; };
-      f.addEventListener('change', e => { if (e.target.dataset.pick !== undefined) count(); });
+      f.addEventListener('change', e => {
+        if (e.target.dataset.pick === undefined) return;
+        const step = f.querySelector(`[data-step="${CSS.escape(e.target.dataset.pick)}"]`);
+        if (step) step.hidden = !e.target.checked;
+        count();
+      });
       count();
       f.addEventListener('submit', e => {
         e.preventDefault();
         const at = nowIso();
         f.querySelectorAll('[data-crumb]').forEach(i => { const t = findTask(i.dataset.crumb); if (t) F.addCrumb(t, i.value, at); });
         const picks = new Set([...f.querySelectorAll('[data-pick]:checked')].map(i => i.dataset.pick));
+        // A first step for each pick: typed text sets it, a cleared field removes it, untouched leaves it.
+        f.querySelectorAll('[data-step]').forEach(i => {
+          const t = findTask(i.dataset.step);
+          if (t && picks.has(t.id) && cleanFirstStep(i.value) !== (t.firstStep || '')) setFirstStep(t, i.value);
+        });
         // Tomorrow's picks get tomorrow's Today. Today's unpicked leftovers go back to the lists, so tomorrow
         // starts with only what you chose instead of an "unfinished from an earlier day" banner.
         state.tasks.forEach(t => {
@@ -356,4 +482,4 @@ async function importFocus(bundle){
   return cols.length;
 }
 
-export { activeId, activeTask, askCrumb, focusCommand, nextTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };
+export { activeId, activeTask, askCrumb, focusCommand, focusTransition, imBack, makeSmaller, notNow, openStuck, stepAway, nextTask, focusBoot, focusDrawerClick, focusDrawerHtml, focusTaskClosed, fstore, importFocus, isActive, log as focusLog, logInterrupt, openShutdown, pauseTask, renderNow, rowCrumb, startNext, startTask, toggleStart };

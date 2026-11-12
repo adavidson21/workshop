@@ -18,7 +18,7 @@ import { heldLabel } from './focus-hours-model.js';
 export { heldLabel };
 
 /** Starts watching. render(): repaint. summary(): rewrite the summary (the held card changed). transition(prev, f):
-    the state changed (the left-off prompt listens). */
+    the state changed (focus.js focusTransition asks for a breadcrumb). */
 export function focusHoursBoot({render = () => {}, summary = () => {}, transition = () => {}} = {}){
   onRender = render; onSummary = summary; onTransition = transition;
   ready.then(ws => {
