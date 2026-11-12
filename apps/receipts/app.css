@@ -1,6 +1,6 @@
-/* Receipts styles. Colors and fonts come from shared/themes.css, buttons and type helpers from
-   shared/ui.css. Editorial like the other tools: flat paper backgrounds, serif titles, mono labels,
-   hairline rules. No gradients. */
+/* Rapport's styles. Colors and fonts come from shared/themes.css (Rapport's color is pine, from
+   data-app-color="receipts"), buttons and type helpers from shared/ui.css. The last section is the Rapport 4.0.0
+   redesign (Workshop project claude/workshop-redesign-v1-plan.md). */
 html{font-size:clamp(14px,.25vw + 12px,16px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -360,3 +360,51 @@ button.g-prog:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .fs-side .composer .row,.fs-side .composer .opts{flex-wrap:wrap}
 }
 @media (min-width:1600px){.feedsplit{grid-template-columns:minmax(22rem,28rem) minmax(0,1fr);gap:0 3rem}}
+
+/* ---------- Rapport 4.0.0: Workshop's look. Figures and titles in Schibsted Grotesk, labels and dates in the text
+   face (no mono outside code and the 1:1 note editor), filled sentence-case chips, the composer, forms, cards and
+   dialogs on raised white sheets, a quiet coverage row. CSS only, apart from one sentence on Review. ---------- */
+.mono{font-family:var(--sans);font-variant-numeric:tabular-nums;letter-spacing:0}
+.loading{font-family:var(--sans)}
+.stats{border-top:0;border-bottom:0;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr))}
+.stat{border-right:0;margin-right:0;padding:.85rem 1rem .9rem;border-radius:var(--r-md);background:var(--surface);box-shadow:var(--raise)}
+.stat b{font:700 1.9rem/1.05 var(--serif);letter-spacing:-.02em}
+.stat span{font-weight:600}
+button.stat.link:hover{box-shadow:var(--raise),0 0 0 1px var(--line2)}
+.composer,.pform,.g-card{border:0;border-radius:var(--r-lg);box-shadow:var(--raise);background:var(--surface)}
+.composer:focus-within{border-color:transparent;box-shadow:var(--raise),0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
+.composer{padding:1rem 1.15rem 1.1rem}
+.offers{border:0;border-left:3px solid var(--accent);border-radius:var(--r-md);box-shadow:var(--raise)}
+.chip{border-color:var(--line2);font-weight:600}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.edate{font-size:.8rem;font-weight:600}
+.kind,.tag{font:700 .74rem/1.5 var(--sans);letter-spacing:0;text-transform:none;padding:.08rem .5rem;border-radius:999px}
+.kind{background:var(--panel)}
+.k-win{background:var(--accent-soft);color:var(--accent)}
+.extra b{font:700 .78rem/1 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.feed{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--raise);padding:0 1.1rem}
+.month .section-label{margin-bottom:.55rem}
+.section-label .n{font:500 .84rem var(--sans)}
+.roster,.oo-people,.slist,.g-tree,.g-missing ul{border-top-color:var(--line)}
+.packet .section-label{border-bottom-color:var(--line)}
+.oo-panel,.ai{border-top-color:var(--line)}
+.pname b,.oo-title,.oo-dlg h2,.g-otitle,.g-dtitle,.g-ctitle,.phead h2,.eform h2{font-weight:700;letter-spacing:-.015em}
+.eform h2 span{font:600 .84rem var(--sans);text-transform:none;letter-spacing:0;color:var(--muted)}
+dialog.edit{border:0;border-radius:var(--r-lg);box-shadow:var(--raise),var(--shadow-lg)}
+.due,.g-st{font:700 .74rem/1.5 var(--sans);letter-spacing:0;text-transform:none;border-radius:999px;padding:0 .5rem}
+.since{font:600 .84rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.g-who,.g-group{font:650 .82rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.g-olabel,.g-prog{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.g-kr-tag{font:700 .72rem/1 var(--sans);letter-spacing:0}
+.g-format summary{font:650 .92rem/1.6 var(--serif);letter-spacing:0;text-transform:none;color:var(--ink)}
+/* Review: counts in the text face; an empty section is dashed and muted, not amber (the one line under the row
+   says how many are empty) */
+.cov{border:0;border-radius:999px;background:var(--surface);box-shadow:var(--raise);padding:.25rem .7rem .25rem .35rem;font-weight:600}
+.cov b{font:700 .78rem/1.4 var(--sans);border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.cov.gap{border:1px dashed var(--line2);box-shadow:none;color:var(--muted)}
+.cov.gap b{background:var(--panel);color:var(--muted)}
+button.cov.gap:hover{border-style:solid;background:var(--surface);color:var(--ink)}
+.note{color:var(--muted)}
+.draft textarea{font:400 .92rem/1.6 var(--sans);border:0;border-radius:var(--r-lg);box-shadow:var(--raise);padding:1rem 1.1rem}
+.num{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.feed:empty{display:none}

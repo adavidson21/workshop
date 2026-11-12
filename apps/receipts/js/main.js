@@ -430,7 +430,7 @@ function reviewView() {
     <div class="coverage">${review.coverage.map(x => x.count ? `<span class="cov"><b class="mono">${x.count}</b>${esc(x.section)}</span>`
       : `<button type="button" class="cov gap" data-act="log-gap" data-sec="${esc(x.section)}" title="Add a receipt for ${esc(x.section)}"><b class="mono">0</b>${esc(x.section)} +</button>`).join('')}</div>
     ${unlistedHere.length ? `<p class="note">Shown under Other because their sections are not in your list: ${esc(unlistedHere.join(', '))}. <button class="lnk" type="button" data-act="add-unlisted">Add them to your sections</button></p>` : ''}
-    ${review.gaps.length ? `<p class="note">No receipts for ${esc(review.gaps.join(', '))}. Click one to add a receipt.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
+    ${review.gaps.length ? `<p class="note">${review.gaps.length === 1 ? '1 section has' : `${review.gaps.length} sections have`} no receipts yet. Click one above to add a receipt.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
       <div class="draft">
