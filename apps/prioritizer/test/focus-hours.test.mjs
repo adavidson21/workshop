@@ -4,7 +4,6 @@ import { blockingCard, buildSummary, dayFocus } from '../js/summary.js';
 import { cleanDayplan, freshDayplan } from '../js/dayplan-model.js';
 import { heldLabel, heldNeeds } from '../js/focus-hours-model.js';
 import { MANAGER_NAME, lunchOn, makerManagerSections, makerManagerTemplate, overlapsLunch } from '../js/maker-manager.js';
-import { cleanLeftOff, setLeftOff } from '../js/left-off-model.js';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import * as F from '../../../shared/focus.js';
 
@@ -90,15 +89,4 @@ test('Overlaps lunch: another kind over the day lunch or Settings lunch warns; l
   assert.deepEqual([fromSettings.start, fromSettings.end], [720, 780]);
   assert.equal(lunchOn([secs[1]], Object.assign(F.defaults(), {enabled: false}), 3), null, 'focus hours off: no lunch');
   assert.equal(lunchOn([secs[1]], F.defaults(), 0), null, 'Sunday: no lunch');
-});
-
-test('where I left off: cleaned, capped at 280, never on a done task', () => {
-  const t = {id: 't1', title: 'x'};
-  assert.equal(setLeftOff(t, '  halfway   through <b>the</b> parser  ', 'at'), true);
-  assert.deepEqual(t.leftOff, {text: 'halfway through <b>the</b> parser', at: 'at'});
-  assert.equal(setLeftOff(t, '   '), false);
-  assert.equal(setLeftOff({id: 'd', done: true}, 'x'), false);
-  assert.equal(cleanLeftOff({text: 'a'.repeat(400)}).text.length, 280);
-  assert.equal(cleanLeftOff({text: 7}), null);
-  assert.deepEqual(cleanLeftOff({text: 'x'}), {text: 'x', at: ''});
 });

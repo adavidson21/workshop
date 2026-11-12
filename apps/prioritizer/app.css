@@ -697,6 +697,19 @@ body.waiting #addList,body.waiting #adoBtn{visibility:hidden}
 .nowbar .ncount{font:400 .8rem var(--mono);color:var(--muted);margin-right:.3rem}
 .nowbar .btn{min-height:1.9rem;padding-top:0;padding-bottom:0}
 .nowbar .dotlive{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+.nowbar .nstep{min-width:0;font:600 1.05rem/1.3 var(--sans);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nowbar .nsub{margin-top:.1rem;min-width:0;display:flex}
+.nowbar .nsub .ntitle{font-weight:400;font-size:.8rem;color:var(--muted)}
+.nowbar.back{border-left-color:var(--line);background:transparent}
+.nowbar .nback{min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stucksheet .stuck-pick{display:flex;flex-direction:column;gap:.4rem;margin:.6rem 0}
+.stucksheet .stuck-pick button{text-align:left;padding:.55rem .7rem;border:1px solid var(--line);border-radius:var(--r-sm)}
+.stucksheet .stuck-pick button:hover{border-color:var(--muted)}
+.smallersheet .lbl{display:block;margin:.6rem 0 .3rem;font:600 .8rem/1.4 var(--sans);color:var(--eyebrow)}
+.smallersheet .soft{margin:.8rem 0 0}
+.d-first{width:100%;margin:.1rem 0 .4rem;border:0;border-bottom:1px dashed var(--line);outline:0;padding:.25rem 0;background:transparent;font:inherit;font-size:.92rem;color:var(--ink)}
+.d-first:focus{border-bottom-color:var(--accent)}
+.shutdown .sd-pickrow .sd-step{margin:.15rem 0 .45rem 1.6rem;width:calc(100% - 1.6rem)}
 .tstart{flex:none;height:24px;min-width:24px;padding:0 .55rem;border-radius:4px;border:1px solid var(--line);font:600 .72rem/22px var(--sans);color:var(--muted);opacity:0;transition:opacity .12s}
 .row:hover .tstart,.row:focus-within .tstart,.row.sel .tstart,.tstart.on,.tstart:focus-visible{opacity:1}
 .tstart:hover{color:var(--ink);border-color:var(--muted)}
@@ -1044,15 +1057,6 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 /* ---------- Focus hours (focus-hours.js, Workshop docs/focus.md): the held Inbox rail and the Needs you line ---------- */
 .today3.inbox-held{grid-template-columns:3.2rem minmax(17rem,23rem) minmax(0,1fr)}
 .col-inbox.rail.held .railbtn{color:var(--muted)}
-/* Where I left off (left-off.js): above the Now card */
-.leftoff{margin:0 0 1rem;padding:.55rem .7rem;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:2px var(--r-sm) var(--r-sm) 2px;background:var(--surface);font-size:.86rem;transition:opacity .4s}
-.leftoff.fading{opacity:0}
-.leftoff .lo-h{display:flex;align-items:baseline;gap:.5rem;font:600 .8rem/1.4 var(--sans);color:var(--muted)}
-.leftoff .lo-h .grow{flex:1}
-.leftoff .lo-t{margin:.2rem 0 0;color:var(--ink);overflow-wrap:anywhere}
-.leftoff form{display:flex;gap:.4rem;margin-top:.35rem}
-.leftoff input{flex:1;min-width:0;font:inherit;padding:.3rem .45rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
-.dleftoff{margin:.4rem 0;padding:.4rem .6rem;border-left:3px solid var(--accent);background:var(--surface);font-size:.86rem}
 .dsec .chip.lunchwarn{color:var(--muted);border-style:dashed}
 /* Wide Ranked column: value and effort in words, and the score, without pointing at the row (render.js veff) */
 .row .veff{display:none;flex:none;font:500 .74rem/1 var(--mono);color:var(--muted);white-space:nowrap}
@@ -1178,7 +1182,7 @@ kbd{font-family:var(--sans);border-radius:5px}
 .inhint{line-height:1.8}
 .banner{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .banner.warn{border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
-.leftoff,.dleftoff,.doffers,.tour .tcard{border:1px solid var(--line);border-radius:12px}
+.doffers,.tour .tcard{border:1px solid var(--line);border-radius:12px}
 .railbtn{border-radius:var(--r-md);border-color:var(--line)}
 .revline summary,.donegrp summary{font:600 .86rem/1.4 var(--sans);color:color-mix(in srgb,var(--ink) 72%,var(--bg))}
 .inbar{border-radius:12px}
