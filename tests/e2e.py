@@ -384,7 +384,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     if sf: stab(sf, 'data')
     check('Settings in browser mode shows the data folder: this browser, with Choose folder', sf is not None and sf.locator('[data-folder=indexeddb]').count() == 1
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
-    check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Docket Text') && f.status === 'loaded'))"))
+    check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
     nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.page)") if sf else []
     check('Settings in browser mode: Overview, Apps, Focus hours, People & teams, Data & backups, Products and User guide in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'focus', 'data', 'people', 'team', 'products', 'guide'])
@@ -1240,7 +1240,7 @@ def agents_checks(b, watch):
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(400)
         check('the light/dark toggle applies to Agents', af.evaluate('document.documentElement.dataset.theme') == want)
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
-        check('Agents draws with Workshop\'s theme colors (shared/themes.css)', bg == ('rgb(20, 16, 18)' if want == 'dark' else 'rgb(244, 242, 243)'))
+        check('Agents draws with Workshop\'s theme colors (shared/themes.css)', bg == ('rgb(26, 21, 23)' if want == 'dark' else 'rgb(250, 246, 241)'))
 
         # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
@@ -1571,8 +1571,8 @@ def main():
             check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
             # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-            # Workshop's look (shared/themes.css and fonts.css): Schibsted Grotesk headings, Docket Text for the rest.
-            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Schibsted Grotesk', 'Docket Text'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
+            # The brand look (shared/themes.css imports shared/brand/tokens.css): Bricolage Grotesque headings, Figtree for the rest.
+            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Bricolage Grotesque', 'Figtree'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
             check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
             with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
             xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
