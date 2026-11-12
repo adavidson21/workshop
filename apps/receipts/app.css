@@ -1,4 +1,4 @@
-/* Rapport's styles. Colors and fonts come from shared/themes.css (Rapport's color is pine, from
+/* Rapport's styles. Colors and fonts come from shared/themes.css (Rapport's color is leaf green, from
    data-app-color="receipts"), buttons and type helpers from shared/ui.css. The last section is the Rapport 4.0.0
    redesign (Workshop project claude/workshop-redesign-v1-plan.md). */
 html{font-size:clamp(14px,.25vw + 12px,16px)}

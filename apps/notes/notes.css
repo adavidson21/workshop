@@ -522,9 +522,10 @@ body{background:var(--bg)}
 .btn.small{border-radius:8px}
 .ibtn{border-radius:9px}
 input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border-radius:10px}
-.notes{--sec-notes:var(--accent);--sec-daily:#B07A2A;--sec-products:#4F7A5E;--sec-templates:#5B7FA6;--sec-tandem:#7A64A8}
-:root[data-theme=dark] .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#A9C6E8;--sec-tandem:#C3B4EA}
-@media (prefers-color-scheme:dark){:root:not([data-theme]) .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#A9C6E8;--sec-tandem:#C3B4EA}}
+/* Templates is rose since Folio turned blue (Workshop 6.51.1), so it no longer matches the Notes dot. */
+.notes{--sec-notes:var(--accent);--sec-daily:#B07A2A;--sec-products:#4F7A5E;--sec-templates:#9A3F62;--sec-tandem:#7A64A8}
+:root[data-theme=dark] .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#E7A9C2;--sec-tandem:#C3B4EA}
+@media (prefers-color-scheme:dark){:root:not([data-theme]) .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#E7A9C2;--sec-tandem:#C3B4EA}}
 
 /* Desktop: the left column is Folio's name, the places, then the open place's pages. The page panel's button is in
    the note's header. Folding the pages list keeps the places. */

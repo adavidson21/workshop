@@ -1,4 +1,4 @@
-/* Runway's own styles, on top of shared/themes.css and shared/ui.css (Workshop's look; Runway's color is violet,
+/* Runway's own styles, on top of shared/themes.css and shared/ui.css (Workshop's look; Runway's color is plum,
    from data-app="runway"). The timeline itself is an SVG with its colors inside it (js/timeline.js), so this file
    lays out the page. The last section is the Runway 2.0.0 redesign (Workshop project claude/workshop-redesign-v1-plan.md). */
 html,body{margin:0;height:100%}
