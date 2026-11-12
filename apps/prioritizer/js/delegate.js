@@ -191,4 +191,6 @@ function openAssign(id, anchor){
   });
 }
 
-export { copyHandoff, delegateTo, dismissBack, dropDelegate, fillFollowUps, followDate, gotBackTask, nudgedTask, openAssign, toggleWaiting };
+/** People and groups to hand a task to, best first (the picker's order), for Sort one by one. */
+const handoffChoices = (t, q = '') => matches(t, q.trim().replace(/^[>@]+/, '')).slice(0, 8);
+export { handoffChoices, copyHandoff, delegateTo, dismissBack, dropDelegate, fillFollowUps, followDate, gotBackTask, nudgedTask, openAssign, toggleWaiting };

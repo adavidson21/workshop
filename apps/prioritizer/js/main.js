@@ -15,6 +15,7 @@ import * as prAiModel from './pr-ai-model.js';
 import { applySide } from './events.js';
 import { downloadBackup, importFile, store } from './storage.js';
 import { openCmd } from './command-bar.js';
+import { openSortRun } from './sort-run.js';
 import { closeDrawer, drawerId, drawerInit, openDrawer, syncDrawer } from './drawer.js';
 import { reportRoute } from './route.js';
 import { pasteInit } from './paste.js';
@@ -86,6 +87,7 @@ ready.then(ws => {
       else focusCommand(id, text);
     });
     if (id === 'add-task') openCmd();
+    if (id === 'sort-one-by-one') loaded.then(() => { setView('today'); openSortRun(); });
     if (id === 'sync-ado') adoSync(true);
     if (id === 'shortcuts') showHelp();
     if (id === 'shutdown-day') loaded.then(openShutdown);

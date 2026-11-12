@@ -139,6 +139,43 @@ def main():
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         check('Esc leaves the Inbox', pg.locator('.col.colon').count() == 0)
 
+        # ---------- Sort one by one (Docket 9.1.0): one task at a time, one key each ----------
+        ids = pg.evaluate(f"""() => {{ const P = {P}, L = P.state.lists[0].id, d = new Date().toLocaleDateString('en-CA');
+          const ids = ['sr1', 'sr2', 'sr3', 'sr4'];
+          ids.forEach((id, i) => P.state.tasks.push({{id, title: 'Sort me ' + (i + 1), listId: L, done: false, value: null, effort: null, who: [], rank: 900 + i, ageFrom: d, createdAt: d}}));
+          P.state.view = 'today'; P.commit(); return ids; }}""")
+        pg.wait_for_timeout(250)
+        check('To sort offers Sort one by one when there is more than one task', pg.locator('.col-inbox [data-sortrun]').count() == 1)
+        pg.click('#main'); pg.keyboard.press('o'); pg.wait_for_timeout(300)
+        n_run = pg.evaluate("() => +document.querySelector('.sortrun .sr-count').textContent.match(/of (\\d+)/)[1]")
+        check('O opens one task at a time, with how many there are', pg.locator('#modal .sheet.sortrun').count() == 1 and n_run >= 4)
+        first = pg.inner_text('.sortrun h3')
+        pg.keyboard.press(']'); pg.keyboard.press('3'); pg.wait_for_timeout(200)
+        t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(first)})")
+        check('] then 3 sorts it Medium, size L, and shows the next one', t['value'] == 3 and t['effort'] == 'L' and pg.inner_text('.sortrun h3') != first)
+        second = pg.inner_text('.sortrun h3')
+        pg.keyboard.press('t'); pg.wait_for_timeout(200)
+        check('T puts it on Today and moves on', pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(second)}).focusOn") is not None and pg.inner_text('.sortrun h3') != second)
+        third = pg.inner_text('.sortrun h3')
+        pg.keyboard.press('s'); pg.wait_for_timeout(200)
+        check('S skips it, unsorted', pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(third)}).value") is None)
+        pg.keyboard.press('Backspace'); pg.wait_for_timeout(200)
+        check('Backspace goes back to the one before', pg.inner_text('.sortrun h3') == third)
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(250)
+        check('Esc stops; what was sorted stays sorted', pg.locator('#modal .sheet.sortrun').count() == 0 and pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(first)}).value") == 3)
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !t.id.startsWith('sr')); P.commit(); }}")
+        pg.wait_for_timeout(200)
+
+        # ---------- Today's width (Docket 9.1.0): drag its left edge; double-click resets ----------
+        if pg.viewport_size['width'] >= 1100 and pg.locator('.col-today .t3grip').count():
+            w0 = pg.evaluate("document.querySelector('.col-today').getBoundingClientRect().width")
+            g = pg.locator('.col-today .t3grip').bounding_box()
+            pg.mouse.move(g['x'] + 4, g['y'] + 40); pg.mouse.down(); pg.mouse.move(g['x'] - 96, g['y'] + 40, steps=4); pg.mouse.up(); pg.wait_for_timeout(200)
+            w1 = pg.evaluate("document.querySelector('.col-today').getBoundingClientRect().width")
+            check('dragging Today\'s left edge makes it wider, and the width is kept', w1 > w0 + 40 and pg.evaluate("document.querySelector('.today3').style.getPropertyValue('--tw')") != '')
+            pg.dblclick('.col-today .t3grip'); pg.wait_for_timeout(200)
+            check('double-clicking the edge resets it', pg.evaluate("document.querySelector('.today3').style.getPropertyValue('--tw')") == '')
+
         # ---------- Today: Inbox, Up next and Today; Plan week ----------
         check('Today has the Inbox, Up next and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'] and pg.locator('.col-rank.upnext').count() == 1)
         check('no Needs you strip and no Now card', pg.locator('.needs').count() == 0 and pg.locator('.nowcard').count() == 0)

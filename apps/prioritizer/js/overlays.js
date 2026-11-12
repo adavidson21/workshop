@@ -81,11 +81,10 @@ function showHelp(){
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>
     <table class="keys"><tbody><tr><td colspan="2"><h4>In To sort</h4></td></tr>
-      ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'Value: Trivial, Low, Medium, High')}
-      ${r('<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>', 'Effort: XS, S, M, L, XL')}
-      ${r('<kbd>D</kbd> / <kbd>U</kbd> / <kbd>Space</kbd>', 'Due date / Urgent / Today')}
-      ${r('<kbd>Enter</kbd> / <kbd>S</kbd> / <kbd>0</kbd>', "Save and next / Skip / Won't do")}
-      ${r('Click the title or notes', 'Edit them; <kbd>Enter</kbd> in the title or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in notes saves and goes on')}
+      ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'On a row: how much it matters (Trivial, Low, Medium, High), then the next row')}
+      ${r('<kbd>T</kbd> / <kbd>A</kbd> / <kbd>0</kbd>', "On Today / Hand off / Won't do")}
+      ${r('<kbd>O</kbd>', 'Sort one by one: one task at a time, big, one key each')}
+      ${r('In Sort one by one', '<kbd>1</kbd> to <kbd>4</kbd> matters, <kbd>[</kbd> <kbd>]</kbd> size, <kbd>T</kbd> <kbd>A</kbd> <kbd>0</kbd>, <kbd>S</kbd> skip, <kbd>Backspace</kbd> back')}
     </tbody></table>
     <table class="keys"><tbody><tr><td colspan="2"><h4>In Day</h4></td></tr>
       ${r('<kbd>P</kbd>', 'Plan the selected task into a block (then <kbd>1</kbd> to <kbd>9</kbd>)')}

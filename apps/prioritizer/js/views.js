@@ -54,7 +54,7 @@ function inboxCol(rail){
   const rows = q.map(t => row(t, {compact: true, back: true, sort: true})).join('');
   const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> hand off, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
   return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort">
-    <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}</header>
+    <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}${q.length > 1 ? `<button class="lnk colh-act" data-sortrun data-tip="One task at a time, one key each. Shortcut: O">Sort one by one</button>` : ''}</header>
     <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>All sorted.</b>New tasks and work that comes back land here.</div>`}</div>
   </section>`;
 }
@@ -226,7 +226,8 @@ function todayCol(rail){
       || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Up next` : `Drag 3 to 5 from Up next, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>`;
   }
   const count = work.filter(t => !t.pr), cdone = count.filter(t => t.done).length;
-  return `<section class="col col-today" data-col="today" aria-label="Today">
+  // Its left edge resizes it (Docket 9.1.0; events.js todayGrip), saved per browser in ui.todayW.
+  return `<section class="col col-today" data-col="today" aria-label="Today"><div class="t3grip" role="separator" aria-orientation="vertical" aria-label="Today's width" tabindex="0" data-tip="Drag to make Today wider or narrower. Double-click to reset."></div>
     <header class="colh"><h3>Today</h3>${count.length ? `<span class="n"><span class="num">${cdone}</span> of <span class="num">${count.length}</span> done</span>` : ''}</header>
     <div class="colbody">
       ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
@@ -247,7 +248,8 @@ function todayCol(rail){
 function renderToday(){
   const plan = planWeek(), q = inboxQueue();
   const lens = plan ? state.lens : 'rank';
-  main.innerHTML = `<div class="t3wrap">${plan ? '' : inboxBar(q)}<div class="today3${plan ? ' planweek lensed' : ''}${!plan && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(plan)}${rankCol(plan, lens)}${todayCol(plan)}</div></div>`;
+  const tw = !plan && ui.todayW ? ` style="--tw:${Math.round(ui.todayW)}px"` : '';
+  main.innerHTML = `<div class="t3wrap">${plan ? '' : inboxBar(q)}<div${tw} class="today3${plan ? ' planweek lensed' : ''}${!plan && heldInbox() ? ' inbox-held' : ''}${inboxOpen ? ' inbox-open' : ''}">${inboxCol(plan)}${rankCol(plan, lens)}${todayCol(plan)}</div></div>`;
   main.querySelectorAll('.col').forEach(c => c.classList.toggle('colon', c.dataset.col === col));
   if (openQuad){ const i = main.querySelector('.qform input'); if (i) i.focus(); }
 }

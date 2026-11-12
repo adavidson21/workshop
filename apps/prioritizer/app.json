@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "9.0.0",
+  "version": "9.1.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -120,6 +120,11 @@
       "route": "inbox"
     },
     {
+      "id": "sort-one-by-one",
+      "title": "Sort one by one",
+      "route": "inbox"
+    },
+    {
       "id": "shutdown-day",
       "title": "Wrap up the day"
     },
@@ -203,6 +208,7 @@
     "js/route.js",
     "js/row-fields-model.js",
     "js/slate-link.js",
+    "js/sort-run.js",
     "js/state.js",
     "js/storage.js",
     "js/store-format.js",

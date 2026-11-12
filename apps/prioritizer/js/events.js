@@ -1,6 +1,7 @@
 import { addTask, downgradeUrgent, moveTask, quickSort, toggleDone, toggleFocus } from './actions.js';
 import { adoSetup, onAdoClick } from './ado.js';
 import { openSettings as daySettings, stepDay } from './day-view.js';
+import { openSortRun } from './sort-run.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
@@ -48,6 +49,7 @@ document.addEventListener('click', e => {
   const m = t.closest('[data-menu]'); if (m){ e.stopPropagation(); openListMenu(m.dataset.menu, m); return; }
   const pm = t.closest('[data-pmenu]'); if (pm){ e.stopPropagation(); openPersonMenu(pm.dataset.pmenu, pm); return; }
   const nv = t.closest('[data-nav]'); if (nv){ setView(nv.dataset.nav); return; }
+  if (t.closest('[data-sortrun]')){ openSortRun(); return; }
   const v = t.closest('[data-view]'); if (v){ setView(v.dataset.view); return; }
   // Today's day arrows: the plan for the working day before or after (the Day view).
   const dj = t.closest('[data-dayjump]'); if (dj){ setView('day'); stepDay(dj.dataset.dayjump === 'prev' ? -1 : 1); return; }
@@ -206,6 +208,7 @@ document.addEventListener('keydown', e => {
   }
   if (inboxRow && k === 'Enter' && !onButton){ e.preventDefault(); setCol('inbox'); openDrawer(sel); return; }
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
+  else if (k === 'o' && state.view === 'today' && !planWeek()){ e.preventDefault(); openSortRun(); }
   else if (k === '4' && state.view === 'today'){ setPlanWeek(!planWeek()); }
   else if (/^[1-6]$/.test(k)){ setView(NAV_KEYS[k]); }
   else if ((k === 'ArrowLeft' || k === 'ArrowRight') && state.view === 'today'){
@@ -295,3 +298,33 @@ function openSettingsMenu(anchor){
 }
 
 export { applySide, backStep, closeSide, hideTip, placeTip, tipFor };
+
+/* Today's width (Docket 9.1.0): drag the Today column's left edge, or use the arrow keys on it; double-click resets.
+   The width is kept per browser (ui.todayW) and capped so To sort and Up next keep room. */
+const TW_MIN = 320;
+function twMax(grid){ return Math.max(TW_MIN, grid.clientWidth - 580); }   // To sort and Up next keep their 15rem and 17rem
+function setTodayW(grid, w){
+  if (w == null){ delete ui.todayW; grid.style.removeProperty('--tw'); }
+  else { ui.todayW = Math.round(Math.max(TW_MIN, Math.min(twMax(grid), w))); grid.style.setProperty('--tw', ui.todayW + 'px'); }
+}
+document.addEventListener('pointerdown', e => {
+  const g = e.target.closest('.t3grip'); if (!g || e.button !== 0) return;
+  const col = g.closest('.col-today'), grid = g.closest('.today3'); if (!col || !grid) return;
+  e.preventDefault();
+  const right = col.getBoundingClientRect().right;
+  grid.classList.add('resizing');
+  const move = ev => setTodayW(grid, right - ev.clientX);
+  const up = () => { grid.classList.remove('resizing'); removeEventListener('pointermove', move); removeEventListener('pointerup', up); saveUi(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+document.addEventListener('dblclick', e => {
+  const g = e.target.closest('.t3grip'); if (!g) return;
+  setTodayW(g.closest('.today3'), null); saveUi();
+});
+document.addEventListener('keydown', e => {
+  const g = e.target.closest && e.target.closest('.t3grip'); if (!g || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  e.preventDefault(); e.stopPropagation();
+  const col = g.closest('.col-today'), grid = g.closest('.today3');
+  setTodayW(grid, col.getBoundingClientRect().width + (e.key === 'ArrowLeft' ? 40 : -40)); saveUi();
+}, true);
+
