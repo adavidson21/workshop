@@ -49,11 +49,13 @@ test('remote.json lists Docket at docket.alexisdavidson.org, with the DOCKET bin
 test('every app still from another repo has its binding; apps moved into this repo are not proxied', async () => {
   const wrangler = fs.readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
   for (const r of REMOTE.apps) assert.match(wrangler, new RegExp(`"binding":\\s*"${r.binding}"`), `wrangler.jsonc binds ${r.binding}`);
-  // Runway moved into apps/runway/ (repo restructure S3): this site serves it as one of its own apps.
-  assert.ok(!REMOTE.apps.some(a => a.id === 'runway'));
-  assert.doesNotMatch(wrangler, /"binding":\s*"RUNWAY"/);
-  assert.equal(remoteMatch(REMOTE.apps, '/apps/runway/js/ado/index.js'), null);
-  assert.ok(fs.existsSync(new URL('../../apps/runway/app.json', import.meta.url)));
+  // Runway and Rapport moved into apps/ (repo restructure S3, S4): this site serves them as its own apps.
+  for (const [id, binding] of [['runway', 'RUNWAY'], ['receipts', 'RECEIPTS']]) {
+    assert.ok(!REMOTE.apps.some(a => a.id === id), id);
+    assert.doesNotMatch(wrangler, new RegExp(`"binding":\\s*"${binding}"`));
+    assert.equal(remoteMatch(REMOTE.apps, `/apps/${id}/index.html`), null);
+    assert.ok(fs.existsSync(new URL(`../../apps/${id}/app.json`, import.meta.url)));
+  }
 });
 
 test('paths under /apps/prioritizer/ map to the root of Docket\'s site', () => {

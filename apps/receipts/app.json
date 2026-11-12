@@ -1,0 +1,144 @@
+{
+  "manifestVersion": 1,
+  "id": "receipts",
+  "name": "Rapport",
+  "version": "3.7.0",
+  "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 30,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": "me",
+      "title": "My receipts"
+    },
+    {
+      "path": "team",
+      "title": "Reports"
+    },
+    {
+      "path": "team/:id",
+      "title": "A report: 1:1 and receipts"
+    },
+    {
+      "path": "1on1s",
+      "title": "1:1s"
+    },
+    {
+      "path": "1on1s/settings",
+      "title": "1:1s people and links"
+    },
+    {
+      "path": "1on1s/:id",
+      "title": "Prep a 1:1 with a person"
+    },
+    {
+      "path": "goals",
+      "title": "Goals for this quarter"
+    },
+    {
+      "path": "goals/:quarter",
+      "title": "Goals for a quarter"
+    },
+    {
+      "path": "goals/:quarter/:owner",
+      "title": "Goals: the team's or one report's doc"
+    },
+    {
+      "path": "up",
+      "title": "Upward"
+    },
+    {
+      "path": "review",
+      "title": "Build a review"
+    },
+    {
+      "path": "settings",
+      "title": "Rapport settings"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "capture": [
+    "receipt"
+  ],
+  "aliases": [
+    "rapport",
+    "receipts",
+    {
+      "name": "1:1s",
+      "path": "1on1s"
+    },
+    {
+      "name": "1:1",
+      "path": "1on1s"
+    },
+    {
+      "name": "oneonones",
+      "path": "1on1s"
+    },
+    {
+      "name": "one-on-ones",
+      "path": "1on1s"
+    },
+    {
+      "name": "goals",
+      "path": "goals"
+    },
+    {
+      "name": "okrs",
+      "path": "goals"
+    }
+  ],
+  "data": [
+    "config",
+    "entries",
+    "people",
+    "summary"
+  ],
+  "commands": [
+    {
+      "id": "new",
+      "title": "Add a receipt",
+      "route": "me"
+    },
+    {
+      "id": "prep",
+      "title": "Prep a 1:1",
+      "route": "1on1s"
+    },
+    {
+      "id": "review",
+      "title": "Build a review",
+      "route": "review"
+    },
+    {
+      "id": "goals",
+      "title": "Open goals",
+      "route": "goals"
+    }
+  ],
+  "files": [
+    "app.css",
+    "js/goals/model.js",
+    "js/goals/page.js",
+    "js/goals/view.js",
+    "js/main.js",
+    "js/markdown.js",
+    "js/oneonones/data.js",
+    "js/oneonones/model.js",
+    "js/oneonones/page.js",
+    "js/oneonones/view.js",
+    "js/state.js"
+  ],
+  "privateFiles": true
+}
