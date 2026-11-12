@@ -18,8 +18,7 @@ shared/                 used by the shell and every app
   theme.js              applies and remembers the theme across pages
   ui.css                buttons, menus, toast, tooltip
   sw-register.js        registers sw.js
-  device-fs.js          the Android app's storage on the phone, for the SDK's device store
-  save-file.js          downloads in a browser, Android's share sheet in the app
+  save-file.js          downloads a file the person keeps
   fonts/                self-hosted Gelasio, Figtree and DM Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
   screenshots/          images for the install dialog

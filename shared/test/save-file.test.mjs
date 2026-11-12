@@ -1,37 +1,21 @@
-// shared/save-file.js in the Android app: text is written as UTF-8 and binary as base64 to the app's cache,
-// then handed to the share sheet; closing the sheet is not an error.
+// shared/save-file.js: a browser download of the file, under a safe name only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { saveFile } from '../save-file.js';
 
-const fakeNative = (shareError) => {
-  const calls = [];
-  const native = async (plugin, method, options) => {
-    calls.push([plugin, method, options]);
-    if (plugin === 'Filesystem') return { uri: `file:///cache/${options.path}` };
-    if (shareError) throw new Error(shareError);
-    return {};
-  };
-  return { calls, native };
-};
-
-test('saveFile: text goes to the cache as UTF-8, then to the share sheet', async () => {
-  const { calls, native } = fakeNative();
-  assert.equal(await saveFile('workshop-2026-10-31.json', '{"a":1}\n', 'application/json', { native }), 'shared');
-  assert.deepEqual(calls[0], ['Filesystem', 'writeFile', { path: 'workshop-2026-10-31.json', directory: 'CACHE', data: '{"a":1}\n', encoding: 'utf8' }]);
-  assert.deepEqual(calls[1][2].files, ['file:///cache/workshop-2026-10-31.json']);
+test('saveFile: names with folders or odd characters are refused before anything is made', async () => {
+  for (const name of ['../x.json', 'a/b.json', '', '.hidden', 'a b.json']) await assert.rejects(saveFile(name, '', 'text/plain'), /not a file name/);
 });
 
-test('saveFile: binary goes as base64; a closed share sheet is "canceled"', async () => {
-  const { calls, native } = fakeNative('Share canceled');
-  const bytes = new Uint8Array([80, 75, 3, 4, 255]);
-  assert.equal(await saveFile('board.xlsx', bytes.buffer, 'application/octet-stream', { native }), 'canceled');
-  assert.equal(calls[0][2].data, Buffer.from(bytes).toString('base64'));
-  assert.equal(calls[0][2].encoding, undefined);
-});
-
-test('saveFile: names with folders or odd characters are refused', async () => {
-  const { native } = fakeNative();
-  await assert.rejects(saveFile('../x.json', '', 'text/plain', { native }));
-  await assert.rejects(saveFile('a/b.json', '', 'text/plain', { native }));
+test('saveFile: a download link for the file, clicked once', async () => {
+  const clicked = [];
+  const made = [];
+  globalThis.URL.createObjectURL = (b) => { made.push(b); return 'blob:x'; };
+  globalThis.URL.revokeObjectURL = () => {};
+  globalThis.document = { createElement: () => ({ click() { clicked.push([this.href, this.download]); }, remove() {} }), body: { appendChild() {} } };
+  try {
+    assert.equal(await saveFile('board.xlsx', new Uint8Array([80, 75]).buffer, 'application/octet-stream'), 'downloaded');
+    assert.deepEqual(clicked, [['blob:x', 'board.xlsx']]);
+    assert.equal(made[0].type, 'application/octet-stream');
+  } finally { delete globalThis.document; }
 });
