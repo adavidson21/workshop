@@ -1,0 +1,164 @@
+# Runway
+
+Team and project roadmaps. Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export a PNG or SVG image, or Markdown.
+
+An app in Workshop (`apps/runway/`, moved from adavidson21/runway on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. Plain JavaScript ES modules, no build step, no dependencies.
+
+## Using it
+
+- **Roadmaps:** the list. New roadmap, Import Markdown, or start from the example.
+- **Pending assignment** (top of the list, when there is something in it): features, bugs and other thoughts captured on Workshop's Home (`p ...` in quick capture), the Dispatch hub, or **Add to roadmap** in Slate. **Assign** picks a roadmap, a lane and optionally an item to sit under; it lands there unscheduled, in the Unscheduled tray. A capture that names a roadmap (`p docs portal: ...`) skips Pending and goes straight to that roadmap's tray. Ideas show in their own color. Pending ideas also show in Slate's Shape lane (New); one Slate is shaping is marked **Shaping in Slate**, which opens it there.
+- **Work item** (in the item panel, inside Workshop with Slate on): **Open in Slate** takes the item to Slate, Workshop's request-to-decision board, where it is triaged, defined and published to ADO, then delegated or built. Runway sends the item's title, notes, level and ADO link as an offer (`handoffs`, below), so Slate never reads your roadmaps.
+- **Levels:** an item can sit under another: epic, then feature, story and task (four levels). In the outline, indent a `- ` line under an item; in the panel, pick **Under**. Each level has its own color (an item's own color wins). On the timeline, items with no parent and no children share rows as before; each epic gets its own rows, one group per level under it. Moving an item to another lane takes everything under it along.
+- **Split, Outline, Timeline:** the outline and the timeline are two views of one roadmap. Editing either updates the other. The arrow at the top of the outline hides it (that is the Timeline view); the thin **Outline** rail on the left brings it back.
+- **Timeline:** drag a bar to move it (also between lanes), drag an edge to change its start or end, double-click a lane to add an item there. Click a lane name to fold it. The timeline always keeps at least half the height; Unscheduled and Goals and descriptions under it scroll in their own boxes, and each folds (remembered in this browser).
+- **Unscheduled:** items with no dates, as a list under the timeline, lane by lane (in columns when there is room). Type in its filter to narrow it by title, lane, owner or ADO id (`#1234`). Drag a row onto the timeline to give it dates, or click it to open it.
+- **Keys** (timeline focused): `N` new item, `Up`/`Down` select, `Left`/`Right` move, `Shift`+`Left`/`Right` change the end, `Alt`+`Up`/`Down` change lane, `Enter` edit, `Delete` remove, `Esc` deselect.
+- **Goals:** the row under the dates has one cell per sprint (or month, quarter, week). Click one to say what that period delivers.
+- **Owners:** an item's Owners (its panel, or `who: @sam, @leadership` in the outline) are people and groups from Workshop's people directory, the same ones Docket and Rapport use. **Owner** above the timeline fades everything that is not theirs; a person owns what is assigned to them or to a group they are in. Items from Azure DevOps get their owner from Assigned To (see Azure DevOps).
+- **Descriptions:** an item's Description (its panel, or indented lines under it in the outline) says what it delivers. Goals and descriptions in the dates shown are listed under the timeline. In **What's getting done**, a work item's title links to it in ADO (its URL is not written out), and its ADO release notes show under it (see Azure DevOps).
+- **Dates and sprints** (calendar button): where S1 and W1 count from, and when sprints start.
+- **Export:** PNG or SVG of the dates and lanes on screen (folded lanes left out), with or without the title, today line, and the goals and descriptions listed under the chart, light or dark. Markdown as a download, on the clipboard, or saved to your Workshop folder (`runway/exports/<id>.md`), optionally with a table (descriptions included).
+
+## Azure DevOps (optional)
+
+Runway needs no connector. Every roadmap can be ad hoc: typed, pasted or imported from Markdown. It works on its own site, inside Workshop, and in browser-only mode.
+
+When Runway uses Workshop on this computer and the ADO connector is on, it can also read Epics and Features from ADO. Reading and refreshing never change ADO; the only write is **Publish** (below), from a button, after a preview you confirm:
+
+- **From Azure DevOps** (roadmap list): pick area paths (filled in from your team in Workshop's People app, `settings.teams`), Epics, Features and/or User Stories, lanes by area path or by Epic, and a kind:
+  - **User Stories** are named "Feature > Story" and sit in their Feature's lane; a Feature whose stories are shown is not drawn again. Needs Workshop's ADO connector with the `roadmap` `stories` option.
+  - **Lanes by Epic** treats each Epic as a version: lanes sort with numbers in order (v2.9 before v2.10), and an Epic with a target date shows as a milestone on that date in its lane.
+  - **Import, then edit:** work items become ordinary, editable items with an ADO link. **Refresh** adds new work items, updates the ones you have not changed, and marks the ones you changed whose ADO values also changed ("differs from ADO"); the item's panel shows both and offers **Use ADO's** or **Keep mine**. Work items no longer found are marked, never deleted. Add your own items alongside.
+  - **Release notes field:** the reference name of your release notes field (default `Custom.ReleaseNotes`; ADO has no standard one). Each work item's release notes are read with it and shown under the item in What's getting done and in image exports. Leave it empty to read none. Needs Workshop's ADO connector 1.14.0 or later (`roadmap` `fields`); older ones send none.
+  - **Live view:** rebuilt from ADO on every refresh. Items can't be edited; title, scale, dates shown and goals can. **Make editable** turns it into an ordinary roadmap.
+- **Add items from Azure DevOps** (any roadmap): link an ad hoc roadmap to ADO, so imported and ad hoc items mix.
+- Placement: a work item's own start and target dates, else its sprint's dates (`iterations.list`), else the Unscheduled tray.
+- **Publish** (linked roadmaps, shown when you changed something ADO can take): sends your changes back to ADO through the connector's `workitem.update`. It refreshes first, then shows a preview of every linked item you changed, field by field (what ADO has now, what it gets), with what is not sent and why. Publish, the preview's banner (**Changes Azure DevOps.**) and its send button carry the same ADO mark as every other action in Workshop that changes ADO (Workshop `shared/outside.js`); nothing else in Runway has it. Nothing is written until you click **Publish** in the preview; then each work item is updated on its own (with `confirm: true`), the results say updated, skipped for a conflict, or failed (with the connector's message), and Runway refreshes again.
+  - **What it sends** (needs the ADO connector 1.5.0 or later for titles and dates):
+    - **Title**, trimmed, at most 255 characters. A User Story shows as "Feature > Story" in Runway; only the part after "Feature > " is sent, so keep that start.
+    - Owners as **Assigned To**: one person whose ADO identity is in People; no owner unassigns.
+    - **Start date** and **target date** of an item with its own dates in ADO, as `YYYY-MM-DD`; moving it to the Unscheduled tray clears them. Only the end you moved is sent, and a milestone sends its target date only.
+    - The **sprint** (Iteration Path) of an item whose dates come from its sprint, when you move its bar to exactly another sprint's dates in the same project (when teams share sprint dates, the sprint beside its current one). An Epic or Feature moved to other dates gets its own start and target dates instead; a story stays with its sprint.
+  - **What it does not:** create work items, comment, change states, area paths (Runway keeps a lane per item, not an area path) or order. Several owners, a group, or a person without an ADO identity are not sent either. These show in the preview as not sent.
+  - **Conflicts:** an item ADO changed too ("differs from ADO") is listed as a conflict and skipped; settle it in its panel first. Every update carries the revision Runway read, so an item someone changes in ADO between the refresh and the click is refused by the connector and shown as a conflict. Nothing is overwritten.
+- **Team reports** (roadmap list, shown once Azure DevOps is ready; moved from Docket): sprint health for your team from one read-only ADO pull through the connector's `dataset` action. Six tabs: Priority churn, Other teams' work, Sprint carryover, Sprint scope churn, Load by person, Aging and throughput. **Team profile** sets area paths (filled in from your team in Workshop's People app, `settings.teams`, when the profile has none), people (or "Use my team from Workshop") and the window; it is kept in this browser, and the first time it is taken from Docket's old profile when Docket ran in this browser. **Export to Excel** writes the workload tracker with every report and Summary formulas. The last pull is cached in this browser, so the page opens without asking ADO again.
+- Roadmaps that follow ADO refresh once when opened. Without the connector they show the last copy and stay editable (live ones stay read only).
+- Export: an **ADO ids** option adds `#<id>` to linked bars.
+
+Rules, checked by `test/app-files.test.mjs`:
+
+- `app.json` lists the ADO connector with `required: false`, and never as required.
+- ADO code lives in `js/ado/` and is loaded with a dynamic `import()` only when Runway uses Workshop on this computer. No other module imports it statically or calls a connector. Publish is `js/ado/publish.js` (the diff, the plan and the calls); `js/ado/index.js` is the only place that calls the connector, and its one write action (`workitem.update`) goes out only from Publish. Team reports are in `js/ado/reports/` (`model.js` computes every report and the workbook, `view.js` is the HTML, `index.js` the page) and load the first time the page opens.
+- With the connector off or missing, ADO controls are hidden.
+
+`meta.ado` (a roadmap that follows ADO): `{mode: live | linked, areas[], types[], lanes: area | epic, connection, includeClosed, fetchedAt, total, truncated}`. `meta.ado.releaseNotesField` is the release notes reference name (missing means `Custom.ReleaseNotes`, empty means none). `item.ado`: `{id, connection, rev, type, state, url, assignee, iteration, project, ownDates, releaseNotes, base, remote?, missing?}`, where `assignee` is ADO's Assigned To (`{name, email}` or null), `iteration` its sprint, `project` its project, `ownDates` true when ADO has its own start or target date, `startDate` and `targetDate` ADO's own dates (or null), `titlePrefix` the "Feature > " before a story's title, `base` is what the last refresh brought and `remote` is ADO's values when they differ from yours. A change is a field that differs from `base`; that is what Publish looks at.
+
+Owners from ADO: Assigned To becomes the item's owner (`who`) when Workshop's people directory has someone whose ADO identity (`adoIdentity` in Workshop's People app) is that email or display name. Someone it does not have leaves the item without an owner, and the item's panel offers **Add to People**, which adds them as a contact with that identity and refreshes. In a linked roadmap owners work like the title and dates: an owner you set yourself is kept and shows as differing when ADO's changes. If People has not loaded, a refresh leaves owners as they are. Lanes made from ADO carry `adoKey`.
+
+## Outline format
+
+```
+# Platform Q1 2027
+scale: sprint                  week, sprint, month or quarter
+start: 2027-01-04              where S1, W1 and months without a year count from
+sprint: 2027-01-06, 2 weeks    the first day of any sprint, and the length
+goal: S1 | Content moved, old pages redirect
+goal: S4 | Search on the new index
+
+## Docs Portal
+- Content migration | S1-S3
+- Search cutover | S4 | after: Content migration
+- * Launch | S5
+- Alerting rework | 3 sprints | after: Search cutover | status: at risk | color: amber | who: @sam
+  Indented lines under an item are its description.
+  - Pager routing | S5
+    An indented "- " line is a child item.
+- Later idea
+```
+
+- `#` title, `##` lane, `-` item, `- *` milestone (one date), `goal: <period> | <text>` a goal for that sprint, month, quarter or week (one per period).
+- When: `2027-03-01..2027-03-20`, `2027-03`, `Jan-Mar 2027`, `Nov 2026..Feb 2027`, `Q2`, `Q1-Q2 2027`, `S3-S4` (sprints), `W1-W2` (weeks), or a length like `3 sprints`, `2 months`, `10 days`. A length starts the day after its `after:` items end, or at the first period on or after `start`.
+- `after:` items it depends on, by title, comma separated. An item that starts before something it depends on ends shows `!` and a dashed red arrow. It is a warning, never a block.
+- `status:` planned (default), active, done, at risk, cut. `color:` slate, teal, green, amber, red, purple, gray (default: the lane's).
+- `who:` owners, comma separated: `@handles` of people and groups in Workshop's people directory (Workshop's People app; workshop `docs/people.md`). A name People does not have is added there as a contact when you leave the outline. Items keep ids (`who`), so renaming someone changes every roadmap.
+- S1 is the first sprint that starts on or after `start`; W1 the first week (weeks start Monday).
+- A line Runway cannot read stays where it is, as text, with a warning. Nothing is dropped.
+- A `|` inside a title is written `\|`.
+- Markdown exports end with `<!-- runway:table -->` and the table; import stops at that line, so an export imports back as the same roadmap.
+
+## Data
+
+App id `runway`. All collections are version 1 and follow Workshop's `docs/data-format.md` (change stamps, tombstones, unknown fields kept, a newer version is read only). JSON Schemas are in `schemas/`.
+
+| Collection | Holds |
+| --- | --- |
+| `index` | One item per roadmap: `{id, title}` ([index-item](schemas/index-item.schema.json)). Removing a roadmap tombstones it here; its file stays in the folder. |
+| `maps/<id>` | One roadmap. `meta` is its settings and goals (`goals: [{date, text}]`, date in the period) ([map-meta](schemas/map-meta.schema.json)); items are lanes ([map-lane](schemas/map-lane.schema.json)), items ([map-item](schemas/map-item.schema.json)) and outline lines that are not items ([map-text](schemas/map-text.schema.json)), told apart by `kind`. |
+| `settings` | `meta.lastOpen`. |
+| `pending` | Ideas waiting for a roadmap: `{id, title, notes, date, from, app}` (`from` the sender's name, `app` its id, from 1.15.0) ([pending-item](schemas/pending-item.schema.json)). |
+| `taken` | Captures already handled, so each is taken once: `{id: '<app>:<offer id>', to: 'pending' or a roadmap id}` ([taken-item](schemas/taken-item.schema.json)). |
+| `summary` | Runway's summary for other apps (`runway.summary` v1, Workshop's [docs/summaries.md](https://github.com/adavidson21/workshop/blob/main/docs/summaries.md)): a `targets` card (id `roadmaps`), the roadmaps for capture `idea`, so Home and the Dispatch hub can name one without reading `index`; and a `list` card (id `pending`), the Pending assignment ideas (newest 50: `id`, `title`, `due` the day it came in, `note` its description, `from` the sender's app id when known), which Slate shows in its Shape lane. Runway reads Slate's `shaping` card (Pending idea ids it is shaping) to mark them. |
+| `handoffs` | Runway's offers to other apps (`runway.handoffs` v1, Workshop's [docs/handoffs.md](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)): `roadmap-item`, accepted, to the work items app (Slate) when you click **Work item**: payload `{kind, map, item, title, notes, level, ado?}`. Kept 60 days. |
+
+Captures: the `handoffs` collections of every app whose manifest lists `runway` in `handoffs.sends` (`ws.apps.list()`; Home and Dispatch when there is no app list), read only, offers with `to: 'runway'`, `accepted: true` and payload `{kind: 'idea', map?}` (Workshop `docs/handoffs.md`). Runway reads them when it loads and when they change.
+
+Files (through `ws.files`): `exports/<id>.md`, written only when you click Save to Workshop folder.
+
+Item dates are inclusive `YYYY-MM-DD` days. An item has `start` and `end`, or a `size` (`{n, unit}`) instead of dates, or neither (unscheduled). `ado` links an item to a work item (see Azure DevOps).
+
+Saving: `js/store.js` stamps against what it read, puts with that `rev`, and on a conflict merges with what is stored and puts again. A failed write keeps the edit on screen, shows "Not saved yet" and retries every 5 seconds.
+
+Where it saves:
+
+- Inside Workshop, or on runway.alexisdavidson.org after **Use Workshop on this computer** (pairing, `shared/pair.js`): files in your Workshop folder, `<dataDir>/runway/`.
+- On runway.alexisdavidson.org without Workshop: this browser (IndexedDB). Export Markdown to move a roadmap.
+
+## Files from Workshop
+
+Runway uses Workshop's public shared files (`../../shared/`, listed in Workshop's `docs/shared.md`) and nothing from other apps; `tests/check-boundaries.mjs` checks it.
+
+## Code
+
+| File | What |
+| --- | --- |
+| `js/dates.js` | Dates as `YYYY-MM-DD`, scales (week, sprint, month, quarter), sizes. |
+| `js/outline.js` | Parse and write the outline; apply an edited outline to a roadmap keeping ids. |
+| `js/model.js` | The roadmap model: envelopes, levels (parents), scheduling, dependency warnings, the shown range, moves. |
+| `js/timeline.js` | Layout and SVG, used on screen and for image export. Every text is escaped. |
+| `js/export.js` | Markdown (with the optional table), image SVG, PNG, file names. |
+| `js/store.js` | Loading and saving through the SDK. |
+| `js/offers.js` | Runway's own offers: the `roadmap-item` offer the Work item button sends. |
+| `js/pending.js` | Pending assignment: picking up captures from Home, Dispatch and Slate, assigning them to a roadmap; which app manages work items. |
+| `js/view.js` | HTML for the list, toolbar, panel and dialogs. |
+| `js/main.js` | The page: painting, pointer and keyboard, routes, commands. |
+
+Everything but `main.js` and `toPng` runs in Node, so it is unit tested.
+
+## Tests
+
+From Workshop's root:
+
+```
+node --test "apps/runway/test/*.test.mjs"
+pip install playwright && python -m playwright install chromium
+python apps/runway/test/e2e.py
+python apps/runway/test/e2e_ado.py
+```
+
+`test/e2e_ado.py` runs Runway against a mock Workshop agent with a fake ADO connector: a live roadmap, a linked one with an edit that differs, an ad hoc item mixed in, Publish (preview, confirm, `workitem.update` with `confirm: true`, conflicts skipped), the team profile filled from Settings, and the connector turned off. `test/publish.test.mjs` covers the diff, conflicts and the calls with a fake connector.
+
+`test/e2e.py` serves Workshop's repo as a static site, opens Runway's page (`/apps/runway/`) and drives it in headless Chrome: outline, drag, keys, tray, export PNG, SVG and Markdown, reload, escaping, phone width.
+
+## Deploy
+
+With Workshop: a merge to Workshop's `main` deploys it. Bump `version` in `app.json` when shipping a change.
+
+## Later
+
+- Publish lane moves as area paths, once Runway keeps an area path per item.
+- Now / Next / Later board, slides export, a Home card.
+
+## License
+
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: Workshop's `shared/fonts/OFL-*.txt`.

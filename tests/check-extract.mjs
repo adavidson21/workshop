@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // B8 (docs/shared.md): every app can be pulled out. For each app with unit tests, copy only what an app may
-// depend on (apps/<id>/, shared/, icons/, tests/lib/, docs/) into an empty folder, with the same layout, and run
+// depend on (apps/<id>/, shared/, icons/, tests/lib/, docs/, the web manifest) into an empty folder, with the same layout, and run
 // that app's tests there. A hidden dependency on anything else (another app, the shell, the agent) fails here
 // even if the boundary check missed it. Settings' tests also get connectors/, because Settings builds its
 // forms from each connector's configSchema.
@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ALWAYS = ['shared', 'icons', 'tests/lib', 'docs'];
+const ALWAYS = ['shared', 'icons', 'tests/lib', 'docs', 'manifest.webmanifest'];
 const EXTRA = { settings: ['connectors'] };
 const SKIP = new Set(['node_modules', '.git']);
 

@@ -1,0 +1,89 @@
+{
+  "manifestVersion": 1,
+  "id": "runway",
+  "name": "Runway",
+  "version": "1.19.0",
+  "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 50,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    }
+  ],
+  "capture": [
+    "idea"
+  ],
+  "aliases": [
+    "roadmap",
+    "roadmaps",
+    {
+      "name": "reports",
+      "path": "reports"
+    }
+  ],
+  "routes": [
+    {
+      "path": "reports",
+      "title": "Team reports"
+    },
+    {
+      "path": ":id",
+      "title": "Open a roadmap"
+    }
+  ],
+  "commands": [
+    {
+      "id": "new-roadmap",
+      "title": "New roadmap",
+      "route": ""
+    },
+    {
+      "id": "new-item",
+      "title": "New roadmap item"
+    },
+    {
+      "id": "export",
+      "title": "Export roadmap"
+    },
+    {
+      "id": "team-reports",
+      "title": "Team reports",
+      "route": "reports"
+    }
+  ],
+  "files": [
+    "app.css",
+    "js/ado/index.js",
+    "js/ado/model.js",
+    "js/ado/publish.js",
+    "js/ado/reports/index.js",
+    "js/ado/reports/model.js",
+    "js/ado/reports/view.js",
+    "js/dates.js",
+    "js/example.js",
+    "js/export.js",
+    "js/main.js",
+    "js/model.js",
+    "js/offers.js",
+    "js/outline.js",
+    "js/pending.js",
+    "js/people.js",
+    "js/store.js",
+    "js/summary.js",
+    "js/timeline.js",
+    "js/view.js"
+  ],
+  "handoffs": {
+    "sends": [
+      "slate"
+    ]
+  }
+}

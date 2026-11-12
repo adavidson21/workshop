@@ -16,9 +16,10 @@ import json, os, shutil, subprocess, sys, tempfile, urllib.request
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOCKET = os.path.join(ROOT, '.remote', 'prioritizer')
-RUNWAY = os.path.join(ROOT, '.remote', 'runway')
-RECEIPTS = os.path.join(ROOT, '.remote', 'receipts')
+# Apps still from another repo (apps/remote.json): `workshop pin --<repo name> <checkout>` for each one checked out in
+# .remote/<id>/, else --no-<repo name>. Apps in apps/ here need no option.
+with open(os.path.join(ROOT, 'apps', 'remote.json'), encoding='utf-8') as _f:
+    REMOTE = [(a['repo'].split('/')[1], os.path.join(ROOT, '.remote', a['id'])) for a in json.load(_f).get('apps', [])]
 HOSTED = 'https://workshop.example.org'
 failures = 0
 
@@ -39,13 +40,14 @@ def main():
         json.dump({'configVersion': 1, 'port': 4390, 'dataDir': data, 'allowedOrigins': [HOSTED],
                    'features': {'startAtLogin': False, 'hostedMode': True, 'workMode': True}, 'connectors': {}}, f)
     env = {**os.environ, 'WORKSHOP_HOME': home}
-    with_docket = os.path.exists(os.path.join(DOCKET, 'app.json'))
-    with_runway = os.path.exists(os.path.join(RUNWAY, 'app.json'))
-    with_receipts = os.path.exists(os.path.join(RECEIPTS, 'app.json'))
-    pin = subprocess.run(['node', os.path.join(ROOT, 'workshop.mjs'), 'pin'] + (['--docket', DOCKET] if with_docket else ['--no-docket'])
-                         + (['--runway', RUNWAY] if with_runway else ['--no-runway'])
-                         + (['--receipts', RECEIPTS] if with_receipts else ['--no-receipts']),
-                         env=env, capture_output=True, text=True)
+    def have(app_id):
+        local = os.path.exists(os.path.join(ROOT, 'apps', app_id, 'app.json'))
+        return local or os.path.exists(os.path.join(ROOT, '.remote', app_id, 'app.json'))
+    with_docket, with_runway, with_receipts = have('prioritizer'), have('runway'), have('receipts')
+    flags = []
+    for key, folder in REMOTE:
+        flags += [f'--{key}', folder] if os.path.exists(os.path.join(folder, 'app.json')) else [f'--no-{key}']
+    pin = subprocess.run(['node', os.path.join(ROOT, 'workshop.mjs'), 'pin'] + flags, env=env, capture_output=True, text=True)
     check(pin.returncode == 0, 'workshop pin builds the pinned copy')
     if pin.returncode != 0:
         print(pin.stdout, pin.stderr)

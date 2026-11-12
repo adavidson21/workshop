@@ -40,14 +40,24 @@ HUB = 'http://127.0.0.1:8802'
 HOSTED = 'http://localhost:8803'
 # The same site plus two sample apps (tests/fixtures/apps), for the rail and required-connector checks.
 SAMPLES = 'http://localhost:8804'
-DOCKET = os.environ.get('DOCKET_DIR') or os.path.join(ROOT, '.remote', 'prioritizer')
+def _remote_ids():
+    """Apps still served from another repo (apps/remote.json); the rest live in apps/<id>/ here."""
+    try:
+        with open(os.path.join(ROOT, 'apps', 'remote.json'), encoding='utf-8') as f:
+            return [a['id'] for a in json.load(f).get('apps', [])]
+    except (OSError, ValueError):
+        return []
+REMOTE_IDS = _remote_ids()
+def _app_dir(app_id, env):
+    return os.environ.get(env) or os.path.join(ROOT, '.remote', app_id) if app_id in REMOTE_IDS else os.path.join(ROOT, 'apps', app_id)
+DOCKET = _app_dir('prioritizer', 'DOCKET_DIR')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
 # Runway and Rapport (apps/remote.json) are served the same way from their checkouts.
-RUNWAY = os.environ.get('RUNWAY_DIR') or os.path.join(ROOT, '.remote', 'runway')
-RECEIPTS = os.environ.get('RECEIPTS_DIR') or os.path.join(ROOT, '.remote', 'receipts')
-NOTES = os.environ.get('NOTES_DIR') or os.path.join(ROOT, '.remote', 'notes')
-REMOTE_DIRS = {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS, 'notes': NOTES}
+RUNWAY = _app_dir('runway', 'RUNWAY_DIR')
+RECEIPTS = _app_dir('receipts', 'RECEIPTS_DIR')
+NOTES = _app_dir('notes', 'NOTES_DIR')
+REMOTE_DIRS = {k: v for k, v in {'prioritizer': DOCKET, 'runway': RUNWAY, 'receipts': RECEIPTS, 'notes': NOTES}.items() if k in REMOTE_IDS}
 # E2E_PART=hub runs part 1 (browser mode, Home, Docket on its own); E2E_PART=agent runs parts 2 to 6. CI runs the two
 # halves side by side (.github/workflows/checks.yml). Unset runs everything.
 PART = os.environ.get('E2E_PART') or 'all'
