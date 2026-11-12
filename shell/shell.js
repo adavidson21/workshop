@@ -40,6 +40,42 @@ const MAIN_WINDOW = 'workshop-main';
 if (SOLO) document.documentElement.classList.add('solo');
 else if (!window.name) window.name = MAIN_WINDOW;
 
+/* Which apps are popped out. Each pop-out says so on a BroadcastChannel when it opens and closes, and answers the
+   main window's ping, so the main window brings an app's window forward instead of opening the app a second time,
+   and marks it on the rail. A pop-out also follows a link the main window passes on ({type: 'route'}). */
+const SOLO_CHANNEL = 'workshop-solo';
+const popped = new Set();
+let soloBus = null;
+try { soloBus = new BroadcastChannel(SOLO_CHANNEL); } catch (e) { soloBus = null; }
+const soloSay = (msg) => { try { if (soloBus) soloBus.postMessage(msg); } catch (e) { /* closed */ } };
+if (soloBus && SOLO) {
+  soloBus.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.type === 'ping') soloSay({ type: 'open', id: SOLO });
+    else if (d.type === 'route' && d.id === SOLO) { location.hash = '#/' + SOLO + (d.path ? '/' + String(d.path).split('/').map(encodeURIComponent).join('/') : ''); window.focus(); }
+  });
+  soloSay({ type: 'open', id: SOLO });
+  addEventListener('pagehide', () => soloSay({ type: 'closed', id: SOLO }));
+} else if (soloBus) {
+  soloBus.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (typeof d.id !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(d.id)) return;
+    if (d.type === 'open') popped.add(d.id); else if (d.type === 'closed') popped.delete(d.id); else return;
+    markRail();
+  });
+  soloSay({ type: 'ping' });
+}
+/** Bring an app's pop-out window forward. False (and the app is no longer marked) when that window is gone. */
+function focusPopped(id) {
+  let win = null;
+  try { win = window.open('', 'workshop-solo-' + id); } catch (e) { win = null; }
+  let blank = false;
+  try { blank = !!win && win.location.href === 'about:blank'; } catch (e) { blank = false; }
+  if (!win || blank) { if (win) win.close(); popped.delete(id); markRail(); return false; }
+  win.focus();
+  return true;
+}
+
 /* ---------- the agent ---------- */
 async function agentGet(pathname) {
   const r = await fetch(env.agentUrl + pathname, { cache: 'no-store', targetAddressSpace: 'loopback', headers: env.token ? { 'X-Workshop-Token': env.token } : {} });
@@ -164,8 +200,8 @@ function renderTopbar() {
     + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
     + (panelApp && !SOLO ? `<button type="button" class="panelbtn" id="panelBtn" data-app="${panelApp.id}" aria-expanded="false" aria-controls="spanel" title="${esc(panelApp.manifest.description || panelApp.manifest.name)}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(panelApp.manifest.name)}</span><span class="badge num" hidden></span></button>` : '')
     + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
-    + (SOLO ? `<button type="button" class="popbtn" id="popBtn" title="Back to Workshop" aria-label="Back to Workshop">${BACK_ICON}</button>`
-      : `<button type="button" class="popbtn" id="popBtn" hidden>${POP_ICON}</button>`)
+    + (SOLO ? `<button type="button" class="popbtn" id="popBtn" title="Put this app back in the Workshop window and close this one">${BACK_ICON}<span>Back to Workshop</span></button>`
+      : `<button type="button" class="popbtn" id="popBtn" hidden>${POP_ICON}<span>Pop out</span></button>`)
     + WorkshopTheme.toggleHtml();
   $('#capBtn').addEventListener('click', () => capture().toggle());
   if ($('#panelBtn')) { $('#panelBtn').addEventListener('click', togglePanel); loadIcon(panelApp); }
@@ -206,7 +242,9 @@ function popOut(id, path = '') {
   if (app.frame && current === id) sendTo(app, 'visible', { visible: false }); // unsaved edits save first
   const win = window.open(url, 'workshop-solo-' + id, `popup,width=${w},height=${h}`);
   if (!win) { toast('Your browser blocked the window. Allow pop-ups for this site and try again.', null, null, 8000, 'warn'); return; }
-  if (current === id) { const other = homeId() !== id ? homeId() : (railApps.find(a => a.id !== id) || {}).id; if (other) go(other); }
+  popped.add(id); markRail();
+  // This window moves to another app that is not open in a window of its own: the first rail app, else the next.
+  if (current === id) { const other = [homeId(), ...railApps.map(a => a.id)].find(x => x && x !== id && !popped.has(x)); if (other) go(other); }
 }
 // From a pop-out window: the main Workshop window (opened or brought forward), at an address.
 function toMain(hash) {
@@ -267,6 +305,12 @@ function markRail() {
     const on = b.dataset.app === current;
     b.classList.toggle('on', on);
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    // An app open in its own window (Pop out): marked, and a click brings that window forward (route()).
+    const out = popped.has(b.dataset.app);
+    b.classList.toggle('popped', out);
+    const name = byId[b.dataset.app] ? byId[b.dataset.app].manifest.name : b.dataset.app;
+    if (out) b.title = `${name}: open in its own window (click to bring it forward)`;
+    else if (b.title.endsWith('(click to bring it forward)')) b.title = name;
   });
   const mark = $('#rail .mark');
   if (mark) {
@@ -344,6 +388,13 @@ function route() {
     history.replaceState(null, '', location.pathname + location.search + '#/' + SOLO);
     if (current === SOLO) return;
     return route();
+  }
+  // An app open in its own window: bring that window forward (with the path, if any) and stay where we are.
+  if (!SOLO && parsed.id && popped.has(parsed.id) && current !== parsed.id && focusPopped(parsed.id)) {
+    if (parsed.path) soloSay({ type: 'route', id: parsed.id, path: parsed.path });
+    const here = current && byId[current] ? addressOf(byId[current]) : '';
+    history.replaceState(null, '', here || location.pathname + location.search);
+    return;
   }
   const id = parsed.id || homeId();
   const app = byId[id];
