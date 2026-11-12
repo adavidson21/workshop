@@ -6,7 +6,7 @@ import * as M from '../js/oneonones/model.js';
 import { homeHtml, personForm, settingsHtml } from '../js/oneonones/view.js';
 import { createOneOnOnes } from '../js/oneonones/data.js';
 import { DIR, fakeWs } from './oneonones-fake.mjs';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 
 test('suggestions: active reports and your manager with no 1:1s person', () => {
   const people = [M.cleanPerson({ id: 'p_x', name: 'Someone', personId: 'p_r1' })];

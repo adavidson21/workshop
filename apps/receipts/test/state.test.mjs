@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../js/state.js';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 
 const NOW = new Date(2026, 9, 31); // Oct 31 2026
 const e = (o) => R.cleanEntry({ id: o.id || R.newId('r'), about: 'me', kind: 'win', text: 'x', date: '2026-10-01', ...o });
@@ -210,9 +210,9 @@ test('summaryCards match the summary-card schema', async () => {
   // The validator and schemas: copied into test/workshop/ here, at home in workshop (docs/, tests/lib/) when run
   // from a Workshop checkout.
   const { existsSync } = await import('node:fs');
-  const here = existsSync(new URL('./workshop/schema.mjs', import.meta.url));
-  const { SchemaSet } = await import(here ? './workshop/schema.mjs' : '../tests/lib/schema.mjs');
-  const schemas = SchemaSet.fromDir(new URL(here ? './workshop/schemas/' : '../docs/schemas/', import.meta.url).pathname);
+  const here = existsSync(new URL('../../../tests/lib/schema.mjs', import.meta.url));
+  const { SchemaSet } = await import(here ? '../../../tests/lib/schema.mjs' : '../tests/lib/schema.mjs');
+  const schemas = SchemaSet.fromDir(new URL(here ? '../../../docs/schemas/' : '../docs/schemas/', import.meta.url).pathname);
   for (const c of R.summaryCards({ items: [{ id: 'a' }] })) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), []);
 });
 

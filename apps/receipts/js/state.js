@@ -7,8 +7,8 @@
      config   no items; meta holds settings: {sections, cycleStart, cycleEnd, upward, staleDays}.
    Nothing here talks to the network. */
 
-import { SITE } from '../shared/site.js';
-import { sendersFrom as sharedSendersFrom } from '../shared/handoffs.js';
+import { SITE } from '../../../shared/site.js';
+import { sendersFrom as sharedSendersFrom } from '../../../shared/handoffs.js';
 
 export const APP = 'receipts';
 export const VERSION = 1;

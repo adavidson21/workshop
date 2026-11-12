@@ -2,9 +2,9 @@
 
 Receipts, 1:1s and goals for you, your reports and your manager. Write down what you and your people did as it happens, tag it with your review form's sections, prep every 1:1 from what you already know, keep the team's OKRs as a tree, and when review season comes, Rapport turns it into a draft grouped by section, with the gaps called out.
 
-Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. The repo, the app id (`receipts`) and the site stay the same, so nothing you saved moved.
+Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. The app id stays `receipts`, so nothing you saved moved.
 
-Live at **https://receipts.alexisdavidson.org**. Also an app inside [Workshop](https://github.com/adavidson21/workshop).
+An app in Workshop (`apps/receipts/`, moved from adavidson21/receipts on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**.
 
 Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Android brag-book app. Rapport drops the AI and email steps so nothing ever leaves your device (the 1:1 draft step below is optional and off unless you run Workshop's opencode connector).
 
@@ -59,14 +59,14 @@ Why: deploys are the top source of after-hours pages.
 - Inside Workshop, Rapport uses Workshop's storage (browser, folder, or the Workshop agent on your computer).
 - **1:1 notes and goals are private to Rapport.** What Rapport tells other apps is its summary: how many receipts are logged, which 1:1s are due (names and days, for Home's Needs you) and your own wins this week (for Home's weekly status). Receipts about anyone else never leave Rapport. Its manifest sets `privateFiles: true` ([Workshop docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md), Private files), so other Workshop apps (Notes included) can't list, read or watch Rapport's files. Rapport's summary cards for Home and 1:1 prep carry counts and names, never note text.
 
-Browser storage is per site: receipts saved on receipts.alexisdavidson.org are not visible on workshop.alexisdavidson.org unless both use the same folder (or you back up and restore).
+Browser storage is per site: anything saved on the old receipts.alexisdavidson.org site in browser storage is not visible in Workshop unless both used the same folder. Back it up there and restore it in Workshop.
 
 ## How it is built
 
 Plain HTML, CSS and JavaScript modules. No build step, no dependencies.
 
 ```
-app.json, index.html,   the app (a Workshop app), at the repo root like Docket and Runway
+app.json, index.html,   the app (a Workshop app, apps/receipts/)
   app.css, icon.svg
 js/state.js             pure logic: periods, filters, review builder, CSV, offers from other apps
 js/main.js              the page: rendering, input, data through the SDK
@@ -74,35 +74,22 @@ js/markdown.js          the escaping Markdown renderer for 1:1 notes and goals
 js/oneonones/           the 1:1s parts: model.js and view.js (pure), data.js (SDK, no DOM),
                         page.js (the 1:1s tab and the section on a report's page)
 js/goals/               the Goals tab: model.js and view.js (pure), page.js (the tree and a doc)
-shared/                 copied from the workshop repo: the SDK (storage), themes, fonts, top bar
-sw.js                   service worker: install as an app, open offline
 test/                   node tests for state.js, the 1:1s and Goals modules
 GUIDE.md                data reference (collections, files, moving from 1:1s)
 ```
 
 Data uses Workshop's envelope format (collections `entries`, `people`, `config`, `oneonones/people` and `oneonones/settings`, plus Workshop's people directory `settings.people`, read only; `config.meta.handled` lists offers already accepted or dismissed) with change stamps, so two open windows merge instead of overwriting each other. 1:1 notes are Markdown files under `oneonones/notes/`, and goals under `goals/team/<yyyy-qN>.md` and `goals/<person>/<yyyy-qN>.md`. Details in [GUIDE.md](GUIDE.md).
 
-`shared/` is a copy of the workshop repo's `shared/` files that Rapport uses, pinned in `workshop-files.json`. When Workshop's SDK or themes change, run `node scripts/sync-workshop.mjs --update`.
+Rapport uses Workshop's public shared files (`../../shared/`, listed in Workshop's `docs/shared.md`) and nothing from other apps; `tests/check-boundaries.mjs` checks it.
 
-### Run it locally
+### Tests
 
-```bash
-npm test          # node 22+
-npm run dev       # serves on http://localhost:8080
-```
+From Workshop's root: `node --test "apps/receipts/test/*.test.mjs"`. Workshop's `tests/e2e.py` drives Rapport in the shell.
 
-### Deploy
+### Releases
 
-```bash
-npx wrangler deploy
-```
-
-The Worker is named `receipts` and serves the custom domain `receipts.alexisdavidson.org` (see `wrangler.jsonc`). Workshop shows Rapport by proxying `/apps/receipts/` to this Worker, so a deploy here updates both.
-
-### Releases and work mode
-
-This repo is the only copy of Rapport. Workshop serves it from here (a service binding on its site, and a `receipts` clone next to Workshop in work mode), like Docket and Runway. Work mode installs and updates only by release tag (like `v3.0.0`). A release is made on its own when checks pass on main with a new version in `app.json`; Actions > Release > Run workflow does it by hand. Workshop's `workshop update --latest` picks up the newest one.
+A merge to Workshop's `main` deploys it. Bump `version` in `app.json` when shipping a change.
 
 ## License
 
-[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: `shared/fonts/OFL-*.txt`.
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: Workshop's `shared/fonts/OFL-*.txt`.

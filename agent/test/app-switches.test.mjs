@@ -59,8 +59,9 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
   const home = tempHome();
   try {
     await writeOff(home, new Set(['notes', 'receipts']));
-    const { build, off } = pinApps({ home, repo: REPO, schemas, remotes: { docket: null, receipts: null } });
+    const { build, off } = pinApps({ home, repo: REPO, schemas, remotes: { docket: null, notes: null } });
     assert.deepEqual([...off].sort(), ['notes', 'receipts']);
+    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/receipts/')), 'no Rapport files');
     assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Notes files');
     assert.ok(build.files['apps/home/index.html'], 'Home is still there');
     const reg = JSON.parse(fs.readFileSync(path.join(home, 'ui', 'apps', 'registry.json'), 'utf8'));
@@ -70,9 +71,10 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
     contractSchemas.assert('app-switches', view, 'appSwitches');
     assert.equal(view.apps.find(a => a.id === 'notes').inWorkshop, false);
     assert.equal(view.apps.find(a => a.id === 'home').canTurnOff, false);
-    const rapport = view.apps.find(a => a.id === 'receipts');
-    assert.equal(rapport.separate, true);
-    assert.equal(rapport.on, false);
+    const folio = view.apps.find(a => a.id === 'notes');
+    assert.equal(folio.separate, true);
+    assert.equal(folio.on, false);
+    assert.equal(view.apps.find(a => a.id === 'receipts').inWorkshop, false);
   } finally { rmHome(home); }
 });
 
@@ -81,7 +83,7 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: ['https://workshop.example.org'], features: { hostedMode: false, workMode: true } }));
-  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, receipts: null, notes: null } });
+  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, notes: null } });
   const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), uiDir });
   try {
     let r = await get(agent, '/api/app-switches');
@@ -108,11 +110,11 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal((await put(agent, '/api/app-switches/slate', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
     // Turning on an app that is not downloaded saves the switch and says what to run; nothing is downloaded.
-    r = await put(agent, '/api/app-switches/receipts', { on: false });
-    r = await put(agent, '/api/app-switches/receipts', { on: true });
+    r = await put(agent, '/api/app-switches/notes', { on: false });
+    r = await put(agent, '/api/app-switches/notes', { on: true });
     assert.equal(r.status, 200, r.text);
-    const rapport = r.json.apps.find(a => a.id === 'receipts');
-    if (!rapport.downloaded) assert.equal(r.json.download, 'workshop apps on receipts');
+    const folio = r.json.apps.find(a => a.id === 'notes');
+    if (!folio.downloaded) assert.equal(r.json.download, 'workshop apps on notes');
   } finally { await agent.stop(); rmHome(home); }
 });
 

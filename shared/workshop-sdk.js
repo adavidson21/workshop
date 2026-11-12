@@ -1789,9 +1789,16 @@ export const CONTRACT_READS = Object.freeze({
   any: Object.freeze(['summary', 'handoffs']),
   settings: Object.freeze(['people', 'teams', 'products', 'focus', 'app-settings'])
 });
+// A retired app's data that the app which took it over copies in (never writes): Rapport (receipts) copies the
+// old 1:1s app's people and settings on first open (Rapport 2.0.0 folded 1:1s in).
+export const RETIRED_READS = Object.freeze({
+  oneonones: Object.freeze({ by: 'receipts', collections: Object.freeze(['people', 'settings']) })
+});
 export function canReadData(self, owner, collection) {
   if (owner === self) return true;
   if (CONTRACT_READS.any.includes(collection)) return true;
+  const retired = RETIRED_READS[owner];
+  if (retired && retired.by === self && retired.collections.includes(collection)) return true;
   return (CONTRACT_READS[owner] || []).includes(collection);
 }
 function contractRead(self, owner, collection) {

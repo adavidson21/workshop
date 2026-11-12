@@ -3,7 +3,6 @@
 // sites (apps/remote.json) under /apps/<id>/ (see that file).
 // DOCKET is the "docket" Worker (adavidson21/docket, docket.alexisdavidson.org): /apps/prioritizer/ comes from it.
 // NOTES is the "notes" Worker (adavidson21/notes, notes.alexisdavidson.org): /apps/notes/ comes from it.
-// RECEIPTS is the "receipts" Worker (adavidson21/receipts, receipts.alexisdavidson.org): /apps/receipts/ (Rapport) comes from it.
 {
   "name": "workshop",
   "main": "worker/index.js",
@@ -15,7 +14,6 @@
   },
   "services": [
     { "binding": "DOCKET", "service": "docket" },
-    { "binding": "RECEIPTS", "service": "receipts" },
     { "binding": "NOTES", "service": "notes" }
   ],
   "routes": [
