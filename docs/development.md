@@ -4,7 +4,7 @@ How the code is laid out, how to add an app, and how to test and ship. For using
 
 ## Addresses
 
-Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch has its own address, https://dispatch.alexisdavidson.org: the Workshop Worker (`wrangler.jsonc`, `worker/index.js`) serves `apps/agents/` there; both domains are listed in `wrangler.jsonc`, and the old standalone address forwards to it. Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
+Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch has no site of its own anymore: its old address, https://dispatch.alexisdavidson.org, redirects to Dispatch in a pop-out window like the other retired app domains ([site.md](site.md)). Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
 
 ## Layout
 

@@ -1,18 +1,11 @@
 // The Cloudflare Worker for workshop.alexisdavidson.org (wrangler.jsonc). It serves this repo as static
-// assets, and adds one thing: on dispatch.alexisdavidson.org, Dispatch (apps/agents/) is the whole site.
-// There, "/" serves apps/agents/index.html and its relative files (agents.css, js/main.js) resolve under
-// apps/agents/. Shared files (/shared/, /icons/) and the service worker are served as they are, since
-// "../../shared/..." from "/" resolves to "/shared/...". Every other host gets the assets unchanged.
-//
-// assets.run_worker_first is on so "/" on the Dispatch host reaches this code instead of the root index.html.
+// assets. run_worker_first is on so every request reaches this code first (redirects, installers).
 //
 // On every host, /install.ps1 and /install.sh serve the one-line installers (scripts/bootstrap.ps1 and .sh)
 // as plain text, with {{SITE}} replaced by this site's origin so Workshop allows the site the installer came from.
 // /install-work.ps1 and /install-work.sh serve the same installers with work mode on. Every app is part of this
-// site; old app domains redirect to Pop out (below).
+// site; old app domains (Dispatch's included) redirect to Pop out (below).
 import { SITE, hostOf } from '../shared/site.js';
-
-export const DISPATCH_HOST = /^dispatch\./;
 
 /* ---------- no standalone sites (docs/site.md, Retired sites) ----------
    Apps no longer have sites of their own: Pop out gives any app its own window here. The old app domains, once
@@ -20,10 +13,13 @@ export const DISPATCH_HOST = /^dispatch\./;
    not a 301, so a browser does not remember it for good. */
 export const RETIRED_HOSTS = Object.freeze(Object.fromEntries(Object.entries(SITE.apps).map(([id, url]) => [hostOf(url), id])));
 
-/** The redirect for a request to a retired app domain, or null. */
+/** The redirect for a request to a retired app domain, or null. The installer addresses go to the same installer on
+ *  Workshop's site, so an old one-line install command still works and the new install allows Workshop's site. */
 export function retiredRedirect(url) {
   const id = RETIRED_HOSTS[url.hostname];
-  return id ? Response.redirect(`${SITE.workshop}/?solo=${id}#/${id}`, 302) : null;
+  if (!id) return null;
+  if (INSTALLERS[url.pathname]) return Response.redirect(`${SITE.workshop}${url.pathname}`, 302);
+  return Response.redirect(`${SITE.workshop}/?solo=${id}#/${id}`, 302);
 }
 
 /** An app's page opened on its own (a bookmark, a typed address, not the shell's frame) opens the app in a pop-out
@@ -32,13 +28,6 @@ export function topLevelApp(url, request) {
   if (request.headers.get('Sec-Fetch-Dest') !== 'document') return null;
   const m = url.pathname.match(/^\/apps\/([a-z][a-z0-9-]{0,39})\/(index\.html)?$/);
   return m ? Response.redirect(`${url.origin}/?solo=${m[1]}#/${m[1]}`, 302) : null;
-}
-const SHARED = /^\/(shared|icons|apps)\//;
-
-// The path to serve for a request to the Dispatch host, or null to serve it as it is.
-export function dispatchPath(pathname) {
-  if (SHARED.test(pathname) || pathname === '/sw.js' || pathname === '/manifest.webmanifest') return null;
-  return '/apps/agents' + (pathname === '/' || pathname === '' ? '/' : pathname);
 }
 
 // /install-work.* is the same installer with work mode on ({{WORK}} becomes 1), for a work computer.
@@ -69,13 +58,6 @@ export default {
     if (url.pathname.startsWith('/apps/')) {
       const solo = topLevelApp(url, request);
       if (solo) return solo;
-    }
-    if (DISPATCH_HOST.test(url.hostname)) {
-      const path = dispatchPath(url.pathname);
-      if (path) {
-        url.pathname = path;
-        return env.ASSETS.fetch(new Request(url.toString(), request));
-      }
     }
     return env.ASSETS.fetch(request);
   }

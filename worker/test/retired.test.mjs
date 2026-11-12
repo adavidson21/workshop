@@ -9,7 +9,7 @@ const env = { ASSETS: { fetch: async () => new Response('asset') } };
 test('every app site in site.js is a retired host, mapped to its app id', () => {
   for (const [id, url] of Object.entries(SITE.apps)) assert.equal(RETIRED_HOSTS[hostOf(url)], id);
   assert.equal(RETIRED_HOSTS[hostOf(SITE.workshop)], undefined);
-  assert.equal(RETIRED_HOSTS[hostOf(SITE.dispatch)], undefined);
+  assert.equal(RETIRED_HOSTS['dispatch.alexisdavidson.org'], 'agents');
 });
 
 test('a retired app domain redirects any path to the app in a pop-out window', async () => {
@@ -34,4 +34,15 @@ test('an app start page opened at the top level opens in a pop-out; frames and o
   assert.equal(topLevelApp(new URL(SITE.workshop + '/apps/slate/js/main.js'), doc('/apps/slate/js/main.js')), null);
   const res = await worker.fetch(frame('/apps/slate/'), env);
   assert.equal(await res.text(), 'asset');
+});
+
+test('Dispatch\'s old domain redirects to Dispatch in a pop-out; its installer addresses go to Workshop\'s installers', async () => {
+  const res = await worker.fetch(new Request('https://dispatch.alexisdavidson.org/'), env);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), `${SITE.workshop}/?solo=agents#/agents`);
+  for (const p of ['/install.ps1', '/install.sh', '/install-work.ps1', '/install-work.sh']) {
+    const r = await worker.fetch(new Request('https://dispatch.alexisdavidson.org' + p), env);
+    assert.equal(r.status, 302, p);
+    assert.equal(r.headers.get('location'), SITE.workshop + p, p);
+  }
 });

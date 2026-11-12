@@ -1,6 +1,6 @@
-// Cloudflare Worker for workshop.alexisdavidson.org and dispatch.alexisdavidson.org.
-// The site is this repo's static files, every app included; worker/index.js routes the Dispatch domain, serves the
-// installers and redirects retired app domains to Pop out (see that file).
+// Cloudflare Worker for workshop.alexisdavidson.org. The site is this repo's static files, every app included;
+// worker/index.js serves the installers and redirects retired app domains to Pop out (see that file).
+// dispatch.alexisdavidson.org stays attached only so it redirects (until Feb 1, 2027, docs/site.md).
 {
   "name": "workshop",
   "main": "worker/index.js",

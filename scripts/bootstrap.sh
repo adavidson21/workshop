@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Workshop and Tandem one-line installer for macOS and Linux. Per user, no admin rights, no sudo.
 #
-#   curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash
+#   curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash
 #
 # The site serves this file with {{SITE}} filled in (worker/index.js), so Workshop allows the site it came from.
 # What it does, all inside ~/.local/share/workshop unless something is already installed:
@@ -34,7 +34,7 @@ set -euo pipefail
 
 main() {
   SITE='{{SITE}}'
-  case "$SITE" in http://*|https://*) ;; *) SITE='https://dispatch.alexisdavidson.org' ;; esac
+  case "$SITE" in http://*|https://*) ;; *) SITE='https://workshop.alexisdavidson.org' ;; esac
   ROOT="${WORKSHOP_INSTALL_DIR:-$HOME/.local/share/workshop}"
   WORKSPACE="${WORKSHOP_WORKSPACE:-~/work}"
   OS="$(uname -s)"; ARCH="$(uname -m)"
