@@ -31,6 +31,14 @@
       "items": { "$ref": "focus-settings.schema.json#/$defs/time" },
       "description": "Start times of focus blocks ended early."
     },
+    "late": {
+      "$ref": "focus-settings.schema.json#/$defs/time",
+      "description": "Keep working tonight: when it was clicked. No Day's done from then until midnight, and no morning hold the next day."
+    },
+    "early": {
+      "$ref": "focus-settings.schema.json#/$defs/time",
+      "description": "Start my day now: when it was clicked. The morning hold ends then."
+    },
     "lunch": {
       "type": "object",
       "properties": {
@@ -75,7 +83,8 @@
         "lunch": {
           "oneOf": [{ "enum": ["taken", "late", "partial", "missed", "skipped"] }, { "type": "null" }]
         },
-        "released": { "type": "integer", "minimum": 0 }
+        "released": { "type": "integer", "minimum": 0 },
+        "workedLate": { "type": "boolean", "description": "Keep working tonight was used that evening." }
       }
     }
   }

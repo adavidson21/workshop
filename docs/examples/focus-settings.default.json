@@ -10,5 +10,6 @@
     "sat": [],
     "sun": []
   },
-  "lunch": { "enabled": true, "start": "12:00", "minutes": 60, "days": ["mon", "tue", "wed", "thu", "fri"] }
+  "lunch": { "enabled": true, "start": "12:00", "minutes": 60, "days": ["mon", "tue", "wed", "thu", "fri"] },
+  "afterEnd": true
 }

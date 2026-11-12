@@ -60,6 +60,10 @@
         }
       }
     },
+    "afterEnd": {
+      "type": "boolean",
+      "description": "After my day ends: hold from the day's end (Docket's day card) until the next morning. Missing means on."
+    },
     "updatedAt": {
       "$ref": "common.schema.json#/$defs/msTime"
     }
