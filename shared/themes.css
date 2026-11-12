@@ -22,18 +22,18 @@
 :root,
 :root[data-theme=light]{--bg:#F4F2F3;--surface:#FFFFFF;--panel:#ECE6E8;--ink:#22191C;--muted:#6B6064;--line:#E5DEE1;--eyebrow:#6B6064;--accent:#7A1B36;--on-accent:#FFFFFF;--danger:#A9380B;--warn:#875100;
   --merlot:#3E0D1D;--merlot-ink:#FFF4F6;--merlot-soft:#E2B9C5;--raise:0 1px 0 rgb(62 13 29/.04),0 10px 30px rgb(62 13 29/.07);
-  --c-workshop:#7A1B36;--c-prioritizer:#7A1B36;--c-notes:#3B3D8C;--c-agents:#0D5C56;--c-slate:#33536A;--c-runway:#5A3492;--c-receipts:#2B6644;
+  --c-workshop:#7A1B36;--c-prioritizer:#7A1B36;--c-notes:#1F4F96;--c-agents:#0D5C56;--c-slate:#3E5260;--c-runway:#6A2E8C;--c-receipts:#2F6B1E;
   --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-runway-on:#FFFFFF;--c-receipts-on:#FFFFFF;color-scheme:light}
 :root[data-theme=dark]{--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
   --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);
-  --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#AEB1F3;--c-agents:#7CD2C6;--c-slate:#A5C2D8;--c-runway:#C6ADF3;--c-receipts:#93D3AE;
-  --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#14153A;--c-agents-on:#04241F;--c-slate-on:#0F1F2B;--c-runway-on:#22113D;--c-receipts-on:#0C2817;color-scheme:dark}
+  --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#94B8F2;--c-agents:#7CD2C6;--c-slate:#B3C1CC;--c-runway:#D9A6F0;--c-receipts:#A6D98E;
+  --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#0E1F3D;--c-agents-on:#04241F;--c-slate-on:#151D24;--c-runway-on:#2A0F3A;--c-receipts-on:#10260A;color-scheme:dark}
 /* No theme set (scripts off): follow the device. */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme]){--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
     --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);
-    --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#AEB1F3;--c-agents:#7CD2C6;--c-slate:#A5C2D8;--c-runway:#C6ADF3;--c-receipts:#93D3AE;
-    --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#14153A;--c-agents-on:#04241F;--c-slate-on:#0F1F2B;--c-runway-on:#22113D;--c-receipts-on:#0C2817;color-scheme:dark}
+    --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#94B8F2;--c-agents:#7CD2C6;--c-slate:#B3C1CC;--c-runway:#D9A6F0;--c-receipts:#A6D98E;
+    --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#0E1F3D;--c-agents-on:#04241F;--c-slate-on:#151D24;--c-runway-on:#2A0F3A;--c-receipts-on:#10260A;color-scheme:dark}
 }
 /* App colors: an app's <html data-app-color="<id>"> makes its color the accent. Docket, Settings, Needs you and the shell
    keep burgundy, as does any app not listed here. */

@@ -4,7 +4,7 @@ Team and project roadmaps. Type an outline, one item per line, and Runway draws 
 
 An app in Workshop (`apps/runway/`, moved from adavidson21/runway on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. Plain JavaScript ES modules, no build step, no dependencies.
 
-**Its look** (Runway 2.0.0): Workshop's look (`shared/themes.css`) with Runway's own violet. Sentence-case labels, titles in Schibsted Grotesk, roadmaps as raised white cards, a pill view switch, and the timeline and its exported image drawn in the same colors and fonts. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.
+**Its look** (Runway 2.0.0): Workshop's look (`shared/themes.css`) with Runway's own plum. Sentence-case labels, titles in Schibsted Grotesk, roadmaps as raised white cards, a pill view switch, and the timeline and its exported image drawn in the same colors and fonts. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.
 
 ## Using it
 

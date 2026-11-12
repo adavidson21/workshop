@@ -4,7 +4,7 @@ Your notebook, as plain `.md` files: the **sections** (places), the open section
 
 Nothing leaves your device: no accounts, no server, no analytics.
 
-**Its look** (Folio 4.0.0): Workshop's look (`shared/themes.css`): Schibsted Grotesk headings, Atkinson Hyperlegible Next text, sentence-case labels, and Folio's own indigo since Workshop 6.46.0. On a desktop the places (Notes, Daily, Products, Templates, Tandem) are in the left column above the open place's pages, the note sits on a raised white page with one header line (where it lives and whether it is saved, the views, Copy for wiki, Trash, `⋯` and the page panel's button), and text keeps a readable column in every view. Product vision: Workshop project doc `claude/folio-vision.md`.
+**Its look** (Folio 4.0.0): Workshop's look (`shared/themes.css`): Schibsted Grotesk headings, Atkinson Hyperlegible Next text, sentence-case labels, and Folio's own blue since Workshop 6.46.0. On a desktop the places (Notes, Daily, Products, Templates, Tandem) are in the left column above the open place's pages, the note sits on a raised white page with one header line (where it lives and whether it is saved, the views, Copy for wiki, Trash, `⋯` and the page panel's button), and text keeps a readable column in every view. Product vision: Workshop project doc `claude/folio-vision.md`.
 
 Plan: `claude/notes-standalone-plan.md` in the personal toools Project.
 

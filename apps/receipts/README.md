@@ -6,7 +6,7 @@ Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. Th
 
 An app in Workshop (`apps/receipts/`, moved from adavidson21/receipts on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**.
 
-**Its look** (Rapport 4.0.0): Workshop's look (`shared/themes.css`) with Rapport's own pine green. Figures and titles in Schibsted Grotesk, labels and dates in the text face, filled sentence-case chips, and the composer, receipts, stats and the review draft on raised white sheets. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.
+**Its look** (Rapport 4.0.0): Workshop's look (`shared/themes.css`) with Rapport's own leaf green. Figures and titles in Schibsted Grotesk, labels and dates in the text face, filled sentence-case chips, and the composer, receipts, stats and the review draft on raised white sheets. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.
 
 Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Android brag-book app. Rapport drops the AI and email steps so nothing ever leaves your device (the 1:1 draft step below is optional and off unless you run Workshop's opencode connector).
 

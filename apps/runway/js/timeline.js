@@ -25,9 +25,9 @@ export const PALETTE = {
   dark: { slate: '#A9BCC6', teal: '#8CC7BF', green: '#A9C99A', amber: '#E2B66D', red: '#F0A79E', purple: '#C3B2DD', gray: '#B8B1AA', on: '#161514' }
 };
 export const THEME = {
-  // Workshop's theme (shared/themes.css) with Runway's violet as the accent, so an exported image matches the page.
-  light: { bg: '#F4F2F3', surface: '#FFFFFF', panel: '#ECE6E8', ink: '#22191C', muted: '#6B6064', line: '#E5DEE1', eyebrow: '#6B6064', warn: '#875100', danger: '#A9380B', accent: '#5A3492' },
-  dark: { bg: '#141012', surface: '#1E181B', panel: '#272023', ink: '#F2ECEE', muted: '#A79BA0', line: '#31292C', eyebrow: '#A79BA0', warn: '#F0C27A', danger: '#F4A584', accent: '#C6ADF3' }
+  // Workshop's theme (shared/themes.css) with Runway's plum as the accent, so an exported image matches the page.
+  light: { bg: '#F4F2F3', surface: '#FFFFFF', panel: '#ECE6E8', ink: '#22191C', muted: '#6B6064', line: '#E5DEE1', eyebrow: '#6B6064', warn: '#875100', danger: '#A9380B', accent: '#6A2E8C' },
+  dark: { bg: '#141012', surface: '#1E181B', panel: '#272023', ink: '#F2ECEE', muted: '#A79BA0', line: '#31292C', eyebrow: '#A79BA0', warn: '#F0C27A', danger: '#F4A584', accent: '#D9A6F0' }
 };
 export const FONTS = {
   sans: '"Docket Text", "Atkinson Hyperlegible Next", "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
