@@ -112,7 +112,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-hint { margin-right: auto; font-size: 11.5px; color: var(--muted); }
 
 /* comment type labels (cards, panel) */
-.rv-type { flex: none; font: 600 11.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
+.rv-type { flex: none; font: 600 11.5px/1 var(--sans); padding: 3px 6px; border-radius: 4px; }
 .rv-type.t-must_fix { color: var(--danger); background: var(--danger-soft); }
 .rv-type.t-suggestion { color: var(--accent); background: var(--accent-soft); }
 .rv-type.t-question { color: var(--warn); background: var(--warn-soft); }
@@ -131,7 +131,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
 .rv-resolved:hover { opacity: 1; }
 .rv-resolved .rv-entry { background: transparent; }
 .rv-answer { margin: 0 0 4px 8px; font-size: 12.5px; }
-.rv-astatus { font: 600 11.5px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.rv-astatus { font: 600 11.5px var(--sans); }
 .rv-astatus.a-fixed { color: #2F7A4E; }
 :root[data-theme=dark] .rv-astatus.a-fixed { color: #8FCFA6; }
 .rv-astatus.a-declined { color: var(--danger); }

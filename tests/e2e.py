@@ -1220,7 +1220,7 @@ def agents_checks(b, watch):
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(400)
         check('the light/dark toggle applies to Agents', af.evaluate('document.documentElement.dataset.theme') == want)
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
-        check('Agents draws with shared/themes.css colors', bg == ('rgb(22, 21, 20)' if want == 'dark' else 'rgb(244, 241, 234)'))
+        check('Agents draws with the brand theme colors (shared/brand)', bg == ('rgb(20, 16, 18)' if want == 'dark' else 'rgb(244, 242, 243)'))
 
         # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
