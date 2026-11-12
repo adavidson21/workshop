@@ -130,11 +130,11 @@ export function aiHtml(ai, { enabled, ready }) {
  * A person's prep and note. On the 1:1s tab it has the person's name and a way back; on a report's page in
  * Reports (`panel`) it is a section above their receipts, with how often you meet.
  */
-export function personHtml({ person, packet, note, notes, today, ai, aiOpts, panel = false, due = null }) {
+export function personHtml({ person, packet, note, notes, today, ai, aiOpts, tidy = null, panel = false, due = null }) {
   const log = `<button class="btn" data-log${note ? '' : ' disabled'}>Log follow-ups</button>`;
   const cols = `<div class="cols">
     <div class="left">${packetHtml(packet)}</div>
-    <div class="right">${noteHtml(note, notes, today)}${aiHtml(ai, aiOpts)}</div>
+    <div class="right">${noteHtml(note, notes, today)}${tidy ? tidyHtml(tidy, { ...aiOpts, note, name: person.name }) : ''}${aiHtml(ai, aiOpts)}</div>
   </div>`;
   if (panel) {
     const when = due ? (due.lastDay ? `Last 1:1 ${esc(due.lastDay)}` : 'No 1:1 notes yet') + ` · every ${esc(plural(person.cadenceDays, 'day'))}` : '';
@@ -157,24 +157,63 @@ export function startPanelHtml(name) {
 /* ---------- after the meeting ---------- */
 
 /**
- * The Log follow-ups dialog. followUps: open follow-up lines of the note (each can become a Docket task,
- * copied as quick-add lines). wins: lines under Wins (each can become a receipt). canOffer: the person is
- * linked to one of your reports.
+ * The Log follow-ups dialog. followUps: open follow-up lines of the note, [{text, owner: 'me' | 'them', sent}];
+ * each ticked one goes to Docket as a task (yours, or delegated to them), or is copied as quick-add lines with
+ * the secondary button. wins: lines under Wins (each can become a receipt). canOffer: the person is one of your
+ * reports. canSend: Docket shares this data folder (inside Workshop). linked: they are in the people directory,
+ * so a delegated task names them in Docket. name: their name.
  */
-export function logHtml({ followUps, wins, canOffer, docketLinked }) {
-  const list = (name, items) => items.map((t, i) => `<li><label class="chk"><input type="checkbox" name="${name}" value="${i}" checked> ${esc(t)}</label></li>`).join('');
+export function logHtml({ followUps, wins, canOffer, canSend = true, linked = true, name = 'them' }) {
+  const owner = (f, i) => `<select name="o${i}" aria-label="Who does it">
+      <option value="me"${f.owner === 'me' ? ' selected' : ''}>Mine</option>
+      <option value="them"${f.owner === 'them' ? ' selected' : ''}>${esc(name)}'s (waiting on them)</option></select>`;
+  const fRows = followUps.map((f, i) => `<li class="frow"><label class="chk"><input type="checkbox" name="f" value="${i}"${f.sent ? '' : ' checked'}> ${esc(f.text)}</label>
+      ${canSend ? owner(f, i) : ''}${f.sent ? '<span class="sent soft small">Sent</span>' : ''}</li>`).join('');
+  const wRows = wins.map((t, i) => `<li><label class="chk"><input type="checkbox" name="w" value="${i}" checked> ${esc(t)}</label></li>`).join('');
+  const fHelp = canSend
+    ? `Ticked follow-ups go to Docket as tasks: yours, or handed to ${esc(name)} and waiting on them, with a follow-up date from Docket's working days. A line already sent is not sent again.${linked ? '' : ` ${esc(name)} is not linked to People, so their tasks go to Docket without a person.`}`
+    : 'Ticked follow-ups are copied as Docket quick-add lines. Paste them into Docket\'s command bar to add them.';
   return `<form method="dialog" class="confirm log">
     <h2>Log follow-ups</h2>
     <h3 class="section-label">Docket tasks</h3>
-    ${followUps.length ? `<ul class="picks">${list('f', followUps)}</ul>
-      <p class="soft small">Ticked follow-ups are copied as Docket quick-add lines. Paste them into Docket's command bar to add them.${docketLinked ? '' : ' This person is not linked to a Docket name, so the lines carry no @name.'}</p>`
-      : '<p class="soft">No open follow-ups in this note.</p>'}
+    ${followUps.length ? `<ul class="picks">${fRows}</ul><p class="soft small">${fHelp}</p>` : '<p class="soft">No open follow-ups in this note.</p>'}
     <h3 class="section-label">Receipts</h3>
     ${!wins.length ? '<p class="soft">No lines under Wins in this note.</p>'
-      : canOffer ? `<ul class="picks">${list('w', wins)}</ul><p class="soft small">Ticked wins become receipts about this report, dated the day of the note.</p>`
+      : canOffer ? `<ul class="picks">${wRows}</ul><p class="soft small">Ticked wins become receipts about this report, dated the day of the note.</p>`
       : '<p class="soft">Wins become receipts only for a report. Link this person to a report in People and links.</p>'}
-    <div class="acts"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Log</button></div>
+    <div class="acts"><button class="btn" value="cancel" formnovalidate>Cancel</button>
+      ${canSend && followUps.length ? '<button class="btn" value="copy" data-copy-lines>Copy as quick-add lines</button>' : ''}
+      <button class="btn primary" value="ok">Log</button></div>
   </form>`;
+}
+
+/* ---------- Tidy notes (optional) ---------- */
+
+/**
+ * tidy: {state: 'idle' | 'starting' | 'running' | 'done' | 'failed', error, followUps: [{text, owner, use}],
+ * wins: [{text, use}]}. `use` false: unticked.
+ * Shown only with the draft step on, the opencode connector ready and a note open.
+ */
+export function tidyHtml(tidy, { enabled, ready, note, name = 'them' }) {
+  if (!enabled || !ready || !note) return '';
+  const busy = tidy.state === 'starting' || tidy.state === 'running';
+  const done = tidy.state === 'done';
+  const empty = done && !tidy.followUps.length && !tidy.wins.length;
+  const fRow = (f, i) => `<li class="trow"><input type="checkbox" data-tidy-f="${i}"${f.use === false ? '' : ' checked'} aria-label="Use this follow-up">
+      <input type="text" data-tidy-ft="${i}" value="${esc(f.text)}" maxlength="400" aria-label="Follow-up">
+      <select data-tidy-fo="${i}" aria-label="Who does it"><option value="me"${f.owner === 'me' ? ' selected' : ''}>Mine</option><option value="them"${f.owner === 'them' ? ' selected' : ''}>${esc(name)}'s</option></select></li>`;
+  const wRow = (w, i) => `<li class="trow"><input type="checkbox" data-tidy-w="${i}"${w.use === false ? '' : ' checked'} aria-label="Use this win">
+      <input type="text" data-tidy-wt="${i}" value="${esc(w.text)}" maxlength="400" aria-label="Win"></li>`;
+  return `<section class="ai tidy" aria-label="Tidy notes">
+    <div class="abar"><h3 class="section-label">Tidy notes</h3><span class="grow"></span>
+      <button class="btn" data-tidy${busy ? ' disabled' : ''}>${busy ? 'Tidying…' : done ? 'Tidy again' : 'Tidy notes'}</button></div>
+    <p class="soft small">Sends this note's lines (${esc(name)}'s name left out) to your opencode agents through Workshop on this computer, which propose Follow-ups and Wins. Nothing changes in the note until you add what you keep.</p>
+    ${tidy.state === 'failed' ? `<p class="bad">${esc(tidy.error || 'Tidy notes did not finish.')}</p>` : ''}
+    ${empty ? '<p class="soft">No follow-ups or wins proposed.</p>' : ''}
+    ${done && !empty ? `${tidy.followUps.length ? `<h4 class="section-label">Follow-ups</h4><ul class="tlist">${tidy.followUps.map(fRow).join('')}</ul>` : ''}
+      ${tidy.wins.length ? `<h4 class="section-label">Wins</h4><ul class="tlist">${tidy.wins.map(wRow).join('')}</ul>` : ''}
+      <p class="acts"><button class="btn" data-tidy-discard>Discard</button><button class="btn primary" data-tidy-accept>Add to the note</button></p>` : ''}
+  </section>`;
 }
 
 /* ---------- settings ---------- */
@@ -196,9 +235,9 @@ export function settingsHtml(v, pick, edit) {
     ${active.length ? `<ul class="slist">${active.map(row).join('')}</ul>` : ''}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul class="slist">${archived.map(row).join('')}</ul></details>` : ''}
     <form class="oo-settings" data-settings>
-      <h3 class="section-label">Draft step</h3>
-      <label class="chk"><input type="checkbox" name="aiDraft"${v.settings.aiDraft ? ' checked' : ''}> Offer "Draft talking points" when the opencode connector is on</label>
-      <p class="soft small">Off: the button never shows and nothing is sent to opencode. Prep and notes never need it.</p>
+      <h3 class="section-label">AI steps</h3>
+      <label class="chk"><input type="checkbox" name="aiDraft"${v.settings.aiDraft ? ' checked' : ''}> Offer "Draft talking points" and "Tidy notes" when the opencode connector is on</label>
+      <p class="soft small">Off: the buttons never show and nothing is sent to opencode. Prep, notes and Log follow-ups never need them.</p>
       <div class="acts"><button class="btn">Save</button></div>
     </form>`;
 }

@@ -6,12 +6,14 @@
                          Workshop's people directory; id names their notes folder.
      oneonones/settings  no items; meta: {aiDraft, moved}. aiDraft false turns the draft step off; moved records
                          the copy from the old 1:1s app.
+     handoffs            receipts.handoffs: follow-ups sent to Docket as accepted task handoffs (Workshop
+                         docs/handoffs.md). Docket reads it; Rapport only adds and trims.
    Own files: oneonones/notes/<person folder>/<yyyy-mm-dd>.md, plain Markdown.
    Read only: Docket's summary. Rapport's own entries and the people directory are handed in with setOwn().
 
    The first load copies the old 1:1s app's people, settings and notes in (copyLegacy). The old files are never
    changed or removed. */
-import { APP, VERSION, SOURCES, PEOPLE, SETTINGS, NOTES, LEGACY, LEGACY_FILES_DAYS, cleanPerson, legacyEnvelope, legacyNotePath, newPersonId, notePath, notesFor, sortPeople } from './model.js';
+import { APP, VERSION, SOURCES, PEOPLE, SETTINGS, NOTES, LEGACY, LEGACY_FILES_DAYS, HANDOFFS, cleanPerson, readHandoffs, sentIds, withHandoffs, legacyEnvelope, legacyNotePath, newPersonId, notePath, notesFor, sortPeople } from './model.js';
 
 const OC = 'opencode';
 const blank = (name, meta) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {}, ...(meta ? { meta: { updatedAt: 0, ...meta } } : {}) });
@@ -203,6 +205,34 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
   const draft = (personId, date, packet) => ws.connectors.call(OC, 'oneonone.draft', { personId, date, packet }, { confirm: true });
   const draftResult = (personId, date) => ws.connectors.call(OC, 'oneonone.result', { personId, date });
 
+  /* ---------- follow-ups to Docket (receipts.handoffs, Workshop docs/handoffs.md) ---------- */
+
+  /** Ids of follow-ups already sent. An unreadable collection counts as none sent. */
+  async function sentHandoffs() {
+    try { return sentIds(readHandoffs(await ws.data.get(HANDOFFS))); } catch { return new Set(); }
+  }
+
+  /** Adds handoff items (ids already there are skipped). Resolves how many were new. */
+  async function sendHandoffs(items) {
+    if (!items.length) return 0;
+    for (let tries = 0; ; tries++) {
+      const before = readHandoffs(await ws.data.get(HANDOFFS));
+      if (!before) { const e = new Error('A newer Rapport saved your Docket follow-ups. Update Workshop to send more.'); e.code = 'downgrade'; throw e; }
+      const have = sentIds(before);
+      const fresh = items.filter(i => !have.has(i.id));
+      if (!fresh.length) return 0;
+      const after = withHandoffs(before, fresh, now());
+      ws.data.stamp(before, after);
+      try { await ws.data.put(HANDOFFS, after); return fresh.length; }
+      catch (e) { if (e.code !== 'conflict' || tries >= 2) throw e; }
+    }
+  }
+
+  /* ---------- Tidy notes (opencode connector) ---------- */
+
+  const tidy = (personId, date, notes) => ws.connectors.call(OC, 'oneonone.tidy', { personId, date, notes }, { confirm: true });
+  const tidyResult = (personId, date) => ws.connectors.call(OC, 'oneonone.tidyResult', { personId, date });
+
   /** Another window wrote one of our collections, or it changed on disk. */
   async function reload(name) {
     try {
@@ -215,5 +245,5 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
 
   ws.on('online', p => { if (p && p.online) loadAll(); });
 
-  return { v, loadAll, loadData, checkConnectors, setOwn, savePerson, saveSettings, notesOf, readNote, writeNote, notePath, draft, draftResult, reload, reloadSource, reloadFiles, READ };
+  return { v, loadAll, loadData, checkConnectors, setOwn, savePerson, saveSettings, notesOf, readNote, writeNote, notePath, draft, draftResult, tidy, tidyResult, sentHandoffs, sendHandoffs, reload, reloadSource, reloadFiles, READ };
 }

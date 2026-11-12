@@ -183,3 +183,19 @@ test('sendersFrom: senders come from manifests, with the built-in list as the fa
   assert.deepEqual(sendersFrom([]), SENDERS);
   assert.deepEqual(sendersFrom(null), SENDERS);
 });
+
+test("Rapport's 1:1 follow-ups: a delegated one becomes a waiting task on the person, a plain one is yours", () => {
+  // The shape Rapport 4.1.0 sends from Log follow-ups (Workshop docs/handoffs.md, Senders). Docket gives a
+  // waiting task its follow-up date on pickup (offers.js), so the payload carries no nudgeOn.
+  const base = {updatedAt: 1, to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T20:00:00.000Z', accepted: true,
+    source: {app: 'receipts', id: 'oneonones/notes/p-abc1/2026-11-03.md'}};
+  const env = hubEnv([
+    {...base, id: 'h_p-abc1-2026-11-03_a1', text: 'Share the runbook', payload: {kind: 'task', title: 'Share the runbook', notes: 'From your 1:1', waiting: true, who: ['p_r1']}},
+    {...base, id: 'h_p-abc1-2026-11-03_b2', text: 'Book the room', payload: {kind: 'task', title: 'Book the room', notes: 'From your 1:1'}}
+  ], 'receipts');
+  const [del, mine] = acceptedTasks('receipts', env);
+  assert.deepEqual([del.who, del.waiting, mine.who, mine.waiting], [['p_r1'], true, [], false]);
+  const t = taskFromOffer(del, {id: 't1', listId: 'l1', rank: 1, color: '#000', today: '2026-11-03'});
+  assert.deepEqual([t.waiting, t.who, t.from], [true, ['p_r1'], {app: 'receipts', id: 'h_p-abc1-2026-11-03_a1'}]);
+  assert.deepEqual(acceptedTasks('receipts', env, [del.key, mine.key]), [], 'handled once');
+});

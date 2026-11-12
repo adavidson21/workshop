@@ -63,7 +63,7 @@ test('people list, settings and the note escape names and text', () => {
   const ed = noteHtml(note, [{ day: TODAY }], TODAY);
   assert.ok(!ed.includes('</textarea><img'), 'the note cannot close its textarea');
   assert.ok(noRaw(noteHtml({ ...note, mode: 'preview' }, [], TODAY)));
-  assert.ok(noRaw(logHtml({ followUps: [BAD], wins: [BAD], canOffer: true, docketLinked: true })));
+  assert.ok(noRaw(logHtml({ followUps: [{ text: BAD, owner: 'them', sent: false }], wins: [BAD], canOffer: true, canSend: true, linked: true, name: BAD })));
 });
 
 test('the draft step shows only when it is on and the opencode connector is ready', () => {

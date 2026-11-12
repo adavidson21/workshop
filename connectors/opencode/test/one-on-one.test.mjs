@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, beforeEach, test } from "node:test";
 import oc from "../index.mjs";
-import { MAX_PACKET_BYTES, draftOneOnOne, folderFor, oneOnOneResult, oneOnOneRoot, resetOneOnOnes } from "../lib/one-on-one.mjs";
+import { MAX_NOTES_BYTES, MAX_PACKET_BYTES, TIDY_AGENT, draftOneOnOne, folderFor, oneOnOneResult, oneOnOneRoot, resetOneOnOnes, tidyOneOnOne, tidyResult } from "../lib/one-on-one.mjs";
 import { sessions, upsertSession } from "../lib/opencode-state.mjs";
 import { schemas } from "../../../tests/contract/helpers.mjs";
 
@@ -16,9 +16,9 @@ const root = oneOnOneRoot(home);
 after(() => fs.rmSync(home, { recursive: true, force: true }));
 
 let started;
-const start = async (name, args) => {
+const start = async (name, args, agent) => {
   const sid = `ses_${started.length + 1}`;
-  started.push({ name, args });
+  started.push(agent ? { name, args, agent } : { name, args });
   upsertSession(sid, { status: "busy" });
   return { session: sid };
 };
@@ -79,4 +79,45 @@ test("the actions: draft needs confirm (write), result does not; args are checke
   assert.notDeepEqual(schemas.validate(d, { ...ARGS, packet: "x".repeat(MAX_PACKET_BYTES + 1) }), []);
   assert.deepEqual(schemas.validate(oc.actions["oneonone.result"].argsSchema, ARGS), []);
   assert.notDeepEqual(schemas.validate(oc.actions["oneonone.result"].argsSchema, { ...ARGS, date: "today" }), []);
+});
+
+test("tidy saves notes.md in its own -tidy folder and asks people-prep to write draft.md there", async () => {
+  const ARGS = { personId: "p_mh3k9x2a", date: "2026-11-06" };
+  const dir = folderFor(ARGS, root, "-tidy");
+  assert.equal(dir, path.join(root, "p_mh3k9x2a-2026-11-06-tidy"), "never the talking points folder");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "draft.md"), "old tidy");
+  const r = await tidyOneOnOne({ ...ARGS, notes: "- them to send the doc\n" }, { root, start });
+  assert.deepEqual(r, { session: "ses_1", folder: "p_mh3k9x2a-2026-11-06-tidy" });
+  assert.equal(started.length, 1);
+  assert.equal(started[0].agent, TIDY_AGENT);
+  assert.ok(started[0].args.includes(path.join(dir, "notes.md")) && started[0].args.includes(path.join(dir, "draft.md")), "the message names both files");
+  assert.match(started[0].args, /## Follow-ups/);
+  assert.match(started[0].args, /## Wins/);
+  assert.equal(fs.readFileSync(path.join(dir, "notes.md"), "utf8"), "- them to send the doc\n");
+  assert.equal(fs.existsSync(path.join(dir, "draft.md")), false, "no stale tidy");
+  assert.deepEqual(tidyResult(ARGS, { root }), { state: "running", session: "ses_1" });
+  assert.deepEqual(oneOnOneResult(ARGS, { root }), { state: "none" }, "talking points are separate");
+  await rejects(tidyOneOnOne({ ...ARGS, notes: "again" }, { root, start }), "conflict", /already running/);
+  fs.writeFileSync(path.join(dir, "draft.md"), "## Follow-ups\n\n- [ ] (them) Send the doc\n");
+  upsertSession("ses_1", { status: "idle" });
+  assert.deepEqual(tidyResult(ARGS, { root }), { state: "done", text: "## Follow-ups\n\n- [ ] (them) Send the doc\n", session: "ses_1" });
+});
+
+test("tidy refuses empty and oversized notes before anything is written or run", async () => {
+  await rejects(tidyOneOnOne({ ...ARGS, date: "2026-11-05", notes: " " }, { root, start }), "bad_request", /empty/);
+  await rejects(tidyOneOnOne({ ...ARGS, date: "2026-11-05", notes: "x".repeat(MAX_NOTES_BYTES + 1) }, { root, start }), "bad_request", /20 KB/);
+  assert.equal(started.length, 0);
+  assert.equal(fs.existsSync(folderFor({ ...ARGS, date: "2026-11-05" }, root, "-tidy")), false);
+});
+
+test("the tidy actions: tidy needs confirm (write), its result does not; args are checked", () => {
+  assert.equal(oc.actions["oneonone.tidy"].write, true);
+  assert.equal(oc.actions["oneonone.tidyResult"].write, false);
+  const t = oc.actions["oneonone.tidy"].argsSchema;
+  assert.deepEqual(schemas.validate(t, { ...ARGS, notes: "- x" }), []);
+  assert.notDeepEqual(schemas.validate(t, { ...ARGS, notes: "- x", packet: "y" }), []);
+  assert.notDeepEqual(schemas.validate(t, { ...ARGS, personId: "../../etc", notes: "- x" }), []);
+  assert.notDeepEqual(schemas.validate(t, { ...ARGS, notes: "x".repeat(MAX_NOTES_BYTES + 1) }), []);
+  assert.deepEqual(schemas.validate(oc.actions["oneonone.tidyResult"].argsSchema, ARGS), []);
 });

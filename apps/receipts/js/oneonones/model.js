@@ -408,6 +408,206 @@ export function winEntries({ person, day, wins, nowIso }) {
   }));
 }
 
+/* ---------- follow-ups to Docket (Workshop docs/handoffs.md) ----------
+   Each ticked follow-up goes to Docket as an accepted `task` handoff in Rapport's own `handoffs` collection
+   (receipts.handoffs v1): the click on Log is the acceptance (rule 4), so Docket adds it when it next loads. A line
+   for the person you met is delegated to them (`who` their directory id, `waiting: true`; Docket gives it a
+   follow-up date from its own working days). A line for you is a plain task. Ids are stable per note and line,
+   so logging the same note again sends nothing new. */
+
+export const HANDOFFS = 'handoffs';
+export const HANDOFF_SCHEMA = `${APP}.handoffs`;
+export const HANDOFF_KEEP_DAYS = 60;          // senders keep at most 60 days of offers (handoffs.md, rule 1)
+
+const reEsc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// A whole word or name, case ignored, not inside a longer word or an @handle.
+const wordAt = (text, w) => {
+  if (!w) return -1;
+  const m = new RegExp(`(^|[^\\p{L}\\p{N}_@])(${reEsc(w)})(?![\\p{L}\\p{N}_])`, 'iu').exec(text);
+  return m ? m.index + m[1].length : -1;
+};
+const handleAt = (text, h) => {
+  if (!h) return -1;
+  const m = new RegExp(`(^|[^\\p{L}\\p{N}_])@${reEsc(h)}(?![a-z0-9._-])`, 'iu').exec(text);
+  return m ? m.index + m[1].length : -1;
+};
+const firstName = n => { const f = oneLine(n).split(' ')[0] || ''; return f.length >= 2 ? f : ''; };
+const OWNER_MARK = /^\s*\((me|them)\)\s*/i;
+
+/**
+ * Who a follow-up line is for: 'me' (you) or 'them' (the person you met). A leading "(me)" or "(them)" (from
+ * Tidy notes) or an `@me` decides. Otherwise the first mention wins: their name, first name or @handle for them;
+ * "I", "I'll", "I will", your own name or @handle for you. A line that names neither is yours.
+ * person: a 1:1s person with the directory's name and handle (withDirectory). me: your directory person, or null.
+ */
+export function followUpOwner(text, person, me = null) {
+  const t = String(text || '');
+  const mark = OWNER_MARK.exec(t);
+  if (mark) return mark[1].toLowerCase();
+  if (handleAt(t, 'me') >= 0) return 'me';
+  const first = list => list.filter(i => i >= 0).reduce((a, b) => Math.min(a, b), Infinity);
+  const them = first([wordAt(t, oneLine(person && person.name)), wordAt(t, firstName(person && person.name)), handleAt(t, person && person.handle)]);
+  const mine = first([/(^|[^\p{L}\p{N}_])I(?:'ll|'m| will| am)?(?![\p{L}\p{N}_'])/u.exec(t)?.index ?? -1,
+    wordAt(t, oneLine(me && me.name)), wordAt(t, firstName(me && me.name)), handleAt(t, me && me.handle)]);
+  return them < mine ? 'them' : 'me';
+}
+
+/** A follow-up line as a Docket task title: no "(me)" or "(them)", no `@me`, their @handle as their name. */
+export function followUpTitle(text, person) {
+  let t = String(text || '').replace(OWNER_MARK, '').replace(/(^|[^\p{L}\p{N}_])@me(?![a-z0-9._-])/giu, '$1');
+  const h = person && person.handle;
+  if (h) t = t.replace(new RegExp(`(^|[^\\p{L}\\p{N}_])@${reEsc(h)}(?![a-z0-9._-])`, 'giu'), `$1${oneLine(person.name)}`);
+  return oneLine(t).slice(0, 300);
+}
+
+/** The handoff id for one follow-up of one note: the same note and line always give the same id. */
+export function followUpId(personId, day, text) {
+  const seg = noteFolder(personId).split('/').pop();
+  return `h_${seg}-${day}_${hashText(oneLine(String(text || '').replace(OWNER_MARK, '')).toLowerCase())}`.slice(0, 200);
+}
+
+/**
+ * Accepted Docket task handoffs for the ticked follow-ups. lines: [{text, owner: 'me' | 'them'}].
+ * person: withDirectory's person; `linked` and `personId` say whether Docket can file it under them. A line for
+ * them with no link goes without people, still waiting, with their name in the notes.
+ */
+export function followUpHandoffs({ person, day, lines, nowIso }) {
+  const linked = !!(person.linked && /^p_[A-Za-z0-9_-]{1,100}$/.test(String(person.personId || '')));
+  const name = oneLine(person.name) || 'them';
+  const out = [];
+  for (const l of lines || []) {
+    const title = followUpTitle(l.text, person);
+    if (!title) continue;
+    const them = l.owner === 'them';
+    const notes = `From your 1:1 with ${name} on ${day} (Rapport).${them && !linked ? ` Waiting on ${name}.` : ''}`;
+    out.push({
+      id: followUpId(person.id, day, l.text),
+      updatedAt: 0,
+      to: 'prioritizer',
+      date: day,
+      createdAt: nowIso,
+      text: title,
+      accepted: true,
+      payload: { kind: 'task', title, notes, ...(them ? { waiting: true, ...(linked ? { who: [person.personId] } : {}) } : {}) },
+      source: { app: APP, id: notePath(person.id, day) }
+    });
+  }
+  return out;
+}
+
+/** An empty receipts.handoffs envelope. */
+export const emptyHandoffs = () => ({ schema: HANDOFF_SCHEMA, version: VERSION, rev: 0, items: [], deleted: {} });
+
+/** A readable handoffs envelope, a new one when missing, or null when a newer Rapport saved it (send nothing). */
+export function readHandoffs(env) {
+  if (!env) return emptyHandoffs();
+  if (env.schema !== HANDOFF_SCHEMA || env.version !== VERSION || !Array.isArray(env.items)) return null;
+  return env;
+}
+
+/** The envelope with `items` added (ids already there are left alone) and offers older than 60 days dropped
+    (the SDK's stamp turns them into tombstones). Returns a new envelope. */
+export function withHandoffs(env, items, now = Date.now()) {
+  const next = structuredClone(env);
+  const cut = now - HANDOFF_KEEP_DAYS * 864e5;
+  next.items = next.items.filter(i => !(Date.parse(i.createdAt) < cut));
+  const have = new Set(next.items.map(i => i.id));
+  for (const it of items) if (!have.has(it.id)) { next.items.push(it); have.add(it.id); if (next.deleted) delete next.deleted[it.id]; }
+  return next;
+}
+
+/** Ids already sent, for the dialog's "Sent" marks. */
+export const sentIds = env => new Set(env && Array.isArray(env.items) ? env.items.map(i => i.id) : []);
+
+/* ---------- Tidy notes (optional, opencode connector) ----------
+   The note's own lines, without its title and the "Since" summary, with the person's name, first name and
+   @handle replaced by "them", go to Tandem's people-prep agent. It answers with a Follow-ups section of
+   "- [ ] (me) ..." and "- [ ] (them) ..." lines and a Wins section. Nothing is written into the note until you
+   accept lines; applyTidy then adds only those. */
+
+/** The note's lines for Tidy notes, with the person named "them". */
+export function tidyInput(text, person) {
+  const out = [];
+  let skip = false;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const h = HEADING.exec(line);
+    if (h) {
+      skip = h[1].length === 1 || /^since\b/i.test(h[2]);
+      if (h[1].length === 1) continue;
+    }
+    if (!skip) out.push(line);
+  }
+  let t = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const name = oneLine(person && person.name), first = firstName(name), h = person && person.handle;
+  if (h) t = t.replace(new RegExp(`(^|[^\\p{L}\\p{N}_])@${reEsc(h)}(?![a-z0-9._-])`, 'giu'), '$1them');
+  for (const w of [name, first].filter(Boolean)) t = t.replace(new RegExp(`(^|[^\\p{L}\\p{N}_@])${reEsc(w)}(?![\\p{L}\\p{N}_])`, 'giu'), '$1them');
+  return t ? t + '\n' : '';
+}
+
+/** The proposal from the agent's draft.md: {followUps: [{text, owner}], wins: [text]}. */
+export function parseTidy(md) {
+  const followUps = [];
+  let inFollow = 0, fence = false;
+  for (const line of String(md || '').split(/\r?\n/)) {
+    if (/^\s{0,3}(`{3,}|~{3,})/.test(line)) { fence = !fence; continue; }
+    if (fence) continue;
+    const h = HEADING.exec(line);
+    if (h) { inFollow = /^follow-?ups?\b/i.test(h[2]) ? h[1].length : 0; continue; }
+    if (!inFollow) continue;
+    const m = TASK.exec(line);
+    if (!m) continue;
+    const raw = oneLine(m[2]);
+    const mark = OWNER_MARK.exec(raw);
+    const text = oneLine(raw.replace(OWNER_MARK, '')).slice(0, 400);
+    if (text) followUps.push({ text, owner: mark && mark[1].toLowerCase() === 'them' ? 'them' : 'me' });
+  }
+  return { followUps, wins: parseWins(md).map(w => w.slice(0, 400)) };
+}
+
+/** A follow-up as a note line: owner kept as @me, or their @handle (their name when they have none). */
+export function followUpLine(text, owner, person) {
+  const t = oneLine(text);
+  if (owner === 'them') {
+    const h = person && person.handle;
+    return h ? `${t} @${h}` : `${oneLine(person && person.name) || 'Them'}: ${t}`;
+  }
+  return `${t} @me`;
+}
+
+/* Lines added under a heading (`want` matches its title): before an empty placeholder line, else after the
+   section's last line. A missing section is added at the end. Lines already in the note are skipped. */
+function addUnder(md, want, newLines, placeholder) {
+  const lines = String(md || '').split('\n');
+  const have = new Set(lines.map(l => oneLine(l).toLowerCase()));
+  const add = newLines.filter(l => !have.has(oneLine(l).toLowerCase()));
+  if (!add.length) return md;
+  let at = -1, level = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const h = HEADING.exec(lines[i]);
+    if (h && want.test(h[2])) { at = i; level = h[1].length; break; }
+  }
+  if (at < 0) return String(md || '').replace(/\s*$/, '\n\n') + `## ${want === WINS_H ? 'Wins' : 'Follow-ups'}\n\n${add.join('\n')}\n`;
+  let end = lines.length;
+  for (let i = at + 1; i < lines.length; i++) { const h = HEADING.exec(lines[i]); if (h && h[1].length <= level) { end = i; break; } }
+  let ins = -1;
+  for (let i = at + 1; i < end; i++) if (placeholder.test(lines[i])) { ins = i; break; }
+  if (ins < 0) { ins = end; while (ins > at + 1 && !lines[ins - 1].trim()) ins--; if (ins === at + 1) { lines.splice(ins, 0, ''); ins++; } }
+  lines.splice(ins, 0, ...add);
+  return lines.join('\n');
+}
+const WINS_H = /^wins\b/i;
+const FOLLOW_H = /^follow-?ups?\b/i;
+
+/** The note with the accepted lines of a Tidy proposal added. picked: {followUps: [{text, owner}], wins: [text]}. */
+export function applyTidy(md, picked, person) {
+  let out = String(md || '');
+  const f = (picked.followUps || []).filter(x => oneLine(x.text)).map(x => `- [ ] ${followUpLine(x.text, x.owner, person)}`);
+  const w = (picked.wins || []).map(oneLine).filter(Boolean).map(t => `- ${t}`);
+  if (w.length) out = addUnder(out, WINS_H, w, /^\s*[-*+]\s*$/);
+  if (f.length) out = addUnder(out, FOLLOW_H, f, /^\s*[-*+]\s+\[ \]\s*$/);
+  return out;
+}
+
 /* ---------- the copy from the old 1:1s app ---------- */
 
 /** The old app's envelope as Rapport's: same items, deleted and meta, new schema, rev 0 (a create).

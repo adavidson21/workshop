@@ -20,7 +20,7 @@ import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, r
 import { findItem } from "./lib/actions.mjs";
 import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
-import { DAY, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes } from "./lib/one-on-one.mjs";
+import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
@@ -547,6 +547,24 @@ const actions = {
     async run(args) {
       needReady();
       return oneOnOneResult(args);
+    },
+  },
+  "oneonone.tidy": {
+    title: "Tidy a 1:1 note's rough lines into follow-ups and wins (people-prep, drafts only)",
+    write: true,
+    argsSchema: obj(["personId", "date", "notes"], { ...oneOnOne, notes: str("The note's rough lines (Markdown)", { minLength: 1, maxLength: MAX_NOTES_BYTES }) }),
+    async run(args) {
+      needReady();
+      return tidyOneOnOne(args);
+    },
+  },
+  "oneonone.tidyResult": {
+    title: "The tidied 1:1 note, if it is ready",
+    write: false,
+    argsSchema: obj(["personId", "date"], oneOnOne),
+    async run(args) {
+      needReady();
+      return tidyResult(args);
     },
   },
   "hub.run": {

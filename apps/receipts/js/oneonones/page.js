@@ -1,15 +1,16 @@
 /* Rapport's 1:1s: the 1:1s tab and the 1:1 section on a report's page.
 
    For one person and the time since your last 1:1, gathers what Docket and Rapport already know (read only,
-   no AI), keeps the 1:1 note as a plain Markdown file in your Workshop folder, and after the meeting turns
-   follow-ups into Docket quick-add lines and wins into receipts. An optional step asks your opencode agents for
-   draft talking points through the opencode connector.
+   no AI), keeps the 1:1 note as a plain Markdown file in your Workshop folder, and after the meeting sends
+   follow-ups to Docket as tasks (accepted handoffs, Workshop docs/handoffs.md; or copies them as quick-add lines)
+   and turns wins into receipts. Optional steps ask your opencode agents, through the opencode connector, for
+   draft talking points and to tidy a note's rough lines into follow-ups and wins.
 
    main.js owns the page, the hash and the paint loop. It calls route() on every route change and asks for HTML
    with view() (the 1:1s tab) and panel() (a report's page). Clicks on this module's controls are handled here
    by their data- attributes. data.js loads and saves; model.js, view.js and markdown.js are pure. */
 import { createOneOnOnes } from './data.js';
-import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc } from './model.js';
+import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc, applyTidy, followUpHandoffs, followUpId, followUpOwner, parseTidy, tidyInput } from './model.js';
 import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard, startPanelHtml } from './view.js';
 
 /**
@@ -39,7 +40,13 @@ export function createOneOnOnesPage(ws, root, host) {
     note: null,            // {day, path, text, mtime, dirty, saving, error, conflict, mode}
     lastText: {},          // path -> text of earlier notes, for the packet
     ai: { state: 'idle', text: '', error: '', includeConcerns: false },
+    tidy: { state: 'idle', error: '', followUps: [], wins: [] },
   };
+  // Docket shares this data folder: inside Workshop, or with the agent (docs/handoffs.md, rule 5).
+  const canSend = () => !!ws.embedded || ws.backend === 'agent';
+  const noTidy = () => ({ state: 'idle', error: '', followUps: [], wins: [] });
+  // You, from the people directory, so a follow-up naming you is yours.
+  const meInDir = () => (v.dir && Array.isArray(v.dir.items) ? v.dir.items.find(it => it && it.kind === 'person' && it.relation === 'self' && !it.archived) : null) || null;
   const today = () => isoDay(new Date());
   const toastErr = e => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });
   const paint = () => host.repaint();
@@ -88,7 +95,7 @@ export function createOneOnOnesPage(ws, root, host) {
   function personBody(person, panel) {
     return personHtml({
       person, packet: packetFor(person), note: ui.note, notes: d.notesOf(person.id), today: today(),
-      ai: ui.ai, aiOpts: { enabled: v.settings.aiDraft, ready: v.oc },
+      ai: ui.ai, aiOpts: { enabled: v.settings.aiDraft, ready: v.oc }, tidy: ui.tidy,
       panel, due: panel ? cadenceState(d.notesOf(person.id), today(), person.cadenceDays) : null
     });
   }
@@ -161,6 +168,7 @@ export function createOneOnOnesPage(ws, root, host) {
     ui.personId = id;
     ui.note = null;
     ui.ai = { state: 'idle', text: '', error: '', includeConcerns: false };
+    ui.tidy = noTidy();
     paint();
     if (!v.people.some(p => p.id === id)) return;
     const notes = d.notesOf(id);
@@ -254,10 +262,14 @@ export function createOneOnOnesPage(ws, root, host) {
   }
 
   function showDialog(html) {
+    return showDialogValue(html).then(r => (r.value === 'ok' ? r.form : null));
+  }
+  /** The dialog's form and the value of the button that closed it ('' for Escape). */
+  function showDialogValue(html) {
     dlg.innerHTML = html;
     dlg.returnValue = '';
     return new Promise(resolve => {
-      dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok' ? dlg.querySelector('form') : null), { once: true });
+      dlg.addEventListener('close', () => resolve({ form: dlg.querySelector('form'), value: dlg.returnValue }), { once: true });
       dlg.showModal();
     });
   }
@@ -267,23 +279,36 @@ export function createOneOnOnesPage(ws, root, host) {
   async function logFollowUps() {
     const person = personNow(), n = ui.note;
     if (!person || !n) return;
-    const followUps = parseFollowUps(n.text).open;
+    const send = canSend();
+    const sent = send ? await d.sentHandoffs() : new Set();
+    const me = meInDir();
+    const followUps = parseFollowUps(n.text).open.map(text => ({ text, owner: followUpOwner(text, person, me), sent: sent.has(followUpId(person.id, n.day, text)) }));
     const wins = parseWins(n.text);
     const canOffer = !!reportOf(person);
-    const form = await showDialog(logHtml({ followUps, wins, canOffer, docketLinked: !!person.handle }));
-    if (!form) return;
+    const { form, value } = await showDialogValue(logHtml({ followUps, wins, canOffer, canSend: send, linked: !!person.linked, name: person.name }));
+    if (!form || (value !== 'ok' && value !== 'copy')) return;
     const f = new FormData(form);
-    const pickedF = f.getAll('f').map(Number).map(i => followUps[i]).filter(Boolean);
-    const pickedW = canOffer ? f.getAll('w').map(Number).map(i => wins[i]).filter(Boolean) : [];
+    const pickedF = f.getAll('f').map(Number).filter(i => followUps[i]).map(i => ({ ...followUps[i], owner: f.get(`o${i}`) === 'them' ? 'them' : f.get(`o${i}`) === 'me' ? 'me' : followUps[i].owner }));
     const done = [];
-    if (pickedF.length) {
-      const lines = quickAddLines(pickedF, person.handle).join('\n');
+    // Copy as quick-add lines: the ticked follow-ups only, for pasting into Docket by hand.
+    if (value === 'copy' || (!send && pickedF.length)) {
+      if (!pickedF.length) return;
+      const lines = quickAddLines(pickedF.map(x => x.text), person.handle).join('\n');
       try { await navigator.clipboard.writeText(lines); done.push(`${pickedF.length} Docket quick-add line${pickedF.length === 1 ? '' : 's'} copied`); }
       catch {
         await showDialog(`<form method="dialog" class="confirm"><h2>Copy these into Docket</h2><textarea rows="6" readonly>${esc(lines)}</textarea>
           <div class="acts"><button class="btn primary" value="ok">Done</button></div></form>`);
       }
+      if (value === 'copy') { if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' }); return; }
+    } else if (pickedF.length) {
+      try {
+        const added = await d.sendHandoffs(followUpHandoffs({ person, day: n.day, lines: pickedF, nowIso: new Date().toISOString() }));
+        const theirs = pickedF.filter(x => x.owner === 'them').length;
+        done.push(added === pickedF.length ? `${added} task${added === 1 ? '' : 's'} sent to Docket${theirs ? ` (${theirs} waiting on ${person.name})` : ''}`
+          : added ? `${added} of ${pickedF.length} follow-ups sent to Docket (the rest were sent already)` : `${pickedF.length === 1 ? 'That follow-up was' : 'Those follow-ups were'} sent to Docket already`);
+      } catch (e) { toastErr(e); }
     }
+    const pickedW = canOffer ? f.getAll('w').map(Number).map(i => wins[i]).filter(Boolean) : [];
     if (pickedW.length) {
       try {
         const added = await host.addWins(winEntries({ person, day: n.day, wins: pickedW, nowIso: new Date().toISOString() }));
@@ -292,6 +317,76 @@ export function createOneOnOnesPage(ws, root, host) {
       } catch (e) { toastErr(e); }
     }
     if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' });
+  }
+
+  /* ---------- Tidy notes (optional, opencode connector) ---------- */
+
+  let tidyTimer = null;
+  async function tidyNotes() {
+    const person = personNow(), n = ui.note;
+    if (!person || !n || !v.settings.aiDraft || !v.oc) return;
+    const notes = tidyInput(n.text, person);
+    if (!notes.trim()) { ws.toast('This note has nothing to tidy yet.', { kind: 'warn' }); return; }
+    const ok = await showDialog(confirmHtml({
+      title: 'Tidy notes?',
+      lines: [
+        `Sends this note's lines to your opencode agents through Workshop on this computer. ${person.name}'s name is left out.`,
+        'They propose Follow-ups and Wins. Nothing changes in the note until you add what you keep.',
+        'The lines are saved in Workshop\'s own folder, not in your code workspace.'
+      ],
+      action: 'Tidy'
+    }));
+    if (!ok) return;
+    const day = n.day;
+    ui.tidy = { ...noTidy(), state: 'starting' };
+    paint();
+    try {
+      await d.tidy(person.id, day, notes);
+      ui.tidy.state = 'running';
+      paint();
+      pollTidy(person.id, day, Date.now());
+    } catch (e) {
+      ui.tidy = { ...noTidy(), state: 'failed', error: e.message || 'Tidy notes did not start.' };
+      paint();
+    }
+  }
+  function pollTidy(personId, day, started) {
+    clearTimeout(tidyTimer);
+    tidyTimer = setTimeout(async () => {
+      if (ui.personId !== personId || ui.tidy.state !== 'running') return;
+      try {
+        const r = await d.tidyResult(personId, day);
+        if (r.state === 'done') {
+          const p = parseTidy(r.text);
+          ui.tidy = { ...noTidy(), state: 'done', followUps: p.followUps.map(x => ({ ...x, use: true })), wins: p.wins.map(text => ({ text, use: true })) };
+          paint(); return;
+        }
+        if (r.state === 'failed') { ui.tidy = { ...noTidy(), state: 'failed', error: r.error || '' }; paint(); return; }
+      } catch { /* keep waiting; Workshop may be busy */ }
+      if (Date.now() - started > 15 * 60000) { ui.tidy = { ...noTidy(), state: 'failed', error: 'Nothing after 15 minutes. Check the session in Dispatch.' }; paint(); return; }
+      pollTidy(personId, day, started);
+    }, 3000);
+  }
+  /** A change to the proposal (tick, text or owner), kept in ui.tidy so a repaint keeps it. */
+  function editTidy(t) {
+    const d = t.dataset, f = ui.tidy.followUps, w = ui.tidy.wins;
+    if (d.tidyF !== undefined && f[+d.tidyF]) f[+d.tidyF].use = t.checked;
+    else if (d.tidyFt !== undefined && f[+d.tidyFt]) f[+d.tidyFt].text = t.value;
+    else if (d.tidyFo !== undefined && f[+d.tidyFo]) f[+d.tidyFo].owner = t.value === 'them' ? 'them' : 'me';
+    else if (d.tidyW !== undefined && w[+d.tidyW]) w[+d.tidyW].use = t.checked;
+    else if (d.tidyWt !== undefined && w[+d.tidyWt]) w[+d.tidyWt].text = t.value;
+  }
+
+  /** Add to the note: only the ticked lines, as edited. */
+  function acceptTidy() {
+    const person = personNow(), n = ui.note;
+    if (!person || !n || ui.tidy.state !== 'done') return;
+    const followUps = ui.tidy.followUps.filter(x => x.use).map(({ text, owner }) => ({ text, owner }));
+    const wins = ui.tidy.wins.filter(x => x.use).map(x => x.text);
+    const next = applyTidy(n.text, { followUps, wins }, person);
+    ui.tidy = noTidy();
+    if (next !== n.text) { n.text = next; n.dirty = true; n.mode = 'edit'; paint(); saveNote(); }
+    else paint();
   }
 
   /* ---------- the optional draft step ---------- */
@@ -379,14 +474,19 @@ export function createOneOnOnesPage(ws, root, host) {
     if (el('[data-log]')) { await leaveNote(); logFollowUps(); return; }
     if (el('[data-draft]')) { draftTalkingPoints(); return; }
     if (el('[data-draft-insert]')) { insertDraft(); return; }
+    if (el('[data-tidy-accept]')) { acceptTidy(); return; }
+    if (el('[data-tidy-discard]')) { ui.tidy = noTidy(); paint(); return; }
+    if (el('[data-tidy]')) { await leaveNote(); tidyNotes(); return; }
   });
 
   root.addEventListener('change', async e => {
     const t = e.target;
     if (t.matches('[data-include-concerns]')) { ui.ai.includeConcerns = t.checked; return; }
+    if (t.closest('.tidy')) { editTidy(t); return; }
     if (t.matches('[data-pick-note]')) {
       await leaveNote();
       const day = t.value;
+      ui.tidy = noTidy();
       if (!day) { ui.note = null; paint(); return; }
       const n = d.notesOf(ui.personId).find(x => x.day === day);
       if (n) { await loadNote(n.path, n.day); paint(); }
@@ -394,6 +494,7 @@ export function createOneOnOnesPage(ws, root, host) {
   });
 
   root.addEventListener('input', e => {
+    if (e.target.closest('.tidy')) { editTidy(e.target); return; }
     if (!e.target.matches('[data-editor]') || !ui.note) return;
     ui.note.text = e.target.value;
     ui.note.dirty = true;

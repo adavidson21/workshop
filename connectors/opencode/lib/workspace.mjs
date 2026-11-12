@@ -158,6 +158,29 @@ export async function runLoose(name, args, find) {
   return { session: sid };
 }
 
+/**
+ * Sends `text` to Tandem's agent `agent` in a new session titled `title`, listed in `others` like runLoose, for a
+ * job that has no Tandem command of its own (Rapport's Tidy notes). Resolves {session}.
+ */
+export async function promptLoose(title, text, agent) {
+  needOpencode();
+  if (oc.agents && oc.agents.size && !oc.agents.has(agent)) throw httpError(400, `opencode has no ${agent} agent. Run the Tandem install command again, then restart opencode.`);
+  const created = await oc.api.createSession(String(title).slice(0, 120));
+  const sid = created.id;
+  upsertSession(sid, { title: created.title, status: "busy", busySince: Date.now(), activity: `Starting ${title}`, error: null, text: null, command: title });
+  loose.set(sid, { command: title, at: Date.now() });
+  broadcastLive();
+  try {
+    await oc.api.prompt(sid, text, agent);
+  } catch (e) {
+    upsertSession(sid, { status: "idle", activity: null, error: `${title}: ${e.message}` });
+    broadcastLive();
+    throw e;
+  }
+  log(`prompt ${agent} "${title}" in ${sid}`);
+  return { session: sid };
+}
+
 /** /spike <topic>: an investigation with no code changes. Linked to its spike-<name> folder once it exists. */
 export function startSpike({ topic }) {
   const t = String(topic || "").replace(/[\r\n]+/g, " ").trim();
