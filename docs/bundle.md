@@ -4,6 +4,8 @@ The shared files every Workshop app runs on: the SDK, pairing, themes, fonts, ic
 
 Version: `bundle: 1` (the format). Each release of the files has its own `version`.
 
+**Brand theme (2.14.0):** `shared/brand/brand.css` and its fonts in `shared/brand/fonts/` (OFL) are the 2026 redesign's look: burgundy, Schibsted Grotesk and Atkinson Hyperlegible Next. An app opts in by listing them in its `workshop-files.json` and linking `shared/brand/brand.css` after `shared/themes.css`. The shell and apps not yet redesigned do not load it.
+
 ## bundle.json
 
 `bundle.json` at the root of the workshop repo, written by `node scripts/bundle.mjs` and checked in CI (`--check` fails when it is stale).
