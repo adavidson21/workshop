@@ -257,6 +257,30 @@ for (const kind of ["v1", "v2"]) {
       fs.rmSync(dir, { recursive: true, force: true });
     });
 
+    test("oneonone.tidy prompts people-prep in a new listed session; oneonone.tidyResult reads draft.md back", async () => {
+      const args = { personId: "p_test1", date: "2026-11-03" };
+      const dir = path.join(ctx().home, "data", "_connectors", "opencode", "oneonones", "p_test1-2026-11-03-tidy");
+      fs.rmSync(dir, { recursive: true, force: true });
+      assert.deepEqual(await call("oneonone.tidyResult", args, ctx()), { state: "none" });
+      const r = await call("oneonone.tidy", { ...args, notes: "- them to share the runbook\n" }, ctx());
+      const route = kind === "v1" ? `POST /session/${r.session}/prompt_async` : `POST /api/session/${r.session}/prompt`;
+      await waitFor(() => fake.count(route) === 1, "the people-prep message");
+      const body = fake.bodiesFor(route).at(-1);
+      assert.equal(body.agent, "people-prep");
+      const text = kind === "v1" ? body.parts[0].text : body.text;
+      assert.ok(text.includes(path.join(dir, "notes.md")), "names the notes file, outside the workspace");
+      assert.ok(!dir.startsWith(ws.dir), "never in the code workspace");
+      assert.equal(fs.readFileSync(path.join(dir, "notes.md"), "utf8"), "- them to share the runbook\n");
+      const st = await call("state", {}, ctx());
+      assert.ok(st.liveMode.live.others.some((o) => o.session === r.session), "listed in others, so Dispatch shows its prompts");
+      fs.writeFileSync(path.join(dir, "draft.md"), "## Follow-ups\n\n- [ ] (them) Share the runbook\n\n## Wins\n\nNothing in the notes.\n");
+      await finish(r.session);
+      const done = await call("oneonone.tidyResult", args, ctx());
+      assert.equal(done.state, "done");
+      assert.match(done.text, /Share the runbook/);
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
     test("pr.reviewAll queues PRs and runs /pr-review on them one at a time; stop, clear and the inbox", async () => {
       const link = (n) => `https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/${n}`;
       await rejects(call("pr.reviewAll", { prs: [{ url: "https://github.com/owner/repo/pull/3" }] }, ctx()), "bad_request", /pull request links/);

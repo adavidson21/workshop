@@ -8,7 +8,8 @@ Receipts, 1:1s and goals for you, your reports and your manager. Rapport was cal
 - **Goals**: the team's and each report's OKRs for a quarter as a tree: team objectives, each report objective under the one its `Supports:` line names, and a Not aligned group. Click a key result's progress to update that line in place. Each doc is a plain Markdown file (Edit, Preview, Split); renaming a team objective here offers to update the reports that support it. Format: the repo README's Goals format.
 - **Upward**: optional, turned on in Settings. Support received, asks, and feedback for your manager, with a link to your 1:1s with them when a 1:1s person has their name.
 - **From Docket**: finished tasks ticked in Docket's Wrap up wait at the top of Me to accept or dismiss.
-- **After a 1:1**: **Log follow-ups** copies open follow-ups as Docket quick-add lines and turns the wins you tick into receipts about that report (evidence "From a 1:1"). Logging the same win twice adds it once.
+- **After a 1:1**: **Log follow-ups** sends the open follow-ups you tick to Docket as tasks, yours or handed to the person you met (waiting on them), and turns the wins you tick into receipts about that report (evidence "From a 1:1"). Logging the same note twice sends each follow-up and adds each win once. **Copy as quick-add lines** copies the follow-ups to paste into Docket instead.
+- **Tidy notes** (optional, opencode connector): proposes Follow-ups and Wins from today's note, without the person's name. Tick, edit, then **Add to the note**; nothing is written before that.
 - **People**: reports and your manager are people in Workshop's people directory (workshop `docs/people.md`), shared with Docket, Home and Settings. Adding or editing a report here changes it there.
 - **Review**: coverage per review section, gaps called out, and a plain-text draft to copy, plus CSV.
 

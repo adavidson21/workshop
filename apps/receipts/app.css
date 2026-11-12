@@ -227,6 +227,11 @@ dialog.edit::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 /* the draft step */
 .ai{margin-top:1.6rem;border-top:1px solid var(--rule);padding-top:.8rem}
 .oo-draft{margin:.6rem 0}
+/* Tidy notes (4.1.0): the proposal, one editable row per line. */
+.tidy h4{margin:.8rem 0 .3rem}
+.tlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.trow{display:flex;gap:.5rem;align-items:center}
+.trow input[type=text]{flex:1;min-width:0}
 
 /* people and links */
 .slist{list-style:none;margin:1rem 0;padding:0;border-top:1px solid var(--rule)}
@@ -250,6 +255,9 @@ dialog.edit::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 .oo-dlg .section-label{margin:1rem 0 .4rem}
 .oo-dlg .lines{margin:.7rem 0;padding-left:1.1rem}
 .oo-dlg .picks{list-style:none;margin:.3rem 0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.oo-dlg .frow{display:flex;flex-wrap:wrap;gap:.25rem .6rem;align-items:center}
+.oo-dlg .frow .chk{flex:1;min-width:12rem}
+.oo-dlg .frow .sent{white-space:nowrap}
 .oo-dlg .acts{justify-content:flex-end;margin-top:1rem}
 
 /* ---------- Goals (js/goals/): the tree and a doc ---------- */

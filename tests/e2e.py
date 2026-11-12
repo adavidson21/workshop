@@ -458,13 +458,31 @@ def browser_mode_checks(ctx, pg, frame, watch):
             rf2.click('[data-start-note]'); rf2.wait_for_selector('#oo-editor', timeout=5000)
             text = rf2.input_value('#oo-editor')
             check("Rapport's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
-            rf2.fill('#oo-editor', text.replace('## Wins\n\n- ', '## Wins\n\n- Led the e2e review'))
+            rf2.fill('#oo-editor', text.replace('## Wins\n\n- ', '## Wins\n\n- Led the e2e review')
+                     .replace('## Follow-ups\n\n- [ ] ', '## Follow-ups\n\n- [ ] <b>Dev</b> to share the e2e runbook\n- [ ] Book the e2e retro @me\n- [ ] '))
             rf2.press('#oo-editor', 'Control+s'); rf2.wait_for_timeout(500)
-            for _ in range(2):
-                rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
-                rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
+            rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
+            owners = rf2.locator('dialog.oo-dlg .frow select').evaluate_all('ss => ss.map(s => s.value)')
+            check('Log follow-ups guesses each owner: their name is theirs, @me is yours; Copy as quick-add lines is there too',
+                  owners == ['them', 'me'] and rf2.locator('dialog.oo-dlg [data-copy-lines]').count() == 1)
+            rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
+            rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
+            check('a follow-up already sent shows Sent and is unticked when the note is logged again',
+                  rf2.locator('dialog.oo-dlg .frow .sent').count() == 2 and rf2.locator('dialog.oo-dlg input[name=f]:checked').count() == 0)
+            rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
             check('a win logged after a 1:1 becomes one receipt about the report', rf2.inner_text('.list').count('Led the e2e review') == 1
                   and 'From a 1:1' in rf2.inner_text('.list'))
+            # Follow-ups land in Docket as tasks with no second click: delegated to the report (waiting, a
+            # follow-up date) or yours. Logged twice, added once (docs/handoffs.md, rule 4).
+            pg.evaluate("location.hash = '#/prioritizer'"); pg.wait_for_timeout(1500)
+            got = pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'});
+              const dev = (await ws.people.get()).people.find(p => p.relation === 'report'); const e = await ws.data.get('tasks');
+              const mine = (e && e.items || []).filter(t => t.from && t.from.app === 'receipts');
+              return mine.map(t => [t.title, !!t.waiting, JSON.stringify(t.who || []) === JSON.stringify([dev.id]), /^\\d{4}-\\d{2}-\\d{2}$/.test(t.nudgeOn || '')]).sort(); }""")
+            check("1:1 follow-ups land in Docket once each: theirs waiting on the report with a follow-up date, yours a plain task",
+                  got == [['<b>Dev</b> to share the e2e runbook', True, True, True], ['Book the e2e retro', False, False, False]])
+            pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1000)
+            rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
             # Rapport Goals: start the team's goals, then the report's; the report's objective sits under the team's.
             pg.evaluate("location.hash = '#/receipts/goals'"); pg.wait_for_timeout(1200)
             gf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
