@@ -48,7 +48,7 @@ function loadXlsx() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   return xlsxLoading || (xlsxLoading = new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = new URL('../../../shared/vendor/xlsx.full.min.js', import.meta.url).href;
+    s.src = new URL('../../../../../shared/vendor/xlsx.full.min.js', import.meta.url).href;
     s.onload = () => (window.XLSX ? res(window.XLSX) : rej(new Error('Excel export did not load.')));
     s.onerror = () => { xlsxLoading = null; rej(new Error('Excel export did not load.')); };
     document.head.appendChild(s);

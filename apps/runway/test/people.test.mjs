@@ -2,7 +2,7 @@
 // table and the owner filter. Synthetic data only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 import { mentionOf, namesOf, notFor, resolve, setDirectory } from '../js/people.js';
 import { parse, reconcile, serialize } from '../js/outline.js';
 import { markdown } from '../js/export.js';

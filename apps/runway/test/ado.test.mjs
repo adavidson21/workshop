@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   applyLive, cleanSource, describe, iterationIndex, keepMine, mergeLinked, ownersOf, placeItem, pulled, statusOf, stopFollowing, unlink, useRemote
 } from '../js/ado/model.js';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 import { blankDoc, fromEnvelope, toEnvelopeParts } from '../js/model.js';
 import { createAdo } from '../js/ado/index.js';
 
@@ -201,7 +201,7 @@ test('createAdo: reports the connector state and reads through roadmap and itera
 });
 
 test('ADO roadmaps pass Runway\'s JSON Schemas', async () => {
-  const { SchemaSet } = await import('./workshop/schema.mjs');
+  const { SchemaSet } = await import('../../../tests/lib/schema.mjs');
   const { join, dirname } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
   const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), '..', 'schemas'));

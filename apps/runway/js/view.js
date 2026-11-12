@@ -1,6 +1,6 @@
 /* Runway's HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
-import { outsideBanner, outsideMark } from '../shared/outside.js';
+import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { SCALES, fmt } from './dates.js';
 import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, itemColor, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';

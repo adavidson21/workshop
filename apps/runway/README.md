@@ -2,7 +2,7 @@
 
 Team and project roadmaps. Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export a PNG or SVG image, or Markdown.
 
-Runs on its own at https://runway.alexisdavidson.org and inside Workshop at `/apps/runway/`, the same way Docket does. Plain JavaScript ES modules, no build step, no dependencies.
+An app in Workshop (`apps/runway/`, moved from adavidson21/runway on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. Plain JavaScript ES modules, no build step, no dependencies.
 
 ## Using it
 
@@ -116,7 +116,7 @@ Where it saves:
 
 ## Files from Workshop
 
-`shared/`, `icons/` and `test/workshop/` are exact copies of files in adavidson21/workshop, pinned in `workshop-files.json`. Never edit them here: change them in Workshop, then run `node scripts/sync-workshop.mjs --update` and commit. CI fails if a copy differs (`--check`).
+Runway uses Workshop's public shared files (`../../shared/`, listed in Workshop's `docs/shared.md`) and nothing from other apps; `tests/check-boundaries.mjs` checks it.
 
 ## Code
 
@@ -137,22 +137,22 @@ Everything but `main.js` and `toPng` runs in Node, so it is unit tested.
 
 ## Tests
 
+From Workshop's root:
+
 ```
-node scripts/sync-workshop.mjs --check
-node --test "test/*.test.mjs"
+node --test "apps/runway/test/*.test.mjs"
 pip install playwright && python -m playwright install chromium
-python test/e2e.py
+python apps/runway/test/e2e.py
+python apps/runway/test/e2e_ado.py
 ```
 
 `test/e2e_ado.py` runs Runway against a mock Workshop agent with a fake ADO connector: a live roadmap, a linked one with an edit that differs, an ad hoc item mixed in, Publish (preview, confirm, `workitem.update` with `confirm: true`, conflicts skipped), the team profile filled from Settings, and the connector turned off. `test/publish.test.mjs` covers the diff, conflicts and the calls with a fake connector.
 
-`test/e2e.py` serves this repo the way runway.alexisdavidson.org does and drives it in headless Chrome: outline, drag, keys, tray, export PNG, SVG and Markdown, reload, escaping, phone width.
+`test/e2e.py` serves Workshop's repo as a static site, opens Runway's page (`/apps/runway/`) and drives it in headless Chrome: outline, drag, keys, tray, export PNG, SVG and Markdown, reload, escaping, phone width.
 
 ## Deploy
 
-A Cloudflare Worker named `runway` serves this repo's files (`wrangler.jsonc`; `.assetsignore` keeps tests and scripts off the site). Deploy with `npx wrangler deploy`, or connect Workers Builds to deploy from `main`. Workshop serves Runway at `/apps/runway/` through a service binding named `RUNWAY`, so a deploy here updates both.
-
-Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reload.
+With Workshop: a merge to Workshop's `main` deploys it. Bump `version` in `app.json` when shipping a change.
 
 ## Later
 
@@ -161,4 +161,4 @@ Bump `VERSION` in `sw.js` when shipping a change, so open windows offer to reloa
 
 ## License
 
-[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: `shared/fonts/OFL-*.txt`.
+[PolyForm Shield 1.0.0](https://polyformproject.org/licenses/shield/1.0.0), see `LICENSE`. Free to use, change and share, including at work; not for building a product that competes with it. Versions up to November 5, 2026 were MIT and stay MIT. Bundled fonts keep their own licenses: Workshop's `shared/fonts/OFL-*.txt`.

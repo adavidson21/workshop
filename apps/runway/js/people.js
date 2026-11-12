@@ -3,7 +3,7 @@
 
    Items keep `who`: people (p_) and group (g_) ids, never names. The outline and the panel show @handles; a
    person counts as an owner of an item assigned to them or to an active group they are in. */
-import * as D from '../shared/people.js';
+import * as D from '../../../shared/people.js';
 
 let current = D.EMPTY;
 export const setDirectory = (dir) => { current = dir || D.EMPTY; };

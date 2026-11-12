@@ -3,13 +3,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../js/store.js';
 import { blankDoc, cleanItem } from '../js/model.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import { fakeWs } from './fake.mjs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const workshop = SchemaSet.fromDir(join(HERE, 'workshop', 'schemas'));
+const workshop = SchemaSet.fromDir(join(HERE, '..', '..', '..', 'docs', 'schemas'));
 const runway = SchemaSet.fromDir(join(HERE, '..', 'schemas'));
 const make = (ws, o = {}) => createStore(ws, { debounceMs: 1, retryMs: 20, ...o });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

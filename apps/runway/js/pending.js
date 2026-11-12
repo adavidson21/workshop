@@ -13,7 +13,7 @@
                taken once: an idea removed later does not come back.
    Runway never writes another app's data. */
 import { APP, VERSION, cleanItem, newId, nextOrder, parentChoices, validMapId } from './model.js';
-import { sendersFrom as sharedSendersFrom } from '../shared/handoffs.js';
+import { sendersFrom as sharedSendersFrom } from '../../../shared/handoffs.js';
 
 export const SENDERS = { home: 'Home', agents: 'Dispatch' };
 /* Who sends Runway ideas, from the manifests on this Workshop site (ws.apps.list(); Workshop docs/handoffs.md,

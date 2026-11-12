@@ -24,7 +24,7 @@
    identity (adoIdentity: email, else exact display name). Someone it does not have leaves `who` empty and shows
    in the panel. Without a directory (not loaded, or another version) owners are left out of the refresh: `who`
    stays as it is. */
-import { byAdoIdentity } from '../../shared/people.js';
+import { byAdoIdentity } from '../../../../shared/people.js';
 
 export const TYPES = ['Epic', 'Feature', 'User Story'];
 // Work item types that come in under the 'User Story' choice: the children the connector returns with stories: true.

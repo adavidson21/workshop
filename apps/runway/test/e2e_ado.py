@@ -6,15 +6,17 @@ as differing), mixing in an ad hoc item, Publish (preview, confirm, workitem.upd
 connector off Runway shows no ADO controls and still opens every roadmap.
 
   pip install playwright && python -m playwright install chromium
-  python test/e2e_ado.py
+  python apps/runway/test/e2e_ado.py
 
 Exit 1 if any check fails."""
 import functools, http.server, json, os, re, sys, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Workshop's root: Runway is apps/runway/, and its page loads Workshop's shared files.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 PORT = 8815
 SITE = f'http://127.0.0.1:{PORT}'
+APP = SITE + '/apps/runway/'
 
 STATE = {
     'connector': 'ready',
@@ -176,7 +178,7 @@ def main():
         pg.on('pageerror', lambda e: errors.append(str(e)))
         pg.on('console', lambda m: m.type == 'error' and not m.text.startswith('Failed to load resource') and errors.append(m.text))
 
-        pg.goto(SITE + '/')
+        pg.goto(APP)
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         check('runs on the agent backend', pg.evaluate(f'() => {R}.ws.backend') == 'agent')
         pg.wait_for_selector('[data-fromado]', timeout=8000)
@@ -334,7 +336,7 @@ def main():
         linked_id = pg.evaluate(f'() => {R}.store.v.mapId')
 
         # Team reports (moved from Docket): the page, the profile, one dataset pull, tabs, escaped ADO text, export.
-        pg.goto(SITE + '/#/')
+        pg.goto(APP + '#/')
         pg.wait_for_selector('[data-reports]', timeout=5000)
         pg.click('[data-reports]')
         pg.wait_for_selector('.rpage .engcard', timeout=8000)
@@ -370,7 +372,7 @@ def main():
 
         # The connector turned off: no ADO controls, roadmaps still open and edit.
         STATE['connector'] = 'disabled'
-        pg.goto(SITE + '/#/')
+        pg.goto(APP + '#/')
         pg.reload()
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         pg.wait_for_function(f'() => {R}.ado && {R}.ado.state.checked && !{R}.ado.state.ready', timeout=8000)

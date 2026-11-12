@@ -1,6 +1,6 @@
 // A fake Workshop SDK for Runway tests: an in-memory data and files store with revisions and conflicts, and the
 // real merge and stamp rules from the SDK.
-import { data as rules } from '../shared/workshop-sdk.js';
+import { data as rules } from '../../../shared/workshop-sdk.js';
 
 export function fakeWs({ backend = 'agent', stored = {} } = {}) {
   const store = structuredClone(stored);

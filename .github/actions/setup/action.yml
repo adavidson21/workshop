@@ -11,9 +11,7 @@ runs:
     # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
     - uses: actions/checkout@v4
       with: { repository: adavidson21/docket, path: .remote/prioritizer }
-    # Runway, Rapport (adavidson21/receipts) and Notes are served under /apps/<name>/ the same way, and checked the same way.
-    - uses: actions/checkout@v4
-      with: { repository: adavidson21/runway, path: .remote/runway }
+    # Rapport (adavidson21/receipts) and Notes are served under /apps/<name>/ the same way, and checked the same way.
     - uses: actions/checkout@v4
       with: { repository: adavidson21/receipts, path: .remote/receipts }
     - uses: actions/checkout@v4

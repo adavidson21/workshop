@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Runway on its own, in headless Chrome: this repo served as a static site, the way runway.alexisdavidson.org
-serves it, with no Workshop agent. Pastes an outline, drags and nudges items, exports PNG, SVG and Markdown,
+"""Runway on its own page (apps/runway/), in headless Chrome: Workshop's repo served as a static site, with no
+Workshop agent. Pastes an outline, drags and nudges items, exports PNG, SVG and Markdown,
 reloads and checks it was saved, and checks text is escaped and the page logs no errors.
 
   pip install playwright && python -m playwright install chromium
-  python test/e2e.py
+  python apps/runway/test/e2e.py
 
 Exit 1 if any check fails."""
 import functools, http.server, json, os, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Workshop's root: Runway is apps/runway/, and its page loads Workshop's shared files.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 PORT = 8814
 SITE = f'http://127.0.0.1:{PORT}'
+APP = SITE + '/apps/runway/'
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -56,7 +58,7 @@ def main():
         # The SDK probes /api/health for a Workshop agent on this site; its 404 is expected here.
         pg.on('console', lambda m: m.type == 'error' and not m.text.startswith('Failed to load resource') and errors.append(m.text))
 
-        pg.goto(SITE + '/')
+        pg.goto(APP)
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         check('Runway opens on its own at the site root', pg.title() == 'Runway')
         check('it has the standalone top bar', pg.locator('.ws-bar .here').text_content() == 'Runway')

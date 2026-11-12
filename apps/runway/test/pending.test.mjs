@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { data as sdkData } from '../shared/workshop-sdk.js';
+import { data as sdkData } from '../../../shared/workshop-sdk.js';
 import { fromEnvelope } from '../js/model.js';
 import { acceptedIdeas, createPending, ideaToItem, workItemsFrom, writeToMap } from '../js/pending.js';
 

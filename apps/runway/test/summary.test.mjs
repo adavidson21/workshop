@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { buildSummary, roadmapsCard } from '../js/summary.js';
 import { sendersFrom, SENDERS } from '../js/pending.js';
 import { teamDefaults } from '../js/ado/index.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
 test('summary: the roadmaps as capture targets for ideas, matching docs/summaries.md', () => {
   const card = roadmapsCard([{ id: 'm_a', title: 'Platform', changed: 5 }, { id: 'm_b', title: '' }]);
   assert.deepEqual(card, { id: 'roadmaps', kind: 'targets', title: 'Roadmaps', capture: 'idea', rows: [{ id: 'm_a', title: 'Platform' }, { id: 'm_b', title: 'Untitled roadmap' }] });
-  const schemas = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
+  const schemas = SchemaSet.fromDir(new URL('../../../docs/schemas/', import.meta.url).pathname);
   assert.deepEqual(schemas.validate('summary-card', { ...card, updatedAt: 1 }), []);
   assert.equal(buildSummary({ loaded: false, list: [] }), null);
   assert.equal(buildSummary({ loaded: true, readOnly: 'newer', list: [] }), null);
@@ -37,7 +37,7 @@ test('summary: the Pending assignment list as a list card, once Pending has load
   assert.deepEqual(card, { id: 'pending', kind: 'list', title: 'Pending assignment', count: 2, route: 'pending', rows: [
     { id: 'p_1', title: 'Bulk export', route: 'pending', due: '2026-11-06', note: 'CSV and Excel' },
     { id: 'p_2', title: 'Dark mode', route: 'pending' }] });
-  const schemas = SchemaSet.fromDir(new URL('./workshop/schemas/', import.meta.url).pathname);
+  const schemas = SchemaSet.fromDir(new URL('../../../docs/schemas/', import.meta.url).pathname);
   assert.deepEqual(schemas.validate('summary-card', { ...card, updatedAt: 1 }), []);
   assert.equal(pendingCard({ loaded: true, items: Array.from({ length: 60 }, (_, i) => ({ id: `p${i}`, title: 't' })) }).rows.length, 50);
   const v = { loaded: true, list: [] };

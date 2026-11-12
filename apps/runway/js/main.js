@@ -3,10 +3,10 @@
 
    store.js saves through the SDK; outline.js, model.js, timeline.js and view.js are pure; this file owns the
    page: painting, the timeline's pointer and keyboard handling, dialogs, routes and commands. */
-import { connect } from '../shared/workshop-sdk.js';
-import { mountBar } from '../shared/standalone-bar.js';
-import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
-import { saveFile } from '../shared/save-file.js';
+import { connect } from '../../../shared/workshop-sdk.js';
+import { mountBar } from '../../../shared/standalone-bar.js';
+import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
+import { saveFile } from '../../../shared/save-file.js';
 import { SNAP, addDays, isDate, periodEnd, periodStart, sizeEnd, sprintOf, toDay, today } from './dates.js';
 import { APP, blankDoc, cleanItem, fromEnvelope, goalFor, setGoal, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, setLane, setParent, viewRange } from './model.js';
 import { parse, reconcile, serialize } from './outline.js';
@@ -17,7 +17,7 @@ import { createStore } from './store.js';
 import { roadmapItemOffer, sendOffer } from './offers.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, workItemsFrom, writeToMap } from './pending.js';
 import { buildSummary } from './summary.js';
-import { createSummaryWriter, readCards } from '../shared/summary.js';
+import { createSummaryWriter, readCards } from '../../../shared/summary.js';
 import { adoOwner, getDirectory, mentionOf, namesOf, notFor, resolve, setDirectory } from './people.js';
 import {
   ICON, OUTLINE_HELP, assignDialog, confirmDialog, exportDialog, importDialog, laneOptions, listHtml, panelHtml, promptDialog, rangeHtml, underOptions,

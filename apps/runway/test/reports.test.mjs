@@ -107,7 +107,7 @@ test('teamLines: active team members from Workshop People', () => {
 });
 
 test('the Excel workbook has every tab, with Summary formulas', () => {
-  const XLSX = createRequire(import.meta.url)('../shared/vendor/xlsx.full.min.js');
+  const XLSX = createRequire(import.meta.url)('../../../shared/vendor/xlsx.full.min.js');
   const wb = buildWorkbook(XLSX, DATA(), NOW);
   assert.deepEqual(wb.SheetNames, ['How To Use', 'Summary', 'Capacity', 'Priority Changes', 'Escalations', 'Out-of-Scope Work', 'Sprint Carryover',
     'Sprint Scope', 'Scope Changes', 'Assignment Changes', 'Load by Person', 'Priority Inventory', 'Throughput', 'Bugs Created', 'Risk Flags']);

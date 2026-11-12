@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { cleanSource, mergeLinked, pulled } from '../js/ado/model.js';
 import { applySent, localChanges, planPublish, publishCount, sendPlan, sprintFor, updateArgs } from '../js/ado/publish.js';
 import { createAdo } from '../js/ado/index.js';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 import { blankDoc, toEnvelopeParts } from '../js/model.js';
 import { publishDialog, publishResultsDialog } from '../js/view.js';
 
@@ -47,7 +47,7 @@ test('pulled records where ADO keeps the dates: sprint, project, own dates', () 
 });
 
 test('the new ado fields pass the item schema', async () => {
-  const { SchemaSet } = await import('./workshop/schema.mjs');
+  const { SchemaSet } = await import('../../../tests/lib/schema.mjs');
   const { join, dirname } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
   const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), '..', 'schemas'));
