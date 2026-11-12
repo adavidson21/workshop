@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { KEEP, SPACING_MS, historyFolder, historyKey, planSnapshot, snapshotsOf, stampName, stampTime } from '../js/history.js';
 import { SEG, isNote, tree } from '../js/model.js';
-import { _internals } from '../shared/workshop-sdk.js';
-import { FakeFolder } from './workshop/fake-dir.mjs';
+import { _internals } from '../../../shared/workshop-sdk.js';
+import { FakeFolder } from '../../../shared/test/fake-dir.mjs';
 import { createNotes } from '../js/data.js';
 
 test('keys and stamps follow the name rules and round-trip', () => {

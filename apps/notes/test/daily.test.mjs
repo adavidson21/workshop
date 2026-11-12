@@ -1,7 +1,7 @@
 // What other apps add to a day's note (daily.js) and Docket's wrap-up arriving through pickup.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { data as sdkData } from '../shared/workshop-sdk.js';
+import { data as sdkData } from '../../../shared/workshop-sdk.js';
 import { addUnder, docketPlan, hashText, writeSection } from '../js/daily.js';
 import { startPickup } from '../js/pickup.js';
 import { STARTERS, dailyText, fill } from '../js/templates.js';

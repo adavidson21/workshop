@@ -8,3 +8,5 @@ dist/
 .wrangler/
 # layout check screenshots (tests/layout-e2e.py)
 tests/out/
+# Folio builds its editor bundle with npm (apps/notes/scripts/build-editor.mjs)
+node_modules/

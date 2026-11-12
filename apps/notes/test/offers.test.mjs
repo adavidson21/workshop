@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KEEP, actionItems, emptyOffers, offerFor, offerId, readOffers, sentIds, wins, withOffer } from '../js/offers.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
-const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'docs', 'schemas'));
 const NOTE = '---\ntitle: Sync\n---\n# Sync\n\n- [ ] Draft the rollout plan\n- [x] Book the room\n  - [ ] Nested item #win\n* Shipped the cache layer #win today\n\n```\n- [ ] not an item #win\n```\n#winning is not a win\n';
 
 test('action items: open and done, outside code and frontmatter, with whole-file lines', () => {

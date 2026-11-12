@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { data as sdkData } from '../shared/workshop-sdk.js';
-import * as Products from '../shared/products.js';
+import { data as sdkData } from '../../../shared/workshop-sdk.js';
+import * as Products from '../../../shared/products.js';
 import { frontmatter } from '../js/markdown.js';
 import { isProductPath } from '../js/products.js';
 import { productNoteText, startProductSetup, toMake } from '../js/product-setup.js';

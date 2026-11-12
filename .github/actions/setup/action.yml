@@ -11,9 +11,6 @@ runs:
     # Its main branch is checked against this one: offline files, Home's task format, and the e2e run.
     - uses: actions/checkout@v4
       with: { repository: adavidson21/docket, path: .remote/prioritizer }
-    # Notes is served under /apps/<name>/ the same way, and checked the same way.
-    - uses: actions/checkout@v4
-      with: { repository: adavidson21/notes, path: .remote/notes }
     - uses: actions/setup-node@v4
       with: { node-version: 22 }
     - uses: actions/setup-python@v5
