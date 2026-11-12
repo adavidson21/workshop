@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "4.7.0",
-  "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, the data folder, and backups.",
+  "version": "4.8.0",
+  "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, the data folder and backups, and a user guide.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -39,16 +39,25 @@
     {
       "name": "products",
       "path": "products"
+    },
+    {
+      "name": "user guide",
+      "path": "guide"
+    },
+    {
+      "name": "help",
+      "path": "guide"
     }
   ],
   "files": [
-    "js/forms.js",
     "js/focus-model.js",
     "js/focus-page.js",
+    "js/forms.js",
+    "js/guide.js",
     "js/pages.js",
-    "js/people.js",
     "js/people-forms.js",
     "js/people-sheet.js",
+    "js/people.js",
     "js/products-page.js",
     "js/repos.js",
     "js/settings.js",
@@ -91,6 +100,10 @@
     {
       "path": "focus",
       "title": "Focus hours and lunch"
+    },
+    {
+      "path": "guide",
+      "title": "User guide"
     }
   ],
   "commands": [
