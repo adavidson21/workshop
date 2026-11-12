@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runway: a capture already handled (an item of runway.taken v1)",
+  "type": "object",
+  "required": ["id", "to"],
+  "properties": {
+    "id": {"type": "string", "description": "<sender app>:<offer id>."},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "to": {"type": "string", "description": "pending, or the id of the roadmap it was added to."}
+  }
+}

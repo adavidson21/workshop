@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>
+    .tile{fill:#2B2D33}.cell{fill:#FFFFFF}.mark{stroke:#2B2D33}
+    @media (prefers-color-scheme: dark){.tile{fill:#E8E9EC}.cell{fill:#1C1D21}.mark{stroke:#E8E9EC}}
+  </style>
+  <rect class="tile" width="24" height="24" rx="6.5"/>
+  <rect class="cell" x="5" y="5" width="6.2" height="6.2" rx="1.8"/>
+  <path class="mark" d="M6.6 8.3l1.2 1.1 2-2.2" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect class="cell" x="12.8" y="5" width="6.2" height="6.2" rx="1.8" opacity=".4"/>
+  <rect class="cell" x="5" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".4"/>
+  <rect class="cell" x="12.8" y="12.8" width="6.2" height="6.2" rx="1.8" opacity=".4"/>
+</svg>

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runway: a roadmap item (an item of runway.maps/<id> v1 with kind item)",
+  "description": "start and end are inclusive dates. An item with no start may have a size instead; it then starts after its dependsOn items end (or at the roadmap's first period). Neither means unscheduled.",
+  "type": "object",
+  "required": ["id", "kind", "lane", "order", "title", "start", "end", "size", "milestone", "status", "color", "notes", "dependsOn", "afterMissing"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "kind": {"const": "item"},
+    "lane": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "A lane id, or null for no lane."},
+    "order": {"type": "number", "description": "Position in its lane, for the outline."},
+    "parent": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "The item it sits under (same lane), or null. Optional; missing means null. Depth gives its level: 0 epic, 1 feature, 2 story, 3 task."},
+    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "start": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}]},
+    "end": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}]},
+    "size": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["n", "unit"], "additionalProperties": false, "properties": {
+      "n": {"type": "integer", "minimum": 1, "maximum": 500},
+      "unit": {"enum": ["day", "week", "sprint", "month", "quarter"]}}}]},
+    "milestone": {"type": "boolean", "description": "One date: start and end are the same."},
+    "status": {"enum": ["planned", "active", "done", "at risk", "cut"]},
+    "color": {"enum": ["", "slate", "teal", "green", "amber", "red", "purple", "gray"], "description": "Empty uses its level's color."},
+    "notes": {"type": "string", "maxLength": 4000, "description": "The description: what the item delivers. Shown under the timeline and in exports."},
+    "dependsOn": {"type": "array", "items": {"type": "string"}},
+    "afterMissing": {"type": "array", "items": {"type": "string"}, "description": "Names in the outline's after: that match no item, kept so the text round trips."},
+    "who": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "pattern": "^[pg]_[A-Za-z0-9_-]{1,100}$"}, "description": "Owners: people (p_) and group (g_) ids from Workshop's people directory (workshop docs/people.md). Optional; missing means none."},
+    "ado": {"type": "object", "required": ["id"], "description": "The linked Azure DevOps work item (optional).", "properties": {
+      "id": {"type": "integer"}, "connection": {"type": "string"}, "rev": {"type": "integer"},
+      "type": {"type": "string"}, "state": {"type": "string"}, "url": {"type": "string", "description": "http(s) only, else empty."},
+      "assignee": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["name", "email"], "properties": {"name": {"type": "string"}, "email": {"type": "string"}}}], "description": "ADO's Assigned To. Owners (`who`) come from it when People has someone with that ADO identity."},
+      "iteration": {"type": "string", "description": "ADO's Iteration Path (its sprint). Publish can move the item to another sprint."},
+      "project": {"type": "string", "description": "ADO's project, for the sprint list."},
+      "ownDates": {"type": "boolean", "description": "ADO has its own start or target date, so its dates do not come from the sprint."},
+      "startDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Start Date, YYYY-MM-DD, or null."},
+      "targetDate": {"anyOf": [{"type": "null"}, {"type": "string"}], "description": "ADO's own Target Date, YYYY-MM-DD, or null."},
+      "releaseNotes": {"type": "string", "maxLength": 2000, "description": "ADO's release notes field (the roadmap's meta.ado.releaseNotesField) as plain text, or empty. Shown under What's getting done."},
+      "titlePrefix": {"type": "string", "description": "What Runway puts before a User Story's ADO title (its Feature and ' > '); empty for others."},
+      "base": {"$ref": "#/$defs/adoFields", "description": "What the last refresh brought."},
+      "remote": {"$ref": "#/$defs/adoFields", "description": "ADO's values when they differ from yours."},
+      "missing": {"type": "boolean", "description": "The last refresh did not find the work item."}}}
+  },
+  "$defs": {
+    "adoFields": {"type": "object", "properties": {
+      "title": {"type": "string"},
+      "start": {"anyOf": [{"type": "null"}, {"type": "string"}]},
+      "end": {"anyOf": [{"type": "null"}, {"type": "string"}]},
+      "status": {"type": "string"},
+      "who": {"type": "array", "items": {"type": "string"}, "description": "Owners from Assigned To. Missing in values saved before owners came from ADO."}}}
+  }
+}
