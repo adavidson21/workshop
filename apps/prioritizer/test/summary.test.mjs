@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSummary, horizon, wrapAt, HORIZON } from '../js/summary.js';
+import { buildSummary, dayBounds, horizon, wrapAt, HORIZON } from '../js/summary.js';
 import { freshDayplan, cleanDayplan } from '../js/dayplan-model.js';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import { directory } from '../../../shared/people.js';
@@ -64,6 +64,21 @@ test('summary: day blocks with tasks, Wrap up time, wrapped and offers', () => {
   assert.equal(d.days['2026-11-07'].wrapAt, null, 'Saturday is a day off');
   assert.equal(wrapAt(freshDayplan(), TODAY), '15:00', 'no sprint: from 3 PM');
   assert.deepEqual(buildSummary({board: board(), dp: freshDayplan(), log: null, today: TODAY})[1].days[TODAY].blocks, []);
+});
+
+test('summary: the day\'s start and end on working days only (Day\'s done, Workshop docs/focus.md)', () => {
+  const [, d] = buildSummary({board: board(), dir, dp: plan(), log, today: TODAY});
+  assert.equal(d.days[TODAY].start, '09:00');
+  assert.equal(d.days[TODAY].end, '17:00');
+  assert.ok(!('end' in d.days['2026-11-07']) && !('start' in d.days['2026-11-07']), 'Saturday is a day off: no start or end');
+  const late = cleanDayplan(Object.assign(plan(), {sprint: Object.assign({}, plan().sprint, {dayStart: '08:30', dayEnd: '18:15', holidays: ['2026-11-05']})}));
+  assert.deepEqual(dayBounds(late, TODAY), {start: '08:30', end: '18:15'}, 'from Day settings');
+  assert.deepEqual(dayBounds(late, '2026-11-05'), {}, 'a holiday has none');
+  const noAnchor = cleanDayplan(Object.assign(freshDayplan(), {sprint: {enabled: true, anchor: null}}));
+  assert.deepEqual(dayBounds(noAnchor, TODAY), {}, 'no sprint set: none');
+  assert.deepEqual(dayBounds(null, TODAY), {});
+  const noSprints = cleanDayplan(Object.assign(freshDayplan(), {sprint: {enabled: false, workdays: [1, 2, 3, 4, 5], dayStart: '07:00', dayEnd: '15:30'}}));
+  assert.deepEqual(dayBounds(noSprints, TODAY), {start: '07:00', end: '15:30'}, 'weekday templates (no sprints) still have a day');
 });
 
 test('summary: lists as capture targets, and people with open and waiting tasks', () => {
