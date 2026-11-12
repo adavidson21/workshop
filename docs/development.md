@@ -19,7 +19,7 @@ shared/                 used by the shell and every app
   ui.css                buttons, menus, toast, tooltip
   sw-register.js        registers sw.js
   save-file.js          downloads a file the person keeps
-  fonts/                self-hosted Gelasio, Figtree and DM Mono (OFL), fonts.css
+  fonts/                self-hosted Schibsted Grotesk, Atkinson Hyperlegible Next and DM Mono (OFL), fonts.css
   vendor/               third-party code served from this site (SheetJS); see vendor/README.md
   screenshots/          images for the install dialog
   test/                 SDK tests

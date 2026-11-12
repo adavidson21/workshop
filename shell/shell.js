@@ -36,6 +36,8 @@ const mounted = new Set();
    Same page and origin as the main window, so data, pairing and the agent are the same. Anything that opens
    another app goes to the main Workshop window (named MAIN_WINDOW), which comes to the front. */
 const SOLO = new URLSearchParams(location.search).get('solo') || null;
+// A pop-out window takes its app's color (shared/themes.css), so windows side by side are easy to tell apart.
+if (SOLO && /^[a-z][a-z0-9-]{0,39}$/.test(SOLO)) document.documentElement.dataset.app = SOLO;
 const MAIN_WINDOW = 'workshop-main';
 if (SOLO) document.documentElement.classList.add('solo');
 else if (!window.name) window.name = MAIN_WINDOW;
@@ -152,7 +154,7 @@ const BACK_ICON = svg('<path d="M8.5 16.5h-3a1.5 1.5 0 0 1-1.5-1.5V5a1.5 1.5 0 0
 
 function renderRail() {
   $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
-    + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
+    + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" style="--app-c:var(--c-${esc(a.id)},var(--c-workshop))" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Connect to Workshop on this computer" title="Connect to Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`;
