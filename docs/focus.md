@@ -71,11 +71,12 @@ Schema: [schemas/focus-day.schema.json](schemas/focus-day.schema.json). Examples
 | `late` | Keep working tonight: the time it was clicked (`HH:MM`). Day's done is off from then until midnight, and there is no morning hold the next day. |
 | `early` | Start my day now: the time it was clicked (`HH:MM`). The morning hold ends then. |
 | `low` | Low-capacity day: `true` while it is on ([Low-capacity day](#low-capacity-day)). Only today's item counts, so it ends at midnight by itself. |
+| `lowAt` | When the low-capacity day was turned on (`HH:MM`). |
 | `log` | The day's history: focus blocks with outcome (`kept`, `endedEarly` with the minutes kept, `skipped`), the lunch outcome, how many held items were released, `workedLate: true` after Keep working tonight, and `low: true` on a low-capacity day. |
 
 The shell's bar control writes day items as app `settings` (the shell connects to the SDK with `connect({app: 'settings'})`; no SDK change). Two tabs writing the same day item merge per field, the later edit winning, like any other item ([data-format.md](data-format.md), Merge).
 
-**Cleanup.** Overrides (`skip`, `manual`, `endedEarly`, `lunch`, `late`, `early`, `low`) older than 14 days are dropped from the item; the item, with its `log`, is tombstoned after 90 days. Settings and the shell run the cleanup when they write. Active-minute counts are never stored, only the resulting lunch status.
+**Cleanup.** Overrides (`skip`, `manual`, `endedEarly`, `lunch`, `late`, `early`, `low`, `lowAt`) older than 14 days are dropped from the item; the item, with its `log`, is tombstoned after 90 days. Settings and the shell run the cleanup when they write. Active-minute counts are never stored, only the resulting lunch status.
 
 **Private.** The log is read only by Settings (Focus hours, History). It never goes into a summary. The data export includes it like other Settings data.
 
@@ -175,11 +176,11 @@ With focus hours on and "After my day ends" on (`afterEnd`, the default), a day 
 
 ## Low-capacity day
 
-A switch for a day when there is less to give. It lasts until midnight and changes nothing in the data except today's day item (`low`); turning it off brings everything back as it was.
+A switch for a day when there is less to give. It lasts until midnight and changes nothing in the data except today's day item (`low` and `lowAt`); turning it off brings everything back as it was.
 
 - **On and off.** The shell bar menu (**Low-capacity day**, and **Turn off low-capacity day** while it is on) and the palette (Ctrl+K). Not offered during Day's done. It needs focus hours on: with them off there is no bar item, and `resolveFocus` ignores `low`.
-- **Held all day, like focus.** From the end of the morning hold (or midnight) until the evening Day's done starts (or midnight), the state is `focus` with source `low`, so everything waits except blocking pull requests (`isBreakThrough`). Lunch and Day's done still win and hold everything. Skip today, Start focus now and End early do not apply; the weekly hours and Day plan blocks still show in `blocks`.
-- **One span.** That whole stretch, lunch included, is one held span keyed by the date and the time it starts (`00:01` when it starts at midnight, so it never shares a key with the night before). It is released once, when it ends: when the evening Day's done starts, at midnight, or when the switch is turned off, with "Low-capacity day over. 5 held: ...". `until` and the span's `end` are the time it ends, or `null` at midnight.
+- **Held the rest of the day, like focus.** From when it was turned on (`lowAt`; midnight without it), but not before the morning hold ends, until the evening Day's done starts (or midnight), the state is `focus` with source `low`, so everything waits except blocking pull requests (`isBreakThrough`). Lunch and Day's done still win and hold everything. Skip today, Start focus now and End early do not apply; the weekly hours and Day plan blocks still show in `blocks`. Keep working tonight lifts it for the evening like any other hold.
+- **One span.** That stretch, lunch included, is one held span. When a held span is already running at `lowAt` (turned on in the middle of a focus block), that span goes on as the low day's span, with its key, so nothing is released at the switch. Otherwise the span is keyed by the date and the time it starts (`00:01` when it starts at midnight, so it never shares a key with the night before); turning it on again later the same day starts a new span. It is released once, when it ends: when the evening Day's done starts, at midnight, or when the switch is turned off, with "Low-capacity day over. 5 held: ...". `until` and the span's `end` are the time it ends, or `null` at midnight.
 - **The bar** reads "Low-capacity day" (with the held count), "Lunch until 1:00" during lunch. No "Focus ends" heads-up; lunch and day end heads-ups still show.
 - **Dispatch's digest** still runs: the span counts as a focus span, so after the day's end the digest lists what was held.
 - **Docket**, while `low` is on: Today shows at most 3 tasks and folds the rest under "More when you're ready"; To sort stays folded (Open anyway still works); Week, the Plan the week button and scores are hidden; no switch counter and no amber timer on the running task; Wrap up offers **Hand off** on open tasks due today or tomorrow, and picks 1 to 3 tasks for tomorrow (no more than 3).

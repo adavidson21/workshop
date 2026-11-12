@@ -43,6 +43,10 @@
       "type": "boolean",
       "description": "Low-capacity day: true while it is on. Only today's item counts. See focus.md."
     },
+    "lowAt": {
+      "$ref": "focus-settings.schema.json#/$defs/time",
+      "description": "When the low-capacity day was turned on."
+    },
     "lunch": {
       "type": "object",
       "properties": {
