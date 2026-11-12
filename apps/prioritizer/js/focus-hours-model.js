@@ -10,9 +10,10 @@ export function heldLabel(n, kinds = {}){
 }
 
 /* Focus hours (Workshop docs/focus.md): during focus only PRs blocked on you show and the rest is held; during
-   lunch the whole strip folds. Returns the counts to show and how many are held. */
+   lunch and Day's done the whole strip folds. Returns the counts to show and how many are held. */
 export function heldNeeds(n, state){
-  if (state !== 'focus' && state !== 'lunch') return {n, held: 0};
-  const held = n.ado + n.nudges.length + n.plan + (state === 'lunch' ? n.prs.length : 0);
-  return {n: {ado: 0, prs: state === 'lunch' ? [] : n.prs, nudges: [], plan: 0}, held};
+  if (state !== 'focus' && state !== 'lunch' && state !== 'dayDone') return {n, held: 0};
+  const all = state !== 'focus';
+  const held = n.ado + n.nudges.length + n.plan + (all ? n.prs.length : 0);
+  return {n: {ado: 0, prs: all ? [] : n.prs, nudges: [], plan: 0}, held};
 }

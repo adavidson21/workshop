@@ -2,10 +2,11 @@
    `focus` collection (settings.focus v1); Docket's Day plan can replace them for a day (its `day` summary card).
    This module is pure where it can be, so Node tests drive it with a fake clock (shared/test/focus.test.mjs):
 
-     resolveFocus({settings, day, dayplan, now})  what is focused now: {state, until, source, span, ...}
+     resolveFocus({settings, day, dayplan, bounds, prevDay, now})  what is focused now: {state, until, source, span, ...}
      day item changes                              startNow, endEarly, skipToday, undoSkip, pushLunch, ...
      createActivity()                              active minutes in this tab, shared with other tabs
      lunch rules                                   lunchOutcome, workingThrough, pushedMissed, missedOffer
+     transitions                                   headsUp (the 5-minute line), createSeen (once per event per browser)
      watchFocus(ws, onChange)                      reads Settings and Docket's summary, follows the clock
      createHolder(ws, {label, route})              an app's held toasts and its `held` summary card
 
@@ -29,10 +30,13 @@ export const PAUSE_MINUTES = 5;        // "Just a minute" hides the lunch cover 
 export const LATE_MINUTES = 60;        // Take lunch now
 export const OVERRIDE_DAYS = 14;       // overrides are dropped from a day item after this
 export const LOG_DAYS = 90;            // a day item (with its log) is tombstoned after this
+export const HEADS_UP_MINUTES = 5;     // the heads-up line shows this long before a focus block ends, lunch or the day's end
+export const DONE_PAUSE_MINUTES = 15;  // "Just a minute" hides the Day's done cover this long
 
 export const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const BY_JS_DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const LUNCH_STATUS = ['taken', 'late', 'partial', 'missed', 'skipped'];
+const DAY_END = 1440;                  // midnight, as minutes of the day
 
 /* ---------- time helpers: local wall-clock HH:MM and minutes of the day ---------- */
 const pad = n => String(n).padStart(2, '0');
@@ -47,13 +51,15 @@ const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 export function fmtTime(s) { if (!isTime(s)) return ''; const h = +s.slice(0, 2); return `${h % 12 || 12}:${s.slice(3)}`; }
 /** A Date for HH:MM on the day of `d` (in a DST gap the browser moves it to the first valid minute). */
 export function atTime(d, hhmm) { const m = toMin(hhmm); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(m / 60), m % 60, 0, 0); }
+/** YYYY-MM-DD `n` days from the date of `d`. */
+export const dateAdd = (d, n) => dateStr(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12));
 const daysBetween = (a, b) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 864e5);
 
 /* ---------- settings ---------- */
 /** The defaults the Settings page fills on first open: Monday to Friday 09:00 to 12:00, lunch 12:00 for 60 minutes. */
 export function defaults() {
   const week = Object.fromEntries(WEEKDAYS.map(d => [d, ['sat', 'sun'].includes(d) ? [] : [{ start: '09:00', end: '12:00' }]]));
-  return { enabled: true, dayplanOverride: true, week, lunch: { enabled: true, start: '12:00', minutes: 60, days: ['mon', 'tue', 'wed', 'thu', 'fri'] } };
+  return { enabled: true, dayplanOverride: true, week, lunch: { enabled: true, start: '12:00', minutes: 60, days: ['mon', 'tue', 'wed', 'thu', 'fri'] }, afterEnd: true };
 }
 
 const cleanBlock = b => b && isTime(b.start) && isTime(b.end) && toMin(b.end) > toMin(b.start) ? { start: b.start, end: b.end } : null;
@@ -70,7 +76,8 @@ export function cleanSettings(meta) {
     enabled: meta.enabled === true,
     dayplanOverride: meta.dayplanOverride !== false,
     week,
-    lunch: { enabled: l.enabled === true && isTime(l.start), start: isTime(l.start) ? l.start : '12:00', minutes, days: Array.isArray(l.days) ? WEEKDAYS.filter(d => l.days.includes(d)) : [] }
+    lunch: { enabled: l.enabled === true && isTime(l.start), start: isTime(l.start) ? l.start : '12:00', minutes, days: Array.isArray(l.days) ? WEEKDAYS.filter(d => l.days.includes(d)) : [] },
+    afterEnd: meta.afterEnd !== false
   };
 }
 
@@ -105,7 +112,7 @@ export function validateSettings(meta) {
 }
 
 /* ---------- what is focused now ---------- */
-const OFF = Object.freeze({ state: 'off', until: null, source: null, nextStart: null, nextBoundary: null, lunchStatus: null, span: null, spans: [], blocks: [], lunchBlocks: [], date: null, enabled: false });
+const OFF = Object.freeze({ state: 'off', until: null, source: null, nextStart: null, nextBoundary: null, lunchStatus: null, span: null, spans: [], blocks: [], lunchBlocks: [], date: null, enabled: false, dayStart: null, dayEnd: null, afterEnd: false, late: false });
 
 /** Today's Day plan blocks from Docket's `day` summary card entry, or null when the day has no Day plan. */
 export function dayplanOf(entry) {
@@ -115,6 +122,12 @@ export function dayplanOf(entry) {
   const l = cleanBlock(entry.lunch);
   if (l) out.lunch = l;
   return out;
+}
+
+/** The day's start and end from Docket's `day` summary card entry: {start, end}, each HH:MM or null. */
+export function dayBoundsOf(entry) {
+  const e = entry && typeof entry === 'object' ? entry : {};
+  return { start: isTime(e.start) ? e.start : null, end: isTime(e.end) ? e.end : null };
 }
 
 // Intervals as minutes [{s, e, source}], merged when they overlap; the merged one is manual if any part is.
@@ -144,6 +157,21 @@ function clipByLunch(focus, lunch) {
   return out;
 }
 
+// The parts of each interval outside every cut (Day's done wins over focus and lunch).
+function cutOut(list, cuts) {
+  let out = list;
+  for (const C of cuts) {
+    const next = [];
+    for (const f of out) {
+      if (f.e <= C.s || f.s >= C.e) { next.push(f); continue; }
+      if (f.s < C.s) next.push(Object.assign({}, f, { e: C.s }));
+      if (f.e > C.e) next.push(Object.assign({}, f, { s: C.e }));
+    }
+    out = next;
+  }
+  return out;
+}
+
 /** The planned lunch for the day (before late lunches), as minutes {s, e, source}, or null. */
 function plannedLunch(s, day, dp, wd) {
   let main = null;
@@ -158,19 +186,23 @@ function plannedLunch(s, day, dp, wd) {
 
 /**
  * What is focused now (docs/focus.md, What is focused now). settings: the collection's meta. day: today's day
- * item (another date's is ignored). dayplan: dayplanOf(Docket's day entry for today), or null. now: a Date.
- * Returns {state, until, source, nextStart, nextBoundary, lunchStatus, span, blocks, lunchBlocks, date, enabled}:
- *   state       off | focus | lunch | skipped
- *   until       HH:MM the current block ends (focus, lunch)
- *   source      schedule | dayplan | manual (focus), schedule | dayplan | late (lunch)
+ * item (another date's is ignored). dayplan: dayplanOf(Docket's day entry for today), or null. bounds:
+ * dayBoundsOf(Docket's day entry for today), or null. prevDay: yesterday's day item (only `late` is read). now: a Date.
+ * Returns {state, until, source, nextStart, nextBoundary, lunchStatus, span, blocks, lunchBlocks, date, enabled,
+ * dayStart, dayEnd, afterEnd, late}:
+ *   state       off | focus | lunch | skipped | dayDone
+ *   until       HH:MM the current block ends (focus, lunch, the morning hold), null for the evening
+ *   source      schedule | dayplan | manual (focus), schedule | dayplan | late (lunch), end | morning (dayDone)
  *   nextStart   HH:MM the next block today starts, or null
  *   nextBoundary HH:MM of the next start or end today (when the state may change), or null
- *   span        {key, start, end, focus} for the held span now (touching focus and lunch blocks are one), or null
- *   spans       every held span today [{key, start, end, focus}]; focus: it has a focus block, not only lunch
+ *   span        {key, start, end, focus, night} for the held span now (touching focus and lunch blocks are one), or
+ *               null. The night (Day's done) is its own span keyed by the morning's date at 00:00; its evening part
+ *               has end null (it goes on into the next morning).
+ *   spans       every held span today [{key, start, end, focus, night}]; focus: it has a focus block, not only lunch
  *   blocks      today's focus blocks [{start, end, source}] (after lunch clipping, without ended ones)
  *   lunchBlocks today's lunch blocks [{start, end, source}]
  */
-export function resolveFocus({ settings, day = null, dayplan = null, now = new Date() } = {}) {
+export function resolveFocus({ settings, day = null, dayplan = null, bounds = null, prevDay = null, now = new Date() } = {}) {
   const s = cleanSettings(settings);
   if (!s || !s.enabled) return OFF;
   const date = dateStr(now), wd = weekdayOf(now), nowMin = minuteOf(now);
@@ -194,17 +226,41 @@ export function resolveFocus({ settings, day = null, dayplan = null, now = new D
   let focus = clipByLunch(mergeIntervals(baseLeft.concat(manual)), lunch).filter(f => f.e > f.s && !ended.has(f.s));
   const skip = d.skip === true;
 
+  // Day's done (docs/focus.md): the evening from the day's end to midnight (until Keep working tonight), and the
+  // morning from midnight until the day starts (its start or first focus block, whichever is first; none the day
+  // after Keep working tonight). It wins over focus and lunch.
+  const b = bounds && typeof bounds === 'object' ? bounds : {};
+  const endMin = toMin(b.end), startMin = toMin(b.start);
+  const lateMin = isTime(d.late) ? toMin(d.late) : null;
+  const night = [];
+  if (s.afterEnd) {
+    const prevLate = !!(prevDay && prevDay.id === dateAdd(now, -1) && isTime(prevDay.late));
+    if (startMin != null && !prevLate) {
+      const firstFocus = skip ? null : focus.map(f => f.s).filter(m => m > 0).sort((x, y) => x - y)[0];
+      let r = Math.min(startMin, firstFocus == null ? DAY_END : firstFocus);
+      if (isTime(d.early)) r = Math.min(r, toMin(d.early));
+      if (r > 0) night.push({ s: 0, e: r, source: 'morning' });
+    }
+    if (endMin != null && endMin > 0) {
+      const stop = lateMin != null ? Math.max(endMin, lateMin) : DAY_END;
+      if (stop > endMin) night.push({ s: endMin, e: stop, source: 'end' });
+    }
+    if (night.length) { focus = cutOut(focus, night); const left = cutOut(lunch, night); lunch.length = 0; lunch.push(...left); }
+  }
+
   const inside = list => list.find(iv => nowMin >= iv.s && nowMin < iv.e) || null;
+  const nightNow = inside(night);
   const lunchNow = inside(lunch);
   const focusNow = skip ? null : inside(focus);
   let state = 'off', cur = null;
-  if (lunchNow) { state = 'lunch'; cur = lunchNow; }
+  if (nightNow) { state = 'dayDone'; cur = nightNow; }
+  else if (lunchNow) { state = 'lunch'; cur = lunchNow; }
   else if (skip) state = 'skipped';
   else if (focusNow) { state = 'focus'; cur = focusNow; }
 
   const active = lunch.concat(skip ? [] : focus);
   const starts = active.map(iv => iv.s).filter(m => m > nowMin).sort((a, b) => a - b);
-  const bounds = active.flatMap(iv => [iv.s, iv.e]).filter(m => m > nowMin).sort((a, b) => a - b);
+  const edges = active.concat(night).flatMap(iv => [iv.s, iv.e]).filter(m => m > nowMin && m < DAY_END).sort((a, b) => a - b);
 
   // The held span: touching or overlapping held blocks are one, so focus straight into lunch releases once.
   const spans = [];
@@ -214,19 +270,27 @@ export function resolveFocus({ settings, day = null, dayplan = null, now = new D
     else spans.push({ s: iv.s, e: iv.e, focus: lunch.indexOf(iv) < 0 });
   }
   const spanOut = sp => ({ key: `${date}T${fromMin(sp.s)}`, start: fromMin(sp.s), end: fromMin(sp.e), focus: sp.focus });
+  // The night is one span keyed by the morning's date at 00:00: the evening counts under tomorrow's key, the morning
+  // under today's, so what was held in the evening is released once, in the morning.
+  const nightOut = iv => ({ key: `${iv.source === 'end' ? dateAdd(now, 1) : date}T00:00`, start: fromMin(iv.s), end: iv.e >= DAY_END ? null : fromMin(iv.e), focus: false, night: true });
   let span = null;
-  if (cur) { const sp = spans.find(x => nowMin >= x.s && nowMin < x.e); if (sp) span = spanOut(sp); }
+  if (nightNow) span = nightOut(nightNow);
+  else if (cur) { const sp = spans.find(x => nowMin >= x.s && nowMin < x.e); if (sp) span = spanOut(sp); }
   const out = iv => ({ start: fromMin(iv.s), end: fromMin(iv.e), source: iv.source });
+  const allSpans = spans.map(spanOut).concat(night.map(nightOut)).sort((x, y) => toMin(x.start) - toMin(y.start));
   return {
-    state, until: cur ? fromMin(cur.e) : null, source: cur ? cur.source : null,
-    nextStart: starts.length ? fromMin(starts[0]) : null, nextBoundary: bounds.length ? fromMin(bounds[0]) : null,
+    state, until: cur && cur.e < DAY_END ? fromMin(cur.e) : null, source: cur ? cur.source : null,
+    nextStart: starts.length ? fromMin(starts[0]) : null, nextBoundary: edges.length ? fromMin(edges[0]) : null,
     lunchStatus: LUNCH_STATUS.includes(L.status) ? L.status : L.skipped ? 'skipped' : null,
-    span, spans: spans.map(spanOut), blocks: focus.map(out), lunchBlocks: lunch.map(out), date, enabled: true,
-    baseBlocks: base.map(out)
+    span, spans: allSpans, blocks: focus.map(out), lunchBlocks: lunch.map(out), date, enabled: true,
+    baseBlocks: base.map(out),
+    dayStart: startMin != null ? b.start : null, dayEnd: endMin != null ? b.end : null, afterEnd: s.afterEnd, late: lateMin != null
   };
 }
 
-export const isHeldNow = f => !!f && (f.state === 'focus' || f.state === 'lunch');
+export const isHeldNow = f => !!f && (f.state === 'focus' || f.state === 'lunch' || f.state === 'dayDone');
+/** Lunch and Day's done: everything is held and nothing breaks through, blocking pull requests included. */
+export const holdsAll = f => !!f && (f.state === 'lunch' || f.state === 'dayDone');
 /** True only for a blocking pull request, and only during focus (never during lunch). item: {blocking} or
     {breakThrough}, or a Docket task with pr.tier "blocking" that is not waiting on its author. */
 export function isBreakThrough(item, f) {
@@ -367,6 +431,19 @@ export function setLunchStatus(item, date, status) {
   logOf(o).lunch = status;
   return o;
 }
+/** Keep working tonight: no Day's done from now until midnight, and no morning hold tomorrow. Logged as worked late. */
+export function keepWorking(item, now) {
+  const o = dayItem(item, dateStr(now));
+  o.late = fromMin(minuteOf(now));
+  logOf(o).workedLate = true;
+  return o;
+}
+/** Start my day now: the morning hold ends now. */
+export function startDay(item, now) {
+  const o = dayItem(item, dateStr(now));
+  o.early = fromMin(minuteOf(now));
+  return o;
+}
 /** Adds `n` released items to the day's log. */
 export function addReleased(item, date, n) {
   const o = dayItem(item, date);
@@ -399,7 +476,7 @@ export function cleanupEnvelope(env, today, now = Date.now()) {
     if (!it || typeof it.id !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(it.id)) { items.push(it); continue; }
     const age = daysBetween(it.id, today);
     if (age > LOG_DAYS) { deleted[it.id] = now; changed = true; continue; }
-    if (age > OVERRIDE_DAYS && ['skip', 'manual', 'endedEarly', 'lunch'].some(k => k in it)) {
+    if (age > OVERRIDE_DAYS && ['skip', 'manual', 'endedEarly', 'lunch', 'late', 'early'].some(k => k in it)) {
       const o = { id: it.id, updatedAt: now };
       if (it.log) o.log = it.log;
       items.push(o); changed = true; continue;
@@ -409,7 +486,7 @@ export function cleanupEnvelope(env, today, now = Date.now()) {
   return changed ? Object.assign({}, env, { items, deleted }) : null;
 }
 
-/** History rows for Settings, newest first: [{date, planned, kept, lunch, released}] for the last `days` days. */
+/** History rows for Settings, newest first: [{date, planned, kept, lunch, released, late}] for the last `days` days. */
 export function historyRows(env, today, days = 28) {
   const rows = [];
   for (const it of (env && env.items) || []) {
@@ -419,7 +496,7 @@ export function historyRows(env, today, days = 28) {
     const f = Array.isArray(it.log.focus) ? it.log.focus : [];
     const planned = f.reduce((n, x) => n + Math.max(0, (toMin(x.end) || 0) - (toMin(x.start) || 0)), 0);
     const kept = f.reduce((n, x) => n + (x.outcome === 'skipped' ? 0 : Math.max(0, x.minutes | 0)), 0);
-    rows.push({ date: it.id, planned, kept, lunch: LUNCH_STATUS.includes(it.log.lunch) ? it.log.lunch : '', released: Number.isInteger(it.log.released) ? it.log.released : 0 });
+    rows.push({ date: it.id, planned, kept, lunch: LUNCH_STATUS.includes(it.log.lunch) ? it.log.lunch : '', released: Number.isInteger(it.log.released) ? it.log.released : 0, late: it.log.workedLate === true });
   }
   return rows.sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -443,6 +520,50 @@ export function pushedMissed(f, day, now) {
 export function missedOffer(f, day, now) {
   const L = (day && day.lunch) || {};
   return !!f && f.enabled && f.state !== 'lunch' && L.status === 'missed' && !L.notToday && minuteOf(now) < toMin(MISSED_UNTIL);
+}
+
+/* ---------- transitions: the heads-up line ---------- */
+const HEADS_TEXT = { focus: 'Focus ends', lunch: 'Lunch', end: 'Day ends' };
+/**
+ * The heads-up line now (docs/focus.md, Heads-up), or null: {kind, at, key, minutes, text}. kind: focus (a focus block
+ * ends, not straight into lunch or Day's done), lunch (lunch starts, not a late lunch), end (the day's end, with
+ * "After my day ends" on and no Keep working tonight). Shows from HEADS_UP_MINUTES before until the transition;
+ * the earliest transition wins, and at the same time lunch or the day's end wins over a focus end.
+ */
+export function headsUp(f, now) {
+  if (!f || !f.enabled || f.state === 'dayDone') return null;
+  const m = minuteOf(now), out = [];
+  if (f.state === 'focus' && f.until) out.push({ kind: 'focus', at: toMin(f.until) });
+  if (f.state !== 'lunch') for (const b of f.lunchBlocks || []) if (b.source !== 'late') out.push({ kind: 'lunch', at: toMin(b.start) });
+  if (f.afterEnd && f.dayEnd && !f.late) out.push({ kind: 'end', at: toMin(f.dayEnd) });
+  const due = out.filter(c => c.at != null && m < c.at && m >= c.at - HEADS_UP_MINUTES);
+  const others = new Set(due.filter(c => c.kind !== 'focus').map(c => c.at));
+  const pick = due.filter(c => !(c.kind === 'focus' && others.has(c.at))).sort((a, b) => a.at - b.at || (a.kind === 'focus') - (b.kind === 'focus'))[0];
+  if (!pick) return null;
+  const minutes = pick.at - m, at = fromMin(pick.at);
+  return { kind: pick.kind, at, key: `${pick.kind}:${f.date}T${at}`, minutes, text: `${HEADS_TEXT[pick.kind]} in ${minutes} min` };
+}
+
+/**
+ * Once per event per browser (heads-up lines): a key dismissed in one tab is dismissed in every tab (the
+ * `workshop-focus` channel) and after a reload (localStorage). storage and channel are injectable for tests.
+ */
+export const SEEN_KEY = 'workshop.focus.headsUp';
+export function createSeen({ storage = typeof localStorage !== 'undefined' ? localStorage : null, channel = null, onChange = () => {} } = {}) {
+  const read = () => { try { const a = JSON.parse((storage && storage.getItem(SEEN_KEY)) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+  const mem = new Set(read());
+  const api = {
+    has(key) { return mem.has(key) || read().includes(key); },
+    dismiss(key) {
+      if (!key || mem.has(key)) return;
+      mem.add(key);
+      try { if (storage) storage.setItem(SEEN_KEY, JSON.stringify(read().filter(k => k !== key).concat([key]).slice(-40))); } catch (e) { /* private window: this tab only */ }
+      if (channel) try { channel.postMessage({ kind: 'heads-dismissed', key }); } catch (e) { /* closed */ }
+      onChange(key);
+    },
+    receive(msg) { if (msg && msg.kind === 'heads-dismissed' && typeof msg.key === 'string' && !mem.has(msg.key)) { mem.add(msg.key); onChange(msg.key); } }
+  };
+  return api;
 }
 
 /**
@@ -512,11 +633,14 @@ export function lastEndedFocusSpan(f, now) {
   return done.length ? done[done.length - 1] : null;
 }
 
-/** The release toast's words: "Focus done. 7 held: 3 new ADO items, 2 captures picked up." */
+/** The release toast's words: "Focus done. 7 held: 3 new ADO items, 2 captures picked up." kind: focus, lunch, or for
+    Day's done morning (the morning release), late (Keep working tonight) or night (it ended at midnight). Day's done
+    with nothing held has no toast: null. */
+const RELEASE_HEAD = { lunch: 'Lunch done.', morning: 'Good morning.', late: 'Working late.', night: "Day's done." };
 export function releaseText(parts, kind = 'focus') {
-  const head = kind === 'lunch' ? 'Lunch done.' : 'Focus done.';
+  const head = RELEASE_HEAD[kind] || 'Focus done.';
   const n = parts.reduce((x, p) => x + p.count, 0);
-  if (!n) return `${head} Nothing was held.`;
+  if (!n) return RELEASE_HEAD[kind] && kind !== 'lunch' ? null : `${head} Nothing was held.`;
   return `${head} ${n} held: ${parts.map(p => p.label).join(', ')}.`;
 }
 
@@ -534,6 +658,7 @@ export function watchFocus(ws, onChange = () => {}, { now = () => new Date(), ti
     get settings() { return env && env.schema === SCHEMA ? env.meta || null : null; },
     get day() { return dayOf(env, dateStr(now())); },
     get dayplan() { return dayplanOf(dpEntry); },
+    get entry() { return dpEntry; },
     refresh: () => Promise.all([readSettings(), readDayplan()]).then(compute),
     recompute: () => compute(),
     stop() { stopped = true; unsubs.forEach(u => { try { u(); } catch (e) { /* gone */ } }); if (boundaryTimer) timers.clearTimeout(boundaryTimer); if (interval) timers.clearInterval(interval); if (win) win.removeEventListener('focus', onWinFocus); }
@@ -550,8 +675,8 @@ export function watchFocus(ws, onChange = () => {}, { now = () => new Date(), ti
   function compute() {
     if (stopped) return current;
     const d = now();
-    current = resolveFocus({ settings: w.settings, day: dayOf(env, dateStr(d)), dayplan: dayplanOf(dpEntry), now: d });
-    const key = JSON.stringify([current.state, current.until, current.source, current.span && current.span.key, current.nextStart, current.lunchStatus, current.blocks, current.lunchBlocks, current.date, env && env.rev]);
+    current = resolveFocus({ settings: w.settings, day: dayOf(env, dateStr(d)), dayplan: dayplanOf(dpEntry), bounds: dayBoundsOf(dpEntry), prevDay: dayOf(env, dateAdd(d, -1)), now: d });
+    const key = JSON.stringify([current.state, current.until, current.source, current.span && current.span.key, current.nextStart, current.lunchStatus, current.blocks, current.lunchBlocks, current.date, current.dayStart, current.dayEnd, current.late, env && env.rev, dpEntry && dpEntry.wrapped]);
     schedule(d);
     if (key !== last) { last = key; try { onChange(current, w); } catch (e) { /* the caller's problem */ } }
     return current;

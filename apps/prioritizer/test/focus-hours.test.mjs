@@ -57,6 +57,7 @@ test('Needs you during focus and lunch; the held label', () => {
   assert.deepEqual(heldNeeds(n, 'off'), {n, held: 0});
   assert.deepEqual(heldNeeds(n, 'focus'), {n: {ado: 0, prs: [{id: 'p1'}], nudges: [], plan: 0}, held: 4});
   assert.deepEqual(heldNeeds(n, 'lunch'), {n: {ado: 0, prs: [], nudges: [], plan: 0}, held: 5});
+  assert.deepEqual(heldNeeds(n, 'dayDone'), {n: {ado: 0, prs: [], nudges: [], plan: 0}, held: 5}, "Day's done folds like lunch");
   assert.equal(heldLabel(5, {ado: 3, pickup: 2}), '3 new ADO items, 2 captures picked up');
   assert.equal(heldLabel(1, {pr: 1}), '1 PR to review');
   assert.equal(heldLabel(2, {}), '2 held in Docket');

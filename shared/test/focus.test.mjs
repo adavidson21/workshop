@@ -215,7 +215,7 @@ test('history log outcomes and the 14 and 90 day cleanup', () => {
   env = F.withDay(env, { id: '2026-08-01', log: { focus: [], lunch: 'taken', released: 0 } }, 1);
   const rows = F.historyRows(env, MON);
   assert.deepEqual(rows.map(r => r.date), [MON, '2026-10-20']);
-  assert.deepEqual(rows[0], { date: MON, planned: 180, kept: 180, lunch: 'taken', released: 7 });
+  assert.deepEqual(rows[0], { date: MON, planned: 180, kept: 180, lunch: 'taken', released: 7, late: false });
   const clean = F.cleanupEnvelope(env, MON, 99);
   assert.deepEqual(clean.items.find(i => i.id === '2026-10-20'), { id: '2026-10-20', updatedAt: 99, log: { focus: [], lunch: 'missed', released: 0 } });
   assert.equal(clean.items.some(i => i.id === '2026-08-01'), false);
@@ -305,5 +305,155 @@ test('watchFocus: reads settings and the Day plan, calls onChange only on change
   t = at('09:00'); w.recompute();
   assert.deepEqual(seen, ['off', 'focus']);
   assert.equal(w.current.until, '12:00');
+  w.stop();
+});
+
+/* ---------- Day's done (docs/focus.md, Day's done) ---------- */
+const TUE = '2026-11-10';
+const B = (start = '09:00', end = '17:00') => ({ start, end });
+const RD = (hhmm, { settings = S(), day = null, prevDay = null, dayplan = null, bounds = B(), date = MON } = {}) =>
+  F.resolveFocus({ settings, day, prevDay, dayplan, bounds, now: at(hhmm, date) });
+
+test("Day's done: boundaries of the evening, keyed by the next morning", () => {
+  assert.equal(RD('16:59').state, 'off');
+  const f = RD('17:00');
+  assert.equal(f.state, 'dayDone'); assert.equal(f.source, 'end'); assert.equal(f.until, null);
+  assert.equal(f.span.key, `${TUE}T00:00`, "the morning's date at 00:00");
+  assert.equal(f.span.end, null, 'the evening goes on into the morning');
+  assert.equal(f.span.night, true);
+  assert.equal(RD('23:59').state, 'dayDone');
+  assert.equal(RD('16:59').nextBoundary, '17:00', 'the watcher wakes at the end');
+  assert.equal(f.dayEnd, '17:00'); assert.equal(f.dayStart, '09:00');
+  assert.equal(F.isHeldNow(f), true); assert.equal(F.holdsAll(f), true);
+  assert.equal(F.isBreakThrough({ blocking: true }, f), false, 'nothing breaks through');
+});
+
+test("Day's done: midnight and the morning hold until the day starts", () => {
+  const m = RD('00:00', { date: TUE });
+  assert.equal(m.state, 'dayDone'); assert.equal(m.source, 'morning');
+  assert.equal(m.span.key, `${TUE}T00:00`, 'the same span as last evening');
+  assert.equal(m.until, '09:00');
+  assert.equal(RD('08:59', { date: TUE }).state, 'dayDone');
+  assert.equal(RD('09:00', { date: TUE }).state, 'focus', 'released at the start, straight into focus');
+  // The first focus block comes first: the morning ends there.
+  const early = { focus: [{ start: '08:00', end: '10:00' }] };
+  assert.equal(RD('07:59', { date: TUE, dayplan: early }).until, '08:00');
+  assert.equal(RD('08:00', { date: TUE, dayplan: early }).state, 'focus');
+  // A start before the first focus block: off between them.
+  const s = S(); s.week.tue = [{ start: '10:00', end: '12:00' }];
+  assert.equal(RD('08:30', { date: TUE, settings: s, bounds: B('08:30') }).state, 'off');
+  // Spans list the night for Peek and the digest; the digest only reads focus spans.
+  assert.ok(RD('12:30', { date: TUE }).spans.some(sp => sp.night && sp.key === `${TUE}T00:00`));
+  assert.equal(F.lastEndedFocusSpan(RD('17:30'), at('17:30')).key, `${MON}T09:00`);
+});
+
+test("Day's done: wins over focus and lunch inside it", () => {
+  const s = S(); s.week.mon = [{ start: '16:00', end: '18:00' }];
+  const f = RD('16:30', { settings: s });
+  assert.equal(f.state, 'focus'); assert.equal(f.until, '17:00', 'the focus block ends at the day end');
+  assert.equal(RD('17:30', { settings: s }).state, 'dayDone');
+  const lunch = Object.assign(S(), { lunch: { enabled: true, start: '08:00', minutes: 60, days: ['tue'] } });
+  assert.equal(RD('08:30', { date: TUE, settings: lunch }).state, 'dayDone', 'a lunch before the day starts is dropped');
+});
+
+test("Day's done: no day.end means no dayDone; afterEnd off means none either", () => {
+  assert.equal(RD('20:00', { bounds: { start: '09:00', end: null } }).state, 'off');
+  assert.equal(RD('20:00', { bounds: null }).state, 'off');
+  assert.equal(RD('07:00', { bounds: { start: null, end: '17:00' }, date: TUE }).state, 'off', 'no start: no morning hold');
+  const off = S({ afterEnd: false });
+  assert.equal(RD('20:00', { settings: off }).state, 'off');
+  assert.equal(RD('07:00', { settings: off, date: TUE }).state, 'off');
+  assert.equal(F.cleanSettings({ enabled: true }).afterEnd, true, 'missing means on');
+  assert.equal(RD('20:00', { settings: S({ enabled: false }) }).state, 'off');
+  assert.equal(F.dayBoundsOf({ start: 'nine', end: '17:00' }).start, null);
+});
+
+test("Day's done: Keep working tonight lifts it until midnight and skips the next morning", () => {
+  assert.equal(RD('17:40').state, 'dayDone');
+  const day = F.keepWorking(null, at('17:40'));
+  assert.equal(day.late, '17:40'); assert.equal(day.log.workedLate, true);
+  const after = RD('17:40', { day });
+  assert.equal(after.state, 'off'); assert.equal(after.late, true);
+  assert.equal(RD('23:00', { day }).state, 'off');
+  const morning = RD('07:00', { date: TUE, prevDay: Object.assign({ id: MON }, day) });
+  assert.equal(morning.state, 'off', 'no morning hold after working late');
+  assert.equal(RD('07:00', { date: TUE, prevDay: Object.assign({}, day, { id: '2026-11-01' }) }).state, 'dayDone', "another day's item is ignored");
+  // The span the evening ran under was released at 17:40; the history shows it.
+  let env = F.withDay(null, Object.assign({}, day, { id: MON }), 1);
+  assert.equal(F.historyRows(env, MON)[0].late, true);
+});
+
+test("Day's done: Start my day now ends the morning hold", () => {
+  const day = F.startDay(null, at('07:15', TUE));
+  assert.equal(day.early, '07:15');
+  assert.equal(RD('07:15', { date: TUE, day }).state, 'off');
+  assert.equal(RD('07:14', { date: TUE, day }).state, 'dayDone');
+  const clean = F.cleanupEnvelope(F.withDay(null, Object.assign({ id: '2026-10-20', log: { workedLate: true } }, { late: '18:00' }), 1), MON, 9);
+  assert.deepEqual(clean.items[0], { id: '2026-10-20', updatedAt: 9, log: { workedLate: true } }, 'late and early are overrides, dropped after 14 days');
+});
+
+test("release words for Day's done; nothing held means no toast", () => {
+  const parts = [{ count: 2, label: '2 captures picked up' }];
+  assert.equal(F.releaseText(parts, 'morning'), 'Good morning. 2 held: 2 captures picked up.');
+  assert.equal(F.releaseText(parts, 'late'), 'Working late. 2 held: 2 captures picked up.');
+  assert.equal(F.releaseText([], 'morning'), null);
+  assert.equal(F.releaseText([], 'focus'), 'Focus done. Nothing was held.');
+});
+
+/* ---------- heads-up (docs/focus.md, Heads-up) ---------- */
+test('heads-up: 5 minutes before focus ends, lunch starts and the day ends', () => {
+  const s = S(); s.week.mon = [{ start: '09:00', end: '11:00' }, { start: '14:00', end: '16:00' }];
+  const h = (hhmm, o = {}) => F.headsUp(RD(hhmm, Object.assign({ settings: s }, o)), at(hhmm));
+  assert.equal(h('10:54'), null);
+  assert.deepEqual(h('10:55'), { kind: 'focus', at: '11:00', key: `focus:${MON}T11:00`, minutes: 5, text: 'Focus ends in 5 min' });
+  assert.equal(h('10:59').text, 'Focus ends in 1 min');
+  assert.equal(h('11:00'), null, 'gone at the transition');
+  assert.equal(h('11:55').text, 'Lunch in 5 min');
+  assert.equal(h('16:55').text, 'Day ends in 5 min');
+  assert.equal(h('16:55').key, `end:${MON}T17:00`);
+  assert.equal(h('17:00'), null, "no heads-up during Day's done");
+});
+
+test('heads-up: focus straight into lunch says lunch; off with focus hours off, after Keep working, without afterEnd', () => {
+  assert.equal(F.headsUp(RD('11:56'), at('11:56')).text, 'Lunch in 4 min', 'focus 9 to 12 then lunch at 12');
+  const s = S(); s.week.mon = [{ start: '15:00', end: '17:00' }];
+  assert.equal(F.headsUp(RD('16:57', { settings: s }), at('16:57')).kind, 'end', 'focus into the day end says the day end');
+  assert.equal(F.headsUp(RD('16:57', { settings: S({ enabled: false }) }), at('16:57')), null);
+  assert.equal(F.headsUp(RD('16:57', { settings: S({ afterEnd: false }) }), at('16:57')), null);
+  assert.equal(F.headsUp(RD('16:57', { day: { id: MON, late: '16:50' } }), at('16:57')), null);
+  const late = { id: MON, lunch: { late: [{ start: '15:00', end: '16:00' }] } };
+  assert.equal(F.headsUp(RD('14:57', { day: late }), at('14:57')), null, 'a late lunch starts when you take it');
+});
+
+test('heads-up: once per event across two tabs, and after a reload', () => {
+  const store = new Map(), storage = { getItem: k => store.get(k) || null, setItem: (k, v) => store.set(k, v) };
+  const tabs = [];
+  const bus = { postMessage: m => tabs.forEach(t => t !== sender && t.receive(m)) };
+  let sender = null, changed = 0;
+  const a = F.createSeen({ storage, channel: bus });
+  const b = F.createSeen({ storage: { getItem: () => null, setItem() {} }, channel: bus, onChange: () => changed++ });
+  tabs.push(a, b);
+  const key = `focus:${MON}T11:00`;
+  assert.equal(a.has(key), false); assert.equal(b.has(key), false);
+  sender = a; a.dismiss(key);
+  assert.equal(b.has(key), true, 'the other tab hears it'); assert.equal(changed, 1);
+  a.dismiss(key); assert.equal(changed, 1, 'once');
+  const reloaded = F.createSeen({ storage });
+  assert.equal(reloaded.has(key), true, 'a reload remembers it');
+  assert.equal(reloaded.has(`lunch:${MON}T12:00`), false, 'another event is new');
+});
+
+test('watchFocus: passes the day bounds and yesterday from the stores', async () => {
+  let t = at('16:59');
+  const timers = { setTimeout: () => 1, clearTimeout() {}, setInterval: () => 2, clearInterval() {} };
+  const env = { schema: 'settings.focus', version: 1, rev: 1, items: [], deleted: {}, meta: F.defaults() };
+  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, deleted: {}, items: [{ id: 'day', kind: 'day', updatedAt: 1, days: { [MON]: { blocks: [], wrapAt: '16:00', wrapped: false, offered: 0, start: '09:00', end: '17:00' } } }] };
+  const ws = { data: { get: async (c, o) => c === 'focus' ? env : c === 'summary' && o.app === 'prioritizer' ? summary : null, subscribe: () => () => {} } };
+  const w = F.watchFocus(ws, () => {}, { now: () => t, timers, win: null });
+  await w.ready;
+  assert.equal(w.current.state, 'off'); assert.equal(w.current.dayEnd, '17:00');
+  assert.equal(w.entry.wrapped, false);
+  t = at('17:00'); w.recompute();
+  assert.equal(w.current.state, 'dayDone');
   w.stop();
 });

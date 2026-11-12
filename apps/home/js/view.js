@@ -129,14 +129,15 @@ Nothing logged this week yet. Finish tasks in Docket, decide in Slate, ship with
 
 /**
  * Needs you during focus hours (docs/focus.md): during focus only blocking pull requests show and the rest folds
- * to "N held until 12:00"; during lunch everything folds. Outside a block (or with focus hours off): the rows.
+ * to "N held until 12:00"; during lunch and Day's done everything folds ("held until morning" in the evening).
+ * Outside a block (or with focus hours off): the rows.
  * focus: resolveFocus() or null. blocking: Docket's `blocking` rows as inbox rows.
  */
 export function heldInbox(rows, focus, blocking = []) {
   const state = focus && focus.state;
-  if (state !== 'focus' && state !== 'lunch') return { rows, held: 0, until: '' };
-  const until = focus.span ? focus.span.end : focus.until;
-  if (state === 'lunch') return { rows: [], held: rows.length + blocking.length, until };
+  if (state !== 'focus' && state !== 'lunch' && state !== 'dayDone') return { rows, held: 0, until: '' };
+  const until = (focus.span ? focus.span.end : focus.until) || '';
+  if (state !== 'focus') return { rows: [], held: rows.length + blocking.length, until };
   return { rows: blocking, held: rows.length, until };
 }
 
@@ -150,8 +151,8 @@ export function blockingRows(cards) {
 const fmtUntil = s => { const h = +String(s).slice(0, 2); return Number.isFinite(h) ? `${h % 12 || 12}:${String(s).slice(3, 5)}` : ''; };
 function inboxCard(rowsIn, focus, blocking) {
   const { rows, held, until } = heldInbox(rowsIn, focus, blocking);
-  const heldLine = held ? `<p class="soft held-line">${plural(held, 'item')} held until ${esc(fmtUntil(until))}.</p>` : '';
-  if (focus && (focus.state === 'focus' || focus.state === 'lunch') && !rows.length) {
+  const heldLine = held ? `<p class="soft held-line">${plural(held, 'item')} held until ${until ? esc(fmtUntil(until)) : 'morning'}.</p>` : '';
+  if (focus && (focus.state === 'focus' || focus.state === 'lunch' || focus.state === 'dayDone') && !rows.length) {
     return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>${heldLine || `<p class="soft">Nothing needs you right now.</p>`}</section>`;
   }
   return `<section class="card inbox"><div class="ch"><h2>Needs you</h2></div>${heldLine}

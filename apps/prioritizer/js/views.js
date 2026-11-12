@@ -9,6 +9,7 @@ import { dp, dpChange } from './dayplan.js';
 import { carryCandidates, carryOver, carryPending, currentSection, dayReady, dayView, dismissCarry, fmt12, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
 import { adoReview } from './ado.js';
 import { fmtUntil, focusNow, heldUntil } from './focus-hours.js';
+import { holdsAll, isHeldNow } from '../../../shared/focus.js';
 /* Prioritizer: The views: Today (Inbox, Up next and Today), Done with the weekly recap, People.
 
    Today is where the day happens (Docket 7.0.0, Workshop claude/today-home-simplify-v1-plan.md). Work moves left to
@@ -33,7 +34,7 @@ const UP_NEXT = 5;
    docs/focus.md). Captures still land in it, and a task dropped on the rail goes to the Inbox. "Open it anyway"
    lasts until the block ends. */
 let inboxAnyway = '';
-function heldInbox(){ const f = focusNow(); return (f.state === 'focus' || f.state === 'lunch') && inboxAnyway !== (f.span && f.span.key); }
+function heldInbox(){ const f = focusNow(); return isHeldNow(f) && inboxAnyway !== (f.span && f.span.key); }
 function openInboxAnyway(){ const f = focusNow(); inboxAnyway = f.span ? f.span.key : ''; render(); }
 const adoNew = () => ui.ado && ui.ado.on ? state.ado.pending.length : 0;
 // New work items from ADO, waiting to be added or skipped: one row at the top of the Inbox (held during focus).
@@ -201,8 +202,9 @@ function todayCol(rail){
   const left = leftOver().ids;
   const waiting = scopeOpen().filter(t => t.waiting).sort((a,b) => (nudgeDue(b) - nudgeDue(a)) || (a.nudgeOn || '9').localeCompare(b.nudgeOn || '9') || a.rank - b.rank);
   const nudges = waiting.filter(nudgeDue).length;
-  // Reviews: PRs blocked on you, pinned on top every day. During lunch they fold to one line (nothing breaks through lunch).
-  const lunch = focusNow().state === 'lunch';
+  // Reviews: PRs blocked on you, pinned on top every day. During lunch and Day's done they fold to one line (nothing
+  // breaks through either).
+  const lunch = holdsAll(focusNow());
   const revs = !reviews.length ? '' : lunch
     ? `<section class="treviews held"><header class="tblk-h"><b>Reviews</b><span class="soft">${plural(reviews.length, 'PR')} blocked on you, held until ${esc(fmtUntil(heldUntil()))}</span></header></section>`
     : `<section class="treviews" aria-label="Pull requests blocked on you"><header class="tblk-h">${ICON.block}<b>Reviews</b><span class="tbn">${plural(reviews.length, 'PR')} blocked on you</span></header>

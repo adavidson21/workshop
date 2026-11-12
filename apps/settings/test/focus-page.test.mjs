@@ -41,6 +41,10 @@ test('History table text, and what Save writes', () => {
   assert.equal(rows[0].released, '7');
   assert.equal(rows[1].focus, '');
   assert.equal(rows[1].lunch, 'Missed');
+  assert.equal(rows[0].evening, '');
+  assert.equal(historyText([{ date: '2026-11-10', planned: 0, kept: 0, lunch: '', released: 3, late: true }])[0].evening, 'Worked late');
+  assert.equal(metaToSave(Object.assign(F.defaults(), { afterEnd: false })).afterEnd, false, 'After my day ends can be turned off');
+  assert.equal(formValue(null).value.afterEnd, true, 'on by default');
   const meta = metaToSave(Object.assign(F.defaults(), { enabled: true }), 5);
   assert.equal(meta.updatedAt, 5); assert.equal(meta.enabled, true);
 });

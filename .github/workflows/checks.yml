@@ -61,6 +61,7 @@ jobs:
           - name: focus, popout, switches
             run: |
               python tests/focus-e2e.py
+              python tests/transitions-e2e.py
               python tests/popout-e2e.py
               python tests/switches-e2e.py
     steps:
