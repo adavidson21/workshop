@@ -911,7 +911,7 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
     else if (col === 'triage' && !(a && a.busy)) needs.push(row(it, 'Triage is done: ask, interview or define'));
     else if (col === 'interview' && it.shapeAsking) needs.push(row(it, 'Answer the interview questions'));
     else if (col === 'brief') needs.push(row(it, 'Brief ready: send it to Define'));
-    else if (isStale(it, col, now)) needs.push(row(it, `${daysInStage(it, now)} days in ${col}`, 'waiting'));
+    else if (isStale(it, col, now)) needs.push(row(it, `${daysInStage(it, now)} day${daysInStage(it, now) === 1 ? '' : 's'} in ${col}`, 'waiting'));
   }
   const people = new Map();
   for (const it of items) {
