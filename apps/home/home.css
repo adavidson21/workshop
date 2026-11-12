@@ -1,6 +1,6 @@
 /* Home, the Needs you panel. Colors and fonts from ../../shared/themes.css, buttons from ../../shared/ui.css.
-   Editorial, like tools.alexisdavidson.org: a mono date, rows on hairline rules, and sections headed by a mono
-   label over a rule instead of boxed cards. */
+   Rows on hairlines, sections headed in the heading face, setup and notes on raised white sheets; the last
+   section is the Needs you 5.0.0 redesign. */
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 /* A panel about 28rem wide, over the app you are in (docs/app-manifest.md, panel) */
@@ -205,3 +205,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .setup,.su-strip{max-width:64rem}
 .su-pick{display:flex;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
 .su-off{font-size:.76rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 .45rem;margin-left:.3rem;white-space:nowrap}
+
+/* ---------- Needs you 5.0.0: Workshop's look. The date and every label in the text face and sentence case, titles
+   and figures in Schibsted Grotesk, Set up Workshop and notes on raised white sheets, statuses as quiet words.
+   Mono stays for code and the summary editor. Plan: Workshop project claude/workshop-redesign-v1-plan.md. ---------- */
+.hello .meta,.su-eyebrow,.su-later{font:600 .84rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.hello h1,.card.note h2,.setup h2,.sd h2{font-weight:700;letter-spacing:-.02em}
+.card h2{font:650 1.02rem/1.3 var(--serif);letter-spacing:-.01em;text-transform:none;color:var(--ink)}
+.card.note,.setup{border:0;border-radius:var(--r-lg);box-shadow:var(--raise)}
+.stat .n{font-weight:700;letter-spacing:-.02em}
+.stat .lbl,.wkh,.iapp{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.su-state{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.sig b,.su-line .su-count,.ftasks li::before,.blocks .bt,.blocks .bk,.ud{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.pair,.ftasks,.blocks,.uplist,.weekcols{border-top-color:var(--line)}
