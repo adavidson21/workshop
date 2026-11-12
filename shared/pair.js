@@ -12,9 +12,9 @@
 export const PAIR_KEY = 'workshop.agent';
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost):(\d{2,5})$/;
 
-/** True on a site (https) not yet paired, in a browser (not the Android app, not the agent's own page). */
+/** True on a site (https) not yet paired, in a browser (not the agent's own page). */
 export function canPair(ws) {
-  return !!ws && ws.mode === 'browser' && ws.storage !== 'device' && location.protocol === 'https:';
+  return !!ws && ws.mode === 'browser' && location.protocol === 'https:';
 }
 
 /** True when this site is paired with Workshop on this computer and using it. */

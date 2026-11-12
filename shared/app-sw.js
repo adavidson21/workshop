@@ -8,7 +8,7 @@
    the icon and every file app.json lists, so adding a file to app.json is all it takes. What it never touches:
    requests to another origin (such as the app calling Workshop on 127.0.0.1) and anything not a GET. Your data
    is never in this cache: it lives in the data folder or browser storage. shared/sw-register.js registers it
-   when the app runs on its own page (never inside Workshop, never in the Android app). Bump the version when
+   when the app runs on its own page (never inside Workshop). Bump the version when
    shipping so open windows get the "New version" toast. A classic script (importScripts), not a module. */
 self.appServiceWorker = function appServiceWorker({ name, version, core = [] }) {
   const CACHE = `${name}-${version}`;

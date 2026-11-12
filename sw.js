@@ -9,13 +9,13 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '6.44.0';
+const VERSION = '6.44.1';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './shell/shell.css', './shell/shell.js', './shell/capture.js', './shell/focus.js',
   './shared/themes.css', './shared/ui.css', './shared/theme.js', './shared/sw-register.js',
-  './shared/workshop-sdk.js', './shared/pair.js', './shared/device-fs.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js',
+  './shared/workshop-sdk.js', './shared/pair.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js',
   './shared/capture.js', './shared/capture-box.js', './shared/capture.css', './shared/people.js', './shared/teams.js', './shared/products.js', './shared/app-settings.js', './shared/outside.js',
   './shared/fonts/fonts.css', './shared/fonts/gelasio-latin-wght-normal.woff2', './shared/fonts/gelasio-latin-ext-wght-normal.woff2',
   './shared/fonts/figtree-latin-wght-normal.woff2', './shared/fonts/figtree-latin-ext-wght-normal.woff2',

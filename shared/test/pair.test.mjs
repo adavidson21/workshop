@@ -21,12 +21,11 @@ function fakeWindow(protocol = 'https:') {
 
 const load = async () => import(`../pair.js?${Math.random()}`);
 
-test('canPair: only an unpaired site on https, never the Android app', async () => {
+test('canPair: only an unpaired site on https', async () => {
   fakeWindow('https:');
   const { canPair, isPaired } = await load();
   assert.equal(canPair({ mode: 'browser', storage: 'indexeddb' }), true);
   assert.equal(canPair({ mode: 'browser', storage: 'folder' }), true);
-  assert.equal(canPair({ mode: 'browser', storage: 'device' }), false);
   assert.equal(canPair({ mode: 'hosted', storage: 'agent' }), false);
   assert.equal(canPair(null), false);
   assert.equal(isPaired({ mode: 'hosted' }), true);
