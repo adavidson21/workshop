@@ -5,6 +5,7 @@
      Azure DevOps    Connections, Work items, Pull requests
      Code & agents   Repos, Agents
      Connectors      a page for any other connector
+     Help            User guide: "I need to..." scenarios and the best way to do each (guide.js)
 
    Everything goes through the SDK (shared/workshop-sdk.js). Connector forms are generated from each
    connector's configSchema (forms.js); a field goes on the page its `x-workshop-page` names, else on the
@@ -26,6 +27,7 @@ import * as P from './pages.js';
 import { mountPeople } from './people.js';
 import { mountFocus } from './focus-page.js';
 import { mountProducts } from './products-page.js';
+import { mountGuide } from './guide.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1489,6 +1491,7 @@ async function start() {
   }
   dataCard();
   tipsCard();
+  mountGuide({ ws, el: page('guide') });
   if (pages.has(wantPage) && current !== wantPage) selectPage(wantPage);
   if (!current) selectPage('overview');
 }

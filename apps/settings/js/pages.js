@@ -11,7 +11,8 @@ export const GROUPS = [
   { id: 'people', label: 'People & teams' },
   { id: 'ado', label: 'Azure DevOps', connector: 'ado' },
   { id: 'code', label: 'Code & agents', connector: 'opencode' },
-  { id: 'connectors', label: 'Connectors' }
+  { id: 'connectors', label: 'Connectors' },
+  { id: 'help', label: 'Help' }
 ];
 
 // owner: the connector a page belongs to. Its fields are only shown while that connector is set up.
@@ -28,7 +29,8 @@ export const PAGES = {
   'pull-requests': { label: 'Pull requests', group: 'ado', owner: 'ado' },
   products: { label: 'Products', group: 'code' },
   repos: { label: 'Repos', group: 'code' },
-  agents: { label: 'Agents', group: 'code', owner: 'opencode' }
+  agents: { label: 'Agents', group: 'code', owner: 'opencode' },
+  guide: { label: 'User guide', group: 'help' }
 };
 export const ORDER = Object.keys(PAGES);
 

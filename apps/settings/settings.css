@@ -264,3 +264,29 @@ label.btn{cursor:pointer}
 .area-conns{width:100%;border-collapse:collapse;margin-top:.5rem}
 .area-conns td{padding:.2rem .5rem .2rem 0;vertical-align:middle;font-size:.88rem}
 .area-conns td:last-child{width:14rem}
+
+/* User guide (js/guide.js): scenarios as plain rows on hairlines, each opening to its steps */
+.guide .gd-find{max-width:26rem;margin:0 0 1rem}
+.gd-section{margin:0 0 1.4rem}
+.gd-section[hidden]{display:none}
+.gd-head{margin:0 0 .3rem;font:500 11px/1.4 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--eyebrow)}
+.gd-item{border-top:1px solid var(--rule)}
+.gd-item[hidden]{display:none}
+.gd-item:last-child{border-bottom:1px solid var(--rule)}
+.gd-item summary{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding:.7rem .2rem;cursor:pointer;list-style:none}
+.gd-item summary::-webkit-details-marker{display:none}
+.gd-item summary:hover .gd-ask{color:var(--accent)}
+.gd-item summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.gd-ask{font:500 1rem/1.4 var(--serif)}
+.gd-item[open] .gd-ask{color:var(--accent)}
+.gd-app{flex:none;font:500 11px/1.4 var(--mono);color:var(--muted)}
+.gd-body{padding:0 .2rem 1rem;max-width:44rem}
+.gd-label{margin:0 0 .3rem;font-size:.82rem;font-weight:600}
+.gd-steps{margin:0 0 .7rem;padding-left:1.3rem;font-size:.92rem}
+.gd-steps li{margin:.25rem 0}
+.gd-why{margin:0 0 .6rem;color:var(--muted);font-size:.88rem}
+.gd-also{margin:0 0 .6rem;padding:.5rem .7rem;border-left:2px solid var(--line);background:var(--sunk);font-size:.88rem}
+.gd-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:.8rem}
+.gd-needs{color:var(--muted);font-size:.8rem}
+.gd-none[hidden]{display:none}
+.gd-more{margin-top:1rem}
