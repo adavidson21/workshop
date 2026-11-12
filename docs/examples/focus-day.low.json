@@ -1,0 +1,7 @@
+{
+  "id": "2026-11-12",
+  "updatedAt": 1794493800000,
+  "low": true,
+  "lunch": { "pushedTo": null, "skipped": false, "late": [], "endedAt": null, "status": "taken" },
+  "log": { "focus": [], "lunch": "taken", "released": 4, "low": true }
+}

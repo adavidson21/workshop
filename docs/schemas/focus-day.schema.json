@@ -39,6 +39,10 @@
       "$ref": "focus-settings.schema.json#/$defs/time",
       "description": "Start my day now: when it was clicked. The morning hold ends then."
     },
+    "low": {
+      "type": "boolean",
+      "description": "Low-capacity day: true while it is on. Only today's item counts. See focus.md."
+    },
     "lunch": {
       "type": "object",
       "properties": {
@@ -84,7 +88,8 @@
           "oneOf": [{ "enum": ["taken", "late", "partial", "missed", "skipped"] }, { "type": "null" }]
         },
         "released": { "type": "integer", "minimum": 0 },
-        "workedLate": { "type": "boolean", "description": "Keep working tonight was used that evening." }
+        "workedLate": { "type": "boolean", "description": "Keep working tonight was used that evening." },
+        "low": { "type": "boolean", "description": "It was a low-capacity day." }
       }
     }
   }

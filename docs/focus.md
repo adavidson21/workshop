@@ -4,6 +4,8 @@ Protected focus time and a protected lunch that every app respects. During a foc
 
 The day has an end too: after the day's end time (from Docket's Day settings) interruptions are held like lunch until the next morning ([Day's done](#days-done)). Five minutes before a focus block ends, lunch starts or the day ends, the shell bar says so in one quiet line ([Heads-up](#heads-up)).
 
+On a hard day, one switch makes the whole day quieter until midnight: a [Low-capacity day](#low-capacity-day) holds interruptions all day like focus and asks less of you in Docket.
+
 Version: the `settings.focus` collection is version 1. The shared code is `shared/focus.js`.
 
 With focus hours off (the default until the Settings page is saved), every app behaves exactly as without this feature.
@@ -41,7 +43,7 @@ Only Settings writes `meta`. A missing collection or `meta` means focus hours ar
 
 ### Items: one per day
 
-Schema: [schemas/focus-day.schema.json](schemas/focus-day.schema.json). Example: [examples/focus-day.busy.json](examples/focus-day.busy.json).
+Schema: [schemas/focus-day.schema.json](schemas/focus-day.schema.json). Examples: [examples/focus-day.busy.json](examples/focus-day.busy.json), [examples/focus-day.low.json](examples/focus-day.low.json).
 
 ```json
 {
@@ -68,11 +70,12 @@ Schema: [schemas/focus-day.schema.json](schemas/focus-day.schema.json). Example:
 | `lunch.status` | `taken`, `late` (a late lunch was taken), `partial` (10 to 29 active minutes: neither taken nor missed), `missed`, `skipped`, or `null` (not decided yet). |
 | `late` | Keep working tonight: the time it was clicked (`HH:MM`). Day's done is off from then until midnight, and there is no morning hold the next day. |
 | `early` | Start my day now: the time it was clicked (`HH:MM`). The morning hold ends then. |
-| `log` | The day's history: focus blocks with outcome (`kept`, `endedEarly` with the minutes kept, `skipped`), the lunch outcome, how many held items were released, and `workedLate: true` after Keep working tonight. |
+| `low` | Low-capacity day: `true` while it is on ([Low-capacity day](#low-capacity-day)). Only today's item counts, so it ends at midnight by itself. |
+| `log` | The day's history: focus blocks with outcome (`kept`, `endedEarly` with the minutes kept, `skipped`), the lunch outcome, how many held items were released, `workedLate: true` after Keep working tonight, and `low: true` on a low-capacity day. |
 
 The shell's bar control writes day items as app `settings` (the shell connects to the SDK with `connect({app: 'settings'})`; no SDK change). Two tabs writing the same day item merge per field, the later edit winning, like any other item ([data-format.md](data-format.md), Merge).
 
-**Cleanup.** Overrides (`skip`, `manual`, `endedEarly`, `lunch`, `late`, `early`) older than 14 days are dropped from the item; the item, with its `log`, is tombstoned after 90 days. Settings and the shell run the cleanup when they write. Active-minute counts are never stored, only the resulting lunch status.
+**Cleanup.** Overrides (`skip`, `manual`, `endedEarly`, `lunch`, `late`, `early`, `low`) older than 14 days are dropped from the item; the item, with its `log`, is tombstoned after 90 days. Settings and the shell run the cleanup when they write. Active-minute counts are never stored, only the resulting lunch status.
 
 **Private.** The log is read only by Settings (Focus hours, History). It never goes into a summary. The data export includes it like other Settings data.
 
@@ -93,12 +96,12 @@ From the day's Day plan sections whose `kind` is `focus` or `lunch` (case-insens
 `resolveFocus({settings, day, dayplan, now})` in `shared/focus.js` returns `{state, until, source, nextStart, lunchStatus, span, blocks, lunchBlocks}`. `state` is one of:
 
 - `off`: no block now.
-- `focus`: inside a focus block. `source` is `schedule`, `dayplan` or `manual`.
+- `focus`: inside a focus block. `source` is `schedule`, `dayplan` or `manual`, or `low` on a [low-capacity day](#low-capacity-day) (all day, outside lunch and Day's done).
 - `lunch`: inside a lunch block. `source` is `schedule`, `dayplan` or `late`.
 - `skipped`: Skip today is on (and it is not lunch).
 - `dayDone`: after the day's end, or before the day starts the next morning ([Day's done](#days-done)). `source` is `end` (the evening) or `morning`.
 
-The result also has `dayEnd` and `dayStart`: today's `end` and `start` from Docket's `day` card (`HH:MM`), or `null`.
+The result also has `dayEnd` and `dayStart`: today's `end` and `start` from Docket's `day` card (`HH:MM`), or `null`, and `low`: `true` on a low-capacity day (with focus hours on), else `false`.
 
 In this order:
 
@@ -111,9 +114,13 @@ In this order:
 6. **Weekly hours** for today's weekday.
 7. Otherwise off.
 
+On a [low-capacity day](#low-capacity-day), whatever steps 2 to 7 give becomes `focus` with source `low`; Day's done and lunch (steps 0 and 1) still win.
+
 Times are local wall-clock in the browser's time zone. A block that would start in a DST gap starts at the first valid minute (the clock jumps past the start, so the block is already running).
 
 `span` is the held span the moment belongs to: `{key, start, end}`, where focus and lunch blocks that touch are one span (focus ending at 12:00 straight into lunch at 12:00). `key` is `YYYY-MM-DDTHH:MM`, the date and the span's start. Held items are counted per span, and the release happens once, when the span ends.
+
+On a low-capacity day the held span is the whole day instead ([Low-capacity day](#low-capacity-day)).
 
 `isBreakThrough(item, focus)` is true only for blocking pull requests (below), and only during `focus`, never during `lunch` or `dayDone`. `holdsAll(focus)` is true during `lunch` and `dayDone`: nothing breaks through, so apps fold what they would fold at lunch.
 
@@ -166,13 +173,25 @@ With focus hours on and "After my day ends" on (`afterEnd`, the default), a day 
 - With `afterEnd` off, or no `end` for today, there is no Day's done. A missing `start` means no morning hold.
 - If no tab was open when the morning hold ended, the first tab opened later that day releases it, once per browser.
 
+## Low-capacity day
+
+A switch for a day when there is less to give. It lasts until midnight and changes nothing in the data except today's day item (`low`); turning it off brings everything back as it was.
+
+- **On and off.** The shell bar menu (**Low-capacity day**, and **Turn off low-capacity day** while it is on) and the palette (Ctrl+K). Not offered during Day's done. It needs focus hours on: with them off there is no bar item, and `resolveFocus` ignores `low`.
+- **Held all day, like focus.** From the end of the morning hold (or midnight) until the evening Day's done starts (or midnight), the state is `focus` with source `low`, so everything waits except blocking pull requests (`isBreakThrough`). Lunch and Day's done still win and hold everything. Skip today, Start focus now and End early do not apply; the weekly hours and Day plan blocks still show in `blocks`.
+- **One span.** That whole stretch, lunch included, is one held span keyed by the date and the time it starts (`00:01` when it starts at midnight, so it never shares a key with the night before). It is released once, when it ends: when the evening Day's done starts, at midnight, or when the switch is turned off, with "Low-capacity day over. 5 held: ...". `until` and the span's `end` are the time it ends, or `null` at midnight.
+- **The bar** reads "Low-capacity day" (with the held count), "Lunch until 1:00" during lunch. No "Focus ends" heads-up; lunch and day end heads-ups still show.
+- **Dispatch's digest** still runs: the span counts as a focus span, so after the day's end the digest lists what was held.
+- **Docket**, while `low` is on: Today shows at most 3 tasks and folds the rest under "More when you're ready"; To sort stays folded (Open anyway still works); Week, the Plan the week button and scores are hidden; no switch counter and no amber timer on the running task; Wrap up offers **Hand off** on open tasks due today or tomorrow, and picks 1 to 3 tasks for tomorrow (no more than 3).
+- **History.** The day's log gets `low: true`, shown as "Low-capacity day" in Settings, Focus hours, History. Turning it off the same day removes it. No count or streak is shown anywhere.
+
 ## Heads-up
 
 Five minutes before a transition the shell bar shows one quiet line, with a dismiss button:
 
 | Before | Line |
 | --- | --- |
-| A focus block ends (not straight into lunch or Day's done) | "Focus ends in 5 min" |
+| A focus block ends (not straight into lunch or Day's done, and not on a low-capacity day) | "Focus ends in 5 min" |
 | Lunch starts (not a late lunch, which starts when you take it) | "Lunch in 5 min" |
 | The day's `end`, when "After my day ends" is on and Keep working tonight is not | "Day ends in 5 min" |
 
@@ -193,4 +212,4 @@ Workshop sees only activity in its own tabs: no system idle detection, no Idle D
 
 ## Controls
 
-The shell bar item (every app): Start focus now (25, 50 or 90 minutes, or until the next block ends), End early, Skip today and Undo skip, Peek at held items, End lunch, Push lunch (15, 30 or 60 minutes), Skip lunch today, Take lunch now, Keep working tonight (Day's done, evening), Start my day now (Day's done, morning). The same in the palette (Ctrl+K). Peek lists the held cards of the current span by app; opening one does not end the span.
+The shell bar item (every app): Start focus now (25, 50 or 90 minutes, or until the next block ends), End early, Skip today and Undo skip, Peek at held items, End lunch, Push lunch (15, 30 or 60 minutes), Skip lunch today, Take lunch now, Keep working tonight (Day's done, evening), Start my day now (Day's done, morning), Low-capacity day and Turn off low-capacity day. The same in the palette (Ctrl+K). Peek lists the held cards of the current span by app; opening one does not end the span.
