@@ -13,7 +13,7 @@ export function healthHtml(h, { names = {}, reports = true } = {}) {
       <td class="num${x.stale ? ' warn' : ''}">${x.stale || ''}</td></tr>`;
   }).join('');
   const oldest = h.oldest.length
-    ? `<ol class="oldest">${h.oldest.map(o => `<li><button type="button" class="lnk" data-act="open-item" data-id="${esc(o.it.id)}">${esc(o.it.title)}</button> <span class="soft">${o.days} days in ${esc(o.column)}${o.it.requester ? `, asked by ${esc(o.it.requester)}` : ''}</span></li>`).join('')}</ol>`
+    ? `<ol class="oldest">${h.oldest.map(o => `<li><button type="button" class="lnk" data-act="open-item" data-id="${esc(o.it.id)}">${esc(o.it.title)}</button> <span class="soft">${o.days} day${o.days === 1 ? '' : 's'} in ${esc(o.column)}${o.it.requester ? `, asked by ${esc(o.it.requester)}` : ''}</span></li>`).join('')}</ol>`
     : '<p class="soft">Nothing open.</p>';
   const load = Object.entries(h.load).sort((a, b) => b[1] - a[1]);
   return `<div class="health">

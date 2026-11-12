@@ -94,7 +94,7 @@ body.standalone .slate{height:auto;flex:1;min-height:0}
 .iq .qo{width:100%;box-sizing:border-box;font-size:.84rem;margin:.1rem 0 .1rem 1.4rem;max-width:calc(100% - 1.4rem)}
 .iq .soft.small{margin:.2rem 0 0}
 .ps{margin-top:1.1rem}
-.ps h3{margin:0 0 .4rem;font-family:var(--mono);font-size:.74rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ps h3{margin:0 0 .4rem;font-family:var(--sans);font-size:.74rem;font-weight:600;color:var(--eyebrow)}
 .ps p,.ps li{font-size:.88rem}
 .ps ul,.ps ol{margin:.2rem 0 .6rem;padding-left:1.2rem}
 .lbl{margin:.6rem 0 .2rem;font-size:.78rem !important;color:var(--muted);font-weight:600}
@@ -163,7 +163,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .comments li p{margin:.3rem 0 .15rem}
 .dlg.fields .levels fieldset{min-width:0}
 .dlg fieldset{border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .75rem;margin:0;display:flex;flex-direction:column;gap:.5rem}
-.dlg legend{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow);padding:0 .3rem}
+.dlg legend{font-weight:600;font-family:var(--sans);font-size:.72rem;color:var(--eyebrow);padding:0 .3rem}
 .dlg .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.2rem .8rem}
 .dlg .levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.6rem}
 .dlg .levels .checks{grid-template-columns:1fr}
@@ -174,7 +174,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .ask{margin:0 0 .7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
 .ask .ask-q{margin:0 0 .5rem;font-size:.9rem;white-space:pre-wrap;overflow-wrap:anywhere}
 .ask .ask-q code{font-family:var(--mono);font-size:.8rem;background:var(--sunk);padding:0 .25rem;border-radius:3px}
-.ask .q-h{margin:.4rem 0 .15rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ask .q-h{font-weight:600;margin:.4rem 0 .15rem;font-family:var(--sans);font-size:.7rem;color:var(--eyebrow)}
 .ask .opts{display:flex;flex-direction:column;gap:.3rem;margin:0 0 .6rem}
 .ask .opt{display:flex;gap:.5rem;align-items:flex-start;padding:.35rem .5rem;border:1px solid var(--line);border-radius:var(--r-sm);font-size:.86rem;cursor:pointer}
 .ask .opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
@@ -210,7 +210,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .more .menu > .btn{justify-content:flex-start;text-align:left;border-color:transparent;background:none;box-shadow:none}
 .more .menu > .btn:hover{background:var(--sunk)}
 .more .move{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:.2rem;padding-top:.45rem;border-top:1px solid var(--line)}
-.more .move label{width:100%;font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.more .move label{font-weight:600;width:100%;font-family:var(--sans);font-size:.7rem;color:var(--eyebrow)}
 .more .move select{flex:1 1 8rem;min-width:0}
 .fold > summary{display:flex;align-items:baseline;gap:.6rem;cursor:pointer;list-style:none}
 .fold > summary::-webkit-details-marker{display:none}
@@ -232,3 +232,76 @@ dialog::backdrop{background:color-mix(in srgb,#000 30%,transparent)}
 .pick-acts{flex-wrap:wrap}
 .pick-list{display:grid;gap:.4rem;margin:.6rem 0}
 .pick-row{display:flex;gap:.5rem;align-items:baseline;cursor:pointer}
+
+/* =====================================================================================================================
+   Slate 3.0.0: Workshop's brand theme (shared/brand/brand.css: burgundy, Schibsted Grotesk headings, Atkinson
+   Hyperlegible Next text), the same as Docket, Folio and Dispatch. Plan: claude/slate-redesign-v1-plan.md in the
+   Workshop project.
+   - Board and Health are the page's headline; the toolbar's secondary buttons go quiet.
+   - Columns are soft lanes with no rules between them; cards are white and lifted, with filled chips.
+   - Labels are sentence case in the text face; the panel is one white sheet.
+   Rules here come last so they win over the older ones above.
+   ===================================================================================================================== */
+:root { --lift: 0 1px 2px color-mix(in srgb, var(--ink) 7%, transparent), 0 2px 10px color-mix(in srgb, var(--ink) 4%, transparent); }
+h1, h2, h3 { font-family: var(--serif); }
+
+/* the top: tabs as the headline, search and filters, then the actions */
+.top { border-bottom: 0; padding: 1rem 1.25rem .7rem; gap: .6rem .9rem; }
+.tabs { border: 0; background: none; padding: 0; gap: 1.1rem; margin-right: .6rem; }
+.tab { padding: 0; border-radius: 0; background: none !important; font: 600 1.45rem/1.15 var(--serif); letter-spacing: -0.02em; color: color-mix(in srgb, var(--muted) 70%, var(--bg)); }
+.tab:hover { color: var(--ink); }
+.tab.on { color: var(--ink); font-weight: 700; }
+.q { font-family: var(--sans); font-size: .9rem; border-radius: 999px; padding-inline: .9rem; }
+.top select { border-radius: 999px; padding-inline: .7rem; }
+#fieldsBtn, #refreshBtn, .top [data-act=fields], .top [data-act=refresh] { border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
+#fieldsBtn:hover, #refreshBtn:hover, .top [data-act=fields]:hover, .top [data-act=refresh]:hover { color: var(--ink); background: var(--panel); }
+
+/* setup notes: one quiet line */
+.ws-notices { border-bottom: 0; background: transparent; }
+.ws-notices > summary { font: 600 .84rem/1.4 var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.notes { border-bottom: 0; background: transparent; }
+
+/* the board: lanes, not ruled columns */
+.board { gap: .7rem; padding: .3rem 1.25rem 1.25rem; min-width: calc(var(--cols) * 14.4rem); }
+.col { border-right: 0; border-radius: var(--r-lg); background: color-mix(in srgb, var(--panel) 55%, var(--bg)); padding: .85rem .6rem 1.2rem; }
+.col header { padding: 0 .35rem .55rem; }
+.col h2 { font: 700 1.02rem/1.25 var(--serif); letter-spacing: -0.01em; }
+.count { font: 600 .78rem/1 var(--sans); }
+.card { border: 0; background: var(--surface); box-shadow: var(--lift); border-radius: var(--r-md); padding: .7rem .8rem; gap: .35rem; }
+.card:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), var(--lift); }
+.card.open { outline: 2px solid var(--accent); outline-offset: 0; }
+.card .title { font-size: .94rem; font-weight: 600; }
+.card .meta, .rhead, .load-line { font-family: var(--sans); font-size: .78rem; }
+.chip { font-family: var(--sans); font-weight: 600; font-size: .72rem; letter-spacing: 0; line-height: 1.4rem; padding: 0 .5rem; border: 0; background: var(--panel); color: var(--muted); }
+.chip.lv-epic, .chip.lv-feature, .chip.lv-bug { background: var(--panel); }
+.chip.lv-feature { color: var(--ink); }
+.chip.lv-bug { color: var(--danger); background: var(--danger-soft); }
+.chip.step { background: var(--accent-soft); color: var(--accent); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.rgroup { border-top-color: color-mix(in srgb, var(--line) 70%, transparent); }
+
+/* the panel: one white sheet */
+.work > .panel:not([hidden]) { box-shadow: var(--raise); }
+.panel { border-left: 0; padding: 1.2rem 1.5rem 2rem; }
+.phead { border-bottom: 0; padding-bottom: .4rem; }
+.ptitle, .ptitle-in { font: 700 1.45rem/1.2 var(--serif); letter-spacing: -0.015em; }
+.ptitle-in { border-color: transparent; background: transparent; padding-inline: .3rem; margin-left: -.3rem; }
+.ptitle-in:hover { border-color: var(--line); }
+.next { border: 0; background: var(--accent-soft); border-radius: var(--r-md); padding: .95rem 1rem; }
+.next p { font-size: .95rem; }
+.ps h3, .fold > summary h3 { font: 600 1rem/1.3 var(--serif); color: var(--ink); }
+.fold { border-top: 1px solid var(--line); padding-top: .75rem; margin-top: .9rem; }
+.fold > summary::after, .agent-box summary::after { font-family: var(--sans); }
+.answers, .draft, .txt { font-family: var(--sans); font-size: .88rem; }
+.txt { background: var(--panel); }
+
+/* Health: lifted cards, big figures in the heading face */
+.health, .sprints { gap: 1.1rem; }
+.hcard, .sprint { border: 0; box-shadow: var(--raise); border-radius: var(--r-lg); padding: 1.1rem 1.2rem; }
+.hcard h2, .sprint h2 { font: 700 1.05rem/1.3 var(--serif); }
+.big { font: 700 2.4rem/1.1 var(--serif) !important; letter-spacing: -0.03em; }
+.htable thead th { font-family: var(--sans); font-weight: 600; }
+.num { font-family: var(--sans); font-variant-numeric: tabular-nums; }
+
+/* dialogs */
+.dlg legend, .ask .q-h, .more .move label { color: var(--muted); }

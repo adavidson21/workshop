@@ -2,7 +2,7 @@
 
 Your team's Azure DevOps backlog and your own ideas, from a rough request to a decision (**delegate it** or **build it yourself**), then built, merged, resolved and closed. One card per piece of work, wherever it started. Tandem's agents (eng-agents Core 2.12.0 or later; 2.16.0 for the interview) do each step's legwork, and nothing moves until you click.
 
-Two tabs: **Board** (one board, six columns) and **Health** (with **Sprints** inside it). Roadmaps are in Runway, on its own rail button (Slate hosted it until 2.0.0; old `#/slate/roadmaps` links open Runway).
+Two tabs: **Board** (one board, six columns) and **Health** (with **Sprints** inside it). Since 3.0.0 Slate uses Workshop's brand theme (`shared/brand/brand.css`: burgundy, Schibsted Grotesk headings, Atkinson Hyperlegible Next text, the same as Docket, Folio and Dispatch): the tab names are the headline, columns are soft lanes with white cards, labels are sentence case, and the panel is one white sheet. Plan: `claude/slate-redesign-v1-plan.md` in the Workshop project. Roadmaps are in Runway, on its own rail button (Slate hosted it until 2.0.0; old `#/slate/roadmaps` links open Runway).
 
 ## The board
 
