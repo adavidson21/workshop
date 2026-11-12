@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { SITE, onCrumbsDomain, hostOf } from '../site.js';
 
 test('site.js: every address is https and the crumbs domain covers the sites', () => {
-  for (const url of [SITE.workshop, SITE.dispatch, ...Object.values(SITE.apps), ...SITE.allowedSites]) {
+  for (const url of [SITE.workshop, ...Object.values(SITE.apps), ...SITE.allowedSites]) {
     assert.match(url, /^https:\/\/[a-z0-9.-]+$/);
     assert.ok(onCrumbsDomain(hostOf(url)), url);
   }
   assert.ok(SITE.allowedSites.includes(SITE.workshop));
-  assert.ok(SITE.allowedSites.includes(SITE.dispatch));
+  assert.equal(SITE.dispatch, undefined, 'Dispatch has no site of its own (apps.agents is its retired domain)');
 });
 
 test('site.js: onCrumbsDomain matches the domain and subdomains only', () => {

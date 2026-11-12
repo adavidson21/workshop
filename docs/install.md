@@ -22,12 +22,12 @@ This is what Dispatch's setup guide shows. It installs per user with no admin ri
 
 Start at login stays off (run Workshop by hand for a few days first; turn it on later in Workshop on this computer), unless you set `WORKSHOP_LOGIN=1` before running the installer; a setting you turned on earlier is kept. opencode and Tandem are only needed for Dispatch: if a company network blocks installing them (for example npm behind an HTTPS-inspecting proxy), the installer says so and carries on, so Workshop, Docket, Rapport and Home still work. npm runs with Node's `--use-system-ca` so it trusts the certificates your computer trusts. Run the installer again later to add them.
 
-- Windows (PowerShell): `irm https://dispatch.alexisdavidson.org/install.ps1 | iex`
-- macOS or Linux: `curl -fsSL https://dispatch.alexisdavidson.org/install.sh | bash`
+- Windows (PowerShell): `irm https://workshop.alexisdavidson.org/install.ps1 | iex`
+- macOS or Linux: `curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash`
 
 Dispatch's parts (opencode, Tandem, git or PowerShell, the AI model) are skipped with `WORKSHOP_DISPATCH=0`, and are skipped by default in work mode (`WORKSHOP_DISPATCH=1` adds them). `OPENCODE_VERSION=<version>` installs that opencode version instead of the newest. On a work laptop, piping a downloaded script into PowerShell or bash is often flagged by endpoint security; use the by-hand install in Work mode below instead.
 
-The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (`worker/index.js`) serves them at `/install.ps1` and `/install.sh` on either domain, with the site filled in. They install into `%LOCALAPPDATA%\Workshop` or `~/.local/share/workshop` (set `WORKSHOP_INSTALL_DIR` to change it; `WORKSHOP_WORKSPACE` changes the workspace folder) and put a `workshop` command on PATH. `workshop open` opens Workshop signed in; `workshop open --print` prints the address for another browser.
+The scripts are `scripts/bootstrap.ps1` and `scripts/bootstrap.sh`; the Worker (`worker/index.js`) serves them at `/install.ps1` and `/install.sh`, with the site filled in. The same addresses on a retired app domain (dispatch. included) redirect to these. They install into `%LOCALAPPDATA%\Workshop` or `~/.local/share/workshop` (set `WORKSHOP_INSTALL_DIR` to change it; `WORKSHOP_WORKSPACE` changes the workspace folder) and put a `workshop` command on PATH. `workshop open` opens Workshop signed in; `workshop open --print` prints the address for another browser.
 
 ### By hand
 

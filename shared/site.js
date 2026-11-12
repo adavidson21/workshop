@@ -3,23 +3,22 @@
    names a site anywhere else. Plain data, no imports, so Node and the browser can both load it. Apps in their
    own repos copy it with the other shared files (docs/bundle.md). */
 const WORKSHOP = 'https://workshop.alexisdavidson.org';
-const DISPATCH = 'https://dispatch.alexisdavidson.org';
 const DOCKET = 'https://docket.alexisdavidson.org';
 
 export const SITE = Object.freeze({
   site: 1,
   name: 'Workshop',
   workshop: WORKSHOP,
-  dispatch: DISPATCH,
   // Apps that had a site of their own, by app id. Retired: these domains redirect to Pop out (docs/site.md).
   apps: Object.freeze({
     prioritizer: DOCKET,
     runway: 'https://runway.alexisdavidson.org',
     receipts: 'https://receipts.alexisdavidson.org',
-    notes: 'https://notes.alexisdavidson.org'
+    notes: 'https://notes.alexisdavidson.org',
+    agents: 'https://dispatch.alexisdavidson.org'
   }),
   // Sites a new install allows to pair (config hosted.origins); each still needs a click in the pairing window.
-  allowedSites: Object.freeze([WORKSHOP, DISPATCH, DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org', 'https://notes.alexisdavidson.org']),
+  allowedSites: Object.freeze([WORKSHOP, 'https://dispatch.alexisdavidson.org', DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org', 'https://notes.alexisdavidson.org']),
   // Breadcrumbs back to the owner's site, on pages whose host is `domain` or a subdomain of it.
   crumbs: Object.freeze({
     domain: 'alexisdavidson.org',

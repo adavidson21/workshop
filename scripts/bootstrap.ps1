@@ -1,6 +1,6 @@
 # Workshop and Tandem one-line installer for Windows. Per user, no admin rights.
 #
-#   irm https://dispatch.alexisdavidson.org/install.ps1 | iex
+#   irm https://workshop.alexisdavidson.org/install.ps1 | iex
 #
 # The site serves this file with {{SITE}} filled in (worker/index.js), so Workshop allows the site it came from.
 # What it does, all inside %LOCALAPPDATA%\Workshop unless something is already installed:
@@ -37,7 +37,7 @@ $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest is many times slowe
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 $Site = '{{SITE}}'
-if ($Site -notmatch '^https?://') { $Site = 'https://dispatch.alexisdavidson.org' }
+if ($Site -notmatch '^https?://') { $Site = 'https://workshop.alexisdavidson.org' }
 $Root = if ($env:WORKSHOP_INSTALL_DIR) { $env:WORKSHOP_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Workshop' }
 $Workspace = if ($env:WORKSHOP_WORKSPACE) { $env:WORKSHOP_WORKSPACE } else { '~/work' }
 $Repos = @{ workshop = 'https://github.com/adavidson21/workshop'; 'eng-agents' = 'https://github.com/adavidson21/eng-agents' }

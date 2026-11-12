@@ -18,7 +18,7 @@ const owner = SITE.repos.workshop.split('/')[0];
 const domain = SITE.crumbs.domain.replace(/\./g, '\\.');
 const ADDRESS = new RegExp(`https?://[a-z0-9.-]*${domain}[^\\s'"\`)<>]*|https://github\\.com/${owner}/[A-Za-z0-9._-]+|\\b${owner}/[A-Za-z0-9._-]+|[a-z0-9.-]*\\b${domain}\\b`, 'g');
 
-const allowed = new Set([SITE.workshop, SITE.dispatch, ...Object.values(SITE.apps), ...SITE.allowedSites, ...SITE.crumbs.links.map(l => l.href)]);
+const allowed = new Set([SITE.workshop, ...Object.values(SITE.apps), ...SITE.allowedSites, ...SITE.crumbs.links.map(l => l.href)]);
 for (const r of Object.values(SITE.repos)) { allowed.add(`https://github.com/${r}`); allowed.add(r); }
 const hostsOk = new Set([...allowed].filter(a => a.startsWith('https://')).map(a => hostOf(a)));
 const okAddress = a => allowed.has(a) || allowed.has(a.replace(/\/+$/, '')) || [...allowed].some(x => x.startsWith('https://') && a.startsWith(x + '/'))
@@ -85,9 +85,11 @@ for (const f of files) {
 
 // wrangler.jsonc: routes are site.js hosts, and no service bindings (every app is served from this site).
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8').split('\n').map(l => l.replace(/^\s*\/\/.*$/, '')).join('\n'));
-const shellHosts = new Set([hostOf(SITE.workshop), hostOf(SITE.dispatch)]);
-for (const r of wrangler.routes || []) if (!shellHosts.has(r.pattern)) problems.push(`wrangler.jsonc: route ${r.pattern} is not Workshop's or Dispatch's host in ${SITE_FILE}`);
-for (const h of shellHosts) if (!(wrangler.routes || []).some(r => r.pattern === h)) problems.push(`wrangler.jsonc: no route for ${h} (${SITE_FILE})`);
+// Workshop's host must be routed; any other route must be a retired app domain (it only redirects).
+const workshopHost = hostOf(SITE.workshop);
+const retiredHosts = new Set(Object.values(SITE.apps).map(hostOf));
+for (const r of wrangler.routes || []) if (r.pattern !== workshopHost && !retiredHosts.has(r.pattern)) problems.push(`wrangler.jsonc: route ${r.pattern} is not Workshop's host or a retired app domain in ${SITE_FILE}`);
+if (!(wrangler.routes || []).some(r => r.pattern === workshopHost)) problems.push(`wrangler.jsonc: no route for ${workshopHost} (${SITE_FILE})`);
 if ((wrangler.services || []).length) problems.push('wrangler.jsonc: no service bindings: every app is served from this site (docs/site.md).');
 
 if (problems.length) { console.error('Site address checks failed:\n- ' + problems.join('\n- ')); process.exit(1); }
