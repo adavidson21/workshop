@@ -18,7 +18,7 @@ export const GOAL_ROW = 40;
 const BAR = 20;
 const PAD = 8;
 const COLLAPSED = 30;
-const CHAR = 6.6;          // average width of a 12px Docket Text character (a little generous), for fitting labels
+const CHAR = 6.6;          // average width of a 12px Figtree character (a little generous), for fitting labels
 
 export const PALETTE = {
   light: { slate: '#4F6B78', teal: '#2F7A74', green: '#4E7A3A', amber: '#9A6214', red: '#9B3A30', purple: '#6A5487', gray: '#776F68', on: '#FFFFFF' },
@@ -30,8 +30,8 @@ export const THEME = {
   dark: { bg: '#141012', surface: '#1E181B', panel: '#272023', ink: '#F2ECEE', muted: '#A79BA0', line: '#31292C', eyebrow: '#A79BA0', warn: '#F0C27A', danger: '#F4A584', accent: '#D9A6F0' }
 };
 export const FONTS = {
-  sans: '"Docket Text", "Atkinson Hyperlegible Next", "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
-  serif: '"Schibsted Grotesk", "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
+  sans: 'Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
+  serif: '"Bricolage Grotesque", Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
   mono: '"DM Mono", Consolas, Menlo, monospace'
 };
 

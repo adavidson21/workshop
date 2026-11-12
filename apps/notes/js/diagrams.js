@@ -32,7 +32,7 @@ function config(theme) {
   return {
     startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
     theme: theme === 'dark' ? 'dark' : 'neutral', htmlLabels: false, flowchart: { htmlLabels: false },
-    fontFamily: '"Docket Text", "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif'
+    fontFamily: 'Figtree, ui-sans-serif, system-ui, sans-serif'
   };
 }
 

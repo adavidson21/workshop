@@ -26,7 +26,8 @@ const okAddress = a => allowed.has(a) || allowed.has(a.replace(/\/+$/, '')) || [
 
 const RUNTIME = ['agent', 'shell', 'shared', 'apps', 'connectors', 'worker', 'scripts'];
 const FILES = ['workshop.mjs', 'sw.js', 'index.html', 'manifest.webmanifest'];
-const SKIP_DIR = new Set(['test', 'vendor', 'fonts', 'screenshots', 'node_modules', 'parser', 'examples']);
+// brand: the vendored brand library copy (shared/brand), whose docs name its own home on the web.
+const SKIP_DIR = new Set(['test', 'vendor', 'fonts', 'screenshots', 'node_modules', 'parser', 'examples', 'brand']);
 const EXT = /\.(m?js|css|html|ps1|sh|json|webmanifest|py)$/;
 const SITE_FILE = 'shared/site.js';
 // Public tools the installers download from or link to.

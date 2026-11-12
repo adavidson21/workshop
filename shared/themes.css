@@ -1,66 +1,46 @@
 /*
-  Shared themes, the single source of truth for the Workshop shell and every app in it. Apps load this file directly.
+  Shared themes for the Workshop shell and every app in it. Apps load this file directly.
 
-  Workshop's look (2026 redesign, Docket first, every app since Nov 12): a rose-tinted mist page with white for raised
-  work, Schibsted Grotesk headings and "Docket Text" (Atkinson Hyperlegible Next) for everything else, sentence-case
-  labels, DM Mono only for code, Markdown source and keys. Burgundy is the brand. Each app has its own color (below),
-  set by data-app-color on its <html>, so popped-out windows are easy to tell apart. There are two themes, Light and Dark,
-  picked with the round toggle in the top right corner (or the device setting until you use it).
-  Plan: Workshop project docs claude/workshop-vision.md and claude/workshop-redesign-v1-plan.md.
+  Workshop is on the brand library (tools.alexisdavidson.org/brand/v2; the copy in shared/brand/ is updated with
+  node ../personal-tools/brand/scripts/sync.mjs shared/brand). Colors, fonts (Bricolage Grotesque headings, Figtree
+  text, DM Mono for code and keys), radii and light/dark all come from shared/brand/tokens.css, imported below. This
+  file only maps Workshop's own names onto the brand's.
 
-  Edit themes here only. When you add or change one, also update THEMES and SWATCH in shared/theme.js
-  (`node tests/check-themes.mjs` fails if they disagree). eng-agents' static dashboard page still copies this file
-  with core/scripts/dashboard/sync-themes.mjs.
+  Garnet is the brand. Each app has its own jewel accent, so popped-out windows are easy to tell apart:
+  data-app-color on an app's <html> picks it, and shared/theme.js sets the brand's data-accent from it (APP_ACCENT).
+  Docket, Settings, Needs you and the shell stay garnet. No accent is green: green means done.
 
-  Each theme sets the base colors below; everything else is derived. Keep text at WCAG AA (4.5:1) for ink, muted,
-  accent, every app color, danger and warn against bg, surface and panel. Burgundy is the brand, never an alarm:
-  late and blocking use rust (danger), due soon uses amber (warn). No app color is rust or amber.
+  Two themes, Light and Dark, picked with the round toggle in the top right corner (or the device setting until you
+  use it). The swatches in shared/theme.js must match the brand's --bg and --accent (`node tests/check-themes.mjs`).
 
   The line below names every theme in menu order. Keep the format: eng-agents' sync script reads it.
   themes: light=Light, dark=Dark
 */
-:root,
-:root[data-theme=light]{--bg:#F4F2F3;--surface:#FFFFFF;--panel:#ECE6E8;--ink:#22191C;--muted:#6B6064;--line:#E5DEE1;--eyebrow:#6B6064;--accent:#7A1B36;--on-accent:#FFFFFF;--danger:#A9380B;--warn:#875100;
-  --merlot:#3E0D1D;--merlot-ink:#FFF4F6;--merlot-soft:#E2B9C5;--raise:0 1px 0 rgb(62 13 29/.04),0 10px 30px rgb(62 13 29/.07);
-  --c-workshop:#7A1B36;--c-prioritizer:#7A1B36;--c-notes:#1F4F96;--c-agents:#0D5C56;--c-slate:#3E5260;--c-runway:#6A2E8C;--c-receipts:#2F6B1E;
-  --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-runway-on:#FFFFFF;--c-receipts-on:#FFFFFF;color-scheme:light}
-:root[data-theme=dark]{--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
-  --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);
-  --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#94B8F2;--c-agents:#7CD2C6;--c-slate:#B3C1CC;--c-runway:#D9A6F0;--c-receipts:#A6D98E;
-  --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#0E1F3D;--c-agents-on:#04241F;--c-slate-on:#151D24;--c-runway-on:#2A0F3A;--c-receipts-on:#10260A;color-scheme:dark}
-/* No theme set (scripts off): follow the device. */
+@import url("brand/tokens.css");
+
+/* Per-app colors (for swatches and pop-out bands): each app's jewel accent, light and dark. */
+:root,:root[data-theme=light]{
+  --c-workshop:#7A1B36;--c-prioritizer:#7A1B36;--c-notes:#33407A;--c-slate:#33407A;--c-agents:#056374;--c-receipts:#056374;--c-runway:#693375;
+  --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-receipts-on:#FFFFFF;--c-runway-on:#FFFFFF}
+:root[data-theme=dark]{
+  --c-workshop:#E59AAE;--c-prioritizer:#E59AAE;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#D1A5DB;
+  --c-workshop-on:#2A0E17;--c-prioritizer-on:#2A0E17;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#251229}
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme]){--bg:#141012;--surface:#1E181B;--panel:#272023;--ink:#F2ECEE;--muted:#A79BA0;--line:#31292C;--eyebrow:#A79BA0;--accent:#E38AA3;--on-accent:#2A0A14;--danger:#F4A584;--warn:#F0C27A;
-    --merlot:#4E1328;--merlot-ink:#FFF1F5;--merlot-soft:#E7AFC0;--raise:0 1px 0 rgb(0 0 0/.3),0 10px 30px rgb(0 0 0/.25);
-    --c-workshop:#E38AA3;--c-prioritizer:#E38AA3;--c-notes:#94B8F2;--c-agents:#7CD2C6;--c-slate:#B3C1CC;--c-runway:#D9A6F0;--c-receipts:#A6D98E;
-    --c-workshop-on:#2A0A14;--c-prioritizer-on:#2A0A14;--c-notes-on:#0E1F3D;--c-agents-on:#04241F;--c-slate-on:#151D24;--c-runway-on:#2A0F3A;--c-receipts-on:#10260A;color-scheme:dark}
+  :root:not([data-theme]){
+    --c-workshop:#E59AAE;--c-prioritizer:#E59AAE;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#D1A5DB;
+    --c-workshop-on:#2A0E17;--c-prioritizer-on:#2A0E17;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#251229}
 }
-/* App colors: an app's <html data-app-color="<id>"> makes its color the accent. Docket, Settings, Needs you and the shell
-   keep burgundy, as does any app not listed here. */
-:root[data-app-color=notes]{--accent:var(--c-notes);--on-accent:var(--c-notes-on)}
-:root[data-app-color=agents]{--accent:var(--c-agents);--on-accent:var(--c-agents-on)}
-:root[data-app-color=slate]{--accent:var(--c-slate);--on-accent:var(--c-slate-on)}
-:root[data-app-color=runway]{--accent:var(--c-runway);--on-accent:var(--c-runway-on)}
-:root[data-app-color=receipts]{--accent:var(--c-receipts);--on-accent:var(--c-receipts-on)}
+/* Workshop's names for brand tokens */
 :root{
-  --hover:color-mix(in srgb,var(--ink) 5%,var(--surface));
-  --sunk:color-mix(in srgb,var(--ink) 4%,var(--bg));
+  --merlot:var(--hero);--merlot-ink:var(--hero-ink);--merlot-soft:var(--hero-muted);
+  --raise:0 1px 2px rgba(var(--tint),.06),0 8px 20px rgba(var(--tint),.08);
   --side:var(--bg);
   --rule:var(--line);
-  --line2:color-mix(in srgb,var(--ink) 18%,var(--line));
-  --accent-soft:color-mix(in srgb,var(--accent) 11%,var(--surface));
-  --danger-soft:color-mix(in srgb,var(--danger) 10%,var(--surface));
-  --warn-soft:color-mix(in srgb,var(--warn) 14%,var(--surface));
+  --line2:var(--line-strong);
+  --serif:var(--display);
   /* Work sits on white sheets lifted with --raise; menus, the palette and toasts lift further. */
   --shadow:none;
   --shadow-lg:0 10px 30px color-mix(in srgb,#000 12%,transparent);
-  --r-sm:8px;
-  --r-md:14px;
-  --r-lg:20px;
-  /* Schibsted Grotesk, Docket Text and DM Mono come from shared/fonts/fonts.css (self-hosted, so pages work offline); system fonts are the fallback. */
-  --sans:"Docket Text","Atkinson Hyperlegible Next","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
-  --serif:"Schibsted Grotesk","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
-  --mono:"DM Mono","Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
 }
 /* Layout tokens (docs/layout.md): page gutter, the width of list and form pages, and the line length for long text,
    by the app frame's width: compact under 1100px, desktop 1100 to 1599px, wide from 1600px. */

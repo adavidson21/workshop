@@ -1073,7 +1073,7 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
    ===================================================================================================================== */
 /* No mono face in Docket: numbers and keys use the text face (its figures are Schibsted's). The shared theme keeps
    DM Mono for apps that show code. */
-:root{--mono:"Docket Text","Segoe UI",system-ui,sans-serif}
+:root{--mono:var(--sans)}
 body{background:var(--bg);font-size:1rem;line-height:1.45}
 h1,h2,h3,h4,.ptitle h1,.panel h3,.colh h3,.quad h3,.pname,.recap h3,.arch-head h3,.sheet h3,.dsec-h h3,.empty b,.focus-empty b,.colempty b{font-family:var(--serif)}
 .num,.mono{font-variant-numeric:lining-nums}
