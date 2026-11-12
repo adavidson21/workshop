@@ -118,6 +118,33 @@ def main():
         u = next(i for i in doc()['items'] if i.get('title') == 'Unscheduled idea')
         check('dropping a tray item schedules it for that month, in that lane', u['start'] == '2027-05-01' and u['end'] == '2027-05-31' and u['lane'] == d['lanes'][0]['id'])
 
+        # Right-click a bar: Add item after lands the day after it ends, one month long, and opens it.
+        pg.click(f'[data-tl] g.bar[data-id="{idx["id"]}"] rect >> nth=0', button='right')
+        pg.wait_for_selector('.barmenu')
+        check('right-clicking a bar offers add before, after and under', pg.locator('.barmenu [data-add]').count() == 3)
+        before = {i['id'] for i in doc()['items']}
+        pg.click('.barmenu [data-add="after"]')
+        pg.wait_for_timeout(300)
+        new = next(i for i in doc()['items'] if i['id'] not in before)
+        check('Add item after starts the day after the bar ends, in its lane', (new['start'], new['end'], new['lane']) == ('2027-03-15', '2027-04-14', idx['lane']) and pg.locator('.barmenu').count() == 0)
+        check('the new item opens with its title ready to type', pg.evaluate('document.activeElement.matches("[data-panel] [data-f=title]")'))
+        pg.keyboard.press('Escape')
+
+        # Drag that bar onto the left half of another: it lands right before it, with a hint on the way.
+        nb = pg.locator(f'[data-tl] g.bar[data-id="{new["id"]}"] rect').first.bounding_box()
+        tb = pg.locator(f'[data-tl] g.bar[data-id="{u["id"]}"] rect').first.bounding_box()
+        pg.mouse.move(nb['x'] + nb['width'] / 2, nb['y'] + nb['height'] / 2)
+        pg.mouse.down()
+        pg.mouse.move(tb['x'] + 6, tb['y'] + tb['height'] / 2, steps=10)
+        hint = pg.evaluate(f'{R}.ui.hint && {R}.ui.hint.text')
+        pg.mouse.up()
+        pg.wait_for_timeout(300)
+        n2 = next(i for i in doc()['items'] if i['id'] == new['id'])
+        check('dragging onto a bar shows where it lands', hint == 'Before Unscheduled idea')
+        check('dropped on its left half, it ends the day before, same length', (n2['start'], n2['end']) == ('2027-03-31', '2027-04-30') and pg.evaluate(f'{R}.ui.hint') is None)
+        pg.click(f'[data-tl] g.bar[data-id="{u["id"]}"] rect >> nth=0')
+        pg.wait_for_timeout(150)
+
         # Panel edits: status and color.
         pg.select_option(f'[data-panel="{u["id"]}"] [data-f="status"]', 'at risk')
         pg.wait_for_timeout(150)

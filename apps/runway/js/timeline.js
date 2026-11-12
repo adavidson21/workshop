@@ -128,6 +128,26 @@ export function dateAt(L, px, snap = 1) {
 /** The lane at a pixel y, or undefined. */
 export const laneAt = (L, y) => L.lanes.find(l => y >= l.y && y < l.y + l.h);
 
+/** The bar under a point, and which half of it: {bar, side: 'before' | 'after'}, or null. Bars in `skip` (ids)
+    and folded lanes don't count. */
+export function barAt(L, x, y, skip = new Set()) {
+  const b = L.bars.find(b => !skip.has(b.id) && x >= b.x - 2 && x <= b.x + b.w + 2 && y >= b.y - 2 && y <= b.y + b.h + 2);
+  return b ? { bar: b, side: x < b.x + b.w / 2 ? 'before' : 'after' } : null;
+}
+
+/** The row under a point in an open lane: {lane, parent, near}. `near` is the closest other bar in that row by x
+    (null in an empty row), and `parent` is its parent: dropping there makes a sibling of it, so in a feature's
+    story rows you join that feature. Undefined outside an open lane. */
+export function rowAt(L, x, y, skip = new Set()) {
+  const lane = laneAt(L, y);
+  if (!lane || lane.collapsed) return undefined;
+  const top = (b) => b.y - (ROW - BAR) / 2;
+  const dist = (b) => x < b.x ? b.x - x : x > b.x + b.w ? x - b.x - b.w : 0;
+  const row = L.bars.filter(b => !skip.has(b.id) && (b.lane || null) === (lane.id || null) && y >= top(b) && y < top(b) + ROW);
+  const near = row.sort((a, b) => dist(a) - dist(b))[0] || null;
+  return { lane, parent: near ? near.item.parent || null : null, near };
+}
+
 function headerTiers(L) {
   const { doc, scale, from, to } = L;
   const sprint = sprintOf(doc.meta);
@@ -262,6 +282,18 @@ export function svg(L, opts = {}) {
       }
     }
     o.push(`</g>`);
+  }
+  // drop hint (page only, while dragging): a line at the edge it lands on, or the row it joins, with a label
+  const h = opts.hint;
+  if (h) {
+    if (h.kind === 'row') o.push(`<rect class="hint" x="${GUTTER}" y="${r1(h.y)}" width="${W - GUTTER}" height="${ROW}" fill="${T.accent}" fill-opacity=".08" stroke="${T.accent}" stroke-opacity=".5" stroke-dasharray="4 3"/>`);
+    else o.push(`<rect class="hint" x="${r1(h.x - 1.5)}" y="${r1(h.y - 5)}" width="3" height="${r1(h.h + 10)}" rx="1.5" fill="${T.accent}"/>`);
+    if (h.text) {
+      const tw = Math.min(h.text.length, 56) * 7 + 16;
+      const tx = r1(Math.max(GUTTER, Math.min(W - 16 - tw, h.kind === 'row' ? h.px + 10 : h.x - tw / 2)));
+      const ty = r1(Math.max(L.head + 2, h.y - 26));
+      o.push(`<g class="hint"><rect x="${tx}" y="${ty}" width="${r1(tw)}" height="20" rx="10" fill="${T.accent}"/><text x="${r1(tx + 7)}" y="${r1(ty + 14)}" font-size="11" font-weight="600" fill="${T.surface}">${esc(fit(h.text, tw - 12))}</text></g>`);
+    }
   }
   // lane labels (drawn last so they sit over bars that start before the range)
   o.push(`<rect x="0" y="0" width="${GUTTER - 8}" height="${L.height}" fill="${T.bg}" fill-opacity=".96"/>`);

@@ -286,6 +286,39 @@ export function resizeItem(doc, id, date, edge = 'end', sched = schedule(doc)) {
   else it.end = date < it.start ? it.start : date;
 }
 
+/** Put an item right `side` ('before' | 'after') of `target`: in the target's lane, under the target's parent when it
+    can sit there (else top level), ending the day before the target starts or starting the day after it ends,
+    keeping its length (an unscheduled item takes its size, else one period of the scale). It goes next to the
+    target in the outline too. Nothing else moves. Returns false when it can't (no such item, or the target is
+    the item or under it). */
+export function placeBeside(doc, id, targetId, side, sched = schedule(doc)) {
+  const it = doc.items.find(x => x.id === id && x.kind === 'item');
+  const tg = doc.items.find(x => x.id === targetId && x.kind === 'item');
+  const ts = sched.get(targetId);
+  if (!it || !tg || !ts || id === targetId || descendants(doc, id).includes(targetId)) return false;
+  const sprint = sprintOf(doc.meta);
+  const s = sched.get(id);
+  const size = it.size || { n: 1, unit: doc.meta.scale };
+  const lenFrom = (d) => it.milestone ? 0 : s ? toDay(s.end) - toDay(s.start) : toDay(sizeEnd(d, size, sprint)) - toDay(d);
+  if (side === 'before') {
+    const end = addDays(ts.start, -1);
+    it.end = end;
+    it.start = addDays(end, -lenFrom(end));
+  } else {
+    it.start = addDays(ts.end, 1);
+    it.end = addDays(it.start, lenFrom(it.start));
+  }
+  it.size = null;
+  setLane(doc, id, tg.lane || null);
+  it.parent = tg.parent && parentChoices(doc, id).some(x => x.id === tg.parent) ? tg.parent : null;
+  // Next to the target in the outline: halfway to its neighbor, so no other item changes.
+  const lane = doc.items.filter(x => (x.lane || null) === (tg.lane || null) && x.id !== id).sort((a, b) => a.order - b.order);
+  const k = lane.indexOf(tg);
+  const near = lane[side === 'before' ? k - 1 : k + 1];
+  it.order = near ? (tg.order + near.order) / 2 : tg.order + (side === 'before' ? -1 : 1);
+  return true;
+}
+
 /** Plain-text links in notes that are safe to make clickable. */
 export function linksIn(text) {
   return [...String(text || '').matchAll(/\bhttps?:\/\/[^\s<>"')]+/gi)].map(m => m[0]);
