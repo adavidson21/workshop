@@ -4,9 +4,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { notesCards } from '../js/summary-cards.js';
 import { buildIndex } from '../js/model.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
-const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'docs', 'schemas'));
 
 test('Notes publishes a count, recent notes and app mentions, with titles and paths only', () => {
   const ix = buildIndex([

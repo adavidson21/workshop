@@ -3,12 +3,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { directory } from '../shared/people.js';
+import { directory } from '../../../shared/people.js';
 import { forRapport, handlesIn, offerFor, offerId, rapportOffers, readable, whoOf, wins } from '../js/offers.js';
 import { render } from '../js/markdown.js';
-import { SchemaSet } from './workshop/schema.mjs';
+import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
-const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), 'workshop', 'schemas'));
+const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'docs', 'schemas'));
 const DIR = directory({ schema: 'settings.people', version: 2, rev: 1, deleted: {}, items: [
   { id: 'p_me', kind: 'person', name: 'Alex Me', handle: 'me', relation: 'self', updatedAt: 1 },
   { id: 'p_priya', kind: 'person', name: 'Priya Raman', handle: 'priya', relation: 'report', updatedAt: 1 },

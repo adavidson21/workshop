@@ -59,7 +59,7 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
   const home = tempHome();
   try {
     await writeOff(home, new Set(['notes', 'receipts']));
-    const { build, off } = pinApps({ home, repo: REPO, schemas, remotes: { docket: null, notes: null } });
+    const { build, off } = pinApps({ home, repo: REPO, schemas, remotes: { docket: null } });
     assert.deepEqual([...off].sort(), ['notes', 'receipts']);
     assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/receipts/')), 'no Rapport files');
     assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Notes files');
@@ -71,9 +71,7 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
     contractSchemas.assert('app-switches', view, 'appSwitches');
     assert.equal(view.apps.find(a => a.id === 'notes').inWorkshop, false);
     assert.equal(view.apps.find(a => a.id === 'home').canTurnOff, false);
-    const folio = view.apps.find(a => a.id === 'notes');
-    assert.equal(folio.separate, true);
-    assert.equal(folio.on, false);
+    assert.equal(view.apps.find(a => a.id === 'prioritizer').separate, true);
     assert.equal(view.apps.find(a => a.id === 'receipts').inWorkshop, false);
   } finally { rmHome(home); }
 });
@@ -83,7 +81,7 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, allowedOrigins: ['https://workshop.example.org'], features: { hostedMode: false, workMode: true } }));
-  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, notes: null } });
+  pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null } });
   const agent = await createAgent({ home, port: 0, dataDir: dataDirOf(home), uiDir });
   try {
     let r = await get(agent, '/api/app-switches');
@@ -110,11 +108,11 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal((await put(agent, '/api/app-switches/slate', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
     // Turning on an app that is not downloaded saves the switch and says what to run; nothing is downloaded.
-    r = await put(agent, '/api/app-switches/notes', { on: false });
-    r = await put(agent, '/api/app-switches/notes', { on: true });
+    r = await put(agent, '/api/app-switches/prioritizer', { on: false });
+    r = await put(agent, '/api/app-switches/prioritizer', { on: true });
     assert.equal(r.status, 200, r.text);
-    const folio = r.json.apps.find(a => a.id === 'notes');
-    if (!folio.downloaded) assert.equal(r.json.download, 'workshop apps on notes');
+    const docket = r.json.apps.find(a => a.id === 'prioritizer');
+    if (!docket.downloaded) assert.equal(r.json.download, 'workshop apps on docket');
   } finally { await agent.stop(); rmHome(home); }
 });
 
@@ -153,25 +151,25 @@ test('GET /api/doctor: the health check for Settings, from this computer only', 
 test('pinApps leaves out an app whose app.json is not valid and says why', () => {
   const home = tempHome();
   const uiDir = path.join(home, 'ui');
-  const notesDir = path.join(home, 'notes-checkout');
+  const appDir = path.join(home, 'docket-checkout');
   try {
-    // Notes v2.6.1 listed a file twice; the app schema wants unique files.
-    const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'remote.json'), 'utf8')).apps.find(a => a.id === 'notes').manifest;
-    fs.mkdirSync(notesDir, { recursive: true });
-    fs.writeFileSync(path.join(notesDir, 'app.json'), JSON.stringify({ ...manifest, files: [...manifest.files, manifest.files[0]] }));
-    fs.writeFileSync(path.join(notesDir, 'index.html'), '<!doctype html>');
-    const { skipped } = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null, receipts: null, notes: notesDir } });
+    // Notes v2.6.1 listed a file twice; the app schema wants unique files. Docket is the app still from another repo.
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'remote.json'), 'utf8')).apps.find(a => a.id === 'prioritizer').manifest;
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify({ ...manifest, files: [...manifest.files, manifest.files[0]] }));
+    fs.writeFileSync(path.join(appDir, 'index.html'), '<!doctype html>');
+    const { skipped } = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: appDir } });
     assert.equal(skipped.length, 1);
-    assert.equal(skipped[0].id, 'notes');
+    assert.equal(skipped[0].id, 'prioritizer');
     assert.match(skipped[0].problem, /not a valid app manifest .*duplicate item/);
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'));
-    assert.match(skippedLines(skipped)[0], /^Folio is not included: its app\.json is not a valid app manifest .*workshop update\).*workshop pin/);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('prioritizer'));
+    assert.match(skippedLines(skipped)[0], /^Docket is not included: its app\.json is not a valid app manifest .*workshop update\).*workshop pin/);
 
     // The same manifest without the duplicate is pinned.
-    fs.writeFileSync(path.join(notesDir, 'app.json'), JSON.stringify(manifest));
-    const again = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: null, runway: null, receipts: null, notes: notesDir } });
+    fs.writeFileSync(path.join(appDir, 'app.json'), JSON.stringify(manifest));
+    const again = pinApps({ home, repo: REPO, schemas, uiDir, remotes: { docket: appDir } });
     assert.deepEqual(again.skipped, []);
-    assert.ok(ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('notes'));
+    assert.ok(ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('prioritizer'));
   } finally { rmHome(home); }
 });
 

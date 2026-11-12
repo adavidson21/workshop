@@ -2,8 +2,8 @@
 // against the SDK's folder store on an in-memory folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { _internals } from '../shared/workshop-sdk.js';
-import { FakeFolder } from './workshop/fake-dir.mjs';
+import { _internals } from '../../../shared/workshop-sdk.js';
+import { FakeFolder } from '../../../shared/test/fake-dir.mjs';
 import { createNotes } from '../js/data.js';
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);

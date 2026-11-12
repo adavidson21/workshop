@@ -8,7 +8,7 @@
    and later changes in Settings never touch the note: it is yours, and Tandem's, from then on.
 
    toMake and productNoteText are pure (test/product-setup.test.mjs); startProductSetup does the reading and writing. */
-import * as Products from '../shared/products.js';
+import * as Products from '../../../shared/products.js';
 import { PRODUCT_TPL, fill } from './templates.js';
 import { PRODUCT_TEMPLATE, setField } from './products.js';
 

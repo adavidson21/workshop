@@ -4,17 +4,17 @@
    offers.js, history.js, vault.js and summary-cards.js are pure; view.js builds the HTML. This file owns the
    page: the editor, saving, the [[ picker, renames and moves, templates and today's note, sending action items
    and wins, history, importing a folder, product notes and their review (products.js), Notes' summary, and keys. */
-import { connect } from '../shared/workshop-sdk.js';
-import { mountBar } from '../shared/standalone-bar.js';
-import { saveFile } from '../shared/save-file.js';
+import { connect } from '../../../shared/workshop-sdk.js';
+import { mountBar } from '../../../shared/standalone-bar.js';
+import { saveFile } from '../../../shared/save-file.js';
 import { createNotes } from './data.js';
 import { QUICK, SENDERS, startPickup } from './pickup.js';
 import { startProductSetup } from './product-setup.js';
-import { useSenders } from '../shared/handoffs.js';
-import { createSummaryWriter } from '../shared/summary.js';
-import { createHolder } from '../shared/focus.js';
-import { RELATION_LABEL } from '../shared/people.js';
-import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../shared/pair.js';
+import { useSenders } from '../../../shared/handoffs.js';
+import { createSummaryWriter } from '../../../shared/summary.js';
+import { createHolder } from '../../../shared/focus.js';
+import { RELATION_LABEL } from '../../../shared/people.js';
+import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
 import { DAILY, PLACEHOLDERS, PRODUCT_TPL, STARTERS, TEMPLATES, asTemplate, dailyPath, dailyText, dayOf, fill, setTemplateFields, templateFields, templateText, templatesIn } from './templates.js';
 import { SECTION_IDS, notesPaths, sectionOf, visibleSections } from './sections.js';
 import { createTandem, findDoc, isTandem, parseTandem, tandemPath } from './tandem.js';

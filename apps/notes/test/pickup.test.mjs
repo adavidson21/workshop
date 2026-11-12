@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { data as sdkData } from '../shared/workshop-sdk.js';
+import { data as sdkData } from '../../../shared/workshop-sdk.js';
 import { QUICK, SENDERS, acceptedNotes, addToQuick, noteFile, quickEntry, startPickup } from '../js/pickup.js';
 
 const H = { id: 'c_1', updatedAt: 1, to: 'notes', date: '2026-11-03', createdAt: '2026-11-03T22:00:00Z', text: 'retro ideas. More async standups',

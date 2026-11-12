@@ -49,8 +49,8 @@ test('remote.json lists Docket at docket.alexisdavidson.org, with the DOCKET bin
 test('every app still from another repo has its binding; apps moved into this repo are not proxied', async () => {
   const wrangler = fs.readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
   for (const r of REMOTE.apps) assert.match(wrangler, new RegExp(`"binding":\\s*"${r.binding}"`), `wrangler.jsonc binds ${r.binding}`);
-  // Runway and Rapport moved into apps/ (repo restructure S3, S4): this site serves them as its own apps.
-  for (const [id, binding] of [['runway', 'RUNWAY'], ['receipts', 'RECEIPTS']]) {
+  // Runway, Rapport and Folio moved into apps/ (repo restructure S3 to S5): this site serves them as its own apps.
+  for (const [id, binding] of [['runway', 'RUNWAY'], ['receipts', 'RECEIPTS'], ['notes', 'NOTES']]) {
     assert.ok(!REMOTE.apps.some(a => a.id === id), id);
     assert.doesNotMatch(wrangler, new RegExp(`"binding":\\s*"${binding}"`));
     assert.equal(remoteMatch(REMOTE.apps, `/apps/${id}/index.html`), null);

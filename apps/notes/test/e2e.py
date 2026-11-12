@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-"""Notes on its own, in headless Chrome: this repo served as a static site, the way notes.alexisdavidson.org
-serves it, with no Workshop agent. Checks that the page loads with no errors, saves in the browser, makes notes
+"""Folio on its own page (apps/notes/), in headless Chrome: Workshop's repo served as a static site, with no
+Workshop agent. Checks that the page loads with no errors, saves in the browser, makes notes
 from templates, opens today's note, renders ws: links as chips, keeps and restores history, imports a folder of
 Markdown, survives a reload, and works offline through its service worker.
 
   pip install playwright && python -m playwright install chromium
-  python test/e2e.py
+  python apps/notes/test/e2e.py
 
 Notes inside Workshop (sending action items to Docket, Home's Recent notes) is checked by Workshop's
-tests/e2e.py, which runs against a checkout of this repo. Exit 1 if any check fails."""
+tests/e2e.py. Exit 1 if any check fails."""
 import functools, http.server, os, re, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Folio is apps/notes/ in Workshop: its files are in APP, and the static site is Workshop's root (Folio's page loads
+# Workshop's shared files).
+APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(APP))
 PORT = 8813
-SITE = f'http://127.0.0.1:{PORT}/'
+SITE = f'http://127.0.0.1:{PORT}/apps/notes/'
+ORIGIN = f'http://127.0.0.1:{PORT}'
 # Asked for by the SDK on every static site: no agent on this origin, no registry. Not errors here.
 # The starter templates in js/templates.js (STARTERS), counted from the source so a new one needs no edit here.
-with open(os.path.join(ROOT, 'js', 'templates.js')) as _f:
+with open(os.path.join(APP, 'js', 'templates.js')) as _f:
     STARTERS = len(re.findall(r"^\s+(?:'templates/[a-z0-9-]+\.md'|\[PRODUCT_TPL\]):", _f.read(), re.M))
 EXPECTED_404 = ('/api/health', '/apps/registry.json')
 # The diagram starters in js/diagram-kits.js (KITS), as [id, code], read from the source.
-with open(os.path.join(ROOT, 'js', 'diagram-kits.js')) as _f:
+with open(os.path.join(APP, 'js', 'diagram-kits.js')) as _f:
     KITS = re.findall(r"\{ id: '([a-z0-9-]+)'.*?code: '((?:[^'\\]|\\.)*)' \}", _f.read(), re.S)
 
 
@@ -143,7 +147,7 @@ def main():
             # Most checks read the preview beside the editor, so this browser starts in Split (Live, the default,
             # has its own checks in live_checks below).
             ctx.add_init_script("try { if (!localStorage.getItem('notes.live-default')) { localStorage.setItem('notes.live-default', '1'); localStorage.setItem('notes.mode', 'split'); } } catch (e) {}")
-            ctx.grant_permissions(['clipboard-read', 'clipboard-write'], origin=SITE.rstrip('/'))
+            ctx.grant_permissions(['clipboard-read', 'clipboard-write'], origin=ORIGIN)
             pg = ctx.new_page()
             errors = []
             pg.on('pageerror', lambda e: errors.append(str(e)))
