@@ -7,7 +7,8 @@
      board    counts per day for today and the next 6 days (Today, triage, overdue, due this week, follow-ups
               due, came back), Up next and the team (Home)
      day      the day plan's blocks per day for the same days, and Wrap up (Home's Now and Wrap up cards); with
-              `focus` and `lunch` from sections of those kinds (focus hours, Workshop docs/focus.md)
+              `focus` and `lunch` from sections of those kinds, and the day's `start` and `end` on working days
+              (focus hours and Day's done, Workshop docs/focus.md)
      lists    targets for capture: "task" (Home quick capture, the Dispatch hub)
      people   open and waiting tasks per person and group in Workshop's people directory, a person's through
               their groups too (Rapport's 1:1 prep)
@@ -98,6 +99,16 @@ export function dayBlocks(dp, date, tasksById){
     return {name: str(s.name, 120) || 'Untitled', at: s.around, until: fromMin(end), tasks};
   });
 }
+/** The day's start and end (Workshop docs/summaries.md, `day`): the Day view's dayStart and dayEnd on a working day,
+    {} on a day off or with no sprint set. Focus hours hold after the end until the next start (docs/focus.md). */
+export function dayBounds(dp, date){
+  const sp = dp && dp.sprint;
+  if (!dayReady(sp) || !isWorkday(sp, date)) return {};
+  const out = {};
+  if (isTime(sp.dayStart)) out.start = sp.dayStart;
+  if (isTime(sp.dayEnd)) out.end = sp.dayEnd;
+  return out;
+}
 export function wrapAt(dp, date){
   const sp = dp && dp.sprint;
   if (!dayReady(sp)) return WRAP_NO_SPRINT;
@@ -133,7 +144,8 @@ export function dayCard(dp, log, board, today){
       wrapAt: wrapAt(dp, d),
       wrapped: events.some(e => e && e.type === 'shutdown'),
       offered: (log && Array.isArray(log.handoffs) ? log.handoffs : []).filter(h => h && h.to === 'receipts' && h.date === d).length,
-      ...dayFocus(dp, d)
+      ...dayFocus(dp, d),
+      ...dayBounds(dp, d)
     };
   }
   return {id: 'day', kind: 'day', days};
