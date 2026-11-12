@@ -59,6 +59,10 @@ An app can live in its own repo and deploy to its own site, and still open insid
 - CI checks out each app's repo into `.remote/<id>/` (gitignored), so `check-offline`, `check-remote` and `e2e.py` run against it. To run them locally: `git clone https://github.com/adavidson21/docket .remote/prioritizer` `git clone https://github.com/adavidson21/runway .remote/runway` and `git clone https://github.com/adavidson21/receipts .remote/receipts`.
 - Deploy the app's Worker before the first Workshop deploy that binds to it: Cloudflare refuses a binding to a Worker that does not exist.
 
+### Boundaries
+
+Everything is in this repo, so the boundaries between the apps, the shell, the shared files, the agent and the connectors are written down in [shared.md](shared.md) and checked by CI: `node tests/check-boundaries.mjs` (who may use whose files), `node tests/check-extract.mjs` (each app's tests pass with only its own folder and the shared folders), `python tests/switches-e2e.py` (Workshop works with any one app off), and the SDK refuses data reads outside the contracts. Read shared.md before adding a shared file or reading another app's data.
+
 ### No third-party requests
 
 Pages load files from this site only, plus the local helpers on `http://127.0.0.1`. Fonts are in `shared/fonts/` and libraries in `shared/vendor/`; nothing comes from a CDN. A Content-Security-Policy meta tag on each page enforces this, and `tests/e2e.py` fails if any request goes anywhere else.

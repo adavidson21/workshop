@@ -21,6 +21,8 @@ jobs:
       - run: node tests/check-offline.mjs
       - run: node tests/check-remote.mjs
       - run: node tests/check-site.mjs
+      - name: Boundaries between apps, shell, shared files, agent and connectors (docs/shared.md)
+        run: node tests/check-boundaries.mjs
       - run: node scripts/bundle.mjs --check
       - run: node tests/check-contracts.mjs
       - run: node shell/registry.mjs --check
@@ -29,6 +31,8 @@ jobs:
       - run: node --test "worker/test/*.test.mjs"
       - run: node --test "tests/contract/*.test.mjs"
       - run: node --test "connectors/*/test/*.test.mjs"
+      - name: Every app can be pulled out (docs/shared.md, B8)
+        run: node tests/check-extract.mjs
   # The browser tests, split into runs of about the same length that go side by side. e2e.py's two halves: E2E_PART.
   e2e:
     name: e2e (${{ matrix.name }})
@@ -47,10 +51,11 @@ jobs:
               python tests/layout-e2e.py
               python tests/review-e2e.py
               python tests/workmode-e2e.py
-          - name: focus, popout
+          - name: focus, popout, switches
             run: |
               python tests/focus-e2e.py
               python tests/popout-e2e.py
+              python tests/switches-e2e.py
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

@@ -21,7 +21,7 @@ Five parts:
   4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
      copy, Excel and backup round trips, two windows in sync, and a failed write.
   5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
-     (apps/agents/test/fixture.mjs). The page, its buttons, prompts, the code review (Review, then Approve and
+     (tests/fixtures/dispatch-fixture.mjs). The page, its buttons, prompts, the code review (Review, then Approve and
      Push PR to a bare origin), deep links, theme, and Prioritizer's
      stages and Start through the connector.
   6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
@@ -1184,7 +1184,7 @@ def toast_has(page, text, ms=10000):
 
 def agents_checks(b, watch):
     """Part 5: the Agents app on the opencode connector (WS6), with a synthetic workspace and a fake opencode."""
-    fx = subprocess.Popen(['node', os.path.join(ROOT, 'apps', 'agents', 'test', 'fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'dispatch-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     info = json.loads(fx.stdout.readline())
     def ask(cmd):
         fx.stdin.write(json.dumps(cmd) + '\n'); fx.stdin.flush()

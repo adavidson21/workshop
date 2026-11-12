@@ -20,7 +20,29 @@
 //   - /apps/registry.json gets each remote app's live app.json in place of the snapshot in apps/remote.json,
 //     so a new file or command in the app needs no Workshop change. The snapshot is the fallback.
 
+import { SITE, hostOf } from '../shared/site.js';
+
 export const DISPATCH_HOST = /^dispatch\./;
+
+/* ---------- no standalone sites (docs/site.md, Retired sites) ----------
+   Apps no longer have sites of their own: Pop out gives any app its own window here. The old app domains, once
+   attached to this Worker, send every address to the app in a pop-out window, so bookmarks keep working. A 302,
+   not a 301, so a browser does not remember it for good. */
+export const RETIRED_HOSTS = Object.freeze(Object.fromEntries(Object.entries(SITE.apps).map(([id, url]) => [hostOf(url), id])));
+
+/** The redirect for a request to a retired app domain, or null. */
+export function retiredRedirect(url) {
+  const id = RETIRED_HOSTS[url.hostname];
+  return id ? Response.redirect(`${SITE.workshop}/?solo=${id}#/${id}`, 302) : null;
+}
+
+/** An app's page opened on its own (a bookmark, a typed address, not the shell's frame) opens the app in a pop-out
+ *  window instead, so every app looks and works the same. Only the app's start page; its other pages are left alone. */
+export function topLevelApp(url, request) {
+  if (request.headers.get('Sec-Fetch-Dest') !== 'document') return null;
+  const m = url.pathname.match(/^\/apps\/([a-z][a-z0-9-]{0,39})\/(index\.html)?$/);
+  return m ? Response.redirect(`${url.origin}/?solo=${m[1]}#/${m[1]}`, 302) : null;
+}
 const SHARED = /^\/(shared|icons|apps)\//;
 
 // The path to serve for a request to the Dispatch host, or null to serve it as it is.
@@ -133,12 +155,16 @@ export async function liveRegistry(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const retired = retiredRedirect(url);
+    if (retired) return retired;
     const script = await installer(url, request, env);
     if (script) return script;
     if (url.pathname.startsWith('/apps/')) {
       if (url.pathname === '/apps/registry.json') return liveRegistry(request, env);
       const match = remoteMatch(await remoteApps(env), url.pathname);
       if (match) return remoteApp(url, request, env, match);
+      const solo = topLevelApp(url, request);
+      if (solo) return solo;
     }
     if (DISPATCH_HOST.test(url.hostname)) {
       const path = dispatchPath(url.pathname);

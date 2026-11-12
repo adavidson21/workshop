@@ -30,3 +30,12 @@ test('other paths are not installers', async () => {
   assert.equal(await get('/install.txt'), null);
   assert.equal(await get('/scripts/bootstrap.ps1'), null);
 });
+
+// docs/shared.md and the repo restructure: once every app lives in Workshop, `workshop remote-apps` prints nothing.
+// The old four repos are only for a release from before that command, when the command itself fails.
+test('an empty remote-apps answer downloads no other repos; only a failed command falls back to the old four', () => {
+  const sh = read('/scripts/bootstrap.sh'), ps = read('/scripts/bootstrap.ps1');
+  assert.match(sh, /if ! REMOTE_LINES="\$\("\$NODE" "\$ROOT\/workshop\/workshop\.mjs" remote-apps 2>\/dev\/null\)"; then/);
+  assert.doesNotMatch(sh, /remote-apps 2>\/dev\/null\)" \|\| \[ -z "\$REMOTE_LINES" \]/);
+  assert.match(ps, /\n  if \(-not \$ok\) \{\n    \$lines = @\("docket/);
+});

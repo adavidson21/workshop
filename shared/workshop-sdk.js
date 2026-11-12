@@ -1404,9 +1404,9 @@ export async function connect(options) {
 
     /* data */
     data: {
-      async get(collection, opts) { return data.get((opts && opts.app) || app, collection); },
+      async get(collection, opts) { const owner = (opts && opts.app) || app; contractRead(app, owner, collection); return data.get(owner, collection); },
       async put(collection, envelope) { return data.put(app, collection, envelope); },
-      subscribe(collection, handler, opts) { return data.subscribe((opts && opts.app) || app, collection, handler); },
+      subscribe(collection, handler, opts) { const owner = (opts && opts.app) || app; contractRead(app, owner, collection); return data.subscribe(owner, collection, handler); },
       merge(local, remote) { return mergeEnvelopes(local, remote); },
       stamp(before, after) { return stampEnvelope(before, after); },
       async export(opts) {
@@ -1783,6 +1783,23 @@ function filesApi(app, files, privateSpec) {
    on an app's own site with no registry (docs/app-manifest.md, Rules): Rapport's 1:1 notes and goals stay private
    even there. */
 const PRIVATE_FILES_FALLBACK = { receipts: true };
+/* Another app's data an app may read (docs/shared.md, B5): any app's `summary` and `handoffs`, and Settings' shared
+   collections. Everything else an app keeps is its own, so ws.data.get and ws.data.subscribe refuse it. */
+export const CONTRACT_READS = Object.freeze({
+  any: Object.freeze(['summary', 'handoffs']),
+  settings: Object.freeze(['people', 'teams', 'products', 'focus', 'app-settings'])
+});
+export function canReadData(self, owner, collection) {
+  if (owner === self) return true;
+  if (CONTRACT_READS.any.includes(collection)) return true;
+  return (CONTRACT_READS[owner] || []).includes(collection);
+}
+function contractRead(self, owner, collection) {
+  if (!canReadData(self, owner, collection)) {
+    throw new WorkshopError('forbidden', `${self} cannot read ${owner}'s "${collection}". Apps read each other only through summaries, handoffs and Settings' shared collections (docs/shared.md, B5).`, 403);
+  }
+}
+
 export function privateFilesSpec(v) {
   if (v === true) return true;
   if (Array.isArray(v)) { const l = v.filter(x => typeof x === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(x)); return l.length ? l : null; }

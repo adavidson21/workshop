@@ -165,8 +165,9 @@ main() {
   if [ "$WORK" = "1" ]; then
     # The apps the pinned copy is built from: Workshop's apps/remote.json, through workshop remote-apps
     # (folder, id, name, required or optional, repo). Each has a <FOLDER>_TAG variable (DOCKET_TAG, RUNWAY_TAG, ...).
-    # A Workshop release from before workshop remote-apps (agent 1.5.0) gets the four apps it shipped with.
-    if ! REMOTE_LINES="$("$NODE" "$ROOT/workshop/workshop.mjs" remote-apps 2>/dev/null)" || [ -z "$REMOTE_LINES" ]; then
+    # A Workshop release from before workshop remote-apps (agent 1.5.0) gets the four apps it shipped with. An empty
+    # answer from a newer release means every app is in Workshop itself: nothing else to download.
+    if ! REMOTE_LINES="$("$NODE" "$ROOT/workshop/workshop.mjs" remote-apps 2>/dev/null)"; then
       REMOTE_LINES="$(printf 'docket\tprioritizer\tDocket\trequired\tadavidson21/docket\nrunway\trunway\tRunway\toptional\tadavidson21/runway\nreceipts\treceipts\tRapport\toptional\tadavidson21/receipts\nnotes\tnotes\tFolio\toptional\tadavidson21/notes')"
     fi
     while IFS="$(printf '\t')" read -r key id label need repo; do
