@@ -18,19 +18,20 @@ export const GOAL_ROW = 40;
 const BAR = 20;
 const PAD = 8;
 const COLLAPSED = 30;
-const CHAR = 6.6;          // average width of a 12px Figtree character (a little generous), for fitting labels
+const CHAR = 6.6;          // average width of a 12px Docket Text character (a little generous), for fitting labels
 
 export const PALETTE = {
   light: { slate: '#4F6B78', teal: '#2F7A74', green: '#4E7A3A', amber: '#9A6214', red: '#9B3A30', purple: '#6A5487', gray: '#776F68', on: '#FFFFFF' },
   dark: { slate: '#A9BCC6', teal: '#8CC7BF', green: '#A9C99A', amber: '#E2B66D', red: '#F0A79E', purple: '#C3B2DD', gray: '#B8B1AA', on: '#161514' }
 };
 export const THEME = {
-  light: { bg: '#F4F1EA', surface: '#FBF9F5', panel: '#ECE7DD', ink: '#2A2627', muted: '#675F5A', line: '#DCD4C6', eyebrow: '#8B6340', warn: '#8A5A12', danger: '#9B2C24', accent: '#4F6B78' },
-  dark: { bg: '#161514', surface: '#1D1C1A', panel: '#211F1D', ink: '#EEEBE7', muted: '#A8A29C', line: '#34312E', eyebrow: '#CBA684', warn: '#E2B66D', danger: '#F2BDB7', accent: '#A9BCC6' }
+  // Workshop's theme (shared/themes.css) with Runway's violet as the accent, so an exported image matches the page.
+  light: { bg: '#F4F2F3', surface: '#FFFFFF', panel: '#ECE6E8', ink: '#22191C', muted: '#6B6064', line: '#E5DEE1', eyebrow: '#6B6064', warn: '#875100', danger: '#A9380B', accent: '#5A3492' },
+  dark: { bg: '#141012', surface: '#1E181B', panel: '#272023', ink: '#F2ECEE', muted: '#A79BA0', line: '#31292C', eyebrow: '#A79BA0', warn: '#F0C27A', danger: '#F4A584', accent: '#C6ADF3' }
 };
 export const FONTS = {
-  sans: 'Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
-  serif: 'Gelasio, Georgia, "Times New Roman", serif',
+  sans: '"Docket Text", "Atkinson Hyperlegible Next", "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
+  serif: '"Schibsted Grotesk", "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
   mono: '"DM Mono", Consolas, Menlo, monospace'
 };
 
@@ -161,8 +162,8 @@ export function svg(L, opts = {}) {
   o.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family='${FONTS.sans}' role="img" aria-label="${esc(opts.title || L.doc.meta.title)} timeline">`);
   o.push(`<rect width="${W}" height="${H}" fill="${T.bg}"/>`);
   if (opts.title) {
-    o.push(`<text x="20" y="34" font-family='${FONTS.serif}' font-size="24" font-weight="600" fill="${T.ink}">${esc(fit(opts.title, W - 40))}</text>`);
-    if (opts.subtitle) o.push(`<text x="20" y="54" font-family='${FONTS.mono}' font-size="11" letter-spacing=".6" fill="${T.eyebrow}">${esc(String(opts.subtitle).toUpperCase())}</text>`);
+    o.push(`<text x="20" y="34" font-family='${FONTS.serif}' font-size="24" font-weight="700" letter-spacing="-.4" fill="${T.ink}">${esc(fit(opts.title, W - 40))}</text>`);
+    if (opts.subtitle) o.push(`<text x="20" y="54" font-size="12" font-weight="600" fill="${T.muted}">${esc(String(opts.subtitle))}</text>`);
   }
   o.push(`<g transform="translate(0 ${top})">`);
   const { low, up } = headerTiers(L);
@@ -180,7 +181,7 @@ export function svg(L, opts = {}) {
   o.push(`<rect x="0" y="0" width="${W}" height="${L.head}" fill="${T.bg}"/>`);
   for (const p of up) {
     const a = xs(p.start), b = xe(p.end);
-    if (b - a > 20) o.push(`<text x="${a + 6}" y="16" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${esc(fit(p.label.toUpperCase(), b - a - 10))}</text>`);
+    if (b - a > 20) o.push(`<text x="${a + 6}" y="16" font-size="11" font-weight="700" fill="${T.ink}">${esc(fit(p.label, b - a - 10))}</text>`);
     o.push(`<line x1="${a}" x2="${a}" y1="0" y2="${HEAD}" stroke="${T.line}"/>`);
   }
   for (const p of low) {
@@ -216,7 +217,7 @@ export function svg(L, opts = {}) {
   if (opts.showToday !== false && isDate(now) && now >= L.from && now <= L.to) {
     const tx = r1(L.x(now) + L.px / 2);
     o.push(`<line x1="${tx}" x2="${tx}" y1="${L.head}" y2="${L.height}" stroke="${T.danger}" stroke-width="1.5"/>`);
-    o.push(`<text x="${tx + 4}" y="${L.head + 12}" font-family='${FONTS.mono}' font-size="9.5" fill="${T.danger}">TODAY</text>`);
+    o.push(`<text x="${tx + 4}" y="${L.head + 12}" font-size="10" font-weight="700" fill="${T.danger}">Today</text>`);
   }
   // dependency arrows
   const at = new Map(L.bars.map(b => [b.id, b]));
@@ -265,8 +266,8 @@ export function svg(L, opts = {}) {
   // lane labels (drawn last so they sit over bars that start before the range)
   o.push(`<rect x="0" y="0" width="${GUTTER - 8}" height="${L.height}" fill="${T.bg}" fill-opacity=".96"/>`);
   o.push(`<line x1="${GUTTER - 8}" x2="${GUTTER - 8}" y1="0" y2="${L.height}" stroke="${T.line}"/>`);
-  o.push(`<text x="16" y="40" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${esc(L.scale.toUpperCase())}</text>`);
-  if (L.head > HEAD) o.push(`<text x="16" y="${HEAD + 24}" font-family='${FONTS.mono}' font-size="10.5" letter-spacing=".6" fill="${T.eyebrow}">${L.scale === 'sprint' ? 'SPRINT GOALS' : 'GOALS'}</text>`);
+  o.push(`<text x="16" y="40" font-size="11" font-weight="600" fill="${T.muted}">${esc(L.scale[0].toUpperCase() + L.scale.slice(1))}</text>`);
+  if (L.head > HEAD) o.push(`<text x="16" y="${HEAD + 24}" font-size="11" font-weight="600" fill="${T.muted}">${L.scale === 'sprint' ? 'Sprint goals' : 'Goals'}</text>`);
   for (const l of L.lanes) {
     const data = opts.interactive && l.id ? ` data-lane="${esc(l.id)}" class="lane"` : '';
     o.push(`<g${data}>`);
@@ -274,7 +275,7 @@ export function svg(L, opts = {}) {
     o.push(`<rect x="0" y="${l.y + 1}" width="3" height="${l.h - 2}" fill="${PALETTE[opts.theme === 'dark' ? 'dark' : 'light'][l.color]}"/>`);
     const caret = opts.interactive && l.id ? (l.collapsed ? '▸ ' : '▾ ') : '';
     o.push(`<text x="16" y="${l.y + (l.collapsed ? 19 : PAD + 19)}" font-size="13" font-weight="600" fill="${l.id === null ? T.muted : T.ink}">${esc(fit(caret + l.title, GUTTER - 30))}</text>`);
-    if (l.collapsed) o.push(`<text x="${GUTTER - 16}" y="${l.y + 19}" text-anchor="end" font-family='${FONTS.mono}' font-size="10.5" fill="${T.muted}">${l.count}</text>`);
+    if (l.collapsed) o.push(`<text x="${GUTTER - 16}" y="${l.y + 19}" text-anchor="end" font-size="11" fill="${T.muted}">${l.count}</text>`);
     o.push(`</g>`);
   }
   o.push(`</g></svg>`);

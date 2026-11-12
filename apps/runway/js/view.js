@@ -39,7 +39,7 @@ export function pendingHtml(p, hasMaps, { shaping = null, workItems = null } = {
     <h2 class="section-label">Pending assignment <span class="count">${p.items.length}</span></h2>
     <ul class="plist">${p.items.map(x => `<li class="prow-i">
       ${dot}<span class="ptext"><span class="ptitle">${esc(x.title)}</span>${x.notes ? `<span class="hint pnotes">${esc(x.notes)}</span>` : ''}</span>
-      <span class="rmeta mono">${esc([x.from, x.date].filter(Boolean).join(' · '))}</span>
+      <span class="rmeta">${esc([x.from, x.date].filter(Boolean).join(' · '))}</span>
       <span class="racts">${shaping && shaping.has(x.id) && workItems ? `<button class="btn" data-pshaping="${esc(x.id)}" title="Open it in ${esc(workItems.name)}">Shaping in ${esc(workItems.name)}</button>` : ''}${hasMaps ? `<button class="btn" data-passign="${esc(x.id)}">Assign</button>` : ''}<button class="btn text-danger" data-premove="${esc(x.id)}">Remove</button></span>
     </li>`).join('')}</ul>
     ${hasMaps ? '' : '<p class="hint">Make a roadmap to assign these to.</p>'}
@@ -73,7 +73,7 @@ export function listHtml(v, { canPair = false, paired = false, ado = false, repo
   const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
     <li class="rrow">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
-      <span class="rmeta mono">${esc(relTime(r.changed))}</span>
+      <span class="rmeta">${esc(relTime(r.changed))}</span>
       <span class="racts">
         <button class="btn ghost" data-dup="${esc(r.id)}">Duplicate</button>
         <button class="btn text-danger" data-del="${esc(r.id)}">Remove</button>
