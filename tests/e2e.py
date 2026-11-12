@@ -839,10 +839,15 @@ def agent_checks(b, watch):
         if not docket_declares('sprints'): print('SKIP  app settings (the Docket checkout declares no sprints setting yet)')
         else:
             check('Settings shows the switch an app declares in its manifest, at its default', sw.count() == 1 and sw.is_checked())
-            sw.click(); p1.wait_for_timeout(600)
-            got = p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.appSettings.get(); }""")
+            sw.click()
+            # The save is async: poll for it (up to 6 s) instead of one fixed wait, which flaked on a slow CI runner.
+            got, settings_file = {}, os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')
+            for _ in range(24):
+                p1.wait_for_timeout(250)
+                got = p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.appSettings.get(); }""")
+                if got.get('sprints') is False and os.path.isfile(settings_file): break
             check('turning it off saves it where the app reads it (ws.appSettings)', got.get('sprints') is False)
-            with open(os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')) as f:
+            with open(settings_file) as f:
                 check('app settings are a file in Settings\' folder', any(i['id'] == 'prioritizer' and i['values'] == {'sprints': False} for i in json.load(f)['items']))
         p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           window.__files = []; ws.files.subscribe('summaries', e => window.__files.push([e.path, typeof e.mtime])); await new Promise(r => setTimeout(r, 300)); }""")
