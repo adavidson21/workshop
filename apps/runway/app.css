@@ -1,5 +1,6 @@
-/* Runway's own styles, on top of shared/themes.css and shared/ui.css (the editorial look shared with Workshop).
-   The timeline itself is an SVG with its colors inside it (js/timeline.js), so this file lays out the page. */
+/* Runway's own styles, on top of shared/themes.css and shared/ui.css (Workshop's look; Runway's color is violet,
+   from data-app="runway"). The timeline itself is an SVG with its colors inside it (js/timeline.js), so this file
+   lays out the page. The last section is the Runway 2.0.0 redesign (Workshop project claude/workshop-redesign-v1-plan.md). */
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;display:flex;flex-direction:column}
 #app{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -310,4 +311,50 @@ a.dname:hover{text-decoration-color:currentColor}
 }
 @media (min-width:2100px){
   .body[data-mode=outline]{grid-template-columns:minmax(0,82rem)}
+}
+
+/* ---------- Runway 2.0.0: Workshop's look. Sentence-case labels in the text face, the heading face for titles,
+   roadmaps and dialogs on raised white sheets, a pill view switch, and a quiet Remove. CSS only: the markup and
+   actions are unchanged. ---------- */
+.rtitle{font:700 1.15rem/1.3 var(--serif);letter-spacing:-.015em}
+.mtitle{font:700 1.4rem/1.2 var(--serif);letter-spacing:-.02em}
+.save{font:600 .8rem/1.3 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem}
+.save::before{content:"";width:7px;height:7px;border-radius:50%;background:color-mix(in srgb,var(--muted) 55%,transparent)}
+.save[data-save=saving]::before{background:var(--accent)}
+.save[data-save=unsaved]::before{background:var(--warn)}
+.seg{border:0;border-radius:999px;background:var(--panel);padding:3px;gap:2px}
+.seg button{border-radius:999px;padding:.28rem .75rem;font-weight:600}
+.seg button+button{border-left:0}
+.seg button[aria-selected=true]{background:var(--surface);color:var(--ink);box-shadow:var(--raise)}
+.orail span{font:600 .78rem/1 var(--sans);letter-spacing:0;text-transform:none}
+.ohelp summary,.uns>summary,.details>summary{font:650 .92rem/1.4 var(--serif);letter-spacing:-.005em;text-transform:none;color:var(--ink)}
+.uns>summary .hint,.details>summary .hint{font:400 .8rem var(--sans)}
+.ulane{font:650 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.pf>span,.pf legend{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.swc{font:700 10px var(--sans)}
+.pubtag{font:700 .76rem/1.4 var(--sans);letter-spacing:0;text-transform:none}
+.pubtable th,.rp-table th{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
+.wl-kpi b{font-weight:700;letter-spacing:-.02em}
+.wl-kpi span{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none}
+.rp-sec h3{font:650 1.02rem/1.3 var(--serif);letter-spacing:-.01em;text-transform:none;color:var(--ink)}
+.rp-sec h3::after{content:none}
+.rp-table td.num{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.rp-tag{font:700 .72rem/1.5 var(--sans)}
+.rp-col span{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.rp-table tr:hover td{background:var(--hover)}
+.plist{border:0;border-radius:var(--r-lg);box-shadow:var(--raise)}
+dialog{border:0;border-radius:var(--r-lg);box-shadow:var(--raise),var(--shadow-lg)}
+.sheet h3{font-weight:700;letter-spacing:-.02em}
+/* a roadmap's Remove is quiet until you point at it; Duplicate stays a plain text button */
+.rrow .text-danger{color:var(--muted)}
+.rrow .text-danger:hover{color:var(--danger)}
+@media (min-width:1100px){
+  .rrow{border:0;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--raise);padding:1.1rem 1.2rem .9rem}
+  .rrow:hover{box-shadow:var(--raise),0 0 0 1px var(--line2)}
+}
+/* half a screen: a tighter dates row ("Showing" folds away; the two dates say it) */
+@media (max-width:900px){
+  .rbar{gap:.4rem;padding:.45rem .9rem}
+  .rbar .eyebrow{display:none}
+  .rbar .fld input[type=date]{width:8.4rem}
 }

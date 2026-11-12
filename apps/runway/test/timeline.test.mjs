@@ -68,19 +68,19 @@ test('an image export shows every visible item, leaves folded lanes out, and can
   const r = { from: '2026-12-01', to: '2027-05-31' };
   const full = exportSvg(doc, { range: r, now: new Date('2027-02-01T12:00:00') });
   for (const t of ['Index', 'Ranking', 'Live', 'Rework', 'Search', 'Alerts', 'Plan']) assert.ok(full.includes(`>${t}<`) || full.includes(`>! ${t}<`), t);
-  assert.match(full, /TODAY/);
+  assert.match(full, />Today</);
   doc.meta.hidden = [doc.lanes.find(l => l.title === 'Alerts').id];
   const folded = exportSvg(doc, { range: r, title: false, todayLine: false, now: new Date('2027-02-01T12:00:00') });
   assert.ok(!folded.includes('>Rework<') && !folded.includes('>Alerts<'));
   assert.ok(!folded.includes('>Plan<'));
-  assert.ok(!folded.includes('TODAY'));
+  assert.ok(!folded.includes('>Today<'));
   assert.match(folded, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="\d+" height="\d+"/);
 });
 
 test('dark theme uses the dark colors', () => {
   const doc = docOf(DOC);
-  assert.match(exportSvg(doc, { theme: 'dark' }), /fill="#161514"/);
-  assert.match(exportSvg(doc, { theme: 'light' }), /fill="#F4F1EA"/);
+  assert.match(exportSvg(doc, { theme: 'dark' }), /fill="#141012"/);
+  assert.match(exportSvg(doc, { theme: 'light' }), /fill="#F4F2F3"/);
 });
 
 test('the shown range fits the items with a period either side, or the map range when set', () => {
