@@ -55,6 +55,7 @@ jobs:
             run: |
               python apps/runway/test/e2e.py
               python apps/runway/test/e2e_ado.py
+              python apps/notes/test/e2e.py
           - name: focus, popout, switches
             run: |
               python tests/focus-e2e.py

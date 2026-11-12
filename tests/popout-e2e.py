@@ -2,7 +2,7 @@
 """End-to-end check of pop-out windows (?solo=<app>) in headless Chromium.
 
   pip install playwright && python -m playwright install chromium
-  python tests/popout-e2e.py          (needs .remote/notes, like tests/e2e.py)
+  python tests/popout-e2e.py
 
 Browser mode on a static site (127.0.0.1:8822). Folio pops out into its own window on the note that was open,
 the main window goes Home, links to other apps go back to the main window, and Back to Workshop closes it.

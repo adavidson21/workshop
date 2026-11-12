@@ -1,0 +1,120 @@
+{
+  "manifestVersion": 1,
+  "id": "notes",
+  "name": "Folio",
+  "version": "4.1.0",
+  "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Mermaid diagrams, links and backlinks, tags, search and images.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 45,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "capture": [
+    "note"
+  ],
+  "routes": [
+    {
+      "path": ":note",
+      "title": "Open a note"
+    },
+    {
+      "path": "tandem/:folder/:file",
+      "title": "Open a Tandem document"
+    },
+    {
+      "path": "today",
+      "title": "Today's note"
+    },
+    {
+      "path": "review",
+      "title": "Product notes to review"
+    }
+  ],
+  "commands": [
+    {
+      "id": "new",
+      "title": "New note"
+    },
+    {
+      "id": "search",
+      "title": "Search notes"
+    },
+    {
+      "id": "today",
+      "title": "Open today's note"
+    },
+    {
+      "id": "diagram",
+      "title": "Insert diagram"
+    },
+    {
+      "id": "toggle-pages",
+      "title": "Show or hide the pages list"
+    },
+    {
+      "id": "toggle-panel",
+      "title": "Show or hide the page panel"
+    }
+  ],
+  "handoffs": {
+    "sends": [
+      "prioritizer",
+      "receipts"
+    ]
+  },
+  "data": [
+    "taken",
+    "products-made",
+    "handoffs",
+    "summary"
+  ],
+  "files": [
+    "js/applinks.js",
+    "js/daily.js",
+    "js/data.js",
+    "js/diagram-kits.js",
+    "js/diagrams.js",
+    "js/editor.js",
+    "js/edits.js",
+    "js/embeds.js",
+    "js/export.js",
+    "js/highlight.js",
+    "js/history.js",
+    "js/live.js",
+    "js/main.js",
+    "js/map.js",
+    "js/markdown.js",
+    "js/model.js",
+    "js/offers.js",
+    "js/pickup.js",
+    "js/product-setup.js",
+    "js/products.js",
+    "js/records.js",
+    "js/sections.js",
+    "js/slash.js",
+    "js/summary-cards.js",
+    "js/tables.js",
+    "js/tandem.js",
+    "js/template-info.js",
+    "js/templates.js",
+    "js/vault.js",
+    "js/view.js",
+    "notes.css",
+    "vendor/codemirror.js",
+    "vendor/mermaid.min.js"
+  ],
+  "aliases": [
+    "folio",
+    "notebook",
+    "notes"
+  ],
+  "connectors": [
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ]
+}
