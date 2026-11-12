@@ -1,0 +1,21 @@
+name: checks
+# Pull requests, and pushes to main (the merge). Pushes to a PR branch are covered by pull_request.
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      # The files copied from Workshop must match the pinned commit exactly (scripts/sync-workshop.mjs).
+      - run: node scripts/sync-workshop.mjs --check
+      - run: node --test "test/*.test.mjs"
+      # Notes on its own in headless Chrome: templates, today's note, history, import, offline (test/e2e.py).
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - run: python test/e2e.py

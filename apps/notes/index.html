@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Only this site, plus Workshop on this computer (127.0.0.1) once paired. Images come from your Workshop folder as blob: URLs; remote images are never loaded. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob:; connect-src 'self' http://127.0.0.1:*; frame-src 'none'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<title>Folio</title>
+<meta name="description" content="Markdown notes in your Workshop folder: folders, links and backlinks, tags, search and images.">
+<meta name="theme-color" content="#F4F2F3">
+<script src="shared/theme.js"></script>
+<script src="shared/sw-register.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="shared/fonts/fonts.css">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/app-touch-180.png">
+<link rel="stylesheet" href="shared/themes.css">
+<!-- Workshop's brand theme (bundle 2.14.0): burgundy, Schibsted Grotesk and Atkinson Hyperlegible Next -->
+<link rel="stylesheet" href="shared/brand/brand.css">
+<link rel="stylesheet" href="shared/ui.css">
+<link rel="stylesheet" href="notes.css">
+</head>
+<body>
+<div class="notes" id="notes">
+  <nav id="sections" class="sections" aria-label="Folio"></nav>
+  <aside id="side" class="side" aria-label="Pages"></aside>
+  <main id="main" class="main">
+    <div id="head"></div>
+    <div id="body" class="body mode-split" hidden>
+      <label class="sr" for="editor">Note text (Markdown)</label>
+      <textarea id="editor" class="editor" spellcheck="true" autocomplete="off" autocapitalize="sentences"></textarea>
+      <span id="title-hint" class="title-hint" aria-hidden="true" hidden>Title</span>
+      <article id="preview" class="md" aria-label="Preview"></article>
+      <div id="picker" class="picker" hidden></div>
+    </div>
+    <div id="empty"></div>
+  </main>
+  <aside id="panel" class="panel" aria-label="About this page" hidden></aside>
+  <div class="scrim" aria-hidden="true"></div>
+</div>
+<dialog id="dlg" aria-label="Folio"></dialog>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
