@@ -8,9 +8,9 @@ import { mountBar } from '../../../shared/standalone-bar.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
 import { saveFile } from '../../../shared/save-file.js';
 import { SNAP, addDays, isDate, periodEnd, periodStart, sizeEnd, sprintOf, toDay, today } from './dates.js';
-import { APP, blankDoc, cleanItem, fromEnvelope, goalFor, setGoal, moveItem, newId, nextOrder, removeItem, resizeItem, schedule, setLane, setParent, viewRange } from './model.js';
+import { APP, MAX_DEPTH, blankDoc, cleanItem, descendants, fromEnvelope, goalFor, levels, setGoal, moveItem, newId, nextOrder, placeBeside, removeItem, resizeItem, schedule, setLane, setParent, viewRange } from './model.js';
 import { parse, reconcile, serialize } from './outline.js';
-import { dateAt, laneAt, layout, svg } from './timeline.js';
+import { ROW, barAt, dateAt, laneAt, layout, rowAt, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
 import { exampleOutline } from './example.js';
 import { createStore } from './store.js';
@@ -121,6 +121,8 @@ const ui = {
   warnings: [],
   dragDoc: null,
   drag: null,
+  hint: null,          // the drop hint while dragging (timeline.js svg opts.hint)
+  trayDrag: null,      // the Unscheduled row being dragged
   L: null,
   range: null,
   pendingRoute: null,
@@ -247,7 +249,8 @@ function paintMap() {
   if (app.dataset.view !== 'map' || !app.querySelector('.map') || ui.shellLocked !== locked()) mapShell();
   const doc = ui.dragDoc || v.doc;
   const sched = schedule(doc);
-  const range = viewRange(doc, sched);
+  // While dragging a bar the range holds still, so what is under the pointer does not shift as the item moves.
+  const range = ui.dragDoc && ui.drag && ui.drag.range ? ui.drag.range : viewRange(doc, sched);
   const tlEl = app.querySelector('[data-tl]');
   const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true, fill: tlEl ? tlEl.clientWidth : 0 });
   watchWidth(tlEl);
@@ -264,7 +267,7 @@ function paintMap() {
   setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly, publish: pub ? pub.publishCount(doc) : 0, publishing: ui.adoPublishing }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
-  tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner) });
+  tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner), hint: ui.hint });
   tl.scrollLeft = scroll;
   paintTray(doc, sched);
   setHtml(app.querySelector('[data-r="details"]'), detailsHtml(doc, range, ui.detailsOpen));
@@ -901,7 +904,7 @@ app.addEventListener('pointerdown', e => {
     if (ui.selected !== id) ui.selected = id;
     if (locked()) return requestPaint();
     const grip = e.target.closest('.grip');
-    ui.drag = { id, edge: grip ? grip.dataset.edge : null, x0: p.x, y0: p.y, moved: false, base: structuredClone(v.doc), L: ui.L, pointer: e.pointerId };
+    ui.drag = { id, edge: grip ? grip.dataset.edge : null, x0: p.x, y0: p.y, moved: false, base: structuredClone(v.doc), L: ui.L, range: ui.range, pointer: e.pointerId };
     tl.setPointerCapture(e.pointerId);
     requestPaint();
     e.preventDefault();
@@ -927,10 +930,14 @@ app.addEventListener('pointermove', e => {
   if (d.edge === 'start') resizeItem(tmp, d.id, addDays(s.start, days), 'start', sched);
   else if (d.edge === 'end') resizeItem(tmp, d.id, addDays(s.end, days), 'end', sched);
   else {
-    moveItem(tmp, d.id, addDays(s.start, days), sched);
-    const lane = laneAt(d.L, p.y);
-    const it = tmp.items.find(i => i.id === d.id);
-    if (lane && (lane.id || null) !== (it.lane || null) && !lane.collapsed) setLane(tmp, it.id, lane.id);
+    // Against what is on screen: the range (and so the scale) can change while dragging.
+    const plan = dropPlan(ui.L || d.L, d.base, d.id, p, { free: e.altKey, rowMoved: Math.abs(p.y - d.y0) >= ROW / 2 });
+    if (plan.beside) placeBeside(tmp, d.id, plan.beside.bar.id, plan.beside.side, sched);
+    else {
+      moveItem(tmp, d.id, addDays(s.start, days), sched);
+      joinRow(tmp, d.id, plan);
+    }
+    ui.hint = plan.hint;
   }
   ui.dragDoc = tmp;
   paintMap();
@@ -941,16 +948,20 @@ function endDrag(e) {
   if (!d || d.pointer !== e.pointerId) return;
   ui.drag = null;
   if (d.lane && !d.moved) { edit(doc => { const h = new Set(doc.meta.hidden); if (h.has(d.lane)) h.delete(d.lane); else h.add(d.lane); doc.meta.hidden = [...h]; }); return; }
+  ui.hint = null;
   if (d.id && d.moved && ui.dragDoc) {
     const next = ui.dragDoc;
     ui.dragDoc = null;
-    edit(doc => { const it = next.items.find(i => i.id === d.id); const i = doc.items.findIndex(x => x.id === d.id); if (it && i >= 0) doc.items[i] = it; });
+    // The item and everything under it (a lane change takes its children along).
+    const ids = new Set([d.id, ...descendants(next, d.id)]);
+    edit(doc => { for (const it of next.items) { if (!ids.has(it.id)) continue; const i = doc.items.findIndex(x => x.id === it.id); if (i >= 0) doc.items[i] = it; } });
     return;
   }
   ui.dragDoc = null;
+  requestPaint();
 }
 app.addEventListener('pointerup', endDrag);
-app.addEventListener('pointercancel', e => { if (ui.drag && ui.drag.pointer === e.pointerId) { ui.drag = null; ui.dragDoc = null; requestPaint(); } });
+app.addEventListener('pointercancel', e => { if (ui.drag && ui.drag.pointer === e.pointerId) { ui.drag = null; ui.dragDoc = null; ui.hint = null; requestPaint(); } });
 
 app.addEventListener('dblclick', e => {
   if (!e.target.closest('[data-tl]') || e.target.closest('g.bar') || !ui.L || locked()) return;
@@ -966,33 +977,136 @@ app.addEventListener('dragstart', e => {
   if (!c) return;
   e.dataTransfer.setData('text/x-runway-item', c.dataset.tray);
   e.dataTransfer.effectAllowed = 'move';
+  ui.trayDrag = c.dataset.tray;
 });
-app.addEventListener('dragover', e => { if (e.target.closest('[data-tl]') && [...e.dataTransfer.types].includes('text/x-runway-item')) e.preventDefault(); });
-app.addEventListener('drop', e => {
-  if (!e.target.closest('[data-tl]') || !ui.L || locked()) return;
-  const id = e.dataTransfer.getData('text/x-runway-item');
+const setHint = (h) => { if (JSON.stringify(h) !== JSON.stringify(ui.hint)) { ui.hint = h; requestPaint(); } };
+app.addEventListener('dragend', () => { ui.trayDrag = null; setHint(null); });
+/** Is a drag event over the timeline? By position, since the hint repaints the SVG under the pointer. */
+const overTl = (e) => { const tl = app.querySelector('[data-tl]'); if (!tl) return false; const r = tl.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+document.addEventListener('dragover', e => {
+  const over = overTl(e);
+  if (!over || !ui.trayDrag || !ui.L || locked()) { if (ui.hint) setHint(null); return; }
+  e.preventDefault();
+  const plan = dropPlan(ui.L, v.doc, ui.trayDrag, pt(e), { free: e.altKey, rowMoved: true });
+  setHint(plan.hint);
+});
+document.addEventListener('drop', e => {
+  if (!overTl(e) || !ui.L || locked() || app.dataset.view !== 'map') return;
+  const id = e.dataTransfer.getData('text/x-runway-item') || ui.trayDrag;
+  ui.trayDrag = null; ui.hint = null;
   if (!id) return;
   e.preventDefault();
   const p = pt(e);
-  const lane = laneAt(ui.L, p.y);
+  const plan = dropPlan(ui.L, v.doc, id, p, { free: e.altKey, rowMoved: true });
   const sprint = sprintOf(v.doc.meta);
   const start = periodStart(v.doc.meta.scale, dateAt(ui.L, Math.max(ui.L.gutter, p.x)), sprint);
   edit(d => {
     const it = d.items.find(i => i.id === id);
     if (!it) return;
+    if (plan.beside && placeBeside(d, id, plan.beside.bar.id, plan.beside.side)) return;
     it.start = start;
     it.end = it.milestone ? start : sizeEnd(start, it.size || { n: 1, unit: d.meta.scale }, sprint);
     it.size = null;
-    if (lane && !lane.collapsed) setLane(d, it.id, lane.id);
+    joinRow(d, id, plan);
   });
   select(id);
 });
+
+/* ---------- where a drop lands: next to a bar, or in a row ----------
+   Over another bar: right before it (left half) or right after it (right half), under the same parent, and nothing
+   else moves (model.js placeBeside). Elsewhere in a lane: the date under the pointer, and the row's parent (in a
+   feature's story rows, that feature). Alt held: free placement, no snapping to bars. */
+function dropPlan(L, doc, id, p, { free = false, rowMoved = true } = {}) {
+  const skip = new Set([id, ...descendants(doc, id)]);
+  const titleOf = (x) => { const it = doc.items.find(i => i.id === x); return it ? it.title : ''; };
+  const hit = free ? null : barAt(L, p.x, p.y, skip);
+  if (hit) {
+    const b = hit.bar, parent = b.item.parent;
+    const text = `${hit.side === 'before' ? 'Before' : 'After'} ${b.item.title}${parent ? ` · in ${titleOf(parent)}` : ''}`;
+    return { beside: hit, hint: { kind: 'edge', x: hit.side === 'before' ? b.x - 2 : b.x + b.w + 2, y: b.y, h: b.h, text } };
+  }
+  const r = rowAt(L, p.x, p.y, skip);
+  if (!r) return { lane: undefined, hint: null };
+  const it = doc.items.find(i => i.id === id);
+  const laneChanged = !it || (it.lane || null) !== (r.lane.id || null);
+  if (!r.near || !rowMoved) return { lane: r.lane, near: false, hint: laneChanged ? { kind: 'row', y: r.lane.y + 8, px: p.x, text: `Top level in ${r.lane.title}` } : null };
+  const top = r.near.y - (ROW - 20) / 2;
+  return { lane: r.lane, near: true, parent: r.parent, hint: { kind: 'row', y: top, px: p.x, text: r.parent ? `Joins ${titleOf(r.parent)}` : `Top level in ${r.lane.title}` } };
+}
+
+/** Apply a row drop to item `id`: its lane, and the row's parent when the drop was in a row with other bars. */
+function joinRow(doc, id, plan) {
+  if (!plan.lane) return;
+  setLane(doc, id, plan.lane.id);
+  if (plan.near && !setParent(doc, id, plan.parent)) setParent(doc, id, null);
+}
+
+/* ---------- a bar's menu: right-click, or the context menu key / Shift+F10 on the selected bar ---------- */
+let barMenu = null;
+function closeBarMenu() { if (barMenu) { barMenu.remove(); barMenu = null; } }
+function openBarMenu(id, x, y) {
+  closeBarMenu();
+  const it = v.doc && v.doc.items.find(i => i.id === id);
+  if (!it || locked()) return;
+  const deep = (levels(v.doc).get(id) || 0) >= MAX_DEPTH;
+  const m = document.createElement('div');
+  m.className = 'menu barmenu';
+  m.setAttribute('role', 'menu');
+  m.innerHTML = `<button role="menuitem" data-add="before">Add item before</button><button role="menuitem" data-add="after">Add item after</button>${deep ? '' : '<button role="menuitem" data-add="under">Add item under</button>'}`;
+  document.body.appendChild(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = `${Math.max(4, Math.min(x, innerWidth - r.width - 4))}px`;
+  m.style.top = `${Math.max(4, Math.min(y, innerHeight - r.height - 4))}px`;
+  barMenu = m;
+  m.addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (!b) return; closeBarMenu(); addBeside(id, b.dataset.add); });
+  m.addEventListener('keydown', e => {
+    const bs = [...m.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeBarMenu(); const tl = app.querySelector('[data-tl]'); if (tl) tl.focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); bs[(i + (e.key === 'ArrowDown' ? 1 : bs.length - 1)) % bs.length].focus(); }
+    else if (e.key === 'Tab') closeBarMenu();
+  });
+  m.querySelector('button').focus();
+}
+document.addEventListener('pointerdown', e => { if (barMenu && !barMenu.contains(e.target)) closeBarMenu(); }, true);
+window.addEventListener('blur', closeBarMenu);
+app.addEventListener('contextmenu', e => {
+  const bar = e.target.closest('[data-tl] g.bar');
+  if (!bar || locked()) return;
+  e.preventDefault();
+  select(bar.dataset.id);
+  openBarMenu(bar.dataset.id, e.clientX, e.clientY);
+});
+
+/** A new item right before or after `target` (one period long, same parent), or under it (from its start). */
+function addBeside(target, where) {
+  if (!v.doc || locked()) return;
+  const id = newId('i');
+  edit(d => {
+    const tg = d.items.find(i => i.id === target);
+    if (!tg) return;
+    const sprint = sprintOf(d.meta);
+    const one = { n: 1, unit: d.meta.scale };
+    const lane = tg.lane || null;
+    d.items.push(cleanItem({ id, kind: 'item', lane, order: nextOrder(d, lane), title: 'New item', size: one }));
+    if (where !== 'under') { placeBeside(d, id, target, where); return; }
+    const it = d.items.find(i => i.id === id);
+    const s = schedule(d).get(target);
+    const st = s ? s.start : periodStart(d.meta.scale, today(), sprint);
+    it.start = st;
+    it.end = sizeEnd(st, one, sprint);
+    if (s && !tg.milestone && it.end > s.end) it.end = s.end;
+    it.size = null;
+    if (!setParent(d, id, target)) it.parent = null;
+  });
+  select(id);
+  requestAnimationFrame(() => { const t = app.querySelector('[data-panel] [data-f="title"]'); if (t) { t.focus(); t.select(); } });
+}
 
 /** Bars in reading order: lane by lane, top to bottom, left to right. */
 const barOrder = () => [...(ui.L ? ui.L.bars : [])].sort((a, b) => a.y - b.y || a.x - b.x).map(b => b.id);
 
 document.addEventListener('keydown', e => {
-  if (dlg.open || e.defaultPrevented) return;
+  if (dlg.open || e.defaultPrevented || (barMenu && barMenu.contains(document.activeElement))) return;
   if (app.dataset.view !== 'map' || !v.doc) return;
   if (typing(document.activeElement)) { if (e.key === 'Escape') document.activeElement.blur(); return; }
   if (e.ctrlKey || e.metaKey) return;
@@ -1004,6 +1118,13 @@ document.addEventListener('keydown', e => {
   }
   const id = ui.selected;
   if (key === 'Escape') { e.preventDefault(); select(null); return; }
+  if ((key === 'ContextMenu' || (key === 'F10' && e.shiftKey)) && !locked()) {
+    e.preventDefault();
+    const g = app.querySelector(`[data-tl] g.bar[data-id="${CSS.escape(id)}"]`);
+    const r = g ? g.getBoundingClientRect() : { left: 100, bottom: 100 };
+    openBarMenu(id, r.left, r.bottom + 4);
+    return;
+  }
   if (key === 'Enter') { e.preventDefault(); const t = app.querySelector('[data-panel] [data-f="title"]'); if (t) t.focus(); return; }
   if ((key === 'Delete' || key === 'Backspace') && !locked()) { e.preventDefault(); deleteItem(id); return; }
   if ((key === 'ArrowUp' || key === 'ArrowDown') && !e.altKey) {
