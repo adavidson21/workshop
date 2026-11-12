@@ -1,0 +1,139 @@
+/* Shared UI pieces for the shell and its apps: buttons, icon buttons, links, menus, the light/dark
+   toggle, toast, tooltip, the centered card (.engcard) for setup and empty states, and the editorial
+   type helpers (.eyebrow, .title, .section-label). Load after themes.css and before an app's own styles.
+   Flat, hairlines, Gelasio headings, uppercase DM Mono labels. Page titles carry no trailing period, and
+   explanations go behind a quiet ? hint (.qhint, behavior in theme.js) rather than a paragraph under the heading. */
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+svg{display:block}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+kbd{font-family:var(--mono);font-size:.76rem;padding:.02rem .32rem;border:1px solid var(--line);border-radius:4px;color:var(--muted);background:var(--surface);line-height:1.3}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
+
+/* editorial type */
+.eyebrow{margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(30px,4vw,40px);letter-spacing:-.015em;line-height:1.1;color:var(--ink)}
+.page-sub{margin:.35rem 0 0;color:var(--muted);font-size:.92rem}
+.section-label{display:flex;align-items:center;gap:14px;margin:0;font:500 12.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* quiet ? hint next to a heading: faint until the heading is hovered, retires after a few uses (theme.js) */
+.qhint{position:relative;display:inline-flex;vertical-align:super;margin-left:.3rem;font:400 12.5px/1.4 var(--sans);letter-spacing:0;text-transform:none}
+.qhint>button{font:500 12px/1 var(--sans);color:var(--muted);opacity:.3;padding:2px 4px;border-radius:4px;transition:opacity .15s}
+*:hover>.qhint>button,.qhint.open>button,.qhint>button:focus-visible{opacity:.9}
+.qhint-tip{position:absolute;left:0;top:calc(100% + 6px);z-index:70;width:max-content;max-width:min(18rem,80vw);background:var(--ink);color:var(--bg);font:400 12.5px/1.4 var(--sans);letter-spacing:0;text-transform:none;white-space:normal;text-align:left;padding:.45rem .6rem;border-radius:6px;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .12s}
+.qhint.open>.qhint-tip,.qhint:focus-within>.qhint-tip{opacity:1}
+
+/* ---------- page layout (docs/layout.md). Three sizes of the app's own frame: compact under 1100px (half a
+   screen), desktop 1100 to 1599px, wide from 1600px (2100px only widens). Boards, editors and dashboards run full
+   width with --gutter; list and form pages stay inside --w-page; long text inside --w-read. ---------- */
+/* The size tokens (--gutter, --w-page, --w-read) are in themes.css, so pages that skip ui.css get them too. */
+.ws-page{width:100%;max-width:calc(var(--w-page) + 2 * var(--gutter));margin:0 auto;padding:1.5rem var(--gutter) 4rem}
+.ws-page.full{max-width:none}
+/* One header for every app: eyebrow and title on the left, actions on the right, section tabs below. No subtitle:
+   explanations go in a .qhint next to the title. */
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.6rem 1rem;margin:0 0 1.25rem}
+.page-head>.ph-main{flex:1 1 16rem;min-width:0}
+.page-head .eyebrow{margin-bottom:.3rem}
+.page-head h1,.page-head .page-title{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(26px,2.2vw,34px);letter-spacing:-.015em;line-height:1.15;color:var(--ink);overflow-wrap:anywhere}
+.page-head>.ph-acts{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.45rem;margin-left:auto}
+.page-head>.page-tabs{flex:1 0 100%}
+/* section tabs: underlined, one row, scrolls sideways when it must */
+.page-tabs{display:flex;gap:1.4rem;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.page-tabs::-webkit-scrollbar{display:none}
+.page-tabs>a,.page-tabs>button{position:relative;display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 0 .6rem;font-size:.92rem;font-weight:500;color:var(--muted);text-decoration:none;white-space:nowrap;background:none;border:0}
+.page-tabs>a:hover,.page-tabs>button:hover{color:var(--ink)}
+.page-tabs>.on,.page-tabs>[aria-current=page],.page-tabs>[aria-selected=true]{color:var(--ink)}
+.page-tabs>.on::after,.page-tabs>[aria-current=page]::after,.page-tabs>[aria-selected=true]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+.page-tabs .n{font:12px var(--mono);color:var(--muted)}
+/* several setup notes as one line that opens: <details class="ws-notices"><summary>2 setup notes</summary>... */
+.ws-notices{border-bottom:1px solid var(--line);background:var(--panel);font-size:.86rem;color:var(--muted)}
+.ws-notices>summary{display:flex;align-items:center;gap:.5rem;padding:.45rem var(--gutter);cursor:pointer;list-style:none;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--eyebrow)}
+.ws-notices>summary::-webkit-details-marker{display:none}
+.ws-notices>summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.ws-notices[open]>summary::before{transform:rotate(45deg)}
+.ws-notices>.ws-note{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;padding:.4rem var(--gutter) .55rem}
+/* dashboard grid: one column compact, two desktop, three wide. Cards span with .w2 (two columns from desktop) and
+   .w3 (the full row on wide). */
+.dash{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem 2.25rem;align-items:start}
+@media (min-width:1100px){.dash{grid-template-columns:repeat(2,minmax(0,1fr))}.dash>.w2,.dash>.w3{grid-column:span 2}}
+@media (min-width:1600px){.dash{grid-template-columns:repeat(3,minmax(0,1fr))}.dash>.w3{grid-column:span 3}}
+/* list and detail side by side from desktop; compact shows one at a time (the app toggles .detail-open) */
+.ws-split{display:grid;grid-template-columns:minmax(0,1fr);gap:0;min-height:0}
+@media (min-width:1100px){.ws-split{grid-template-columns:var(--split-w,minmax(15rem,22rem)) minmax(0,1fr)}.ws-split>.sp-list{border-right:1px solid var(--line);padding-right:1.25rem}.ws-split>.sp-detail{padding-left:1.75rem}}
+@media (max-width:1099px){.ws-split.detail-open>.sp-list,.ws-split:not(.detail-open)>.sp-detail{display:none}}
+.ws-split>*{min-width:0}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.38rem .85rem;border-radius:var(--r-sm);font-size:.86rem;font-weight:500;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--ink);transition:background-color .2s,border-color .2s,color .2s}
+.btn:hover{background:var(--hover);border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:14px;height:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 86%,var(--ink));border-color:color-mix(in srgb,var(--accent) 86%,var(--ink))}
+.btn.primary kbd{background:transparent;color:var(--on-accent);border-color:color-mix(in srgb,var(--on-accent) 40%,transparent)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:var(--surface)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--hover)}
+.btn.text-danger{border-color:transparent;background:transparent;color:var(--danger)}
+.btn.text-danger:hover{background:var(--danger-soft)}
+.btn:disabled{opacity:.5;cursor:default;transform:none}
+.ibtn{position:relative;width:2rem;height:2rem;min-width:24px;min-height:24px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--muted);flex:none;transition:background-color .2s,color .2s}
+.ibtn svg{width:17px;height:17px}
+.ibtn:hover{background:var(--hover);color:var(--ink)}
+.lnk{font-size:.84rem;color:var(--accent);font-weight:500;border-radius:4px;padding:.1rem .3rem;white-space:nowrap;text-decoration:none}
+.lnk:hover{background:var(--accent-soft);color:var(--ink)}
+
+/* the light/dark toggle: the same round button as on tools.alexisdavidson.org (theme.js renders it) */
+.theme-toggle{position:absolute;z-index:20;top:var(--theme-top,16px);right:16px;width:38px;height:38px;display:grid;place-items:center;padding:0;margin:0;flex:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);transition:color .2s,border-color .2s,transform .2s;-webkit-tap-highlight-color:transparent}
+.theme-toggle:hover{color:var(--ink);border-color:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.theme-toggle:active{transform:scale(.94)}
+.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.theme-toggle svg{width:18px;height:18px;display:block;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.theme-toggle:hover svg{transform:rotate(-20deg)}
+
+/* centered card for setup and empty states: an ink rule on top, hairlines, no shadow */
+.engcard{max-width:36rem;margin:2.5rem auto;padding:1.4rem 1.5rem 1.5rem;border:1px solid var(--line);border-top-color:var(--rule);border-radius:2px 2px var(--r-md) var(--r-md);background:var(--surface);font-size:.92rem;color:var(--muted)}
+.engcard h2{margin:0 0 .45rem;font:600 1.45rem/1.2 var(--serif);letter-spacing:-.01em;color:var(--ink)}
+.engcard ol{margin:.7rem 0 0;padding-left:1.2rem;display:grid;gap:.45rem}
+.engcard code{font-family:var(--mono);font-size:.86rem;color:var(--ink);background:var(--panel);padding:.05rem .3rem;border-radius:4px;word-break:break-all}
+.engcard .acts{display:flex;align-items:center;gap:.5rem;margin-top:1.15rem;flex-wrap:wrap}
+.engcard .fld{display:flex;align-items:center;gap:.5rem}
+.engcard input{width:6.5rem;min-height:2.1rem;padding:.3rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg)}
+
+/* menus */
+.menu{position:fixed;z-index:46;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:.3rem;min-width:11rem;animation:pop .12s ease}
+.menu button{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;padding:.45rem .65rem;border-radius:var(--r-sm);font-size:.88rem;min-height:28px}
+.menu button:hover,.menu button:focus-visible{background:var(--hover);outline:none}
+.menu button.on{font-weight:600}
+.menu b{font-weight:600}
+.menu .danger{color:var(--danger)}
+.menu .sep{height:1px;background:var(--line);margin:.25rem .2rem}
+.sw{width:16px;height:16px;border-radius:50%;flex:none;border:1px solid var(--line);position:relative;overflow:hidden}
+.sw i{position:absolute;right:0;bottom:0;width:50%;height:50%;border-top-left-radius:100%}
+
+/* toast and tooltip */
+.toast{position:fixed;left:50%;bottom:1.5rem;z-index:60;transform:translate(-50%,1rem);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:.6rem .65rem .6rem 1rem;border-radius:var(--r-sm);display:flex;gap:.5rem;align-items:center;font-size:.88rem;box-shadow:var(--shadow-lg);transition:opacity .2s,transform .2s;max-width:calc(100vw - 2rem)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast span{margin-right:.4rem}
+.toast button{color:var(--bg);font-weight:600;padding:.2rem .5rem;border-radius:4px;text-decoration:underline;text-underline-offset:3px;min-height:24px}
+.toast button:hover{background:color-mix(in srgb,var(--bg) 16%,transparent)}
+.tip{position:fixed;z-index:70;max-width:16rem;background:var(--ink);color:var(--bg);font-size:.76rem;line-height:1.35;padding:.38rem .6rem;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .12s}
+.tip.show{opacity:1}
+@keyframes pop{from{opacity:0;transform:scale(.98) translateY(4px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{opacity:0;translate:0 10px}to{opacity:1;translate:0 0}}
+/* touch screens: menus, toasts and the theme toggle get finger-sized targets */
+@media (hover:none) and (pointer:coarse){
+  .menu{min-width:13rem}
+  .menu button{min-height:44px;font-size:.95rem}
+  .menu button:active{background:var(--hover)}
+  .toast{bottom:calc(1.5rem + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))}
+  .toast button{min-height:40px;padding:.3rem .7rem}
+  .tip{display:none}
+}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

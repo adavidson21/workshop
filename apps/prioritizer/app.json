@@ -1,0 +1,251 @@
+{
+  "manifestVersion": 1,
+  "id": "prioritizer",
+  "name": "Docket",
+  "version": "9.1.1",
+  "description": "Decide what to work on next, and plan your day around it.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 10,
+  "background": true,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "routes": [
+    {
+      "path": "today",
+      "title": "Today"
+    },
+    {
+      "path": "inbox",
+      "title": "Today, with To sort"
+    },
+    {
+      "path": "plan-week",
+      "title": "Week"
+    },
+    {
+      "path": "week",
+      "title": "Week"
+    },
+    {
+      "path": "plan-week/:lens",
+      "title": "Week with the matrix (eisenhower)"
+    },
+    {
+      "path": "day/:date",
+      "title": "Plan a day (a date, or today)"
+    },
+    {
+      "path": "people",
+      "title": "People"
+    },
+    {
+      "path": "done",
+      "title": "Done"
+    },
+    {
+      "path": "task/:id",
+      "title": "Open a task"
+    },
+    {
+      "path": "shutdown",
+      "title": "Wrap up the day"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    },
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "handoffs": {
+    "sends": [
+      "receipts",
+      "notes"
+    ]
+  },
+  "capture": [
+    "task",
+    "waiting"
+  ],
+  "aliases": [
+    "docket",
+    "tasks",
+    "board",
+    {
+      "name": "today",
+      "path": "today"
+    },
+    {
+      "name": "triage",
+      "path": "inbox"
+    }
+  ],
+  "commands": [
+    {
+      "id": "add-task",
+      "title": "Add a task",
+      "route": ""
+    },
+    {
+      "id": "start-next",
+      "title": "Start next task",
+      "route": ""
+    },
+    {
+      "id": "open-today",
+      "title": "Today's list",
+      "route": "today"
+    },
+    {
+      "id": "plan-day",
+      "title": "Plan today",
+      "route": "day/today"
+    },
+    {
+      "id": "plan-week",
+      "title": "Plan the week",
+      "route": "plan-week"
+    },
+    {
+      "id": "triage",
+      "title": "Sort what is new",
+      "route": "inbox"
+    },
+    {
+      "id": "sort-one-by-one",
+      "title": "Sort one by one",
+      "route": "inbox"
+    },
+    {
+      "id": "shutdown-day",
+      "title": "Wrap up the day"
+    },
+    {
+      "id": "sync-ado",
+      "title": "Sync with Azure DevOps"
+    },
+    {
+      "id": "shortcuts",
+      "title": "Docket keyboard shortcuts"
+    }
+  ],
+  "settings": [
+    {
+      "id": "sprints",
+      "type": "boolean",
+      "title": "Use sprints",
+      "description": "Day counts sprint days and adds every-sprint tasks. Off: Day templates go by weekday and every-sprint tasks are paused.",
+      "default": true
+    }
+  ],
+  "files": [
+    "app.css",
+    "shared/brand/brand.css",
+    "shared/brand/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2",
+    "shared/brand/fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2",
+    "shared/brand/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2",
+    "shared/brand/fonts/schibsted-grotesk-latin-ext-wght-normal.woff2",
+    "shared/brand/fonts/schibsted-grotesk-latin-wght-normal.woff2",
+    "icons/app-192.png",
+    "icons/app-512.png",
+    "icons/app-maskable-512.png",
+    "icons/app-touch-180.png",
+    "icons/favicon-32.png",
+    "icons/favicon.svg",
+    "js/actions.js",
+    "js/ado-link.js",
+    "js/ado-status.js",
+    "js/ado.js",
+    "js/app-banner.js",
+    "js/command-bar.js",
+    "js/connect.js",
+    "js/constants.js",
+    "js/day-view.js",
+    "js/dayplan-format.js",
+    "js/dayplan-model.js",
+    "js/dayplan.js",
+    "js/delegate-model.js",
+    "js/delegate.js",
+    "js/directory-model.js",
+    "js/directory.js",
+    "js/display.js",
+    "js/drag-drop.js",
+    "js/drawer.js",
+    "js/eng.js",
+    "js/events.js",
+    "js/excel.js",
+    "js/focus-format.js",
+    "js/focus-hours-model.js",
+    "js/focus-hours.js",
+    "js/focus-model.js",
+    "js/focus.js",
+    "js/left-off-model.js",
+    "js/left-off.js",
+    "js/main.js",
+    "js/maker-manager.js",
+    "js/model.js",
+    "js/native.js",
+    "js/notes-link.js",
+    "js/offers-model.js",
+    "js/offers.js",
+    "js/onboarding.js",
+    "js/overlays.js",
+    "js/paste.js",
+    "js/people.js",
+    "js/pr-ai-model.js",
+    "js/pr-ai.js",
+    "js/products-link.js",
+    "js/quick-add.js",
+    "js/render.js",
+    "js/route.js",
+    "js/row-fields-model.js",
+    "js/slate-link.js",
+    "js/sort-run.js",
+    "js/state.js",
+    "js/storage.js",
+    "js/store-format.js",
+    "js/store.js",
+    "js/summary.js",
+    "js/util.js",
+    "js/views.js",
+    "js/ws.js",
+    "shared/app-settings.js",
+    "shared/app-sw.js",
+    "shared/device-fs.js",
+    "shared/focus.js",
+    "shared/fonts/dm-mono-latin-400-normal.woff2",
+    "shared/fonts/dm-mono-latin-500-normal.woff2",
+    "shared/fonts/dm-mono-latin-ext-400-normal.woff2",
+    "shared/fonts/dm-mono-latin-ext-500-normal.woff2",
+    "shared/fonts/figtree-latin-ext-wght-italic.woff2",
+    "shared/fonts/figtree-latin-ext-wght-normal.woff2",
+    "shared/fonts/figtree-latin-wght-italic.woff2",
+    "shared/fonts/figtree-latin-wght-normal.woff2",
+    "shared/fonts/fonts.css",
+    "shared/fonts/gelasio-latin-ext-wght-normal.woff2",
+    "shared/fonts/gelasio-latin-wght-normal.woff2",
+    "shared/handoffs.js",
+    "shared/pair.js",
+    "shared/people.js",
+    "shared/products.js",
+    "shared/save-file.js",
+    "shared/site.js",
+    "shared/standalone-bar.js",
+    "shared/summary.js",
+    "shared/sw-register.js",
+    "shared/teams.js",
+    "shared/theme.js",
+    "shared/themes.css",
+    "shared/ui.css",
+    "shared/vendor/xlsx.full.min.js",
+    "shared/workshop-sdk.js"
+  ]
+}

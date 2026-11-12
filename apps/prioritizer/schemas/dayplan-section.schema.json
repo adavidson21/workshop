@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Docket day plan: a block (section) in a template or on a day",
+  "type": "object",
+  "required": ["id", "name", "kind", "color"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 40},
+    "name": {"type": "string", "maxLength": 80},
+    "kind": {"type": "string", "maxLength": 40, "description": "Free text, lower case, like focus, meetings, admin, review."},
+    "color": {"enum": ["slate", "sage", "sky", "butter", "peach", "blush", "lavender", "stone"]},
+    "around": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}], "description": "Rough start time, a label only."},
+    "minutes": {"anyOf": [{"type": "null"}, {"type": "integer", "minimum": 0, "maximum": 1440}]},
+    "capacity": {"anyOf": [{"type": "null"}, {"type": "number", "minimum": 0}], "description": "Effort points, the same unit as task capacity."},
+    "lost": {"const": true, "description": "On a day only: the block is gone for that day."}
+  }
+}

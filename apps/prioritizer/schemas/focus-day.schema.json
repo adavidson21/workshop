@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Docket focus log: one day (an item of prioritizer.focus/days/<yyyy> v1)",
+  "type": "object",
+  "required": ["id", "events"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "The date."},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "description": "Oldest first. The task being worked on is the last started one that was not stopped since.",
+      "items": {
+        "type": "object",
+        "required": ["at", "type"],
+        "properties": {
+          "at": {"type": "string", "maxLength": 40, "description": "ISO time."},
+          "type": {"enum": ["start", "stop", "interrupt", "shutdown"]},
+          "taskId": {"type": "string", "minLength": 1, "maxLength": 80, "description": "start and stop only."},
+          "switch": {"type": "boolean", "description": "start only: another unfinished task was left for this one."},
+          "why": {"enum": ["pause", "done", "shutdown"], "description": "stop only."}
+        }
+      }
+    }
+  }
+}

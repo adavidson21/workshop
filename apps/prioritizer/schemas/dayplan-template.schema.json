@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Docket day plan: a template (an item of prioritizer.dayplan/templates v1)",
+  "type": "object",
+  "required": ["id", "name", "days", "last", "sections"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 40},
+    "updatedAt": {"type": "integer", "minimum": 0},
+    "name": {"type": "string", "maxLength": 80},
+    "days": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 60}, "uniqueItems": true, "description": "Sprint day numbers this template is for."},
+    "last": {"type": "boolean", "description": "Matches the last working day of a sprint, and wins over a numbered template on that day."},
+    "weekdays": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 6}, "uniqueItems": true, "description": "With sprints off: the weekdays (0 is Sunday) this template is for. Missing means none."},
+    "sections": {"type": "array", "items": {"$ref": "dayplan-section.schema.json"}}
+  }
+}

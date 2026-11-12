@@ -1,0 +1,155 @@
+import { COLORS, EQ, POINTS, VALUE, VQ } from './constants.js';
+import { closeDrawer, drawerId, openDrawer } from './drawer.js';
+import { isStale, isTriaged, urgency } from './model.js';
+import { unslotDay } from './dayplan.js';
+import { toast } from './overlays.js';
+import { parseQuick } from './quick-add.js';
+import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state, rankedOpen } from './state.js';
+import { fmtDay, todayStr, uid } from './util.js';
+import { focusTaskClosed } from './focus.js';
+import { assign } from './directory.js';
+import { followDate } from './delegate.js';
+/* Prioritizer: Task actions: add, complete, won't do, Today, delete, reorder, quadrant drops. */
+/* ---------- task actions ---------- */
+function addTask(text, attrs = {}){
+  const p = parseQuick(text);
+  if (!p.title) return null;
+  const ado = attrs.ado ? cleanAdo(attrs.ado) : null;
+  if (ado){
+    const have = state.tasks.find(x => x.ado && x.ado.id === ado.id && !x.done);
+    if (have){ toast(`${ado.type || 'Item'} ${ado.id} is already on your board`, 'Open', () => openDrawer(have.id)); return null; }
+  }
+  const maxRank = state.tasks.reduce((m,t) => Math.max(m, t.rank), 0);
+  const t = {
+    id: uid(), title: p.title, notes: '', color: COLORS[state.colorIdx++ % COLORS.length], rank: maxRank + 1,
+    value: p.value, effort: p.effort, due: p.due, urgentFlag: p.urgentFlag,
+    listId: p.listId || attrs.listId || defaultListId(), done: false, doneAt: null, wontDo: false,
+    createdAt: todayStr(), ageFrom: todayStr(), waiting: false, nudgeOn: null, focusOn: null
+  };
+  for (const k of ['focusOn','waiting']) if (k in attrs) t[k] = attrs[k];
+  if (attrs.quad) applyDrop(t, attrs.quad.zone, attrs.quad.kind);
+  t.who = [];
+  assign(t, [...(attrs.who || []), ...p.people]);
+  // >@name: handed over, so waiting on them with a follow-up date (delegate-model.js).
+  if (p.delegate){ t.waiting = true; t.nudgeOn = followDate(); }
+  if (ado) t.ado = ado;
+  // +product (products-link.js): an extra field, only when there is one.
+  if (p.product || attrs.product) t.product = p.product || attrs.product;
+  state.tasks.push(t);
+  commit();
+  return t;
+}
+function toggleDone(id){
+  const t = findTask(id); if (!t) return;
+  t.done = !t.done;
+  t.doneAt = t.done ? todayStr() : null;
+  if (!t.done) t.wontDo = false;
+  if (t.done) delete t.cameBack;
+  if (t.done) delete t.leftOff;   // where you left off is moot once it is done (left-off.js)
+  if (t.done) focusTaskClosed(id);
+  commit();
+}
+function wontDo(id){
+  const t = findTask(id); if (!t) return;
+  const prev = {done: t.done, doneAt: t.doneAt, wontDo: t.wontDo};
+  t.done = true; t.wontDo = true; t.doneAt = todayStr();
+  focusTaskClosed(id);
+  commit();
+  toast(`Won't do: ${t.title}`, 'Undo', () => { Object.assign(t, prev); commit(); });
+}
+function toggleFocus(id){
+  const t = findTask(id); if (!t || t.done) return;
+  const on = t.focusOn === todayStr();
+  t.focusOn = on ? null : todayStr();
+  if (!on){
+    delete t.cameBack;   // picked for Today: the Came back chip is handled
+    // Picked straight from the Inbox: it leaves the Inbox, so it gets a value and effort if it has none.
+    if (!isTriaged(t)){ t.value = t.value || 3; t.effort = t.effort || 'M'; }
+    if (isStale(t)) t.ageFrom = todayStr();
+  }
+  commit();
+  if (on) unslotDay(id);   // off Today is out of today's block too (one today)
+  if (!on && state.view !== 'today') toast('Added to Today');
+}
+/* One-key sorting in the Inbox (Docket 7.0.0): 1 to 4 sets the value and sends the task to Ranked. Effort is M
+   when it has none, which you can change later; a came-back mark is handled and the aging clock restarts. */
+function quickSort(id, value){
+  const t = findTask(id); if (!t || t.done || !(value >= 1 && value <= 4)) return false;
+  const before = {value: t.value, effort: t.effort, ageFrom: t.ageFrom, cameBack: t.cameBack};
+  t.value = value; t.effort = t.effort || 'M'; t.ageFrom = todayStr();
+  delete t.cameBack;
+  commit();
+  toast(`Sorted: ${VALUE[value]}, effort ${t.effort}`, 'Undo', () => {
+    Object.assign(t, {value: before.value, effort: before.effort, ageFrom: before.ageFrom});
+    if (before.cameBack) t.cameBack = before.cameBack;
+    commit();
+  });
+  return true;
+}
+function deleteTask(id){
+  const i = state.tasks.findIndex(t => t.id === id); if (i < 0) return;
+  const [t] = state.tasks.splice(i, 1);
+  focusTaskClosed(id);
+  if (t.ado) state.ado.skip.push(t.ado.id);
+  if (t.pr) state.ado.skipPr.push(t.pr.key);
+  if (drawerId === id) closeDrawer(true);
+  commit();
+  toast(t.ado || t.pr ? 'Task deleted. It won\'t come back from ADO.' : 'Task deleted', 'Undo', () => {
+    state.tasks.push(t); if (t.ado) state.ado.skip = state.ado.skip.filter(n => n !== t.ado.id);
+    if (t.pr) state.ado.skipPr = state.ado.skipPr.filter(k => k !== t.pr.key); normalizeRanks(state); commit();
+  });
+}
+// Reassign the existing rank slots of these tasks in the given order (hidden tasks keep their place).
+function applyOrder(ids){
+  const tasks = ids.map(findTask).filter(Boolean);
+  const slots = tasks.map(t => t.rank).sort((a,b) => a - b);
+  tasks.forEach((t,i) => t.rank = slots[i]);
+  commit();
+}
+function moveTask(id, how){
+  const t = findTask(id); if (!t || t.done) return false;
+  const list = state.view === 'today' && isFocus(t) ? scopeOpen().filter(isFocus) : state.view === 'today' && rankedOpen().some(x => x.id === id) ? rankedOpen() : scopeOpen();
+  const i = list.findIndex(x => x.id === id); if (i < 0) return false;
+  const j = how === 'top' ? 0 : how === 'up' ? i - 1 : i + 1;
+  if (j < 0 || j >= list.length || j === i) return false;
+  const ids = list.map(x => x.id); ids.splice(i, 1); ids.splice(j, 0, id);
+  applyOrder(ids);
+  return true;
+}
+// Dragging into a quadrant changes only what's needed to land there (Build spec: Quadrant drops).
+function applyDrop(t, zone, kind){
+  const raise = () => { if (!t.value || t.value < 3) t.value = 3; };
+  const lower = () => { if (!t.value || t.value > 2) t.value = 2; };
+  const small = () => { if (!t.effort || POINTS[t.effort] > 2) t.effort = 'S'; };
+  const large = () => { if (!t.effort || POINTS[t.effort] < 3) t.effort = 'M'; };
+  switch (zone){
+    case 'do':       raise(); t.urgentFlag = true;  break;
+    case 'schedule': raise(); t.urgentFlag = false; break;
+    case 'delegate': lower(); t.urgentFlag = true;  break;
+    case 'drop':     lower(); t.urgentFlag = false; break;
+    case 'quick': raise(); small(); break;
+    case 'big':   raise(); large(); break;
+    case 'fill':  lower(); small(); break;
+    case 'pit':   lower(); large(); break;
+    case 'none':  t.value = null; if (kind === 'eisen') t.urgentFlag = false; else t.effort = null; break;
+  }
+}
+function dropIntoQuadrant(t, zone, kind){
+  const before = {value: t.value, effort: t.effort, urgentFlag: t.urgentFlag};
+  applyDrop(t, zone, kind);
+  commit();
+  const undo = ['Undo', () => { Object.assign(t, before); commit(); }];
+  if ((zone === 'schedule' || zone === 'drop') && t.due && urgency(t) === 2){
+    toast(`Due ${fmtDay(t.due)}, so it stays urgent`, [['Open', () => openDrawer(t.id)], undo]);
+  } else {
+    const Q = kind === 'eisen' ? EQ : VQ;
+    toast(zone === 'none' ? 'Moved to Unsorted' : `Moved to ${Q[zone].title}`, [undo]);
+  }
+}
+function downgradeUrgent(id){
+  const t = findTask(id); if (!t) return;
+  t.urgentFlag = false; commit();
+  toast('No longer urgent', 'Undo', () => { t.urgentFlag = true; commit(); });
+}
+
+export { addTask, applyOrder, deleteTask, quickSort, downgradeUrgent, dropIntoQuadrant, moveTask, toggleDone, toggleFocus, wontDo };
