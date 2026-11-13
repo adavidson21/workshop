@@ -2,7 +2,7 @@
   Shared themes for the Workshop shell and every app in it. Apps load this file directly.
 
   Workshop is on the brand library (tools.alexisdavidson.org/brand/v2; the copy in shared/brand/ is updated with
-  node ../personal-tools/brand/scripts/sync.mjs shared/brand). Colors, fonts (Bricolage Grotesque headings, Figtree
+  node ../personal-tools/brand/scripts/sync.mjs shared/brand). Colors, fonts (Inter Tight headings, Figtree
   text, DM Mono for code and keys), radii and light/dark all come from shared/brand/tokens.css, imported below. This
   file only maps Workshop's own names onto the brand's.
 

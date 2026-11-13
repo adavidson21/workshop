@@ -9,7 +9,7 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '6.56.0';
+const VERSION = '6.56.1';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
@@ -18,7 +18,7 @@ const CORE = [
   './shared/workshop-sdk.js', './shared/pair.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js',
   './shared/capture.js', './shared/capture-box.js', './shared/capture.css', './shared/people.js', './shared/teams.js', './shared/products.js', './shared/app-settings.js', './shared/outside.js',
   './shared/fonts/fonts.css', './shared/brand/tokens.css',
-  './shared/brand/fonts/bricolage-grotesque-latin-standard-normal.woff2', './shared/brand/fonts/bricolage-grotesque-latin-ext-standard-normal.woff2',
+  './shared/brand/fonts/inter-tight-latin-wght-normal.woff2', './shared/brand/fonts/inter-tight-latin-ext-wght-normal.woff2',
   './shared/brand/fonts/figtree-latin-wght-normal.woff2', './shared/brand/fonts/figtree-latin-ext-wght-normal.woff2',
   './shared/brand/fonts/figtree-latin-wght-italic.woff2', './shared/brand/fonts/figtree-latin-ext-wght-italic.woff2',
   './shared/brand/fonts/dm-mono-latin-400-normal.woff2', './shared/brand/fonts/dm-mono-latin-ext-400-normal.woff2',
