@@ -33,8 +33,8 @@ import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './expor
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
 import { esc, facts, inline, render, headingId } from './markdown.js';
-import { markDiagram, paintDiagrams, pngBytes, svgFile } from './diagrams.js';
-import { KITS, blockInsert, fenceAt, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
+import { paintDiagrams, pngBytes, svgFile } from './diagrams.js';
+import { KITS, blockInsert, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
@@ -47,15 +47,15 @@ const side = $('side'), head = $('head'), bodyEl = $('body'), preview = $('previ
 const editor = await createEditor($('editor'));
 const emptyEl = $('empty'), panelEl = $('panel'), picker = $('picker'), dlg = $('dlg');
 const sectionsEl = $('sections'), shell = $('notes'), titleHint = $('title-hint');
-// Phone width: the pages list is a drawer, and there is no Split (it would be Edit). Its own remembered view.
+// Phone width: the pages list is a drawer. Its own remembered view.
 const phoneQuery = window.matchMedia('(max-width: 760px)');
 const isPhone = () => phoneQuery.matches;
 const modeKey = () => (isPhone() ? 'mode-phone' : 'mode');
 // The views, in Ctrl+E's order. Live (live.js) needs CodeMirror; without it the editor is a plain text box.
 const hasLive = Boolean(editor.isCodeMirror);
-const modesNow = () => (isPhone() ? [...(hasLive ? ['live'] : []), 'edit', 'preview'] : [...(hasLive ? ['live'] : []), 'edit', 'split', 'preview']);
+const modesNow = () => [...(hasLive ? ['live'] : []), 'edit', 'preview'];
 // From Preview to writing (double-click, Edit on a diagram, Insert): Live where there is one.
-const writeMode = () => (hasLive ? 'live' : isPhone() ? 'edit' : 'split');
+const writeMode = () => (hasLive ? 'live' : 'edit');
 
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
@@ -87,7 +87,7 @@ ui.mode = savedMode();
 function savedMode() {
   const m = store(modeKey());
   if (modesNow().includes(m)) return m;
-  return isPhone() ? 'preview' : hasLive ? 'live' : 'split';
+  return isPhone() ? 'preview' : hasLive ? 'live' : 'edit';
 }
 phoneQuery.addEventListener('change', () => { ui.mode = savedMode(); ui.drawer = false; paintChrome(); paintPreview(true); });
 function setMode(m) { ui.mode = m; store(modeKey(), m); }
@@ -256,13 +256,11 @@ function paintPreview(now = false, { force = false } = {}) {
     preview.innerHTML = render(brief ? lensMarkdown(text, brief.lens) : text, { noLinks: true, imageUrl: () => null, tasks: !brief && !editor.readOnly });
     paintDiagrams(preview, { key: from });
     paintCodeTools(preview);
-    markCursorDiagram();
     return;
   }
   preview.innerHTML = render(text, renderOpts(from));
   paintDiagrams(preview, { key: from });
   paintCodeTools(preview);
-  markCursorDiagram();
   markTandemLines(from, text);
   // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
   for (const box of preview.querySelectorAll('input[data-task]')) {
@@ -408,12 +406,6 @@ function paintCodeTools(root) {
   }
 }
 
-/* Split view: the diagram whose fence holds the cursor is highlighted in the preview (diagram-kits.js fenceAt). */
-function markCursorDiagram() {
-  if (ui.mode !== 'split' || !ui.path) { markDiagram(preview, null); return; }
-  const f = fenceAt(editor.value, lineOf(editor.value, editor.selectionStart));
-  markDiagram(preview, f ? f.line : null);
-}
 // Light or dark: diagrams are drawn in the theme's colors, so draw them again.
 new MutationObserver(() => { paintPreview(true); editor.refreshLive(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -1472,7 +1464,6 @@ function formatTableNow() {
   editor.setSelectionRange(at, at);
   editor.dispatchEvent(new Event('input'));
 }
-for (const ev of ['keyup', 'click']) editor.addEventListener(ev, () => markCursorDiagram());
 editor.addEventListener('blur', () => { setTimeout(closePicker, 150); if (ui.status.kind === 'dirty') saveNow(); });
 // Live shows or hides the title line's "# " with focus, so the Title hint moves with it.
 for (const ev of ['focus', 'blur']) editor.addEventListener(ev, () => { if (ui.mode === 'live') setTimeout(paintHint, 0); });
@@ -1574,7 +1565,7 @@ head.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(k + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
   else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ui.menu = false; paintHead(); head.querySelector('[data-act=menu]')?.focus(); }
 });
-// Double-click the preview to write there: Live (or Edit / Split without CodeMirror), the cursor on that line.
+// Double-click the preview to write there: Live (or Edit without CodeMirror), the cursor on that line.
 preview.addEventListener('dblclick', (e) => {
   if (!ui.path || e.target.closest('a, input, button')) return;
   const blk = e.target.closest('[data-line]');

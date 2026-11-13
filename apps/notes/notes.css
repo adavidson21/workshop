@@ -449,7 +449,7 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .map-view figure.diagram{margin:0}
 .map-view g.node{cursor:pointer}
 
-/* Print or save as PDF: the preview alone */
+/* Save as PDF: the preview alone */
 @media print{
   html,body,.notes,.main,.body{height:auto!important;overflow:visible!important;display:block!important;background:#fff!important}
   .ws-bar,#sections,#side,#head,#panel,.scrim,.editor,.picker,.title-hint,#empty,.diagram-tools,.code-tools{display:none!important}
@@ -538,11 +538,13 @@ input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border
   .sections{position:relative}
   .sections .side-btn{position:absolute;left:.75rem;top:1.05rem;margin:0}
   .nb-name{display:flex;align-items:center;gap:.6rem;margin:0 0 .9rem;padding:.15rem .5rem 0 2.6rem;font:800 1.3rem/1.6 var(--serif);letter-spacing:-.03em;cursor:pointer}
-  .sec-tabs{flex-direction:column;gap:2px;overflow:visible}
-  .sec{top:0;min-height:2.4rem;padding:.35rem .75rem;border:0;border-radius:10px;box-shadow:none;font:500 .95rem/1 var(--sans);color:color-mix(in srgb,var(--ink) 78%,var(--bg))}
-  .sec:hover{background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--ink)}
-  .sec.on{background:var(--surface);color:var(--ink);font-weight:700;border:0;box-shadow:0 1px 0 var(--line),0 1px 3px rgb(34 25 28/.05)}
-  .sec-badge{margin-left:auto;min-width:1.4rem;height:1.4rem;display:inline-grid;place-items:center;padding:0 .35rem;font:700 .72rem/1 var(--sans);color:var(--surface)}
+  /* the places as one wrapping row of compact chips, so the pages list gets the height */
+  .sec-tabs{flex-direction:row;flex-wrap:wrap;gap:.3rem;overflow:visible}
+  .sec{top:0;min-height:0;gap:.35rem;padding:.3rem .6rem;border:1px solid var(--line);border-radius:999px;box-shadow:none;font:500 .8rem/1 var(--sans);color:color-mix(in srgb,var(--ink) 78%,var(--bg))}
+  .sec:hover{background:color-mix(in srgb,var(--c) 8%,transparent);color:var(--ink)}
+  .sec.on{background:color-mix(in srgb,var(--c) 12%,var(--surface));border-color:color-mix(in srgb,var(--c) 45%,var(--line));color:var(--ink);font-weight:600;box-shadow:none}
+  .sec-dot{width:.45rem;height:.45rem}
+  .sec-badge{min-width:1.1rem;height:1.1rem;display:inline-grid;place-items:center;padding:0 .3rem;font:700 .66rem/1 var(--sans);color:var(--surface)}
   .side{border-right:0;background:var(--bg)}
   .main{background:var(--surface);border-radius:var(--r-lg) 0 0 0;box-shadow:var(--raise)}
   .notes:has(> .panel[hidden]) .main{border-radius:var(--r-lg) 0 0 0}
@@ -551,9 +553,10 @@ input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border
   .notes.notes.notes.side-closed:has(> .panel[hidden]){grid-template-columns:auto minmax(0,1fr);grid-template-areas:"tabs main" "tabs main"}
   /* folded: the places stay as a slim rail of their colored dots (names in their tooltips) */
   .side-closed .sections{width:3.6rem;padding-inline:.45rem;align-items:center}
+  .side-closed .sec-tabs{flex-direction:column;flex-wrap:nowrap;gap:2px}
   .side-closed .sections .side-btn{position:static;margin:0 0 .9rem}
   .side-closed .nb-name{display:none}
-  .side-closed .sec{font-size:0;width:2.6rem;height:2.6rem;min-height:0;padding:0;justify-content:center;position:relative}
+  .side-closed .sec{font-size:0;width:2.6rem;height:2.6rem;min-height:0;padding:0;border:0;border-radius:10px;justify-content:center;position:relative}
   .side-closed .sec-dot{width:.7rem;height:.7rem}
   .side-closed .sec-badge{position:absolute;top:-.2rem;right:-.3rem;font-size:.66rem;min-width:1.15rem;height:1.15rem}
 }
