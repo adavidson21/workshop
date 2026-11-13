@@ -117,10 +117,10 @@ function prAiChip(t){
 function prAiDrawer(t){
   const ai = t.pr && t.pr.ai; if (!ai) return '';
   const again = ai.state === 'failed' || ai.state === 'timeout';
-  return `<div class="deng prai"><span>${esc(aiTip(ai))}</span><span class="grow"></span>${again && !t.done ? '<button class="lnk" data-d="prai-again" title="Runs /pr-review again in opencode (drafts only)">Review again</button>' : ''}<button class="btn" data-d="prai-open">Open in Dispatch</button></div>`;
+  return `<div class="deng prai"><span>${esc(aiTip(ai))}</span><span class="grow"></span>${again && !t.done ? '<button class="lnk" data-d="prai-again" title="Runs /pr-review again in opencode (drafts only)">Review again</button>' : ''}<button class="btn" data-d="prai-open">Open in Loom</button></div>`;
 }
 /* Open the review in Dispatch (its PR review folder is pr-<id>). */
-function prAiOpen(t){ ready.then(w => { if (w) w.open({app: 'agents', path: `pr-${t.pr.id}`}); }); }
+function prAiOpen(t){ ready.then(w => { if (w) w.open({app: 'slate', path: `pr-${t.pr.id}`}); }); }
 // The click on Review again is the approval for this write action.
 async function prAiAgain(t, btn){
   if (btn) btn.disabled = true;

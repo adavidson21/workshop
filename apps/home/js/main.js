@@ -134,7 +134,7 @@ app.addEventListener('click', e => {
 const statusDlg = document.getElementById('status');
 function openStatus() {
   const text = statusDraft(v.week || [], { name: v.profile.name, now: new Date() });
-  statusDlg.innerHTML = `<div class="sd"><h2>Weekly status</h2><p class="soft">From what you finished in Docket, decided in Slate and shipped with Dispatch this week. Edit it, then copy it into your update.</p>
+  statusDlg.innerHTML = `<div class="sd"><h2>Weekly status</h2><p class="soft">From what you finished in Docket, decided in Slate and shipped with Loom this week. Edit it, then copy it into your update.</p>
     <label class="sr" for="statusText">Weekly status</label><textarea id="statusText" spellcheck="true">${esc(text)}</textarea>
     <div class="sd-acts"><button class="btn" data-status-close>Close</button><button class="btn primary" data-status-copy>Copy</button></div></div>`;
   statusDlg.showModal();

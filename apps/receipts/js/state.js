@@ -298,7 +298,7 @@ export const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-
    config.meta.handled (newest HANDLED_MAX ids), so Receipts never writes the other app's data.
    payload.about: 'me' (the default) or a report's person id ('p_...'). An offer about a report shows on that
    report's page and in Me. One about a person id that is not in your list is about you, so it is never lost. */
-export const SENDERS = { prioritizer: 'Docket', oneonones: '1:1s', home: 'Home', agents: 'Dispatch' };
+export const SENDERS = { prioritizer: 'Docket', oneonones: '1:1s', home: 'Home', slate: 'Loom' };
 /* Retired senders Rapport still reads until their offers are handled (Workshop docs/handoffs.md, Senders). */
 export const RETIRED_SENDERS = { oneonones: '1:1s' };
 /* Who sends Rapport offers, from the manifests on this Workshop site (ws.apps.list()): every app whose

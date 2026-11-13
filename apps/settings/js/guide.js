@@ -1,12 +1,12 @@
 /* Settings, User guide (Help group): "I need to..." scenarios, each with the best way to do it in Workshop,
    why, and a second way when there is one. Plain words, no setup detail (docs/guide.md has the full tour).
    GUIDE and matches() are pure, so test/guide.test.mjs can import them; mountGuide() draws the page.
-   Keep each scenario's steps in step with the apps' READMEs (Slate, Dispatch's js/flows.js). No em dashes. */
+   Keep each scenario's steps in step with the apps' READMEs (Slate, Loom's js/flows.js). No em dashes. */
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /** App ids to the names people see. */
-export const APP_NAMES = { prioritizer: 'Docket', slate: 'Slate', agents: 'Dispatch', receipts: 'Rapport', runway: 'Runway', notes: 'Folio' };
+export const APP_NAMES = { prioritizer: 'Docket', slate: 'Loom', receipts: 'Rapport', runway: 'Runway', notes: 'Folio' };
 
 export const SECTIONS = [
   { id: 'plan', label: 'Planning work' },
@@ -28,14 +28,14 @@ export const GUIDE = [
     ask: 'I have a high-level goal and need it broken down into features and user stories.',
     app: 'slate',
     steps: [
-      'In Slate, click <b>New idea</b> and write the goal in a sentence or two.',
+      'In Loom, click <b>New idea</b> and write the goal in a sentence or two.',
       'Click <b>Shape it</b>. An agent asks you a few questions at a time, each with a recommended answer. Pick one, write your own, or click <b>Use the recommendations</b>.',
       'When the brief is ready, read it and click <b>Send to Define</b>. Tandem writes the epic, its features and light user stories.',
       'Approve the stories. Tandem puts them in build order. Read that, then click <b>Approve and publish</b>. You see every ADO item before anything is created.'
     ],
     why: 'The interview finds the gaps before any stories exist, and the work stays on one card from idea to released.',
     also: [
-      { when: 'You already know what you want and want it fast', how: 'Dispatch, <b>Start work</b>, <b>Plan an epic</b>. One line in, at most 3 questions, then stories and a build order for you to approve. It ends with ADO items, an ADO import file, or local items.' }
+      { when: 'You already know what you want and want it fast', how: 'Loom, <b>Start work</b>, <b>Plan an epic</b>. One line in, at most 3 questions, then stories and a build order for you to approve. It ends with ADO items, an ADO import file, or local items.' }
     ],
     needs: 'Tandem (Settings, Agents). Azure DevOps only to publish.'
   },
@@ -45,15 +45,15 @@ export const GUIDE = [
     ask: 'I have a simple, straightforward ask. I want an item made for it and the code done, without the whole process.',
     app: 'slate',
     steps: [
-      'In Slate, click <b>New request</b> and describe it.',
+      'In Loom, click <b>New request</b> and describe it.',
       'Open <b>More</b> and pick <b>Define now</b>. This skips triage and the interview. Tandem writes one story with acceptance criteria.',
       'Read it, then open <b>More</b> and pick <b>Approve, publish and build it myself</b>. One click makes the ADO item and starts Tandem building.',
-      'Follow it in Dispatch. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.'
+      'Follow it in Loom. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.'
     ],
     why: 'You skip triage, the interview and delegation, and the PR still has an ADO item to link to.',
     also: [
-      { when: 'You do not need an ADO item at all', how: 'Dispatch, <b>Start work</b>, <b>Quick change</b>. Describe it and it runs as a feature or a bug. Slate gets a card for it, and you can link an ADO item later from that card.' },
-      { when: 'The ADO item already exists', how: 'Dispatch, <b>Start work</b>, <b>Build a feature</b> (or <b>Fix a bug</b>), and type its number.' }
+      { when: 'You do not need an ADO item at all', how: 'Loom, <b>Start work</b>, <b>Quick change</b>. Describe it and it runs as a feature or a bug. it gets a card on the board, and you can link an ADO item later from that card.' },
+      { when: 'The ADO item already exists', how: 'Loom, <b>Start work</b>, <b>Build a feature</b> (or <b>Fix a bug</b>), and type its number.' }
     ],
     needs: 'Tandem (Settings, Agents). Azure DevOps for the item.'
   },
@@ -61,9 +61,9 @@ export const GUIDE = [
     id: 'bug',
     section: 'build',
     ask: 'Something is broken and I can reproduce it.',
-    app: 'agents',
+    app: 'slate',
     steps: [
-      'In Dispatch, click <b>Start work</b> and pick <b>Fix a bug</b>.',
+      'In Loom, click <b>Start work</b> and pick <b>Fix a bug</b>.',
       'Type the ADO item number, or describe the bug.',
       'Tandem finds the root cause and writes it up. Approve it, or send it back with a note.',
       'It writes a failing test, fixes it and reviews the fix. You read the diff and push.'
@@ -76,9 +76,9 @@ export const GUIDE = [
     id: 'investigate',
     section: 'build',
     ask: 'I do not know enough yet to write it up or estimate it.',
-    app: 'agents',
+    app: 'slate',
     steps: [
-      'In Dispatch, click <b>Start work</b> and pick <b>Investigate</b>.',
+      'In Loom, click <b>Start work</b> and pick <b>Investigate</b>.',
       'Type your question in one line, for example how something works today or what it would take to change it.',
       'Tandem reads the code (it changes nothing) and answers with options and a recommendation.',
       'When you are ready, click <b>Start work from this</b>, or <b>Save as note</b> to keep it in Folio.'
@@ -93,7 +93,7 @@ export const GUIDE = [
     ask: 'Someone asked for something and I am not sure what they actually want.',
     app: 'slate',
     steps: [
-      'In Slate, click <b>New request</b>, describe it and say who asked.',
+      'In Loom, click <b>New request</b>, describe it and say who asked.',
       'Click <b>Triage</b>. Tandem sums it up, sizes it and writes questions for the requester.',
       'Click <b>Post on #1234</b> to ask on the ADO item, or <b>Copy questions and wait</b> to send them yourself.',
       'When they answer, click <b>Read replies</b> (or paste the answers), then <b>Save answers and triage again</b>.'
@@ -110,7 +110,7 @@ export const GUIDE = [
     ask: 'Someone on my team should build this, not me.',
     app: 'slate',
     steps: [
-      'In Slate, get the card to <b>Who builds it?</b> (or use <b>More</b>, <b>Move to</b>, if it is already clear).',
+      'In Loom, get the card to <b>Who builds it?</b> (or use <b>More</b>, <b>Move to</b>, if it is already clear).',
       'Click <b>Delegate</b> and pick a person. People who own what it touches are listed first.',
       'Leave the follow-up task on. Docket reminds you to check in.',
       'Tick <b>Also assign it to them in Azure DevOps</b> only if you want ADO changed too.'
@@ -125,17 +125,17 @@ export const GUIDE = [
     id: 'pr-reviews',
     section: 'build',
     ask: 'I have teammates’ pull requests to review.',
-    app: 'agents',
+    app: 'slate',
     path: 'reviews',
     steps: [
-      'In Dispatch, open the <b>Reviews</b> tab.',
+      'In Loom, open the <b>Reviews</b> tab.',
       'Click <b>Review all</b> for every PR waiting on you, or <b>Review a link</b> for one.',
       'Read each first-pass review: a recommendation, the risk and draft comments.',
       'Copy the comments you agree with into the PR yourself. Nothing is posted for you.'
     ],
     why: 'Tandem does the first read, you make the call.',
     also: [
-      { when: 'You want them ready each morning', how: 'Set a nightly review time in Dispatch’s menu, opencode settings.' }
+      { when: 'You want them ready each morning', how: 'Set a nightly review time in Loom’s menu, opencode settings.' }
     ],
     needs: 'Tandem, and Azure DevOps for the list of PRs.'
   },
@@ -143,9 +143,9 @@ export const GUIDE = [
     id: 'docs',
     section: 'build',
     ask: 'I need documentation or a technical spec written.',
-    app: 'agents',
+    app: 'slate',
     steps: [
-      'In Dispatch, click <b>Start work</b> and pick <b>Write docs</b> or <b>Technical spec</b>.',
+      'In Loom, click <b>Start work</b> and pick <b>Write docs</b> or <b>Technical spec</b>.',
       'Answer its questions: where it lives, who reads it, which flows to show.',
       'A fresh session fact-checks it against the code.',
       'Fix what the check flags, then publish it.'
@@ -192,7 +192,7 @@ export const GUIDE = [
     path: '1on1s',
     steps: [
       'In Rapport, open the <b>1:1s</b> tab and pick the person.',
-      'Read the prep. It gathers what Docket, Slate and Rapport know since your last 1:1.',
+      'Read the prep. It gathers what Docket, Loom and Rapport know since your last 1:1.',
       'Take notes during the meeting.',
       'After, send follow-ups to Docket and save wins as receipts.'
     ],

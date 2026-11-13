@@ -221,7 +221,7 @@ export function fromCloneUrl(cfg, url) {
 }
 
 /* ---------- hidden folders (opencode `hiddenRepos`) ----------
-   Workspace folders Dispatch and this page leave out with everything under them: a category ("Tools",
+   Workspace folders Loom and this page leave out with everything under them: a category ("Tools",
    "Platform/Lighthouse") or a repo ("gh-repo", "Tools/workshop"), up to HIDE_DEPTH names (the connector's
    REPO_DEPTH). The connector's parser does the hiding; these only edit the list. */
 

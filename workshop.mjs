@@ -287,7 +287,7 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
   }
   // Tandem: what opencode loads should match the checkout next to Workshop (a stale install has missing agents).
   if (oc || findEngAgents(repo, { userHome })) {
-    const t = tandemDoctor({ repo, userHome, dispatchOn: !readOff(home).has('agents') });
+    const t = tandemDoctor({ repo, userHome, dispatchOn: !readOff(home).has('slate') });
     if (t) { lines.push(...t.line.split('\n')); if (t.bad) bad = true; }
   }
 
@@ -931,7 +931,7 @@ async function runUpdate(rest, io) {
   const quiet = opts.latest && !opts.verbose;
   const say = quiet ? l => { if (!/ is now at /.test(l)) io.out(l); } : io.out;
   if (opts.latest) {
-    const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('agents'), engAgentsDir: opts.engAgents });
+    const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('slate'), engAgentsDir: opts.engAgents });
     for (const l of quiet ? updateSummary(plan.items, plan.lines) : plan.lines) io.out(l);
     Object.assign(opts, plan.tags);
   }
@@ -1071,8 +1071,8 @@ async function runApps(rest, io) {
   if (!app.canTurnOff) { io.out(`${app.name} is always on.`); return action === 'on' ? 0 : 1; }
   const off = readOff(home);
   if (action === 'on') {
-    // Dispatch's agents (Tandem) come from their own repo too: downloaded next to Workshop and installed in opencode.
-    if (app.id === 'agents' && workMode && !ensureTandem({ out: io.out })) return 1;
+    // Loom's agents (Tandem) come from their own repo too: downloaded next to Workshop and installed in opencode.
+    if (app.id === 'slate' && workMode && !ensureTandem({ out: io.out })) return 1;
     off.delete(app.id);
   } else off.add(app.id);
   await writeOff(home, off);

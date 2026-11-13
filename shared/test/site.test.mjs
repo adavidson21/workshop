@@ -8,7 +8,7 @@ test('site.js: every address is https and the crumbs domain covers the sites', (
     assert.ok(onCrumbsDomain(hostOf(url)), url);
   }
   assert.ok(SITE.allowedSites.includes(SITE.workshop));
-  assert.equal(SITE.dispatch, undefined, 'Dispatch has no site of its own (apps.agents is its retired domain)');
+  assert.equal(SITE.dispatch, undefined, 'Dispatch has no site of its own (apps.slate is its retired domain, Dispatch being part of Loom)');
 });
 
 test('site.js: onCrumbsDomain matches the domain and subdomains only', () => {

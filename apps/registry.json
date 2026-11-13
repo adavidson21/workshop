@@ -266,9 +266,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "slate",
-        "name": "Slate",
-        "version": "3.1.0",
-        "description": "Your team's backlog on one board, from request to who builds it to resolved, with sprints and team health. Tandem does the legwork; you decide.",
+        "name": "Loom",
+        "version": "4.0.0",
+        "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox, Chat and PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 15,
@@ -291,6 +291,9 @@
           "request"
         ],
         "aliases": [
+          "loom",
+          "dispatch",
+          "hub",
           "backlog",
           "requests",
           "enhancements",
@@ -301,6 +304,18 @@
           {
             "name": "sprints",
             "path": "sprints"
+          },
+          {
+            "name": "inbox",
+            "path": "inbox"
+          },
+          {
+            "name": "chat",
+            "path": "chat"
+          },
+          {
+            "name": "reviews",
+            "path": "reviews"
           }
         ],
         "handoffs": {
@@ -323,18 +338,46 @@
           {
             "path": "sprints",
             "title": "Sprints (in Health)"
+          },
+          {
+            "path": "inbox",
+            "title": "What needs you"
+          },
+          {
+            "path": "chat",
+            "title": "Chat with Tandem"
+          },
+          {
+            "path": "hub/:text",
+            "title": "Ask the hub"
+          },
+          {
+            "path": "reviews",
+            "title": "PR reviews"
+          },
+          {
+            "path": ":id",
+            "title": "Show a run or a review"
           }
         ],
         "commands": [
           {
             "id": "new",
             "title": "New request",
-            "route": ""
+            "route": "board"
           },
           {
             "id": "new-idea",
             "title": "New idea (shape it with an agent)",
-            "route": ""
+            "route": "board"
+          },
+          {
+            "id": "start",
+            "title": "Start work"
+          },
+          {
+            "id": "pr-review",
+            "title": "Review a pull request"
           },
           {
             "id": "refresh",
@@ -349,6 +392,14 @@
             "id": "sprints",
             "title": "Plan sprints",
             "route": "sprints"
+          },
+          {
+            "id": "repo",
+            "title": "Add a repo"
+          },
+          {
+            "id": "project",
+            "title": "New project"
           }
         ],
         "data": [
@@ -362,112 +413,28 @@
           "js/data.js",
           "js/model.js",
           "js/view.js",
-          "js/health.js"
-        ]
-      }
-    },
-    {
-      "base": "/apps/agents/",
-      "manifest": {
-        "manifestVersion": 1,
-        "id": "agents",
-        "name": "Dispatch",
-        "version": "4.1.0",
-        "description": "Flows for the opencode agents: build a feature, fix a bug, investigate, plan an epic, write docs. Your Inbox, the work in flight, and first-pass PR reviews.",
-        "icon": "icon.svg",
-        "entry": "index.html",
-        "order": 20,
-        "modes": [
-          "local",
-          "hosted",
-          "browser"
-        ],
-        "routes": [
-          {
-            "path": ":id",
-            "title": "Show a work item"
-          },
-          {
-            "path": "hub/:text",
-            "title": "Ask the hub"
-          },
-          {
-            "path": "chat",
-            "title": "Chat with Tandem"
-          }
-        ],
-        "data": [
-          "handoffs",
-          "summary"
-        ],
-        "connectors": [
-          {
-            "id": "opencode",
-            "required": false
-          },
-          {
-            "id": "ado",
-            "required": false
-          }
-        ],
-        "handoffs": {
-          "sends": [
-            "prioritizer",
-            "receipts",
-            "notes",
-            "runway",
-            "slate"
-          ]
-        },
-        "aliases": [
-          "dispatch",
-          "agents",
-          "hub"
-        ],
-        "commands": [
-          {
-            "id": "start",
-            "title": "Start work"
-          },
-          {
-            "id": "pr-review",
-            "title": "Review a pull request"
-          },
-          {
-            "id": "refresh",
-            "title": "Refresh work items"
-          },
-          {
-            "id": "repo",
-            "title": "Add a repo"
-          },
-          {
-            "id": "project",
-            "title": "New project"
-          }
-        ],
-        "files": [
-          "agents.css",
-          "js/main.js",
-          "js/doc.js",
-          "js/state.js",
-          "js/view.js",
-          "js/projects.js",
-          "js/pages.js",
-          "js/local.js",
-          "js/pr-reviews.js",
-          "js/hub.js",
-          "js/hub-model.js",
-          "js/chat.js",
-          "js/thread.js",
+          "js/health.js",
+          "dispatch.css",
+          "js/dispatch/main.js",
+          "js/dispatch/doc.js",
+          "js/dispatch/state.js",
+          "js/dispatch/view.js",
+          "js/dispatch/projects.js",
+          "js/dispatch/pages.js",
+          "js/dispatch/local.js",
+          "js/dispatch/pr-reviews.js",
+          "js/dispatch/hub.js",
+          "js/dispatch/hub-model.js",
+          "js/dispatch/chat.js",
+          "js/dispatch/thread.js",
           "review.html",
           "review.css",
-          "js/review.js",
-          "js/review-state.js",
-          "js/review-view.js",
-          "js/review-api.js",
-          "js/review-fixture.js",
-          "js/review-monaco.js",
+          "js/dispatch/review.js",
+          "js/dispatch/review-state.js",
+          "js/dispatch/review-view.js",
+          "js/dispatch/review-api.js",
+          "js/dispatch/review-fixture.js",
+          "js/dispatch/review-monaco.js",
           "vendor/monaco/LICENSE",
           "vendor/monaco/README.md",
           "vendor/monaco/ThirdPartyNotices.txt",
@@ -585,10 +552,13 @@
           "vendor/monaco/vs/workers-BeMslOxK.js",
           "vendor/monaco/vs/xml-DHCggo_L.js",
           "vendor/monaco/vs/yaml-C-RIivnc.js",
-          "js/summary.js",
-          "js/digest.js",
-          "js/slate-handoff.js",
-          "js/flows.js"
+          "js/dispatch/summary.js",
+          "js/dispatch/digest.js",
+          "js/dispatch/slate-handoff.js",
+          "js/dispatch/flows.js",
+          "js/loom.js",
+          "js/app.js",
+          "loom.css"
         ]
       }
     },

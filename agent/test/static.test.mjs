@@ -32,7 +32,7 @@ test('"/" goes to the Settings page; the hub and other apps are the hosted site\
     assert.equal(res.status, 302, p);
     assert.equal(res.headers.location, '/apps/settings/', p);
   }
-  for (const p of ['/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html', '/apps/receipts/index.html']) {
+  for (const p of ['/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/index.html', '/apps/slate/index.html', '/apps/receipts/index.html']) {
     assert.equal((await get(agent, p, { auth: 'none' })).status, 404, p);
   }
 });

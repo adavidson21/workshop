@@ -1,0 +1,23 @@
+/* Loom: the page that holds both halves (js/loom.js). The runs half (#runs-root, dispatch.css) draws the tab bar
+   and its pages; the board half (#board-root, slate.css) is Board and Health. Each stylesheet is scoped to its
+   half with :where(), so their class names never meet and specificity stays as it was. */
+
+/* Board and Health: the tab bar on top, the board filling the rest of the window (it scrolls inside itself). */
+body[data-loom-tab=board], body[data-loom-tab=health] { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+body[data-loom-tab=board] #runs-root, body[data-loom-tab=health] #runs-root { flex: none; }
+body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-root .wrap { padding-bottom: 0; }
+body[data-loom-tab=board] #runs-root .page, body[data-loom-tab=health] #runs-root .page { display: none; }
+body[data-loom-tab=board] #board-root, body[data-loom-tab=health] #board-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#board-root[hidden] { display: none !important; }
+#board-root .slate { flex: 1; min-height: 0; }
+/* The hub (capture box) belongs to Chat and the Inbox; it is not drawn over the board. */
+body[data-loom-tab=board] #hub, body[data-loom-tab=health] #hub { display: none; }
+
+/* Loom's tab bar names Board and Health, so the board half's own switch is not shown. */
+#board-root .top .tabs[aria-label="Slate"] { display: none; }
+
+/* On its own page the standalone top bar sits above everything. */
+body.standalone[data-loom-tab=board], body.standalone[data-loom-tab=health] { display: flex; flex-direction: column; }
+
+/* On Board and Health the tab bar lines up with the board's toolbar, full width. */
+body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-root .wrap { max-width: none; padding: 18px 1.25rem 0; }

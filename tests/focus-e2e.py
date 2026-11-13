@@ -196,15 +196,15 @@ def main():
         check('the badge is back after the span', pg.inner_text('.app-btn[data-app=settings] .badge') == '3')
         pg2.close()
 
-        # 5. Dispatch shows the digest card after focus ends.
-        pg.evaluate("location.hash = '#/agents'"); pg.wait_for_timeout(500)
+        # 5. Loom's Inbox shows the digest card after focus ends.
+        pg.evaluate("location.hash = '#/slate/inbox'"); pg.wait_for_timeout(500)
         af = None
         for _ in range(20):   # Dispatch paints on timers, and the clock only moves when told to
             pg.clock.run_for(1000); pg.wait_for_timeout(300)
-            af = frame_of(pg, 'agents')
+            af = frame_of(pg, 'slate')
             if af and af.locator('.digest').count(): break
         if os.environ.get('DEBUG'): print('DISPATCH:', af.inner_text('#app')[:300])
-        check('Dispatch shows While you were focused after the span', af.locator('.digest').count() == 1 and '2 captures picked up' in af.inner_text('.digest'))
+        check('Loom shows While you were focused after the span', af.locator('.digest').count() == 1 and '2 captures picked up' in af.inner_text('.digest'))
         if af.locator('.digest [data-digest-dismiss]').count(): af.click('.digest [data-digest-dismiss]'); pg.clock.run_for(2000); pg.wait_for_timeout(500)
         check('Dismiss hides the digest', af.locator('.digest').count() == 0)
 

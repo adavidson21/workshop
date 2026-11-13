@@ -246,7 +246,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     </section>`);
   teamEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="team">
-      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Dispatch hub use them too.')}</h2>
+      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.')}</h2>
       <p class="sub">Plain text, so you can fill them in before Azure DevOps is connected.</p>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`);

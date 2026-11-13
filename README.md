@@ -10,11 +10,10 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | --- | --- | --- |
 | **Needs you** | A panel from the top bar on every app: what waits on you across apps, what's coming up, Weekly status and the **Get started** checklist | Nothing |
 | **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps adds your work items and PRs) |
-| **Slate** | Take a request from idea to delegated or built | Nothing (Azure DevOps or Dispatch make it more useful) |
+| **Loom** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox, Chat and PR reviews | Nothing for the board (Azure DevOps adds your backlog; the agents need opencode and an AI provider) |
 | **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
 | **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
 | **Folio** | Your notebook of Markdown files | Nothing |
-| **Dispatch** | Run Tandem coding agents on your work items | opencode and an AI provider |
 | **Settings** | People, teams, Azure DevOps, repos, apps on or off | Nothing |
 
 Every app can be turned on or off, so you only see what you use. More on each app: [docs/guide.md](docs/guide.md).

@@ -23,7 +23,7 @@ before(async () => {
 after(async () => { await agent?.stop(); rmHome(home); });
 
 test('the build lists every site file with its SHA-256, every app included, and leaves out what is not the site', () => {
-  for (const rel of ['index.html', 'sw.js', 'shell/shell.js', 'shared/workshop-sdk.js', 'apps/home/index.html', 'apps/agents/index.html', 'apps/settings/index.html', 'apps/registry.json', 'apps/prioritizer/index.html', 'apps/prioritizer/js/main.js', 'apps/runway/index.html', 'apps/receipts/index.html', 'apps/notes/index.html']) {
+  for (const rel of ['index.html', 'sw.js', 'shell/shell.js', 'shared/workshop-sdk.js', 'apps/home/index.html', 'apps/slate/index.html', 'apps/settings/index.html', 'apps/registry.json', 'apps/prioritizer/index.html', 'apps/prioritizer/js/main.js', 'apps/runway/index.html', 'apps/receipts/index.html', 'apps/notes/index.html']) {
     assert.match(build.files[rel] || '', /^[0-9a-f]{64}$/, rel);
   }
   for (const rel of Object.keys(build.files)) {
@@ -43,7 +43,7 @@ test('work mode serves the hub at "/" and every app from the pinned copy, with t
   assert.equal(hub.text, fs.readFileSync(path.join(REPO, 'index.html'), 'utf8'));
   assert.match(hub.headers['content-security-policy'], /default-src 'self'/);
   assert.equal(hub.headers['x-frame-options'], 'SAMEORIGIN');
-  for (const p of ['/index.html', '/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/', '/apps/agents/index.html', '/apps/settings/', '/apps/prioritizer/', '/apps/prioritizer/js/main.js']) {
+  for (const p of ['/index.html', '/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/', '/apps/slate/index.html', '/apps/settings/', '/apps/prioritizer/', '/apps/prioritizer/js/main.js']) {
     assert.equal((await get(agent, p, { auth: 'none' })).status, 200, p);
   }
   const b = await get(agent, `/${BUILD_FILE}`, { auth: 'none' });
