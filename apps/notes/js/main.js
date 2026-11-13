@@ -104,7 +104,7 @@ const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (not
 // toast, and counted in Folio's `held` summary card for Workshop's release toast and Dispatch's digest.
 const held = createHolder(ws, { label: n => `${n} note${n === 1 ? '' : 's'} picked up`, route: 'today', onChange: () => summary.schedule() });
 // App names for ws: link chips (applinks.js), from the manifests on this site.
-const appNames = { prioritizer: 'Docket', agents: 'Dispatch', receipts: 'Rapport', runway: 'Runway', home: 'Home', people: 'People', settings: 'Settings' };
+const appNames = { prioritizer: 'Docket', slate: 'Loom', receipts: 'Rapport', runway: 'Runway', home: 'Home', people: 'People', settings: 'Settings' };
 // Offers Notes has sent (offers.js). The receivers can read them inside Workshop, or when paired.
 const canSend = ws.embedded || ws.backend === 'agent';
 let sent = new Set();
@@ -1534,7 +1534,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'insert-ph') insertPlaceholder(x.dataset.ph);
   else if (act === 'new-product') newProduct();
   else if (act === 'tandem-refresh') tandem.refresh().then(() => ws.toast('Read .work again.'));
-  else if (act === 'open-dispatch') openDispatch();
+  else if (act === 'open-dispatch') openLoom();
   else if (act === 'hint-seen') { store('hint-send', '1'); paintChrome(); }
   else if (act === 'history') showHistory();
   else if (act === 'mark-reviewed') markReviewedNow();
@@ -1597,7 +1597,7 @@ function openDispatch() {
   const d = parseTandem(ui.path);
   if (!d) return;
   const it = doc && doc.item;
-  ws.open({ app: 'agents', path: it && it.id ? String(it.id) : d.folder }).catch(toastErr);
+  ws.open({ app: 'slate', path: it && it.id ? String(it.id) : d.folder }).catch(toastErr);
 }
 
 function setQuery(q) {

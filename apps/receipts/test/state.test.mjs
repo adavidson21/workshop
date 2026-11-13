@@ -161,20 +161,20 @@ test('reportsFrom: the directory\'s reports with role and since, archived includ
   assert.deepEqual(rows.map(r => r.person.id), ['p_r1']);
 });
 
-test('accepted captures from Home and Dispatch are added with no click, once', () => {
+test('accepted captures from Home and Loom are added with no click, once', () => {
   assert.equal(R.SENDERS.home, 'Home');
-  assert.equal(R.SENDERS.agents, 'Dispatch');
-  const h = { id: 'c_1', to: 'receipts', date: '2026-11-03', createdAt: '2026-11-03T22:00:00Z', text: 'Shipped it', payload: { kind: 'growth', about: 'p_one' }, source: { app: 'agents', id: 'c_1' }, accepted: true };
-  const env = { schema: 'agents.handoffs', version: 1, rev: 1, deleted: {}, items: [h, { ...h, id: 'c_2', accepted: false }] };
-  const got = R.acceptedOffers('agents', env, [], ['p_one']);
+  assert.equal(R.SENDERS.slate, 'Loom');
+  const h = { id: 'c_1', to: 'receipts', date: '2026-11-03', createdAt: '2026-11-03T22:00:00Z', text: 'Shipped it', payload: { kind: 'growth', about: 'p_one' }, source: { app: 'slate', id: 'c_1' }, accepted: true };
+  const env = { schema: 'slate.handoffs', version: 1, rev: 1, deleted: {}, items: [h, { ...h, id: 'c_2', accepted: false }] };
+  const got = R.acceptedOffers('slate', env, [], ['p_one']);
   assert.deepEqual(got.map(o => [o.id, o.kind, o.about]), [['c_1', 'growth', 'p_one']]);
-  assert.deepEqual(R.pendingOffers('agents', env, [], ['p_one']).map(o => o.key), ['agents:c_2'], 'the tray shows only ordinary offers');
+  assert.deepEqual(R.pendingOffers('slate', env, [], ['p_one']).map(o => o.key), ['slate:c_2'], 'the tray shows only ordinary offers');
   const e = R.entryFromOffer(got[0]);
-  assert.equal(e.id, R.offerEntryId('agents', 'c_1'));
-  assert.equal(e.evidence, 'From Dispatch');
-  assert.deepEqual(R.acceptedOffers('agents', env, ['agents:c_1'], ['p_one']), [], 'handled');
-  assert.deepEqual(R.acceptedOffers('agents', env, [], ['p_one'], [e.id]), [], 'already an entry, or deleted');
-  assert.equal(R.acceptedOffers('agents', env, [], [])[0].about, 'me', 'an unknown person is you');
+  assert.equal(e.id, R.offerEntryId('slate', 'c_1'));
+  assert.equal(e.evidence, 'From Loom');
+  assert.deepEqual(R.acceptedOffers('slate', env, ['slate:c_1'], ['p_one']), [], 'handled');
+  assert.deepEqual(R.acceptedOffers('slate', env, [], ['p_one'], [e.id]), [], 'already an entry, or deleted');
+  assert.equal(R.acceptedOffers('slate', env, [], [])[0].about, 'me', 'an unknown person is you');
 });
 
 test('sendersFrom: manifests add to the built-in senders, and the retired 1:1s app is always read', () => {

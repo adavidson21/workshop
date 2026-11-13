@@ -9,7 +9,7 @@
      day      the day plan's blocks per day for the same days, and Wrap up (Home's Now and Wrap up cards); with
               `focus` and `lunch` from sections of those kinds, and the day's `start` and `end` on working days
               (focus hours and Day's done, Workshop docs/focus.md)
-     lists    targets for capture: "task" (Home quick capture, the Dispatch hub)
+     lists    targets for capture: "task" (Home quick capture, the Loom hub)
      people   open and waiting tasks per person and group in Workshop's people directory, a person's through
               their groups too (Rapport's 1:1 prep)
      done-week  tasks finished in the last 7 days, newest first (Home's weekly status draft)
@@ -17,7 +17,7 @@
      blocking PRs blocked on you (Home's Needs you during focus, Workshop docs/focus.md)
      needs    what waits on you here, one row per kind with its count: PRs blocked on you, follow-ups due, work that
               came back, new ADO items, overdue tasks (Home's Needs you, Docket 7.0.0)
-     held     what Docket held during focus or lunch (the shell's Peek and release toast, Dispatch's digest)
+     held     what Docket held during focus or lunch (the shell's Peek and release toast, Loom's digest)
    Days past the last one are stale: readers show nothing for them until Docket opens again. */
 import { isTriaged } from './model.js';
 import { addDays, daysBetween, isDate } from './util.js';

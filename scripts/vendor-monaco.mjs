@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Vendors a trimmed Monaco editor into apps/agents/vendor/monaco for Dispatch's code review screen.
+// Vendors a trimmed Monaco editor into apps/slate/vendor/monaco for Loom's code review screen.
 //
 //   npm pack monaco-editor@<version>          (in an empty folder)
 //   tar xzf monaco-editor-<version>.tgz
@@ -9,8 +9,8 @@
 // Drops the language services (TypeScript, CSS, HTML and JSON workers and modes) and translations:
 // a read-only review of a diff has no project to check against, so they would only add wrong error
 // squiggles and about 20 MB. Their modes are replaced with stubs that do nothing.
-// Then rewrites "files" in apps/agents/app.json so the service worker precaches the copy, and writes
-// vendor/monaco/README.md with the version and the tarball's SHA-256, and rewrites apps/agents/vendor/SHA256SUMS
+// Then rewrites "files" in apps/slate/app.json so the service worker precaches the copy, and writes
+// vendor/monaco/README.md with the version and the tarball's SHA-256, and rewrites apps/slate/vendor/SHA256SUMS
 // (tests/check-vendor.mjs). Node 22, no dependencies.
 
 import crypto from "node:crypto";
@@ -27,7 +27,7 @@ if (!pkgDir || !fs.existsSync(path.join(pkgDir, "min", "vs", "loader.js"))) {
 }
 const version = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8")).version;
 const src = path.join(pkgDir, "min", "vs");
-const appDir = path.join(root, "apps", "agents");
+const appDir = path.join(root, "apps", "slate");
 const out = path.join(appDir, "vendor", "monaco");
 const outVs = path.join(out, "vs");
 
@@ -102,7 +102,7 @@ fs.writeFileSync(
   path.join(out, "README.md"),
   `# Monaco editor (trimmed)
 
-Served from this site for Dispatch's code review screen, so the page makes no requests to other origins and works offline.
+Served from this site for Loom's code review screen, so the page makes no requests to other origins and works offline.
 
 | | |
 | --- | --- |
@@ -129,4 +129,4 @@ fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 // Pin the new copy's hashes (tests/check-vendor.mjs checks them in CI).
 writeSums(path.join(appDir, "vendor"));
 
-console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in apps/agents/vendor/monaco. Updated apps/agents/vendor/SHA256SUMS.`);
+console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in apps/slate/vendor/monaco. Updated apps/slate/vendor/SHA256SUMS.`);

@@ -1,10 +1,9 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health links to Runway's team reports. This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
-import { connect } from '../../../shared/workshop-sdk.js';
+import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, BOARD_TABS } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
-import { mountBar } from '../../../shared/standalone-bar.js';
 import * as People from '../../../shared/people.js';
 import * as Teams from '../../../shared/teams.js';
 import { sendersFrom } from '../../../shared/handoffs.js';
@@ -20,10 +19,11 @@ import { healthHtml, sprintsHtml } from './health.js';
 
 const $ = (id) => document.getElementById(id);
 const topEl = $('top'), mainEl = $('main'), panelEl = $('panel'), dlg = $('dlg');
+// Loom's board half listens only inside its own page: the runs half uses data-act too.
+const boardRoot = $('board-root');
 
-const ws = await connect({ app: APP });
+const ws = await getWs();
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Slate');
 
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
 
@@ -50,6 +50,7 @@ const s = {
   details: new Map()           // ADO id -> {rev, key, loading, data, error, comments, commentsLoading, commentsError}
 };
 const store = createStore(ws, { onChange: () => { paint(); publishSummary(); } });
+setSummaryWriter((cards) => store.writeSummary(cards));
 
 /* ---------- reading ADO and Tandem ---------- */
 
@@ -86,7 +87,8 @@ async function readPending() {
    The person accepted each where they clicked or typed it, so Slate adds them without asking. */
 async function readWork() {
   if (!store.v.loaded) return;
-  const senders = sendersFrom(s.apps, APP, { agents: 'Dispatch', home: 'Home' });
+  // Loom's own runs half sends work and requests too (its handoffs collection is the app's own).
+  const senders = { ...sendersFrom(s.apps, APP, { home: 'Home' }), [APP]: 'Loom' };
   let offers = [];
   try { offers = await readWorkOffers(ws, senders); } catch { offers = []; }
   if (!offers.length) return;
@@ -314,7 +316,7 @@ function enrich(c) {
   if (c.stage === 'shaping' && !out.agent) { const sh = shapeState(filesOf(c.work && c.work.shape)); out.shapeAsking = sh.asking; out.shapeRound = sh.round; }
   const last = (c.history || [])[(c.history || []).length - 1];
   out.skipped = !!(last && last.skipped && c.stage === 'decide');
-  out.fromDispatch = !!(last && last.from === 'dispatch' && c.stage === 'dev');
+  out.fromLoom = !!(last && last.from === 'dispatch' && c.stage === 'dev');
   return out;
 }
 
@@ -380,7 +382,7 @@ function columnOf(it) {
 }
 
 /* Focus hours (Workshop docs/focus.md): the shell holds the rail badge during focus and lunch; items that start
-   waiting on you meanwhile are counted in Slate's `held` summary card, for the release toast and Dispatch's digest. */
+   waiting on you meanwhile are counted in Slate's `held` summary card, for the release toast and Loom's digest. */
 const focusHold = createHolder(ws, { label: n => `${n} Slate item${n === 1 ? '' : 's'} waiting on you`, route: '', onChange: () => publishSummary() });
 let waitingSeen = null;
 function noteWaiting(list) {
@@ -396,7 +398,8 @@ function publishSummary() {
     const cards = summaryCards(items, { columnOf, agentOf: itemAgent });
     const held = focusHold.card();
     if (held) cards.push(held);
-    store.writeSummary(cards).catch(() => {});
+    // Loom writes one summary for both halves (loom.js mergeCards).
+    setCards('board', cards);
   }, 300);
 }
 
@@ -441,8 +444,8 @@ function panelState(c) {
 function agentsOff() {
   const oc = s.conn.opencode;
   if (oc === true || oc === 'Checking…') return '';
-  if (/Connect Workshop/i.test(String(oc))) return 'Connect Workshop on this computer to use Dispatch.';
-  return /not installed|Turn on/i.test(String(oc)) ? 'Dispatch is not set up on this computer.' : `Dispatch is not ready: ${oc}`;
+  if (/Connect Workshop/i.test(String(oc))) return 'Connect Workshop on this computer to use Tandem.';
+  return /not installed|Turn on/i.test(String(oc)) ? 'Tandem is not set up on this computer.' : `Tandem is not ready: ${oc}`;
 }
 // Azure DevOps that is simply not set up (versus set up and failing): Slate works without it, so say so once.
 const adoNotSetUp = () => /not installed|Turn on|Connect Workshop/i.test(String(s.conn.ado));
@@ -455,7 +458,7 @@ function notes() {
     else if (!adoNoteSeen) n.push({ text: 'Slate works without Azure DevOps: requests and ideas you add stay here. Connect it in Settings to see your team\'s backlog and publish to it.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] });
   }
   const off = agentsOff();
-  if (off) n.push({ text: `Agent steps (triage, interview, drafting, building) need Dispatch. ${off} You can still write drafts yourself and delegate.`, acts: [{ act: 'setup-dispatch', label: 'How to set it up' }] });
+  if (off) n.push({ text: `Agent steps (triage, interview, drafting, building) need Tandem. ${off} You can still write drafts yourself and delegate.`, acts: [{ act: 'setup-dispatch', label: 'How to set it up' }] });
   if (store.v.error) n.push(store.v.error);
   if (s.backlogNote) n.push(s.backlogNote);
   return n;
@@ -472,9 +475,12 @@ function setHtml(el, html) {
 }
 
 function paint() {
+  // Keep Loom's tab bar on the board half's tab (opening an item from Health switches to Board).
+  if (BOARD_TABS.includes(currentTab()) && currentTab() !== ui.tab) requestTab(ui.tab);
   const focus = document.activeElement && document.activeElement.id;
   const board = ui.tab === 'board' && store.v.loaded;
   ui.noAdo = s.conn.ado !== true && s.conn.ado !== 'Checking…';
+  ui.canRuns = s.conn.opencode === true;
   setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
@@ -485,7 +491,7 @@ function paint() {
   paintPanel();
   const waitingItems = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); });
   const waiting = waitingItems.length;
-  ws.badge(waiting || null).catch(() => {});
+  setBadge('board', waiting);
   noteWaiting(waitingItems);
   if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') {
     const el = $(focus);
@@ -598,6 +604,7 @@ async function startSession(it, kind, action, args) {
 
 const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
+  runs: () => requestTab('work'),
   reports: () => ws.open({ app: 'runway', path: 'reports' }),
   'open-item': (c) => { if (c) { ui.open = c.id; ui.tab = 'board'; paint(); } },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
@@ -885,7 +892,7 @@ const ACT = {
   /** Build it myself, skip ADO: local work in Tandem (start.local) from the brief, triage or request. Link an ADO item later. */
   async 'build-local'(c) {
     const it = await ensureStored(c);
-    if (s.conn.opencode !== true) return ws.toast('Building needs Dispatch, which is not set up on this computer.', { kind: 'warn' });
+    if (s.conn.opencode !== true) return ws.toast('Building needs Tandem, which is not set up on this computer.', { kind: 'warn' });
     const brief = parseBrief(filesOf(it.work.shape)['brief.md']);
     const t = parseTriage(filesOf(it.work.triage)['triage.md']);
     const text = [it.description, t && t.summary, filesOf(it.work.shape)['brief.md'] ? `Brief: .work/${it.work.shape}/brief.md` : '', it.work.define ? `Defined in .work/${it.work.define}` : ''].filter(Boolean).join('\n\n');
@@ -900,7 +907,7 @@ const ACT = {
     const it = await ensureStored(c);
     if (!it.ado) return ACT['build-local'](it);
     await tandem(ws, 'start', { id: String(it.ado.id), lane: it.level === 'bug' ? 'bug' : 'feature' }, { confirm: true });
-    ws.toast('Started in Tandem. Follow it here or in Dispatch.', { kind: 'success' });
+    ws.toast('Started in Tandem. Follow it on its card.', { kind: 'success' });
   },
   /** Link an ADO item to a card that has none: look it up, show title, type and project, then save. */
   async 'link-ado'(c) {
@@ -1020,7 +1027,7 @@ const ACT = {
     ws.toast('Sent to the agent.', { kind: 'success' });
     await refresh({ backlog: false });
   },
-  dispatch: (c) => { const run = c && (runFor(c) || c.run); return ws.open({ app: 'agents', path: run ? String(run.id || run.folder || '') : '' }); },
+  dispatch: (c) => { const run = c && (runFor(c) || c.run); return ws.open({ app: APP, path: run ? 'work/' + String(run.folder || run.id || '') : 'inbox' }); },
   ado: (c) => { if (c.ado && c.ado.url) window.open(c.ado.url, '_blank', 'noopener'); },
   async 'roadmap-add'(c) {
     const it = await ensureStored(c);
@@ -1036,8 +1043,8 @@ const ACT = {
     if (forwardTargets(c).includes(to)) {
       const skip = to === 'decide'
         ? 'Slate skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
-        : agentsOff() ? 'Slate skips the steps before it. In Define, write the story or stories yourself (Dispatch is not set up, so no agent drafts them).' : 'Slate skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
-      const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it in Dispatch.' : '';
+        : agentsOff() ? 'Slate skips the steps before it. In Define, write the story or stories yourself (Tandem is not set up, so no agent drafts them).' : 'Slate skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
+      const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it from its run.' : '';
       return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
         await store.update(it.id, x => (to === 'decide' ? skipToDecide(x) : setStage(x, to)));
@@ -1048,7 +1055,7 @@ const ACT = {
     }
     const notes = [];
     if (c.stage === 'delegated') notes.push('It stays assigned in ADO, and any Docket task stays: change those yourself if needed.');
-    if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it in Dispatch.');
+    if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it from its run.');
     if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push('What it published stays in ADO; publishing again updates or skips those items.');
     showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Slate moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
       await store.update(c.id, x => moveBack(x, to));
@@ -1218,7 +1225,7 @@ function showDialog(html, onOk) {
 
 /* ---------- events ---------- */
 
-document.addEventListener('click', async (e) => {
+boardRoot.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]');
   if (!b || dlg.contains(b)) return;
   const act = b.dataset.act;
@@ -1237,11 +1244,11 @@ document.addEventListener('click', async (e) => {
 });
 
 let qTimer = null;
-document.addEventListener('input', (e) => {
+boardRoot.addEventListener('input', (e) => {
   if (e.target.dataset && e.target.dataset.draft) { ui.drafts[e.target.dataset.draft] = e.target.value; return; }
   if (e.target.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = e.target.value; paint(); }, 150); }
 });
-document.addEventListener('change', async (e) => {
+boardRoot.addEventListener('change', async (e) => {
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
   if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
   if (e.target.dataset.qpick) {
@@ -1280,7 +1287,7 @@ function sprintChange(sel) {
   dlg.addEventListener('close', () => { if (ui.tab === 'health') paint(); }, { once: true });
 }
 
-document.addEventListener('keydown', (e) => {
+boardRoot.addEventListener('keydown', (e) => {
   // Ctrl+Enter sends a reply or an answer from the panel.
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.dataset && e.target.dataset.draft) {
     const box = e.target.closest('[data-qform]') || e.target.closest('.agent-box');
@@ -1292,7 +1299,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Remember an Agent, Details or Timeline section you opened or closed, so a refresh does not undo it.
-document.addEventListener('toggle', (e) => {
+boardRoot.addEventListener('toggle', (e) => {
   const d = e.target;
   if (d && d.classList && d.classList.contains('agent-box') && d.dataset.sid) ui.agentOpen[d.dataset.sid] = d.open;
   if (d && d.classList && d.classList.contains('slate-notices')) ui.notesOpen = d.open;
@@ -1333,7 +1340,9 @@ async function fromRunway(map, item) {
   paint();
 }
 
-ws.on('route', (p) => route((p && p.path) || ''));
+// Routes come through the runs half's router, which owns the tab bar (loom.js splitRoute).
+onBoardRoute((p) => route(p || ''));
+onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; paint(); } });
 ws.on('command', (p) => {
   if (p.id === 'new') ACT.new();
   if (p.id === 'new-idea') ACT['new-idea']();
@@ -1347,7 +1356,7 @@ try { ws.connectors.on('opencode', '*', () => { clearTimeout(ocTimer); ocTimer =
 try { ws.people.subscribe((d) => { s.people = d; paint(); }); } catch { /* no directory */ }
 try { ws.data.subscribe('summary', () => readPending().then(paint).catch(() => {}), { app: 'runway' }); } catch { /* no data backend */ }
 // Captures from Home and the Dispatch hub show up as soon as they are accepted, not at the next refresh.
-for (const app of ['home', 'agents']) { try { ws.data.subscribe('handoffs', () => readWork().then(paint).catch(() => {}), { app }); } catch { /* no data backend */ } }
+for (const app of ['home', APP]) { try { ws.data.subscribe('handoffs', () => readWork().then(paint).catch(() => {}), { app }); } catch { /* no data backend */ } }
 
 /* ---------- start ---------- */
 

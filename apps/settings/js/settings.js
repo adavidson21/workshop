@@ -42,7 +42,7 @@ const FOLDER = '<svg class="path-ico" viewBox="0 0 20 20" fill="none" stroke="cu
 // One line on what each connector is for. Unknown connectors show none.
 const ABOUT = {
   ado: 'Your Azure DevOps work items and pull requests, for Docket, Slate and Runway. Optional: everything else works without it.',
-  opencode: 'Runs coding agents on this computer, for Dispatch. Optional.'
+  opencode: 'Runs coding agents on this computer, for Loom. Optional.'
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
 
@@ -1074,7 +1074,7 @@ async function reposTab(list) {
     const cats = ((st.oc && st.oc.repoCategories) || []).filter(c => !R.isHidden(list, c));
     const li = list.map(h => `<li class="person"><span class="mono">${esc(h)}</span><button type="button" class="btn ghost" data-unhide="${esc(h)}"${st.hiding ? ' disabled' : ''}>Show</button></li>`).join('');
     return `<details class="cfg-section repo-hidden"${st.hiddenOpen ? ' open' : ''}><summary>Hidden folders${list.length ? ` (${list.length})` : ''}</summary>
-      <p class="sub">Left out of Dispatch and this page, like a folder of tools you are building. Nothing is deleted. A category hides every repo in it.</p>
+      <p class="sub">Left out of Loom and this page, like a folder of tools you are building. Nothing is deleted. A category hides every repo in it.</p>
       ${list.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None.</p>'}
       <form class="cfg" data-hide-add><div class="from-url-row"><input name="folder" class="cfg-input mono" list="hideCats" maxlength="300" placeholder="Tools or Tools/workshop" aria-label="Folder to hide" spellcheck="false" autocomplete="off" required>
         <datalist id="hideCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist><button class="btn"${st.hiding ? ' disabled' : ''}>Hide</button></div><span class="msg" aria-live="polite"></span></form></details>`;
@@ -1235,7 +1235,7 @@ async function reposTab(list) {
     if (t.matches('[data-map-all]')) { t.disabled = true; if (await saveAdo(R.mapAll(cfg(), st.rows), 'Repos saved')) paint(); else t.disabled = false; return; }
     if (t.matches('[data-guide]')) {
       t.disabled = true;
-      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Dispatch.`, 'success'); st.added = null; paint(); }
+      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Loom.`, 'success'); st.added = null; paint(); }
       catch (err) { t.disabled = false; toast(errText(err), 'error'); }
     }
   });

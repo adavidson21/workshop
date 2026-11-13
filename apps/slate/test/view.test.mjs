@@ -63,7 +63,7 @@ const STEPS = () => {
     ['waiting', base(plain('waiting'), { column: 'waiting' })],
     ['triage, questions, on ADO', base(plain('triaged', { ado }), { column: 'triage', triage: triage(['q1']), canLocal: true, canAdo: true })],
     ['waiting, asked on ADO', base(plain('waiting', { ado, asked: { id: 42, at: '2026-11-06T10:00:00Z' } }), { column: 'waiting', canAdo: true })],
-    ['inbox request, Tandem off', base(newItem({ title: 'r' }), { tandemOff: 'Dispatch is not set up on this computer.' })],
+    ['inbox request, Tandem off', base(newItem({ title: 'r' }), { tandemOff: 'Tandem is not set up on this computer.' })],
     ['interview, waiting', base(plain('shaping'), { column: 'interview', canLocal: true })],
     ['brief', base(plain('brief'), { column: 'brief', files: { 'brief.md': '# Brief\n\nLevel: Feature\n' }, canLocal: true })],
     ['define, pick', base(plain('defining'), { column: 'define', canLocal: true })],
@@ -235,7 +235,7 @@ test('dialogs: Link ADO item shows what was found; Close as released lists every
 test('panel: the timeline links the pull requests and says where the work came from', () => {
   const it = cleanItem({ ...newItem({ title: 'From Dispatch' }), stage: 'dev', history: [{ stage: 'dev', at: '2026-11-06', from: 'dispatch' }], prs: { status: 'merged', at: 'x', list: [{ id: 9, status: 'completed', repository: 'web-api', url: 'https://ado.example.com/pr/9' }] }, merged: '2026-11-07' });
   const h = panelHtml(base(it, { dev: true, column: 'merged', timeline: timeline(it) }));
-  assert.match(h, /Started in Dispatch/);
+  assert.match(h, /Started from Start work/);
   assert.match(h, /href="https:\/\/ado.example.com\/pr\/9"[^>]*>Pull request 9 in web-api: merged</);
   assert.match(h, /All pull requests merged/);
 });
@@ -259,17 +259,17 @@ test('panel: with Tandem off, agent buttons stay but are disabled with the reaso
   const n = nextOf(steps['inbox request, Tandem off']);
   assert.deepEqual(acts(n.shown), ['write-myself', 'to-decide']);
   assert.ok(n.shown.every(b => !/ disabled/.test(b)), 'nothing here needs an agent');
-  const off = 'Dispatch is not set up on this computer.';
+  const off = 'Tandem is not set up on this computer.';
   const tri = nextOf(base(cleanItem({ ...newItem({ title: 't' }), stage: 'triaged' }), { column: 'triage', triage: { summary: 's', route: 'delegate', size: 'S', repos: [], questions: [] }, tandemOff: off }));
-  for (const b of tri.shown) assert.match(b, /^<button disabled title="Needs Dispatch: Dispatch is not set up on this computer\."/);
-  assert.match(tri.text, /Agent steps need Dispatch, which is not set up here\./);
+  for (const b of tri.shown) assert.match(b, /^<button disabled title="Needs Tandem: Tandem is not set up on this computer\."/);
+  assert.match(tri.text, /Agent steps need Tandem, which is not set up here\./);
   const on = nextOf(steps['inbox request']);
   assert.ok(on.shown.every(b => !/ disabled/.test(b)), 'Tandem on: nothing disabled');
 });
 
 test('Write it myself: Define offers both drafts; a manual draft approves, and publishes only with ADO', () => {
   const it = cleanItem({ ...newItem({ title: 'CSV' }), stage: 'defining' });
-  const pick = nextOf(base(it, { column: 'define', tandemOff: 'Dispatch is not set up on this computer.' }));
+  const pick = nextOf(base(it, { column: 'define', tandemOff: 'Tandem is not set up on this computer.' }));
   assert.deepEqual(acts(pick.shown), ['write-refine', 'write-scope']);
   const onPick = nextOf(base(it, { column: 'define', canLocal: true }));
   assert.ok(acts(onPick.more).includes('write-refine') && acts(onPick.more).includes('write-scope'), 'with agents on, in More');

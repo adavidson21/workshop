@@ -133,7 +133,7 @@ export function aiLabel(ai){
 export function aiTip(ai){
   if (!ai) return '';
   if (ai.state === 'pending') return 'Tandem is doing a first-pass review. Drafts only, nothing is posted.';
-  if (ai.state === 'asking') return `Tandem stopped to ask something${ai.message ? `: ${ai.message}` : ''}. Answer it in Dispatch.`;
+  if (ai.state === 'asking') return `Tandem stopped to ask something${ai.message ? `: ${ai.message}` : ''}. Answer it in Loom.`;
   if (ai.state === 'failed') return `Tandem's review did not finish${ai.message ? `: ${ai.message}` : '.'}`;
   if (ai.state === 'timeout') return 'Tandem had not finished reviewing within the hold limit, so it is here without one. It may still finish.';
   const c = ai.counts || {}, bits = [];

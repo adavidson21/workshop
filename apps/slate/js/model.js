@@ -6,7 +6,7 @@
      Shape          triage, waiting on the requester, the interview, the brief.
      Define         /scope and /slice or /refine (from the brief when there is one), then publish. You approve.
      Who builds it? delegate it (/handoff) or build it yourself.
-     In flight      delegated, or the item's Tandem run (Dispatch's .work items, read live from the opencode
+     In flight      delegated, or the item's Tandem run (Loom's .work items, read live from the opencode
                     connector) through review and PR to merged.
      Resolved       merged to main, waiting for a release.
    Stored stages (STAGES) did not change with the board; boardColumn maps each step to its column.
@@ -1105,7 +1105,7 @@ export function timeline(it, { run = null, assigneeName = '' } = {}) {
   hist.forEach((h, i) => {
     let text = STEP_TEXT[h.stage] || h.stage;
     if (i === 0 && h.stage === 'new') text = it.kind === 'idea' ? 'Idea captured' : it.requester ? `Request from ${it.requester}` : it.ado ? `From ADO #${it.ado.id}` : 'Captured';
-    if (h.from === 'dispatch') text = 'Started in Dispatch';
+    if (h.from === 'dispatch') text = 'Started from Start work';
     if (h.from === 'capture') text = it.ado ? `Captured on Home: ADO #${it.ado.id}` : 'Captured on Home';
     if (h.skipped) text += ' (skipped shaping)';
     if (h.stage === 'delegated' && assigneeName) text = `Delegated to ${assigneeName}`;

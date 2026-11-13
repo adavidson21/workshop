@@ -436,7 +436,7 @@ def main():
         chip = pg.locator(f'main .row[data-id="{id701}"] .chip.ai')
         check('a reviewed PR shows the recommendation, in the warning look for high risk', chip.count() == 1 and chip.text_content() == 'AI: Changes' and 'warn' in chip.get_attribute('class') and pg.locator(f'main .row.aipend[data-id="{id701}"]').count() == 0)
         pg.evaluate(f"id => {P}.openDrawer(id)", id701); pg.wait_for_timeout(200)
-        check('the drawer says what Tandem found and opens it in Dispatch', 'Request changes, high risk. 1 blocking draft comments.' in pg.inner_text('.deng.prai') and pg.locator('.deng.prai [data-d=prai-open]').count() == 1)
+        check('the drawer says what Tandem found and opens it in Loom', 'Request changes, high risk. 1 blocking draft comments.' in pg.inner_text('.deng.prai') and pg.locator('.deng.prai [data-d=prai-open]').count() == 1)
         pg.keyboard.press('Escape')
         r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
           const s = id => P.state.tasks.find(t => t.pr && t.pr.id === id).pr.ai.state; return [s(701), s(702)]; }}""")
@@ -582,17 +582,17 @@ def main():
         sender = fr.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
           const q = r.result.transaction('data').objectStore('data').get('example-app/handoffs'); q.onsuccess = () => res(q.result && q.result.rev); }; })""")
         check('Docket never writes the sender\'s collection', sender == rev)
-        # An accepted capture from the Dispatch hub (Workshop docs/handoffs.md, rule 4) is added as a task with no click.
-        host.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'});
-          const before = (await ws.data.get('handoffs')) || {schema: 'agents.handoffs', version: 1, rev: 0, items: [], deleted: {}};
+        # An accepted capture from Loom's hub (Dispatch until Loom 4.0.0) (Workshop docs/handoffs.md, rule 4) is added as a task with no click.
+        host.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'});
+          const before = (await ws.data.get('handoffs')) || {schema: 'slate.handoffs', version: 1, rev: 0, items: [], deleted: {}};
           const after = structuredClone(before);
           after.items.push({id: 'c_hub1', to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:00:00.000Z', text: 'Keys <b>x</b>',
-            payload: {kind: 'task', title: 'Keys <b>x</b> @nobody', who: ['p_one'], waiting: true, urgent: true}, source: {app: 'agents', id: 'c_hub1'}, accepted: true});
+            payload: {kind: 'task', title: 'Keys <b>x</b> @nobody', who: ['p_one'], waiting: true, urgent: true}, source: {app: 'slate', id: 'c_hub1'}, accepted: true});
           ws.data.stamp(before, after); await ws.data.put('handoffs', after); }"""); host.wait_for_timeout(1500)
-        got = fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').map(t => [t.title, t.waiting, t.urgentFlag, t.who])")
-        check('an accepted capture from Dispatch becomes a Docket task, once, with its fields', got == [['Keys <b>x</b> @nobody', True, True, ['p_one']]])
-        fr.evaluate(f"() => {P}.watchSender('agents')"); host.wait_for_timeout(500)
-        check('reading the sender again does not add it twice', fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'agents').length") == 1)
+        got = fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'slate').map(t => [t.title, t.waiting, t.urgentFlag, t.who])")
+        check('an accepted capture from Loom becomes a Docket task, once, with its fields', got == [['Keys <b>x</b> @nobody', True, True, ['p_one']]])
+        fr.evaluate(f"() => {P}.watchSender('slate')"); host.wait_for_timeout(500)
+        check('reading the sender again does not add it twice', fr.evaluate(f"() => {P}.state.tasks.filter(t => t.from && t.from.app === 'slate').length") == 1)
         host.close()
         pg.reload(); pg.wait_for_function('window.__prioritizer && document.querySelector("#syncBtn")', timeout=15000); pg.wait_for_timeout(1000)
 

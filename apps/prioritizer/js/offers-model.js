@@ -14,8 +14,8 @@ import { sendersFrom as sharedSendersFrom } from '../../../shared/handoffs.js';
 
 /* The apps Docket reads offers from: app id to the name shown for it. An app read but not named here shows by its
    id. A new sender follows Workshop docs/handoffs.md (Receivers) and is added here by its app id. Home's quick
-   capture and the Dispatch hub send accepted tasks (kind 'task', accepted: true; Workshop docs/hub.md). */
-const SENDERS = { home: 'Home', agents: 'Dispatch' };
+   capture and the Loom hub send accepted tasks (kind 'task', accepted: true; Workshop docs/hub.md). */
+const SENDERS = { home: 'Home', slate: 'Loom' };
 /* Who sends Docket offers, from the manifests on this Workshop site (ws.apps.list(); Workshop docs/handoffs.md,
    Senders): every app whose handoffs.sends lists prioritizer, as {id: name}, added to the built-in list. Reading
    an app that is not there finds no offers, so the built-in list only keeps senders whose manifest does not say. */
@@ -91,7 +91,7 @@ function markHandled(handled, keys){
 const cleanHandled = h => Array.isArray(h) ? [...new Set(h.filter(k => typeof k === 'string' && k.length <= 500))].slice(-HANDLED_MAX) : [];
 
 /* ---------- accepted tasks (Workshop docs/handoffs.md, rule 4) ----------
-   A capture the person already accepted in Home or the Dispatch hub: payload.kind 'task' and accepted: true.
+   A capture the person already accepted in Home or the Loom hub: payload.kind 'task' and accepted: true.
    Docket adds it as a task when it loads, with no second click, and records it as handled. Text is never parsed
    as Quick add syntax. A task keeps `from: {app, id}`, so the same capture is never added twice even after the
    handled list is trimmed. */

@@ -23,8 +23,9 @@ export function topHtml(ui, notes, areas = []) {
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
     <span class="grow"></span>
+    ${ui.canRuns ? btn('runs', 'All runs', { title: 'Every Tandem run in one list, with flow and project filters' }) : ''}
     ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
-    ${btn('refresh', 'Refresh', { title: 'Read Azure DevOps and Dispatch again' })}
+    ${btn('refresh', 'Refresh', { title: 'Read Azure DevOps and Tandem again' })}
     ${btn('new-idea', 'New idea', { title: 'Your own idea: an agent interviews you to shape it' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
   </div>${notesHtml(notes, ui.notesOpen)}`;
@@ -63,7 +64,7 @@ function card(c, s) {
   if (c.step) flags.push(chip(c.step, c.step === 'Waiting on you' ? 'warn' : 'step'));
   if (c.noAdo) flags.push(chip('No ADO item', 'warn'));
   if (c.ado && c.ado.choices && c.ado.choices.length > 1) flags.push(chip('Which collection?', 'warn'));
-  if (c.fromDispatch) flags.push(chip('From Dispatch', 'soft'));
+  if (c.fromLoom) flags.push(chip('From a run', 'soft'));
   if (c.stale) flags.push(chip('Stale', 'warn'));
   if (changedInAdo(c)) flags.push(chip('Changed in ADO', 'warn'));
   if (c.virtual && c.ado) flags.push(chip('In ADO', 'soft'));
@@ -316,7 +317,7 @@ const gate = (p, html) => {
   return html.map(h => {
     const m = /data-act="([^"]+)"/.exec(h);
     if (!m || !AGENT_ACTS.has(m[1]) || / disabled/.test(h)) return h;
-    const tip = esc(`Needs Dispatch: ${p.tandemOff}`);
+    const tip = esc(`Needs Tandem: ${p.tandemOff}`);
     return h.replace(/ title="[^"]*"/, '').replace('<button ', `<button disabled title="${tip}" `);
   });
 };
@@ -330,16 +331,16 @@ export function nextOf(p) {
   const shown = gate(p, n.shown || []);
   const more = gate(p, n.more || []);
   const blocked = (n.shown || []).some(h => { const m = /data-act="([^"]+)"/.exec(h); return m && AGENT_ACTS.has(m[1]); });
-  const text = blocked ? `${n.text} <span class="soft">Agent steps need Dispatch, which is not set up here.${(n.more || []).some(h => /data-act="(write-myself|write-refine|write-scope)"/.test(h)) ? ' Write it myself (More) works without it.' : ''} Move to (More) still works.</span>` : n.text;
+  const text = blocked ? `${n.text} <span class="soft">Agent steps need Tandem, which is not set up here.${(n.more || []).some(h => /data-act="(write-myself|write-refine|write-scope)"/.test(h)) ? ' Write it myself (More) works without it.' : ''} Move to (More) still works.</span>` : n.text;
   return { ...n, text, shown, more };
 }
 
 function nextRaw(p) {
   const it = p.item;
   const a = p.agent;
-  if (p.asks && p.asks.count) return { html: asksHtml(p), more: [btn('dispatch', 'Open in Dispatch', { title: 'See the whole session' })] };
-  if (a && a.waiting) return step('The agent is asking you something.', [btn('dispatch', 'Answer in Dispatch', { primary: true })]);
-  if (a && a.busy) return step('The agent is working on it.', [btn('dispatch', 'Follow in Dispatch')]);
+  if (p.asks && p.asks.count) return { html: asksHtml(p), more: [btn('dispatch', 'Open the run', { title: 'See the whole session' })] };
+  if (a && a.waiting) return step('The agent is asking you something.', [btn('dispatch', 'Answer it', { primary: true })]);
+  if (a && a.busy) return step('The agent is working on it.', [btn('dispatch', 'Follow the run')]);
   if (p.dev) return devNext(p);
   const build = buildBtns(p);
   switch (p.column) {
@@ -354,7 +355,7 @@ function nextRaw(p) {
         [btn('triage', 'Triage', { primary: true }), btn('shape', 'Interview me')],
         [btn('define', 'Define now', { title: 'Skip triage and start the draft' }), ...build, btn('roadmap-add', 'Add to roadmap')]);
     case 'triage':
-      if (!p.triage) return step('Waiting for triage.md.', [btn('dispatch', 'Open in Dispatch')], build);
+      if (!p.triage) return step('Waiting for triage.md.', [btn('dispatch', 'Open the run')], build);
       if (p.triage.questions.length) {
         const q = `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`;
         if (it.ado && p.canAdo) return step(`${q} Post them on #${it.ado.id} so whoever asked can answer there, or copy them to send another way.`,
@@ -366,7 +367,7 @@ function nextRaw(p) {
       const sh = p.shape || {};
       if (sh.asking) return { html: `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}</div>`, more: build };
       if (sh.ready) return step('The brief is written.', [btn('to-brief', 'Read the brief', { primary: true })]);
-      return step('Waiting for the agent\'s questions.', [btn('dispatch', 'Open in Dispatch'), btn('write-brief', 'Write the brief now')], build);
+      return step('Waiting for the agent\'s questions.', [btn('dispatch', 'Open the run'), btn('write-brief', 'Write the brief now')], build);
     }
     case 'brief': {
       const b = parseBrief(p.files['brief.md']);
@@ -397,7 +398,7 @@ function nextRaw(p) {
       if (d.step === 'approve-stories') return step('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
       if (d.ready) return step('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
       if (d.step === 'slice') return step('Stories approved. Slice them into build order, mapped to the code.', [btn('slice', 'Slice into stories', { primary: true })]);
-      return step('Waiting for the draft.', [btn('dispatch', 'Open in Dispatch')], build);
+      return step('Waiting for the draft.', [btn('dispatch', 'Open the run')], build);
     }
     case 'publish':
       if (!p.canAdo) return step('Approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true })]);
@@ -449,15 +450,15 @@ function devNext(p) {
       const done = prs.filter(x => x.status === 'completed').length;
       const text = !it.ado ? 'Link an ADO item below so Slate can follow the pull request, or mark it merged yourself.'
         : prs.length ? `${done} of ${prs.length} linked pull request${prs.length === 1 ? '' : 's'} merged. Slate checks again every 15 minutes.`
-        : `${esc(n.text || 'Review the code, push and open the PR in Dispatch.')} No pull request is linked to #${it.ado.id} yet.`;
-      if (!it.ado) return step(text, [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length }), btn('mark-merged', 'Mark merged')]);
-      return step(text, [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length }), btn('check-prs', 'Check pull requests')], [btn('mark-merged', 'Mark merged')]);
+        : `${esc(n.text || 'Review the code, push and open the PR from the run.')} No pull request is linked to #${it.ado.id} yet.`;
+      if (!it.ado) return step(text, [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length }), btn('mark-merged', 'Mark merged')]);
+      return step(text, [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length }), btn('check-prs', 'Check pull requests')], [btn('mark-merged', 'Mark merged')]);
     }
     default: {
-      if (!run && it.run) return step('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open in Dispatch')]);
+      if (!run && it.run) return step('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open the run')]);
       if (!run) return step(it.ado ? 'Start runs Tandem on the ADO item: brief, spec, plan, then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
         [btn('start', it.ado ? 'Start' : 'Start as local work', { primary: true })]);
-      return step(esc(n.text || 'See where it is in Dispatch.'), [...nextBtn, btn('dispatch', 'Open in Dispatch', { primary: !nextBtn.length })]);
+      return step(esc(n.text || 'See where it is on the run.'), [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length })]);
     }
   }
 }

@@ -1,5 +1,5 @@
 /* Workshop: quick capture rules (docs/hub.md, docs/handoffs.md). Pure functions with no DOM, so Node tests can
-   import them (shared/test/capture.test.mjs). Home's quick capture uses them as they are; the Dispatch hub uses
+   import them (shared/test/capture.test.mjs). Home's quick capture uses them as they are; the Loom hub uses
    toHandoff for the proposals Tandem returns.
 
    parseCapture turns one line into one proposal: what it is (a Docket task or waiting on, a receipt, a note, a
@@ -10,12 +10,12 @@
      w <text>   Docket task, waiting on someone ("waiting on ..." works too)
      r <text>   Rapport receipt, a win ("r growth: ..." and so on for the other kinds)
      n <text>   note ("note: ..." works too). "n <folder>: <text>" with one of Notes' folders makes a new note in that
-                folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Dispatch)
+                folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Loom)
      p <text>   roadmap idea for Runway: a feature, bug or any thought for a project ("idea: ..." works too).
                 "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
      s <text>   a request for Slate's New ("request: ..." works too). "s #1234 <note>", or a line that starts with
                 "#1234", is a request for that ADO work item
-     ? <text>   a question for the Dispatch hub (a line that ends in "?" too)
+     ? <text>   a question for the Loom hub (a line that ends in "?" too)
      > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
 
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
@@ -25,15 +25,15 @@
    replaces them in place from the manifests on this site (ws.apps.list(); docs/app-manifest.md capture and
    aliases, docs/hub.md "Which app takes a capture"), so every function here follows the apps that are there. */
 export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway', request: 'slate' };
-export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', slate: 'Slate' };
+export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', slate: 'Loom' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
 export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea', 'request'];
 const MAX_TEXT = 2000;
 
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
-  home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'agents', agents: 'agents',
-  hub: 'agents', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
+  home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'slate', agents: 'slate', loom: 'slate',
+  hub: 'slate', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
   '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', goals: 'receipts', okrs: 'receipts', runway: 'runway', roadmap: 'runway'
 };
 /* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
@@ -326,7 +326,7 @@ export function toHandoff(p, { sender, id = captureId(), now = new Date() } = {}
 /* One line describing a proposal for the review list: where it goes and what was filled in. */
 export function describe(p) {
   if (!p) return '';
-  if (p.kind === 'ask') return 'Ask in Dispatch';
+  if (p.kind === 'ask') return 'Ask in Loom';
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
   if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Slate'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Slate'} · New`;

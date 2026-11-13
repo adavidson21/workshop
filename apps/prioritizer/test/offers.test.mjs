@@ -106,20 +106,20 @@ test('an accepted item matches the recurring schema', () => {
   for (const r of dpEnvelopeFromBoard('dayplan/recurring', dp, null).items) assert.deepEqual(ds.validate('dayplan-recurring.schema.json', r), []);
 });
 
-/* ---------- accepted tasks from Home and the Dispatch hub (Workshop docs/handoffs.md, rule 4) ---------- */
+/* ---------- accepted tasks from Home and the Loom hub (Workshop docs/handoffs.md, rule 4) ---------- */
 import { SENDERS, acceptedTasks, cleanTaskOffer, listFor, taskFromOffer } from '../js/offers-model.js';
 
 // The shape of Workshop's docs/examples/handoff-item.task-accepted.json.
 const TASK = {
   id: 'hub_k3m9q2', updatedAt: 1793736000000, to: 'prioritizer', date: '2026-11-03', createdAt: '2026-11-03T22:15:00.000Z',
   text: 'Onboarding doc for Person One', payload: {kind: 'task', title: 'Onboarding doc for Person One', who: ['p_one'], value: 3},
-  source: {app: 'agents', id: 'hub_k3m9q2'}, accepted: true
+  source: {app: 'slate', id: 'hub_k3m9q2'}, accepted: true
 };
-const hubEnv = (items, app = 'agents') => ({schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {}});
+const hubEnv = (items, app = 'slate') => ({schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {}});
 
-test('Home and Dispatch are senders', () => {
+test('Home and Loom are senders', () => {
   assert.equal(SENDERS.home, 'Home');
-  assert.equal(SENDERS.agents, 'Dispatch');
+  assert.equal(SENDERS.slate, 'Loom');
 });
 
 test('only accepted task offers for Docket are picked up', () => {
@@ -131,17 +131,17 @@ test('only accepted task offers for Docket are picked up', () => {
     {...TASK, id: 'other_kind', payload: {kind: 'every-sprint', title: 'x', dueDay: 1}},
     {...TASK, id: 'from_text', payload: {kind: 'task'}, text: 'Title from @text ^tomorrow'}
   ];
-  const got = acceptedTasks('agents', hubEnv(items));
+  const got = acceptedTasks('slate', hubEnv(items));
   assert.deepEqual(got.map(o => o.id), ['from_text', 'hub_k3m9q2']);
   assert.equal(got[0].title, 'Title from @text ^tomorrow', 'never parsed as Quick add syntax');
-  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK], 'home')), [], 'the schema must name the sender');
-  assert.deepEqual(acceptedTasks('agents', {...hubEnv([TASK]), version: 2}), [], 'an unknown version reads as nothing');
+  assert.deepEqual(acceptedTasks('slate', hubEnv([TASK], 'home')), [], 'the schema must name the sender');
+  assert.deepEqual(acceptedTasks('slate', {...hubEnv([TASK]), version: 2}), [], 'an unknown version reads as nothing');
 });
 
 test('handled keys and tasks already added are skipped', () => {
-  const [o] = acceptedTasks('agents', hubEnv([TASK]));
-  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK]), [o.key]), []);
-  assert.deepEqual(acceptedTasks('agents', hubEnv([TASK]), [], [{id: 't1', from: {app: 'agents', id: 'hub_k3m9q2'}}]), [], 'even after the handled list was trimmed');
+  const [o] = acceptedTasks('slate', hubEnv([TASK]));
+  assert.deepEqual(acceptedTasks('slate', hubEnv([TASK]), [o.key]), []);
+  assert.deepEqual(acceptedTasks('slate', hubEnv([TASK]), [], [{id: 't1', from: {app: 'slate', id: 'hub_k3m9q2'}}]), [], 'even after the handled list was trimmed');
 });
 
 test('fields are cleaned', () => {
@@ -159,9 +159,9 @@ test('the list is matched by name, else the fallback', () => {
 });
 
 test('taskFromOffer builds a Docket task that remembers where it came from', () => {
-  const [o] = acceptedTasks('agents', hubEnv([TASK]));
+  const [o] = acceptedTasks('slate', hubEnv([TASK]));
   const t = taskFromOffer(o, {id: 't9', listId: 'main', rank: 4, color: 'sage', today: '2026-11-03'});
-  assert.deepEqual(t.from, {app: 'agents', id: 'hub_k3m9q2'});
+  assert.deepEqual(t.from, {app: 'slate', id: 'hub_k3m9q2'});
   assert.equal(t.value, 3);
   assert.equal(t.urgentFlag, false);
   assert.equal(t.waiting, false);
@@ -173,13 +173,13 @@ test('sendersFrom: senders come from manifests, with the built-in list as the fa
   const { sendersFrom, SENDERS } = await import('../js/offers-model.js');
   const apps = [
     { id: 'home', name: 'Home', handoffs: { sends: ['prioritizer', 'notes'] } },
-    { id: 'agents', name: 'Dispatch', handoffs: { sends: ['prioritizer'] } },
+    { id: 'slate', name: 'Loom', handoffs: { sends: ['prioritizer'] } },
     { id: 'notes', name: 'Notes', handoffs: { sends: [] } },
     { id: 'prioritizer', name: 'Docket', handoffs: { sends: ['prioritizer'] } },
     { id: 'newapp', name: 'New app', handoffs: { sends: ['prioritizer'] } }
   ];
-  assert.deepEqual(sendersFrom(apps), { home: 'Home', agents: 'Dispatch', newapp: 'New app' });
-  assert.deepEqual(sendersFrom([{ id: 'other', name: 'Other', handoffs: { sends: ['prioritizer'] } }]), { home: 'Home', agents: 'Dispatch', other: 'Other' }, 'added to the built-in list');
+  assert.deepEqual(sendersFrom(apps), { home: 'Home', slate: 'Loom', newapp: 'New app' });
+  assert.deepEqual(sendersFrom([{ id: 'other', name: 'Other', handoffs: { sends: ['prioritizer'] } }]), { home: 'Home', slate: 'Loom', other: 'Other' }, 'added to the built-in list');
   assert.deepEqual(sendersFrom([]), SENDERS);
   assert.deepEqual(sendersFrom(null), SENDERS);
 });

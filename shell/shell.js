@@ -341,8 +341,9 @@ function paintBadge(appId) {
 // The home page if an app is marked home: true, else the first app on the rail.
 const homeId = () => homeApp ? homeApp.id : railApps.length ? railApps[0].id : null;
 // Addresses from before an app was renamed or folded into another: the Dashboard pane became the Agents app
-// (WS6); the People app became Settings' People & teams pages (#/people/team opens #/settings/people/team).
-const RENAMED = { dashboard: 'agents', people: { id: 'settings', path: 'people' } };
+// (WS6), and Agents (Dispatch) folded into Slate as Loom (Loom 4.0.0: #/agents/inbox opens #/slate/inbox); the
+// People app became Settings' People & teams pages (#/people/team opens #/settings/people/team).
+const RENAMED = { dashboard: 'slate', agents: 'slate', people: { id: 'settings', path: 'people' } };
 /** Where an app id and path really open: a renamed app under its new id, a hosted app inside its host. */
 function resolveApp(id, path = '') {
   const to = RENAMED[id];

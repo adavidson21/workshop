@@ -1,4 +1,4 @@
-// opencode connector: the hub on Dispatch's page (apps/agents, Workshop docs/hub.md). Workshop only, not in the
+// opencode connector: the hub on Loom's page (apps/slate, Workshop docs/hub.md). Workshop only, not in the
 // eng-agents live server.
 //
 // hub.run saves what Dispatch sends as request.md in this connector's own folder,

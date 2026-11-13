@@ -4,7 +4,7 @@ How the code is laid out, how to add an app, and how to test and ship. For using
 
 ## Addresses
 
-Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch has no site of its own anymore: its old address, https://dispatch.alexisdavidson.org, redirects to Dispatch in a pop-out window like the other retired app domains ([site.md](site.md)). Until it can reach Workshop on your computer, Dispatch shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Dispatch's menu.
+Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch (now part of Loom) has no site of its own anymore: its old address, https://dispatch.alexisdavidson.org, redirects to Loom in a pop-out window like the other retired app domains ([site.md](site.md)). Until it can reach Workshop on your computer, Loom's Inbox shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Loom's menu.
 
 ## Layout
 
@@ -29,8 +29,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   runway/               Runway
   receipts/             Rapport
   notes/                Folio
-  slate/                Slate
-  agents/               Dispatch (Tandem's runs, on the opencode connector)
+  slate/                Loom: the backlog board (js/) and Tandem's runs (js/dispatch/, Dispatch until Loom 4.0.0)
   people/               People (the people directory and your team's area paths)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors

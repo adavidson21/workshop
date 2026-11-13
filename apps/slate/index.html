@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Nothing leaves this device but calls to Workshop on 127.0.0.1. The Roadmap tab frames Runway from this same site. -->
+<!-- Nothing leaves this device but calls to Workshop on 127.0.0.1. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
-<title>Slate</title>
-<meta name="description" content="Your ADO backlog from request to who builds it: triage, define, publish, then delegate or build it yourself, with Tandem doing the legwork.">
+<title>Loom</title>
+<meta name="description" content="Your team's backlog and Tandem's runs in one place: every piece of work is a card, from request to resolved, with the agent's run inside it.">
 <meta name="theme-color" content="#F4F2F3">
 <script src="../../shared/theme.js"></script>
 <script src="../../shared/sw-register.js"></script>
@@ -17,17 +17,28 @@
 <link rel="apple-touch-icon" href="../../icons/app-touch-180.png">
 <link rel="stylesheet" href="../../shared/themes.css">
 <link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="../../shared/capture.css">
+<link rel="stylesheet" href="dispatch.css">
 <link rel="stylesheet" href="slate.css">
+<link rel="stylesheet" href="loom.css">
 </head>
 <body>
-<div class="slate">
-  <header id="top"></header>
-  <div class="work">
-    <main id="main" class="main"><p class="loading">Loading…</p></main>
-    <aside id="panel" class="panel" aria-label="Item" hidden></aside>
-  </div>
+<!-- The runs half (js/dispatch/): the tab bar, Inbox, Chat, Reviews and run pages. -->
+<div id="runs-root">
+  <section class="hubwrap" id="hub" aria-label="Ask or capture"></section>
+  <div class="wrap" id="app"></div>
 </div>
-<dialog id="dlg" aria-label="Slate"></dialog>
-<script type="module" src="js/main.js"></script>
+<!-- The board half (js/main.js): Board and Health, shown under the tab bar. -->
+<div id="board-root" hidden>
+  <div class="slate">
+    <header id="top"></header>
+    <div class="work">
+      <main id="main" class="main"><p class="loading">Loading…</p></main>
+      <aside id="panel" class="panel" aria-label="Item" hidden></aside>
+    </div>
+  </div>
+  <dialog id="dlg" aria-label="Loom"></dialog>
+</div>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
