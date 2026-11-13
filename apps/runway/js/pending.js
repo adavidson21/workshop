@@ -1,6 +1,6 @@
 /* Pending: ideas captured elsewhere that wait for a roadmap. No DOM, so Node tests drive it with a fake `ws`.
 
-   Home's quick capture or the Dispatch hub (Workshop, docs/hub.md) sends a feature, bug or other thought for a roadmap as an offer
+   Home's quick capture or the Loom hub (Workshop, docs/hub.md) sends a feature, bug or other thought for a roadmap as an offer
    in that app's own `handoffs` collection: to 'runway', payload {kind: 'idea', map?: <roadmap id>}, accepted: true.
    The person accepted it where they typed it, so Runway takes it with no second click:
      - with a `map` that is in the roadmap list: a new unscheduled item in that roadmap (its Unscheduled tray).
@@ -15,7 +15,7 @@
 import { APP, VERSION, cleanItem, newId, nextOrder, parentChoices, validMapId } from './model.js';
 import { sendersFrom as sharedSendersFrom } from '../../../shared/handoffs.js';
 
-export const SENDERS = { home: 'Home', agents: 'Dispatch' };
+export const SENDERS = { home: 'Home', slate: 'Loom' };
 /* Who sends Runway ideas, from the manifests on this Workshop site (ws.apps.list(); Workshop docs/handoffs.md,
    Senders): every app whose handoffs.sends lists runway, as {id: name}, added to the built-in list. Reading an
    app that is not there finds no offers, so the built-in list only keeps senders whose manifest does not say. */

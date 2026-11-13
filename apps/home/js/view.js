@@ -42,12 +42,12 @@ const RANK = { urgent: 0, '': 1, waiting: 2 };
 
 /**
  * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md, Docket's
- * included from Docket 7.0.0) and agents waiting for an answer. byApp: [{app, name, cards: Map | null}].
+ * included from Docket 7.0.0). Agents waiting for an answer come in Loom's card, one row each (Home 5.2.0 dropped
+ * its own "N agents waiting" row, which counted the same runs again). byApp: [{app, name, cards: Map | null}].
  * Rows: [{app, appName, id, title, note, route, flag}], urgent first, at most 12.
  */
-export function inboxRows(byApp, { agents = null } = {}) {
+export function inboxRows(byApp) {
   const out = [];
-  if (agents && agents.state === 'ready' && agents.needYou) out.push({ app: 'agents', appName: 'Dispatch', title: `${plural(agents.needYou, 'agent')} waiting for an answer`, note: '', route: '', flag: 'urgent' });
   for (const a of byApp) {
     const c = a.cards && a.cards.get('needs');
     if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) continue;
@@ -57,11 +57,11 @@ export function inboxRows(byApp, { agents = null } = {}) {
     }
   }
   // One row for pull requests: Docket's "PRs blocked on you" (from Docket 7.0.0) keeps its place and takes
-  // Dispatch's "waiting for your review" count as its note, instead of two rows about the same reviews.
+  // Loom's "waiting for your review" count as its note, instead of two rows about the same reviews.
   const docketPrs = out.find(r => r.app === 'prioritizer' && r.id === 'prs');
-  const agentPrs = out.findIndex(r => r.app === 'agents' && r.id === 'prs');
+  const agentPrs = out.findIndex(r => r.app === 'slate' && r.id === 'prs');
   if (docketPrs && agentPrs >= 0) {
-    docketPrs.note = `${out[agentPrs].title} in Dispatch`.slice(0, 200);
+    docketPrs.note = `${out[agentPrs].title} in Loom`.slice(0, 200);
     out.splice(agentPrs, 1);
   }
   return out.map((r, i) => [RANK[r.flag] ?? 1, i, r]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]).slice(0, 12);

@@ -45,7 +45,7 @@ export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
     box = mountCapture(panel.querySelector('.cb-box'), {
       ws, sender: 'home',
       context: () => ({ ...src, today: localDay() }),
-      onAsk: text => { close(); go('agents', 'hub/' + text); },
+      onAsk: text => { close(); go('slate', 'hub/' + text); },
       onGo: t => { close(); go(t.app, t.path || ''); },
       placeholder: "What's on your mind? Ask with ?",
       hint: '<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea · <kbd>?</kbd> ask · <kbd>&gt;</kbd> go · <kbd>Esc</kbd> close'

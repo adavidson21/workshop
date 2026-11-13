@@ -99,8 +99,7 @@ export function appSuggestions(f = {}) {
   const agents = f.dispatch === 'ready';
   return [
     { id: 'prioritizer', name: 'Docket', why: 'your tasks, today and what you handed over.' },
-    { id: 'slate', name: 'Slate', why: ado || agents ? 'requests from idea to shipped.' : 'requests from idea to shipped. Without Azure DevOps or Dispatch it is a local board you fill in by hand.', off: !ado && !agents },
-    { id: 'agents', name: 'Dispatch', why: agents ? 'coding agents on your work items.' : 'coding agents on your work items. Not set up on this computer.', off: !agents },
+    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it is a local board you fill in by hand.', off: !ado && !agents },
     { id: 'receipts', name: 'Rapport', why: '1:1s and evidence for reviews.' },
     { id: 'notes', name: 'Folio', why: 'notes, kept as files.' },
     { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' }
@@ -120,7 +119,7 @@ export const STEPS = [
   { id: 'areas', core: true, title: "Set your team's area paths", needs: 'ado' },
   { id: 'task', core: true, title: 'Add your first task in Docket' },
   { id: 'receipt', core: true, title: 'Log your first receipt' },
-  { id: 'dispatch', core: false, title: 'Set up Dispatch for coding agents', needs: 'connect' },
+  { id: 'dispatch', core: false, title: 'Set up Loom for coding agents', needs: 'connect' },
   { id: 'login', core: false, title: 'Start Workshop when you log in', needs: 'connect' }
 ];
 
@@ -208,7 +207,7 @@ function detail(s, ctx) {
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `${choose}<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Dispatch. If piping a script is blocked, follow "By hand" in docs/install.md.</p>
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Loom. If piping a script is blocked, follow "By hand" in docs/install.md.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
         <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
     }
@@ -225,7 +224,7 @@ function detail(s, ctx) {
     case 'team':
       return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
     case 'areas':
-      return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Dispatch hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
+      return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Loom hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
       return `<p>Add yourself in People: your name, and the name Azure DevOps knows you by, so Docket, Slate and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
     case 'apps': {
@@ -262,8 +261,8 @@ function detail(s, ctx) {
       return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Dispatch runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Dispatch', 'data-open="agents"')}</p>`
-        : `<p>Dispatch runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; Dispatch's own setup guide walks you through it.</p><p>${btn('Open Dispatch', 'data-open="agents"', true)}</p>`;
+        ? `<p>Loom runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Loom', 'data-open="slate" data-path="inbox"')}</p>`
+        : `<p>Loom runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide on Loom's Inbox walks you through it.</p><p>${btn('Open Loom', 'data-open="slate" data-path="inbox"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;
     default: return '';

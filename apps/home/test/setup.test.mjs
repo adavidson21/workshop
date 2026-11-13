@@ -212,16 +212,16 @@ test('your name: done once People has a You; the step opens People with the name
   assert.match(card(stepsFor(f), 'name', { ...ctx, facts: f }).html, /data-open="settings" data-path="people\/you\/Sam%20Lee"/);
 });
 
-test('Pick your apps: Slate and Dispatch suggested off without ADO and agents; done once confirmed', () => {
+test('Pick your apps: Loom suggested off without ADO and agents; done once confirmed', () => {
   const off = appSuggestions({ ado: { state: 'off' }, dispatch: 'off' });
-  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate', 'agents']);
-  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), ['agents']);
+  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate']);
+  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), []);
   assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'ready' }).filter(a => a.off), []);
   assert.equal(states(stepsFor({ ...all, appsPicked: false })).apps, 'todo');
   const f = { ...all, appsPicked: false, ado: { state: 'off' }, dispatch: 'off' };
   const { html } = card(stepsFor(f), 'apps', { ...ctx, facts: f });
   assert.match(html, /data-apps-ok/);
-  assert.match(html, /Slate<\/b>.*Suggested: off/);
+  assert.match(html, /Loom<\/b>.*Suggested: off/);
 });
 
 test('backup outside work mode suggests a backed-up folder, not OneDrive', () => {

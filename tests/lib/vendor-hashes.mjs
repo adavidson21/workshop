@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 
 export const SUMS = 'SHA256SUMS';
 // The vendor folders, relative to the repo root.
-export const VENDOR_DIRS = ['shared/vendor', 'apps/agents/vendor'];
+export const VENDOR_DIRS = ['shared/vendor', 'apps/slate/vendor'];
 
 const files = (dir, rel = '', out = []) => {
   for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {

@@ -40,31 +40,31 @@ test('header: the date and one More menu with Weekly status; a labeled button on
   assert.match(fri.slice(0, fri.indexOf('</header>')), /class="btn" data-status>/);
 });
 
-test('Needs you: one list from every app, urgent first, with agents added', async () => {
+test('Needs you: one list from every app, urgent first (agents come in Loom\'s own rows)', async () => {
   const { inboxRows } = await import('../js/view.js');
   const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
   const rows = inboxRows([
     { app: 'slate', name: 'Slate', cards: cards([{ id: 'w1', title: '#7 Export', note: 'Decide who builds it', route: 'item/w1' }, { id: 'w2', title: 'Asking', note: 'An agent is asking', route: 'item/w2', flag: 'urgent' }]) },
     { app: 'receipts', name: 'Rapport', cards: cards([{ id: 'p1', title: '1:1 with Ana', flag: 'waiting', route: '1on1s' }]) },
     { app: 'notes', name: 'Notes', cards: null }
-  ], { agents: { state: 'ready', needYou: 1 } });
+  ]);
   assert.deepEqual(rows.map(r => [r.appName, r.title, r.flag]), [
-    ['Dispatch', '1 agent waiting for an answer', 'urgent'], ['Slate', 'Asking', 'urgent'], ['Slate', '#7 Export', ''],
+    ['Slate', 'Asking', 'urgent'], ['Slate', '#7 Export', ''],
     ['Rapport', '1:1 with Ana', 'waiting']
   ]);
   assert.deepEqual(inboxRows([], {}), []);
 });
 
-test('Needs you (Docket 7.0.0): Docket\'s needs rows, and one row for pull requests when Dispatch has one too', async () => {
+test('Needs you (Docket 7.0.0): Docket\'s needs rows, and one row for pull requests when Loom has one too', async () => {
   const { inboxRows } = await import('../js/view.js');
   const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
   const docket = { app: 'prioritizer', name: 'Docket', cards: cards([{ id: 'prs', title: '2 PRs blocked on you', note: 'Review in Docket', route: 'today', flag: 'urgent' }, { id: 'nudges', title: '1 follow-up due', route: 'today', flag: 'waiting' }]) };
-  const dispatch = { app: 'agents', name: 'Dispatch', cards: cards([{ id: 'prs', title: '5 pull requests waiting for your review', note: 'a, b', route: 'reviews' }]) };
+  const dispatch = { app: 'slate', name: 'Loom', cards: cards([{ id: 'prs', title: '5 pull requests waiting for your review', note: 'a, b', route: 'reviews' }]) };
   const rows = inboxRows([docket, dispatch], {});
   assert.deepEqual(rows.map(r => [r.appName, r.title, r.note, r.flag]), [
-    ['Docket', '2 PRs blocked on you', '5 pull requests waiting for your review in Dispatch', 'urgent'],
+    ['Docket', '2 PRs blocked on you', '5 pull requests waiting for your review in Loom', 'urgent'],
     ['Docket', '1 follow-up due', '', 'waiting']]);
-  assert.equal(inboxRows([dispatch], {})[0].appName, 'Dispatch', 'without Docket\'s row, Dispatch\'s stays');
+  assert.equal(inboxRows([dispatch], {})[0].appName, 'Loom', 'without Docket\'s row, Loom\'s stays');
 });
 
 test('weekly status: a Markdown draft from every app that logged something', async () => {

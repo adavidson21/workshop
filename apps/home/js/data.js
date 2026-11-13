@@ -56,7 +56,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
       if (!v.apps.length) v.apps = (await ws.apps.list().catch(() => [])).filter(a => a.id !== 'home');
       const sums = await Promise.all(v.apps.map(a => ws.data.get('summary', { app: a.id }).then(env => readCards(env, a.id)).catch(() => null)));
       const byApp = v.apps.map((a, i) => ({ app: a.id, name: a.name, cards: sums[i] }));
-      v.inbox = inboxRows(byApp, { agents: v.agents });
+      v.inbox = inboxRows(byApp);
       const docket = byApp.find(a => a.app === 'prioritizer');
       v.blocking = blockingRows(docket && docket.cards);
       v.week = weekRows(byApp);

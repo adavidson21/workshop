@@ -8,11 +8,11 @@ const H = { id: 'c_1', updatedAt: 1, to: 'notes', date: '2026-11-03', createdAt:
 const env = (app, items) => ({ schema: `${app}.handoffs`, version: 1, rev: 1, items, deleted: {} });
 
 test('only accepted note offers for Notes, not yet taken', () => {
-  assert.deepEqual(Object.keys(SENDERS), ['home', 'agents', 'prioritizer']);
+  assert.deepEqual(Object.keys(SENDERS), ['home', 'slate', 'prioritizer']);
   const items = [H, { ...H, id: 'c_2', accepted: false }, { ...H, id: 'c_3', to: 'receipts' }, { ...H, id: 'c_4', payload: { kind: 'task' } }];
   assert.deepEqual(acceptedNotes('home', env('home', items)).map(o => o.id), ['c_1']);
   assert.deepEqual(acceptedNotes('home', env('home', items), new Set(['home:c_1'])), []);
-  assert.deepEqual(acceptedNotes('home', env('agents', items)), [], 'the schema must name the sender');
+  assert.deepEqual(acceptedNotes('home', env('slate', items)), [], 'the schema must name the sender');
   assert.deepEqual(acceptedNotes('home', { ...env('home', items), version: 2 }), []);
   assert.equal(acceptedNotes('home', env('home', [{ ...H, payload: { kind: 'note' }, text: 'First line\nsecond' }]))[0].title, 'First line');
 });
@@ -46,16 +46,16 @@ const fakeWs = (cols, files) => ({
   }
 });
 
-test('startPickup: Home captures go to Quick Notes, Dispatch captures to inbox/, each once', async () => {
+test('startPickup: Home captures go to Quick Notes, Loom captures to inbox/, each once', async () => {
   const files = new Map(), cols = new Map();
   cols.set('home/handoffs', env('home', [H, { ...H, id: 'c_9', createdAt: '2026-11-03T23:00:00Z', payload: { kind: 'note', title: '<b>x</b>' }, text: '<b>x</b>' }]));
-  cols.set('agents/handoffs', env('agents', [{ ...H, id: 'a_1', source: { app: 'agents', id: 'a_1' } }]));
+  cols.set('slate/handoffs', env('slate', [{ ...H, id: 'a_1', source: { app: 'slate', id: 'a_1' } }]));
   const added = [];
   const p = startPickup(fakeWs(cols, files), { files: new Map() }, { onAdded: w => added.push(...w) });
   assert.equal(await p.run(), 3);
   assert.deepEqual([...files.keys()].sort(), ['inbox/retro-ideas.md', QUICK]);
   assert.match(files.get(QUICK), /## 2026-11-03\n\n- <b>x<\/b>\n- retro ideas\. More async standups\n$/);
-  assert.deepEqual(cols.get('notes/taken').items.map(i => i.id).sort(), ['agents:a_1', 'home:c_1', 'home:c_9']);
+  assert.deepEqual(cols.get('notes/taken').items.map(i => i.id).sort(), ['home:c_1', 'home:c_9', 'slate:a_1']);
   assert.equal(await p.run(), 0, 'never twice');
   files.clear();
   assert.equal(await p.run(), 0, 'a deleted note does not come back');

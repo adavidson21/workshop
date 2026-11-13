@@ -15,7 +15,8 @@ export const SITE = Object.freeze({
     runway: 'https://runway.alexisdavidson.org',
     receipts: 'https://receipts.alexisdavidson.org',
     notes: 'https://notes.alexisdavidson.org',
-    agents: 'https://dispatch.alexisdavidson.org'
+    // Dispatch's old domain: Dispatch is part of Loom (app id slate) since Loom 4.0.0.
+    slate: 'https://dispatch.alexisdavidson.org'
   }),
   // Sites a new install allows to pair (config hosted.origins); each still needs a click in the pairing window.
   allowedSites: Object.freeze([WORKSHOP, 'https://dispatch.alexisdavidson.org', DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org', 'https://notes.alexisdavidson.org']),

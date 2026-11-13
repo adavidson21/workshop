@@ -152,7 +152,7 @@ function templatesHtml(state) {
 function tandemHtml(state) {
   const { tandem, ui } = state;
   if (!tandem.loaded) return '<p class="side-note">Reading .work.</p>';
-  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Dispatch.</p>';
+  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Loom.</p>';
   const { review, rest } = groupItems(tandem.items);
   const group = (it) => {
     const open = ui.path && ui.path.startsWith(tandemPath(it.folder, ''));
@@ -264,15 +264,15 @@ function tandemHeader(state) {
   const d = parseTandem(ui.path);
   const it = doc.item;
   const lock = doc.busy ? `<div class="bar warn" role="status"><span class="bar-msg">${esc(doc.busy)}. This page is read-only until it stops.</span></div>` : '';
-  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Dispatch.</span>
-      <span class="bar-acts"><button class="btn" data-act="open-dispatch">Open in Dispatch</button></span></div>` : '';
+  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Loom.</span>
+      <span class="bar-acts"><button class="btn" data-act="open-dispatch">Open in Loom</button></span></div>` : '';
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">Tandem / ${esc(it ? itemLabel(it) : d.folder)} / ${esc(d.file)}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(ui.status.kind === 'saved' ? (doc.busy ? 'Read-only' : 'In .work') : statusText(ui.status, null))}</span></div>
     <div class="head-actions">
       ${state.brief ? lensSegHtml(state) : ''}${segHtml(state)}
-      <button class="btn ghost" data-act="open-dispatch" title="This run in Dispatch">Open in Dispatch</button>
-      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
+      <button class="btn ghost" data-act="open-dispatch" title="This run in Loom">Open in Loom</button>
+      ${menuHtml(ui, [['open-dispatch', 'Open in Loom'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui, true) || lock || gate}`;
 }
@@ -347,7 +347,7 @@ function tandemPanel(state) {
         const p = tandemPath(it.folder, f.file);
         return `<li><a href="#" data-open="${esc(p)}"${p === ui.path ? ' aria-current="page"' : ''}><span class="r-title">${esc(docName(f.file))}</span><span class="r-line mono">${esc(f.file)}</span></a></li>`;
       }).join('')}</ul></section>
-    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Dispatch.</p></section>` : ''}`;
+    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Loom.</p></section>` : ''}`;
 }
 
 /* Action items and wins in the open note, each with a button that sends it (offers.js). Only where the receivers

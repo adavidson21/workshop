@@ -19,7 +19,7 @@ function sample(){
     recur: {id: 'rf-preview'}, crumbs: [{at: Date.now(), text: 'left off at the second section'}]
   };
 }
-const AGENT = '<span class="chip eng" data-tip="Agent status from Dispatch">Plan ready</span>';
+const AGENT = '<span class="chip eng" data-tip="Agent status from Loom">Plan ready</span>';
 
 function previewHtml(){
   return row(sample(), {start: true, crumb: true, hidden: [...draft],

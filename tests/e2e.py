@@ -198,7 +198,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button (Slate 2.0.0 stopped hosting it)', rail == ['prioritizer', 'slate', 'agents', 'receipts', 'notes', 'runway', 'settings'])
+    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -218,7 +218,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/prioritizer/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
     check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
@@ -226,7 +226,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
         check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
 
-    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
@@ -247,7 +247,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
-        pg.keyboard.press('Alt+5'); pg.wait_for_timeout(500)
+        pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
         check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
@@ -295,9 +295,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
 
     pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1500)
     slf = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
-    check('Slate is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
+    check('Loom is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
     if slf:
-        slf.click('.top [data-act=tab][data-id=board]'); pg.wait_for_timeout(400)
+        slf.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(400)
         slf.wait_for_selector('.empty, .board', timeout=10000)
         # Two setup notes (ADO and Dispatch) fold into one line that opens (docs/layout.md, .ws-notices).
         check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.text_content('#top')
@@ -307,9 +307,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Shape] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
               and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
-        check('one board of four lanes, no lane switcher, Board and Health tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
+        check('one board of four lanes, no lane switcher, Loom\'s five tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
               and slf.locator('.top [data-act=lane]').count() == 0
-              and slf.eval_on_selector_all('.top [data-act=tab]', 'bs => bs.map(b => b.dataset.id)') == ['board', 'health'])
+              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['inbox', 'board', 'health', 'chat', 'reviews'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
         check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
@@ -367,7 +367,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Details starts closed', details.count() == 1 and details.get_attribute('open') is None)
         slf.click('.panel details.fold[data-fold=details] > summary'); pg.wait_for_timeout(200)
         check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('slate.fold.details')") == '1')
-        slf.click('.top [data-act=tab][data-id=health]'); pg.wait_for_timeout(1500)
+        slf.click('#app .tabs [data-tab=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
         check('Health links to Runway\'s team reports instead of framing them', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 1)
@@ -377,7 +377,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and rwf.evaluate("document.getElementById('app').dataset.view") == 'reports')
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes is Alt+5, Runway Alt+6
+    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)  # Notes is Alt+4, Runway Alt+5
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -707,7 +707,7 @@ def notes_flow(page, nf, where):
 def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('home', 'prioritizer', 'agents', 'settings'):
+    for name in ('home', 'prioritizer', 'slate', 'settings'):
         copy_app(name, os.path.join(apps, name))
     for name in ('pages', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
@@ -748,7 +748,7 @@ def agent_checks(b, watch):
               and sf.locator('#page-work-items form.cfg:visible').count() == 0)
         stab(sf, 'repos')
         check('Repos works with no Azure DevOps: no ADO lines or other folders', sf.locator('#page-repos .repo-meta').count() == 0 and not sf.locator('#page-repos .cfg-section:not(.repo-hidden)').is_visible())
-        gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/agents/index.html']
+        gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/slate/index.html']
           .map(p => fetch(p).then(r => r.status)))""")
         check('the agent serves no hub and no other app', gone == [404] * 5)
         check('and registers no service worker', sf.evaluate("navigator.serviceWorker.getRegistration().then(r => !r)"))
@@ -1214,6 +1214,16 @@ def toast_has(page, text, ms=10000):
         return False
 
 
+def open_tab(f, tab):
+    """Loom's tabs; All runs (work) opens from the board's toolbar."""
+    if tab == 'work':
+        f.click('#app .tabs [data-tab=board]')
+        f.wait_for_selector('#top [data-act=runs]', timeout=10000)
+        f.click('#top [data-act=runs]')
+    else:
+        f.click(f'#app .tabs [data-tab={tab}]')
+
+
 def agents_checks(b, watch):
     """Part 5: the Agents app on the opencode connector (WS6), with a synthetic workspace and a fake opencode."""
     fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'dispatch-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -1223,7 +1233,7 @@ def agents_checks(b, watch):
         return json.loads(fx.stdout.readline())
     tmp = tempfile.mkdtemp()
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('prioritizer', 'agents', 'settings'):
+    for name in ('prioritizer', 'slate', 'settings'):
         copy_app(name, os.path.join(apps, name))
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
@@ -1238,15 +1248,15 @@ def agents_checks(b, watch):
         ctx = b.new_context(viewport={'width': 1280, 'height': 800})
         pair(ctx, HOSTED, url, a['token'])
         pg = ctx.new_page(); watch(pg)
-        pg.goto(HOSTED + '/#/agents/41610'); pg.wait_for_timeout(1000)
-        af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
+        pg.goto(HOSTED + '/#/slate/41610'); pg.wait_for_timeout(1000)
+        af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Dispatch 3.0 has four tabs and no sidebar', af.eval_on_selector_all('.tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'chat', 'work', 'reviews']
-              and af.locator('.side, aside').count() == 0)
-        check('#/agents/<id> opens that run on its own page, on Work', seen(af, '.run-page#item-41610') and af.get_attribute('.tab.on', 'data-tab') == 'work')
-        check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/agents') and af.locator('.brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
+        check('Loom has five tabs and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'board', 'health', 'chat', 'reviews']
+              and af.locator('#app .side, #app aside').count() == 0)
+        check('#/slate/<id> opens that run on its own page, under Board', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
+        check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(400)
@@ -1257,10 +1267,10 @@ def agents_checks(b, watch):
         # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
         for tab in ('inbox', 'work'):
-            af.click(f'.tabs [data-tab={tab}]'); pg.wait_for_timeout(250)
+            open_tab(af, tab); pg.wait_for_timeout(250)
             found += af.eval_on_selector_all('.page [id^="item-"]', 'els => els.map(e => e.id)')
         check('every .work folder is in one place', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
-        af.click('.tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
+        af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
         inbox = af.text_content('.page')
         check('the Inbox has the run to review and the code review to do', 'Ready for your review' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
         check('the Inbox card shows the file you are approving (file.read)', seen(af, '#item-41300 .finline .doc') and 'Root cause' in af.inner_text('#item-41300 .finline'))
@@ -1297,21 +1307,21 @@ def agents_checks(b, watch):
               af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
         af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
         af.click('[data-close-run]')
-        check('Back from a run page returns to the Inbox it was opened from', seen(af, '#g-code') and af.get_attribute('.tab.on', 'data-tab') == 'inbox')
+        check('Back from a run page returns to the Inbox it was opened from', seen(af, '#g-code') and af.get_attribute('#app .tab.on', 'data-tab') == 'inbox')
 
         # Prompts: shown in the Inbox with where they came from, counted on the rail badge, answered there.
-        before = int(pg.inner_text('.app-btn[data-app=agents] .badge') or 0)
-        af.click('.tabs [data-tab=inbox]')
+        before = int(pg.inner_text('.app-btn[data-app=slate] .badge') or 0)
+        af.click('#app .tabs [data-tab=inbox]')
         ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1200)
         check('a prompt from opencode shows in the Inbox under Agents asking you', 'npm test' in af.inner_text('#g-asks'))
-        check('the rail badge counts what is in the Inbox', pg.inner_text('.app-btn[data-app=agents] .badge') == str(before + 1))
+        check('the rail badge counts what is in the Inbox', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before + 1))
         af.click('#g-asks [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
         r = ask({'requests': True})
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('#g-asks').count() == 0)
-        check('and the badge goes back down', pg.inner_text('.app-btn[data-app=agents] .badge') == str(before))
+        check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
 
         # Chat (Dispatch 4.1.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
-        af.click('.tabs [data-tab=chat]'); pg.wait_for_timeout(400)
+        af.click('#app .tabs [data-tab=chat]'); pg.wait_for_timeout(400)
         check('Chat opens on New chat, with the hub box in it', af.locator('.chat-newbtn.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
         check('the sidebar has New chat and search', af.locator('.chat-side .chat-search').is_visible() and af.inner_text('.chat-top h2') == 'New chat')
         af.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
@@ -1323,7 +1333,7 @@ def agents_checks(b, watch):
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
         # shared git confirm, pushes the pr.md branch.
-        af.click('.tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
+        af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
         af.click('#item-41610 [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
         ship = af.locator('.run-page#item-41610')
         branch = 'dev/bug/41610-rate-limit-headers'
@@ -1353,10 +1363,10 @@ def agents_checks(b, watch):
         toast_has(pg, 'Pushed ')
         af.locator('[data-act=back]').click()
         af.wait_for_selector('#item-41610', timeout=20000)
-        check('Back to Dispatch returns to the run', af.locator('.run-page#item-41610').count() == 1)
+        check('Back to Loom returns to the run', af.locator('.run-page#item-41610').count() == 1)
 
         # Remove: the dialog, typing the name, and the folder gone (from the spike's page on Work).
-        af.click('.tabs [data-tab=work]'); pg.wait_for_timeout(300)
+        open_tab(af, 'work'); pg.wait_for_timeout(300)
         af.click('#item-spike-cache-options [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
         af.locator('.run-page#item-spike-cache-options .item-head [data-remove]').click(); pg.wait_for_timeout(300)
         go = af.locator('[data-remove-go]')
@@ -1373,7 +1383,7 @@ def agents_checks(b, watch):
         chip = pf.locator('.chip.eng')
         check('Prioritizer shows the stage from connectors.call(opencode, status)', chip.count() == 1 and 'Build 2/3' in chip.inner_text())
         chip.click(); pg.wait_for_timeout(1200)
-        check('the stage chip opens that run\'s page in Agents', pg.url.endswith('#/agents') and seen(af, '.run-page#item-41207'))
+        check('the stage chip opens that run\'s page in Loom', pg.url.endswith('#/slate') and seen(af, '.run-page#item-41207'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
         # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
         pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
@@ -1394,20 +1404,20 @@ def agents_checks(b, watch):
 
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
-        sp.goto(HOSTED + '/apps/agents/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
-        check('Dispatch works on its own page, with the top bar (crumbs and light/dark toggle)', 'Dispatch' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.run-page#item-41502').count() == 1)
+        sp.goto(HOSTED + '/apps/slate/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
+        check('Loom works on its own page, with the top bar (crumbs and light/dark toggle)', 'Loom' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.run-page#item-41502').count() == 1)
 
         # Projects (through the connector) as a filter on Work; the filter stays in this browser.
-        check('the Inbox tab counts what waits on you', int(sp.inner_text('.tabs [data-tab=inbox] .cnt') or 0) >= 1)
-        sp.click('.tabs [data-tab=work]')
-        check('Work lists what is in flight, on one column, and points at the Inbox', seen(sp, '#item-41207') and sp.inner_text('.scope-head h2') == 'Work' and sp.locator('aside').count() == 0 and sp.locator('.inbox-prs.waiting').count() == 1)
+        check('the Inbox tab counts what waits on you', int(sp.inner_text('#app .tabs [data-tab=inbox] .cnt') or 0) >= 1)
+        open_tab(sp, 'work')
+        check('All runs lists what is in flight, on one column, and points at the Inbox', seen(sp, '#item-41207') and sp.inner_text('.scope-head h2') == 'All runs' and sp.locator('#app aside').count() == 0 and sp.locator('.inbox-prs.waiting').count() == 1)
         sp.click('#item-41207 [data-open-run]')
         check('a row opens its run page', seen(sp, '.run-page#item-41207'))
-        sp.click('.tabs [data-tab=reviews]')
+        sp.click('#app .tabs [data-tab=reviews]')
         check('Reviews is its own tab', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Reviews')
         sp.click('[data-more-menu]'); sp.click('[data-projects-open]'); sp.click('[data-proj-new]')
         sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]'); sp.wait_for_timeout(800)
-        sp.click('.tabs [data-tab=work]')
+        open_tab(sp, 'work')
         check('New project saves through the connector and Work shows only its runs', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]') and sp.locator('.page .rrow').count() == 0)
         sp.click('[data-filter-project=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")'); sp.wait_for_timeout(800)
         sp.click('.fchip:has-text("Orders API")')
@@ -1417,7 +1427,7 @@ def agents_checks(b, watch):
         sp.click('.fcard[data-flow=quick]')
         check('a flow shows its steps, and starts in the project filtered to', seen(sp, '.fline') and sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
         sp.keyboard.press('Escape')
-        sp.reload(); seen(sp, '.tabs'); sp.click('.tabs [data-tab=work]')
+        sp.reload(); seen(sp, '#app .tabs'); open_tab(sp, 'work')
         check('the project filter stays in this browser after a reload', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]'))
 
         # Settings, Repos: Hide leaves a workspace repo out (opencode hiddenRepos), Show brings it back.
@@ -1519,10 +1529,11 @@ def main():
             check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
             frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-            pg.click('.app-btn[data-app=agents]'); pg.wait_for_timeout(1200)
-            af = next((f for f in pg.frames if '/apps/agents/' in f.url), None)
-            check('Agents opens from the rail, as an app in the shell', af is not None and pg.url.endswith('#/agents'))
-            check('Dispatch in browser mode shows the setup guide', af is not None and 'Connect Dispatch to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
+            pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(1200)
+            af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
+            check('Loom opens from the rail, as an app in the shell, on the Board', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
+            if af: af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
+            check('Loom\'s Inbox in browser mode shows the setup guide', af is not None and 'Connect Loom to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
             if af:
                 check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
                 af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
@@ -1530,25 +1541,27 @@ def main():
                 af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
                 check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
                 af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
-                sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
+                sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
                 check('Accept in the hub saves an accepted note handoff', sent == [['notes', True, 'note']] and af.locator('#hub .hub-row.sent').count() == 1)
                 af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
-                check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'agents'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
+                check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
                 af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
                 check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
             check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
             pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
-            check('the old #/dashboard address opens Agents', pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
+            check('the old #/dashboard address opens Loom', pg.url.endswith('#/slate') and pg.title() == 'Loom · Workshop')
+            pg.goto(HUB + '/#/agents/inbox'); pg.wait_for_timeout(1000)
+            check('an old #/agents address opens Loom on that tab', pg.url.endswith('#/slate/inbox') or pg.url.endswith('#/slate'))
 
             pg.click('#panelBtn'); pg.wait_for_timeout(800)
             hf = next(f for f in pg.frames if '/apps/home/' in f.url)
             seen(hf, '.card.inbox')
             check('the Needs you panel opens over the app, with no copy of Docket\'s day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
-                  and hf.locator('#capture').count() == 0 and pg.url.endswith('#/agents'))
+                  and hf.locator('#capture').count() == 0 and pg.url.endswith('#/slate'))
             pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
             check('Esc closes the panel', not pg.is_visible('#spanel'))
             pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(800)
-            check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/agents') and pg.title() == 'Dispatch · Workshop')
+            check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/slate') and pg.title() == 'Loom · Workshop')
             pg.click('#spanelScrim', position={'x': 40, 'y': 300}); pg.wait_for_timeout(300)
             check('a click on the page behind closes the panel', not pg.is_visible('#spanel'))
             pg.click('#capBtn'); pg.wait_for_timeout(800)

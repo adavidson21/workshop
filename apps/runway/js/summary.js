@@ -1,5 +1,5 @@
 /* Runway: its summary for other apps (Workshop docs/summaries.md). Three cards:
-     roadmaps  the roadmaps, as targets for capture "idea", so Home's quick capture and the Dispatch hub can name one
+     roadmaps  the roadmaps, as targets for capture "idea", so Home's quick capture and the Loom hub can name one
                without reading Runway's index.
      pending   the ideas on the Pending assignment list (newest first, up to 50), so Slate can show them in its Shape
                lane's New column. Rows: {id, title, due: the day it came in, note: its description, route, from: the

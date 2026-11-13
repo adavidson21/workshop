@@ -215,13 +215,13 @@ test('s and #id: a request for Slate, for an ADO item or new', () => {
   assert.equal(a.kind, 'request'); assert.equal(a.to, 'slate');
   assert.deepEqual(a.payload, { kind: 'request', ado: 1234, note: 'customers want CSV export' });
   assert.equal(a.text, '#1234 customers want CSV export');
-  assert.equal(describe(a), 'Slate · #1234, with a note');
+  assert.equal(describe(a), 'Loom · #1234, with a note');
   assert.deepEqual(parseCapture('#1234', ctx).payload, { kind: 'request', ado: 1234 });
-  assert.equal(describe(parseCapture('#1234', ctx)), 'Slate · #1234');
+  assert.equal(describe(parseCapture('#1234', ctx)), 'Loom · #1234');
   assert.deepEqual(parseCapture('#1234: please look', ctx).payload, { kind: 'request', ado: 1234, note: 'please look' });
   const b = parseCapture('request: Export to CSV for billing', ctx);
   assert.deepEqual(b.payload, { kind: 'request', note: 'Export to CSV for billing' });
-  assert.equal(describe(b), 'Slate · New');
+  assert.equal(describe(b), 'Loom · New');
   assert.equal(parseCapture('s 3 dashboards are slow', ctx).payload.ado, undefined, 'a bare number is text, not an id');
   assert.equal(parseCapture('#12ab fix', ctx).kind, 'task', 'only digits make an id');
   assert.equal(parseCapture('fix it #ops', ctx).kind, 'task');

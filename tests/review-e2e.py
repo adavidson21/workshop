@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""End-to-end check of Dispatch's code review screen (apps/agents/review.html) in headless Chromium.
+"""End-to-end check of Dispatch's code review screen (apps/slate/review.html) in headless Chromium.
 
   pip install playwright && python -m playwright install chromium
   python tests/review-e2e.py
 
 Serves this repo as a static site and opens review.html?mock=1, which uses mockReviewApi
-(apps/agents/js/review-api.js) instead of the opencode connector, under the page's real CSP. Covers the
+(apps/slate/js/dispatch/review-api.js) instead of the opencode connector, under the page's real CSP. Covers the
 spec's acceptance criteria for the screen: line and range selection, the comment box, gutter markers and
 the Review panel, drafts surviving a refresh, the request changes payload, revision 2 with the agent's
 answers and "changes since last review", a stale head, approve, deep links and the theme.
@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = 8811
-BASE = f'http://127.0.0.1:{PORT}/apps/agents/review.html?mock=1'
+BASE = f'http://127.0.0.1:{PORT}/apps/slate/review.html?mock=1'
 failures = []
 
 

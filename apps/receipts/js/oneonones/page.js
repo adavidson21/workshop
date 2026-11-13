@@ -363,7 +363,7 @@ export function createOneOnOnesPage(ws, root, host) {
         }
         if (r.state === 'failed') { ui.tidy = { ...noTidy(), state: 'failed', error: r.error || '' }; paint(); return; }
       } catch { /* keep waiting; Workshop may be busy */ }
-      if (Date.now() - started > 15 * 60000) { ui.tidy = { ...noTidy(), state: 'failed', error: 'Nothing after 15 minutes. Check the session in Dispatch.' }; paint(); return; }
+      if (Date.now() - started > 15 * 60000) { ui.tidy = { ...noTidy(), state: 'failed', error: 'Nothing after 15 minutes. Check the session in Loom.' }; paint(); return; }
       pollTidy(personId, day, started);
     }, 3000);
   }
@@ -428,7 +428,7 @@ export function createOneOnOnesPage(ws, root, host) {
         if (r.state === 'done') { ui.ai.state = 'done'; ui.ai.text = r.text || ''; paint(); return; }
         if (r.state === 'failed') { ui.ai.state = 'failed'; ui.ai.error = r.error || ''; paint(); return; }
       } catch { /* keep waiting; Workshop may be busy */ }
-      if (Date.now() - started > 15 * 60000) { ui.ai.state = 'failed'; ui.ai.error = 'No draft after 15 minutes. Check the session in Dispatch.'; paint(); return; }
+      if (Date.now() - started > 15 * 60000) { ui.ai.state = 'failed'; ui.ai.error = 'No draft after 15 minutes. Check the session in Loom.'; paint(); return; }
       poll(personId, day, started);
     }, 3000);
   }

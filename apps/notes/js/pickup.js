@@ -1,11 +1,11 @@
 /* Notes: captures from Home and the Dispatch hub (docs/handoffs.md, docs/hub.md).
 
-   A note captured in Home's quick capture or the Dispatch hub arrives as an offer in that app's own `handoffs`
+   A note captured in Home's quick capture or the Loom hub arrives as an offer in that app's own `handoffs`
    collection, addressed to `notes` with payload.kind 'note' and accepted: true. The person already accepted it
    where they typed it, so Notes adds it the next time it loads, with no second click:
      - from Home: a bullet in the one Quick Notes note (`quick-notes.md`, pinned in the sidebar), newest first
        under a heading for its day. A Quick Notes that was trashed or renamed is made again on the next capture.
-     - from Dispatch: a new note in `inbox/`.
+     - from Loom: a new note in `inbox/`.
      - with payload.folder (quick capture's "n <folder>: ..."), from any sender: a new note in that folder. A
        folder with no notes by then (renamed or emptied) falls back to the two places above.
      - with payload.daily (a YYYY-MM-DD day), into that day's note, made from the daily template if needed:
@@ -22,7 +22,7 @@ import { freePath, newNoteText, slugify, validFolder } from './model.js';
 import { addUnder, writeSection } from './daily.js';
 import { dailyPath, dailyText as starterDaily } from './templates.js';
 
-export const SENDERS = { home: 'Home', agents: 'Dispatch', prioritizer: 'Docket' };
+export const SENDERS = { home: 'Home', slate: 'Loom', prioritizer: 'Docket' };
 /* Who sends Notes captures: the manifests on this site add to this list (shared/handoffs.js, docs/handoffs.md). */
 export const INBOX = 'inbox';
 export const QUICK = 'quick-notes.md';
