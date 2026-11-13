@@ -4,8 +4,8 @@ Dispatch lets you talk to Tandem (eng-agents on opencode) directly: follow up on
 
 ## Where they show
 
-- **Hub threads.** A hub card that is not a capture gets a reply box. Follow-ups go to the hub message's own opencode session, so Tandem keeps the context; the turns show under the answer. Asks come back after a reload; captures do not, so nothing is accepted twice.
-- **Chat tab** (route `#/agents/chat/<session>`). The first entry, **Ask or capture**, is the hub: since Dispatch 2.0 it is the one place to start a conversation, so every new message goes through `/hub` (captures come back as rows, questions as answered cards). Under **Conversations**: hub threads you followed up on (**From the hub**), shown with their first question and answer, and chats started before 2.0 (**You started**). Automated work (runs, PR reviews, the hub's routing) never shows here.
+- **Chat tab** (routes `#/agents/chat` for New chat, `#/agents/chat/<session>` for one chat), laid out like ChatGPT since Dispatch 4.1.0. A sidebar of chats: **New chat**, search (titles), the list grouped by Today, Yesterday, Previous 7 days and Older, with Rename and Remove on each row. The sidebar collapses (kept in this browser as `dispatch.chatSide`); on a phone it is a drawer. One chat in view, messages in a centered column, the composer pinned at the bottom.
+- **New chat** is the hub's box. Every first message goes through `/hub`, so one box still captures: a capture (or go) is handled right there and is not listed. Anything else (a question, a suggested action, a choice, or a run that ended without a route) becomes a chat: listed in the sidebar right away and opened, with the hub's answer as Tandem's first turn. Follow-ups go to the hub message's own opencode session, so Tandem keeps the context. Chats started before Dispatch 2.0 are listed too. Automated work (runs, PR reviews) never shows here.
 - **Questions in a thread.** When Tandem asks a permission or a question in a hub card's or a conversation's session, it is answered right there, with the same controls as Dispatch's Inbox (which lists it too).
 
 ## Rules
@@ -23,7 +23,8 @@ Dispatch lets you talk to Tandem (eng-agents on opencode) directly: follow up on
 | `chat.start` | yes | `text` | `{session}`: a new session, first message to the chat agent. Dispatch 2.0 starts conversations from the hub instead; the action stays for other callers |
 | `chat.send` | yes | `session`, `text` | `{ok}`. 409 while Tandem is still answering |
 | `chat.messages` | no | `session` | `{session, from, title, busy, waiting, error?, turns: [{role: "you" \| "tandem", text, at}]}`. Text only; a hub thread leaves out the /hub run itself |
-| `chat.list` | no | optional `hubs` | `{items}`: chats and followed-up hub threads, newest activity first; with `hubs: true`, the 12 newest hub threads |
+| `chat.list` | no | optional `hubs` | `{items}`: chats and every hub message that is not a capture or go (since connector 1.9.0; before, only followed-up hub threads), newest activity first; with `hubs: true`, the 12 newest hub threads |
 | `chat.remove` | no | `session` | Stops listing it in the Chat tab. The opencode session is kept |
+| `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in the Chat tab's list (since 1.9.0). The opencode session keeps its own title |
 
-The list lives in `<Workshop home>/data/_connectors/opencode/chats.json` (mode 0600, newest 100). The turns stay in opencode.
+The list lives in `<Workshop home>/data/_connectors/opencode/chats.json` (mode 0600, newest 100). Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.

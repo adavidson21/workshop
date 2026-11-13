@@ -22,7 +22,7 @@ import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
-import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
+import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, renameChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 
@@ -630,7 +630,7 @@ const actions = {
     },
   },
   "chat.list": {
-    title: "Chats you started and hub threads you followed up on",
+    title: "Chats: everything from the hub that is not a capture or go, and chats you started",
     write: false,
     argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" } }),
     async run(args) {
@@ -645,6 +645,15 @@ const actions = {
     async run(args) {
       needReady();
       return removeChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.rename": {
+    title: "Rename a chat in Dispatch's list (the opencode session keeps its title)",
+    write: false,
+    argsSchema: obj(["session", "title"], { session, title: str("New name", { minLength: 1, maxLength: 80 }) }),
+    async run(args) {
+      needReady();
+      return renameChat(args, { config: ctxRef && ctxRef.config });
     },
   },
   "repo.add": {

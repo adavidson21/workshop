@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "agents",
   "name": "Dispatch",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Flows for the opencode agents: build a feature, fix a bug, investigate, plan an epic, write docs. Your Inbox, the work in flight, and first-pass PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",

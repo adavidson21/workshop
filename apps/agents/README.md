@@ -69,7 +69,7 @@ With focus hours on (Settings, Focus hours; docs/focus.md) the shell hides the r
 
 ## Conversations
 
-The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or capture**, is the hub ([docs/hub.md](../../docs/hub.md)): one box for questions and captures, each answered as a card you can reply under. Below it, **Conversations**: hub threads you replied to, with their first question and answer, the turns since, and a reply box. When Tandem asks something in a thread or a hub card, it is answered right there (and it is in the Inbox too).
+The **Chat** tab ([docs/chat.md](../../docs/chat.md)), laid out like ChatGPT since 4.1.0: a sidebar of chats (New chat, search, grouped by Today, Yesterday, Previous 7 days and Older; rename and remove on hover; it collapses, and on a phone it is a drawer) and one chat in view, with the composer pinned at the bottom. **New chat** is the hub's box ([docs/hub.md](../../docs/hub.md)): a capture comes back as rows to accept right there, and anything else becomes a chat in the sidebar and opens, with Tandem's answer as the first turn. When Tandem asks something in a chat, it is answered right there (and it is in the Inbox too). Plan: `claude/chat-layout-v1-plan.md` in the Workshop project.
 
 ## Code review
 
@@ -96,9 +96,9 @@ The **Chat** tab ([docs/chat.md](../../docs/chat.md)). Its first entry, **Ask or
 | `js/state.js` | The state the view reads. |
 | `js/projects.js` | Projects: the filter, the project chip, run status, and the project, Projects and move sheets. HTML strings, tested in Node. |
 | `js/pr-reviews.js` | Reviews (link box, Review all, Waiting on you, Earlier reviews) and where your runs' PRs stand. HTML strings, tested in Node (`test/pr-reviews.test.mjs`). |
-| `js/hub.js`, `js/hub-model.js` | The hub, Chat's Ask or capture pane ([docs/hub.md](../../docs/hub.md)), with reply threads under its cards ([docs/chat.md](../../docs/chat.md)). |
-| `js/chat.js` | The Chat tab: Ask or capture (the hub's element), and conversations with Tandem's read-only chat agent. Its own element, moved into the page by `main.js` so typing survives repaints. |
-| `js/thread.js` | Turns, the last answer, "5 min ago", and keeping focus through a repaint. Shared by the hub and Chat. Tested in Node. |
+| `js/hub.js`, `js/hub-model.js` | The hub, Chat's New chat box ([docs/hub.md](../../docs/hub.md)). A message that is not a capture or go becomes a chat ([docs/chat.md](../../docs/chat.md)). |
+| `js/chat.js` | The Chat tab: the sidebar of chats, one chat in view, and New chat (the hub's element). Its own element, moved into the page by `main.js` so typing survives repaints. |
+| `js/thread.js` | Turns, the last answer, the sidebar's day groups and search, and keeping focus through a repaint. Tested in Node. |
 | `js/local.js` | The project filter in this browser: clean, load, save, prune. |
 | `js/slate-handoff.js` | The `work` handoff to Slate for a started run: the offer (tested in Node) and the write to Dispatch's `handoffs`. |
 | `agents.css` | The template's styles, minus the theme block and update checks. |
