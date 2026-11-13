@@ -8,6 +8,7 @@ import { needsReview, productNotes, toReview } from './products.js';
 import { SECTIONS, dailyGroups, visibleSections } from './sections.js';
 import { PLACEHOLDERS, placeholdersFor, templatesIn } from './templates.js';
 import { docName, findDoc, groupItems, itemLabel, parseTandem, tandemPath } from './tandem.js';
+import { lensLabel } from './lenses.js';
 
 const ICON = {
   note: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M9.3 1.8V5h3.2"/></svg>',
@@ -270,11 +271,16 @@ function tandemHeader(state) {
     <div class="crumbs"><span class="mono soft">Tandem / ${esc(it ? itemLabel(it) : d.folder)} / ${esc(d.file)}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(ui.status.kind === 'saved' ? (doc.busy ? 'Read-only' : 'In .work') : statusText(ui.status, null))}</span></div>
     <div class="head-actions">
-      ${segHtml(state)}
+      ${state.brief ? lensSegHtml(state) : ''}${segHtml(state)}
       <button class="btn ghost" data-act="open-dispatch" title="This run in Dispatch">Open in Dispatch</button>
-      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md']])}${panelBtn(ui)}
+      ${menuHtml(ui, [['open-dispatch', 'Open in Dispatch'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui, true) || lock || gate}`;
+}
+/* A spike brief's lens switch: the preview shows the brief as that reader sees it. Picking one in Edit or Live opens the preview. */
+function lensSegHtml(state) {
+  const b = state.brief, reading = state.ui.mode === 'preview' || state.ui.mode === 'split';
+  return `<div class="seg lens-seg" role="group" aria-label="Read as">${b.lenses.map(l => `<button data-lens="${l}" aria-pressed="${reading && b.lens === l}" title="The brief as ${l} reads it">${lensLabel(l)}</button>`).join('')}</div>`;
 }
 /* A fresh, empty note (main.js newNote): its templates, the starter set included, each with a pencil to change it. */
 function startBar(start) {

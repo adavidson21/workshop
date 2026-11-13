@@ -18,6 +18,7 @@ import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../
 import { DAILY, PLACEHOLDERS, PRODUCT_TPL, STARTERS, TEMPLATES, asTemplate, dailyPath, dailyText, dayOf, fill, setTemplateFields, templateFields, templateText, templatesIn } from './templates.js';
 import { SECTION_IDS, notesPaths, sectionOf, visibleSections } from './sections.js';
 import { createTandem, findDoc, isTandem, parseTandem, tandemPath } from './tandem.js';
+import { briefLenses, lensMarkdown } from './lenses.js';
 import { collapseTitle, makeLink, taskText, titleEmpty, toggleTask, toggleWrap } from './edits.js';
 import { createEditor } from './editor.js';
 import { applySlash, slashAt, slashItems } from './slash.js';
@@ -152,8 +153,18 @@ function state() {
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
   return { live: hasLive, notes, ui, found, tree: tree(notesPaths(notes.texts.keys()), [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
-    doc: tdoc, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
+    doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
+}
+
+/* A spike brief's lenses (lenses.js) and the one shown, or null. The lens picked is kept per page for this visit. */
+const lensPicked = new Map();
+function briefNow(path = ui.path, text = editor.value) {
+  if (!path || !isTandem(path)) return null;
+  const b = briefLenses(text);
+  if (!b) return null;
+  const pick = lensPicked.get(path);
+  return { ...b, lens: b.lenses.includes(pick) ? pick : b.open };
 }
 
 /* Where notes are saved, for the sidebar's foot on Notes' own site (inside Workshop, Workshop says). */
@@ -241,7 +252,8 @@ function paintPreview(now = false, { force = false } = {}) {
   const ix = notes.index;
   if (isTandem(from)) {
     // A Tandem page: its links are to code and other .work files, so only web links are links.
-    preview.innerHTML = render(text, { noLinks: true, imageUrl: () => null, tasks: !editor.readOnly });
+    const brief = briefNow(from, text);
+    preview.innerHTML = render(brief ? lensMarkdown(text, brief.lens) : text, { noLinks: true, imageUrl: () => null, tasks: !brief && !editor.readOnly });
     paintDiagrams(preview, { key: from });
     paintCodeTools(preview);
     markCursorDiagram();
@@ -1210,8 +1222,16 @@ async function downloadHtml() {
       try { svgs.set(f.src, dataUrl('image/svg+xml', new TextEncoder().encode(await svgFile(f.src)))); } catch { /* stays as its code */ }
     }
     const title = isTandem(from) ? stem(from) : (notes.index.notes.get(from) || {}).title || stem(from);
-    await saveFile(`${stem(from).slice(0, 100)}.html`, pageHtml(r.markdown, { title, diagrams: svgs, embed: isTandem(from) ? null : embedder([from]) }), 'text/html');
+    const brief = briefNow(from, text);
+    const lenses = brief ? { lenses: brief.lenses, open: brief.lens } : null;
+    const name = brief ? `${parseTandem(from).folder}-brief` : stem(from);
+    await saveFile(`${name.slice(0, 100)}.html`, pageHtml(r.markdown, { title: brief ? briefTitle(text, title) : title, diagrams: svgs, embed: isTandem(from) ? null : embedder([from]), lenses }), 'text/html');
   } catch (e) { toastErr(e); }
+}
+
+function briefTitle(text, fallback) {
+  const m = /^#\s+(?:Spike findings:\s*)?(.+?)\s*$/m.exec(text);
+  return m ? m[1] : fallback;
 }
 
 /* Print or save as PDF: the preview alone, in the light theme, once its diagrams are drawn (print CSS in notes.css). */
@@ -1489,6 +1509,11 @@ document.addEventListener('click', async (e) => {
   if ((x = el('[data-anchor]'))) { e.preventDefault(); if (x.dataset.line !== undefined) goToLine(Number(x.dataset.line)); else goToAnchor(x.dataset.anchor); return; }
   if ((x = el('[data-tag]'))) { e.preventDefault(); setQuery(`tag:${x.dataset.tag}`); side.querySelector('[data-search]')?.focus(); return; }
   if ((x = el('[data-app]'))) { e.preventDefault(); ws.open({ app: x.dataset.app, path: x.dataset.appPath || '' }).catch(toastErr); return; }
+  if ((x = el('[data-lens]'))) {
+    lensPicked.set(ui.path, x.dataset.lens);
+    if (ui.mode === 'edit' || ui.mode === 'live') setMode('preview');
+    paintChrome(); paintPreview(true); return;
+  }
   if ((x = el('[data-mode]'))) { setMode(x.dataset.mode); paintChrome(); paintPreview(true); return; }
   if (e.target.classList && e.target.classList.contains('scrim')) { ui.drawer = false; paintChrome(); return; }
   if (!(x = el('[data-act]'))) return;

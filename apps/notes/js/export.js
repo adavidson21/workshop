@@ -11,6 +11,7 @@
    Nothing is uploaded anywhere: the clipboard is the only place it goes. Pure, so Node tests run it. */
 import { esc, headingId, render } from './markdown.js';
 import { isImagePath, localHref, outsideCode, resolvePath } from './model.js';
+import { lensLabel, lensMarkdown } from './lenses.js';
 
 const IMG_RE = /(!\[(?:[^\]\\\n]|\\.)*\]\(\s*)(<[^>\n]*>|[^)\s]*)((?:\s+"[^"\n]*")?\s*\))/g;
 const DATA_IMG = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+=*$/;
@@ -88,8 +89,8 @@ const DATA_PAGE_IMG = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0
  * page allows nothing but its own styles and data: or web images. diagrams: Map(source -> data: URL);
  * embed: markdown.js's ctx.embed, for ![[note]] embeds.
  */
-export function pageHtml(markdown, { title = '', diagrams = new Map(), embed = null } = {}) {
-  const body = render(markdown, {
+export function pageHtml(markdown, { title = '', diagrams = new Map(), embed = null, lenses = null } = {}) {
+  const bodyOf = (md) => render(md, {
     imageUrl: (src) => (DATA_IMG.test(src) || /^https?:\/\//i.test(src) ? src : null),
     diagramImage: (src) => { const u = diagrams.get(src); return u && DATA_PAGE_IMG.test(u) ? u : null; },
     resolveLink: (href) => { const loc = localHref(href); return loc && !loc.path && loc.anchor ? { kind: 'anchor', anchor: loc.anchor } : null; },
@@ -101,13 +102,32 @@ export function pageHtml(markdown, { title = '', diagrams = new Map(), embed = n
     .replace(/<span class="(?:bad-link|app-chip)"[^>]*>([\s\S]*?)<\/span>/g, '$1')
     .replace(/<div class="embed-head">[\s\S]*?<\/div>/g, '')
     .replace(/ data-[a-z-]+="[^"]*"/g, '');
+  // A spike brief (lenses.js): every lens in the page, with a switch made of radio buttons and CSS only, so it
+  // works where scripts are blocked. Printing prints the open lens.
+  let top = '', body, css = '';
+  if (lenses && lenses.lenses && lenses.lenses.length) {
+    const ls = lenses.lenses;
+    top = ls.map(l => `<input type="radio" name="lens" id="lv-${l}" class="lens-radio"${l === lenses.open ? ' checked' : ''}>`).join('') +
+      `<nav class="lens-switch" aria-label="Read as">${ls.map(l => `<label for="lv-${l}" class="lt-${l}">${lensLabel(l)}</label>`).join('')}</nav>`;
+    body = ls.map(l => `<div class="lens-view lv-${l}">${bodyOf(lensMarkdown(markdown, l))}</div>`).join('\n');
+    css = ls.map(l => `#lv-${l}:checked~main .lens-view:not(.lv-${l}){display:none}#lv-${l}:checked~nav .lt-${l}{background:var(--ink);color:#fff;border-color:var(--ink)}#lv-${l}:focus-visible~nav .lt-${l}{outline:2px solid var(--accent);outline-offset:2px}`).join('') + LENS_CSS;
+  } else {
+    body = bodyOf(markdown);
+  }
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'">
-<title>${esc(title)}</title><style>${PAGE_CSS}</style></head>
-<body><main class="md">${body}</main></body></html>
+<title>${esc(title)}</title><style>${PAGE_CSS}${css}</style></head>
+<body>${top}<main class="md">${body}</main></body></html>
 `;
 }
+
+const LENS_CSS = `
+.lens-radio{position:absolute;opacity:0;pointer-events:none}
+.lens-switch{max-width:46rem;margin:0 auto;padding:1.5rem 1.5rem 0;display:flex;gap:.3rem}
+.lens-switch label{cursor:pointer;font-size:.88rem;padding:.3rem .8rem;border:1px solid var(--line);border-radius:6px;user-select:none}
+@media print{.lens-switch{display:none}}
+`;
 
 const PAGE_CSS = `
 :root{color-scheme:light;--ink:#1f1d1a;--muted:#6b665e;--line:#e2ddd3;--sunk:#f4f1ea;--accent:#3f5f6e}
