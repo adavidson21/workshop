@@ -267,7 +267,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "4.0.0",
+        "version": "4.1.0",
         "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox, Chat and PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",

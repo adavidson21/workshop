@@ -552,13 +552,20 @@ export function panelHtml(p) {
       ${!it.ado && !it.virtual ? `<label class="lvl-in">Level <select data-f="level">${LEVELS.map(l => `<option value="${l}"${it.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select></label>` : ''}
     </div>
     ${pickSection(p)}
-    ${nextHtml(n)}
+    ${p.runHtml && p.column === 'building' ? '' : nextHtml(n)}
     ${p.error ? `<p class="bad">${esc(p.error)}</p>` : ''}
+    ${runSection(p)}
     ${agentSection(p)}
     ${linkSection(p)}
     ${files}
     ${fold('details', 'Details', details, false, folds.details)}
     ${fold('timeline', 'Timeline', timelineBody(p), false, folds.timeline)}`;
+}
+
+/** Loom: the card's Tandem run, drawn by the runs half (p.runHtml: its step, file and buttons), and its full page. */
+function runSection(p) {
+  if (!p.runHtml) return '';
+  return `<section class="ps run-in"><div class="run-h"><h3>Run</h3>${btn('dispatch', 'Open the run', { title: 'The whole run: every step, its files and activity' })}</div><div class="loom-run" data-folder="${esc(p.runFolder || '')}">${p.runHtml}</div></section>`;
 }
 
 /** Turn a plain section into a folding one, open or closed. */

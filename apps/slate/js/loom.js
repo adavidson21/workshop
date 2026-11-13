@@ -29,10 +29,14 @@ export function splitRoute(path) {
 /**
  * Merge the two halves' summary cards into one list. Cards with the same id and kind combine: a `list` card's rows
  * join (the runs half's first, the same row id once), counts add up and the title says Loom; a `held` card's counts
- * add up. Other cards pass through.
+ * add up. Other cards pass through. A runs-half `needs` row for a run that has a card routes to that card.
  */
 export function mergeCards(board = [], runs = []) {
   const out = board.map(c => ({ ...c }));
+  // A run that is on a card (the board's `runs` card, by folder) opens its card, not the run: one place for it.
+  const runsCard = board.find(c => c && c.id === 'runs' && Array.isArray(c.rows));
+  const cardOf = new Map(((runsCard && runsCard.rows) || []).filter(x => x && x.folder && x.route).map(x => [x.folder, x.route]));
+  runs = runs.map(c => c && c.id === 'needs' && Array.isArray(c.rows) ? { ...c, rows: c.rows.map(x => x && cardOf.has(x.id) ? { ...x, route: cardOf.get(x.id) } : x) } : c);
   for (const r of runs) {
     const i = out.findIndex(c => c.id === r.id);
     if (i < 0) { out.push({ ...r }); continue; }
@@ -112,3 +116,23 @@ export function setBadge(half, count, opts = {}) {
   lastBadge = key;
   getWs().then(ws => ws.badge(n || null, badgeOpts)).catch(() => {});
 }
+
+/* Runs inside cards: the runs half draws a run's current step and its buttons (pages.js runCardHtml) for the board
+   half's panel, inside .loom-run, and handles the clicks there; the board half repaints its panel when the runs half
+   repaints, so the run in the panel stays current. */
+let runRenderer = null;
+export function setRunRenderer(fn) { runRenderer = fn; }
+export function runHtml(folder) { try { return runRenderer && folder ? runRenderer(folder) || '' : ''; } catch { return ''; } }
+const paintSubs = new Set();
+export function runsPainted() { for (const f of paintSubs) f(); }
+export function onRunsPainted(f) { paintSubs.add(f); }
+/* The board half opens a run's full page (a run card on the board, or Open the run in the panel). */
+const openSubs = new Set();
+export function openRunPage(folder) { for (const f of openSubs) f(folder); }
+export function onOpenRunPage(f) { openSubs.add(f); }
+/* The run open in the board's panel: the runs half reads its file (the gate's file) as it does for its own pages. */
+let panelFolder = '';
+const panelSubs = new Set();
+export function setPanelRun(folder) { folder = folder || ''; if (folder === panelFolder) return; panelFolder = folder; for (const f of panelSubs) f(folder); }
+export const panelRun = () => panelFolder;
+export function onPanelRun(f) { panelSubs.add(f); }
