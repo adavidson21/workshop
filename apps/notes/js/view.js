@@ -24,6 +24,7 @@ const ICON = {
   sideR: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.6"/><path d="M10 2.5v11"/></svg>',
   drawer: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>',
   refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>',
+  copy: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="5.2" y="5.2" width="8.6" height="8.6" rx="1.5"/><path d="M10.8 5.2V3.6a1.4 1.4 0 0 0-1.4-1.4H3.6a1.4 1.4 0 0 0-1.4 1.4v5.8a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -219,11 +220,9 @@ export function header(state) {
     ['insert-diagram', 'Insert diagram'],
     ['format-table', 'Format table', 'Ctrl+Alt+T'],
     ['map', 'Map of links'],
-    ['copy-wiki', 'Copy for wiki'],
-    ['copy', 'Copy Markdown'],
     ['download', 'Download .md'],
     ['download-html', 'Download HTML'],
-    ['print', 'Print or save as PDF'],
+    ['print', 'Save as PDF'],
     ['rename', 'Rename or move', 'F2'],
     ...(n && n.use === undefined ? [['save-template', 'Save as template']] : []),
     ...(state.isStarter ? [['reset-template', 'Reset to starter']] : []),
@@ -235,15 +234,15 @@ export function header(state) {
       <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
     <div class="head-actions">
       ${segHtml(state)}
-      <button class="btn ghost" data-act="copy-wiki" title="Copy with images, to paste into the wiki or any editor">Copy for wiki</button>
+      <button class="ibtn" data-act="copy-wiki" title="Copy, with images, to paste into a wiki or any editor" aria-label="Copy">${ICON.copy}</button>
       <button class="ibtn trash-btn" data-act="trash" title="Move to the trash" aria-label="Trash">${ICON.trash}</button>
       ${menuHtml(ui, items)}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
 }
 function segHtml(state) {
-  const modes = [...(state.live ? ['live'] : []), 'edit', ...(state.phone ? [] : ['split']), 'preview'];
-  const tips = { live: 'Formatted as you write; the Markdown shows on the line you are on', edit: 'The Markdown as it is', split: 'Markdown and preview side by side', preview: 'Read only' };
+  const modes = [...(state.live ? ['live'] : []), 'edit', 'preview'];
+  const tips = { live: 'Formatted as you write; the Markdown shows on the line you are on', edit: 'The Markdown as it is', preview: 'Read only' };
   return `<div class="seg" role="group" aria-label="View">${modes.map(m => `<button data-mode="${m}" aria-pressed="${state.ui.mode === m}" title="${tips[m]} (Ctrl+E for the next view)">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}</div>`;
 }
 /* The note's ⋯ menu: actions used less often than the ones in the header. Keyboard: arrows, Enter, Escape. */
@@ -279,7 +278,7 @@ function tandemHeader(state) {
 }
 /* A spike brief's lens switch: the preview shows the brief as that reader sees it. Picking one in Edit or Live opens the preview. */
 function lensSegHtml(state) {
-  const b = state.brief, reading = state.ui.mode === 'preview' || state.ui.mode === 'split';
+  const b = state.brief, reading = state.ui.mode === 'preview';
   return `<div class="seg lens-seg" role="group" aria-label="Read as">${b.lenses.map(l => `<button data-lens="${l}" aria-pressed="${reading && b.lens === l}" title="The brief as ${l} reads it">${lensLabel(l)}</button>`).join('')}</div>`;
 }
 /* A fresh, empty note (main.js newNote): its templates, the starter set included, each with a pencil to change it. */
