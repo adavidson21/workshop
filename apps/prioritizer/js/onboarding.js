@@ -50,12 +50,12 @@ function body(name){
   if (name === 'tasks') return `<h3>Add a few tasks</h3>
     <p>Type a task and press Enter. Tags are optional; ${TOUCH ? 'tap' : 'click'} one to try it.</p>
     <form class="tadd" id="tourAdd"><input id="tourIn" placeholder="Review design doc @Teammate !3 ~s ^fri" autocomplete="off" aria-label="New task" enterkeyhint="done"><button class="btn primary">Add</button></form>
-    <div class="ttags">${[['@name', 'person', '@Teammate'], ['>@name', 'delegate', '>@Teammate'], ['!1 to !4', 'value', '!3'], ['!!', 'urgent', '!!'], ['~xs to ~xl', 'effort', '~s'], ['^fri', 'due', '^fri'], ['#list', 'list', `#${state.lists[0].name.toLowerCase()}`]].map(([t, d, ex]) => `<button type="button" class="chip" data-tag="${esc(ex)}" data-tip="Adds ${esc(ex)}">${esc(t)} <span>${d}</span></button>`).join('')}</div>
+    <div class="ttags">${[['@name', 'person', '@Teammate'], ['>@name', 'delegate', '>@Teammate'], ['!1 to !4', 'value, 1 is High', '!2'], ['!!', 'urgent', '!!'], ['~xs to ~xl', 'effort', '~s'], ['^fri', 'due', '^fri'], ['#list', 'list', `#${state.lists[0].name.toLowerCase()}`]].map(([t, d, ex]) => `<button type="button" class="chip" data-tag="${esc(ex)}" data-tip="Adds ${esc(ex)}">${esc(t)} <span>${d}</span></button>`).join('')}</div>
     <div class="tadded">${added.map(t => `<div>${ICON.check}<span>${esc(t)}</span></div>`).join('')}</div>
     ${state.lists.some(l => l.name === 'Samples') ? '' : `<p class="tsmall">Just looking? <button class="lnk" data-samples>Load ${SAMPLES.length} sample tasks</button> in a "Samples" list. Delete the list to remove them all.</p>`}`;
   if (name === 'decide') return `<h3>How Docket decides</h3>
     <ul class="tlist">
-      <li><b>Value</b> (Trivial to High) and <b>effort</b> (XS to XL) are the two things you set, usually in Today's <b>To sort</b> column, one key each (1 to 4; effort starts at M).</li>
+      <li><b>Value</b> (Trivial to High) and <b>effort</b> (XS to XL) are the two things you set, usually in Today's <b>To sort</b> column, one key each (1 High to 4 Trivial; effort starts at M).</li>
       <li>A <b>due date</b> is optional. Without one, a task gets an implied one from its age, so nothing sits forever.</li>
       <li>The <b>score</b> is value plus urgency over effort. Your own order in <b>Week</b> always has the final say.</li>
       <li><b>Today</b> is your short list, 3 to 5 tasks, on the same page. Work moves left to right: To sort, Up next, Today. <b>Plan the day</b> turns it into time blocks, and Today groups your tasks under them.</li>

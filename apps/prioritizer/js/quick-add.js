@@ -27,7 +27,7 @@ function parseQuick(text){
   String(text || '').split(/\s+/).filter(Boolean).forEach(tok => {
     let m;
     if (tok === '!!'){ out.urgentFlag = true; return; }
-    if ((m = tok.match(/^!([1-4])$/))){ out.value = +m[1]; return; }
+    if ((m = tok.match(/^!([1-4])$/))){ out.value = 5 - +m[1]; return; }
     if ((m = tok.match(/^~(xs|s|m|l|xl)$/i))){ out.effort = m[1].toUpperCase(); return; }
     if ((m = tok.match(/^\^(.+)$/))){ const d = parseDue(m[1]); if (d){ out.due = d; return; } }
     if ((m = tok.match(/^#(.+)$/))){ const L = findListPrefix(m[1]); if (L){ out.listId = L.id; return; } }

@@ -68,7 +68,7 @@ function cheatHtml(){
       ${row(tag('>@name', '>@'), 'Hand off: waiting on them, with a follow-up date')}
     </div>
     <div class="cgrp"><h4>Priority</h4>
-      ${row([1, 2, 3, 4].map(n => tag('!' + n)).join(''), `Value: ${[1, 2, 3, 4].map(n => `${n} ${VALUE[n]}`).join(', ')}`)}
+      ${row([1, 2, 3, 4].map(n => tag('!' + n)).join(''), `Value: ${[1, 2, 3, 4].map(n => `${n} ${VALUE[5 - n]}`).join(', ')}`)}
       ${row(tag('!!'), 'Urgent')}
       ${row(['xs', 's', 'm', 'l', 'xl'].map(x => tag('~' + x)).join(''), 'Effort')}
     </div>

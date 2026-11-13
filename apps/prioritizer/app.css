@@ -1343,3 +1343,12 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
 .sr-done{text-align:center;padding:1.6rem .5rem 1rem}
 .sr-done p{color:var(--muted);margin:.4rem 0 1.2rem}
 @media (max-width:640px){.sr-keys{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* To sort rail on Week: a small icon and count, not a column-tall card (the label is in the tooltip). */
+.col-inbox.rail{width:2.6rem;justify-self:start}
+.col-inbox.rail .railbtn{padding:.45rem 0;gap:.15rem}
+.col-inbox.rail .railbtn svg{width:15px;height:15px}
+.col-inbox.rail .railbtn .rl{display:none}
+@container today3 (max-width:640px){
+  .col.rail{width:auto;justify-self:start}
+  .col.rail .railbtn{width:auto;padding:.35rem .7rem}
+}

@@ -1,5 +1,5 @@
 import { PR_TIER, prTip } from './ado.js';
-import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
+import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, PRI, PRI_ORDER, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
 import { closeDrawer, drawerId, markSel, syncDrawer } from './drawer.js';
 import { reportRoute } from './route.js';
 import { engChip } from './eng.js';
@@ -274,7 +274,7 @@ function row(t, o = {}){
     + (o.follow && t.waiting && !t.done && !pv ? `<button class="tfol" data-act="nudged" aria-label="Nudged" data-tip="Nudged: follow up again later">${ICON.nudge}</button><button class="tfol" data-act="gotback" aria-label="Got it back" data-tip="Got it back: stop waiting">${ICON.back}</button>` : '')
     + (o.back && t.cameBack && !t.done && !pv ? `<button class="tfol" data-act="dismissback" aria-label="Dismiss" data-tip="Seen it. Keep it where it is in your list">${ICON.x}</button>` : '')
     // One-key sorting on an Inbox row (views.js): value buttons on hover, the same as 1 to 4.
-    + (o.sort && !t.done && !pv ? `<span class="qsort" role="group" aria-label="Sort by value">${[1, 2, 3, 4].map(v => `<button class="qv" data-qv="${v}" aria-label="${VALUE[v]}" data-tip="${VALUE[v]}. Shortcut: ${v}">${v}</button>`).join('')}</span>` : '')
+    + (o.sort && !t.done && !pv ? `<span class="qsort" role="group" aria-label="Sort by value">${PRI_ORDER.map(v => `<button class="qv" data-qv="${v}" aria-label="${VALUE[v]}" data-tip="${VALUE[v]}. Shortcut: ${PRI(v)}">${PRI(v)}</button>`).join('')}</span>` : '')
     + (t.done || pv || o.noAssign ? '' : `<button class="twho${o.assignOn ? ' on' : ''}" data-act="assign" aria-label="Hand off or add people" data-tip="Hand off or add people. Shortcut: A">${ICON.addPerson}</button>`)
     + (t.done || o.noToday || !on('today') ? '' : `<button class="tday${fon ? ' on' : ''}" data-act="today" aria-pressed="${fon}" aria-label="${fon ? 'Remove from Today' : 'Add to Today'}" data-tip="${fon ? 'Remove from Today' : 'Add to Today'}. Shortcut: T">${ICON.sun}</button>`)
     + `</article>`;

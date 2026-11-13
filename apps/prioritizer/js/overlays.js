@@ -81,10 +81,10 @@ function showHelp(){
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>
     <table class="keys"><tbody><tr><td colspan="2"><h4>In To sort</h4></td></tr>
-      ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'On a row: how much it matters (Trivial, Low, Medium, High), then the next row')}
+      ${r('<kbd>1</kbd> to <kbd>4</kbd>', 'On a row: how much it matters (1 High, 2 Medium, 3 Low, 4 Trivial), then the next row')}
       ${r('<kbd>T</kbd> / <kbd>A</kbd> / <kbd>0</kbd>', "On Today / Hand off / Won't do")}
-      ${r('<kbd>O</kbd>', 'Sort one by one: one task at a time, big, one key each')}
-      ${r('In Sort one by one', '<kbd>1</kbd> to <kbd>4</kbd> matters, <kbd>[</kbd> <kbd>]</kbd> size, <kbd>T</kbd> <kbd>A</kbd> <kbd>0</kbd>, <kbd>S</kbd> skip, <kbd>Backspace</kbd> back')}
+      ${r('<kbd>O</kbd>', 'Card sort: one task at a time, big, one key each')}
+      ${r('In Card sort', '<kbd>1</kbd> High to <kbd>4</kbd> Trivial, <kbd>[</kbd> <kbd>]</kbd> size, <kbd>T</kbd> <kbd>A</kbd> <kbd>0</kbd>, <kbd>S</kbd> skip, <kbd>Backspace</kbd> back')}
     </tbody></table>
     <table class="keys"><tbody><tr><td colspan="2"><h4>In Day</h4></td></tr>
       ${r('<kbd>P</kbd>', 'Plan the selected task into a block (then <kbd>1</kbd> to <kbd>9</kbd>)')}
