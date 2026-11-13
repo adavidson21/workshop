@@ -937,3 +937,25 @@ function applyRequestItem() {
   applyRequest(list, { to: 'slate', payload: { kind: 'request', ado: 500, note: 'upgrade' } }, NOW);
   return list[0];
 }
+
+test('runCards (Loom): every run no card holds gets a card; investigations go to Shape, work item runs to Build', async () => {
+  const { runCards, RUN_KIND_CHIP } = await import('../js/model.js');
+  const runs = [
+    { kind: 'item', folder: '41207-fix-login', id: '41207', lane: 'feature', title: 'Fix login' },
+    { kind: 'item', folder: 'L3-local', id: 'L3', lane: 'bug', title: 'Local bug' },
+    { kind: 'spike', folder: 'spike-cache', title: 'Cache options' },
+    { kind: 'pr', folder: 'pr-12', title: 'A teammate\'s PR' },
+    { kind: 'item', folder: 'triage-x', title: 'Slate\'s own triage' },
+    { kind: 'item', folder: '500-held', id: '500', title: 'On a card by ADO id' },
+    { kind: 'item', folder: 'run-on-card', id: 'L9', title: 'On a card by folder' }
+  ];
+  const held = [cleanItem({ id: 'w_1', title: 'x', stage: 'dev', ado: { id: 500 } }), cleanItem({ id: 'w_2', title: 'y', stage: 'dev', run: { folder: 'run-on-card', id: 'L9' } })];
+  const out = runCards(runs, held, new Date('2026-11-12T12:00:00'));
+  assert.deepEqual(out.map(c => [c.id, c.stage, c.runKind, c.level, c.ado ? c.ado.id : null]), [
+    ['run_41207-fix-login', 'dev', 'item', 'story', 41207],
+    ['run_L3-local', 'dev', 'item', 'bug', null],
+    ['run_spike-cache', 'new', 'spike', 'story', null]
+  ]);
+  assert.ok(out.every(c => c.virtualRun && c.run && c.run.folder));
+  assert.equal(RUN_KIND_CHIP.spike, 'Investigate');
+});

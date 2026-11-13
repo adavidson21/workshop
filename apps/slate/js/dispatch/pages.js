@@ -19,7 +19,7 @@ import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, here
   folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder } from './flows.js';
 
 export { TABS } from '../loom.js';
-import { TABS, BOARD_TABS } from '../loom.js';
+import { TABS, BOARD_TABS, panelRun } from '../loom.js';
 // `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
 export const TAB_IDS = [...TABS.map(t => t[0]), 'work'];
 /** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
@@ -185,6 +185,16 @@ function codeRow(it) {
     `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
     `<span class="rr-m">${st === 'fix' ? 'The revision needs you' : 'Review the diff before you push'}${repo ? ` · <span class="mono">${h(repo)}</span>` : ''}</span>` +
     `<span class="rr-act">${review}<button type="button" class="btn ghost" data-hot="o" data-open-run="${h(it.folder)}">Open</button></span></article>`;
+}
+/** A run inside its card on the board (Loom, .loom-run): at a gate, its gate card (file, Approve, Send back); stopped,
+ *  its next step; otherwise its row (step, whose turn, main button). '' when there is no such run. */
+export function runCardHtml(folder) {
+  const it = itemForFolder(folder);
+  if (!it || it.kind === 'pr') return '';
+  const d = inboxData();
+  if (d.gates.includes(it)) return gateCard(it);
+  if (d.failed.includes(it)) return failedCard(it);
+  return `<div class="rows">${workRow(it)}</div>`;
 }
 function walkRowHtml(x) {
   if (x.kind === 'ask') return askHtml(x.a);
@@ -427,6 +437,9 @@ export function wantedFiles() {
   const out = [];
   const add = (it, name) => { if (it && name) out.push([it.folder, name]); };
   const t = S.ui.tab;
+  // The run in the board's open card (Loom): its gate's file, shown inline in the panel.
+  const pr = panelRun() && itemForFolder(panelRun());
+  if (pr && pr.kind !== 'pr' && atGate(pr)) add(pr, gateFile(pr));
   if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox')) {
     const it = itemForFolder(S.ui.run);
     if (it && it.kind !== 'pr') {

@@ -38,3 +38,10 @@ test('summary: held cards add up', () => {
   const out = mergeCards([{ id: 'held', kind: 'held', block: 'k', count: 1, label: '1 Slate item' }], [{ id: 'held', kind: 'held', block: 'k', count: 2, label: '2 Dispatch' }]);
   assert.deepEqual(out, [{ id: 'held', kind: 'held', block: 'k', count: 3, label: '3 updates waiting in Loom' }]);
 });
+
+test('summary: a waiting run that has a card opens the card from Needs you, once', () => {
+  const board = [{ id: 'needs', kind: 'list', rows: [] }, { id: 'runs', kind: 'list', rows: [{ id: '41207', folder: '41207-fix', route: 'item/w_7' }] }];
+  const runs = [{ id: 'needs', kind: 'list', rows: [{ id: '41207-fix', title: '#41207 Fix', route: '41207', flag: 'urgent' }, { id: 'spike-x', title: 'Spike', route: 'spike-x' }] }];
+  const needs = mergeCards(board, runs).find(c => c.id === 'needs');
+  assert.deepEqual(needs.rows.map(r => [r.id, r.route]), [['41207-fix', 'item/w_7'], ['spike-x', 'spike-x']]);
+});

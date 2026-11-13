@@ -305,6 +305,33 @@ export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Dat
     .map(r => ({ ...newItem({ title: r.title, description: r.note || '', kind: 'idea' }, now), id: `rw_${r.id}`, virtual: true, fromRunway: r.id, createdAt: isDay(r.due) ? r.due : today(now) }));
 }
 
+/* Loom: every run is a card. A Tandem run (the opencode connector's `state` items) that no stored card holds gets a
+   card of its own on the board, not stored: a work item run in Build, an investigation, spec or doc in Shape. */
+export const RUN_KIND_CHIP = { spike: 'Investigate', tsd: 'Technical spec', docs: 'Docs', epic: 'Epic plan', research: 'Research' };
+const SLATE_FOLDER = /^(triage|shape|refine|scope|handoff)-/;
+/** Cards for runs no card holds: [{...item, id: 'run_<folder>', virtualRun: true, run, runKind}]. */
+export function runCards(runs = [], items = [], now = new Date()) {
+  const folders = new Set(), ados = new Set();
+  for (const it of items) {
+    if (it.run && it.run.folder) folders.add(it.run.folder);
+    for (const f of Object.values(it.work || {})) if (f) folders.add(f);
+    if (it.ado && it.stage !== 'done') ados.add(String(it.ado.id));
+  }
+  return (Array.isArray(runs) ? runs : []).filter(r => r && typeof r.folder === 'string' && RUN_FOLDER.test(r.folder) && r.kind !== 'pr'
+    && !SLATE_FOLDER.test(r.folder) && !folders.has(r.folder) && !(r.kind === 'item' && r.id && ados.has(String(r.id))))
+    .map(r => {
+      const it = newItem({ title: oneLine(r.title || r.folder, 255), level: r.lane === 'bug' ? 'bug' : r.kind === 'epic' ? 'epic' : 'story' }, now);
+      it.id = `run_${r.folder}`;
+      it.virtualRun = true;
+      it.run = r;
+      it.runKind = r.kind === 'item' ? 'item' : r.kind;
+      it.stage = r.kind === 'item' ? 'dev' : 'new';
+      it.history = [{ stage: it.stage, at: today(now), from: 'dispatch' }];
+      if (r.kind === 'item' && /^\d{1,10}$/.test(String(r.id || ''))) it.ado = { id: Number(r.id), rev: 0, type: r.lane === 'bug' ? 'Bug' : '', url: '', connection: '', area: '', state: '' };
+      return it;
+    });
+}
+
 /**
  * Titles of the ideas Slate itself sent to Runway (Add to roadmap), as Runway titles them (the first line of the
  * offer's text). Since Runway 1.15.0 pending rows say who sent them (`from`), and Slate leaves out rows from itself
