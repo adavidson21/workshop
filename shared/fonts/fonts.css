@@ -1,3 +1,3 @@
 /* Fonts now come from the brand library: shared/themes.css imports shared/brand/tokens.css, which declares
-   Bricolage Grotesque, Figtree and DM Mono (SIL OFL 1.1, shared/brand/fonts/OFL-*.txt). This file stays so existing
+   Inter Tight, Figtree and DM Mono (SIL OFL 1.1, shared/brand/fonts/OFL-*.txt). This file stays so existing
    <link> tags keep working; it adds nothing. */

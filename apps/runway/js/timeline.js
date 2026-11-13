@@ -31,7 +31,7 @@ export const THEME = {
 };
 export const FONTS = {
   sans: 'Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
-  serif: '"Bricolage Grotesque", Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
+  serif: '"Inter Tight", Figtree, "Segoe UI", system-ui, -apple-system, Arial, sans-serif',
   mono: '"DM Mono", Consolas, Menlo, monospace'
 };
 

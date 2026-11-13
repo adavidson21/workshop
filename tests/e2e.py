@@ -1577,8 +1577,8 @@ def main():
             check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
             # Excel round trip through the vendored SheetJS: export, then import the file with Replace.
-            # The brand look (shared/themes.css imports shared/brand/tokens.css): Bricolage Grotesque headings, Figtree for the rest.
-            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Bricolage Grotesque', 'Figtree'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
+            # The brand look (shared/themes.css imports shared/brand/tokens.css): Inter Tight headings, Figtree for the rest.
+            check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Inter Tight', 'Figtree'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
             check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
             with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
             xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
