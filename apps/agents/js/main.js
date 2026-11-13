@@ -39,18 +39,20 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 if (!ws.embedded) mountBar('Dispatch');
 
 /* ---------- the hub (hub.js) and the Chat tab (chat.js) ----------
-   The hub is drawn once into #hub; chat.js keeps it in its Ask or capture pane, and before Dispatch is connected
-   paint() moves it under the setup page (#hub-slot), so captures always work. */
+   The hub is drawn once into #hub; chat.js keeps it in its New chat pane, and before Dispatch is connected
+   paint() moves it under the setup page (#hub-slot), so captures always work. A hub message that is not a
+   capture or go becomes a chat: chat.opened lists it and opens it. */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
 ws.apps.list().then(list => { useApps(list); S.hasNotes = list.some(a => a.id === 'notes'); schedule(); }).catch(() => {});
 let chat = null;
 const hubEl = document.getElementById('hub');
 const hub = startHub(ws, hubEl, {
-  openChat: session => { setTab('chat'); chat.open(session); },
+  onThread: card => { if (chat) chat.opened(card); },
+  onChange: () => { if (chat) chat.redraw(); },
   onStatus: () => { if (chat) chat.refresh(); },
   asksHtml: sid => sessionAsksHtml(sid)
 });
-chat = startChat(ws, { hubEl, intro: sid => hub.intro(sid), asksHtml: sid => sessionAsksHtml(sid), noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
+chat = startChat(ws, { hub, hubEl, asksHtml: sid => sessionAsksHtml(sid), noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
 chat.mountHub();
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------

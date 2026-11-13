@@ -1,20 +1,20 @@
-/* Dispatch: the hub (docs/hub.md). One input on the Chat tab (Ask or capture) for everything: captures, questions about your
-   repos and work, places to go, and suggested actions. Each message goes to Tandem's /hub through the opencode
+/* Dispatch: the hub (docs/hub.md). The one box in Chat's New chat pane for everything: captures, questions about
+   your repos and work, places to go, and suggested actions. Each message goes to Tandem's /hub through the opencode
    connector (hub.run, write: true, Enter is the click) and the result is read back with hub.result.
 
    Drawn once into #hub and never repainted by main.js, so typing is never lost. chat.js moves the element into its
-   Ask or capture pane; before Dispatch is connected, main.js moves it under the setup page instead.
+   New chat pane; before Dispatch is connected, main.js moves it under the setup page instead.
+
+   Dispatch 4.1.0: a message that is not a capture or go becomes a chat (onThread). chat.js lists it in the sidebar,
+   opens it, and draws the card's answer as Tandem's first turn (intro); its buttons come back here (click).
+   Follow-ups go through chat.send in chat.js. Only captures, go and errors stay as cards on the New chat pane.
 
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
      changed (Tab) or dismissed. Accepted captures go to Dispatch's own `handoffs` collection with accepted: true
      (shared/capture-box.js); Docket, Rapport and Notes add them when they load. Nothing else is written.
-   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note. Under it, the card is a
-     thread: a reply box sends follow-ups to the same opencode session through chat.send (Tandem's read-only chat
-     agent, docs/chat.md), and the turns show below the answer. Once you reply, the thread is also in the Chat tab.
-     Asks come back after a reload (chat.list with hubs, then hub.result); captures do not, so nothing is accepted
-     twice.
+   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note.
    - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
-   - clarify: chips that send the message again with the choice.
+   - clarify: chips that send the message again with the choice (a new chat).
    Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
 
    When the hub cannot reach Tandem (browser mode, the connector or its Hub setting off, no /hub command), the box
@@ -27,20 +27,22 @@
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
-import { keepFocus, lastTandem, turnsHtml } from './thread.js';
+import { keepFocus, lastTandem } from './thread.js';
 
 const OC = 'opencode';
 /* A sparkle. The slash shows only when AI is off (agents.css, .hub-ai). */
 const AI_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path class="spark" d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path class="spark" d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/><line class="slash" x1="4" y1="20" x2="20" y2="4"/></svg>';
 const POLL_MS = 1500;
-const KEEP_CARDS = 12;
+const KEEP_CARDS = 100;
+/* Captures and go are done on the page (the New chat pane); every other hub message is a conversation in Chat. */
+const NOT_A_CHAT = new Set(['capture', 'go']);
 
-const THREAD_MS = 1500;
-
-export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, asksHtml = () => '' } = {}) {
+export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, onStatus = () => {}, asksHtml = () => '' } = {}) {
   const store = createCaptureStore(ws, { sender: 'agents' });
-  const cards = [];             // newest first: {id, text, state, route, answer, error, session, rows, at, turns, tbusy, draft, replied}
-  let restored = false;
+  /* newest first: {id, text, state, route, answer, error, session, rows, at, threaded}. A threaded card is a
+     conversation: Chat shows it (intro, introHtml); the New chat pane shows only the others (captures, errors). */
+  const cards = [];
+  const loading = new Set();
   let src = {}, status = { ready: false, why: 'Checking the hub...' };
   /* The AI button at the end of the input. state: checking | on | off | na (the hub cannot run here).
      canFlip: this page may change the Hub setting (Workshop on this computer, connector ready). */
@@ -72,7 +74,6 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
         try { const cfg = await ws.connectors.getConfig(OC); config = cfg && cfg.config; on = !!(config && config.hub === true); } catch (e) { on = false; }
         const local = ws.mode === 'local';
         ai = { ...ai, state: on ? 'on' : 'off', canFlip: local && !!config, config };
-        if (on && !restored) { restored = true; restore(); }
         status = on ? { ready: true, why: '' } : { ready: false, why: local
           ? 'AI is off. Captures still work here, with simple rules.'
           : 'AI is off. Turn it on from Dispatch in Workshop on this computer (hosted pages cannot change it). Captures still work here, with simple rules.' };
@@ -102,6 +103,7 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     try {
       const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, context: (({ people, lists, areas }) => ({ people, lists, areas }))(hubContext(src)) }, { confirm: true });
       card.session = r && r.session;
+      draw();
       poll(card);
     } catch (e) {
       card.state = 'failed';
@@ -115,6 +117,7 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
       try {
         const r = await ws.connectors.call(OC, 'hub.result', { id: card.id });
         if (r.said) card.said = r.said;
+        if (r.route && typeof r.route.intent === 'string') card.rawIntent = r.route.intent.trim().toLowerCase();
         if (r.answer != null) card.answer = r.answer;
         // A route that still does not fit after repair is not acted on, but the answer and reply still show.
         const route = r.route ? checkRoute(repairRoute(r.route)) : null;
@@ -126,9 +129,10 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
         else if (r.state === 'failed') { card.state = card.answer != null ? 'done' : 'failed'; card.error = r.error; }
         else if (r.state === 'none') { card.state = 'failed'; card.error = 'Workshop restarted before the hub finished. Send it again.'; }
       } catch (e) { /* try again */ }
+      thread(card);
       draw();
       if (card.state === 'running') {
-        if (Date.now() - card.at > HUB_GIVE_UP_MS) { card.state = 'failed'; card.error = 'Still running after 10 minutes. It shows under Investigations and repo guides, where you can stop it or reply.'; draw(); }
+        if (Date.now() - card.at > HUB_GIVE_UP_MS) { card.state = 'failed'; card.error = 'Still running after 10 minutes. Stop it from the conversation, or send it again.'; thread(card); draw(); }
         else setTimeout(tick, POLL_MS);
       }
     };
@@ -152,52 +156,39 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     draw();
   }
 
-  /* ---------- threads (docs/chat.md) ---------- */
-  const threadable = card => !!(card.session && status.ready && card.state !== 'running' && card.state !== 'rules' &&
-    !(card.route && card.route.intent === 'capture'));
-  async function sendReply(card) {
-    const text = String(card.draft || '').trim();
-    if (!text || card.tbusy || card.tsending) return;
-    card.tsending = true; draw();
-    try {
-      await ws.connectors.call(OC, 'chat.send', { session: card.session, text }, { confirm: true });
-      card.draft = ''; card.replied = true; card.tbusy = true; card.terror = '';
-      card.turns = [...(card.turns || []), { role: 'you', text }];
-      pollThread(card);
-    } catch (e) {
-      card.terror = /no chat agent/.test(e.message || '') ? 'Tandem has no chat agent yet. Run the Tandem install command again (eng-agents Core 2.14.0), then restart opencode.' : (e.message || "Couldn't send that.");
-    }
-    card.tsending = false; draw();
+  /* ---------- conversations (docs/chat.md) ---------- */
+  /* A card becomes a conversation once its route says it is not a capture or go, or when it ended with no route but
+     has a session (what Tandem said is shown there). Chat opens it; follow-ups go through chat.send in chat.js. */
+  function thread(card) {
+    if (card.threaded || !card.session) return;
+    const intent = (card.route && card.route.intent) || card.rawIntent;
+    if (intent ? NOT_A_CHAT.has(intent) : card.state === 'running') return;
+    card.threaded = true;
+    onThread(card);
   }
-  function pollThread(card) {
-    const tick = async () => {
-      try {
-        const r = await ws.connectors.call(OC, 'chat.messages', { session: card.session });
-        card.turns = r.turns || []; card.tbusy = !!r.busy; card.terror = r.error || '';
-      } catch (e) { /* try again */ }
-      draw();
-      if (card.tbusy) setTimeout(tick, THREAD_MS);
-    };
-    setTimeout(tick, 400);
-  }
-  // After a reload: the recent hub asks come back as cards (captures do not, so nothing is accepted twice).
-  async function restore() {
-    let items = [];
-    try { items = (await ws.connectors.call(OC, 'chat.list', { hubs: true })).items || []; } catch (e) { return; }
-    for (const it of items) {
-      if (!it.hub || cards.some(c => c.id === it.hub || c.session === it.session)) continue;
-      let r;
-      try { r = await ws.connectors.call(OC, 'hub.result', { id: it.hub }); } catch (e) { continue; }
-      if (!r || r.state === 'none' || r.state === 'running') continue;
-      const route = r.route ? checkRoute(repairRoute(r.route)) : null;
-      if (route && route.intent !== 'ask' && route.intent !== 'clarify') continue;
-      const card = { id: it.hub, text: it.title, at: it.at, session: it.session, rows: [], route, badRoute: !!(r.route && !route),
-        answer: r.answer, said: r.said, state: r.answer != null || r.state === 'done' ? 'done' : r.state === 'routed' ? 'noanswer' : 'failed',
-        error: r.error, replied: it.replies > 0, tbusy: !!it.busy, restored: true };
-      cards.push(card);
-      if (card.replied) pollThread(card);
-    }
+  /* A hub conversation from the Chat list with no card on this page (sent before a reload): read its result. */
+  async function ensure(item) {
+    if (!item || !item.hub || !item.session || loading.has(item.session) || cards.some(c => c.session === item.session)) return;
+    loading.add(item.session);
+    let r = null;
+    try { r = await ws.connectors.call(OC, 'hub.result', { id: item.hub }); } catch (e) { /* shown as no answer */ }
+    loading.delete(item.session);
+    if (cards.some(c => c.session === item.session)) return;
+    const route = r && r.route ? checkRoute(repairRoute(r.route)) : null;
+    const card = { id: item.hub, text: item.text || item.title, at: item.at, session: item.session, rows: [], route, badRoute: !!(r && r.route && !route),
+      answer: r ? r.answer : null, said: r ? r.said : null, error: r ? r.error : "Couldn't read the hub's answer.", threaded: true,
+      state: !r ? 'failed' : r.state === 'running' ? 'running' : r.answer != null || r.state === 'done' ? 'done' : r.state === 'routed' ? 'noanswer' : r.state === 'none' ? 'noanswer' : 'failed' };
+    cards.push(card);
     cards.sort((a, b) => b.at - a.at); cards.length = Math.min(cards.length, KEEP_CARDS);
+    if (card.state === 'running') poll(card);
+    draw();
+  }
+  /* New chat: clear finished captures and errors from the pane. */
+  function clearDone() {
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const c = cards[i];
+      if (!c.threaded && c.state !== 'running' && !c.rows.some(r => r.state === 'open' || r.state === 'edit')) cards.splice(i, 1);
+    }
     draw();
   }
 
@@ -231,7 +222,7 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
   async function saveNote(card) {
-    await noteOf(card.text, lastTandem(card.turns) || card.answer || card.said || '');
+    await noteOf(card.text, card.answer || card.said || '');
   }
   /* A capture to Notes' inbox, from a hub card or the Chat tab (one handoffs store for Dispatch). */
   async function noteOf(title, answer) {
@@ -251,8 +242,8 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
       : `<button class="btn primary" type="button" data-hub-accept="${i}">Accept</button><button class="btn ghost" type="button" data-hub-edit="${i}" title="Edit (e)">Edit</button><button class="btn ghost" type="button" data-hub-kind="${i}" title="Change what it is">Change</button><button class="btn ghost" type="button" data-hub-dismiss="${i}">Dismiss</button>`;
     return `<li class="hub-row ${r.state}"><span class="cap-tag">${esc(describe(r.p))}</span><span class="cap-text">${esc(r.p.title || r.p.text)}${low}</span>${why}<span class="hub-btns">${btns}</span></li>`;
   }
-  function cardHtml(card, ci) {
-    const head = `<header><span class="hub-q">${esc(card.text)}</span><span class="hub-state">${card.state === 'running' ? (card.route && card.route.intent === 'ask' ? 'Answering...' : 'Thinking...') : card.state === 'rules' ? 'Captured with rules' : ''}</span></header>`;
+  /* What a card shows under the question. In a conversation (thread) Chat draws the question and Tandem's asks. */
+  function bodyHtml(card, { thread = false, actions = true } = {}) {
     let body = '';
     const route = card.route;
     if (card.rows.length) {
@@ -265,7 +256,8 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     if (route && route.intent === 'ask' && route.ask.repos.length) body += `<p class="hub-meta">Looked in ${route.ask.repos.map(esc).join(', ')}</p>`;
     // No answer file: show what the session said, so a reply is never lost behind an error.
     if (card.answer == null && card.said && card.state !== 'running' && (asked || card.badRoute)) body += `<p class="hub-meta">Tandem said:</p><div class="hub-answer">${answerHtml(card.said)}</div>`;
-    if (asked && card.state !== 'running' && (card.answer != null || card.said)) body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
+    // Make it a spike and Save as note sit under Tandem's newest answer only (a chat with follow-ups has its own).
+    if (actions && asked && card.state !== 'running' && (card.answer != null || card.said)) body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
     if (card.state === 'noanswer' && !card.said) body += '<p class="hub-meta">The hub ended without an answer. Ask again, or rephrase.</p>';
     if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Dispatch expects, so nothing was captured or opened. Its reply is shown as is.</p>';
     if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
@@ -279,20 +271,18 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     }
     if (card.error && card.answer == null) body += `<p class="hub-error">${esc(card.error)}</p>`;
     // Tandem asking something in this card's session: answer it here (same controls as the Inbox).
-    if (card.session) body += asksHtml(card.session);
-    if (threadable(card)) {
-      body += turnsHtml(card.turns, { busy: card.tbusy });
-      if (card.terror) body += `<p class="hub-error">${esc(card.terror)}</p>`;
-      body += `<div class="hub-reply"><textarea rows="1" data-keep="hub:${esc(card.id)}" data-hub-replybox placeholder="Reply to Tandem (read only). Enter sends, Shift+Enter for a new line" aria-label="Reply to Tandem"${card.tbusy ? ' disabled' : ''}>${esc(card.draft || '')}</textarea>` +
-        `<button class="btn" type="button" data-hub-reply${card.tbusy || card.tsending ? ' disabled' : ''}>Send</button>` +
-        (card.replied ? '<button class="btn ghost" type="button" data-hub-openchat>Open in Chat</button>' : '') + '</div>';
-    }
-    return `<article class="hub-card" data-card="${ci}">${head}${body}</article>`;
+    if (card.session && !thread) body += asksHtml(card.session);
+    return body;
+  }
+  function cardHtml(card) {
+    const head = `<header><span class="hub-q">${esc(card.text)}</span><span class="hub-state">${card.state === 'running' ? (card.route && card.route.intent === 'ask' ? 'Answering...' : 'Thinking...') : card.state === 'rules' ? 'Captured with rules' : ''}</span></header>`;
+    return `<article class="hub-card" data-card="${esc(card.id)}">${head}${bodyHtml(card)}</article>`;
   }
   let lastHtml = null, lastFirst = null;
   function draw() {
     drawAi();
-    const html = cards.map(cardHtml).join('');
+    const html = cards.filter(c => !c.threaded).map(cardHtml).join('');
+    onChange();
     // Same markup: leave it, so the card under the pointer keeps its hover (no flicker).
     if (html === lastHtml && list.firstChild === lastFirst && list.firstChild) return;
     const back = keepFocus(list);
@@ -345,28 +335,33 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = input.value; input.value = ''; send(t); return; }
     if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; }
   });
+  const cardOf = el => { const box = el && el.closest && el.closest('[data-card]'); return box ? cards.find(c => c.id === box.dataset.card) : null; };
+  const editBox = (card, i) => root.querySelector(`[data-card="${CSS.escape(card.id)}"] [data-hub-editbox="${i}"]`);
   root.addEventListener('click', e => {
     const el = e.target.closest('button,[data-hub-editbox]');
-    if (!el || el.tagName !== 'BUTTON') return;
-    const card = cards[+(el.closest('[data-card]') || {}).dataset?.card];
-    if (!card) return;
+    if (el && el.tagName === 'BUTTON') click(el);
+  });
+  /* A button in a card: on the New chat pane, or in a conversation's first answer (chat.js passes those here). */
+  function click(el) {
+    const card = cardOf(el);
+    if (!card) return false;
     const d = el.dataset;
     if (d.hubAccept != null) accept(card, [+d.hubAccept]);
     else if (d.hubAll != null) accept(card, card.rows.map((_, i) => i));
     else if (d.hubUndo != null) undo(card, +d.hubUndo);
     else if (d.hubDismiss != null) { card.rows[+d.hubDismiss].state = 'dismissed'; draw(); }
-    else if (d.hubEdit != null) { card.rows[+d.hubEdit].state = 'edit'; draw(); const b = root.querySelector(`[data-card="${cards.indexOf(card)}"] [data-hub-editbox]`); if (b) b.focus(); }
+    else if (d.hubEdit != null) { card.rows[+d.hubEdit].state = 'edit'; draw(); const b = editBox(card, +d.hubEdit); if (b) b.focus(); }
     else if (d.hubSave != null) saveEdit(card, +d.hubSave);
     else if (d.hubKind != null) { const r = card.rows[+d.hubKind]; r.p = { ...retarget(r.p, nextKind(r.p.kind), rulesCtx()), confidence: r.p.confidence, reason: r.p.reason }; draw(); }
     else if (d.hubAct != null) runAct(card);
     else if (d.hubSpike != null) spike(card);
     else if (d.hubNote != null) saveNote(card);
-    else if (d.hubReply != null) sendReply(card);
-    else if (d.hubOpenchat != null) openChat(card.session);
     else if (d.hubChoice != null) send(`${card.text} (${card.route.clarify.choices[+d.hubChoice]})`);
-  });
+    else return false;
+    return true;
+  }
   function saveEdit(card, i) {
-    const box = root.querySelector(`[data-card="${cards.indexOf(card)}"] [data-hub-editbox="${i}"]`);
+    const box = editBox(card, i);
     const r = card.rows[i];
     if (!box || !r) return;
     const text = box.value.trim();
@@ -379,17 +374,9 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     r.state = 'open';
     draw();
   }
-  root.addEventListener('input', e => {
-    const box = e.target.closest && e.target.closest('[data-hub-replybox]');
-    if (!box) return;
-    const card = cards[+box.closest('[data-card]').dataset.card];
-    if (card) card.draft = box.value;
-  });
   root.addEventListener('keydown', e => {
-    const rb = e.target.closest && e.target.closest('[data-hub-replybox]');
-    if (rb && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const card = cards[+rb.closest('[data-card]').dataset.card]; if (card) sendReply(card); return; }
     const box = e.target.closest && e.target.closest('[data-hub-editbox]');
-    if (box && e.key === 'Enter') { e.preventDefault(); const card = cards[+box.closest('[data-card]').dataset.card]; saveEdit(card, +box.dataset.hubEditbox); }
+    if (box && e.key === 'Enter') { e.preventDefault(); const card = cardOf(box); if (card) saveEdit(card, +box.dataset.hubEditbox); }
   });
 
   readContext();
@@ -408,11 +395,16 @@ export function startHub(ws, root, { openChat = () => {}, onStatus = () => {}, a
     noteOf,
     /* Whether Tandem can be reached here, and why not: the Chat tab uses the same AI switch. */
     status: () => status,
-    /* A hub thread's first question and answer, for the conversation view in Chat. */
-    intro(session) {
+    /* A hub conversation's first question and answer, for Chat: {text, answer, running, html} (html: the card's
+       body, with its buttons, which chat.js hands back to click()). Null when this page has no card for it yet. */
+    intro(session, { actions = true } = {}) {
       const c = cards.find(x => x.session === session);
-      return c ? { text: c.text, answer: c.answer != null ? c.answer : (c.said || '') } : null;
+      return c ? { text: c.text, answer: c.answer != null ? c.answer : (c.said || ''), running: c.state === 'running',
+        html: `<div class="hub-intro" data-card="${esc(c.id)}">${bodyHtml(c, { thread: true, actions })}</div>` } : null;
     },
+    ensure,
+    click,
+    clearDone,
     /* The agents' prompts changed: redraw, so a card shows (or drops) its question. */
     redraw: () => draw()
   };

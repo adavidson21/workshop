@@ -30,3 +30,21 @@ test('lastTandem and since', () => {
   assert.equal(since(now - 2 * 864e5, now), '2 d ago');
   assert.equal(since(0, now), '');
 });
+
+test('the Chat sidebar: groups by day, newest first, and search by every word', async () => {
+  const { groupChats, matchChat } = await import('../js/thread.js');
+  const now = new Date(2026, 10, 12, 15).getTime(), h = 3600000;
+  const items = [
+    { session: 'a', title: 'Sample API version', last: now - h },
+    { session: 'b', title: 'Old question', last: now - 40 * 24 * h },
+    { session: 'c', title: 'Yesterday thing', last: now - 20 * h },
+    { session: 'd', title: 'Newest', last: now - 60000 },
+    { session: 'e', title: 'Last week', last: now - 4 * 24 * h }
+  ];
+  assert.deepEqual(groupChats(items, now).map(g => [g.label, g.items.map(c => c.session)]),
+    [['Today', ['d', 'a']], ['Yesterday', ['c']], ['Previous 7 days', ['e']], ['Older', ['b']]]);
+  assert.deepEqual(groupChats([], now), []);
+  assert.equal(matchChat(items[0], 'api SAMPLE'), true);
+  assert.equal(matchChat(items[0], 'api billing'), false);
+  assert.equal(matchChat(items[0], '  '), true);
+});

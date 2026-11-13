@@ -22,13 +22,15 @@ export const MAX_TEXT = 20000;
 export const MAX_TURNS = 100;
 const TITLE_MAX = 80;
 
-let chats = null; // session id -> {session, from, title, hub?, at, last, replies}
+let chats = null; // session id -> {session, from, title, hub?, intent?, at, last, replies, hidden?, renamed?}
 let fileOverride = null;
+let hubDirOverride = null;
 
-/** Tests point the list at a temp file. */
-export function resetChats(file = null) {
+/** Tests point the list at a temp file (and the hub requests at a temp folder). */
+export function resetChats(file = null, hubDir = null) {
   chats = null;
   fileOverride = file;
+  hubDirOverride = hubDir;
 }
 function chatFile() {
   if (fileOverride) return fileOverride;
@@ -54,6 +56,36 @@ function save() {
   const tmp = f + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify({ version: 1, items }, null, 1), { mode: 0o600 });
   fs.renameSync(tmp, f);
+}
+
+/* A hub message's intent (ask, capture, go, act, clarify) from its route.json, read loosely: Dispatch checks the
+   route itself. hub.mjs records it through noteIntent once it reads the route; this covers runs from before 1.9.0. */
+function hubDir() {
+  if (hubDirOverride) return hubDirOverride;
+  return ctx && ctx.home ? path.join(ctx.home, "data", "_connectors", "opencode", "hub") : null;
+}
+function routeIntent(id) {
+  const dir = hubDir();
+  if (!dir || !/^[a-z0-9][a-z0-9_-]{2,59}$/.test(String(id || ""))) return null;
+  try {
+    const m = /"intent"\s*:\s*"([a-z]+)"/.exec(fs.readFileSync(path.join(dir, id, "route.json"), "utf8").slice(0, 64000));
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+/** hub.result calls this when it has read a route, so the Chat list can leave captures and go out. */
+export function noteIntent(hubId, intent) {
+  if (typeof intent !== "string" || !intent) return;
+  let changed = false;
+  for (const c of load().values()) if (c.hub === hubId && c.intent !== intent) { c.intent = intent; changed = true; }
+  if (changed) try { save(); } catch (e) { log(`chat list not saved: ${e.message}`); }
+}
+/** Captures and go are done on the page; everything else from the hub is a conversation. */
+const NOT_A_CHAT = new Set(["capture", "go"]);
+function isChat(c) {
+  if (c.hidden) return false;
+  if (c.from === "you" || c.replies > 0) return true;
+  if (!c.intent) { const i = routeIntent(c.hub); if (i) c.intent = i; }
+  return !NOT_A_CHAT.has(c.intent);
 }
 
 const titleOf = (text) => String(text || "").replace(/\s+/g, " ").trim().slice(0, TITLE_MAX) || "Chat";
@@ -148,8 +180,8 @@ export async function chatMessages({ session }, { config } = {}) {
 }
 
 /**
- * Conversations for the Chat tab, newest activity first: every chat you started, and hub threads you followed up
- * on. With `hubs: true`, the newest HUB_RECENT hub threads instead (followed up or not), so Dispatch can show its
+ * Conversations for the Chat tab, newest activity first: every chat you started, and every hub message that is not
+ * a capture or go (Connector 1.9.0; before, only hub threads you followed up on). With `hubs: true`, the newest HUB_RECENT hub threads instead (followed up or not), so Dispatch can show its
  * hub cards again after a reload.
  */
 export const HUB_RECENT = 12;
@@ -161,9 +193,10 @@ export function listChats({ config, hubs = false } = {}) {
     return { items };
   }
   const items = [...load().values()]
-    .filter((c) => !c.hidden && (c.from === "you" || c.replies > 0))
+    .filter(isChat)
     .sort((a, b) => (b.last || 0) - (a.last || 0))
-    .map((c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, busy: busy(c.session), waiting: waiting(c.session), ...(c.hub ? { hub: c.hub } : {}) }));
+    .map((c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, replies: c.replies || 0, busy: busy(c.session), waiting: waiting(c.session),
+      ...(c.hub ? { hub: c.hub } : {}), ...(c.intent ? { intent: c.intent } : {}) }));
   return { items };
 }
 
@@ -175,4 +208,15 @@ export function removeChat({ session }, { config } = {}) {
   else load().delete(c.session);
   save();
   return { ok: true };
+}
+
+/** Renames a conversation in the Chat tab (Dispatch's list only; the opencode session keeps its own title). */
+export function renameChat({ session, title }, { config } = {}) {
+  needAi(config);
+  const c = known(session);
+  const t = String(title || "").replace(/\s+/g, " ").trim();
+  if (!t) throw httpError(400, "Type a name first.");
+  c.title = t.slice(0, TITLE_MAX);
+  save();
+  return { ok: true, title: c.title };
 }

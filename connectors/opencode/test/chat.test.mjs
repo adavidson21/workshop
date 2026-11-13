@@ -4,17 +4,19 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { AGENT, KEEP, chatMessages, listChats, recordHub, removeChat, resetChats, sendChat, startChat } from "../lib/chat.mjs";
+import { AGENT, KEEP, chatMessages, listChats, noteIntent, recordHub, removeChat, renameChat, resetChats, sendChat, startChat } from "../lib/chat.mjs";
 import { oc, permissions, sessions, upsertSession } from "../lib/opencode-state.mjs";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "workshop-chat-"));
 const file = path.join(dir, "chats.json");
+const hubs = path.join(dir, "hub");
 after(() => fs.rmSync(dir, { recursive: true, force: true }));
 const on = { hub: true };
 let prompts, turns, made;
 beforeEach(() => {
   try { fs.rmSync(file); } catch { /* none */ }
-  resetChats(file);
+  resetChats(file, hubs);
+  fs.rmSync(hubs, { recursive: true, force: true });
   sessions.clear(); permissions.clear();
   prompts = []; turns = {}; made = 0;
   oc.connected = true;
@@ -59,10 +61,10 @@ test("messages go only to hub threads and chats from Dispatch, and need the chat
   await rejects(startChat({ text: "hi" }, { config: on }), "unavailable");
 });
 
-test("a hub thread: listed only after a follow-up, the /hub run left out of its turns, kept across restarts", async () => {
+test("a hub thread: listed right away, the /hub run left out of its turns, kept across restarts", async () => {
   recordHub("ses_h", "hub_abc", "which .NET is the sample api on?", 5);
-  assert.deepEqual(listChats({ config: on }).items, []);
-  resetChats(file);
+  assert.deepEqual(listChats({ config: on }).items.map((c) => c.session), ["ses_h"], "a question is a chat before any reply (1.9.0)");
+  resetChats(file, hubs);
   await sendChat({ session: "ses_h", text: "and the tests project?" }, { config: on, now: 30 });
   const items = listChats({ config: on }).items;
   assert.equal(items.length, 1);
@@ -92,4 +94,28 @@ test("the list: newest first, waiting shown, removing hides it, and only the new
   assert.deepEqual(listChats({ config: on }).items.map((c) => c.session), ["ses_1"]);
   for (let i = 0; i < KEEP + 5; i++) recordHub(`ses_x${i}`, `hub_${i}`, "x", 100 + i);
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).items.length, KEEP);
+});
+
+test("captures and go stay out of the list; the intent comes from hub.result or route.json", () => {
+  recordHub("ses_a", "hub_ask", "what is on net8?", 1);
+  recordHub("ses_c", "hub_cap", "t call vendor friday", 2);
+  recordHub("ses_g", "hub_go", "open my board", 3);
+  recordHub("ses_old", "hub_old", "r thanks to sam", 4);
+  noteIntent("hub_cap", "capture");
+  noteIntent("hub_go", "go");
+  noteIntent("hub_ask", "ask");
+  fs.mkdirSync(path.join(hubs, "hub_old"), { recursive: true });
+  fs.writeFileSync(path.join(hubs, "hub_old", "route.json"), '```json\n{"intent": "capture", "proposals": []}\n```');
+  assert.deepEqual(listChats({ config: on }).items.map((c) => [c.session, c.intent]), [["ses_a", "ask"]]);
+  resetChats(file, hubs);
+  assert.deepEqual(listChats({ config: on }).items.map((c) => c.session), ["ses_a"], "the intent is kept across restarts");
+});
+
+test("rename changes the title in the list only, and needs a name", async () => {
+  await startChat({ text: "first question" }, { config: on, now: 1 });
+  assert.deepEqual(renameChat({ session: "ses_1", title: "  Sample   api  " }, { config: on }), { ok: true, title: "Sample api" });
+  assert.equal(listChats({ config: on }).items[0].title, "Sample api");
+  assert.throws(() => renameChat({ session: "ses_1", title: "  " }, { config: on }), (e) => e.code === "bad_request" || /name/.test(e.message));
+  assert.throws(() => renameChat({ session: "nope", title: "x" }, { config: on }), (e) => /not a hub thread/.test(e.message));
+  assert.throws(() => renameChat({ session: "ses_1", title: "x" }, { config: {} }), (e) => e.code === "unavailable");
 });

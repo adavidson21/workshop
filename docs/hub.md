@@ -1,6 +1,6 @@
 # Hub
 
-The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives on Dispatch's Chat tab (Ask or capture) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
+The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives on Dispatch's Chat tab (New chat; a message that is not a capture or go becomes a chat, docs/chat.md) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
 
 This contract covers the two files Workshop and Tandem pass between them, `request.md` and `route.json`, and how captures reach other apps.
 

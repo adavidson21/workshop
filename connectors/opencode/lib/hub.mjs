@@ -12,7 +12,7 @@ import path from "node:path";
 import { ctx, httpError, log } from "./context.mjs";
 import { sessions } from "./opencode-state.mjs";
 import { runLoose } from "./workspace.mjs";
-import { recordHub } from "./chat.mjs";
+import { noteIntent, recordHub } from "./chat.mjs";
 
 export const HUB_ID = /^[a-z0-9][a-z0-9_-]{2,59}$/;
 export const MAX_MESSAGE = 4000;
@@ -145,6 +145,7 @@ export function hubResult({ id }, { root = hubRoot(), config } = {}) {
     try { route = parseRoute(readCapped(rf, MAX_ROUTE_BYTES)); } catch { routeError = "route.json is not valid JSON."; }
   }
   if (fs.existsSync(af)) answer = readCapped(af, MAX_ANSWER_BYTES);
+  if (route && typeof route.intent === "string") noteIntent(id, route.intent);
   if (busy(sid)) return { state: "running", ...out, ...(route ? { route } : {}) };
   // What the session last said, for when the files do not tell the whole story (Dispatch shows it as text).
   const s = sid ? sessions.get(sid) : null;

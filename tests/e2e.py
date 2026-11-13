@@ -1298,9 +1298,15 @@ def agents_checks(b, watch):
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('#g-asks').count() == 0)
         check('and the badge goes back down', pg.inner_text('.app-btn[data-app=agents] .badge') == str(before))
 
-        # Chat: the hub is the Ask or capture pane, the first entry and the default.
+        # Chat (Dispatch 4.1.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
         af.click('.tabs [data-tab=chat]'); pg.wait_for_timeout(400)
-        check('Chat opens on Ask or capture, with the hub box in it', af.locator('.chat-item.new.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
+        check('Chat opens on New chat, with the hub box in it', af.locator('.chat-newbtn.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
+        check('the sidebar has New chat and search', af.locator('.chat-side .chat-search').is_visible() and af.inner_text('.chat-top h2') == 'New chat')
+        af.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
+        check('the sidebar closes, the hub box stays, and it is remembered', af.locator('.chat-side').count() == 1 and not af.locator('.chat-side').is_visible()
+              and af.locator('.chat-home #hub .cap-in').is_visible() and af.evaluate("localStorage.getItem('dispatch.chatSide')") == 'closed')
+        af.click('.chat-top [data-chat-side]'); pg.wait_for_timeout(200)
+        check('and opens again', af.locator('.chat-side').is_visible() and af.evaluate("localStorage.getItem('dispatch.chatSide')") == 'open')
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
