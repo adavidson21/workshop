@@ -1479,7 +1479,7 @@ async function start() {
       await peoplePages();
       const list = await connectorsSetup();
       await productsPage();
-      await writingPages();
+      if (list.some(i => i.id === 'opencode')) await writingPages(); // Writing needs opencode for its AI steps
       statusCard();
       await reposTab(list);
       updateGates();
