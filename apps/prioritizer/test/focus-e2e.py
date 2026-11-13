@@ -106,7 +106,7 @@ def main():
         # Focus hours on, 10:00: the Inbox folds, Needs you holds all but the blocking PR.
         pg.evaluate(SETTINGS, True); tick(pg, 2000)
         pg.clock.pause_at(at(10, 0)); tick(pg)
-        check('during focus the Inbox folds to a rail with its count and when it comes back', pg.locator('.col-inbox.rail.held').count() == 1 and pg.inner_text('.col-inbox.rail .num').strip() == '1' and 'until 1:00' in pg.inner_text('.col-inbox.rail'))
+        check('during focus the Inbox folds to a rail with its count and when it comes back', pg.locator('.col-inbox.rail.held').count() == 1 and pg.inner_text('.col-inbox.rail .num').strip() == '1' and 'until 1:00' in (pg.get_attribute('.col-inbox.rail', 'aria-label') or ''))
         check('during focus the blocking PR still shows in Reviews (it breaks through)', 'blocked on you' in pg.inner_text('.treviews') and pg.locator('.treviews.held').count() == 0)
         add_tasks(pg, [{'id': 'in2', 'title': 'Captured during focus', 'value': None, 'effort': None}]); tick(pg, 1500)
         check('a capture during focus still lands in the Inbox and counts on the rail', pg.inner_text('.col-inbox.rail .num').strip() == '2')
