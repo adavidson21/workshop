@@ -19,6 +19,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Teams | [teams.md](teams.md) | `settings.teams` v1 | `team` | `tests/check-contracts.mjs` (examples) |
 | Products | [products.md](products.md) | `settings.products` v1 | `product` | `tests/check-contracts.mjs` (examples), `shared/test/products.test.mjs` |
 | Focus hours and lunch | [focus.md](focus.md) | `settings.focus` v1 | `focus-settings`, `focus-day` | `tests/check-contracts.mjs` (examples), `shared/test/focus.test.mjs` |
+| Writing voice | [writing.md](writing.md) | `settings.writing` v1 | none | `apps/settings/test/voice-model.test.mjs`, `connectors/opencode/test/voice.test.mjs` |
 | App settings | [app-settings.md](app-settings.md) | `settings.app-settings` v1 | `app-setting` | `tests/check-contracts.mjs` (examples), `shared/test/app-settings.test.mjs` |
 | Boundaries and shared files | [shared.md](shared.md) | 1 | none | `tests/check-boundaries.mjs`, `tests/check-extract.mjs`, `tests/switches-e2e.py`, `shared/test/sdk-contract-reads.test.mjs` |
 | Site config | [site.md](site.md) | `site: 1` | none | `tests/check-site.mjs` |

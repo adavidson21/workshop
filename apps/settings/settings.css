@@ -313,3 +313,16 @@ label.btn{cursor:pointer}
 .gd-item,.gd-item:last-child{border-color:var(--line)}
 .people-sub,.preview h3{font-weight:700}
 @media (max-width:760px){.side-title{margin:0 0 .6rem}}
+/* Writing (voice-page.js) */
+.wv-text{width:100%;font:inherit;font-size:.92rem;line-height:1.5}
+.wv-out{margin-top:1rem}
+.wv-warn{margin:.4rem 0;padding-left:1.1rem;font-size:.88rem}
+.wv-list{list-style:none;margin:.4rem 0;padding:0}
+.wv-list li{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.88rem}
+.wv-snip{flex:1;min-width:14rem;color:var(--muted);white-space:pre-wrap}
+.wv-aud-samples{margin:.8rem 0}
+.wv-aud-samples details{margin:.3rem 0}
+.wv-aud-samples textarea,.wv-style-form textarea,.wv-aud-form textarea,.wv-shared-form textarea{width:100%}
+.wv-aud-form{padding:.6rem 0;border-bottom:1px solid var(--line)}
+.wv-more{margin-top:.5rem}
+.wv-more input{width:100%}

@@ -22,6 +22,7 @@ import { emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
+import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
 import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, renameChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
@@ -174,6 +175,7 @@ function resetAll() {
   resetOneOnOnes();
   resetHub();
   resetChats();
+  resetVoice();
 }
 
 async function init() {
@@ -600,6 +602,27 @@ const actions = {
     async run(args) {
       needReady();
       return hubResult(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "voice.run": {
+    title: "Writing: run one voice step (style guide, rewrite or learn) with the read-only plan agent",
+    write: true,
+    argsSchema: obj(["kind", "prompt"], {
+      kind: { type: "string", title: "Step", enum: VOICE_KINDS },
+      prompt: str("The whole prompt, built by Settings", { minLength: 1, maxLength: VOICE_MAX }),
+    }),
+    async run(args) {
+      needReady();
+      return runVoice(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "voice.result": {
+    title: "Writing: the reply of a voice step, if it is ready",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return voiceResult(args, { config: ctxRef && ctxRef.config });
     },
   },
   "chat.start": {

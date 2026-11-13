@@ -27,6 +27,7 @@ import * as P from './pages.js';
 import { mountPeople } from './people.js';
 import { mountFocus } from './focus-page.js';
 import { mountProducts } from './products-page.js';
+import { mountWriting } from './voice-page.js';
 import { mountGuide } from './guide.js';
 
 const $ = s => document.querySelector(s);
@@ -1456,6 +1457,12 @@ async function focusPage() {
   catch (e) { card('', '', 'focus').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }
 
+/* ---------- Writing (voice-page.js, docs/writing.md) ---------- */
+async function writingPages() {
+  try { await mountWriting({ ws, toast, pageEl: id => page(id) }); }
+  catch (e) { card('', '', 'writing-voice').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
+}
+
 /* ---------- start ---------- */
 async function start() {
   header();
@@ -1472,6 +1479,7 @@ async function start() {
       await peoplePages();
       const list = await connectorsSetup();
       await productsPage();
+      if (list.some(i => i.id === 'opencode')) await writingPages(); // Writing needs opencode for its AI steps
       statusCard();
       await reposTab(list);
       updateGates();
