@@ -81,9 +81,9 @@ function card(c, s) {
 
 // Column hints without Azure DevOps: nothing is published or resolved there.
 const NO_ADO_HINT = {
-  inbox: 'Requests and ideas nobody has looked at yet.',
-  define: 'The story or stories and their acceptance criteria, written and approved here.',
-  resolved: 'Done, waiting for a release. Mark it closed when it ships.'
+  shape: 'Requests, ideas and runs, then triage, the interview or a brief. The card says which.',
+  decide: 'The story or stories and their acceptance criteria, written and approved here, then who builds it.',
+  done: 'Done, waiting for a release. Mark it closed when it ships.'
 };
 
 export function boardHtml(columns, s) {
@@ -101,7 +101,7 @@ export function boardHtml(columns, s) {
   const minW = BOARD_COLUMNS.reduce((n, d) => n + ((columns[d.key] || []).length ? 13.75 : 8.5), 0);
   return `<div class="board" style="--cols:${BOARD_COLUMNS.length};grid-template-columns:${tracks};min-width:${minW}rem">${BOARD_COLUMNS.map(d => {
     const list = columns[d.key] || [];
-    const body = d.key === 'resolved' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
+    const body = d.key === 'done' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
     const hint = s.noAdo && NO_ADO_HINT[d.key] || d.hint;
     return `<section class="col${list.length ? '' : ' empty-col'}" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header><h2>${esc(d.title)}${hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key + (s.noAdo && NO_ADO_HINT[d.key] ? '-local' : ''), hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
       ${body}</section>`;

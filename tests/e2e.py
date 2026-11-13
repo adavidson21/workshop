@@ -304,10 +304,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and '2 setup notes' in slf.text_content('#top .ws-notices summary'))
         slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Inbox] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
+        check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Shape] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
               and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
-        check('one board of six columns, no lane switcher, Board and Health tabs', cols == ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']
+        check('one board of four lanes, no lane switcher, Board and Health tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
               and slf.locator('.top [data-act=lane]').count() == 0
               and slf.eval_on_selector_all('.top [data-act=tab]', 'bs => bs.map(b => b.dataset.id)') == ['board', 'health'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
@@ -331,7 +331,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a card in Inbox can only skip ahead (to Who builds it? or Define), from More', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('Skip ahead moves a card straight to Who builds it?, on the same board', slf.locator('.col[aria-label="Who builds it?"] .card').count() == 1
+        check('Skip ahead moves a card straight to Who builds it?, on the same board', slf.locator('.col[aria-label=Decide] .card').count() == 1
               and slf.locator('.panel .next [data-act=delegate]').count() == 1)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.click('.panel .more [data-act=done]'); pg.wait_for_timeout(600)
@@ -339,37 +339,37 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
-        check('Move back takes a done card back to Inbox and holds it there', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.col[aria-label=Inbox] .card').count() == 1)
+        check('Move back takes a done card back to Inbox and holds it there', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.col[aria-label=Shape] .card').count() == 1)
         areas = slf.eval_on_selector_all('#area option', 'os => os.map(o => o.value)')
         slf.select_option('#area', '-'); pg.wait_for_timeout(300)
-        shown_none = slf.locator('.col[aria-label=Inbox] .card').count()
+        shown_none = slf.locator('.col[aria-label=Shape] .card').count()
         slf.evaluate("() => { const s = document.getElementById('area'); const o = new Option('x', 'Proj\\\\Elsewhere'); s.add(o); s.value = o.value; s.dispatchEvent(new Event('change', {bubbles: true})); }"); pg.wait_for_timeout(300)
         shown_other = slf.locator('.board .card').count()
         empty_msg = 'match the area path' in slf.inner_text('#main')
         slf.select_option('#area', ''); pg.wait_for_timeout(300)
         check('the area path view picks which cards show (a request with no area under No area path)', areas == ['', '-'] and shown_none == 1 and shown_other == 0 and empty_msg
-              and slf.locator('.col[aria-label=Inbox] .card').count() == 1)
+              and slf.locator('.col[aria-label=Shape] .card').count() == 1)
         slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new idea lands in Inbox, marked Idea, with Write it myself (no Dispatch here)', slf.locator('.col[aria-label=Inbox] .card').count() == 2
-              and slf.locator('.col[aria-label=Inbox] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
+        check('a new idea lands in Inbox, marked Idea, with Write it myself (no Dispatch here)', slf.locator('.col[aria-label=Shape] .card').count() == 2
+              and slf.locator('.col[aria-label=Shape] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
               and slf.locator('.panel .next [data-act=write-myself]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)
         skipped = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items.find(x => x.title === 'Bulk export'); return [it.kind, it.stage, it.history.at(-1).skipped === true]; }""")
-        check('Skip ahead to Who builds it? marks it skipped', skipped == ['idea', 'decide', True] and slf.locator('.col[aria-label="Who builds it?"] .card').count() == 1)
+        check('Skip ahead to Who builds it? marks it skipped', skipped == ['idea', 'decide', True] and slf.locator('.col[aria-label=Decide] .card').count() == 1)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('Move back undoes it, back in Inbox', slf.locator('.col[aria-label=Inbox] .card').count() == 2)
+        check('Move back undoes it, back in Inbox', slf.locator('.col[aria-label=Shape] .card').count() == 2)
         details = slf.locator('.panel details.fold[data-fold=details]')
         check('Details starts closed', details.count() == 1 and details.get_attribute('open') is None)
         slf.click('.panel details.fold[data-fold=details] > summary'); pg.wait_for_timeout(200)
         check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('slate.fold.details')") == '1')
         slf.click('.top [data-act=tab][data-id=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
-        check('Health lists the six columns, with Sprints inside it', hrows == ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved'] and slf.locator('#sprints #sprintsBox').count() == 1)
+        check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
         check('Health links to Runway\'s team reports instead of framing them', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 1)
         slf.click('[data-act=reports]'); pg.wait_for_timeout(2000)
         rwf = next((f for f in pg.frames if '/runway/' in f.url), None)

@@ -2,20 +2,18 @@
 
 Your team's Azure DevOps backlog and your own ideas, from a rough request to a decision (**delegate it** or **build it yourself**), then built, merged, resolved and closed. One card per piece of work, wherever it started. Tandem's agents (eng-agents Core 2.12.0 or later; 2.16.0 for the interview) do each step's legwork, and nothing moves until you click.
 
-Two tabs: **Board** (one board, six columns) and **Health** (with **Sprints** inside it). Since 3.0.0 Slate uses Workshop's look (`shared/themes.css`: Schibsted Grotesk headings, Atkinson Hyperlegible Next text, Slate's own slate grey since Workshop 6.46.0): the tab names are the headline, columns are soft lanes with white cards, labels are sentence case, and the panel is one white sheet. Plan: `claude/slate-redesign-v1-plan.md` in the Workshop project. Roadmaps are in Runway, on its own rail button (Slate hosted it until 2.0.0; old `#/slate/roadmaps` links open Runway).
+Two tabs: **Board** (one board, four lanes since 3.1.0) and **Health** (with **Sprints** inside it). Since 3.0.0 Slate uses Workshop's look (`shared/themes.css`: Schibsted Grotesk headings, Atkinson Hyperlegible Next text, Slate's own slate grey since Workshop 6.46.0): the tab names are the headline, columns are soft lanes with white cards, labels are sentence case, and the panel is one white sheet. Plan: `claude/slate-redesign-v1-plan.md` in the Workshop project. Roadmaps are in Runway, on its own rail button (Slate hosted it until 2.0.0; old `#/slate/roadmaps` links open Runway).
 
 ## The board
 
-One board, left to right. A card's chip names the step it is at inside its column.
+One board of four lanes, left to right (3.1.0; it had six columns before). A card's chip names the step it is at inside its lane. Plan: `claude/slate-run-panel-v1-plan.md` in the Workshop project.
 
-| Column | Steps (chip) |
+| Lane | Steps (chip) |
 | --- | --- |
-| **Inbox** | New requests, your ideas, open ADO items in your team's area paths, Runway's pending ideas (**From Runway**) |
-| **Shape** | **Triage**, **Waiting on requester**, **Interview** (**Your turn** when a round waits), **Brief ready** |
-| **Define** | Drafting, then **Approved: not in ADO** until it is published |
-| **Who builds it?** | Delegate it, or build it yourself |
-| **In flight** | **With <name>** (delegated), or your own build: **Not started**, **Spec**, **Plan**, **Build**, **Waiting on you**, **Review and PR**, **Merged**. Waiting on you first, then your builds, then delegated work. |
-| **Resolved** | Merged to main and waiting for a release, grouped by area path |
+| **Shape** | **New** (requests, your ideas, open ADO items in your team's area paths, Runway's pending ideas), **Triage**, **Waiting on requester**, **Interview** (**Your turn** when a round waits), **Brief ready** |
+| **Decide** | **Define**, then **Not in ADO** until it is published, **Who builds it?**, **With <name>** (delegated) |
+| **Build** | Your own build: **Not started**, **Spec**, **Plan**, **Build**, **Waiting on you**, **Review and PR**, **Merged**. Waiting on you first. |
+| **Done** | Merged to main and waiting for a release (Resolved), grouped by area path |
 
 **Buttons.** Each step shows its main button and at most two others. Everything else is in the panel's **More** menu: **Move to** (skip ahead or move back, one list), **Build it myself** when it is a skip ahead, **Add to roadmap**, **Hide from Slate**, **Open in ADO**, **Mark closed** and **Remove from Slate**.
 
