@@ -544,9 +544,21 @@ PASTE_IMAGE = """(b64) => { const bin = atob(b64); const bytes = new Uint8Array(
   ed.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
 
 
+def notes_write(page, nf):
+    """Folio has no Split view (4.3.0): back to Live (or Edit) to type, from Preview."""
+    if 'mode-preview' in (nf.get_attribute('#body', 'class') or ''):
+        nf.click('[data-mode=live]' if nf.locator('[data-mode=live]').count() else '[data-mode=edit]'); page.wait_for_timeout(200)
+
+
+def notes_look(page, nf):
+    """Switch Folio to Preview to read what the note draws."""
+    nf.click('[data-mode=preview]'); page.wait_for_timeout(400)
+
+
 def notes_append(page, nf, text):
     """Add text at the end of the open note. Folio 3.3 edits in CodeMirror, which continues lists and closes brackets
     as you type, so set the whole text at once (as Folio's own e2e does) instead of typing it."""
+    notes_write(page, nf)
     nf.fill('.cm-content', nf.input_value('#editor') + text)
     nf.press('.cm-content', 'Control+End')
     page.wait_for_timeout(150)
@@ -557,6 +569,7 @@ def notes_new(page, nf, title, folder_button=None):
     # title when you leave it; Control+s saves it as typed.
     nf.click(folder_button or '.side [data-act=new-note]')
     page.wait_for_timeout(400)
+    notes_write(page, nf)
     nf.type('.cm-content', title)
     nf.press('.cm-content', 'Control+s')
     page.wait_for_timeout(600)
@@ -572,6 +585,7 @@ def notes_ecosystem(pg, nf):
     nf.press('.cm-content', 'Control+s'); pg.wait_for_timeout(1200)
     check('Notes: the panel lists the action item and the win (For Rapport), each with a send button',
           nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=rapport]').count() == 1)
+    notes_look(pg, nf)
     check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'docket')
     nf.click('[data-act=send][data-kind=task]'); pg.wait_for_timeout(1200)
     check('Notes: a sent action item shows Sent', 'sent' in nf.inner_text('.sendables').lower())
@@ -594,6 +608,7 @@ def notes_ecosystem(pg, nf):
     check('Notes: today\'s note has the wrap-up from Docket', '## Wrap-up' in today and '- Day: ' in today)
     if '## Wrap-up' not in today: print('      today:', today[:300].replace('\n', ' | '))
     # Plan 1: the [[ picker offers Docket's tasks; the task's details list the note.
+    notes_write(pg, nf)
     nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
     nf.type('.cm-content', '\nFollow up on [[Draft the')
     pg.wait_for_timeout(1500)
@@ -624,8 +639,6 @@ def notes_flow(page, nf, where):
     """Notes (WS15) through its page: make notes, link and tag them, paste an image, search, rename, copy."""
     seen(nf, '.side')
     notes_new(page, nf, 'Deploy Runbook')
-    # Folio 3.6.0 opens in Live; these checks read the preview beside the editor, so switch to Split (remembered).
-    if nf.locator('[data-mode=split]').count(): nf.click('[data-mode=split]'); page.wait_for_timeout(200)
     check(f'Notes ({where}): a new note opens with its title as the heading', nf.input_value('#editor').startswith('# Deploy Runbook')
           and 'Deploy Runbook' in nf.inner_text('.tree .current'))
     notes_append(page, nf, 'Steps for a release. #ops\n\n<img src=x onerror="window.__xss=1">\n')
@@ -633,7 +646,7 @@ def notes_flow(page, nf, where):
     nf.evaluate(PASTE_IMAGE, PNG_B64); page.wait_for_timeout(1200)
     text = nf.input_value('#editor')
     check(f'Notes ({where}): a pasted image is saved under attachments/ and linked in the note', bool(re.search(r'!\[Screen Shot\]\(attachments/screen-shot-\d{8}-\d{6}\.png\)', text)))
-    page.wait_for_timeout(600)
+    notes_look(page, nf)
     check(f'Notes ({where}): the preview shows the image from the folder as a blob: URL', nf.evaluate("[...document.querySelectorAll('#preview img')].some(i => i.src.startsWith('blob:') && i.naturalWidth === 1)"))
     check(f'Notes ({where}): HTML in a note is shown as text, never run', not nf.evaluate('window.__xss') and 'onerror' in nf.inner_text('#preview') and nf.locator('#preview img[src=x]').count() == 0)
 
@@ -662,20 +675,19 @@ def notes_flow(page, nf, where):
     check(f'Notes ({where}): a rename lists the notes whose links it will update', 'guide.md' in nf.inner_text('#dlg .updates'))
     nf.click('#dlg button[value=ok]'); page.wait_for_timeout(1500)
     moved = nf.input_value('#editor')
+    notes_look(page, nf)
     check(f'Notes ({where}): the renamed note keeps its image link working from its new folder', bool(re.search(r'\]\(\.\./attachments/screen-shot-', moved))
           and nf.evaluate("[...document.querySelectorAll('#preview img')].some(i => i.src.startsWith('blob:'))"))
     nf.click('.tree [data-open="guide.md"]'); page.wait_for_timeout(500)
     check(f'Notes ({where}): links to the renamed note are updated', '[Deploy Runbook](runbooks/deploy.md)' in nf.input_value('#editor'))
     nf.click('#preview a.note-link'); page.wait_for_timeout(500)
     check(f'Notes ({where}): a link in the preview opens the note', nf.input_value('#editor').startswith('# Deploy Runbook'))
-    nf.click('.note-head [data-act=menu]'); nf.click('.menu [data-act=copy]')
-    check(f'Notes ({where}): Copy puts the Markdown on the clipboard', toast_has(page, 'Copied the Markdown'))
     page.context.grant_permissions(['clipboard-read', 'clipboard-write'], origin=page.url.split('/#')[0].rstrip('/'))
     nf.click('.note-head [data-act=copy-wiki]')
-    check(f'Notes ({where}): Copy for wiki says how many images it carried', toast_has(page, 'Copied for the wiki with 1 image'))
+    check(f'Notes ({where}): Copy says how many images it carried', toast_has(page, 'Copied for the wiki with 1 image'))
     clip = page.evaluate("""async () => { const it = (await navigator.clipboard.read())[0];
       return {types: [...it.types].sort(), text: await (await it.getType('text/plain')).text(), html: await (await it.getType('text/html')).text()}; }""")
-    check(f'Notes ({where}): Copy for wiki puts Markdown with the image embedded on the clipboard', 'text/plain' in clip['types']
+    check(f'Notes ({where}): Copy puts Markdown with the image embedded on the clipboard', 'text/plain' in clip['types']
           and '](data:image/png;base64,iVBORw0KGgo' in clip['text'] and 'attachments/' not in clip['text'] and clip['text'].startswith('# Deploy Runbook'))
     check(f'Notes ({where}): and HTML with the image inside it, for a visual editor', 'text/html' in clip['types']
           and '<img src="data:image/png;base64,iVBORw0KGgo' in clip['html'] and 'data-note' not in clip['html'])
