@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "5.1.0",
-  "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, the data folder and backups, and a user guide.",
+  "version": "5.2.0",
+  "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, writing voice, the data folder and backups, and a user guide.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -41,6 +41,10 @@
       "path": "products"
     },
     {
+      "name": "writing voice",
+      "path": "writing"
+    },
+    {
       "name": "user guide",
       "path": "guide"
     },
@@ -61,12 +65,15 @@
     "js/products-page.js",
     "js/repos.js",
     "js/settings.js",
+    "js/voice-model.js",
+    "js/voice-page.js",
     "settings.css"
   ],
   "data": [
     "teams",
     "products",
-    "focus"
+    "focus",
+    "writing"
   ],
   "routes": [
     {
@@ -100,6 +107,10 @@
     {
       "path": "focus",
       "title": "Focus hours and lunch"
+    },
+    {
+      "path": "writing",
+      "title": "Writing voice"
     },
     {
       "path": "guide",

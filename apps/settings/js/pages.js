@@ -11,6 +11,7 @@ export const GROUPS = [
   { id: 'people', label: 'People & teams' },
   { id: 'ado', label: 'Azure DevOps', connector: 'ado' },
   { id: 'code', label: 'Code & agents', connector: 'opencode' },
+  { id: 'writing', label: 'Writing' },
   { id: 'connectors', label: 'Connectors' },
   { id: 'help', label: 'Help' }
 ];
@@ -30,6 +31,9 @@ export const PAGES = {
   products: { label: 'Products', group: 'code' },
   repos: { label: 'Repos', group: 'code' },
   agents: { label: 'Agents', group: 'code', owner: 'opencode' },
+  'writing-voice': { label: 'Voice', group: 'writing' },
+  'writing-audiences': { label: 'Audiences', group: 'writing' },
+  'writing-rules': { label: 'Rules', group: 'writing' },
   guide: { label: 'User guide', group: 'help' }
 };
 export const ORDER = Object.keys(PAGES);
@@ -123,6 +127,7 @@ export function routeToPage(path) {
     if (b === 'you') { const c = String(path || '').split('/').filter(Boolean)[2]; let name = ''; try { name = c ? decodeURIComponent(c) : ''; } catch { name = ''; } return { page: 'people', focus: 'you', name: name.slice(0, 200) }; }
     return b === 'team' ? { page: 'team' } : b === 'import' ? { page: 'people', focus: 'import' } : { page: 'people' };
   }
+  if (a === 'writing' || a === 'voice') return { page: 'writing-voice' };
   if (a === 'import') return { page: 'people', focus: 'import' };
   return { page: OLD[a] || a };
 }
