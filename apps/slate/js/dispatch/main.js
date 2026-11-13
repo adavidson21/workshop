@@ -6,12 +6,12 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
-import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest } from '../loom.js';
+import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
-import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList } from './pages.js';
+import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { startHub } from './hub.js';
@@ -424,6 +424,10 @@ function tryKey() {
 }
 ws.on('route', p => wantFocus(p.path));
 onTabRequest(t => { if (ui().tab !== t || ui().run) setTab(t); });
+// A run inside its card on the board (loom.js): its step and buttons, and its full page from the card.
+setRunRenderer(folder => (S.D ? runCardHtml(folder) : ''));
+onPanelRun(() => { loadFiles(); schedule(); });
+onOpenRunPage(folder => { if (itemForFolder(folder)) openRun(folder, 'board'); else { keyWanted = { key: folder, until: Date.now() + 15000 }; tryKey(); } });
 // Opened on its own, the hash is #<route> (the shell strips its own part before sending the route). Inside the shell
 // the frame's own hash is set only by Back to Dispatch on the code review (review.html), which returns to the run.
 if (location.hash.length > 1) wantFocus(decodeURIComponent(location.hash.slice(1)));
@@ -443,6 +447,7 @@ function paint() {
   S.today = dayKey(new Date());
   S.yest = dayKey(new Date(S.now - 864e5));
   const html = render();
+  runsPainted(); // the board half's panel shows runs too (loom.js)
   // Skip a repaint that would draw the same thing: rebuilding the view under the pointer drops and
   // re-applies :hover, which flickers (repaints come with every agent event and on timers).
   if (html === lastHtml && app.firstChild === lastFirst && app.firstChild && !focusWanted) return;
@@ -832,13 +837,19 @@ async function copy(b) {
   }
 }
 
-app.addEventListener('change', ev => {
+/* The runs half's input: its own page (#app), and the run cards inside the board's panel (.loom-run, loom.js). */
+function listen(type, fn, opts) {
+  app.addEventListener(type, fn, opts);
+  const br = document.getElementById('board-root');
+  if (br) br.addEventListener(type, ev => { if (ev.target && ev.target.closest && ev.target.closest('.loom-run')) fn(ev); }, opts);
+}
+listen('change', ev => {
   const pi = ev.target.closest && ev.target.closest('[data-gport]');
   if (!pi) return;
   const n = Math.round(+pi.value);
   if (n >= 1024 && n <= 65535) { S.setup.port = n; S.setup.check = null; saveGuide(); schedule(); }
 });
-app.addEventListener('click', ev => {
+listen('click', ev => {
   const dd = ev.target.closest('[data-digest-dismiss]');
   if (dd) { try { localStorage.setItem(DIGEST_KEY, dateStr(new Date())); } catch (e) { /* this page only */ } schedule(); return; }
   const dg = ev.target.closest('[data-digest-app]');
@@ -1020,11 +1031,11 @@ app.addEventListener('click', ev => {
   if (t.closest('[data-alerts]') && S.canNotify) { Notification.requestPermission().then(schedule, () => {}); return; }
   if (t.closest('[data-refresh]')) act(() => read('refresh'));
 });
-app.addEventListener('toggle', ev => {
+listen('toggle', ev => {
   const k = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-key');
   if (k) ui().open[k] = ev.target.open;
 }, true);
-app.addEventListener('input', ev => {
+listen('input', ev => {
   const k = ev.target.getAttribute('data-draft');
   if (k) ui().drafts[k] = ev.target.value;
   if (k && k.startsWith('file:') && ui().file) {
@@ -1040,7 +1051,7 @@ app.addEventListener('input', ev => {
     if (go) go.disabled = ev.target.value.trim() !== go.getAttribute('data-confirm');
   }
 });
-app.addEventListener('change', ev => {
+listen('change', ev => {
   if (ev.target.hasAttribute('data-start-project') && ui().start) { ui().start.project = ev.target.value; return; }
   if (ev.target.hasAttribute('data-proj-folder') && ui().project) { ui().project.folder = ev.target.value; return; }
   if (ev.target.hasAttribute('data-repo-cat')) {
@@ -1079,7 +1090,7 @@ document.addEventListener('keydown', ev => {
   else if (k === 's') press('s');
   else if (k === 'o') press('o');
 });
-app.addEventListener('keydown', ev => {
+listen('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && dk && dk.startsWith('file:')) { ev.preventDefault(); saveFile(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }

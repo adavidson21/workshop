@@ -1,7 +1,7 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health links to Runway's team reports. This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
-import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, BOARD_TABS } from './loom.js';
+import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import * as People from '../../../shared/people.js';
@@ -11,7 +11,7 @@ import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } f
 import {
   APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
-  levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
+  RUN_KIND_CHIP, runCards, levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
 } from './model.js';
 import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
@@ -324,8 +324,12 @@ function enrich(c) {
 const pendingCards = () => pendingIdeaCards(s.pending, store.v.items, store.v.dismissed, new Date(), store.v.sentIdeas || []);
 
 /** Every card before any filter: stored items, ADO backlog items nobody has acted on, and Runway's pending ideas. */
+// Loom: a card for every run no stored card holds (model.js runCards). Its ADO item's backlog card steps aside.
+const runCardList = () => runCards((s.tstate && s.tstate.items) || [], store.v.items);
 function allCards() {
-  return [...cards(store.v.items, s.backlog), ...pendingCards()];
+  const runs = runCardList();
+  const runAdo = new Set(runs.filter(r => r.ado).map(r => String(r.ado.id)));
+  return [...cards(store.v.items, s.backlog).filter(c => !(c.virtual && c.ado && runAdo.has(String(c.ado.id)))), ...pendingCards(), ...runs];
 }
 
 /** The board: each card in its column (BOARD_COLUMNS), with the step on its chip. Closed items are off the board. */
@@ -337,6 +341,13 @@ function columns() {
   for (const c of list) {
     if (c.stage === 'done') continue;
     const e = enrich(c);
+    // An investigation, spec or doc run with no card of its own yet: in Shape, its kind on the chip.
+    if (c.virtualRun && c.runKind !== 'item') {
+      const waits = !!(c.run.next && c.run.next.needsYou);
+      e.step = waits ? 'Waiting on you' : RUN_KIND_CHIP[c.runKind] || 'Run';
+      push('shape', e);
+      continue;
+    }
     if (c.stage === 'dev' || c.stage === 'resolved' || c.virtualRun) {
       // What you build yourself (and resolved work, delegated or not), with its Tandem stage. Every run's prompts and
       // code review stay Dispatch's.
@@ -366,6 +377,7 @@ function findCard(id) {
   if (stored) return stored;
   if (id.startsWith('ado_')) { const b = s.backlog.find(x => virtualAdoId(x) === id); return b ? cards([], [b])[0] : null; }
   if (id.startsWith('rw_')) return pendingCards().find(x => x.id === id) || null;
+  if (id.startsWith('run_')) return runCardList().find(x => x.id === id) || null;
   return null;
 }
 
@@ -503,7 +515,7 @@ function paint() {
 
 function paintPanel() {
   const c = findCard(ui.open);
-  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; return; }
+  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; setPanelRun(''); return; }
   // Keep text the person is typing, and the interview's picks and notes for the same item.
   const keep = ['draft', 'answers', 'linkAdo'].map(id => [id, $(id) && $(id).value]);
   const same = panelEl.dataset.item === c.id;
@@ -511,7 +523,13 @@ function paintPanel() {
   const picked = same ? [...panelEl.querySelectorAll('.iq input[type=radio]:checked')].map(el => [el.name, el.value]) : [];
   panelEl.hidden = false;
   panelEl.parentElement.classList.toggle('wide', ui.wide);
-  setHtml(panelEl, panelHtml(panelState(c)));
+  // Loom: the card's run, current step and buttons, drawn by the runs half (loom.js runHtml).
+  const pst = panelState(c);
+  const run = c.virtualRun ? c.run : runFor(c);
+  pst.runFolder = (run && run.folder) || (c.run && c.run.folder) || '';
+  pst.runHtml = pst.runFolder ? runHtml(pst.runFolder) : '';
+  setPanelRun(pst.runFolder);
+  setHtml(panelEl, panelHtml(pst));
   for (const [id, val] of keep) if (val != null && $(id)) $(id).value = val;
   for (const [id, val] of shapeKeep) if ($(id) && $(id).value !== val) $(id).value = val;
   for (const [name, val] of picked) { const el = panelEl.querySelector(`.iq input[type=radio][name="${CSS.escape(name)}"][value="${CSS.escape(val)}"]`); if (el) el.checked = true; }
@@ -1027,7 +1045,7 @@ const ACT = {
     ws.toast('Sent to the agent.', { kind: 'success' });
     await refresh({ backlog: false });
   },
-  dispatch: (c) => { const run = c && (runFor(c) || c.run); return ws.open({ app: APP, path: run ? 'work/' + String(run.folder || run.id || '') : 'inbox' }); },
+  dispatch: (c) => { const run = c && (c.virtualRun ? c.run : runFor(c) || c.run); if (run && run.folder) openRunPage(run.folder); else requestTab('inbox'); },
   ado: (c) => { if (c.ado && c.ado.url) window.open(c.ado.url, '_blank', 'noopener'); },
   async 'roadmap-add'(c) {
     const it = await ensureStored(c);
@@ -1226,6 +1244,7 @@ function showDialog(html, onOk) {
 /* ---------- events ---------- */
 
 boardRoot.addEventListener('click', async (e) => {
+  if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
   const b = e.target.closest('[data-act]');
   if (!b || dlg.contains(b)) return;
   const act = b.dataset.act;
@@ -1245,10 +1264,12 @@ boardRoot.addEventListener('click', async (e) => {
 
 let qTimer = null;
 boardRoot.addEventListener('input', (e) => {
+  if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
   if (e.target.dataset && e.target.dataset.draft) { ui.drafts[e.target.dataset.draft] = e.target.value; return; }
   if (e.target.id === 'q') { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = e.target.value; paint(); }, 150); }
 });
 boardRoot.addEventListener('change', async (e) => {
+  if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
   if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
   if (e.target.dataset.qpick) {
@@ -1288,6 +1309,7 @@ function sprintChange(sel) {
 }
 
 boardRoot.addEventListener('keydown', (e) => {
+  if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
   // Ctrl+Enter sends a reply or an answer from the panel.
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.dataset && e.target.dataset.draft) {
     const box = e.target.closest('[data-qform]') || e.target.closest('.agent-box');
@@ -1300,6 +1322,7 @@ boardRoot.addEventListener('keydown', (e) => {
 
 // Remember an Agent, Details or Timeline section you opened or closed, so a refresh does not undo it.
 boardRoot.addEventListener('toggle', (e) => {
+  if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
   const d = e.target;
   if (d && d.classList && d.classList.contains('agent-box') && d.dataset.sid) ui.agentOpen[d.dataset.sid] = d.open;
   if (d && d.classList && d.classList.contains('slate-notices')) ui.notesOpen = d.open;
@@ -1343,6 +1366,8 @@ async function fromRunway(map, item) {
 // Routes come through the runs half's router, which owns the tab bar (loom.js splitRoute).
 onBoardRoute((p) => route(p || ''));
 onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; paint(); } });
+// The runs half repainted: the run in the open card's panel follows it.
+onRunsPainted(() => { if (ui.open && !panelEl.hidden) paintPanel(); });
 ws.on('command', (p) => {
   if (p.id === 'new') ACT.new();
   if (p.id === 'new-idea') ACT['new-idea']();

@@ -21,3 +21,8 @@ body.standalone[data-loom-tab=board], body.standalone[data-loom-tab=health] { di
 
 /* On Board and Health the tab bar lines up with the board's toolbar, full width. */
 body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-root .wrap { max-width: none; padding: 18px 1.25rem 0; }
+
+/* A card's run in the board's panel (view.js runSection): the runs half's card, under a small heading. */
+#board-root .run-in .run-h { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
+#board-root .run-in .run-h h3 { margin: 0; }
+#board-root .loom-run .icard, #board-root .loom-run .rows { margin: 0; }

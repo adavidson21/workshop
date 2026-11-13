@@ -1252,6 +1252,25 @@ def agents_checks(b, watch):
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
         check('Agents draws with Workshop\'s theme colors (shared/themes.css)', bg == ('rgb(26, 21, 23)' if want == 'dark' else 'rgb(250, 246, 241)'))
 
+        # Loom: every run is a card on the board, and a card's panel holds its run (its step and buttons).
+        open_tab(af, 'board'); seen(af, '#board-root .board'); pg.wait_for_timeout(600)
+        build = af.inner_text('#board-root .col[aria-label=Build]')
+        shape = af.inner_text('#board-root .col[aria-label=Shape]')
+        check('every work item run is a card in Build, and an investigation is a card in Shape', all(t in build for t in ('Fix login timeout', 'Export retry fails', 'CSV export'))
+              and 'Investigate' in shape and af.locator('#board-root .card').count() >= 6)
+        af.locator('#board-root .col[aria-label=Build] .card', has_text='Export retry fails').first.click(); pg.wait_for_timeout(800)
+        check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '#panel .loom-run .icard.gate') and af.locator('#panel .loom-run [data-act=approve-start]').count() == 1
+              and af.locator('#panel .run-in [data-act=dispatch]').count() == 1)
+        if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-board.png')
+        af.click('#panel .loom-run [data-sb-toggle]'); pg.wait_for_timeout(500)
+        check('the run\'s buttons work inside the card (Send back opens its note box there)', af.locator('#panel .loom-run [data-sb-toggle][aria-expanded=true]').count() == 1
+              and af.locator('#panel .loom-run textarea').count() == 1 and 'Root cause' in af.inner_text('#panel .loom-run'))
+        af.click('#panel .loom-run [data-sb-toggle]'); pg.wait_for_timeout(300)
+        af.click('#panel .run-in [data-act=dispatch]'); pg.wait_for_timeout(500)
+        check('Open the run opens its full page', seen(af, '.run-page#item-41300') and af.locator('#board-root').is_hidden())
+        af.click('[data-close-run]'); pg.wait_for_timeout(300)
+        af.click('#board-root [data-act=close]'); pg.wait_for_timeout(200)
+
         # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
         for tab in ('inbox', 'work'):
