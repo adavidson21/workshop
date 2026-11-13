@@ -3,6 +3,8 @@
 const KEY = 'prioritizer.v1', UI_KEY = 'prioritizer.ui';
 const COLORS = ['blush','sage','lavender','butter','sky','peach']; // still stored for older copies of the app; no longer shown
 const VALUE  = {1: 'Trivial', 2: 'Low', 3: 'Medium', 4: 'High'};
+/* Priority numbers shown and typed: 1 is High, 4 is Trivial. Stored value stays 1 Trivial to 4 High (no migration). */
+const PRI = v => 5 - v, PRI_ORDER = [4, 3, 2, 1];
 const EFFORTS = ['XS','S','M','L','XL'];
 const POINTS = {XS: 1, S: 2, M: 3, L: 5, XL: 8};
 const WINDOW = {4: 2, 3: 4, 2: 7, 1: 14};   // implied due window in days, by value
@@ -105,4 +107,4 @@ function initials(name){
 const NAV = [['today','Today',ICON.today,'1'],['week','Week',ICON.prio,'4'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
-export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, VIEWS, VQ, WINDOW };
+export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, PRI, PRI_ORDER, VIEWS, VQ, WINDOW };

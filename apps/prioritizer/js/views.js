@@ -1,5 +1,5 @@
 import { quickSort, wontDo } from './actions.js';
-import { EFFORTS, EQ, ICON, LENSES, POINTS, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
+import { EFFORTS, EQ, ICON, LENSES, POINTS, PRI, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
 import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, weekOff } from './render.js';
 import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeListIds, scopeOpen, state, ui } from './state.js';
@@ -54,7 +54,7 @@ function inboxCol(rail){
   const rows = q.map(t => row(t, {compact: true, back: true, sort: true})).join('');
   const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> hand off, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
   return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort">
-    <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}${q.length > 1 ? `<button class="lnk colh-act" data-sortrun data-tip="One task at a time, one key each. Shortcut: O">Sort one by one</button>` : ''}</header>
+    <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}${q.length > 1 ? `<button class="lnk colh-act" data-sortrun data-tip="One task at a time, one key each. Shortcut: O">Card sort</button>` : ''}</header>
     <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>All sorted.</b>New tasks and work that comes back land here.</div>`}</div>
   </section>`;
 }
@@ -260,7 +260,7 @@ function sortKey(id, k){
   const q = inboxQueue().map(t => t.id), i = q.indexOf(id);
   if (i < 0) return false;
   const next = q[i + 1] || q[i - 1] || null;
-  if (/^[1-4]$/.test(k)){ quickSort(id, +k); return next || true; }
+  if (/^[1-4]$/.test(k)){ quickSort(id, PRI(+k)); return next || true; }
   if (k === '0'){ wontDo(id); return next || true; }
   return false;
 }

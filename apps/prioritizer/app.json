@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "10.3.0",
+  "version": "10.4.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -125,7 +125,7 @@
     },
     {
       "id": "sort-one-by-one",
-      "title": "Sort one by one",
+      "title": "Card sort",
       "route": "inbox"
     },
     {
@@ -181,6 +181,7 @@
     "js/focus.js",
     "js/main.js",
     "js/maker-manager.js",
+    "js/meetings-model.js",
     "js/model.js",
     "js/notes-link.js",
     "js/offers-model.js",

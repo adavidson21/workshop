@@ -1,12 +1,12 @@
 import { quickSort, toggleFocus, wontDo } from './actions.js';
 import { delegateTo, handoffChoices } from './delegate.js';
 import { openDrawer } from './drawer.js';
-import { EFFORTS, VALUE } from './constants.js';
+import { EFFORTS, PRI, PRI_ORDER, VALUE } from './constants.js';
 import { closeModal, showModal } from './overlays.js';
 import { commit, findTask, initials, inboxQueue, listById } from './state.js';
 import { esc, fmtDay, todayStr } from './util.js';
-/* Docket: Sort one by one (Docket 9.1.0). To sort with 10 or more tasks was slow row by row, so this sheet shows one
-   task at a time, big, with every answer a single key: 1 to 4 sets how much it matters (effort M unless you pick
+/* Docket: Card sort (was Sort one by one, Docket 9.1.0). To sort with 10 or more tasks was slow row by row, so this sheet shows one
+   task at a time, big, with every answer a single key: 1 (High) to 4 (Trivial) sets how much it matters (effort M unless you pick
    another first, with [ and ] or a click), T puts it on Today, A hands it off, 0 is won't do, Space or S skips. Each answer
    moves to the next task; Backspace goes back to the one before (its answer can be changed). The sheet walks the
    tasks that were in To sort when it opened, so nothing new jumps in mid-run. */
@@ -48,7 +48,7 @@ function body(t){
       ${t.notes ? `<p class="sr-notes">${esc(t.notes.slice(0, 220))}${t.notes.length > 220 ? '…' : ''}</p>` : ''}
       ${was ? `<p class="sr-was">${esc(was)}. Answer again to change it.</p>` : ''}
     </div>
-    <div class="sr-group"><span class="lbl">How much it matters</span><div class="sr-keys">${[1, 2, 3, 4].map(v => `<button class="sr-k${t.value === v && was ? ' on' : ''}" data-srv="${v}"><kbd>${v}</kbd>${VALUE[v]}</button>`).join('')}</div></div>
+    <div class="sr-group"><span class="lbl">How much it matters</span><div class="sr-keys">${PRI_ORDER.map(v => `<button class="sr-k${t.value === v && was ? ' on' : ''}" data-srv="${v}"><kbd>${PRI(v)}</kbd>${VALUE[v]}</button>`).join('')}</div></div>
     <div class="sr-group"><span class="lbl">How big</span><div class="seg sr-eff">${EFFORTS.map(e => `<button class="${e === eff ? 'on' : ''}" data-sre="${e}" aria-pressed="${e === eff}">${e}</button>`).join('')}</div><span class="soft sr-ekeys"><kbd>[</kbd> <kbd>]</kbd> smaller, bigger</span></div>
     <div class="sr-group"><span class="lbl">Or</span><div class="sr-keys">
       <button class="sr-k" data-sra="today"><kbd>T</kbd>On Today</button>
@@ -144,7 +144,7 @@ function onKey(e){
   if (e.key === 'Escape'){ run = null; return; }   // the page closes the sheet
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (run.hand && /^[1-9]$/.test(k)){ const it = handoffChoices(t, '')[+k - 1]; if (it){ e.preventDefault(); handTo(t, it.id); } return; }
-  if (/^[1-4]$/.test(k)){ e.preventDefault(); return setValue(t, +k); }
+  if (/^[1-4]$/.test(k)){ e.preventDefault(); return setValue(t, PRI(+k)); }
   if (k === '[' || k === ']'){
     e.preventDefault();
     const i = EFFORTS.indexOf(run.effort[t.id] || t.effort || 'M');

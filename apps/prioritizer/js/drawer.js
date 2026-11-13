@@ -1,6 +1,6 @@
 import { deleteTask, moveTask, quickSort, toggleDone, toggleFocus, wontDo } from './actions.js';
 import { ADO_GONE, PR_GONE, PR_TIER } from './ado.js';
-import { EFFORTS, EQ, ICON, POINTS, VALUE, VQ } from './constants.js';
+import { EFFORTS, EQ, ICON, POINTS, PRI, PRI_ORDER, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
 import { prAiAgain, prAiDrawer, prAiOpen } from './pr-ai.js';
 import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
@@ -105,7 +105,7 @@ function renderDrawer(){
       ${sortHtml(t)}${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       ${aboutHtml(t)}
-      <div class="dfld"><span class="lbl">Value</span><div class="seg">${[1,2,3,4].map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
+      <div class="dfld"><span class="lbl">Value</span><div class="seg">${PRI_ORDER.map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
       <div class="dfld"><span class="lbl">Effort</span><div class="seg">${EFFORTS.map(e => `<button data-de="${e}" data-fk="e${e}" aria-pressed="${t.effort === e}"${t.effort === e ? ' class="on"' : ''}>${e}<span class="pts">${POINTS[e]}</span></button>`).join('')}</div></div>
       <div class="dfld"><label for="dDue">Due</label><div class="drow"><input type="date" id="dDue" data-f="due" data-fk="due" value="${t.due || ''}">${t.due ? `<button class="lnk" data-d="clear-due" data-fk="cdue">Clear</button>` : `<span class="hint">${imp ? `Implied ${fmtDay(imp)}` : 'Set a value to start aging'}</span>`}</div></div>
       <div class="dfld"><span class="lbl">Flags</span><div class="seg">
@@ -141,7 +141,7 @@ function renderDrawer(){
 function sortHtml(t){
   if (!inInbox(t)) return '';
   return `<div class="dsort" role="group" aria-label="Sort"><span class="lbl">${t.cameBack ? 'Came back. Sort it again' : 'To sort. How much does it matter?'}</span>
-    <div class="seg">${[1,2,3,4].map(v => `<button data-d="sort" data-v="${v}" data-fk="s${v}">${VALUE[v]}<kbd>${v}</kbd></button>`).join('')}</div>
+    <div class="seg">${PRI_ORDER.map(v => `<button data-d="sort" data-v="${v}" data-fk="s${v}">${VALUE[v]}<kbd>${PRI(v)}</kbd></button>`).join('')}</div>
     <span class="hint">Sends it to Ranked (effort ${t.effort || 'M'}). Or Hand off, or Won't do below.</span></div>`;
 }
 /* The ADO item is on Slate's board too (slate-link.js): where, and a way there. Inside Workshop only. */

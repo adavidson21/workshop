@@ -18,6 +18,7 @@ import { commit, findTask, isWaiting, orderedLists, scopeOpen, state } from './s
 import { EFFORTS, VALUE } from './constants.js';
 import { $, esc, fmtLong, plural, todayStr } from './util.js';
 import { focusSettings } from './focus-hours.js';
+import { addMeetings, parseIcs, parseQuick } from './meetings-model.js';
 import { lunchOn, makerManagerTemplate, overlapsLunch } from './maker-manager.js';
 
 let date = null, followToday = true, trayFilter = 'today', lastNow = null, secDrag = null;
@@ -68,7 +69,8 @@ function dayHead(){
         ${d !== todayStr() ? `<button class="ibtn" data-dp="today" aria-label="Plan today" data-tip="Plan today">${ICON.today}</button>` : ''}</div>
       ${history.canUndo ? `<button class="ibtn" data-dp="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)">${I.undo}</button>` : ''}
       ${history.canRedo ? `<button class="ibtn" data-dp="redo" aria-label="Redo" data-tip="Redo (Ctrl+Shift+Z)">${I.redo}</button>` : ''}
-      <button class="ibtn" data-dp="daymenu" aria-haspopup="menu" aria-label="This day" data-tip="This day: add a block, shift, reset">${ICON.dots}</button>
+      <button class="btn small" data-dp="meetings" data-tip="Type or paste meetings, or drop an .ics file. Shortcut: M"><span>Add meetings</span></button>
+      <button class="ibtn" data-dp="daymenu" aria-haspopup="menu" aria-label="This day" data-tip="This day: add a block or meetings, shift, reset">${ICON.dots}</button>
       ${(() => { const n = offers().length; return `<button class="ibtn${n ? ' has-dot' : ''}" data-dp="settings" aria-label="Day plan settings${n ? `, ${plural(n, 'offer')} waiting` : ''}" data-tip="${n ? `${settingsTitle()}. ${plural(n, 'offer')} waiting` : settingsTitle()}">${I.gear}</button>`; })()}
     </div>`;
 }
@@ -98,7 +100,7 @@ function renderDay(){
       <div class="acts">${dp.templates.length ? '' : '<button class="btn" data-dp="maker" data-tip="Focus in the morning, lunch, meetings after, then reviews and admin. From your focus hours in Workshop Settings when set.">Use the Maker/Manager template</button>'}<button class="btn" data-dp="addsec">${dp.templates.length ? 'Add a block' : 'Start empty'}</button><button class="btn primary" data-dp="settings">${dp.templates.length ? 'Edit templates' : 'Set up templates'}</button></div></div>` : '';
   main.innerHTML = `${banners}<div class="focus dayplan">
     <div class="fmain"><div class="dsecs">${secs}</div>${empty}
-      <p class="soft">${saved ? `Edited for this day. <button class="lnk" data-dp="reset">Reset to template</button>` : template ? `From the "${esc(template.name)}" template. Changes here are for this day only.` : ''}</p></div>
+      <p class="soft">${saved ? `Edited for this day. <button class="lnk" data-dp="reset">Reset to template</button>` : template ? `From the "${esc(template.name)}" template. Changes here are for this day only. <button class="lnk" data-dp="settings">Edit templates</button>` : `<button class="lnk" data-dp="settings">Edit templates</button>`}</p></div>
     <aside>${tray(rec, byId, d)}</aside></div>`;
 }
 
@@ -205,6 +207,7 @@ function pickSection(taskId, anchor){
     if (b.dataset.to) return plan(taskId, b.dataset.to);
     const a = b.dataset.dpm;
     if (a === 'addsec') return editSection(null);
+  if (a === 'meetings') return meetingsDialog();
     if (a === 'unplan') return unplan(taskId);
     if (a === 'up' || a === 'down') dpChange([d], () => moveInSection(dp, d, taskId, a === 'up' ? -1 : 1, tasksById()));
   });
@@ -237,12 +240,12 @@ function sectionMenu(secId, anchor){
 
 function dayMenu(anchor){
   const d = curDate(), v = dayView(dp, d);
-  popMenu(`<button data-dm="addsec">Add a block</button><button data-dm="shift">Shift the rest of the day</button><div class="sep"></div>
+  popMenu(`<button data-dm="addsec">Add a block</button><button data-dm="meetings">Add meetings</button><button data-dm="shift">Shift the rest of the day</button><div class="sep"></div>
     ${v.saved ? '<button data-dm="reset" class="danger">Reset to template</button>' : ''}<button data-dm="settings">${settingsTitle()}</button>`, anchor, 'right')
     .addEventListener('click', e => {
       const b = e.target.closest('[data-dm]'); if (!b) return;
       closeMenu(true);
-      ({addsec: () => editSection(null), shift: () => shiftDialog(null), reset: resetDialog, settings: openSettings})[b.dataset.dm]();
+      ({addsec: () => editSection(null), meetings: meetingsDialog, shift: () => shiftDialog(null), reset: resetDialog, settings: openSettings})[b.dataset.dm]();
     });
 }
 
@@ -280,6 +283,41 @@ function readSection(root){
   const g = n => root.querySelector(`[name=${n}]`).value.trim();
   return {name: g('name'), kind: g('kind'), color: g('color'), around: parseTime(g('around')),
     minutes: g('minutes') === '' ? null : +g('minutes'), capacity: g('capacity') === '' ? null : +g('capacity')};
+}
+
+/* ---------- meetings: quick lines or an .ics file, read here in the browser (meetings-model.js) ---------- */
+function meetingsDialog(){
+  const d = curDate();
+  showModal(`<form class="sheet dform dmeet" role="dialog" aria-modal="true" aria-label="Add meetings"><h3>Add meetings</h3>
+    <p class="dhelp">For ${esc(fmtLong(d))}. One per line, like <code>10:00 1:1 Brandon 30m</code> or <code>2pm-3pm Planning</code>. No length means 30 min.</p>
+    <textarea name="lines" rows="6" placeholder="9:30 Standup 15m&#10;11 1:1 Brandon 30m&#10;2pm-3pm Sprint review" aria-label="Meetings, one per line"></textarea>
+    <label class="dfile">Or an .ics file (export from your calendar, or save an invite) <input type="file" name="ics" accept=".ics,text/calendar"></label>
+    <p class="dhelp" id="dmPrev" aria-live="polite">Nothing to add yet.</p>
+    <p class="dhelp">Recurring meetings are better as timed blocks in a template, under the gear. Read here only; nothing connects to your calendar.</p>
+    <footer><span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" data-ok disabled>Add</button></footer></form>`,
+    f => {
+      let fromFile = [];
+      const list = () => [...parseQuick(f.lines.value), ...fromFile];
+      const prev = () => {
+        const l = list(), ok = f.querySelector('[data-ok]');
+        ok.disabled = !l.length; ok.textContent = l.length ? `Add ${plural(l.length, 'meeting')}` : 'Add';
+        f.querySelector('#dmPrev').innerHTML = l.length ? l.map(m => `${esc(fmt12(m.around))}, ${esc(m.name)}, ${m.minutes} min`).join('<br>') : 'Nothing to add yet.';
+      };
+      f.lines.focus();
+      f.lines.addEventListener('input', prev);
+      f.ics.addEventListener('change', async () => {
+        const file = f.ics.files[0]; fromFile = [];
+        if (file){ fromFile = parseIcs(await file.text(), d); if (!fromFile.length) toast(`No timed meetings on ${fmtLong(d)} in that file`); }
+        prev();
+      });
+      f.addEventListener('submit', e => {
+        e.preventDefault();
+        const l = list(); if (!l.length) return;
+        closeModal();
+        const n = dpChange([d], () => addMeetings(dp, d, l));
+        toast(n ? `Added ${plural(n, 'meeting')}` : 'Those meetings are already on this day', n ? 'Undo' : undefined, n ? undo : undefined);
+      });
+    });
 }
 
 function loseDialog(secId){
@@ -662,6 +700,7 @@ function onKey(e){
     if (rid){ stop(); pickSection(rid, main.querySelector(`.row[data-id="${CSS.escape(rid)}"] .dpbtn`)); }
     return;
   }
+  if (k === 'm'){ stop(); return meetingsDialog(); }
   if (e.key === '['){ stop(); const d = curDate(); return setDate(nextWorkday(dp.sprint, d, -1) || addDays(d, -1)); }
   if (e.key === ']'){ stop(); const d = curDate(); return setDate(nextWorkday(dp.sprint, d, 1) || addDays(d, 1)); }
 }

@@ -128,9 +128,9 @@ def main():
         t2, t3 = pg.evaluate(f"""() => {{ const P = {P}, ts = P.state.tasks.filter(t => !t.done && !t.pr && !t.waiting && t.id !== '{tid}').sort((a, b) => a.rank - b.rank);
           ts[0].value = null; ts[0].effort = null; ts[1].value = null; ts[1].effort = null; P.state.view = 'today'; P.commit(); return [ts[0].id, ts[1].id]; }}""")
         pg.wait_for_timeout(200)
-        pg.focus(f'.col-inbox .row[data-id="{t2}"]'); pg.keyboard.press('2'); pg.wait_for_timeout(250)
+        pg.focus(f'.col-inbox .row[data-id="{t2}"]'); pg.keyboard.press('3'); pg.wait_for_timeout(250)
         t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{t2}")')
-        check('2 on an Inbox row sorts it: value Low, effort M, out of the Inbox', t['value'] == 2 and t['effort'] == 'M' and pg.locator(f'.col-inbox .row[data-id="{t2}"]').count() == 0)
+        check('3 on an Inbox row sorts it (1 is High): value Low, effort M, out of the Inbox', t['value'] == 2 and t['effort'] == 'M' and pg.locator(f'.col-inbox .row[data-id="{t2}"]').count() == 0)
         check('a toast says what it did, with Undo', 'Sorted: Low, effort M' in pg.inner_text('#toast'))
         pg.hover(f'.col-inbox .row[data-id="{t3}"]'); pg.click(f'.col-inbox .row[data-id="{t3}"] .qv[data-qv="4"]'); pg.wait_for_timeout(250)
         t = pg.evaluate(f'() => {P}.state.tasks.find(t => t.id === "{t3}")')
@@ -143,20 +143,20 @@ def main():
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         check('Esc leaves the Inbox', pg.locator('.col.colon').count() == 0)
 
-        # ---------- Sort one by one (Docket 9.1.0): one task at a time, one key each ----------
+        # ---------- Card sort (Docket 9.1.0): one task at a time, one key each ----------
         ids = pg.evaluate(f"""() => {{ const P = {P}, L = P.state.lists[0].id, d = new Date().toLocaleDateString('en-CA');
           const ids = ['sr1', 'sr2', 'sr3', 'sr4'];
           ids.forEach((id, i) => P.state.tasks.push({{id, title: 'Sort me ' + (i + 1), listId: L, done: false, value: null, effort: null, who: [], rank: 900 + i, ageFrom: d, createdAt: d}}));
           P.state.view = 'today'; P.commit(); return ids; }}""")
         pg.wait_for_timeout(250)
-        check('To sort offers Sort one by one when there is more than one task', pg.locator('.col-inbox [data-sortrun]').count() == 1)
+        check('To sort offers Card sort when there is more than one task', pg.locator('.col-inbox [data-sortrun]').count() == 1)
         pg.click('#main'); pg.keyboard.press('o'); pg.wait_for_timeout(300)
         n_run = pg.evaluate("() => +document.querySelector('.sortrun .sr-count').textContent.match(/of (\\d+)/)[1]")
         check('O opens one task at a time, with how many there are', pg.locator('#modal .sheet.sortrun').count() == 1 and n_run >= 4)
         first = pg.inner_text('.sortrun h3')
-        pg.keyboard.press(']'); pg.keyboard.press('3'); pg.wait_for_timeout(200)
+        pg.keyboard.press(']'); pg.keyboard.press('2'); pg.wait_for_timeout(200)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(first)})")
-        check('] then 3 sorts it Medium, size L, and shows the next one', t['value'] == 3 and t['effort'] == 'L' and pg.inner_text('.sortrun h3') != first)
+        check('] then 2 sorts it Medium, size L, and shows the next one', t['value'] == 3 and t['effort'] == 'L' and pg.inner_text('.sortrun h3') != first)
         second = pg.inner_text('.sortrun h3')
         pg.keyboard.press('t'); pg.wait_for_timeout(200)
         check('T puts it on Today and moves on', pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === {json.dumps(second)}).focusOn") is not None and pg.inner_text('.sortrun h3') != second)
@@ -300,6 +300,21 @@ def main():
         pg.fill('.modal [name=name]', '<img src=x onerror=alert(1)>'); pg.click('.modal .btn.primary'); pg.wait_for_timeout(300)
         check('block names and task titles are escaped', pg.locator('main img').count() == 0 and pg.locator('main script').count() == 0
               and '<img src=x' in pg.inner_text(f'.dsec[data-sec="{secs[2]}"] h3') and '<script>' in pg.inner_text('main'))
+        # Add meetings (Docket 10.4.0): typed lines and an .ics file, read in the browser, become meetings blocks.
+        nsec = pg.locator('.dsec').count()
+        pg.click('main'); pg.keyboard.press('m'); pg.wait_for_timeout(200)
+        check('M opens Add meetings', pg.locator('.modal .dmeet').count() == 1)
+        pg.fill('.dmeet textarea', '7:00am Early sync 15m\nnot a meeting'); pg.wait_for_timeout(100)
+        ics_day = pg.evaluate(f'{P}.state.view') and pg.input_value('#dpDate').replace('-', '')
+        pg.set_input_files('.dmeet [name=ics]', files=[{'name': 'cal.ics', 'mimeType': 'text/calendar',
+            'buffer': f'BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:From the file\nDTSTART:{ics_day}T200000\nDTEND:{ics_day}T203000\nEND:VEVENT\nEND:VCALENDAR'.encode()}])
+        pg.wait_for_timeout(300)
+        check('the preview lists both meetings', 'Early sync' in pg.inner_text('#dmPrev') and 'From the file' in pg.inner_text('#dmPrev') and 'Add 2 meetings' in pg.inner_text('.dmeet [data-ok]'))
+        pg.click('.dmeet [data-ok]'); pg.wait_for_timeout(300)
+        names = pg.locator('.dsec h3').all_inner_texts()
+        check('meetings land as blocks in time order', pg.locator('.dsec').count() == nsec + 2 and names[0] == 'Early sync' and 'From the file' in names)
+        pg.keyboard.press('Control+z'); pg.wait_for_timeout(200)
+        check('undo takes the meetings back out', pg.locator('.dsec').count() == nsec)
         pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
         pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
         got = pg.evaluate(slots)
@@ -807,7 +822,7 @@ def main():
         check('a brand new board opens the tour', p2.locator('.sheet.tour').count() == 1 and 'Welcome to Docket' in p2.inner_text('.sheet.tour'))
         check('it says where the board is saved', 'saved in this browser' in p2.inner_text('.sheet.tour'))
         p2.click('.tour [data-next]'); p2.wait_for_timeout(150)
-        p2.fill('#tourIn', 'My first task'); p2.click('.tour [data-tag="!3"]'); p2.keyboard.press('Enter'); p2.wait_for_timeout(200)
+        p2.fill('#tourIn', 'My first task'); p2.click('.tour [data-tag="!2"]'); p2.keyboard.press('Enter'); p2.wait_for_timeout(200)
         p2.click('.tour [data-samples]'); p2.wait_for_timeout(200)
         st = p2.evaluate("() => { const s = window.__prioritizer.state, l = s.lists.find(l => l.name === 'Samples'); return {first: s.tasks.find(t => t.title === 'My first task'), samples: l ? s.tasks.filter(t => t.listId === l.id).length : 0}; }")
         check('tasks added in the tour use the tags', st['first'] is not None and st['first']['value'] == 3)
