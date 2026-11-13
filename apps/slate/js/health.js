@@ -24,8 +24,8 @@ export function healthHtml(h, { names = {}, reports = true } = {}) {
       <p class="big">${!h.toResolved || h.toResolved.median == null ? 'Nothing resolved yet' : `${h.toResolved.median} day${h.toResolved.median === 1 ? '' : 's'}`}</p>
       <p class="soft">Median days from a request coming in to merged and resolved${h.toResolved && h.toResolved.n ? `, over ${h.toResolved.n} item${h.toResolved.n === 1 ? '' : 's'}` : ''}.${h.closed ? ` ${h.closed} closed and off the board.` : ''}</p></section>
     <section class="hcard wide"><h2>Where requests sit</h2>
-      <table class="htable"><thead><tr><th>Column</th><th class="num">Items</th><th class="num">Median days</th><th class="num">Stale</th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="soft small">Stale after 3 days in Inbox, triage, a brief or Who builds it?; 5 waiting on the requester or in the interview; 7 in Define; 2 approved but not published.</p></section>
+      <table class="htable"><thead><tr><th>Lane</th><th class="num">Items</th><th class="num">Median days</th><th class="num">Stale</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="soft small">Stale after 3 days new, in triage, a brief or Who builds it?; 5 waiting on the requester or in the interview; 7 in Define; 2 approved but not published.</p></section>
     <section class="hcard"><h2>Waiting longest</h2>${oldest}</section>
     <section class="hcard"><h2>Delegated, by person</h2>${load.length ? `<ul class="load">${load.map(([id, n]) => `<li><span>${esc(names[id] || 'Someone')}</span><span class="num">${n}</span></li>`).join('')}</ul>` : '<p class="soft">Nothing delegated right now.</p>'}</section>
     <section class="hcard full" id="sprints"><h2>Sprints</h2><div id="sprintsBox"></div></section>

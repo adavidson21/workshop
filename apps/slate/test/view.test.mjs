@@ -17,16 +17,16 @@ test('top bar: Board and Health tabs, no lane switcher, both New buttons', () =>
   assert.match(h, /data-act="new"/);
 });
 
-test('board: one board of six columns; cards name their step', () => {
+test('board: four lanes; cards name their step', () => {
   const it = { ...newItem({ title: 'An idea', kind: 'idea' }), age: 0, facts: null };
-  const h = boardHtml({ inbox: [it], shape: [{ ...it, id: 'w_2', step: 'Waiting on requester' }], inflight: [{ ...it, id: 'w_3', stage: 'delegated', step: 'With Sam' }] }, { open: null });
-  assert.deepEqual([...h.matchAll(/<section class="col[^"]*" aria-label="([^"]+)"/g)].map(m => m[1]), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
-  assert.deepEqual([...h.matchAll(/<section class="col empty-col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Define', 'Who builds it?', 'Resolved'], 'empty columns are narrow strips');
+  const h = boardHtml({ shape: [it, { ...it, id: 'w_2', step: 'Waiting on requester' }], decide: [{ ...it, id: 'w_3', stage: 'delegated', step: 'With Sam' }] }, { open: null });
+  assert.deepEqual([...h.matchAll(/<section class="col[^"]*" aria-label="([^"]+)"/g)].map(m => m[1]), ['Shape', 'Decide', 'Build', 'Done']);
+  assert.deepEqual([...h.matchAll(/<section class="col empty-col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Build', 'Done'], 'empty lanes are narrow strips');
   assert.match(h, /grid-template-columns:minmax\(13\.75rem,1fr\) minmax\(13\.75rem,1fr\) minmax\(8\.5rem,\.45fr\)/);
   assert.match(h, />Idea</);
   assert.match(h, /class="chip step">Waiting on requester</);
   assert.match(h, /class="chip step">With Sam</);
-  assert.match(h, /--cols:6/);
+  assert.match(h, /--cols:4/);
 });
 
 test('panel: an idea in Inbox offers Shape it; a request offers Triage and Interview me, the rest in More', () => {
@@ -42,7 +42,7 @@ test('panel: an idea in Inbox offers Shape it; a request offers Triage and Inter
   assert.match(more, /data-act="define"[^>]*>Define now</);
   assert.match(more, /data-act="build-local"/);
   assert.match(more, /data-act="roadmap-add"/);
-  assert.match(more, /<optgroup label="Skip ahead"><option value="decide">Who builds it\?<\/option><option value="defining">Define<\/option>/);
+  assert.match(more, /<optgroup label="Skip ahead"><option value="decide">Decide: who builds it\?<\/option><option value="defining">Decide: define<\/option>/);
   assert.match(more, /data-act="done"[^>]*>Mark closed</);
   assert.match(more, /data-act="remove"/);
 });
@@ -178,7 +178,7 @@ test('board: Resolved groups by area path, each with Copy release notes and Clos
   const a = { ...resolved('w_a', 'Feature A', 'Web\\Team A', 11), age: 0, facts: null };
   const b = { ...resolved('w_b', 'Feature B', 'Web\\Team B', 12), age: 0, facts: null };
   const c = { ...resolved('w_c', 'Feature C', 'Web\\Team A', 13), age: 0, facts: null };
-  const h = boardHtml({ resolved: [b, a, c] }, { open: null });
+  const h = boardHtml({ done: [b, a, c] }, { open: null });
   assert.deepEqual([...h.matchAll(/class="rarea"[^>]*>([^<]+)</g)].map(m => m[1]), ['Team A', 'Team B']);
   assert.deepEqual([...h.matchAll(/data-act="close-group"[^>]*data-area="([^"]+)"/g)].map(m => m[1]), ['web\\team a', 'web\\team b']);
   assert.equal([...h.matchAll(/data-act="copy-notes"/g)].length, 2);
@@ -315,7 +315,7 @@ test('cards and the panel show the ADO type; your notes show on ADO cards too', 
   assert.match(h, /class="chip lv-story">Issue</);
   assert.match(h, /Your notes/);
   assert.match(h, /Pat needs it before renewal/);
-  assert.match(boardHtml({ inbox: [{ ...it, age: 0, facts: null }] }, { open: null }), />Issue</);
+  assert.match(boardHtml({ shape: [{ ...it, age: 0, facts: null }] }, { open: null }), />Issue</);
 });
 
 test('notes above the board: errors stay in view; two or more setup notes fold into one line', async () => {
@@ -372,7 +372,7 @@ test('an id in two collections: the panel asks which, the card says so, Link ADO
   assert.match(html, /is in more than one collection/);
   assert.match(html, /data-act="pick-conn"[^>]*data-conn="main"|data-conn="main"[^>]*data-act="pick-conn"/);
   assert.match(html, /main: Main &lt;500&gt;/);
-  assert.match(boardHtml({ inbox: [{ ...it, step: '' }] }, { open: null }), /Which collection\?/);
+  assert.match(boardHtml({ shape: [{ ...it, step: '' }] }, { open: null }), /Which collection\?/);
   const dlg = linkPickDialogHtml(500, [{ connection: 'main', title: 'A' }, { connection: 'apps', title: 'B' }]);
   assert.match(dlg, /name="conn" value="main" checked/);
   assert.match(dlg, /value="apps"/);

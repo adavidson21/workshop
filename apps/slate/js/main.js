@@ -344,18 +344,17 @@ function columns() {
       else e.step = STEP_CHIP[st] || '';
       if (['review', 'merged'].includes(st) && !c.ado) e.noAdo = true;
       if (st === 'review' && c.prs && c.prs.list.length) e.step = `${c.prs.list.filter(p => p.status === 'completed').length} of ${c.prs.list.length} PRs merged`;
-      if (boardColumn(st) === 'inflight') inflight.push([e, e.step === 'Waiting on you' || (e.agent && e.agent.waiting) ? 0 : 1]);
+      if (boardColumn(st) === 'build') inflight.push([e, e.step === 'Waiting on you' || (e.agent && e.agent.waiting) ? 0 : 1]);
       else push(boardColumn(st), e);
       continue;
     }
     const st = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
     e.stale = !c.virtual && isStale(c, st);
     e.step = st === 'delegated' ? (e.assigneeName ? `With ${e.assigneeName}` : 'Delegated') : (STEP_CHIP[st] || '');
-    if (boardColumn(st) === 'inflight') inflight.push([e, e.agent && e.agent.waiting ? 0 : 2]);
-    else push(boardColumn(st), e);
+    push(boardColumn(st), e);
   }
-  // In flight: waiting on you first, then your own builds, then delegated work.
-  for (const [e] of inflight.sort((a, b) => a[1] - b[1])) push('inflight', e);
+  // Build: waiting on you first.
+  for (const [e] of inflight.sort((a, b) => a[1] - b[1])) push('build', e);
   return cols;
 }
 

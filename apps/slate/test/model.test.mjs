@@ -287,17 +287,16 @@ test('owners: whole owned terms found in what the item touches, best match first
   assert.deepEqual(ownersFor(owners, 'nothing here'), []);
 });
 
-test('health: counts, stale and median days per column; request to decision', async () => {
+test('health: counts, stale and median days per lane; request to decision', async () => {
   const { health } = await import('../js/model.js');
   const a = newItem({ title: 'a' }, new Date('2026-11-01T12:00:00'));
   const b = newItem({ title: 'b' }, new Date('2026-11-03T12:00:00'));
   const c = newItem({ title: 'c' }, new Date('2026-11-01T12:00:00')); setStage(c, 'decide', new Date('2026-11-04T12:00:00'));
   const d = newItem({ title: 'd' }, new Date('2026-11-01T12:00:00')); setStage(d, 'delegated', new Date('2026-11-02T12:00:00')); d.assignee = 'p_1';
   const h = health([a, b, c, d], it => (it.stage === 'decide' ? 'decide' : it.stage === 'delegated' ? 'delegated' : 'new'), new Date('2026-11-06T12:00:00'));
-  assert.deepEqual(h.cols.inbox, { count: 2, stale: 1, medianDays: 3 }, 'counted by board column, stale by step');
-  assert.equal(h.cols.decide.count, 1);
-  assert.equal(h.cols.inflight.count, 1, 'delegated is In flight');
-  assert.equal(h.oldest[0].column, 'Inbox');
+  assert.deepEqual(h.cols.shape, { count: 2, stale: 1, medianDays: 3 }, 'counted by board lane, stale by step');
+  assert.equal(h.cols.decide.count, 2, 'delegated waits in Decide');
+  assert.equal(h.oldest[0].column, 'Shape: new');
   assert.deepEqual(h.load, { p_1: 1 });
   assert.deepEqual(h.toDecision, { n: 2, median: 1 });
   assert.equal(h.oldest[0].it.title, 'a');
@@ -487,15 +486,17 @@ test('questionAnswers: picks plus typed text, null until every question has one'
 
 /* ---------- shaping: triage, interview and brief (Slate 1.6.0) ---------- */
 
-test('Board: one board of six columns; every step maps to its column', async () => {
+test('Board: four lanes; every step maps to its lane', async () => {
   const { BOARD_COLUMNS, STEP_COLUMN, boardColumn, STEP_CHIP } = await import('../js/model.js');
-  assert.deepEqual(BOARD_COLUMNS.map(c => c.key), ['inbox', 'shape', 'define', 'decide', 'inflight', 'resolved']);
-  assert.deepEqual(BOARD_COLUMNS.map(c => c.title), ['Inbox', 'Shape', 'Define', 'Who builds it?', 'In flight', 'Resolved']);
-  const want = { new: 'inbox', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'define', publish: 'define', decide: 'decide', delegated: 'inflight', building: 'inflight', review: 'inflight', merged: 'inflight', resolved: 'resolved' };
+  assert.deepEqual(BOARD_COLUMNS.map(c => c.key), ['shape', 'decide', 'build', 'done']);
+  assert.deepEqual(BOARD_COLUMNS.map(c => c.title), ['Shape', 'Decide', 'Build', 'Done']);
+  const want = { new: 'shape', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'decide', publish: 'decide', decide: 'decide', delegated: 'decide', building: 'build', review: 'build', merged: 'build', resolved: 'done' };
   for (const [st, col] of Object.entries(want)) assert.equal(boardColumn(st), col, st);
   const keys = new Set(BOARD_COLUMNS.map(c => c.key));
   for (const col of Object.values(STEP_COLUMN)) assert.ok(keys.has(col), col);
-  assert.equal(STEP_CHIP.publish, 'Approved: not in ADO');
+  assert.equal(STEP_CHIP.publish, 'Not in ADO');
+  assert.equal(STEP_CHIP.new, 'New');
+  assert.equal(STEP_CHIP.decide, 'Who builds it?');
   assert.equal(STEP_CHIP.brief, 'Brief ready');
   assert.equal(STEP_CHIP.merged, 'Merged');
   assert.equal(pmColumn(cleanItem({ stage: 'shaping' })), 'interview');
@@ -826,7 +827,7 @@ test('summary: tracked lists every ADO item on the board with its column, and li
   const d = newItem({ title: 'No ADO' }, now);
   const cols = { [a.id]: 'triage', [b.id]: 'decide', [c.id]: 'resolved', [d.id]: 'new' };
   const t = summaryCards([a, b, c, d], { columnOf: it => cols[it.id], now }).find(x => x.id === 'tracked');
-  assert.deepEqual(t.rows.map(r => [r.id, r.note]), [['7', 'Shape'], ['90', 'Who builds it?'], ['77', 'Source of #90']]);
+  assert.deepEqual(t.rows.map(r => [r.id, r.note]), [['7', 'Shape'], ['90', 'Decide'], ['77', 'Source of #90']]);
   assert.equal(t.rows[0].route, `item/${a.id}`);
 });
 

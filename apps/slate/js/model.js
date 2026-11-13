@@ -36,26 +36,24 @@ export const levelOfType = (type) => ADO_LEVEL[type] || 'story';
 // 'resolved': the ADO item is Resolved (merged to main, waiting for a release); the card stays until it closes.
 // 'done': closed in ADO (or marked done). Off the board; Health and history keep it.
 export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'resolved', 'done'];
-// The board: six columns, one board (Slate 2.0.0). Each column holds several steps; the card's chip names the step.
+// The board: four lanes (Loom). Each lane holds several steps; the card's chip names the step.
 export const BOARD_COLUMNS = [
-  { key: 'inbox', title: 'Inbox', hint: 'Requests, ideas and ADO items nobody has looked at yet.' },
-  { key: 'shape', title: 'Shape', hint: 'Triage, waiting on the requester, an interview with you, or a brief to read. The card says which.' },
-  { key: 'define', title: 'Define', hint: 'Stories and acceptance criteria, approved and published to ADO from here.' },
-  { key: 'decide', title: 'Who builds it?', hint: 'Delegate it with a brief, or build it yourself.' },
-  { key: 'inflight', title: 'In flight', hint: 'With a teammate, or building in Tandem, in review, or merged. The card says which.' },
-  { key: 'resolved', title: 'Resolved', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
+  { key: 'shape', title: 'Shape', hint: 'New requests, ideas, ADO items and runs, then triage, waiting on the requester, an interview with you, or a brief to read. The card says which.' },
+  { key: 'decide', title: 'Decide', hint: 'Define it, publish it to ADO, then delegate it with a brief or build it yourself. Delegated work waits here until it resolves.' },
+  { key: 'build', title: 'Build', hint: 'Building in Tandem, in review, or merged. Waiting on you comes first. The card says which.' },
+  { key: 'done', title: 'Done', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
 ];
 
 /**
- * Steps (what the panel offers and how long a card may wait) and the board column each one shows in. Shape and PM
+ * Steps (what the panel offers and how long a card may wait) and the board lane each one shows in. Shape and PM
  * steps come from pmColumn, the rest from devColumn.
  */
 export const STEP_COLUMN = {
-  new: 'inbox', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'define', publish: 'define',
-  decide: 'decide', delegated: 'inflight', building: 'inflight', review: 'inflight', merged: 'inflight', resolved: 'resolved'
+  new: 'shape', triage: 'shape', waiting: 'shape', interview: 'shape', brief: 'shape', define: 'decide', publish: 'decide',
+  decide: 'decide', delegated: 'decide', building: 'build', review: 'build', merged: 'build', resolved: 'done'
 };
-export const STEP_CHIP = { triage: 'Triage', waiting: 'Waiting on requester', interview: 'Interview', brief: 'Brief ready', publish: 'Approved: not in ADO', review: 'Review and PR', merged: 'Merged' };
-export const STEP_TITLE = { new: 'Inbox', triage: 'Shape: triage', waiting: 'Shape: waiting on requester', interview: 'Shape: interview', brief: 'Shape: brief', define: 'Define', publish: 'Define: approved, not in ADO', decide: 'Who builds it?', delegated: 'In flight: delegated', building: 'In flight: building', review: 'In flight: review and PR', merged: 'In flight: merged', resolved: 'Resolved' };
+export const STEP_CHIP = { new: 'New', triage: 'Triage', waiting: 'Waiting on requester', interview: 'Interview', brief: 'Brief ready', define: 'Define', publish: 'Not in ADO', decide: 'Who builds it?', review: 'Review and PR', merged: 'Merged' };
+export const STEP_TITLE = { new: 'Shape: new', triage: 'Shape: triage', waiting: 'Shape: waiting on requester', interview: 'Shape: interview', brief: 'Shape: brief', define: 'Decide: define', publish: 'Decide: approved, not in ADO', decide: 'Decide: who builds it?', delegated: 'Decide: delegated', building: 'Build: building', review: 'Build: review and PR', merged: 'Build: merged', resolved: 'Done' };
 export const boardColumn = (step) => STEP_COLUMN[step] || step;
 
 /**
@@ -224,7 +222,7 @@ export function setStage(it, stage, now = new Date()) {
 
 /* ---------- moving back ---------- */
 
-export const STAGE_TITLE = { new: 'Inbox', triaged: 'Shape: triage', waiting: 'Shape: waiting on requester', shaping: 'Shape: interview', brief: 'Shape: brief', defining: 'Define', ready: 'Define: approved', decide: 'Who builds it?', delegated: 'In flight: delegated', dev: 'In flight: building', resolved: 'Resolved', done: 'Closed' };
+export const STAGE_TITLE = { new: 'Shape: new', triaged: 'Shape: triage', waiting: 'Shape: waiting on requester', shaping: 'Shape: interview', brief: 'Shape: brief', defining: 'Decide: define', ready: 'Decide: approved', decide: 'Decide: who builds it?', delegated: 'Decide: delegated', dev: 'Build: building', resolved: 'Done', done: 'Closed' };
 
 /**
  * Earlier stages an item can go back to: the ones its history went through (New always), before where it is
