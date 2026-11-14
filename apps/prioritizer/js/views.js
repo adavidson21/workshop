@@ -142,7 +142,7 @@ function rankCol(plan, lens){
   return `<section class="col col-rank" data-col="rank" aria-label="Week: Ranked">
     <header class="colh"><h3>Everything open</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}
       <div class="lens" role="tablist" aria-label="Rank by">${Object.entries(LENSES).map(([k, n]) => `<button data-lens="${k}" role="tab" aria-selected="${lens === k}"${lens === k ? ' class="on"' : ''}>${n}</button>`).join('')}</div>
-      <span class="grow"></span>${tools}<button class="btn primary small" data-planweek="off" data-tip="Back to Today. Shortcut: 4">Done planning</button></header>
+      <span class="grow"></span>${tools}</header>
     <div class="colbody">${lens === 'rank' ? rankHtml() : matrixHtml(lens)}</div>
   </section>`;
 }
