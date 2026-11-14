@@ -16,6 +16,8 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
   const hist = document.createElement('section');
   hist.className = 'card focus-history';
   el.appendChild(hist);
+  let histOpen = false; // History folds away; it stays open across repaints once opened
+  hist.addEventListener('toggle', e => { if (e.target.matches('details.fh-hist-fold')) histOpen = e.target.open; }, true);
 
   async function load() {
     try { env = await ws.data.get(F.COLLECTION); } catch (e) { env = null; }
@@ -75,10 +77,10 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
           ${errors.length ? `<span class="err">${errors.length === 1 ? 'Fix the line marked above to save.' : `Fix the ${errors.length} lines marked above to save.`}</span>` : ''}</div>
       </form>`;
     const rows = historyText(F.historyRows(env, F.dateStr(now())));
-    hist.innerHTML = `<h2>History</h2><p class="sub">The last 4 weeks. Private: only this page reads it.</p>`
+    hist.innerHTML = `<details class="fh-hist-fold"${histOpen ? ' open' : ''}><summary><h2>History</h2><span class="sub">The last 4 weeks. Private: only this page reads it.</span></summary>`
       + (rows.length ? `<div class="rows-wrap"><table class="rows fh-hist"><thead><tr><th>Date</th><th>Focus kept</th><th>Lunch</th><th>Held, then released</th><th>Evening</th></tr></thead>
         <tbody>${rows.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.focus)}</td><td>${esc(r.lunch)}</td><td>${esc(r.released)}</td><td>${esc(r.evening)}</td></tr>`).join('')}</tbody></table></div>`
-        : '<p class="state">Nothing yet. Each day shows up here once a focus block or lunch ends.</p>');
+        : '<p class="state">Nothing yet. Each day shows up here once a focus block or lunch ends.</p>') + '</details>';
   }
 
   // Edits change `val`; text fields repaint on change (not on every key), so typing a time is never cut off.

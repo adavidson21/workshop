@@ -1,4 +1,4 @@
-/* Settings, User guide (Help group): "I need to..." scenarios, each with the best way to do it in Workshop,
+/* Settings, User guide (a link under the nav): "I need to..." scenarios, each with the best way to do it in Workshop,
    why, and a second way when there is one. Plain words, no setup detail (docs/guide.md has the full tour).
    GUIDE and matches() are pure, so test/guide.test.mjs can import them; mountGuide() draws the page.
    Keep each scenario's steps in step with the apps' READMEs (Slate, Loom's js/flows.js). No em dashes. */
@@ -37,7 +37,7 @@ export const GUIDE = [
     also: [
       { when: 'You already know what you want and want it fast', how: 'Loom, <b>Start work</b>, <b>Plan an epic</b>. One line in, at most 3 questions, then stories and a build order for you to approve. It ends with ADO items, an ADO import file, or local items.' }
     ],
-    needs: 'Tandem (Settings, Agents). Azure DevOps only to publish.'
+    needs: 'Tandem (Settings, opencode). Azure DevOps only to publish.'
   },
   {
     id: 'simple-ask',
@@ -55,7 +55,7 @@ export const GUIDE = [
       { when: 'You do not need an ADO item at all', how: 'Loom, <b>Start work</b>, <b>Quick change</b>. Describe it and it runs as a feature or a bug. it gets a card on the board, and you can link an ADO item later from that card.' },
       { when: 'The ADO item already exists', how: 'Loom, <b>Start work</b>, <b>Build a feature</b> (or <b>Fix a bug</b>), and type its number.' }
     ],
-    needs: 'Tandem (Settings, Agents). Azure DevOps for the item.'
+    needs: 'Tandem (Settings, opencode). Azure DevOps for the item.'
   },
   {
     id: 'bug',
@@ -70,7 +70,7 @@ export const GUIDE = [
     ],
     why: 'You agree on the cause before any code changes.',
     also: [],
-    needs: 'Tandem (Settings, Agents).'
+    needs: 'Tandem (Settings, opencode).'
   },
   {
     id: 'investigate',
@@ -85,7 +85,7 @@ export const GUIDE = [
     ],
     why: 'A quick answer before you commit to a story or an estimate.',
     also: [],
-    needs: 'Tandem (Settings, Agents).'
+    needs: 'Tandem (Settings, opencode).'
   },
   {
     id: 'vague-request',
@@ -102,7 +102,7 @@ export const GUIDE = [
     also: [
       { when: 'You are the one who knows the answers', how: 'Click <b>Interview me</b> instead of Triage, and answer the questions yourself.' }
     ],
-    needs: 'Tandem (Settings, Agents).'
+    needs: 'Tandem (Settings, opencode).'
   },
   {
     id: 'delegate',
@@ -152,7 +152,7 @@ export const GUIDE = [
     ],
     why: 'Docs that match the code, checked by a second pass.',
     also: [],
-    needs: 'Tandem (Settings, Agents).'
+    needs: 'Tandem (Settings, opencode).'
   },
   {
     id: 'what-next',

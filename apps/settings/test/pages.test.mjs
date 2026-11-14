@@ -96,9 +96,50 @@ test('every page is in a group the nav knows', () => {
   for (const [id, p] of Object.entries(P.PAGES)) assert.ok(groups.has(p.group), id);
 });
 
-test('Products sits in Code & agents, above Repos, and works with no connector', () => {
-  assert.equal(P.PAGES.products.group, 'code');
+test('Products sits in You & your team and works with no connector', () => {
+  assert.equal(P.PAGES.products.group, 'you');
   assert.equal(P.PAGES.products.owner, undefined);
-  assert.ok(P.ORDER.indexOf('products') < P.ORDER.indexOf('repos'));
   assert.deepEqual(P.routeToPage('products'), { page: 'products' });
+});
+
+test('Settings v3: three groups and eleven nav items, some holding pages as tabs', () => {
+  assert.deepEqual(P.GROUPS.map(g => g.id), ['workshop', 'you', 'connections']);
+  const items = [...new Set(P.ORDER.filter(id => !P.PAGES[id].hidden).map(P.navOf))];
+  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'people-teams', 'products', 'focus', 'writing', 'ado', 'agents', 'repos']);
+  assert.deepEqual(P.tabsOf('people-teams'), ['people', 'team']);
+  assert.deepEqual(P.tabsOf('writing'), ['writing-voice', 'writing-audiences', 'writing-rules']);
+  assert.deepEqual(P.tabsOf('ado'), ['connections', 'work-items', 'pull-requests']);
+  assert.deepEqual(P.tabsOf('repos'), ['repos'], 'a page with no nav is a nav item of its own');
+  assert.deepEqual(P.tabsOf('c-echo'), ['c-echo'], 'so is an unknown connector');
+  assert.equal(P.navOf('c-echo'), 'c-echo');
+  for (const id of P.tabsOf('ado')) assert.equal(P.PAGES[id].group, 'connections', id);
+  assert.equal(P.navLabel('ado'), 'Azure DevOps');
+  assert.equal(P.navLabel('overview'), 'Status');
+  assert.equal(P.navLabel('agents'), 'opencode');
+  assert.equal(P.navLabel('c-echo', 'Echo'), 'Echo');
+  assert.equal(P.dotOf('ado'), 'ado');
+  assert.equal(P.dotOf('agents'), 'opencode');
+  assert.equal(P.dotOf('people-teams'), '');
+  assert.equal(P.PAGES.guide.hidden, true, 'the User guide is a link under the nav, not a nav item');
+  assert.deepEqual(P.routeToPage('guide'), { page: 'guide' });
+  assert.deepEqual(P.routeToPage('status'), { page: 'overview' });
+  assert.deepEqual(P.routeToPage('opencode'), { page: 'agents' });
+  assert.deepEqual(P.routeToPage('writing'), { page: 'writing-voice' });
+});
+
+test('Needs you: only connectors that are set up and broken or warning, Fix first', () => {
+  const c = (id, enabled, status, config) => ({ info: { id, name: id.toUpperCase(), enabled, status }, config });
+  const rows = [
+    c('ado', true, { state: 'ready', message: 'The PAT in ADO_PAT expires in 6 days.' }, { connections: [{ name: 'w' }] }),
+    c('opencode', true, { state: 'error', message: 'opencode is not running.' }, {}),
+    c('echo', false, { state: 'disabled' }, {}),
+    c('fine', true, { state: 'ready', message: null }, {}),
+    { info: null, config: null }
+  ];
+  const out = P.needsYou(rows);
+  assert.deepEqual(out.map(x => [x.id, x.action, x.page]), [['opencode', 'Fix', 'agents'], ['ado', 'Check', 'connections']]);
+  assert.equal(out[1].message, 'The PAT in ADO_PAT expires in 6 days.');
+  assert.deepEqual(P.needsYou([c('ado', true, { state: 'error', message: 'x' }, { connections: [] })]), [], 'no connection is not set up, not broken');
+  assert.deepEqual(P.needsYou([c('ado', true, { state: 'starting', message: 'Reading' }, { connections: [{ name: 'w' }] })]), [], 'starting is not a warning');
+  assert.deepEqual(P.needsYou([]), []);
 });
