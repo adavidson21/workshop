@@ -6,9 +6,9 @@
   text, DM Mono for code and keys), radii and light/dark all come from shared/brand/tokens.css, imported below. This
   file only maps Workshop's own names onto the brand's.
 
-  Garnet is the brand. Each app has its own jewel accent, so popped-out windows are easy to tell apart:
-  data-app-color on an app's <html> picks it, and shared/theme.js sets the brand's data-accent from it (APP_ACCENT).
-  Docket, Settings, Needs you and the shell stay garnet. No accent is green: green means done.
+  Garnet is the brand; Workshop's own color is amethyst. Each app has its own jewel accent, so popped-out windows are
+  easy to tell apart: data-app-color on an app's <html> picks it, and shared/theme.js sets the brand's data-accent from
+  it (APP_ACCENT). Docket, Settings, Needs you and the shell are amethyst; Runway is garnet. No accent is green: green means done.
 
   Two themes, Light and Dark, picked with the round toggle in the top right corner (or the device setting until you
   use it). The swatches in shared/theme.js must match the brand's --bg and --accent (`node tests/check-themes.mjs`).
@@ -20,15 +20,15 @@
 
 /* Per-app colors (for swatches and pop-out bands): each app's jewel accent, light and dark. */
 :root,:root[data-theme=light]{
-  --c-workshop:#7A1B36;--c-prioritizer:#7A1B36;--c-notes:#33407A;--c-slate:#33407A;--c-agents:#056374;--c-receipts:#056374;--c-runway:#693375;
+  --c-workshop:#693375;--c-prioritizer:#693375;--c-notes:#33407A;--c-slate:#33407A;--c-agents:#056374;--c-receipts:#056374;--c-runway:#7A1B36;
   --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-receipts-on:#FFFFFF;--c-runway-on:#FFFFFF}
 :root[data-theme=dark]{
-  --c-workshop:#E59AAE;--c-prioritizer:#E59AAE;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#D1A5DB;
-  --c-workshop-on:#2A0E17;--c-prioritizer-on:#2A0E17;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#251229}
+  --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#E59AAE;
+  --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#2A0E17}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme]){
-    --c-workshop:#E59AAE;--c-prioritizer:#E59AAE;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#D1A5DB;
-    --c-workshop-on:#2A0E17;--c-prioritizer-on:#2A0E17;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#251229}
+    --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-runway:#E59AAE;
+    --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-runway-on:#2A0E17}
 }
 /* Workshop's names for brand tokens */
 :root{

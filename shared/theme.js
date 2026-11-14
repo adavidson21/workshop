@@ -17,14 +17,15 @@
   // [background, accent] per theme, for the browser's theme-color.
   const SWATCH = {light: ['#FAF6F1', '#7A1B36'], dark: ['#1A1517', '#E59AAE']};
   // Each app's brand jewel accent, from data-app-color on <html> (themes.css has the matching --c-* colors).
-  // Apps not listed stay garnet, the brand default. Sets the brand's data-accent, now and whenever data-app-color changes.
-  const APP_ACCENT = {notes: 'sapphire', slate: 'sapphire', agents: 'tourmaline', receipts: 'tourmaline', runway: 'amethyst'};
+  // Workshop's own color is amethyst: the shell, Docket, Settings, Needs you and any app not listed use it.
+  // Runway is the one garnet app (the brand default, no data-accent). Sets the brand's data-accent, now and whenever data-app-color changes.
+  const APP_ACCENT = {notes: 'sapphire', slate: 'sapphire', agents: 'tourmaline', receipts: 'tourmaline', runway: 'garnet'};
   (function syncAccent() {
     const el = document.documentElement;
     const set = () => {
-      const a = APP_ACCENT[el.dataset && el.dataset.appColor];
       if (!el.dataset) return;
-      if (a) el.dataset.accent = a; else delete el.dataset.accent;
+      const a = APP_ACCENT[el.dataset.appColor] || 'amethyst';
+      if (a !== 'garnet') el.dataset.accent = a; else delete el.dataset.accent;
     };
     set();
     if (typeof MutationObserver === 'function') new MutationObserver(set).observe(el, {attributes: true, attributeFilter: ['data-app-color']});
