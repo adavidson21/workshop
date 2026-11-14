@@ -430,7 +430,8 @@ onPanelRun(() => { loadFiles(); schedule(); });
 onOpenRunPage(folder => { if (itemForFolder(folder)) openRun(folder, 'board'); else { keyWanted = { key: folder, until: Date.now() + 15000 }; tryKey(); } });
 // Opened on its own, the hash is #<route> (the shell strips its own part before sending the route). Inside the shell
 // the frame's own hash is set only by Back to Dispatch on the code review (review.html), which returns to the run.
-if (location.hash.length > 1) wantFocus(decodeURIComponent(location.hash.slice(1)));
+// After this module's first await, so the state further down (ui, the paint queue) exists by then.
+if (location.hash.length > 1) { const h = decodeURIComponent(location.hash.slice(1)); queueMicrotask(() => wantFocus(h)); }
 
 /* ---------- painting ---------- */
 // Elements with an entry animation, and how to tell the same one apart across a repaint.
@@ -487,7 +488,8 @@ function paint() {
 }
 // Coalesce bursts of updates into one paint per frame. Never repaint mid-click: the button under the
 // pointer would be replaced and the click lost.
-let pending = false, pointerDown = false, deferred = false;
+// var, not let: connector and online events can call schedule() before this line has run.
+var pending = false, pointerDown = false, deferred = false; // eslint-disable-line no-var
 function schedule() {
   if (pending) return;
   pending = true;

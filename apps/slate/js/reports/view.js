@@ -1,6 +1,6 @@
-/* Runway's team reports as HTML strings. Pure: main.js (through js/reports/index.js) paints these.
+/* Loom's team reports as HTML strings. Pure: index.js paints these into Health.
    Every piece of ADO text goes through esc(); only http(s) links are made clickable. */
-import { esc } from '../../timeline.js';
+import { esc } from '../model.js';
 import { dOnly, fmtMD, one, sprintName, whoName } from './model.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

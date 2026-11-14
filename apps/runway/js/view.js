@@ -67,9 +67,8 @@ export function underOptions(doc, lane) {
   return `<option value="">Nothing (top level)</option>${parentChoices(doc, null, lane).map(o => `<option value="${esc(o.id)}">${esc(LEVELS[lv.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}`;
 }
 
-export function listHtml(v, { canPair = false, paired = false, ado = false, reports = false, pending = null, shaping = null, workItems = null } = {}) {
+export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null } = {}) {
   const adoBtn = ado ? '<button class="btn" data-fromado>From Azure DevOps</button>' : '';
-  const repLink = reports ? '<a class="btn ghost" href="#/reports" data-reports>Team reports</a>' : '';
   const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
     <li class="rrow">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
@@ -81,10 +80,10 @@ export function listHtml(v, { canPair = false, paired = false, ado = false, repo
     </li>`).join('');
   const empty = `<div class="engcard"><h2>Start a roadmap</h2>
     <p>Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export an image or Markdown.</p>
-    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}${repLink}</div></div>`;
+    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}</div></div>`;
   return `<header class="lhead">
       <h1 class="page-title">Roadmaps</h1>
-      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button>${repLink}</div>` : ''}
+      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button></div>` : ''}
     </header>
     ${pendingHtml(pending, v.list.length > 0, { shaping, workItems })}
     ${v.list.length ? `<ul class="rlist">${rows}</ul>` : empty}

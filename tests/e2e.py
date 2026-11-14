@@ -370,11 +370,13 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('#app .tabs [data-tab=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
-        check('Health links to Runway\'s team reports instead of framing them', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 1)
-        slf.click('[data-act=reports]'); pg.wait_for_timeout(2000)
-        rwf = next((f for f in pg.frames if '/runway/' in f.url), None)
-        check('Open team reports opens Runway on its reports page', '#/runway' in pg.url and rwf is not None
-              and rwf.evaluate("document.getElementById('app').dataset.view") == 'reports')
+        check('Health shows Team reports itself, no frame and no trip to Runway', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 0
+              and slf.locator('#reports #reportsBox').count() == 1)
+        slf.wait_for_function("() => (document.querySelector('#reportsBox')?.innerText || '').trim().length > 0", timeout=8000)
+        check('Team reports in Health say what they need or ask for a team profile', any(t in slf.inner_text('#reportsBox') for t in ('Connect Azure DevOps', 'Set up your team profile', 'No report data yet')))
+        pg.evaluate("location.hash = '#/runway/reports'"); pg.wait_for_timeout(3000)
+        check("Runway's old #/reports link opens Loom's Health", '#/slate' in pg.url and not slf.locator('#board-root').evaluate('el => el.hidden')
+              and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
     pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)  # Notes is Alt+4, Runway Alt+5

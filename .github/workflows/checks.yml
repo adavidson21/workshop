@@ -49,11 +49,12 @@ jobs:
               python tests/layout-e2e.py
               python tests/review-e2e.py
               python tests/workmode-e2e.py
-          - name: Runway and Folio on their own pages
+          - name: Runway, Folio and Loom's team reports on their own pages
             run: |
               python apps/runway/test/e2e.py
               python apps/runway/test/e2e_ado.py
               python apps/notes/test/e2e.py
+              python apps/slate/test/e2e_reports.py
           - name: Docket on its own page
             run: |
               python apps/prioritizer/test/e2e.py

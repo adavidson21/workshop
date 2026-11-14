@@ -1,5 +1,5 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
-   view.js builds HTML; Health links to Runway's team reports. This file owns the page: state,
+   view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
 import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
@@ -16,6 +16,7 @@ import {
 import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
+import { saveFile } from '../../../shared/save-file.js';
 
 const $ = (id) => document.getElementById(id);
 const topEl = $('top'), mainEl = $('main'), panelEl = $('panel'), dlg = $('dlg');
@@ -497,6 +498,7 @@ function paint() {
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
     if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
+    if ($('reportsBox')) setHtml($('reportsBox'), reportsView());
   } else {
     setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
   }
@@ -564,7 +566,25 @@ const runwayOn = () => s.apps.some(a => a.id === 'runway') || !s.apps.length;
 function mountHealth() {
   const items = store.v.items;
   const names = Object.fromEntries((s.people.people || []).map(p => [p.id, p.name]));
-  mainEl.innerHTML = healthHtml(health(items, columnOf), { names, reports: runwayOn() });
+  mainEl.innerHTML = healthHtml(health(items, columnOf), { names });
+}
+
+/* ---------- team reports (moved from Runway): js/reports/ loads the first time Health shows them ---------- */
+let reports = null, reportsLoading = null;
+function reportsMod() {
+  if (reports) return Promise.resolve(reports);
+  return reportsLoading || (reportsLoading = import('./reports/index.js').then(m => {
+    reports = m.createReports({
+      ws, toast: (t) => ws.toast(t), toastErr, ask: askDialog, saveFile, requestPaint: () => paint(),
+      ado: () => ({ ready: s.conn.ado === true, message: typeof s.conn.ado === 'string' ? s.conn.ado : '' }),
+    });
+    paint();
+    return reports;
+  }).catch(e => { reportsLoading = null; toastErr(e); }));
+}
+function reportsView() {
+  if (!reports) { reportsMod(); return '<p class="loading">Loading team reports…</p>'; }
+  return reports.html();
 }
 
 function sprintsView() {
@@ -623,7 +643,6 @@ async function startSession(it, kind, action, args) {
 const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
   runs: () => requestTab('work'),
-  reports: () => ws.open({ app: 'runway', path: 'reports' }),
   'open-item': (c) => { if (c) { ui.open = c.id; ui.tab = 'board'; paint(); } },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
   fields: () => {
@@ -1241,10 +1260,28 @@ function showDialog(html, onOk) {
   if (first) first.focus();
 }
 
+/** A dialog that resolves with its form on OK and null on Cancel (the team reports' profile). */
+function askDialog(html, wire) {
+  dlg.innerHTML = html;
+  const form = dlg.querySelector('form');
+  return new Promise(resolve => {
+    let done = false;
+    const end = (v) => { if (done) return; done = true; if (dlg.open) dlg.close(); resolve(v); };
+    form.addEventListener('click', (e) => { if (e.target.closest('[data-rp-cancel],[data-act=cancel]')) end(null); });
+    if (wire) wire(form);
+    form.addEventListener('submit', (e) => { e.preventDefault(); end(form); });
+    dlg.addEventListener('close', () => end(null), { once: true });
+    dlg.showModal();
+    const first = form.querySelector('input,select,textarea');
+    if (first) first.focus();
+  });
+}
+
 /* ---------- events ---------- */
 
 boardRoot.addEventListener('click', async (e) => {
   if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
+  if (reports && e.target.closest && e.target.closest('#reportsBox') && reports.click(e.target, e)) return;
   const b = e.target.closest('[data-act]');
   if (!b || dlg.contains(b)) return;
   const act = b.dataset.act;
@@ -1254,7 +1291,7 @@ boardRoot.addEventListener('click', async (e) => {
   const target = b.dataset.id && !['tab', 'open'].includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
   const menu = b.closest('details.more');
   if (menu) menu.open = false;
-  if (['tab', 'open', 'reports'].includes(act)) return fn(b.dataset.id);
+  if (['tab', 'open'].includes(act)) return fn(b.dataset.id);
   if (ui.busy) return;
   ui.busy = true; ui.error = ''; b.disabled = true;
   try { await fn(target || findCard(ui.open), b); }
@@ -1270,6 +1307,7 @@ boardRoot.addEventListener('input', (e) => {
 });
 boardRoot.addEventListener('change', async (e) => {
   if (e.target && e.target.closest && e.target.closest('.loom-run')) return; // the runs half handles its run cards (loom.js)
+  if (reports && e.target.closest('#reportsBox') && reports.change(e.target)) return;
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
   if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
   if (e.target.dataset.qpick) {
@@ -1330,7 +1368,7 @@ boardRoot.addEventListener('toggle', (e) => {
   if (d && d.classList && d.classList.contains('fold') && d.dataset.fold && panelEl.contains(d)) { ui.folds[d.dataset.fold] = d.open; remember(`fold.${d.dataset.fold}`, d.open ? '1' : '0'); }
 }, true);
 
-/* ---------- routes: item/<id>, health (sprints), runway/<map>/<item> (Runway's Open in Slate button) ---------- */
+/* ---------- routes: item/<id>, health (sprints, reports), runway/<map>/<item> (Runway's Open in Slate button) ---------- */
 
 async function route(path) {
   let raw = String(path || '');
@@ -1339,6 +1377,8 @@ async function route(path) {
   // Roadmaps lived in Slate until 2.0.0: old links open Runway itself.
   if (parts[0] === 'roadmaps' || parts[0] === 'roadmap') { ws.open({ app: 'runway', path: parts.slice(1).join('/') }).catch(() => {}); return; }
   if (parts[0] === 'sprints') { ui.tab = 'health'; paint(); const el = $('sprints'); if (el) el.scrollIntoView({ block: 'start' }); return; }
+  // Team reports live in Health (Runway's #/reports sends people here).
+  if (parts[0] === 'reports' || (parts[0] === 'health' && parts[1] === 'reports')) { ui.tab = 'health'; paint(); const el = $('reports'); if (el) el.scrollIntoView({ block: 'start' }); return; }
   if (parts[0] === 'health' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
   if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; paint(); return; }
   if (parts[0] === 'runway' && parts[1] && parts[2]) { await fromRunway(parts[1], parts[2]); return; }
@@ -1372,7 +1412,7 @@ ws.on('command', (p) => {
   if (p.id === 'new') ACT.new();
   if (p.id === 'new-idea') ACT['new-idea']();
   if (p.id === 'refresh') ACT.refresh();
-  if (p.id === 'health' || p.id === 'sprints') route(p.id);
+  if (p.id === 'health' || p.id === 'sprints' || p.id === 'team-reports') route(p.id === 'team-reports' ? 'reports' : p.id);
 });
 ws.on('visible', (p) => { if (p && p.visible) refresh({ backlog: false }).catch(() => {}); });
 ws.on('online', () => { store.load().then(() => refresh()).catch(() => {}); });

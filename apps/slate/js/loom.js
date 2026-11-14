@@ -12,7 +12,7 @@ export const BOARD_TABS = ['board', 'health'];
 export const TABS = [['inbox', 'Inbox'], ['board', 'Board'], ['health', 'Health'], ['chat', 'Chat'], ['reviews', 'Reviews']];
 
 /**
- * Which half a route belongs to: the board half for its own paths (item/<id>, health, sprints, board, runway/...,
+ * Which half a route belongs to: the board half for its own paths (item/<id>, health, health/reports, reports, sprints, board, runway/...,
  * roadmaps), else the runs half (inbox, chat, reviews, work, hub/<text>, a run's id or folder). Returns {half: 'board'|'runs', tab, path}.
  */
 export function splitRoute(path) {
@@ -23,6 +23,7 @@ export function splitRoute(path) {
   if (['runway', 'roadmaps', 'roadmap'].includes(head)) return { half: 'board', tab: 'board', path: p };
   if (head === 'board') return { half: 'board', tab: 'board', path: '' };
   if (head === 'health' || head === 'sprints') return { half: 'board', tab: 'health', path: p };
+  if (head === 'reports') return { half: 'board', tab: 'health', path: 'health/reports' };
   return { half: 'runs', tab: '', path: p };
 }
 

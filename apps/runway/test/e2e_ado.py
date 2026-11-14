@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runway with Azure DevOps, in headless Chrome: this repo served together with a small mock Workshop agent whose
 ADO connector answers `roadmap`, `iterations.list` and `dataset` from synthetic data. Checks a live ADO roadmap (read only,
-refresh rebuilds it, owners from Assigned To), team reports (area paths filled in from Settings' team), a linked one (your edit is kept and shows
+refresh rebuilds it, owners from Assigned To), a linked one (your edit is kept and shows
 as differing), mixing in an ad hoc item, Publish (preview, confirm, workitem.update with confirm: true for titles, owners, dates and sprints, conflicts skipped), and that with the
 connector off Runway shows no ADO controls and still opens every roadmap.
 
@@ -335,40 +335,14 @@ def main():
         pg.evaluate(f'() => {R}.flush()')
         linked_id = pg.evaluate(f'() => {R}.store.v.mapId')
 
-        # Team reports (moved from Docket): the page, the profile, one dataset pull, tabs, escaped ADO text, export.
+        # Team reports moved to Loom's Health (Runway 3.0.0): no button here, and #/reports opens them in Loom.
         pg.goto(APP + '#/')
-        pg.wait_for_selector('[data-reports]', timeout=5000)
-        pg.click('[data-reports]')
-        pg.wait_for_selector('.rpage .engcard', timeout=8000)
-        check('Team reports opens from the list and asks for a team profile', 'Set up your team profile' in pg.inner_text('.rpage'))
-        pg.click('.rpage [data-rp="profile"]')
-        pg.wait_for_selector('dialog textarea[name="areas"]', timeout=3000)
-        check('the team profile fills area paths from your team in Settings', pg.input_value('dialog textarea[name="areas"]') == 'Platform\\Wiki'
-              and 'Filled in from your team' in pg.inner_text('dialog'))
-        pg.fill('dialog textarea[name="areas"]', 'Platform\\Wiki')
-        pg.fill('dialog textarea[name="people"]', 'dev.one@example.test')
-        pg.click('dialog button[value="ok"]')
-        pg.wait_for_selector('.rpage .wl-kpis', timeout=8000)
-        ds = [c for c in STATE['calls'] if c[0] == 'dataset']
-        check('saving the profile pulls one dataset with the areas, people and window', len(ds) == 1 and ds[0][1].get('areas') == ['Platform\\Wiki']
-              and ds[0][1].get('people') == ['dev.one@example.test'] and ds[0][1].get('days') == 42)
-        check('Priority churn shows the escalation', 'escalated to p1' in pg.inner_text('.rpage').lower())
-        pg.click('.rpage [data-tab="other"]'); pg.wait_for_timeout(200)
-        txt = pg.inner_text('.rpage .reports')
-        check("Other teams' work lists the item outside the areas, as text", '<img src=x' in txt and pg.evaluate('() => !window.__pwned')
-              and pg.query_selector('.rpage a[href^="javascript"]') is None)
-        tabs = pg.evaluate("() => [...document.querySelectorAll('.rp-tabs [role=tab]')].map(b => b.textContent)")
-        for t in ['carry', 'scope', 'load', 'aging']:
-            pg.click(f'.rpage [data-tab="{t}"]'); pg.wait_for_timeout(100)
-        check('all six report tabs render', len(tabs) == 6 and pg.query_selector('.rpage .rp-sec') is not None)
-        with pg.expect_download(timeout=15000) as dl: pg.click('.rpage [data-rp="export"]')
-        check('Export to Excel saves a workbook', dl.value.suggested_filename.startswith('team-reports-') and dl.value.suggested_filename.endswith('.xlsx'))
-        pg.reload()
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
-        pg.wait_for_selector('.rpage .wl-kpis', timeout=8000)
-        check('after a reload the last pull shows without asking ADO again', len([c for c in STATE['calls'] if c[0] == 'dataset']) == 1)
-        pg.click('.rpage [data-rp="home"]'); pg.wait_for_timeout(300)
-        check('Runway goes back to the roadmap list', pg.evaluate("document.getElementById('app').dataset.view") == 'list')
+        check('team reports are not on Runway\'s list any more (they are in Loom)', pg.query_selector('[data-reports]') is None)
+        check('Runway pulled no team report dataset', not any(c[0] == 'dataset' for c in STATE['calls']))
+        pg.evaluate(f'() => {R}.route("reports")')
+        pg.wait_for_url(re.compile(r'#/slate/health(%2F|/)reports$'), timeout=8000)
+        check('an old #/reports link opens team reports in Loom\'s Health', True)
 
         # The connector turned off: no ADO controls, roadmaps still open and edit.
         STATE['connector'] = 'disabled'
@@ -377,10 +351,6 @@ def main():
         pg.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=15000)
         pg.wait_for_function(f'() => {R}.ado && {R}.ado.state.checked && !{R}.ado.state.ready', timeout=8000)
         check('connector off: no From Azure DevOps on the list', pg.query_selector('[data-fromado]') is None)
-        check('connector off: no Team reports link on the list (it needs Azure DevOps)', pg.query_selector('[data-reports]') is None)
-        pg.evaluate(f'() => {R}.route("reports")'); pg.wait_for_selector('.rpage .engcard', timeout=5000)
-        check('connector off: Team reports explains it needs the connector', 'Connect Azure DevOps' in pg.inner_text('.rpage'))
-        pg.evaluate(f'() => {R}.route("")'); pg.wait_for_timeout(200)
         calls = len(STATE['calls'])
         pg.evaluate(f'() => {R}.route("{linked_id}")')
         pg.wait_for_selector('.adobar', timeout=5000)

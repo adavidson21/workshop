@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox, Chat and PR reviews.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -41,6 +41,10 @@
       "path": "sprints"
     },
     {
+      "name": "reports",
+      "path": "health/reports"
+    },
+    {
       "name": "inbox",
       "path": "inbox"
     },
@@ -69,6 +73,10 @@
     {
       "path": "health",
       "title": "Team health"
+    },
+    {
+      "path": "health/reports",
+      "title": "Team reports (in Health)"
     },
     {
       "path": "sprints",
@@ -129,6 +137,11 @@
       "route": "sprints"
     },
     {
+      "id": "team-reports",
+      "title": "Team reports",
+      "route": "health/reports"
+    },
+    {
       "id": "repo",
       "title": "Add a repo"
     },
@@ -149,6 +162,9 @@
     "js/model.js",
     "js/view.js",
     "js/health.js",
+    "js/reports/index.js",
+    "js/reports/model.js",
+    "js/reports/view.js",
     "dispatch.css",
     "js/dispatch/main.js",
     "js/dispatch/doc.js",
