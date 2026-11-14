@@ -326,3 +326,36 @@ label.btn{cursor:pointer}
 .wv-aud-form{padding:.6rem 0;border-bottom:1px solid var(--line)}
 .wv-more{margin-top:.5rem}
 .wv-more input{width:100%}
+
+/* ---------- Settings 6.0.0 (Workshop project claude/settings-v3-plan.md): fewer nav items, some with tabs, a
+   status dot on the connector's nav item, the User guide as a link under the nav, and Needs you on Status. ---------- */
+.navpanel[hidden]{display:none}
+.nav-item>span:first-child{flex:1;min-width:0}
+.nav-item .nav-dot{flex:none}
+.navpanel.tabbed>.panel>.page-title{display:none}
+.navpanel>.nav-title[hidden],.tabs[hidden]{display:none}
+.navpanel.tabbed>.nav-title{margin-bottom:.6rem}
+.tabs{display:flex;flex-wrap:wrap;gap:.2rem;margin:0 0 1.1rem;border-bottom:1px solid var(--line)}
+.tab{appearance:none;display:inline-flex;align-items:center;gap:.4rem;min-height:40px;margin-bottom:-1px;padding:.45rem .85rem;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-size:.92rem;cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:650}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r-xs)}
+.nav-help{appearance:none;align-self:flex-start;margin:.2rem 0 0;padding:.35rem .6rem;border:0;border-radius:var(--r-sm);background:none;color:var(--muted);font:inherit;font-size:.85rem;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.nav-help:hover,.nav-help[aria-current]{color:var(--ink)}
+.nav-help[hidden]{display:none}
+.nav-help:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#content .panel>.card.needs-you{background:var(--warn-soft);box-shadow:none;border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.needs-you h2{display:flex;align-items:center;gap:.5rem;font-size:1.1rem}
+.ny-list{list-style:none;margin:.2rem 0 0;padding:0}
+.ny-list li{display:flex;align-items:center;gap:.7rem;padding:.45rem 0;font-size:.92rem}
+.ny-list li+li{border-top:1px solid color-mix(in srgb,var(--warn) 20%,transparent)}
+.ny-list li>span:nth-child(2){flex:1;min-width:0}
+.ny-dot{flex:none;width:.5rem;height:.5rem;border-radius:50%;background:var(--warn)}
+.ny-dot[data-kind=error]{background:var(--danger)}
+.fh-hist-fold>summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .7rem;cursor:pointer;list-style:none}
+.fh-hist-fold>summary::-webkit-details-marker{display:none}
+.fh-hist-fold>summary h2{margin:0}
+.fh-hist-fold>summary::before{content:"";width:.5rem;height:.5rem;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-right:.2rem;align-self:center}
+.fh-hist-fold[open]>summary::before{transform:rotate(45deg)}
+.fh-hist-fold[open]>summary{margin-bottom:.8rem}
+.fh-hist-fold .sub{color:var(--muted);font-size:.9rem}

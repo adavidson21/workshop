@@ -63,7 +63,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
   }
   const aiError = e => {
     const m = errText(e);
-    if (/not installed|unknown connector|not_found/i.test(m) && /opencode/i.test(m)) return 'Writing uses opencode. Set it up in Agents first.';
+    if (/not installed|unknown connector|not_found/i.test(m) && /opencode/i.test(m)) return 'Writing uses opencode. Set it up in Settings, opencode, first.';
     return m;
   };
 

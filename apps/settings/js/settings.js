@@ -1,11 +1,11 @@
-/* Settings: one page per job, in a left nav grouped by task (pages.js has the list).
+/* Settings: a short left nav grouped by task (pages.js has the list). Some nav items hold pages as tabs.
 
-     Workshop        Overview, Apps, This computer, Data & backups
-     People & teams  People & groups, Team area paths (people.js)
-     Azure DevOps    Connections, Work items, Pull requests
-     Code & agents   Repos, Agents
-     Connectors      a page for any other connector
-     Help            User guide: "I need to..." scenarios and the best way to do each (guide.js)
+     Workshop          Status (Needs you first), Apps, This computer, Data & backups
+     You & your team   People & teams (tabs: People & groups, Team area paths; people.js), Products,
+                       Focus hours, Writing voice (tabs: Voice, Audiences, Rules)
+     Connections       Azure DevOps (tabs: Connections, Work items, Pull requests), opencode, Repos,
+                       one item for any other connector
+     User guide        a link under the nav: "I need to..." scenarios and the best way to do each (guide.js)
 
    Everything goes through the SDK (shared/workshop-sdk.js). Connector forms are generated from each
    connector's configSchema (forms.js); a field goes on the page its `x-workshop-page` names, else on the
@@ -17,7 +17,7 @@
    Local mode (served by the agent): everything can be changed, including the data folder (dataDir).
    Hosted mode (a paired site): read only, except People & teams (ws.people works in every mode) and repo
    mapping and PR sources (marked x-workshop-hosted). The agent refuses other config changes from other sites.
-   Browser mode (no agent): Overview, Apps, People & teams and Data & backups.
+   Browser mode (no agent): Status, Apps, People & teams and Data & backups.
 
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
 import { connect } from '../../../shared/workshop-sdk.js';
@@ -54,20 +54,23 @@ const content = $('#content');
 function toast(text, kind) { return ws.toast(text, { kind }); }
 
 /* ---------- the nav and its pages ----------
-   A page is a panel in #content with a button in #nav, under its group's label. Pages are made as the cards
-   that go on them are made, so a page with nothing on it (no ADO connector, browser mode) never shows. The
-   last page opened is remembered in this browser. On a narrow window the nav is a select. */
+   A page is a panel in #content (#page-<id>). Pages live in nav panels (.navpanel), one per nav item in #nav,
+   under its group's label: most nav items hold one page, and People & teams, Writing voice and Azure DevOps
+   hold several as tabs (pages.js NAV). Pages are made as the cards that go on them are made, so a page with
+   nothing on it (no ADO connector, browser mode) never shows, and a tab row shows only once a nav item has two
+   pages. The last page opened is remembered in this browser. On a narrow window the nav is a select. */
 const navEl = $('#nav');
 const navSelect = $('#navSelect');
 const PAGE_KEY = 'workshop.settings.page';
-const pages = new Map(); // id -> {el, btn, label, group, dirty: Set<form>}
+const pages = new Map(); // id -> {el, tab, label, group, nav, dirty: Set<form>}
+const navs = new Map();  // nav id -> {el, btn, tabs, title, label, last}
 let wantPage = 'overview';
 let wantFocus = '';
 try {
   const saved = localStorage.getItem(PAGE_KEY) || localStorage.getItem('workshop.settings.tab'); // the tab, before the nav
   const r = saved && P.routeToPage(saved);
   if (r) wantPage = r.page;
-} catch (e) { /* storage blocked: start on Overview */ }
+} catch (e) { /* storage blocked: start on Status */ }
 let current = null;
 
 function groupEl(id) {
@@ -77,39 +80,81 @@ function groupEl(id) {
   g = document.createElement('div');
   g.className = 'nav-group';
   g.dataset.group = id;
-  g.innerHTML = `<p class="nav-label"><span>${esc(def.label)}</span><span class="nav-dot" hidden></span></p>`;
+  g.innerHTML = `<p class="nav-label"><span>${esc(def.label)}</span></p>`;
   const order = P.GROUPS.map(x => x.id);
-  const after = [...navEl.children].find(x => order.indexOf(x.dataset.group) > order.indexOf(id));
+  const after = [...navEl.children].find(x => x.classList.contains('nav-help') || order.indexOf(x.dataset.group) > order.indexOf(id));
   navEl.insertBefore(g, after || null);
   return g;
 }
 
+const rank = x => { const i = P.ORDER.indexOf(x); return i < 0 ? 1000 : i; };
+
 function selectPage(id, remember) {
   if (!pages.has(id)) return;
   current = id;
+  const navId = pages.get(id).nav;
+  for (const [nid, n] of navs) {
+    const on = nid === navId;
+    n.el.hidden = !on;
+    if (n.btn) { if (on) n.btn.setAttribute('aria-current', 'page'); else n.btn.removeAttribute('aria-current'); }
+  }
   for (const [pid, p] of pages) {
+    if (p.nav !== navId) continue;
     const on = pid === id;
     p.el.hidden = !on;
-    if (on) p.btn.setAttribute('aria-current', 'page'); else p.btn.removeAttribute('aria-current');
+    p.tab.setAttribute('aria-selected', String(on));
+    p.tab.tabIndex = on ? 0 : -1;
   }
-  navSelect.value = id;
+  navs.get(navId).last = id;
+  helpBtn.toggleAttribute('aria-current', id === 'guide');
+  navSelect.value = navId;
   if (remember) { wantPage = id; try { localStorage.setItem(PAGE_KEY, id); } catch (e) { /* not remembered */ } }
+}
+
+// The nav item and panel for a nav id, made with its first page.
+function navPanel(navId, group, label, hidden) {
+  if (navs.has(navId)) return navs.get(navId);
+  let btn = null;
+  if (!hidden) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nav-item';
+    btn.dataset.nav = navId;
+    btn.innerHTML = `<span>${esc(label)}</span><span class="nav-dot" hidden></span><span class="dirty-dot" title="Not saved" hidden></span>`;
+    const g = groupEl(group);
+    const after = [...g.querySelectorAll('.nav-item')].find(b => rank(P.tabsOf(b.dataset.nav)[0]) > rank(P.tabsOf(navId)[0]));
+    g.insertBefore(btn, after || null);
+  }
+  const el = document.createElement('div');
+  el.className = 'navpanel';
+  el.dataset.nav = navId;
+  el.hidden = true;
+  el.innerHTML = `<h2 class="page-title nav-title" hidden>${esc(label)}</h2><div class="tabs" role="tablist" aria-label="${esc(label)}" hidden></div>`;
+  content.appendChild(el);
+  const n = { el, btn, tabs: el.querySelector('.tabs'), title: el.querySelector('.nav-title'), label, last: null };
+  navs.set(navId, n);
+  return n;
 }
 
 function page(id, label, group) {
   if (pages.has(id)) return pages.get(id).el;
   const def = P.PAGES[id] || {};
   label = label || def.label || id;
-  group = group || def.group || 'connectors';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'nav-item';
-  btn.dataset.page = id;
-  btn.innerHTML = `<span>${esc(label)}</span><span class="dirty-dot" title="Not saved" hidden></span>`;
-  const g = groupEl(group);
-  const rank = x => { const i = P.ORDER.indexOf(x); return i < 0 ? 1000 : i; };
-  const after = [...g.querySelectorAll('.nav-item')].find(b => rank(b.dataset.page) > rank(id));
-  g.insertBefore(btn, after || null);
+  group = group || def.group || 'connections';
+  const navId = P.navOf(id);
+  const n = navPanel(navId, group, P.navLabel(navId, label), def.hidden);
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.className = 'tab';
+  tab.id = `tab-${id}`;
+  tab.dataset.page = id;
+  tab.setAttribute('role', 'tab');
+  tab.setAttribute('aria-controls', `page-${id}`);
+  tab.setAttribute('aria-selected', 'false');
+  tab.tabIndex = -1;
+  tab.innerHTML = `<span>${esc(label)}</span><span class="dirty-dot" title="Not saved" hidden></span>`;
+  const after = [...n.tabs.querySelectorAll('.tab')].find(b => rank(b.dataset.page) > rank(id));
+  n.tabs.insertBefore(tab, after || null);
   const el = document.createElement('div');
   el.id = `page-${id}`;
   el.className = 'panel';
@@ -118,10 +163,19 @@ function page(id, label, group) {
   el.setAttribute('aria-label', label);
   el.hidden = true;
   el.innerHTML = `<h2 class="page-title">${esc(label)}</h2><p class="gate sub" hidden></p>`;
-  content.appendChild(el);
-  pages.set(id, { el, btn, label, group, dirty: new Set() });
+  const nextPanel = [...n.el.querySelectorAll(':scope > .panel')].find(x => rank(x.dataset.page) > rank(id));
+  n.el.insertBefore(el, nextPanel || null);
+  pages.set(id, { el, tab, label, group, nav: navId, dirty: new Set() });
+  // Two or more pages: the nav panel shows its own title and a tab row, and the pages drop theirs.
+  const tabbed = n.tabs.children.length > 1;
+  n.tabs.hidden = !tabbed;
+  n.title.hidden = !tabbed;
+  n.el.classList.toggle('tabbed', tabbed);
+  if (tabbed) { n.el.setAttribute('role', 'region'); n.el.setAttribute('aria-label', n.label); }
+  if (n.btn) n.btn.dataset.page = P.tabsOf(navId).find(x => pages.has(x)) || id;
   paintSelect();
   if (id === wantPage || !current) selectPage(id);
+  else if (current && pages.get(current).nav === navId) selectPage(current); // keep the shown tab, hide the new one
   if (id === wantPage && wantFocus) focusPart();
   return el;
 }
@@ -129,11 +183,28 @@ function page(id, label, group) {
 function paintSelect() {
   const groups = [...navEl.querySelectorAll('.nav-group')];
   navSelect.innerHTML = groups.map(g => `<optgroup label="${esc(g.querySelector('.nav-label span').textContent)}">${[...g.querySelectorAll('.nav-item')]
-    .map(b => `<option value="${esc(b.dataset.page)}">${esc(pages.get(b.dataset.page).label)}</option>`).join('')}</optgroup>`).join('');
-  if (current) navSelect.value = current;
+    .map(b => `<option value="${esc(b.dataset.nav)}">${esc(navs.get(b.dataset.nav).label)}</option>`).join('')}</optgroup>`).join('');
+  if (current) navSelect.value = pages.get(current).nav;
 }
 
-navEl.addEventListener('click', e => { const b = e.target.closest('.nav-item'); if (b) selectPage(b.dataset.page, true); });
+// A nav item opens the tab last shown in it, else its first page.
+function openNav(navId, remember) {
+  const n = navs.get(navId);
+  if (!n) return;
+  const id = n.last && pages.has(n.last) ? n.last : P.tabsOf(navId).find(x => pages.has(x)) || [...pages.keys()].find(x => pages.get(x).nav === navId);
+  if (id) selectPage(id, remember);
+}
+
+// The User guide: a quiet link under the nav, not a group of its own.
+const helpBtn = document.createElement('button');
+helpBtn.type = 'button';
+helpBtn.className = 'nav-help';
+helpBtn.textContent = 'User guide';
+helpBtn.hidden = true;
+navEl.appendChild(helpBtn);
+helpBtn.addEventListener('click', () => selectPage('guide', true));
+
+navEl.addEventListener('click', e => { const b = e.target.closest('.nav-item'); if (b) openNav(b.dataset.nav, true); });
 navEl.addEventListener('keydown', e => {
   const items = [...navEl.querySelectorAll('.nav-item')];
   const i = items.indexOf(document.activeElement);
@@ -142,24 +213,42 @@ navEl.addEventListener('keydown', e => {
   if (j == null) return;
   e.preventDefault();
   const t = items[(j + items.length) % items.length];
-  t.focus(); selectPage(t.dataset.page, true);
+  t.focus(); openNav(t.dataset.nav, true);
 });
-navSelect.addEventListener('change', () => selectPage(navSelect.value, true));
+navSelect.addEventListener('change', () => openNav(navSelect.value, true));
+// Tabs: click, or arrow keys along the row (roving tabindex).
+content.addEventListener('click', e => { const t = e.target.closest('.tabs .tab'); if (t) selectPage(t.dataset.page, true); });
+content.addEventListener('keydown', e => {
+  const t = e.target.closest('.tabs .tab');
+  if (!t) return;
+  const row = [...t.parentElement.querySelectorAll('.tab')];
+  const i = row.indexOf(t);
+  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: row.length - 1 }[e.key];
+  if (j == null) return;
+  e.preventDefault();
+  const next = row[(j + row.length) % row.length];
+  next.focus(); selectPage(next.dataset.page, true);
+});
 
-// The group's status dot: the connector behind it (ADO, opencode).
-function groupDot(group, state) {
-  const dot = groupEl(group).querySelector('.nav-dot');
+// The status dot on a nav item: the connector behind it (Azure DevOps, opencode).
+function navDot(navId, state) {
+  const n = navs.get(navId);
+  const dot = n && n.btn && n.btn.querySelector('.nav-dot');
+  if (!dot) return;
   dot.hidden = !state;
   dot.dataset.state = state || '';
   dot.title = state === 'empty' ? 'Not set up' : STATE_LABEL[state] || state || '';
 }
 
-// Unsaved changes: typing in a form marked data-track puts a dot on its page until it is saved or rebuilt.
+// Unsaved changes: typing in a form marked data-track puts a dot on its tab and nav item until it is saved or rebuilt.
 function paintDirty() {
+  const navDirty = new Map();
   for (const p of pages.values()) {
     for (const f of [...p.dirty]) if (!f.isConnected) p.dirty.delete(f);
-    p.btn.querySelector('.dirty-dot').hidden = p.dirty.size === 0;
+    p.tab.querySelector('.dirty-dot').hidden = p.dirty.size === 0;
+    if (p.dirty.size) navDirty.set(p.nav, true);
   }
+  for (const [nid, n] of navs) if (n.btn) n.btn.querySelector('.dirty-dot').hidden = !navDirty.get(nid);
 }
 function markDirty(form) { const p = pages.get(form.closest('.panel')?.dataset.page); if (p) { p.dirty.add(form); paintDirty(); } }
 function markClean(form) { for (const p of pages.values()) p.dirty.delete(form); paintDirty(); }
@@ -194,7 +283,7 @@ ws.on('command', ({ id } = {}) => {
   if (people) people.command(id); else pendingCommands.push([id]);
 });
 
-// A card on a page (Overview unless named). `order` places it among the page's cards (default 50).
+// A card on a page (Status unless named). `order` places it among the page's cards (default 50).
 // sub is shown under the heading (state and next steps); hint is an explanation behind the heading's quiet ?.
 function card(title, sub, pageId = 'overview', order = 50, hint = '') {
   const sec = document.createElement('section');
@@ -208,13 +297,14 @@ function card(title, sub, pageId = 'overview', order = 50, hint = '') {
   return sec;
 }
 const errText = e => (e && e.message) || 'Something went wrong.';
-// A link or button with data-goto-page="<page>" opens that page, for example from Overview to Connections.
+// A link or button with data-goto-page="<page>" opens that page, for example from Status to Connections.
 content.addEventListener('click', e => {
   const g = e.target.closest('[data-goto-page]');
   if (!g || !pages.has(g.dataset.gotoPage)) return;
   e.preventDefault();
   selectPage(g.dataset.gotoPage, true);
-  pages.get(g.dataset.gotoPage).btn.focus();
+  const p = pages.get(g.dataset.gotoPage), n = navs.get(p.nav);
+  (n.tabs.hidden ? n.btn : p.tab)?.focus();
 });
 
 /* ---------- header ---------- */
@@ -235,7 +325,7 @@ function header() {
       + ' People, groups and team area paths change here.';
     document.body.classList.add('ro');
   }
-  // Browser mode: no subtitle. Overview's "Workshop on this computer" card says how to connect.
+  // Browser mode: no subtitle. Status's "Workshop on this computer" card says how to connect.
 }
 
 /* ---------- data folder (docs/run-modes.md; docs/config.md, Data folder) ----------
@@ -591,7 +681,7 @@ async function connectorsSetup() {
   await Promise.all(list.map(i => loadCfg(i.id)));
   for (const info of list) {
     const main = P.mainPageOf(info.id);
-    page(main, P.PAGES[main] ? null : info.name, P.PAGES[main] ? null : 'connectors');
+    page(main, P.PAGES[main] ? null : info.name, P.PAGES[main] ? null : 'connections');
     const sec = card('', '', main, 10);
     sec.appendChild(connectorBlock(info));
     if (NOTE[info.id]) sec.insertAdjacentHTML('beforeend', `<p class="sub conn-note">${NOTE[info.id]}</p>`);
@@ -608,9 +698,11 @@ async function connectorsSetup() {
     }
   }
   const paintDots = () => {
-    for (const g of P.GROUPS.filter(x => x.connector && conn.info[x.connector])) {
-      const s = stateOf(g.connector);
-      groupDot(g.id, s === 'off' || s === 'missing' ? '' : s === 'empty' ? 'empty' : (conn.info[g.connector].status || {}).state);
+    for (const navId of navs.keys()) {
+      const id = P.dotOf(navId) || (navId.startsWith('c-') ? navId.slice(2) : '');
+      if (!id || !conn.info[id]) continue;
+      const s = stateOf(id);
+      navDot(navId, s === 'off' || s === 'missing' ? '' : s === 'empty' ? 'empty' : (conn.info[id].status || {}).state);
     }
   };
   onChange.add(() => { updateGates(); paintDots(); });
@@ -987,7 +1079,27 @@ function summarize(result) {
   return head + (rows ? `<dl>${rows}</dl>` : '');
 }
 
-/* ---------- Overview: one row per connector, with a link to the page that needs you ---------- */
+/* ---------- Status: Needs you first, then one row per connector ----------
+   Needs you lists only connectors that are set up and broken (Fix) or warning (Check), such as a PAT that
+   expires soon. Off and not set up stay neutral, in the rows below. It hides when nothing needs you. */
+function needsYouCard() {
+  if (!conn.list.length) return;
+  const sec = card('', '', 'overview', 5);
+  sec.classList.add('needs-you');
+  sec.setAttribute('aria-live', 'polite');
+  const paint = () => {
+    const items = P.needsYou(conn.list.map(c => ({ info: conn.info[c.id], config: conn.cc[c.id] && conn.cc[c.id].config })));
+    sec.dataset.hide = items.length ? '' : '1';
+    sec.hidden = !items.length;
+    sec.innerHTML = items.length ? `<h2>Needs you <span class="pill-tag">${items.length}</span></h2><ul class="ny-list">${items.map(i =>
+      `<li data-needs="${esc(i.id)}"><span class="ny-dot" data-kind="${i.action === 'Fix' ? 'error' : 'warn'}" aria-hidden="true"></span><span><b>${esc(i.name)}:</b> ${esc(i.message)}</span>
+        <button type="button" class="btn${i.action === 'Fix' ? ' primary' : ''}" data-goto-page="${esc(i.page)}">${esc(i.action)}</button></li>`).join('')}</ul>` : '';
+  };
+  paint();
+  onChange.add(paint);
+}
+
+/* ---------- Status: one row per connector, with a link to the page that needs you ---------- */
 function statusCard() {
   if (!conn.list.length) return;
   const sec = card('Connectors', '', 'overview', 60);
@@ -1131,7 +1243,7 @@ async function reposTab(list) {
   function paint() {
     const notes = [];
     if (!ocInfo) notes.push('The opencode connector is not installed, so workspace repos are not listed here.');
-    else if (!st.oc) notes.push(st.ocError ? `Workspace repos need opencode: ${esc(st.ocError)}` : `Turn on opencode in ${pageLink('agents', 'Agents')} to list and add your workspace repos.`);
+    else if (!st.oc) notes.push(st.ocError ? `Workspace repos need opencode: ${esc(st.ocError)}` : `Turn on opencode in ${pageLink('agents', 'opencode')} to list and add your workspace repos.`);
     if (adoInfo && st.ado && conn.info.ado && conn.info.ado.enabled && !conns().length) notes.push(`To link repos to Azure DevOps projects, add a connection in ${pageLink('connections', 'Connections')}.`);
     const todo = canMap() ? R.unmapped(st.rows) : [];
     const items = st.rows.map(r => st.editing === r.folder
@@ -1481,6 +1593,7 @@ async function start() {
       await productsPage();
       if (list.some(i => i.id === 'opencode')) await writingPages(); // Writing needs opencode for its AI steps
       statusCard();
+      needsYouCard();
       await reposTab(list);
       updateGates();
     } catch (e) {
@@ -1500,6 +1613,7 @@ async function start() {
   dataCard();
   tipsCard();
   mountGuide({ ws, el: page('guide') });
+  helpBtn.hidden = false;
   if (pages.has(wantPage) && current !== wantPage) selectPage(wantPage);
   if (!current) selectPage('overview');
 }

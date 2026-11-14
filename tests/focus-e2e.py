@@ -258,6 +258,8 @@ def main():
         sf = frame_of(pg, 'settings')
         sf.evaluate("() => location.reload()"); pg.clock.run_for(3000); pg.wait_for_timeout(2000)
         sf = frame_of(pg, 'settings')
+        try: sf.click('.fh-hist-fold > summary', timeout=8000)  # History folds away (Settings v3)
+        except Exception: pass
         try: sf.wait_for_selector('.fh-hist', timeout=8000)
         except Exception: pass
         hist = sf.inner_text('.focus-history') if sf.locator('.focus-history').count() else ''

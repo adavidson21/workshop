@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { GUIDE, SECTIONS, APP_NAMES, matches } from '../js/guide.js';
 import { PAGES, GROUPS } from '../js/pages.js';
 
-test('the guide is a page in the Help group', () => {
-  assert.equal(PAGES.guide.group, 'help');
-  assert.ok(GROUPS.some(g => g.id === 'help'));
+test('the guide is a page with no nav item: a link under the nav opens it', () => {
+  assert.equal(PAGES.guide.hidden, true);
+  assert.ok(GROUPS.some(g => g.id === PAGES.guide.group));
 });
 
 test('every scenario is complete, in a known section, and opens a known app', () => {

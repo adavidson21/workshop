@@ -136,8 +136,14 @@ def check(name, ok):
 
 SETTINGS_PAGE = {'general': 'overview', 'c-ado': 'connections', 'c-opencode': 'agents'}
 def stab(frame, tab):
-    """Settings has a page per job in its left nav (apps/settings/js/pages.js). Opens one, by page id or the old tab id."""
-    frame.click(f'.nav-item[data-page="{SETTINGS_PAGE.get(tab, tab)}"]'); frame.wait_for_timeout(150)
+    """Settings has a short left nav (apps/settings/js/pages.js); some nav items hold pages as tabs. Opens a page,
+    by page id or the old tab id: its nav item, then its tab when the nav item has a tab row."""
+    pid = SETTINGS_PAGE.get(tab, tab)
+    nav = frame.evaluate("id => { const p = document.getElementById('page-' + id); return p && p.closest('.navpanel').dataset.nav; }", pid) or pid
+    frame.click(f'.nav-item[data-nav="{nav}"]'); frame.wait_for_timeout(100)
+    tabbtn = frame.locator(f'.tabs:not([hidden]) .tab[data-page="{pid}"]')
+    if tabbtn.count(): tabbtn.click()
+    frame.wait_for_timeout(150)
 
 
 def skip_docket_tour(frame):
@@ -388,8 +394,14 @@ def browser_mode_checks(ctx, pg, frame, watch):
           and 'Saved in this browser' in sf.inner_text('[data-folder]') and sf.locator('[data-folder] [data-choose]').inner_text() == 'Choose folder')
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
-    nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.page)") if sf else []
-    check('Settings in browser mode: Overview, Apps, Focus hours, People & teams, Data & backups, Products and User guide in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'focus', 'data', 'people', 'team', 'products', 'guide'])
+    nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.nav)") if sf else []
+    check('Settings in browser mode: Status, Apps, Data & backups, People & teams, Products and Focus hours in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'data', 'people-teams', 'products', 'focus'])
+    check('People & teams holds People & groups and Team area paths as tabs', sf is not None and sf.evaluate("[...document.querySelectorAll('.navpanel[data-nav=people-teams] .tab')].map(t => t.dataset.page).join()") == 'people,team'
+          and sf.locator('.navpanel[data-nav=people-teams] .tabs').get_attribute('role') == 'tablist')
+    check('the User guide is a link under the nav that opens its page', sf is not None and sf.locator('.nav-help').is_visible())
+    if sf:
+        sf.click('.nav-help'); sf.wait_for_timeout(200)
+        check('the User guide link opens the guide', sf.locator('#page-guide').is_visible())
 
     # People directory (docs/people.md), in Settings' People & teams: add yourself, then a report whose name is markup.
     # The old People app's address opens it (shell RENAMED).
@@ -740,8 +752,11 @@ def agent_checks(b, watch):
         check('the agent\'s address opens Workshop on this computer (Settings), in local mode', sf.url == url + '/apps/settings/'
               and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
         check('it has one button to Workshop\'s site to pair from, not a list of sites', sf.locator('[data-open-site]').count() == 1 and sf.locator('a[data-open-site][href="' + HOSTED + '/"]').count() == 1)
-        nav = sf.evaluate("[...document.querySelectorAll('.nav-group')].map(g => g.dataset.group + ':' + [...g.querySelectorAll('.nav-item')].map(b => b.dataset.page).join(','))")
-        check('Settings has a left nav grouped by task', nav == ['workshop:overview,apps,focus,computer,data', 'people:people,team', 'ado:connections,work-items,pull-requests', 'code:products,repos', 'connectors:c-echo', 'help:guide'])
+        nav = sf.evaluate("[...document.querySelectorAll('.nav-group')].map(g => g.dataset.group + ':' + [...g.querySelectorAll('.nav-item')].map(b => b.dataset.nav).join(','))")
+        check('Settings has a short left nav in three groups', nav == ['workshop:overview,apps,computer,data', 'you:people-teams,products,focus', 'connections:ado,repos,c-echo'])
+        check('Azure DevOps is one nav item with Connections, Work items and Pull requests as tabs',
+              sf.evaluate("[...document.querySelectorAll('.navpanel[data-nav=ado] .tab')].map(t => t.dataset.page).join()") == 'connections,work-items,pull-requests')
+        check('Status has no Needs you while nothing set up is broken', sf.locator('.needs-you:visible').count() == 0)
         check('rarely changed settings are on their own page, This computer, not on Overview', sf.locator('#page-computer #port').count() == 1 and sf.locator('#page-computer #feat-startAtLogin').count() == 1
               and sf.locator('#page-overview #port').count() == 0 and sf.locator('details.adv').count() == 0)
         check('Overview says Azure DevOps is off, with Set up, and nothing in red', 'off' in sf.inner_text('[data-status-of=ado]').lower() and sf.locator('[data-status-of=ado] .state[data-state=error]').count() == 0)
@@ -808,7 +823,7 @@ def agent_checks(b, watch):
         conns_page = sf.locator('#page-connections')
         ado.locator('[data-enable]').check(); sf.wait_for_timeout(1200)
         check('ADO on with no connection reads as not set up, not as a problem', ado.locator('[data-state]').text_content().strip() == 'Not set up'
-              and sf.get_attribute('[data-group=ado] .nav-dot', 'data-state') == 'empty')
+              and sf.get_attribute('.nav-item[data-nav=ado] .nav-dot', 'data-state') == 'empty')
         stab(sf, 'pull-requests')
         check('Pull requests asks for a connection first', 'Add a connection first, in Connections.' in sf.inner_text('#page-pull-requests'))
         stab(sf, 'c-ado')
@@ -825,6 +840,12 @@ def agent_checks(b, watch):
         conns = saved['connectors'].get('ado', {}).get('config', {}).get('connections', [])
         check('the ADO connection saves to config.json', len(conns) == 1 and conns[0]['serverUrl'] == 'https://ado.example.com' and 'ADO_PAT' not in json.dumps({k: v for k, v in os.environ.items() if k == 'ADO_PAT'}))
         check('after saving, its row says whether the variable is set', 'not set on this computer' in conns_page.locator('.conns [data-conn=work]').inner_text())
+        stab(sf, 'overview'); sf.wait_for_timeout(300)
+        ny = sf.locator('.needs-you [data-needs=ado]')
+        check('Status leads with Needs you: Azure DevOps, set up with its PAT missing, with Fix', ny.count() == 1 and 'ADO_PAT' in ny.inner_text() and ny.locator('button').inner_text() == 'Fix'
+              and sf.locator('.needs-you [data-needs=echo]').count() == 0)
+        ny.locator('button').click(); sf.wait_for_timeout(200)
+        check('Fix opens the Connections tab of Azure DevOps', conns_page.is_visible() and sf.get_attribute('#tab-connections', 'aria-selected') == 'true')
         stab(sf, 'work-items')
         sf.locator('#page-work-items fieldset').first.locator('input').first.fill('Task')
         sf.locator('#page-work-items form.cfg > .acts button.primary').click(); sf.wait_for_timeout(1200)

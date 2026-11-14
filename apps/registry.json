@@ -937,8 +937,8 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "5.2.0",
-        "description": "Connectors, repos, products, people and teams, apps, focus hours and lunch, writing voice, the data folder and backups, and a user guide.",
+        "version": "6.0.0",
+        "description": "Status and what needs you, apps, this computer, data and backups; people and teams, products, focus hours and writing voice; Azure DevOps, opencode and repos; and a user guide.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,
@@ -986,6 +986,10 @@
           {
             "name": "help",
             "path": "guide"
+          },
+          {
+            "name": "status",
+            "path": "overview"
           }
         ],
         "files": [
