@@ -25,7 +25,7 @@ const VQ = {
 const VIEWS = ['today','day','people','archive'];
 // Week's two lenses (Docket 9.0.0): the ranked list and the Eisenhower matrix. Value / Effort was retired; its old
 // names open the matrix.
-const LENSES = {rank: 'Ranked', eisen: 'Do first, schedule, hand off'};
+const LENSES = {rank: 'Ranked', eisen: 'Matrix'};
 // Inside the Workshop shell (a same-origin frame), the shell owns the theme picker and the service worker.
 // A touch screen with no mouse (phones, tablets): hints say "tap", keyboard hints are hidden.
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
@@ -101,10 +101,10 @@ function initials(name){
   const cap = [...s.slice(1)].find(c => c >= 'A' && c <= 'Z' || c >= '0' && c <= '9');
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
-// [key, label, icon, shortcut]. Four places (Docket 9.0.0): Today, Week, People, Done. The Day view is Today's plan
-// for a date (the arrows on Today, Plan the day, and the 2 key), not a place of its own. 3 focuses Today's To sort
-// column. Week is Today's full ranking (render.js planWeek), shown as a place of its own in the sidebar.
-const NAV = [['today','Today',ICON.today,'1'],['week','Week',ICON.prio,'4'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
+// [key, label, icon, shortcut]. Three places (Docket 10.5.0): Today, People, Done. Week is Today's range toggle
+// (Today | This week in Today's header, or 4; render.js planWeek), not a place of its own. The Day view is Today's
+// plan for a date (the arrows on Today, Plan the day, and the 2 key). 3 focuses Today's To sort column.
+const NAV = [['today','Today',ICON.today,'1'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
 export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, PRI, PRI_ORDER, VIEWS, VQ, WINDOW };

@@ -123,11 +123,11 @@ function renderWaiting(){
 
 /* sidebar */
 function renderSide(){
-  const nav = state.view === 'today' && planWeek() ? 'week' : NAV_OF(state.view);
+  const nav = NAV_OF(state.view);
   const inbox = inboxQueue().length;
-  const tips = {today: `Today: To sort, Up next and Today${inbox ? `. ${inbox} to sort` : ''}. Shortcut: 1 (3 To sort, 2 plan the day)`, week: 'Week: rank everything against your capacity. Shortcut: 4'};
-  // Four places (Docket 9.0.0): Today is where the day happens (its Day plan included), Week ranks, People and Done
-  // are for review. One count, on Today: what is waiting to be sorted. Lists are a filter under the page title.
+  const tips = {today: `Today: To sort, Up next and Today${inbox ? `. ${inbox} to sort` : ''}. Shortcut: 1 (3 To sort, 2 plan the day)`};
+  // Three places (Docket 10.5.0): Today is where the day happens (its Day plan and the week's ranking included),
+  // People and Done are for review. One count, on Today: what is waiting to be sorted. Lists are a filter under the page title.
   $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
     k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} to sort">${inbox}</span>` : ''}</button>`).join('');
   if (!$('#slists')) return;
@@ -177,12 +177,15 @@ function renderHead(){
   const title = week ? 'This week' : v === 'today' ? now.toLocaleDateString(undefined, {weekday: 'long'}) : {people: 'People', archive: 'Done'}[v];
   if (v === 'day') return dayHead();
   let sub = esc(scopeLabel()), tools = '', date = '', pills = '';
-  if (week) sub = esc(scopeLabel());
+  // Today and This week are one page at two ranges (Docket 10.5.0), so sorting and ranking never need a tab switch.
+  const range = v === 'today' ? `<div class="lens range" role="tablist" aria-label="Range">${[['off', 'Today', 'The day: To sort, Up next and Today'], ['on', 'This week', 'Everything open, ranked against your weekly capacity. Shortcut: 4']]
+    .map(([k, n, tip]) => { const on = (k === 'on') === week; return `<button data-planweek="${k}" role="tab" aria-selected="${on}" data-tip="${tip}"${on ? ' class="on"' : ''}>${n}</button>`; }).join('')}</div>` : '';
+  if (week){ sub = esc(scopeLabel()); tools = range; }
   else if (v === 'today'){
     date = now.toLocaleDateString(undefined, {month: 'long', day: 'numeric'});
     pills = sprintPill();
     const nx = !activeTask() && nextTask();
-    tools = dayStepper() + (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
+    tools = range + dayStepper() + (nx ? hbtn(ICON.play, `Start: ${nx.title}. Shortcut: S`, 'data-now="startnext"') : '')
       + lbtn(ICON.day, 'Plan the day', 'Plan the day in time blocks. Shortcut: 2', 'data-view="day"')
       + lbtn(ICON.moon, 'Wrap up', "Wrap up: breadcrumbs and tomorrow's top 3", 'data-shutdown');
   }

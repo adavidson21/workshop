@@ -1352,3 +1352,4 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
   .col.rail{width:auto;justify-self:start}
   .col.rail .railbtn{width:auto;padding:.35rem .7rem}
 }
+.htools .lens.range{margin-right:.35rem}

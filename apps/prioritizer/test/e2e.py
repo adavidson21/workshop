@@ -183,8 +183,8 @@ def main():
         # ---------- Today: Inbox, Up next and Today; Plan week ----------
         check('Today has the Inbox, Up next and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'] and pg.locator('.col-rank.upnext').count() == 1)
         check('no Needs you strip and no Now card', pg.locator('.needs').count() == 0 and pg.locator('.nowcard').count() == 0)
-        check('the sidebar: four places, Today, Week, People and Done (Docket 9.0.0), no group headings and no lists',
-              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'week', 'people', 'archive']
+        check('the sidebar: three places, Today, People and Done (Docket 10.5.0), no group headings and no lists',
+              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'people', 'archive']
               and pg.locator('#snav .snav-h').count() == 0 and pg.locator('#slists').count() == 0)
         check('Today is named for its day, with the date and the day arrows', pg.inner_text('#phead h1') == pg.evaluate("new Date().toLocaleDateString(undefined, {weekday: 'long'})")
               and pg.locator('#phead .pdate').count() == 1 and pg.locator('#phead [data-dayjump]').count() == 2)
@@ -723,13 +723,13 @@ def main():
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('Esc leaves the Inbox column', pg.locator('.col.colon').count() == 0)
-        check('the sidebar has the four places', pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'week', 'people', 'archive'])
+        check('the sidebar has the four places', pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'people', 'archive'])
         # ---------- Places (Docket 8.0.0): Plan week in the sidebar, the drawer closes on a new place, Done renders ----------
         some0 = pg.evaluate(f"() => {P}.state.tasks.find(t => !t.done && t.value && t.effort && !t.waiting && !t.pr).id")
         pg.evaluate(f"id => {P}.openDrawer(id)", some0); pg.wait_for_timeout(200)
-        pg.click('#snav .sitem[data-nav=week]'); pg.wait_for_timeout(300)
-        check('Plan week from the sidebar closes an open task', not pg.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
-        check('Week is a place: its own title, sidebar item and address', pg.inner_text('#phead h1') == 'This week' and pg.locator('#snav .sitem.on[data-nav=week]').count() == 1
+        pg.click('#phead .range [data-planweek=on]'); pg.wait_for_timeout(300)
+        check('This week from the range toggle closes an open task', not pg.evaluate("document.getElementById('app').classList.contains('drawer-open')"))
+        check('This week is Today at a wider range: its own title and address, Today stays lit in the sidebar', pg.inner_text('#phead h1') == 'This week' and pg.locator('#snav .sitem.on[data-nav=today]').count() == 1 and pg.locator('#phead .range [data-planweek=on].on').count() == 1
               and pg.locator('.today3.planweek').count() == 1 and pg.url.endswith('#/plan-week'))
         some = pg.evaluate(f"() => {P}.state.tasks.find(t => !t.done && t.value && t.effort && !t.waiting && !t.pr).id")
         pg.evaluate(f"id => {P}.openDrawer(id)", some); pg.wait_for_timeout(200)
