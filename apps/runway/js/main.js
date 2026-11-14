@@ -155,15 +155,6 @@ if (ws.backend === 'agent') {
 /** A live ADO roadmap's items can't be changed here; neither can a roadmap saved by a newer Runway. */
 const live = () => !!(v.doc && v.doc.meta.ado && v.doc.meta.ado.mode === 'live');
 
-/* ---------- team reports (moved from Docket): js/ado/reports/ loads the first time the page opens ---------- */
-let reports = null;
-ui.reports = false;
-async function reportsMod() {
-  if (reports) return reports;
-  const m = await import('./ado/reports/index.js');
-  reports = reports || m.createReports({ ws, ado: () => ado, toast, toastErr, showDialog, saveFile, requestPaint, home: () => go('') });
-  return reports;
-}
 const locked = () => !!v.readOnly || live();
 
 const isDark = () => (window.WorkshopTheme ? WorkshopTheme.isDark() : false);
@@ -187,7 +178,6 @@ function paint() {
       return;
     }
     if (!v.loaded) { app.dataset.view = 'loading'; app.innerHTML = '<p class="loading">Loading your roadmaps.</p>'; return; }
-    if (ui.reports) return paintReports();
     if (!v.doc) return paintList();
     paintMap();
   } finally { painting = false; }
@@ -195,14 +185,9 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), reports: ws.backend === 'agent' && adoReady(), pending: pending.v, shaping, workItems: workItemsApp }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), pending: pending.v, shaping, workItems: workItemsApp }));
 }
 
-function paintReports() {
-  if (app.dataset.view !== 'reports') { app.dataset.view = 'reports'; app.innerHTML = '<div class="list rpage"></div>'; }
-  if (!reports) { setHtml(app.firstElementChild, '<p class="loading">Loading team reports.</p>'); reportsMod().then(requestPaint, toastErr); return; }
-  setHtml(app.firstElementChild, reports.html());
-}
 
 function mapShell() {
   app.dataset.view = 'map';
@@ -364,7 +349,12 @@ function go(id) {
 async function route(path) {
   path = String(path || '').replace(/^\/+/, '');
   if (!v.loaded) { ui.pendingRoute = path; return; }
-  ui.reports = path === 'reports';
+  // Team reports moved to Loom's Health (Runway 3.0.0): old links and muscle memory go there.
+  if (path === 'reports') {
+    ws.open({ app: 'slate', path: 'health/reports' }).catch(() => {});
+    if (history.replaceState) history.replaceState(null, '', '#/');
+    path = '';
+  }
   if (path === 'pending') {
     // Slate's Pending link: the list, scrolled to Pending assignment.
     if (unsubMap) { unsubMap(); unsubMap = null; }
@@ -374,7 +364,7 @@ async function route(path) {
     if (el) el.scrollIntoView({ block: 'start' });
     return;
   }
-  if (!path || ui.reports) {
+  if (!path) {
     if (unsubMap) { unsubMap(); unsubMap = null; }
     await store.flush();
     store.close(); ui.selected = null; ui.opened = null; requestPaint();
@@ -579,9 +569,7 @@ function setMode(mode) {
 app.addEventListener('click', async e => {
   const t = e.target.closest('button, a');
   if (!t || !app.contains(t)) return;
-  if (app.dataset.view === 'reports') { if (reports) reports.click(t, e); return; }
   if (app.dataset.view === 'list') {
-    if ('reports' in t.dataset) { e.preventDefault(); go('reports'); return; }
     if (t.dataset.open) { e.preventDefault(); go(t.dataset.open); }
     else if ('new' in t.dataset) newRoadmap();
     else if ('example' in t.dataset) docFromText(exampleOutline()).then(newRoadmap);
@@ -836,7 +824,6 @@ app.addEventListener('change', e => {
     ownersFrom(t.value.split(',')).then(ids => edit(d => { const it = d.items.find(i => i.id === id); if (it) it.who = ids; }));
     return;
   }
-  if (app.dataset.view === 'reports') { if (reports) reports.change(t); return; }
   if (t.matches('[data-scale]')) return edit(d => { d.meta.scale = t.value; d.meta.range = null; });
   if (t.matches('[data-from], [data-to]')) {
     const from = app.querySelector('[data-from]').value, to = app.querySelector('[data-to]').value;
@@ -1183,7 +1170,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) store
 window.addEventListener('beforeunload', e => { if (store.hasPending()) { store.flush(); e.preventDefault(); } });
 
 // Tests drive the page through this.
-window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () => store.flush(), get ado() { return ado; }, get reports() { return reports; } };
+window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () => store.flush(), get ado() { return ado; } };
 
 paint();
 await store.load();

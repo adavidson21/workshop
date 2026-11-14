@@ -14,6 +14,8 @@ test('routes: the board half owns items, Health, Sprints, Board and Runway links
   assert.deepEqual(splitRoute('board'), { half: 'board', tab: 'board', path: '' });
   assert.deepEqual(splitRoute('health'), { half: 'board', tab: 'health', path: 'health' });
   assert.deepEqual(splitRoute('sprints'), { half: 'board', tab: 'health', path: 'sprints' });
+  assert.deepEqual(splitRoute('health/reports'), { half: 'board', tab: 'health', path: 'health/reports' });
+  assert.deepEqual(splitRoute('reports'), { half: 'board', tab: 'health', path: 'health/reports' });
   assert.equal(splitRoute('runway/m1/i2').half, 'board');
   assert.equal(splitRoute('roadmaps').half, 'board', 'Slate\'s old roadmaps address');
   for (const p of ['', 'inbox', 'chat', 'chat/ses_1', 'hub/hello', 'reviews', 'work', 'work/41207', '41610', 'pr-12'])

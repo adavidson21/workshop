@@ -1,10 +1,10 @@
-// Runway's team reports (moved from Docket): computing every report from one synthetic `dataset` pull, the
+// Loom's team reports (moved from Runway, before that Docket): computing every report from one synthetic `dataset` pull, the
 // Workshop team fill, and the Excel workbook. Every name, id and date is made up.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { buildWorkbook, compute, lines, sprintName, teamLines, usable } from '../js/ado/reports/model.js';
-import { RENDER } from '../js/ado/reports/view.js';
+import { buildWorkbook, compute, lines, sprintName, teamLines, usable } from '../js/reports/model.js';
+import { RENDER } from '../js/reports/view.js';
 
 const NOW = new Date('2026-11-04T15:00:00');
 const it = (id, extra = {}) => ({ id, title: `Item ${id}`, url: `https://ado.example.test/_workitems/edit/${id}`, type: 'User Story', state: 'Active', priority: 3,
@@ -115,4 +115,13 @@ test('the Excel workbook has every tab, with Summary formulas', () => {
   assert.equal(sum.B3.f, "COUNTA('Priority Changes'!A2:A5000)");
   assert.equal(sum.B3.v, 2);
   assert.equal(wb.Sheets.Capacity.A5.v, 'dev.one@example.test');
+});
+
+test('teamDefaults: area paths and connection from Settings teams v1, else null', async () => {
+  globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem() {} };
+  const { teamDefaults } = await import('../js/reports/index.js');
+  const env = { schema: 'settings.teams', version: 1, items: [{ id: 't1', areas: [] }, { id: 't2', areas: ['Project\\Team', ' '], connection: 'work' }] };
+  assert.deepEqual(teamDefaults(env), { areas: ['Project\\Team'], connection: 'work' });
+  assert.equal(teamDefaults({ schema: 'settings.teams', version: 2, items: [] }), null);
+  assert.equal(teamDefaults(null), null);
 });

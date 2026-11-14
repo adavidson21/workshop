@@ -1,4 +1,4 @@
-/* Runway's team reports, pure: no DOM, no SDK, so Node tests drive it. Moved from Docket (Docket 4.17.0).
+/* Loom's team reports, pure: no DOM, no SDK, so Node tests drive it. Moved from Docket (4.17.0) to Runway, then to Loom (Runway 3.0.0).
    One `dataset` pull from Workshop's ADO connector (connectors/ado/lib/dataset.mjs in the workshop repo) holds the
    team's work items, their priority, sprint, assignment and state changes in a window, and sprint dates. Every
    report is computed here from that one pull. buildWorkbook takes the SheetJS global so tests can pass it in. */

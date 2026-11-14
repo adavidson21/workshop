@@ -53,7 +53,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "10.4.0",
+        "version": "10.5.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -267,7 +267,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "4.1.0",
+        "version": "4.2.0",
         "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox, Chat and PR reviews.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -306,6 +306,10 @@
             "path": "sprints"
           },
           {
+            "name": "reports",
+            "path": "health/reports"
+          },
+          {
             "name": "inbox",
             "path": "inbox"
           },
@@ -334,6 +338,10 @@
           {
             "path": "health",
             "title": "Team health"
+          },
+          {
+            "path": "health/reports",
+            "title": "Team reports (in Health)"
           },
           {
             "path": "sprints",
@@ -394,6 +402,11 @@
             "route": "sprints"
           },
           {
+            "id": "team-reports",
+            "title": "Team reports",
+            "route": "health/reports"
+          },
+          {
             "id": "repo",
             "title": "Add a repo"
           },
@@ -414,6 +427,9 @@
           "js/model.js",
           "js/view.js",
           "js/health.js",
+          "js/reports/index.js",
+          "js/reports/model.js",
+          "js/reports/view.js",
           "dispatch.css",
           "js/dispatch/main.js",
           "js/dispatch/doc.js",
@@ -845,8 +861,8 @@
         "manifestVersion": 1,
         "id": "runway",
         "name": "Runway",
-        "version": "2.1.0",
-        "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps, with team reports.",
+        "version": "3.0.0",
+        "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from Azure DevOps.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 50,
@@ -866,17 +882,9 @@
         ],
         "aliases": [
           "roadmap",
-          "roadmaps",
-          {
-            "name": "reports",
-            "path": "reports"
-          }
+          "roadmaps"
         ],
         "routes": [
-          {
-            "path": "reports",
-            "title": "Team reports"
-          },
           {
             "path": ":id",
             "title": "Open a roadmap"
@@ -895,11 +903,6 @@
           {
             "id": "export",
             "title": "Export roadmap"
-          },
-          {
-            "id": "team-reports",
-            "title": "Team reports",
-            "route": "reports"
           }
         ],
         "files": [
@@ -907,9 +910,6 @@
           "js/ado/index.js",
           "js/ado/model.js",
           "js/ado/publish.js",
-          "js/ado/reports/index.js",
-          "js/ado/reports/model.js",
-          "js/ado/reports/view.js",
           "js/dates.js",
           "js/example.js",
           "js/export.js",
