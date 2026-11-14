@@ -223,6 +223,8 @@ def main():
         sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
         try: sf.wait_for_selector('.fh-form', timeout=8000)
         except Exception: pass
+        try: sf.click('.fh-hist-fold > summary', timeout=8000)  # History folds away (Settings v3)
+        except Exception: pass
         hist = sf.inner_text('.focus-history') if sf.locator('.focus-history').count() else ''
         check('History shows the evening worked late', 'Worked late' in hist)
         check('Settings has "After my day ends", on', sf.locator('[data-after]').count() == 1 and sf.locator('[data-after]').is_checked())
