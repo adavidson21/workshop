@@ -7,7 +7,7 @@ import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayS
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
 import { dp, dpChange } from './dayplan.js';
 import { carryCandidates, carryOver, carryPending, currentSection, dayReady, dayView, dismissCarry, fmt12, isWorkday, sectionTasks, toMin } from './dayplan-model.js';
-import { adoReview } from './ado.js';
+import { trackerReview } from './tracker.js';
 import { fmtUntil, focusNow, heldUntil } from './focus-hours.js';
 import { holdsAll, isHeldNow } from '../../../shared/focus.js';
 /* Prioritizer: The views: Today (Inbox, Up next and Today), Done with the weekly recap, People.
@@ -21,7 +21,7 @@ import { holdsAll, isHeldNow } from '../../../shared/focus.js';
 /* ---------- old Needs you links ---------- */
 // data-need links from older pages and the ADO row: new ADO items open their review, the rest is Today itself.
 function openNeed(k){
-  if (k === 'ado') return adoReview();
+  if (k === 'ado') return trackerReview();
   if (k === 'plan') return setView('day');
   render();
 }
@@ -36,12 +36,12 @@ const UP_NEXT = 5;
 let inboxAnyway = '';
 function heldInbox(){ const f = focusNow(); return isHeldNow(f) && inboxAnyway !== (f.span && f.span.key); }
 function openInboxAnyway(){ const f = focusNow(); inboxAnyway = f.span ? f.span.key : ''; render(); }
-const adoNew = () => ui.ado && ui.ado.on ? state.ado.pending.length : 0;
+const trackerNew = () => ui.tracker && ui.tracker.on ? state.tracker.pending.length : 0;
 // New work items from ADO, waiting to be added or skipped: one row at the top of the Inbox (held during focus).
-const adoRow = n => n ? `<button class="adorow" data-need="ado">${ICON.item}<span><b class="num">${n}</b> new from Azure DevOps</span><span class="lnk">Review</span></button>` : '';
+const trackerRow = n => n ? `<button class="adorow" data-need="ado">${ICON.item}<span><b class="num">${n}</b> new work item${n === 1 ? "" : "s"}</span><span class="lnk">Review</span></button>` : '';
 // The short line for a narrow window, where the Inbox is a bar above the columns.
 function inboxBar(q){
-  const back = q.filter(t => isDate(t.cameBack)).length, n = adoNew();
+  const back = q.filter(t => isDate(t.cameBack)).length, n = trackerNew();
   if (!q.length && !n) return '';
   if (heldInbox()) return `<div class="inbar held" role="status">${ICON.triage}<span>To sort <b class="num">${q.length}</b>, held until ${esc(fmtUntil(heldUntil()))}</span><button class="lnk" data-inbox-anyway>Open anyway</button></div>`;
   return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>To sort <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
@@ -55,7 +55,7 @@ function inboxCol(rail){
   const hint = q.length && !TOUCH ? `<p class="soft inhint"><kbd>1</kbd>-<kbd>4</kbd> sort by value, <kbd>T</kbd> Today, <kbd>A</kbd> hand off, <kbd>0</kbd> won't do, <kbd>Enter</kbd> details</p>` : '';
   return `<section class="col col-inbox dropzone" data-col="inbox" data-zone="inbox" aria-label="To sort">
     <header class="colh"><h3>To sort</h3>${q.length ? `<span class="n num">${q.length}</span>` : ''}${q.length > 1 ? `<button class="lnk colh-act" data-sortrun data-tip="One task at a time, one key each. Shortcut: O">Card sort</button>` : ''}</header>
-    <div class="colbody">${adoRow(held ? 0 : adoNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>All sorted.</b>New tasks and work that comes back land here.</div>`}</div>
+    <div class="colbody">${trackerRow(held ? 0 : trackerNew())}${q.length ? `<div class="rows inrows">${rows}</div>${hint}` : `<div class="colempty"><b>All sorted.</b>New tasks and work that comes back land here.</div>`}</div>
   </section>`;
 }
 

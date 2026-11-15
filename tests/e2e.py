@@ -1651,7 +1651,7 @@ def main():
                 pass
             check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 3)  # Docket 10.5: Today, People, Done (Week folded into Today)
             check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
-            tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.ado ? String(t.ado.id) : '']).sort()"
+            tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.item ? String(t.item.id) : '']).sort()"
             before = sp.evaluate(tasks)
             check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 

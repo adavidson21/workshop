@@ -100,7 +100,7 @@ function engChip(adoId){
 function engDrawer(t){
   if (!engOn()) return '';
   if (eng.status !== 'ok') return `<div class="deng"><span>The opencode connector is not ready${eng.error ? `: ${esc(eng.error)}` : '.'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open Loom</button></div>`;
-  const i = engItem(t.ado.id), n = i && i.next || {};
+  const i = engItem(t.item.id), n = i && i.next || {};
   if (i){
     const step = engStep(n);
     const what = engAuto(i, 'waiting') ? ` · <b>Autopilot needs you</b>${i.autopilot.message ? `: ${esc(i.autopilot.message)}` : ''}`
@@ -108,24 +108,24 @@ function engDrawer(t){
       : step ? ` · next: ${esc(step)}` : '';
     return `<div class="deng"><span>Tandem <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Loom</button></div>`;
   }
-  const st = eng.starting.get(String(t.ado.id));
+  const st = eng.starting.get(String(t.item.id));
   if (st) return `<div class="deng"><span><b>Starting</b> in opencode${st.error ? `: ${esc(st.error)}` : '...'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Watch it</button></div>`;
   if (t.done) return '';
-  const bug = /bug/i.test(t.ado.type || '');
+  const bug = /bug/i.test(t.item.type || '');
   const oc = eng.data && eng.data.opencode && eng.data.opencode.connected;
   return `<div class="deng col"><span>Not started in Tandem.</span>${oc
-    ? `<div class="acts"><button class="btn${bug ? '' : ' primary'}" data-d="eng-start" data-lane="feature" title="Runs /start ${esc(t.ado.id)} feature in opencode">Start as feature</button><button class="btn${bug ? ' primary' : ''}" data-d="eng-start" data-lane="bug" title="Runs /start ${esc(t.ado.id)} bug in opencode">Start as bug</button></div>`
+    ? `<div class="acts"><button class="btn${bug ? '' : ' primary'}" data-d="eng-start" data-lane="feature" title="Runs /start ${esc(t.item.id)} feature in opencode">Start as feature</button><button class="btn${bug ? ' primary' : ''}" data-d="eng-start" data-lane="bug" title="Runs /start ${esc(t.item.id)} bug in opencode">Start as bug</button></div>`
     : '<span class="hint">opencode is not connected to Workshop.</span>'}</div>`;
 }
 // The click on Start as feature or bug is the approval for this write action.
 async function engStart(t, lane, btn){
   if (btn) btn.disabled = true;
   try {
-    await ws.connectors.call(OC, 'start', {id: String(t.ado.id), lane}, {confirm: true});
-    toast(`Starting #${t.ado.id} as a ${lane} in opencode`, 'Watch it', () => engOpen(t.ado.id));
+    await ws.connectors.call(OC, 'start', {id: String(t.item.id), lane}, {confirm: true});
+    toast(`Starting #${t.item.id} as a ${lane} in opencode`, 'Watch it', () => engOpen(t.item.id));
     // Until the folder appears, check now and then too, in case an event is missed.
     clearInterval(engBurst);
-    const until = Date.now() + 60 * 1000, id = String(t.ado.id);
+    const until = Date.now() + 60 * 1000, id = String(t.item.id);
     engBurst = setInterval(() => { if (Date.now() > until || eng.byId.has(id)){ clearInterval(engBurst); return; } engCheck(); }, 3000);
   } catch(e){
     toast(e.message || "Couldn't start it.");

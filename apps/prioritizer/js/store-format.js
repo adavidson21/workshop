@@ -41,7 +41,7 @@ function envelopeFromBoard(col, board, shadow, held = []){
     env.meta = {updatedAt: metaAt, capacity: board.capacity};
   }
   if (col === 'settings'){
-    env.meta = {updatedAt: metaAt, ado: clone(board.ado) || {}};
+    env.meta = {updatedAt: metaAt, tracker: clone(board.tracker) || {}};
     if (board.onboarded) env.meta.onboarded = board.onboarded;
     if (board.rowFields && Array.isArray(board.rowFields.hidden) && board.rowFields.hidden.length) env.meta.rowFields = clone(board.rowFields);
     if (board.follow && (board.follow.days !== 2 || board.follow.filled)) env.meta.follow = clone(board.follow);
@@ -62,7 +62,7 @@ function applyEnvelope(col, env, board){
     return items.filter(t => !lists.has(t.listId));
   }
   if (col === 'settings'){
-    board.ado = clone(env && env.meta && env.meta.ado) || {};
+    board.tracker = clone(env && env.meta && (env.meta.tracker || env.meta.ado)) || {};   // ado: before Docket 11 (GitHub)
     board.onboarded = env && env.meta && typeof env.meta.onboarded === 'string' ? env.meta.onboarded : null;
     board.rowFields = clone(env && env.meta && env.meta.rowFields) || {hidden: []};
     board.follow = clone(env && env.meta && env.meta.follow) || {};
@@ -84,7 +84,7 @@ function legacyToEnvelopes(raw, now = Date.now()){
   out.tasks.items = (raw.tasks || []).map(t => Object.assign(clone(t), {updatedAt: at(t)}));
   out.tasks.deleted = tomb('tasks');
   out.tasks.meta = {updatedAt: Number.isFinite(raw.capacityAt) && raw.capacityAt ? raw.capacityAt : at(raw), capacity: raw.capacity ?? 20};
-  out.settings.meta = {updatedAt: at(raw), ado: clone(raw.ado) || {}};
+  out.settings.meta = {updatedAt: at(raw), tracker: clone(raw.tracker || raw.ado) || {}};
   for (const col of COLLECTIONS){
     const ids = new Set(out[col].items.map(i => i.id));
     for (const id of Object.keys(out[col].deleted)) if (ids.has(id) && out[col].deleted[id] < out[col].items.find(i => i.id === id).updatedAt) delete out[col].deleted[id];

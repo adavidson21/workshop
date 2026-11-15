@@ -1,7 +1,7 @@
 /* Prioritizer: ADO work item links in pasted text. Pure, so the tests can run it in Node.
    ADO's "Copy to clipboard" on a work item puts "Issue 12345: Title" on the clipboard as plain text, with the
    link only in the HTML version. A plain input keeps just the text, so the paste handler (js/paste.js) reads the
-   HTML, finds the link, and keeps it on the task as t.ado with pasted: true. */
+   HTML, finds the link, and keeps it on the task as t.item with pasted: true. */
 
 // Work item id from an ADO URL: .../_workitems/edit/123, ..._workitems?id=123, or a board/backlog ?workitem=123.
 function adoFromUrl(url){
@@ -47,12 +47,12 @@ function adoFromHtml(html){
 function adoFromPaste(plain, html){
   plain = String(plain || '').replace(/\s+/g, ' ').trim();
   const fromUrl = adoFromUrl(plain);
-  if (fromUrl) return {text: `ADO ${fromUrl.id}: `, ado: {...fromUrl, type: '', pasted: true}};
+  if (fromUrl) return {text: `ADO ${fromUrl.id}: `, item: {...fromUrl, system: 'ado', type: '', pasted: true}};
   const link = adoFromHtml(html);
   if (!link) return null;
   const parsed = parseItemText(plain);
   const type = parsed && parsed.id === link.id ? parsed.type : '';
-  return {text: plain, ado: {...link, type, pasted: true}};
+  return {text: plain, item: {...link, system: 'ado', type, pasted: true}};
 }
 
 export { adoFromHtml, adoFromPaste, adoFromUrl, parseItemText };

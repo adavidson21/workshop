@@ -65,7 +65,7 @@ test('fillFollowUps: only open waiting tasks without a date', () => {
 });
 
 test('handoffText: who, title, notes, the ADO link and the due date', () => {
-  const t = task({notes: 'Repro in staging.', ado: {id: 12, url: 'https://ado.example.com/12'}, due: '2026-11-12'});
+  const t = task({notes: 'Repro in staging.', item: {system: 'ado', id: 12, url: 'https://ado.example.com/12'}, due: '2026-11-12'});
   assert.equal(M.handoffText(t, ['Sam Lee'], d => `on ${d}`), 'Sam Lee: Fix the login bug\n\nRepro in staging.\n\nhttps://ado.example.com/12\n\nDue on 2026-11-12');
   assert.equal(M.handoffText(task()), 'Fix the login bug');
 });

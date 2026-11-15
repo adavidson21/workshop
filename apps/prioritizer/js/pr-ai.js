@@ -1,4 +1,4 @@
-import { prRelease } from './ado.js';
+import { prRelease } from './tracker.js';
 import { holdCount } from './focus-hours.js';
 import { renderMainOnly } from './drawer.js';
 import { toast } from './overlays.js';
@@ -16,7 +16,7 @@ const GONE_STATES = ['disabled', 'missing', 'stopped', 'error'];   // the connec
 let ws = null, connector = null, onSync = null, busy = false, again = false, soon = null;
 
 const connReady = () => !!connector && connector.state === 'ready';
-const holdMs = () => state.ado.prHoldMinutes * 60 * 1000;
+const holdMs = () => state.tracker.prHoldMinutes * 60 * 1000;
 
 /** True when Tandem will review new PRs: the connector is ready, opencode is connected and onSync is on. */
 async function prAiActive(){
@@ -53,7 +53,7 @@ async function prAiRefresh(){
   if (!ws) return;
   if (busy){ again = true; return; }
   const ids = new Set(state.tasks.filter(t => t.pr && !t.done && t.pr.ai).map(t => String(t.pr.id)));
-  for (const h of state.ado.prHeld) ids.add(String(h.item.id ?? h.key.split('|').pop()));
+  for (const h of state.tracker.prHeld) ids.add(String(h.item.id ?? h.key.split('|').pop()));
   if (!ids.size) return;
   if (!connReady()){ if (connector && GONE_STATES.includes(connector.state)) landAll(); return; }
   busy = true;
@@ -62,15 +62,15 @@ async function prAiRefresh(){
     onSync = !!r.onSync;
     if (!r.onSync || !r.ready){ landAll(); return; }
     const statuses = new Map((r.prs || []).map(s => [String(s.id), s]));
-    const out = applyStatuses({tasks: state.tasks, held: state.ado.prHeld, statuses, now: new Date(), holdMs: holdMs()});
-    state.ado.prHeld = out.held;
+    const out = applyStatuses({tasks: state.tasks, held: state.tracker.prHeld, statuses, now: new Date(), holdMs: holdMs()});
+    state.tracker.prHeld = out.held;
     const made = prRelease(out.release);
     if (out.changed){ commit(); renderMainOnly(); }
     if (made.length && holdCount(made.length, 'pr')){ /* held during focus or lunch (focus-hours.js) */ }
     else if (made.length){
       const late = out.release.filter(x => x.ai && x.ai.state === 'timeout').length;
       toast(late === made.length ? `${plural(made.length, 'PR')} to review (Tandem had not finished)`
-        : `${plural(made.length, 'PR')} reviewed by Tandem and added`, 'Show', () => import('./render.js').then(m => m.setScope(state.ado.prListId)));
+        : `${plural(made.length, 'PR')} reviewed by Tandem and added`, 'Show', () => import('./render.js').then(m => m.setScope(state.tracker.prListId)));
     }
   } catch(e){ /* try again on the next event or minute */ }
   finally {
@@ -84,9 +84,9 @@ function prAiRefreshSoon(){ clearTimeout(soon); soon = setTimeout(prAiRefresh, 3
 function landAll(){
   let changed = 0;
   for (const t of state.tasks) if (t.pr && t.pr.ai && t.pr.ai.state === 'pending'){ delete t.pr.ai; changed++; }
-  const made = prRelease(state.ado.prHeld.map(entry => ({entry, ai: null})));
-  if (state.ado.prHeld.length) changed++;
-  state.ado.prHeld = [];
+  const made = prRelease(state.tracker.prHeld.map(entry => ({entry, ai: null})));
+  if (state.tracker.prHeld.length) changed++;
+  state.tracker.prHeld = [];
   if (changed || made.length){ commit(); renderMainOnly(); }
   if (made.length && !holdCount(made.length, 'pr')) toast(`${plural(made.length, 'PR')} to review added (Tandem is not reviewing right now)`);
 }
@@ -103,7 +103,7 @@ function prAiInit(){
     } catch(e){ connector = null; }
     ws.connectors.onStatus(OC, st => { connector = st; prAiRefreshSoon(); });
     ws.connectors.on(OC, 'prQueue', prAiRefreshSoon);
-    setInterval(() => { if (state.ado.prHeld.length && !document.hidden) prAiRefresh(); }, 60 * 1000);
+    setInterval(() => { if (state.tracker.prHeld.length && !document.hidden) prAiRefresh(); }, 60 * 1000);
     prAiRefreshSoon();
   })());
 }

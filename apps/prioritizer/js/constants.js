@@ -36,9 +36,9 @@ const EMBEDDED = (() => { try { return window.parent !== window && window.parent
 const OLD_VIEWS = {triage: {col: 'inbox'}, prio: {col: 'rank', plan: true}, week: {col: 'rank', plan: true}, 'plan-week': {col: 'rank', plan: true}, prioritize: {col: 'rank', plan: true}, rank: {col: 'rank', lens: 'rank', plan: true}, eisen: {col: 'rank', lens: 'eisen', plan: true}, ve: {col: 'rank', lens: 'eisen', plan: true}, plan: {col: 'rank', plan: true}, focus: {}};
 // The Day view is Today's plan for a date (Docket 9.0.0), so the sidebar shows Today while you are on it.
 const NAV_OF = v => v === 'day' ? 'today' : v;
-// ADO behavior is Prioritizer's own data (state.ado), not the ADO connector's settings: how often to sync,
+// ADO behavior is Prioritizer's own data (state.tracker), not the ADO connector's settings: how often to sync,
 // and the starting value and urgent flag a PR review task gets for each tier. These are the defaults.
-const ADO_SYNC_MINUTES = 10, ADO_SYNC_MIN = 2, ADO_SYNC_MAX = 240;
+const TRACKER_SYNC_MINUTES = 10, TRACKER_SYNC_MIN = 2, TRACKER_SYNC_MAX = 240;
 const PR_TIER_DEFAULTS = {blocking: {value: 4, urgent: true}, asked: {value: 3, urgent: false}, pool: {value: 2, urgent: false}};
 // Which Day plan block kind each PR group goes into (blocking: you're required; pending: everything else that
 // still needs you). Empty: not planned. PRs that don't need you never reach Docket (Workshop's ADO connector).
@@ -107,4 +107,4 @@ function initials(name){
 const NAV = [['today','Today',ICON.today,'1'],['people','People',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
 const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
 
-export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, PRI, PRI_ORDER, VIEWS, VQ, WINDOW };
+export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, TRACKER_SYNC_MAX, TRACKER_SYNC_MIN, TRACKER_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, PRI, PRI_ORDER, VIEWS, VQ, WINDOW };

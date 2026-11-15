@@ -5,8 +5,8 @@
    queues /pr-review for the new ones. Docket then reads where each review stands (pr.reviews):
 
    - Blocking PRs (you are a required reviewer) become tasks right away, with t.pr.ai = {state: 'pending'}.
-   - Asked and team-only PRs wait in state.ado.prHeld until their review is done, the reviewer asks
-     something, it fails, or the hold limit passes (state.ado.prHoldMinutes, default 60). Then they become
+   - Asked and team-only PRs wait in state.tracker.prHeld until their review is done, the reviewer asks
+     something, it fails, or the hold limit passes (state.tracker.prHoldMinutes, default 60). Then they become
      tasks, already reviewed.
    - With the connector off or down, or the setting off, held PRs become tasks at once and new PRs land
      as they always did.
@@ -15,7 +15,7 @@
 
    t.pr.ai: {state, rec, risk, counts: {blocking, shouldFix, optional}, commit, message, at}
      state: pending | done | asking | failed | timeout
-   state.ado.prHeld: [{key, since, item}] where item is the PR as the sync gave it. */
+   state.tracker.prHeld: [{key, since, item}] where item is the PR as the sync gave it. */
 
 export const PR_AI_STATES = ['pending', 'done', 'asking', 'failed', 'timeout'];
 export const PR_HOLD_DEFAULT = 60, PR_HOLD_MIN = 5, PR_HOLD_MAX = 24 * 60;
@@ -45,7 +45,7 @@ export function cleanHoldMinutes(v){
   return m >= PR_HOLD_MIN && m <= PR_HOLD_MAX ? m : PR_HOLD_DEFAULT;
 }
 
-/** state.ado.prHeld, cleaned. `cleanPr` is state.js's (it needs the item's key). */
+/** state.tracker.prHeld, cleaned. `cleanPr` is state.js's (it needs the item's key). */
 export function cleanHeld(list, cleanPr){
   if (!Array.isArray(list)) return [];
   const seen = new Set(), out = [];
@@ -84,7 +84,7 @@ export function aiFromStatus(s, now){
 /**
  * Applies pr.reviews results.
  *   tasks     every task (only open PR tasks with t.pr.ai change)
- *   held      state.ado.prHeld
+ *   held      state.tracker.prHeld
  *   statuses  pr.reviews' prs, by PR id (string) -> status
  *   holdMs    the hold limit
  * Returns {changed, release: [{entry, ai}], held} where `held` is what stays held. The caller makes

@@ -184,9 +184,14 @@ Themes live in `shared/themes.css`, copied from Workshop (see Files from Worksho
 - **Same site, nothing to do.** The first time this version opens, a board saved by an earlier version in the same browser and site moves in by itself, once. The old copy is left in place as a backup.
 - **From a board saved in a browser to Workshop on your computer.** Pairing Docket's own site with Workshop does not bring a board saved in that browser along, and a browser can't read another site's storage, so move it with a file: before pairing, open the folder icon and choose **Download a backup (.json)** (or **Download an Excel copy**). Then in Workshop, folder icon, **Import a file**. Into an empty board it comes in as it was; into a board with tasks, Excel asks whether to add or replace, and a backup merges.
 
-## Azure DevOps work items
+## Work items from Azure DevOps and GitHub
 
-Your ADO Issues, Bugs and User Stories assigned to you, and pull requests waiting on your review, show up as tasks in an **ADO** list, and in All lists next to everything else. Read-only for now.
+Your ADO Issues, Bugs and User Stories assigned to you, your GitHub issues assigned to you, and pull requests waiting on your review in either, show up as tasks in a **Work items** list (called **ADO** on boards from before Docket 11, which keep that name), and in All lists next to everything else. Read-only for now.
+
+**Both at once:** turn on Workshop's ADO connector, its GitHub connector, or both. Docket syncs each one that is on and ready, in turn, and a task remembers which one it came from: its row and details say **Open Story acme/web#12 in GitHub** or **Open Issue #12345 in ADO**. When one tracker can't be reached and the other can, the working one still syncs and the sync button turns amber with the other's message. A GitHub sync never closes an ADO task, and the other way around. GitHub issues are typed from labels (`bug`, `story`, `feature`, `epic`, `task`; no label is an Issue), `P1` to `P4` labels set the starting value, and the milestone's due date fills Due. GitHub's settings and token are in Workshop **Settings**, GitHub (see Workshop's `connectors/github/README.md`).
+
+**Coming from Docket 10:** a board's ADO data moves over by itself the first time Docket 11 opens it (`state.ado` became `state.tracker`, a task's `ado` link became `item` with `system: "ado"`).
+
 
 **How it connects:** only through Workshop's ADO connector, on the same computer. That works inside Workshop. The connector keeps its connections (server, collection, project, which repos to watch for PRs) in Workshop's settings, and your PAT stays in an environment variable on your computer: it never touches the page.
 
@@ -208,7 +213,7 @@ Docket starts syncing by itself the first time it sees the connector ready (no C
 
 The ADO button also shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to run, usually `workshop pat`), and a PAT that expires within two weeks turns it amber while sync keeps working.
 
-**Docket's own ADO settings** are in ADO Settings (the ADO button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings.
+**Docket's own sync settings** are in its sync Settings (the sync button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings.
 
 **Coming from `ado_helper.py`:** the Python helper was retired in Docket 5.4.0. A board it synced keeps working through the connector: work items are matched by their ADO id and PRs by collection, project and PR id, so nothing is added twice, and your notes, values and ranks stay. Stop the helper (and remove it from startup, `py ado_helper.py --no-startup`) once the connector syncs. If ADO Settings still shows the helper's Connect steps, reload the page to get this version.
 

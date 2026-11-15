@@ -373,7 +373,7 @@ def main():
         # A new task lands in the Inbox; give it an estimate so it is a row in Ranked.
         pg.evaluate(f"() => {{ const P = {P}, t = P.state.tasks.find(t => t.title === 'Issue 12345: Fix login'); t.value = 2; t.effort = 'S'; P.commit(); }}"); pg.wait_for_timeout(150)
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Issue 12345: Fix login')")
-        check('the task keeps the ADO link', t and t.get('ado', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['ado']['type'] == 'Issue' and t['ado']['pasted'] is True)
+        check('the task keeps the ADO link', t and t.get('item', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['item']['type'] == 'Issue' and t['item']['pasted'] is True and t['item']['system'] == 'ado')
         check('its row has a link that opens the item in ADO', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado[href*="_workitems/edit/12345"][target=_blank]').count() == 1)
         # The Quick add cheat sheet: hidden by default, opens with its button or Ctrl+/, clicking a tag inserts it,
         # and it stays open next time (per window).
@@ -414,12 +414,12 @@ def main():
         pg.select_option('#dProduct', ''); pg.wait_for_timeout(200)
         check('None clears it', pg.evaluate(f"id => !('product' in {P}.state.tasks.find(t => t.id === id))", t['id']))
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
-        check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.ado && t.ado.id === 12345).done; }}"""))
+        check('a sync never closes a pasted item it does not list', pg.evaluate(f"""() => {{ const P = {P}; P.trackerApply({{items: [], gone: [{{id: 12345, reason: 'reassigned'}}]}}); return !P.state.tasks.find(t => t.item && t.item.id === 12345).done; }}"""))
         # ---------- Tandem's first-pass PR reviews (js/pr-ai.js, js/pr-ai-model.js) ----------
         pr = lambda i, tier, c: "{key: 'c|P|%d', id: %d, title: 'Change %d', repo: 'api', project: 'P', url: 'https://ado.example.test/c/P/_git/api/pullrequest/%d', author: 'Dev One', tier: '%s', via: [], commit: '%s'}" % (i, i, i, i, tier, c)
-        r = pg.evaluate(f"""() => {{ const P = {P}; const n = P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'aaaaaaa1')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
+        r = pg.evaluate(f"""() => {{ const P = {P}; const n = P.trackerApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'aaaaaaa1')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
           P.state.scope = 'all'; P.state.view = 'today'; P.ui.planWeek = false; P.state.lens = 'rank'; P.commit();
-          return [n.prAdded, n.prHeld, P.state.ado.prHeld.map(h => h.item.id), P.state.tasks.filter(t => t.pr && t.pr.id > 700).map(t => [t.pr.id, t.pr.ai && t.pr.ai.state])]; }}""")
+          return [n.prAdded, n.prHeld, P.state.tracker.prHeld.map(h => h.item.id), P.state.tasks.filter(t => t.pr && t.pr.id > 700).map(t => [t.pr.id, t.pr.ai && t.pr.ai.state])]; }}""")
         check('with Tandem on, a blocking PR lands at once as being reviewed; asked and team PRs are held', r == [1, 2, [702, 704], [[701, 'pending']]])
         pg.wait_for_timeout(300)
         id701 = pg.evaluate(f"() => {P}.state.tasks.find(t => t.pr && t.pr.id === 701).id")
@@ -427,10 +427,10 @@ def main():
         r = pg.evaluate(f"""() => {{ const P = {P}, M = P.prAiModel;
           const st = new Map([['701', {{id: '701', state: 'done', recommendation: 'Request changes', risk: 'high', counts: {{blocking: 1, shouldFix: 0, optional: 0}}}}],
             ['702', {{id: '702', state: 'done', recommendation: 'Approve', risk: 'low', counts: {{blocking: 0, shouldFix: 0, optional: 1}}}}], ['704', {{id: '704', state: 'running'}}]]);
-          const out = M.applyStatuses({{tasks: P.state.tasks, held: P.state.ado.prHeld, statuses: st, now: new Date(), holdMs: 3600000}});
-          P.state.ado.prHeld = out.held; P.prRelease(out.release); P.commit();
+          const out = M.applyStatuses({{tasks: P.state.tasks, held: P.state.tracker.prHeld, statuses: st, now: new Date(), holdMs: 3600000}});
+          P.state.tracker.prHeld = out.held; P.prRelease(out.release); P.commit();
           const t = P.state.tasks.find(x => x.pr && x.pr.id === 702);
-          return [P.state.ado.prHeld.map(h => h.item.id), t && t.title, t && t.pr.ai.state, t && t.pr.ai.rec, t && t.value]; }}""")
+          return [P.state.tracker.prHeld.map(h => h.item.id), t && t.title, t && t.pr.ai.state, t && t.pr.ai.rec, t && t.value]; }}""")
         check('a held PR lands once its review is done, already reviewed, with its tier value', r == [[704], 'Review: Change 702', 'done', 'Approve', 2])
         pg.wait_for_timeout(300)
         chip = pg.locator(f'main .row[data-id="{id701}"] .chip.ai')
@@ -438,16 +438,16 @@ def main():
         pg.evaluate(f"id => {P}.openDrawer(id)", id701); pg.wait_for_timeout(200)
         check('the drawer says what Tandem found and opens it in Loom', 'Request changes, high risk. 1 blocking draft comments.' in pg.inner_text('.deng.prai') and pg.locator('.deng.prai [data-d=prai-open]').count() == 1)
         pg.keyboard.press('Escape')
-        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.trackerApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}]}}}}, {{ai: true}});
           const s = id => P.state.tasks.find(t => t.pr && t.pr.id === id).pr.ai.state; return [s(701), s(702)]; }}""")
         check('a new commit starts the review over; an unchanged PR keeps its result', r == ['pending', 'done'])
-        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}, {pr(705, 'pool', 'fffffff6')}]}}}}, {{ai: false}});
-          const t = id => P.state.tasks.find(x => x.pr && x.pr.id === id); return [P.state.ado.prHeld.length, !!t(704), !!t(705), !!(t(705) && t(705).pr.ai), !!t(701).pr.ai]; }}""")
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.trackerApply({{items: [], prs: {{items: [{pr(701, 'blocking', 'eeeeeee5')}, {pr(702, 'pool', 'bbbbbbb2')}, {pr(704, 'asked', 'ddddddd4')}, {pr(705, 'pool', 'fffffff6')}]}}}}, {{ai: false}});
+          const t = id => P.state.tasks.find(x => x.pr && x.pr.id === id); return [P.state.tracker.prHeld.length, !!t(704), !!t(705), !!(t(705) && t(705).pr.ai), !!t(701).pr.ai]; }}""")
         check('with Tandem off, held and new PRs land as before and reviewing chips go away', r == [0, True, True, False, False])
-        r = pg.evaluate(f"""() => {{ const P = {P}; P.adoApply({{items: [], prs: {{items: [{pr(706, 'pool', 'abcdef77')}]}}}}, {{ai: true}});
-          const held = P.state.ado.prHeld.length; P.adoApply({{items: [], prs: {{items: []}}}}, {{ai: true}}); return [held, P.state.ado.prHeld.length, P.state.tasks.some(t => t.pr && t.pr.id === 706)]; }}""")
+        r = pg.evaluate(f"""() => {{ const P = {P}; P.trackerApply({{items: [], prs: {{items: [{pr(706, 'pool', 'abcdef77')}]}}}}, {{ai: true}});
+          const held = P.state.tracker.prHeld.length; P.trackerApply({{items: [], prs: {{items: []}}}}, {{ai: true}}); return [held, P.state.tracker.prHeld.length, P.state.tasks.some(t => t.pr && t.pr.id === 706)]; }}""")
         check('a held PR that drops off ADO never becomes a task', r == [1, 0, False])
-        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.pr && t.pr.id > 700)); P.state.ado.prHeld = []; P.commit(); }}")
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.pr && t.pr.id > 700)); P.state.tracker.prHeld = []; P.commit(); }}")
         # ---------- PR filter: per window, in the scope menu; Team PRs hide with "Only ones that need me" ----------
         # ---------- PR groups planned into Day plan blocks by kind (Blocking: reviews, Pending: admin) ----------
         r = pg.evaluate(f"""() => {{ const P = {P}, dp = P.dp;
@@ -455,23 +455,23 @@ def main():
             sections: [{{id: 'rvw', name: 'Reviews', kind: 'reviews', color: 'sage', around: null, minutes: null, capacity: null}},
                        {{id: 'adm', name: 'Admin', kind: 'admin', color: 'sky', around: null, minutes: null, capacity: null}}]}}];
           const keep = dp.days; dp.days = {{}};
-          P.adoApply({{prs: {{items: [{{key: 'c|p|r|811', id: 811, repo: 'web', title: 'Req', tier: 'blocking', created: '2026-01-01'}},
+          P.trackerApply({{prs: {{items: [{{key: 'c|p|r|811', id: 811, repo: 'web', title: 'Req', tier: 'blocking', created: '2026-01-01'}},
             {{key: 'c|p|r|812', id: 812, repo: 'web', title: 'Opt', tier: 'asked', created: '2026-01-01'}}]}}}});
           const where = id => {{ const t = P.state.tasks.find(x => x.pr && x.pr.id === id);
             for (const [d, rec] of Object.entries(dp.days)) {{ const s = rec.slots.find(x => x.taskId === t.id); if (s) return s.sectionId; }} return null; }};
-          const out = [where(811), where(812), P.state.ado.prSlots.blocking, P.state.ado.prSlots.pending];
-          P.adoApply({{prs: {{items: [], gone: [{{key: 'c|p|r|812', reason: 'notneeded'}}]}}}});
+          const out = [where(811), where(812), P.state.tracker.prSlots.blocking, P.state.tracker.prSlots.pending];
+          P.trackerApply({{prs: {{items: [], gone: [{{key: 'c|p|r|812', reason: 'notneeded'}}]}}}});
           const t = P.state.tasks.find(x => x.pr && x.pr.id === 812); out.push(t.done, t.wontDo, t.pr.gone);
           P.state.tasks = P.state.tasks.filter(x => !(x.pr && x.pr.id > 810)); dp.days = keep; dp.templates = []; P.commit();
           return out; }}""")
         check('Blocking PRs go into the reviews block and Pending ones into admin', r[:4] == ['rvw', 'adm', 'reviews', 'admin'])
         check('a PR that stops needing you is marked won\'t do', r[4:] == [True, True, 'notneeded'])
-        pg.evaluate("() => import('./js/ado.js').then(m => { m.adoSetup(); })"); pg.wait_for_selector('.sheet [data-slot=pending]')
+        pg.evaluate("() => import('./js/tracker.js').then(m => { m.trackerSetup(); })"); pg.wait_for_selector('.sheet [data-slot=pending]')
         r = pg.evaluate("() => [...document.querySelectorAll('.sheet [data-slot]')].map(e => e.dataset.slot + '=' + e.value)")
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('ADO Settings has the Day plan kind for each PR group', r == ['blocking=reviews', 'pending=admin'])
-        pg.evaluate(f"() => {{ const P = {P}; P.state.ado.prSlots = {{blocking: '', pending: ''}}; }}")
-        pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'today'; P.ui.planWeek = false; P.adoApply({{prs: {{items: [
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tracker.prSlots = {{blocking: '', pending: ''}}; }}")
+        pg.evaluate(f"""() => {{ const P = {P}; P.state.scope = 'all'; P.state.view = 'today'; P.ui.planWeek = false; P.trackerApply({{prs: {{items: [
           {{key: 'c|p|r|801', id: 801, repo: 'web', title: 'Mine', tier: 'blocking', created: '2026-01-01'}},
           {{key: 'c|p|r|802', id: 802, repo: 'web', title: 'Team one', tier: 'pool', via: ['Team'], created: '2026-01-01'}}]}}}}); P.commit(); }}""")
         pg.wait_for_timeout(200)
@@ -487,37 +487,59 @@ def main():
         check('Only ones that need me hides Team PRs and keeps yours', 'Mine' in shown_now and 'Team one' not in shown_now)
         check('the header says what the filter hides', '1 team pr hidden' in pg.inner_text('.phead .scopebtn').lower())
         check('the filter is per window, kept with the UI state', pg.evaluate("JSON.parse(localStorage.getItem('prioritizer.ui')).prs") == 'mine')
-        pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'none'; P.state.scope = P.state.ado.prListId; P.commit(); }}"); pg.wait_for_timeout(200)
+        pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'none'; P.state.scope = P.state.tracker.prListId; P.commit(); }}"); pg.wait_for_timeout(200)
         check('None still shows PRs when you pick the Pull requests list', len(pg.evaluate(titles_shown)) == 2)
         pg.evaluate(f"() => {{ const P = {P}; P.state.scope = 'all'; P.commit(); }}"); pg.wait_for_timeout(200)
         check('None hides every PR elsewhere', not any(x in ('Mine', 'Team one') for x in pg.evaluate(titles_shown)))
         pg.evaluate(f"() => {{ const P = {P}; P.state.prs = 'all'; P.state.tasks = P.state.tasks.filter(t => !t.pr); P.commit(); }}")
-        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.ado && t.ado.id === 12345)); P.state.view = 'day'; P.commit(); }}")
+        pg.evaluate(f"() => {{ const P = {P}; P.state.tasks = P.state.tasks.filter(t => !(t.item && t.item.id === 12345)); P.state.view = 'day'; P.commit(); }}")
         # ---------- ADO goes only through Workshop's connector; a board synced by the retired helper keeps its tasks ----------
-        r = pg.evaluate(f"""() => {{ const P = {P}; const choose = P.state.ado.choose; P.state.ado.choose = false; P.adoApply({{items: [{{id: 9101, title: 'Old bug', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main%20Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
+        r = pg.evaluate(f"""() => {{ const P = {P}; const choose = P.state.tracker.choose; P.state.tracker.choose = false; P.trackerApply({{items: [{{id: 9101, title: 'Old bug', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main%20Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
             prs: {{items: [{{key: 'https://TFS.example.test/tfs/Main%20Collection/|Platform|901', id: 901, repo: 'api', project: 'Platform', title: 'Old PR', tier: 'asked', created: '2026-01-01'}}]}}}});
-          const w = P.state.tasks.find(t => t.ado && t.ado.id === 9101), pr = P.state.tasks.find(t => t.pr && t.pr.id === 901);
+          const w = P.state.tasks.find(t => t.item && t.item.id === 9101), pr = P.state.tasks.find(t => t.pr && t.pr.id === 901);
           w.notes = 'mine'; w.value = 1; pr.notes = 'mine too'; P.commit();
           const before = P.state.tasks.length;
-          const n = P.adoApply({{items: [{{id: 9101, title: 'Old bug, renamed', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
+          const n = P.trackerApply({{items: [{{id: 9101, title: 'Old bug, renamed', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/tfs/Main Collection/Platform/_workitems/edit/9101', project: 'Platform', priority: 2}}],
             prs: {{items: [{{key: 'https://tfs.example.test/tfs/Main Collection|Platform|901', id: 901, repo: 'api', project: 'Platform', title: 'Old PR', tier: 'blocking', created: '2026-01-01'}}]}}}});
-          const n2 = P.adoApply({{items: [], gone: [{{id: 9101, reason: 'closed', state: 'Closed'}}], prs: {{items: [], gone: [{{key: 'https://tfs.example.test/tfs/Main Collection|Platform|901', reason: 'merged'}}]}}}});
+          const n2 = P.trackerApply({{items: [], gone: [{{id: 9101, reason: 'closed', state: 'Closed'}}], prs: {{items: [], gone: [{{key: 'https://tfs.example.test/tfs/Main Collection|Platform|901', reason: 'merged'}}]}}}});
           const out = [n.added, n.prAdded, P.state.tasks.length - before, w.title, w.notes, w.value, pr.notes.split('\\n')[0], pr.pr.key, pr.pr.tier, w.done, pr.done];
-          P.state.ado.choose = choose; P.state.tasks = P.state.tasks.filter(t => t !== w && t !== pr); P.commit(); return out; }}""")
+          P.state.tracker.choose = choose; P.state.tasks = P.state.tasks.filter(t => t !== w && t !== pr); P.commit(); return out; }}""")
         check('a board synced by the helper keeps working through the connector: same tasks, no duplicates, your fields kept',
               r == [0, 0, 0, 'Old bug, renamed', 'mine', 1, 'mine too', 'https://tfs.example.test/tfs/Main Collection|Platform|901', 'blocking', True, True])
+        # ---------- GitHub next to ADO: each tracker's sync touches only its own tasks, pending items and PRs ----------
+        r = pg.evaluate(f"""() => {{ const P = {P}; const choose = P.state.tracker.choose; P.state.tracker.choose = false;
+          P.trackerApply({{items: [{{id: 9201, title: 'ADO bug', type: 'Bug', state: 'Active', url: 'https://tfs.example.test/c/p/_workitems/edit/9201', project: 'p', priority: 1}}],
+            prs: {{items: [{{key: 'https://tfs.example.test/c|p|951', id: 951, repo: 'api', project: 'p', title: 'ADO PR', tier: 'asked', created: '2026-01-01'}}]}}}}, {{system: 'ado'}});
+          P.trackerApply({{items: [{{id: 'acme/web#12', title: 'GitHub issue', type: 'Story', state: 'Open', url: 'https://github.com/acme/web/issues/12', project: 'acme/web', priority: 2}}],
+            prs: {{items: [{{key: 'https://github.com|acme/web|40', id: 40, repo: 'web', project: 'acme/web', title: 'GitHub PR', tier: 'blocking', created: '2026-01-01'}}]}}}}, {{system: 'github'}});
+          const gh = P.state.tasks.find(t => t.item && t.item.id === 'acme/web#12'), ado = P.state.tasks.find(t => t.item && t.item.id === 9201);
+          const ghPr = P.state.tasks.find(t => t.pr && t.pr.key === 'https://github.com|acme/web|40');
+          // A GitHub sync with nothing for you closes only GitHub's item; ADO's stays open.
+          P.trackerApply({{items: [], gone: [{{id: 'acme/web#12', reason: 'closed', state: 'Closed'}}], prs: {{items: [], gone: [{{key: 'https://github.com|acme/web|40', reason: 'merged'}}]}}}}, {{system: 'github'}});
+          P.state.tracker.choose = true;
+          P.trackerApply({{items: [{{id: 'me/tools#3', title: 'Pick me', type: 'Issue', state: 'Open', url: 'https://github.com/me/tools/issues/3', project: 'me/tools'}}]}}, {{system: 'github'}});
+          P.trackerApply({{items: [{{id: 9202, title: 'ADO pick', type: 'Issue', state: 'Active', url: 'https://tfs.example.test/c/p/_workitems/edit/9202', project: 'p'}}]}}, {{system: 'ado'}});
+          const pend = P.state.tracker.pending.map(p => p.system + ':' + p.id).sort();
+          const added = P.trackerPick(['github:me/tools#3'], [9202]);
+          const picked = P.state.tasks.find(t => t.item && t.item.id === 'me/tools#3');
+          const rowText = (() => {{ const div = document.createElement('div'); div.innerHTML = P.row(picked, {{hidden: []}}); const el = div.querySelector('.sig.ado'); return el ? el.textContent : ''; }})();
+          const out = [gh.item.system, gh.done, ado.done, ghPr.done, ghPr.pr.system, pend.join(','), added, picked.item.system, P.state.tracker.skip.includes('ado:9202'), P.state.tracker.pending.length, rowText];
+          P.state.tracker.choose = choose; P.state.tracker.skip = P.state.tracker.skip.filter(k => k !== 'ado:9202');
+          P.state.tasks = P.state.tasks.filter(t => ![gh, ado, ghPr, picked].includes(t) && !(t.pr && t.pr.key === 'https://tfs.example.test/c|p|951')); P.commit(); return out; }}""")
+        check('GitHub and ADO sync side by side: closing in one leaves the other, pending and skips are per tracker, rows show #12',
+              r == ['github', True, False, True, 'github', 'ado:9202,github:me/tools#3', 1, 'github', True, 0, '#3'])
         pg.wait_for_timeout(200)
         pg.click('#adoBtn'); pg.wait_for_timeout(400)
-        sheet = pg.locator('.sheet[aria-label="Connect Azure DevOps"]')
+        sheet = pg.locator('.sheet[aria-label="Connect work items"]')
         text = sheet.inner_text() if sheet.count() else ''
         check('ADO Settings with no Workshop says what to do: install or start Workshop, pair this site, turn on the connector',
-              'Install or start Workshop' in text and 'pair this site' in text and 'turn on the ADO connector in Workshop Settings' in text)
+              'Install or start Workshop' in text and 'pair this site' in text and 'turn on the ADO or GitHub connector in Workshop Settings' in text)
         check('ADO Settings has no helper download, steps or port', sheet.locator('a[href*="ado_helper"], #adoPort, ol.steps').count() == 0 and 'ado_helper' not in text and 'helper' not in text.lower())
         sheet.locator('[data-ado-go]').click(); pg.wait_for_timeout(400)
-        check('Connect without Workshop keeps sync off and repeats the message', 'pair this site' in pg.inner_text('#adoMsg') and pg.evaluate(f"() => !{P}.ui.ado.on"))
+        check('Connect without Workshop keeps sync off and repeats the message', 'pair this site' in pg.inner_text('#adoMsg') and pg.evaluate(f"() => !{P}.ui.tracker.on"))
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
-        r = pg.evaluate(f"""async () => {{ const P = {P}; P.ui.ado.on = true; P.ui.ado.last = 0; await P.adoSync(true);
-          const b = document.querySelector('#adoBtn'); const out = [b.dataset.ado, b.dataset.tip, P.ui.ado.error]; P.ui.ado.on = false; P.ui.ado.error = ''; return out; }}""")
+        r = pg.evaluate(f"""async () => {{ const P = {P}; P.ui.tracker.on = true; P.ui.tracker.last = 0; await P.trackerSync(true);
+          const b = document.querySelector('#adoBtn'); const out = [b.dataset.ado, b.dataset.tip, P.ui.tracker.error]; P.ui.tracker.on = false; P.ui.tracker.error = ''; return out; }}""")
         check('sync turned on before (the helper) but no Workshop: the ADO button is red and its tip says what to do', r[0] == 'error' and 'pair this site' in r[1] and 'pair this site' in r[2])
         pg.wait_for_timeout(300)
         r = pg.evaluate("async () => (await fetch('/ado-helper/ado_helper.py', {cache: 'no-store'})).status")
@@ -773,11 +795,11 @@ def main():
           const base = {{done: false, value: 3, effort: 'M', ageFrom: d, who: [], listId: P.state.lists[0].id, rank: 0}};
           const html = (t, o) => {{ const div = document.createElement('div'); div.innerHTML = P.row(Object.assign({{}}, base, t), o); return div.firstElementChild; }};
           const all = ['ado','pr','prai','agent','due','repeat','waiting','stale','people','list','crumb','score','start','today'];
-          const soon = html({{id: 'x1', title: 'Soon', due: add(2), ado: {{id: 7}}}}, {{hidden: all}});
+          const soon = html({{id: 'x1', title: 'Soon', due: add(2), item: {{system: 'ado', id: 7}}}}, {{hidden: all}});
           const late = html({{id: 'x2', title: 'Late', due: add(-2)}}, {{hidden: all}});
           const pr = html({{id: 'x3', title: 'PR', pr: {{id: 9, repo: 'r', tier: 'blocking', via: []}}}}, {{hidden: all}});
           const nudge = html({{id: 'x4', title: 'Nudge', waiting: true, nudgeOn: add(-1)}}, {{hidden: all}});
-          const shown = html({{id: 'x5', title: 'Shown', due: add(2), ado: {{id: 7}}}}, {{start: true, hidden: []}});
+          const shown = html({{id: 'x5', title: 'Shown', due: add(2), item: {{system: 'ado', id: 7}}}}, {{start: true, hidden: []}});
           return {{
             soonCal: !!soon.querySelector('.sig.soon'), soonAdo: !!soon.querySelector('.sig.ado'), soonScore: !!soon.querySelector('.score'), soonToday: !!soon.querySelector('.tday'),
             lateCal: !!late.querySelector('.sig.warn'), prNum: !!pr.querySelector('.sig.ado'), prBlock: !!pr.querySelector('.sig.warn'),

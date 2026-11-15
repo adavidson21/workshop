@@ -8,7 +8,7 @@ import { parseQuick } from './quick-add.js';
 import { render, capacityCut, row, setView } from './render.js';
 import { openDisplay } from './display.js';
 import { buildWorkbook, exportXlsx, parseWorkbook, doImport } from './excel.js';
-import { adoApply, adoDetect, adoInit, adoPick, adoReview, adoSync, adoSchedule, prRelease, setAdo } from './ado.js';
+import { trackerApply, trackerDetect, trackerInit, trackerPick, trackerReview, trackerSync, trackerSchedule, prRelease, setTracker } from './tracker.js';
 import { eng, engCheck, engSchedule } from './eng.js';
 import { prAiInit, prAiRefresh } from './pr-ai.js';
 import * as prAiModel from './pr-ai-model.js';
@@ -85,22 +85,22 @@ ready.then(ws => {
     });
     if (id === 'add-task') openCmd();
     if (id === 'sort-one-by-one') loaded.then(() => { setView('today'); openSortRun(); });
-    if (id === 'sync-ado') adoSync(true);
+    if (id === 'sync-ado') trackerSync(true);
     if (id === 'shortcuts') showHelp();
     if (id === 'shutdown-day') loaded.then(openShutdown);
     if (id === 'start-next') loaded.then(startNext);
     if (id === 'stuck') loaded.then(() => focusCommand('focus-stuck'));
   });
   // The ADO connector was turned on or off, or became ready: sync through the right source.
-  ws.connectors.onStatus('ado', () => adoDetect().then(() => adoSync(false)));
+  ws.connectors.onStatus('ado', () => trackerDetect().then(() => trackerSync(false)));
   // Workshop stopped answering, or is back: say so on the ADO button, and sync once it is back.
-  ws.on('online', () => adoDetect().then(() => adoSync(false)));
+  ws.on('online', () => trackerDetect().then(() => trackerSync(false)));
 });
 
 /* test hook: lets automated checks call the model without the UI */
 window.__prioritizer = {
   get state(){ return state; }, set state(s){ setState(s); },
-  adoApply, adoPick, adoReview, adoSync, ui, sanitize, migrateTask, urgency, score, tier, isStale,
+  trackerApply, trackerPick, trackerReview, trackerSync, ui, sanitize, migrateTask, urgency, score, tier, isStale,
   eKey, vKey, parseQuick, capacityCut, buildWorkbook,
   parseWorkbook, doImport, render, commit, triageQueue,
   engCheck, get eng(){ return eng; }, prAiRefresh, prAiModel, prRelease, exportXlsx, downloadBackup, importFile,
@@ -114,12 +114,12 @@ drawerInit(); dayInit(); tourInit(); pasteInit();
 // Focus hours and lunch (Workshop docs/focus.md): hold what can wait, and ask for a breadcrumb on the running task
 // when a block ends, lunch starts or focus starts now (focus.js focusTransition, one prompt per event).
 focusHoursBoot({render: () => loaded.then(render), summary: refreshSummary, transition: focusTransition});
-adoInit();
+trackerInit();
 applySide();
 // Load the saved board (Workshop's data folder, or this browser in browser mode) before the first render.
 await loaded;
 render();
 startDirectory();
 maybeOnboard();
-setAdo(); adoSchedule(); adoDetect().then(() => adoSync(false));
+setTracker(); trackerSchedule(); trackerDetect().then(() => trackerSync(false));
 engSchedule(); engCheck(); prAiInit();

@@ -158,7 +158,9 @@ test('the paste box checks the link before asking the agent', () => {
   assert.deepEqual(reviewUrlCheck(' ' + LINK + '?_a=files '), { ok: true, id: '812', url: LINK + '?_a=files' });
   assert.match(reviewUrlCheck('').error, /Paste/);
   assert.match(reviewUrlCheck('812').error, /not a link/);
-  assert.match(reviewUrlCheck('https://github.com/o/r/pull/3').error, /pullrequest/);
+  assert.deepEqual(reviewUrlCheck('https://github.com/o/r/pull/3'), { ok: true, id: '3', url: 'https://github.com/o/r/pull/3' });
+  assert.match(reviewUrlCheck('https://github.com/o/r/issues/3').error, /\/pull\/<number>/);
+  assert.match(reviewUrlCheck('https://ado.example.com/c/p/_workitems/edit/3').error, /pullrequest/);
   assert.doesNotMatch(reviewsHtml(), /id="rv-url"/, 'hidden until Review a link');
   assert.match(reviewsHtml(), /data-rv-open="1">Review a link</);
   S.ui.prReview = { open: true };

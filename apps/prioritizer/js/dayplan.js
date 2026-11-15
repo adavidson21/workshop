@@ -67,7 +67,7 @@ function recurTick(){
   return made;
 }
 
-/* A PR review task into the Day plan block of `kind` (ado.js, state.ado.prSlots). Not saved in undo: it comes
+/* A PR review task into the Day plan block of `kind` (ado.js, state.tracker.prSlots). Not saved in undo: it comes
    from a sync, not a click. Returns {date, section} or null. */
 function planPr(taskId, kind, from = ''){
   if (!dstore || !kind) return null;

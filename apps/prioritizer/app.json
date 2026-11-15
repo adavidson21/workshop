@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "10.5.0",
+  "version": "11.0.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -58,6 +58,10 @@
   "connectors": [
     {
       "id": "ado",
+      "required": false
+    },
+    {
+      "id": "github",
       "required": false
     },
     {
@@ -134,7 +138,7 @@
     },
     {
       "id": "sync-ado",
-      "title": "Sync with Azure DevOps"
+      "title": "Sync work items (Azure DevOps, GitHub)"
     },
     {
       "id": "shortcuts",
@@ -154,8 +158,8 @@
     "app.css",
     "js/actions.js",
     "js/ado-link.js",
-    "js/ado-status.js",
-    "js/ado.js",
+    "js/tracker-status.js",
+    "js/tracker.js",
     "js/command-bar.js",
     "js/connect.js",
     "js/constants.js",

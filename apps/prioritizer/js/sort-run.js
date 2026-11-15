@@ -25,7 +25,7 @@ const cur = () => run && findTask(run.ids[run.i]);
 function source(t){
   if (t.cameBack) return 'Came back to you';
   if (t.pr) return `Pull request ${t.pr.id}`;
-  if (t.ado) return `From ADO, ${t.ado.type || 'work item'} ${t.ado.id}`;
+  if (t.item) return `From ${t.item.system === 'github' ? 'GitHub' : 'ADO'}, ${t.item.type || 'work item'} ${t.item.id}`;
   return t.createdAt ? `Added ${fmtDay(t.createdAt)}` : '';
 }
 

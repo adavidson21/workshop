@@ -1,4 +1,5 @@
-import { PR_TIER, prTip } from './ado.js';
+import { PR_TIER, itemRef, prTip } from './tracker.js';
+import { trackerName } from './tracker-status.js';
 import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, PRI, PRI_ORDER, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
 import { closeDrawer, drawerId, markSel, syncDrawer } from './drawer.js';
 import { reportRoute } from './route.js';
@@ -133,7 +134,7 @@ function renderSide(){
   if (!$('#slists')) return;
   // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of
   // its PRs when "No PRs" is on, since picking it shows them.
-  const vis = (t, id) => !t.done && (shown(t) || state.prs === 'none' && id === state.ado.prListId);
+  const vis = (t, id) => !t.done && (shown(t) || state.prs === 'none' && id === state.tracker.prListId);
   const open = id => state.tasks.filter(t => vis(t, id) && (t.listId === id || childrenOf(id).some(c => c.id === t.listId))).length;
   const item = (l, sub) => {
     const n = sub ? state.tasks.filter(t => vis(t, l.id) && t.listId === l.id).length : open(l.id);
@@ -214,15 +215,16 @@ function row(t, o = {}){
   let meta = '';
   // Signals are icons with a tooltip (data-tip and aria-label say the words). Color only when it needs you.
   const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" data-tip="${esc(tip)}" role="img" aria-label="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
-  if (t.ado && on('ado')){
-    const tip = `${t.ado.url ? 'Open ' : ''}ADO ${t.ado.type || 'item'} #${t.ado.id}${t.ado.state ? ', ' + t.ado.state : ''}`;
-    meta += t.ado.url
-      ? `<a class="sig ado txt" href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${ICON.item}<b>${t.ado.id}</b></a>`
-      : sig(ICON.item, tip, 'ado', String(t.ado.id));
+  if (t.item && on('ado')){
+    const tip = `${t.item.url ? 'Open ' : ''}${trackerName(t.item.system)} ${t.item.type || 'item'} ${itemRef(t.item)}${t.item.state ? ', ' + t.item.state : ''}`;
+    const short = t.item.system === 'github' ? `#${String(t.item.id).split('#').pop()}` : String(t.item.id);
+    meta += t.item.url
+      ? `<a class="sig ado txt" href="${esc(t.item.url)}" target="_blank" rel="noopener" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${ICON.item}<b>${esc(short)}</b></a>`
+      : sig(ICON.item, tip, 'ado', short);
   }
   // Also on Slate's board (slate-link.js): where it stands there. Inside Workshop only; the drawer opens it.
-  if (t.ado && !t.done && on('ado') && embedded && !pv){ const sl = slateFor(t.ado.id); if (sl) meta += sig(ICON.board, `${slateLabel(sl)}. Open the task to go there.`, 'slate'); }
-  if (t.ado && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.ado.id);
+  if (t.item && t.item.system !== 'github' && !t.done && on('ado') && embedded && !pv){ const sl = slateFor(t.item.id); if (sl) meta += sig(ICON.board, `${slateLabel(sl)}. Open the task to go there.`, 'slate'); }
+  if (t.item && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.item.id);
   if (t.recur && on('repeat')){
     const item = dp.recurring.find(r => r.id === t.recur.id);
     const tip = item ? repeatLabel(item) + (t.recur.sprint ? `: sprint ${t.recur.sprint}` : '') : `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`;

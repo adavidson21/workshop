@@ -1,5 +1,5 @@
 import { addTask, downgradeUrgent, moveTask, quickSort, toggleDone, toggleFocus } from './actions.js';
-import { adoSetup, onAdoClick } from './ado.js';
+import { trackerSetup, onAdoClick } from './tracker.js';
 import { openSettings as daySettings, stepDay } from './day-view.js';
 import { openSortRun } from './sort-run.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
@@ -275,7 +275,7 @@ function openSettingsMenu(anchor){
       const k = b.dataset.set;
       if (k === 'day') daySettings();
       if (k === 'rows') openDisplay();
-      if (k === 'ado') adoSetup();
+      if (k === 'ado') trackerSetup();
       if (k === 'files') onSyncClick($('#syncBtn') || anchor);
     });
 }

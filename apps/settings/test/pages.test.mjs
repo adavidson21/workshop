@@ -143,3 +143,11 @@ test('Needs you: only connectors that are set up and broken or warning, Fix firs
   assert.deepEqual(P.needsYou([c('ado', true, { state: 'starting', message: 'Reading' }, { connections: [{ name: 'w' }] })]), [], 'starting is not a warning');
   assert.deepEqual(P.needsYou([]), []);
 });
+
+test('GitHub: its fields land on its own page, and with no connection it is not set up', () => {
+  const schema = { properties: { connections: { type: 'array' }, repos: { type: 'array' }, prs: { type: 'boolean' } } };
+  assert.equal(P.mainPageOf('github'), 'c-github');
+  assert.deepEqual(P.formPages('github', schema), ['c-github']);
+  assert.equal(P.connectorState({ id: 'github', enabled: true, status: { state: 'error' } }, {}), 'empty');
+  assert.equal(P.connectorState({ id: 'github', enabled: true, status: { state: 'ready' } }, { connections: [{ name: 'github' }] }), 'ready');
+});

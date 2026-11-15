@@ -120,7 +120,7 @@ cmdInput.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === '/'){ e.preventDefault(); setCheat(cheat.hidden); return; }
   if (e.key === 'Enter'){
     e.preventDefault();
-    const t = addTask(cmdInput.value, {...(toToday() ? {focusOn: todayStr()} : {}), ado: takePasted(cmdInput)});
+    const t = addTask(cmdInput.value, {...(toToday() ? {focusOn: todayStr()} : {}), item: takePasted(cmdInput)});
     if (t){ cmdAdded = t.title; cmdInput.value = ''; cmdPreview(); }
   }
 });
