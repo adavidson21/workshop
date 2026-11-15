@@ -68,3 +68,19 @@ test("what's getting done: an item with only release notes is listed; one with n
   d.items[4].ado.releaseNotes = '';
   assert.equal(summary(d, { from: '2027-01-01', to: '2027-03-31' }).items.length, 0);
 });
+
+test('GitHub roadmaps: the bar says GitHub and has no Publish; the dialog offers both trackers when both are ready', async () => {
+  const { adoBarHtml, adoDialog } = await import('../js/view.js');
+  const d = blankDoc('R');
+  d.meta.ado = { system: 'github', mode: 'linked', areas: ['acme/web'], fetchedAt: '2026-11-14T00:00:00Z' };
+  const bar = adoBarHtml(d, { ready: true, publish: 3, systems: ['github'] });
+  assert.match(bar, /<span class="eyebrow">GitHub<\/span>/);
+  assert.match(bar, /1 repo or area/);
+  assert.doesNotMatch(bar, /data-adopublish/);
+  assert.match(bar, /data-adorefresh/);
+  const offline = adoBarHtml(d, { ready: true, systems: ['ado'] });
+  assert.doesNotMatch(offline, /data-adorefresh/, 'GitHub off: no refresh even when ADO is ready');
+  assert.match(adoBarHtml(blankDoc('R'), { ready: true, systems: ['ado', 'github'] }), /Add items from Azure DevOps or GitHub/);
+  assert.match(adoDialog({ systems: ['ado', 'github'] }), /<select name="system">/);
+  assert.match(adoDialog({ systems: ['github'], system: 'github' }), /name="system" value="github"/);
+});

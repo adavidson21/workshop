@@ -372,17 +372,24 @@ export function adoPanel(it, readOnly = false, { addPerson = !readOnly } = {}) {
 }
 
 /** The strip above the timeline for a roadmap that follows ADO, or the offer to add items from it. */
-export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false, publish = 0, publishing = false } = {}) {
+const TRACKER = { ado: 'Azure DevOps', github: 'GitHub' };
+const trackersText = systems => (systems.length ? systems : ['ado']).map(s => TRACKER[s] || TRACKER.ado).join(' or ');
+
+export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false, publish = 0, publishing = false, systems = [] } = {}) {
   const src = doc.meta.ado;
-  if (!src) return ready && !readOnly ? `<div class="adobar"><span class="grow"></span><button class="btn ghost" data-addado>Add items from Azure DevOps</button></div>` : '';
+  if (!src) return ready && !readOnly ? `<div class="adobar"><span class="grow"></span><button class="btn ghost" data-addado>Add items from ${esc(trackersText(systems))}</button></div>` : '';
+  const gh = src.system === 'github', name = gh ? 'GitHub' : 'ADO';
+  // A GitHub source is read only for now: no Publish. Its connector being ready is what Refresh needs.
+  ready = ready && (!systems.length || systems.includes(gh ? 'github' : 'ado'));
+  if (gh) publish = 0;
   const live = src.mode === 'live';
   const differs = doc.items.filter(i => i.ado && i.ado.remote).length;
   const missing = doc.items.filter(i => i.ado && i.ado.missing).length;
   const when = src.fetchedAt ? relTime(Date.parse(src.fetchedAt)) : 'not yet';
   return `<div class="adobar">
-    <span class="eyebrow">Azure DevOps</span>
-    <span>${live ? 'Live view, read only' : 'Linked'} · ${esc(src.areas.length)} area path${src.areas.length === 1 ? '' : 's'} · updated ${esc(when)}${src.truncated ? ' · showing the newest 2000' : ''}</span>
-    ${differs ? `<button class="lnk" data-adodiff>${differs} differ${differs === 1 ? 's' : ''} from ADO</button>` : ''}
+    <span class="eyebrow">${gh ? 'GitHub' : 'Azure DevOps'}</span>
+    <span>${live ? 'Live view, read only' : 'Linked'} · ${esc(src.areas.length)} ${gh ? (src.areas.length === 1 ? 'repo or area' : 'repos or areas') : `area path${src.areas.length === 1 ? '' : 's'}`} · updated ${esc(when)}${src.truncated ? ' · showing the newest 2000' : ''}</span>
+    ${differs ? `<button class="lnk" data-adodiff>${differs} differ${differs === 1 ? 's' : ''} from ${name}</button>` : ''}
     ${missing ? `<span class="muted">${missing} not found</span>` : ''}
     ${!ready ? `<span class="muted">${esc(message || 'Connect Workshop on this computer to refresh.')} Showing the last copy.</span>` : ''}
     <span class="grow"></span>
@@ -393,21 +400,23 @@ export function adoBarHtml(doc, { ready = false, message = '', refreshing = fals
 }
 
 /** Choose what to read from ADO. `mode` false hides the live or linked choice (adding to an existing roadmap). */
-export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, releaseNotesField = 'Custom.ReleaseNotes', chooseMode = true, heading = 'From Azure DevOps' } = {}) {
+export function adoDialog({ title = '', areas = [], connection = '', types = ['Epic', 'Feature'], lanes = 'area', mode = 'linked', includeClosed = false, releaseNotesField = 'Custom.ReleaseNotes', chooseMode = true, heading = 'From Azure DevOps', system = 'ado', systems = ['ado'] } = {}) {
   const t = (x, label) => `<label class="pc"><input type="checkbox" name="type" value="${x}"${types.includes(x) ? ' checked' : ''}> ${label}</label>`;
+  const both = systems.length > 1, gh = system === 'github';
   return `<form method="dialog" class="sheet wide">
     <h3>${esc(heading)}</h3>
+    ${both ? `<label class="pf inline"><span>From</span><select name="system"><option value="ado"${gh ? '' : ' selected'}>Azure DevOps</option><option value="github"${gh ? ' selected' : ''}>GitHub</option></select></label>` : `<input type="hidden" name="system" value="${esc(gh || systems[0] === 'github' ? 'github' : 'ado')}">`}
     ${chooseMode ? `<label class="pf"><span>Name</span><input name="title" value="${esc(title)}" maxlength="120" required autofocus></label>
     <fieldset class="pf"><legend>Kind</legend>
       <label class="pc"><input type="radio" name="mode" value="linked"${mode !== 'live' ? ' checked' : ''}> Import, then edit freely. Refresh adds new work items and shows what differs; it never overwrites your edits. Add your own items too.</label>
       <label class="pc"><input type="radio" name="mode" value="live"${mode === 'live' ? ' checked' : ''}> Live view of ADO. Rebuilt on every refresh; items can't be edited here.</label>
     </fieldset>` : ''}
-    <label class="pf"><span>Area paths</span><textarea name="areas" rows="4" class="mono" required placeholder="Project\\Team">${esc(areas.join('\n'))}</textarea><small class="hint">One per line. Work items under each are included.</small></label>
+    <label class="pf"><span>Area paths</span><textarea name="areas" rows="4" class="mono" required placeholder="${gh ? 'owner/repo' : 'Project\\Team'}">${esc(areas.join('\n'))}</textarea><small class="hint">One per line. Work items under each are included. On GitHub: owner/repo, or owner/repo/&lt;area&gt; for an <code>area:</code> label; Epics are milestones, Features are issues labeled <code>feature</code>, stories are their sub-issues.</small></label>
     <div class="prow"><fieldset class="pf"><legend>Work items</legend>${t('Epic', 'Epics')}${t('Feature', 'Features')}${t('User Story', 'User Stories, named Feature &gt; Story')}</fieldset>
       <label class="pf inline"><span>Lanes by</span><select name="lanes"><option value="area"${lanes !== 'epic' ? ' selected' : ''}>Area path</option><option value="epic"${lanes === 'epic' ? ' selected' : ''}>Epic</option></select></label></div>
     <label class="pc"><input type="checkbox" name="closed"${includeClosed ? ' checked' : ''}> Include closed work items</label>
-    <label class="pf"><span>Release notes field</span><input name="releaseNotesField" class="mono" value="${esc(releaseNotesField)}" maxlength="200" pattern="[A-Za-z][A-Za-z0-9_.]*" placeholder="Custom.ReleaseNotes" autocomplete="off" spellcheck="false"><small class="hint">ADO has no standard release notes field, so this is its reference name in yours. Shown under What&#39;s getting done. Leave empty for none.</small></label>
-    <label class="pf"><span>ADO connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Reading changes nothing in ADO. Only Publish writes, after a preview.</small></label>
+    <label class="pf"><span>Release notes field</span><input name="releaseNotesField" class="mono" value="${esc(releaseNotesField)}" maxlength="200" pattern="[A-Za-z][A-Za-z0-9_.]*" placeholder="Custom.ReleaseNotes" autocomplete="off" spellcheck="false"><small class="hint">ADO has no standard release notes field, so this is its reference name in yours. On GitHub, a Feature&#39;s <code>## Release note</code> section is used whatever this says. Shown under What&#39;s getting done. Leave empty for none.</small></label>
+    <label class="pf"><span>Connection</span><input name="connection" value="${esc(connection)}" maxlength="40" placeholder="The connector's default"><small class="hint">Reading changes nothing. Only Publish writes to ADO, after a preview; GitHub roadmaps are read only for now.</small></label>
     <footer><span class="grow"></span><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${chooseMode ? 'Create' : 'Add'}</button></footer>
   </form>`;
 }

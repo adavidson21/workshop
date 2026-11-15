@@ -1,6 +1,6 @@
 # GitHub connector
 
-Issues assigned to you and pull requests waiting on your review, for Docket and Loom. It answers in the same shapes as the [ADO connector](../ado/README.md), so apps treat both trackers alike. Read only: nothing here changes GitHub. Node standard library only. It calls only the API URL in its settings.
+Issues assigned to you and pull requests waiting on your review, for Docket and Loom, and roadmaps for Runway. It answers in the same shapes as the [ADO connector](../ado/README.md), so apps treat both trackers alike. Read only: nothing here changes GitHub. Node standard library only. It calls only the API URL in its settings.
 
 How ADO concepts map to GitHub, and what is planned next: the GitHub tracker plan in the project docs.
 
@@ -37,6 +37,8 @@ Status says when the variable is not set (`error`), when GitHub answered 401 to 
 | `sync.prs` | `knownPrs` | `{items, gone, notes, notNeeded}`, the ADO connector's shape. Keys are `<web url>|owner/repo|<number>`. |
 | `areas.mine` | optional `connection` | `{connection, areas: [{path, count}]}`: the areas of your open issues, most first, up to 50. |
 | `workitem.get` | `id` (`owner/repo#12`, or a number with `repo`; with one repo in `repos`, a bare number is enough), `details`, `extras`, `comments`, `connection` | `{id, number, title, type, state, rev (updated_at), project, connection, url, reason}`. `details` adds `area`, `iteration` (milestone title), `tags` (labels), `description`, `acceptanceCriteria` and `reproSteps` (from `## Acceptance criteria` and `## Repro steps` sections of the body, or `### `), `related` (empty), `parent` (the sub-issue parent, `{id, title, url, state, type}`, or null), `children` (`{total, done}`) and `milestone`. `comments` adds `comments` (oldest first, at most 200). |
+| `roadmap` | `areas` (required: `owner/repo`, or `owner/repo/<area>` for an area label; backslashes work too), `includeClosed`, `stories`, `fields`, `connection` | The ADO connector's `roadmap` shape, for Runway: `{connection, items, total, truncated, childrenTruncated, fetchedAt}`. Epics are milestones (`targetDate` is the due date), Features are issues labeled `feature` (`parentId` is their milestone; with no date of their own their `targetDate` is the milestone's; `storiesTotal` and `storiesDone` come from sub-issue progress), and with `stories` their open sub-issues come too as `User Story` or `Issue` (closed ones with `includeClosed`). Ids are GitHub's numeric database ids, so Runway keys them like ADO's; `ref` is the readable name (`acme/web#12`, `acme/web milestone v2.1`). Each item's `custom` has the `fields` asked for, all set to the Feature's `## Release note` section. A whole repo brings every milestone; an area brings only the milestones its Features sit in. |
+| `iterations.list` | `project`, `connection` | `{connection, project, iterations: []}`: GitHub has no sprints outside Projects. |
 | `connection.resolve` | `connection` | Which connection would be used and whether its token is set. Calls nothing. Setup action. |
 | `config.fromUrl` | `url`: any GitHub link | `{config, notes}`: the settings with that host's connection added and the repo added to `repos` when `repos` is not empty. Saves nothing. Setup action. |
 
@@ -64,6 +66,7 @@ GitHub drops your review request once you review. Your latest review then decide
 | GraphQL `search` (`review-requested:@me`, `reviewed-by:@me`) | PRs waiting on you |
 | GraphQL `repository { pullRequest }` | Known PRs neither search found (one call, up to 50) |
 | GraphQL `repository { issue { parent subIssuesSummary } }` | `workitem.get` with `details` |
+| `GET /repos/{owner}/{repo}/milestones`, `GET /repos/{owner}/{repo}/issues?labels=feature`, `GET /repos/{owner}/{repo}/issues/{n}/sub_issues` | `roadmap` |
 
 ## Tests
 

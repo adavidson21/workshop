@@ -37,9 +37,10 @@ const FIELDS = ['title', 'start', 'end', 'status', 'who'];
 const MIN_SPAN = 14; // days a bar spans when only one end is known
 
 const lower = s => String(s == null ? '' : s).toLowerCase();
-const leaf = p => String(p || '').split('\\').filter(Boolean).pop() || String(p || '');
+// ADO area paths use backslashes; GitHub areas (owner/repo or owner/repo/<area>) use slashes.
+const leaf = p => String(p || '').split(/[\\/]/).filter(Boolean).pop() || String(p || '');
 export const projectOf = p => String(p || '').split('\\')[0];
-const under = (area, path) => { const a = lower(area), p = lower(path); return a === p || a.startsWith(p + '\\'); };
+const under = (area, path) => { const a = lower(area), p = lower(path); return a === p || a.startsWith(p + '\\') || a.startsWith(p + '/'); };
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const addDays = (s, n) => { const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
 const httpUrl = u => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
@@ -48,13 +49,16 @@ const clip = (s, n) => String(s == null ? '' : s).slice(0, n);
 /** Clean the dialog's or a stored meta.ado. Returns null when there are no area paths. */
 export function cleanSource(src) {
   if (!src || typeof src !== 'object') return null;
+  // system: which connector reads it, 'ado' (default) or 'github'. GitHub areas keep their slashes (owner/repo/<area>).
+  const system = src.system === 'github' ? 'github' : 'ado';
   const areas = [...new Set((Array.isArray(src.areas) ? src.areas : String(src.areas || '').split(/\r?\n/))
-    .map(a => String(a).trim().replace(/\//g, '\\')).filter(Boolean).map(a => clip(a, 400)))].slice(0, 50);
+    .map(a => String(a).trim()).map(a => (system === 'github' ? a.replace(/\\/g, '/') : a.replace(/\//g, '\\'))).filter(Boolean).map(a => clip(a, 400)))].slice(0, 50);
   if (!areas.length) return null;
   const types = (Array.isArray(src.types) ? src.types : DEFAULT_TYPES).filter(t => TYPES.includes(t));
   return {
     ...src,
     mode: MODES.includes(src.mode) ? src.mode : 'linked',
+    system,
     areas,
     types: types.length ? types : [...DEFAULT_TYPES],
     lanes: LANE_MODES.includes(src.lanes) ? src.lanes : 'area',
@@ -141,7 +145,8 @@ export function releaseNotesOf(w, src) {
 
 /** The description Runway shows for a work item: type, id, state, story progress, then its ADO link. */
 export function describe(w) {
-  const bits = [`${w.type || 'Work item'} #${w.id}`, w.state].filter(Boolean);
+  // ref: GitHub's readable name ("acme/web#12", "acme/web milestone v2.1"); ADO items go by their id.
+  const bits = [w.ref ? `${w.type || 'Work item'} ${w.ref}` : `${w.type || 'Work item'} #${w.id}`, w.state].filter(Boolean);
   if (Number(w.storiesTotal) > 0) bits.push(`${Number(w.storiesDone) || 0} of ${Number(w.storiesTotal)} stories done`);
   const url = httpUrl(w.url);
   return clip(bits.join(' · ') + (url ? `\n${url}` : ''), 4000);

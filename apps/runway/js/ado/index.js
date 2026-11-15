@@ -1,5 +1,7 @@
-/* Runway's link to Azure DevOps, through Workshop's ADO connector. The only module in Runway that calls a
-   connector. main.js loads it with a dynamic import() only when Runway uses Workshop on this computer; with no
+/* Runway's link to Azure DevOps and GitHub, through Workshop's ADO and GitHub connectors. The only module in Runway
+   that calls a connector. A source's `system` ('ado' or 'github', meta.ado.system) says which connector reads it;
+   GitHub is read only (no sprints, no Publish).
+ main.js loads it with a dynamic import() only when Runway uses Workshop on this computer; with no
    Workshop, no connector or the connector off, Runway works the same without it and shows no ADO controls.
    Reads with the connector's `roadmap` and `iterations.list` actions. The one write is Publish (publish.js):
    `workitem.update`, sent with `confirm: true` only after a person clicks Publish and confirms its preview. */
@@ -17,29 +19,39 @@ export function teamDefaults(env) {
 export * from './model.js';
 
 const ADO = 'ado';
+export const SYSTEMS = { ado: 'Azure DevOps', github: 'GitHub' };
+const sysOf = src => (src && src.system === 'github' ? 'github' : ADO);
 
 export function createAdo(ws, { onChange = () => {} } = {}) {
-  const state = { ready: false, message: '', checked: false };
+  // ready: any tracker connector is ready. systems: the ready ones, in SYSTEMS order. message: why none is.
+  const state = { ready: false, message: '', checked: false, systems: [] };
 
   async function check() {
     try {
       const list = await ws.connectors.list();
+      const ready = id => { const c = list.find(x => x.id === id); return !!(c && c.status && c.status.state === 'ready'); };
+      state.systems = Object.keys(SYSTEMS).filter(ready);
+      state.ready = state.systems.length > 0;
       const c = list.find(x => x.id === ADO);
       const s = c && c.status ? c.status.state : 'missing';
-      state.ready = s === 'ready';
-      state.message = !c ? 'The ADO connector is not installed in Workshop.'
-        : s === 'disabled' ? 'The ADO connector is off. Turn it on in Workshop Settings.'
-          : s !== 'ready' ? ((c.status && c.status.message) || 'The ADO connector is not ready yet.') : '';
+      state.message = state.ready ? ''
+        : !c ? 'The ADO connector is not installed in Workshop.'
+          : s === 'disabled' ? 'The ADO and GitHub connectors are off. Turn one on in Workshop Settings.'
+            : ((c.status && c.status.message) || 'The ADO connector is not ready yet.');
     } catch (e) {
       state.ready = false;
+      state.systems = [];
       state.message = "Couldn't reach Workshop on this computer.";
     }
     state.checked = true;
     onChange(state);
     return state;
   }
+  /** Whether the connector a source reads from is ready. */
+  const readyFor = src => state.systems.includes(sysOf(src));
 
-  const unsub = ws.connectors.onStatus ? ws.connectors.onStatus(ADO, () => { check(); }) : () => {};
+  const subs = ws.connectors.onStatus ? Object.keys(SYSTEMS).map(id => ws.connectors.onStatus(id, () => { check(); })) : [];
+  const unsub = () => subs.forEach(u => { if (typeof u === 'function') u(); });
 
   /** Area paths and connection to fill in the dialog: your team in Workshop's People app (settings.teams, Workshop
       docs/teams.md). Missing: nothing. */
@@ -53,10 +65,12 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
   async function pull(source, { dir = null } = {}) {
     const src = cleanSource(source);
     if (!src) throw Object.assign(new Error('Add at least one area path.'), { code: 'bad_request' });
-    const call = (action, args) => ws.connectors.call(ADO, action, { ...(src.connection ? { connection: src.connection } : {}), ...args });
+    const system = sysOf(src);
+    const call = (action, args) => ws.connectors.call(system, action, { ...(src.connection ? { connection: src.connection } : {}), ...args });
     const result = await call('roadmap', roadmapArgs(src));
     const iterations = {};
-    await Promise.all(projectsOf(result.items || [], src.areas).map(async project => {
+    // GitHub has no sprints outside Projects: items are placed by their own dates (a Feature takes its milestone's).
+    if (system === ADO) await Promise.all(projectsOf(result.items || [], src.areas).map(async project => {
       try { iterations[project] = (await call('iterations.list', { project })).iterations; } catch (e) { /* placed by own dates only */ }
     }));
     return { src, result, data: pulled(result, iterations, src, { dir }), iterations };
@@ -72,8 +86,9 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
   /** Publish a plan (publish.js planPublish) the person confirmed: one workitem.update per item, each with
       confirm: true. Resolves the per-item results (publish.js sendPlan). */
   function publish(plan, opts) {
+    if (plan && plan.system === 'github') return Promise.reject(Object.assign(new Error('GitHub roadmaps are read only for now.'), { code: 'bad_request' }));
     return sendPlan((action, args) => ws.connectors.call(ADO, action, args, { confirm: true }), plan, opts);
   }
 
-  return { state, check, defaults, pull, refresh, publish, close: unsub };
+  return { state, check, readyFor, defaults, pull, refresh, publish, close: unsub };
 }
