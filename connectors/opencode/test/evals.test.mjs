@@ -224,5 +224,5 @@ test("scriptArgs checks suggest, trim and keep requests", () => {
   bad("keep", { id: "x;rm" });
   bad("rm", {});
   const home = { root: "/c/eng-agents/evals", script: "/c/eng-agents/evals/Invoke-Evals.ps1", source: "/c/eng-agents" };
-  assert.match(commandFor(home, ["-Command", "tsd"], "darwin", "Suggest-Trim.ps1"), /pwsh -NoProfile -File '\/c\/eng-agents\/evals\/Suggest-Trim.ps1' -Command 'tsd'/);
+  assert.equal(commandFor(home, ["-Command", "tsd"], "darwin", "Suggest-Trim.ps1"), `pwsh -NoProfile -File '${path.join(home.root, "Suggest-Trim.ps1")}' -Command 'tsd'`);
 });
