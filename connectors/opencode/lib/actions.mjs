@@ -91,7 +91,7 @@ export async function startItem({ id, lane, project }) {
   needOpencode();
   const wid = String(id || "").trim();
   if (!/^\d{1,10}$/.test(wid)) throw httpError(400, "The work item id must be a number.");
-  if (lane !== "feature" && lane !== "bug") throw httpError(400, 'Lane must be "feature" or "bug".');
+  if (lane !== "feature" && lane !== "bug" && lane !== "quick") throw httpError(400, 'Lane must be "feature", "bug" or "quick".');
   if (folderForToken(wid)) throw httpError(409, `Work item ${wid} is already started. Open the dashboard to continue it.`);
   const prev = starting.get(wid);
   if (prev && (sessions.get(prev.sid) || {}).status !== "idle") throw httpError(409, `Work item ${wid} is already starting.`);

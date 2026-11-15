@@ -114,7 +114,8 @@ export function stateVar(it) {
 // happening under it, later stages are faint with a dashed line.
 const STOPS = {
   feature: [['start', 'Start'], ['spec', 'Spec'], ['plan', 'Plan'], ['tasks', 'Tasks'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']],
-  bug: [['start', 'Start'], ['bug', 'Bug'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']]
+  bug: [['start', 'Start'], ['bug', 'Bug'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']],
+  quick: [['start', 'Start'], ['quick', 'Quick plan'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']]
 };
 const CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
 function hereSub(it, key) {
@@ -129,7 +130,7 @@ function hereSub(it, key) {
   return 'Up next';
 }
 function doneTip(it, key) {
-  const g = { spec: 'spec', plan: 'plan', bug: 'bug', review: 'review' }[key];
+  const g = { spec: 'spec', plan: 'plan', bug: 'bug', quick: 'quick', review: 'review' }[key];
   const v = g && it.gates ? it.gates[g] : null;
   if (v === 'APPROVED') return key + '.md approved';
   if (v === 'READY') return 'Review: READY';
@@ -171,7 +172,7 @@ export function runBtn(it, cmd, label, quiet) {
 // The file to read before approving, for "Review spec.md" style steps.
 function gateFileLink(it) {
   if (it.paused || !it.next || !it.next.needsYou) return '';
-  const f = { spec: 'spec.md', plan: 'plan.md', bug: 'bug.md', review: 'review.md' }[it.next.stage];
+  const f = { spec: 'spec.md', plan: 'plan.md', bug: 'bug.md', quick: 'quick.md', review: 'review.md' }[it.next.stage];
   if (!f || !it.files || it.files.indexOf(f) < 0) return '';
   return fileBtn(it.folder, f, 'then', 'Open ' + f);
 }
@@ -281,8 +282,8 @@ export function questionHtml(q, showWho) {
 export function autoStartKind(it) {
   if (it.kind !== 'item' || it.paused) return null;
   const n = it.next || {};
-  if (n.command && /^\/approve\b/.test(n.command) && (n.stage === 'plan' || n.stage === 'bug')) return 'approve-start';
-  const gate = it.lane === 'bug' ? (it.gates || {}).bug : (it.gates || {}).plan;
+  if (n.command && /^\/approve\b/.test(n.command) && (n.stage === 'plan' || n.stage === 'bug' || n.stage === 'quick')) return 'approve-start';
+  const gate = it.lane === 'bug' ? (it.gates || {}).bug : it.lane === 'quick' ? (it.gates || {}).quick : (it.gates || {}).plan;
   return gate === 'APPROVED' && n.stage !== 'ship' ? 'start' : null;
 }
 function autoBtn(it, act, label, cls, tip, off) {
@@ -290,7 +291,7 @@ function autoBtn(it, act, label, cls, tip, off) {
   return `<button type="button" class="btn${cls ? ' ' + cls : ''}" data-auto="${h(it.folder)}" data-act="${act}" title="${h(dis || tip)}"${dis ? ' disabled' : ''}>${h(label)}</button>`;
 }
 function autoTip(it, kind) {
-  return (kind === 'approve-start' ? 'Approves ' + (it.lane === 'bug' ? 'bug.md' : 'plan.md') + ', then runs' : 'Runs') +
+  return (kind === 'approve-start' ? 'Approves ' + (it.lane === 'bug' ? 'bug.md' : it.lane === 'quick' ? 'quick.md' : 'plan.md') + ', then runs' : 'Runs') +
     ' the rest: tasks, each task in a new session, review (fix rounds for Blockers), and PR text. Stops when it needs you. Never pushes.';
 }
 // Only while autopilot runs or needs you. Starting it is the main button on the Next line.
@@ -674,7 +675,7 @@ export function reposPanel() {
 // One line per item per day: what moved, not every log entry. null: commands that do not move an item.
 const VERB = {
   start: 'Started', spec: 'Wrote the spec', plan: 'Planned', approve: 'Approved', tasks: 'Split into tasks',
-  bug: 'Analyzed the bug', review: 'Reviewed', pr: 'Wrote PR text', pause: 'Paused', resume: 'Resumed',
+  bug: 'Analyzed the bug', quick: 'Wrote the quick plan', review: 'Reviewed', pr: 'Wrote PR text', pause: 'Paused', resume: 'Resumed',
   spike: 'Researched', docs: 'Wrote docs', tsd: 'Drafted the TSD', 'check-docs': 'Fact-checked', publish: 'Published',
   status: null, standup: null, dashboard: null, memory: null, 'onboard-repo': null
 };
@@ -1015,8 +1016,8 @@ export function startRequest(st, drafts) {
     if (!TSD_TARGET.test(target)) return { error: 'A product name or repo folders separated by spaces: letters, numbers, spaces, dots, dashes, underscores and /.' };
     return { action: 'tsd.start', args: { target } };
   }
-  const lane = flow === 'quick' ? st.lane : flow;
-  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  const lane = flow === 'quick' ? st.lane : flow === 'small' ? 'quick' : flow;
+  if (lane !== 'feature' && lane !== 'bug' && lane !== 'quick') return { error: 'Pick Feature, Small or Bug.' };
   if (flow !== 'quick' && (st.src === 'ado' || (st.mode === 'ado' && !st.flow)) && adoOn()) {
     const r = startCheck(d('id'), lane);
     if (r.error) return r;
@@ -1065,7 +1066,7 @@ function startFormHtml(f, st) {
       `<label class="cfg-row"><span class="cfg-t">Product or repos</span><span class="cfg-d">A product name from the repo map, or repo folders separated by spaces.</span><input type="text" class="mono start-first" data-draft="start:target" value="${dv('target')}" placeholder="Billing" maxlength="300" spellcheck="false" autocomplete="off"></label>`;
   }
   const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
-  const lanes = f.id === 'quick' ? `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('bug', 'Bug', 'Root cause, fix, review, PR')}</div></div>` : '';
+  const lanes = f.id === 'quick' ? `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('quick', 'Small', 'One plan to approve, 1 or 2 tasks, review, PR')}${pick('bug', 'Bug', 'Root cause, fix, review, PR')}</div></div>` : '';
   const src = f.id !== 'quick' && adoOn() ? (st.src || 'ado') : 'describe';
   const srcPick = f.id !== 'quick' && adoOn() ? `<div class="gos start-modes" role="group" aria-label="Where the work is">` +
     `<button type="button" data-start-src="ado" aria-pressed="${src === 'ado'}"${src === 'ado' ? ' class="on"' : ''}>ADO work item</button>` +

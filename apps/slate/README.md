@@ -57,7 +57,7 @@ Every card shows how many days it has been in its step; past a limit (3 days in 
 
 **Closed means gone.** When an item's ADO state is Closed, Done or Removed, its card leaves the board (Health still counts it; Move back brings it back). **Mark closed** in the panel does the same without changing ADO.
 
-**Work started in Dispatch** gets a card too. Dispatch's Start work (Build a feature, Fix a bug or Quick change) and a spike's **Start work from this** send Slate an accepted `work` handoff (Workshop docs/handoffs.md); Slate adds a card in In flight (Building) marked **From Dispatch**, or moves the card it belongs to (same run folder or ADO id) there.
+**Work started in Dispatch** gets a card too. Dispatch's Start work (Build a feature, Fix a bug, Small change or Quick change) and a spike's **Start work from this** send Slate an accepted `work` handoff (Workshop docs/handoffs.md); Slate adds a card in In flight (Building) marked **From Dispatch**, or moves the card it belongs to (same run folder or ADO id) there.
 
 **Build it myself, skip ADO.** Local work in Tandem (`start.local`) from the brief, triage or request, with no ADO item. The card shows **No ADO item** from Review and PR on, and the panel's **Link ADO item** looks one up (title, type, project) and saves it on the card after a confirm. Nothing changes in ADO.
 
@@ -160,7 +160,8 @@ The eng-agents live dashboard as a Workshop app: your `.work` items, where each 
 | --- | --- | --- |
 | Build a feature | Set up, Spec (you), Plan (you), Tasks, Build, Review, PR text, Ship (you) | `start` (ADO item) or `start.local` |
 | Fix a bug | Set up, Root cause (you), Fix, Review, PR text, Ship (you) | `start` or `start.local` |
-| Quick change | Feature or bug steps, no ADO item | `start.local` |
+| Small change | Set up, Quick plan (you: `quick.md` and at most 2 tasks, one approval), Build, Review, PR text, Ship (you). Tandem's quick lane (Core 2.25.0); `/quick` moves bigger work to the feature lane on its own | `start` or `start.local` with lane `quick` |
+| Quick change | Feature, small or bug steps, no ADO item | `start.local` |
 | Investigate | Investigate, Read the findings (you) | `spike` |
 | Plan an epic | Scope, Approve stories (you), Slice, Approve milestones (you), Backlog | `scope.start` |
 | Write docs | Draft (you), Fact-check, Fix (you) | `docs.start` |

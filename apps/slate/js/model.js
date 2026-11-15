@@ -94,7 +94,7 @@ export function runStep(run) {
   if (!run) return 'Not started';
   if (run.next && run.next.needsYou) return 'Waiting on you';
   const st = (run.next && run.next.stage) || run.stage || '';
-  return { brief: 'Brief', spec: 'Spec', plan: 'Plan', build: 'Build', bug: 'Bug fix', review: 'Review', ship: 'Ship' }[st] || 'In progress';
+  return { brief: 'Brief', spec: 'Spec', plan: 'Plan', quick: 'Quick plan', build: 'Build', bug: 'Bug fix', review: 'Review', ship: 'Ship' }[st] || 'In progress';
 }
 
 /* ---------- records ---------- */

@@ -93,7 +93,7 @@ export function createLocalItem({ title, description, repro, lane, extra }, root
  */
 export async function startLocal({ title, description, repro, lane, project }) {
   needOpencode();
-  if (lane !== "feature" && lane !== "bug") throw httpError(400, 'Lane must be "feature" or "bug".');
+  if (lane !== "feature" && lane !== "bug" && lane !== "quick") throw httpError(400, 'Lane must be "feature", "bug" or "quick".');
   if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Run the Tandem install command again, then restart opencode.");
   const pid = checkProject(project);
   const { id, folder } = createLocalItem({ title, description, repro, lane, extra: pid ? instructionsBlock(pid) : null });

@@ -35,6 +35,17 @@ export const FLOWS = [
     ]
   },
   {
+    id: 'small', name: 'Small change', tag: 'Small', when: 'One repo, 1 or 2 tasks. One plan to approve instead of a spec and a plan.', handsOff: true, start: 'item', lane: 'quick',
+    steps: [
+      { key: 'start', name: 'Set up', file: 'brief.md', what: 'Fetches the work item, picks the repo, makes the branch and writes a short brief.' },
+      { key: 'quick', name: 'Quick plan', you: true, file: 'quick.md', what: 'Acceptance criteria, files and a pattern to follow in one file, plus at most 2 tasks. You approve once. Bigger work steps up to the feature lane on its own.' },
+      { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
+      { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the work against quick.md, then the code quality. Blockers become fix tasks.' },
+      { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for the repo.' },
+      { key: 'ship', name: 'Ship', you: true, file: 'pr.md', what: 'You read the diff, approve and push, then create the PR.' }
+    ]
+  },
+  {
     id: 'quick', name: 'Quick change', tag: 'Quick change', when: 'No ADO item. Describe it, then it runs as a feature or a bug.', handsOff: true, start: 'describe',
     steps: null // the feature or bug steps, by the lane you pick
   },
@@ -75,18 +86,19 @@ export const FLOWS = [
 ];
 export const FLOW_IDS = FLOWS.map(f => f.id);
 export const flowById = id => FLOWS.find(f => f.id === id) || null;
-/** The steps of a flow; Quick change has the feature or bug steps. */
+/** The steps of a flow; Quick change has the feature, small or bug steps, by its lane. */
 export function stepsOf(flow, lane) {
   if (!flow) return [];
   if (flow.steps) return flow.steps;
-  return flowById(lane === 'bug' ? 'bug' : 'feature').steps;
+  return flowById(LANE_FLOW[lane] || 'feature').steps;
 }
 const KIND_FLOW = { spike: 'spike', scope: 'epic', docs: 'docs', tsd: 'tsd' };
+const LANE_FLOW = { feature: 'feature', bug: 'bug', quick: 'small' };
 /** The flow a .work folder follows: a work item by its lane, anything else by its kind. Null for PR reviews and
  *  folders no flow knows (Slate's triage, shape, refine and handoff folders, and anything else). */
 export function flowOf(it) {
   if (!it) return null;
-  if (it.kind === 'item') return flowById(it.lane === 'bug' ? 'bug' : 'feature');
+  if (it.kind === 'item') return flowById(LANE_FLOW[it.lane] || 'feature');
   return flowById(KIND_FLOW[it.kind]) || null;
 }
 /** A local work item (no tracker) started with Quick change shows that name. */
@@ -212,7 +224,7 @@ export function gateFile(it) {
   if (it.kind === 'item') {
     const n = it.next || {};
     if (!n.needsYou) return null;
-    f = { spec: 'spec.md', plan: 'plan.md', bug: 'bug.md', review: 'review.md' }[n.stage] || null;
+    f = { spec: 'spec.md', plan: 'plan.md', bug: 'bug.md', quick: 'quick.md', review: 'review.md' }[n.stage] || null;
   } else {
     const step = currentStep(it);
     if (!step || !atGate(it)) return null;
@@ -227,7 +239,7 @@ export function sendBackCommand(it) {
   if (it.kind === 'item') {
     const n = it.next || {};
     if (!n.needsYou || !it.id) return null;
-    return { spec: `/spec ${it.id}`, plan: `/plan ${it.id}`, bug: `/bug ${it.id}` }[n.stage] || null;
+    return { spec: `/spec ${it.id}`, plan: `/plan ${it.id}`, bug: `/bug ${it.id}`, quick: `/quick ${it.id}` }[n.stage] || null;
   }
   const f = flowOf(it), i = stepIndex(it);
   if (f && f.id === 'epic' && i === 1) return `/scope ${it.folder}`;

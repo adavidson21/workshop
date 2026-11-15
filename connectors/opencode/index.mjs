@@ -320,7 +320,7 @@ const actions = {
   start: {
     title: "Start a work item",
     write: true,
-    argsSchema: obj(["id", "lane"], { id: str("Work item id", { pattern: "^[0-9]{1,10}$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug"] }, project: projectId }),
+    argsSchema: obj(["id", "lane"], { id: str("Work item id", { pattern: "^[0-9]{1,10}$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug", "quick"] }, project: projectId }),
     async run(args) {
       needReady();
       const r = await startItem(args);
@@ -335,7 +335,7 @@ const actions = {
       title: str("Title", { minLength: 1, maxLength: 200 }),
       description: str("Description", { maxLength: 20000 }),
       repro: str("Steps to reproduce (bugs)", { maxLength: 20000 }),
-      lane: { type: "string", title: "Lane", enum: ["feature", "bug"] },
+      lane: { type: "string", title: "Lane", enum: ["feature", "bug", "quick"] },
       project: projectId,
     }),
     async run(args) {
