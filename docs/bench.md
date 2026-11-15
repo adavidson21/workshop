@@ -1,6 +1,6 @@
 # Bench
 
-Version: results **`version: 1` and `2`**, from Tandem (eng-agents) Core 3.1.0 and opencode connector 1.13.0.
+Version: results **`version: 1` to `3`**, from Tandem (eng-agents) Core 3.2.0 and opencode connector 1.13.0.
 
 Bench answers "is Tandem helping?" and "is this prompt change better or worse?". It reads Tandem's eval cases and results from the eng-agents clone Tandem was installed from, and starts a run in a terminal window you can see. It stores nothing of its own.
 
@@ -24,7 +24,9 @@ This document is the contract between the Bench app, the opencode connector and 
 
 ## Results file
 
-Version 2 (Core 3.1.0). Version 1 files have no `arms`, no `arm` per case, no `passAll`, `meanSeconds` or `steps`; read them as the tandem arm, work out `passAll` as `passes == total` and `meanSeconds` from the runs.
+Version 3 (Core 3.2.0) adds usage to version 2, read from `opencode run --format json`: per case `usageKnown`, `meanTokens`, `meanCost`, `tokensPerPass`, `costPerPass`, `meanQuestions`, `meanToolCalls`, `meanVerifyFails` and `promptTokens`; per run `tokens`, `cost`, `toolCalls`, `questions`, `verifyFails`, `usageKnown`; per step `tokens` and `cost`. When `usageKnown` is false the connector passes the usage numbers on as `null`, never 0. Free models report a cost of 0: compare them on tokens.
+
+Version 2 (Core 3.1.0), shown below without the version 3 fields. Version 1 files have no `arms`, no `arm` per case, no `passAll`, `meanSeconds` or `steps`; read them as the tandem arm, work out `passAll` as `passes == total` and `meanSeconds` from the runs.
 
 ```json
 {
@@ -51,8 +53,8 @@ All on the opencode connector ([connectors/opencode/README.md](../connectors/ope
 | Action | Write | Args | Result |
 | --- | --- | --- | --- |
 | `evals.cases` | no | | `{source, cases: [{name, description, command, steps, lift, needs}]}`, sorted by name. `lift` is true when the case has a baseline prompt. |
-| `evals.results` | no | | `{source, results}`: every results file summed up, newest first by `date` (at most 200): `{file, version, date, tandem, model, runsPerCase, autoApprove, arms, cases: [{case, arm, passes, total, rate, passAll, meanSeconds, skipped}], lift: [{case, tandem, baseline, lift, tandemAll, baselineAll}]}`. A file of another version is `{file, version, unsupported: true}`. |
-| `evals.result` | no | `file` (a file name, no folders) | The same summary, with each case's `runs: [{run, pass, seconds, timedOut, failed: [{check, detail}], steps: [{step, ok, seconds, timedOut}], log}]`. 404 for a missing file. |
+| `evals.results` | no | | `{source, results}`: every results file summed up, newest first by `date` (at most 200): `{file, version, date, tandem, model, runsPerCase, autoApprove, arms, cases: [{case, arm, passes, total, rate, passAll, meanSeconds, skipped, usageKnown, meanTokens, meanCost, tokensPerPass, costPerPass, meanQuestions, meanVerifyFails, promptTokens}], lift: [{case, tandem, baseline, lift, tandemAll, baselineAll}]}`. A file of another version is `{file, version, unsupported: true}`. |
+| `evals.result` | no | `file` (a file name, no folders) | The same summary, with each case's `runs: [{run, pass, seconds, timedOut, tokens, cost, questions, verifyFails, failed: [{check, detail}], steps: [{step, ok, seconds, timedOut, tokens}], log}]`. 404 for a missing file. |
 | `evals.command` | no | as `evals.run` | `{command, folder}`: the line to paste into a terminal in `folder`. |
 | `evals.run` | yes | `cases` (existing case names), `arm` (`tandem`, `baseline` or `both`), `runs` (1 to 10), `model` (`provider/model`, optional), `autoApprove` | Opens a terminal window (Windows: PowerShell; macOS: Terminal) in the clone running `Invoke-Evals.ps1` with those arguments, each checked first: a case must be an existing case file, `both` and `baseline` need a case with a baseline prompt. `{ok, command}`. 501 on other systems (copy the command instead). |
 
@@ -111,6 +113,7 @@ pwsh -NoProfile -File evals/Test-Fixtures.ps1
 - The terminal's line `Baseline arm: opencode config without Tandem in ...` is there.
 - Its first table has a `tandem` row and a `baseline` row for `feature-outcome`, and the second table shows the lift.
 - In Bench, press Refresh: Lift shows the same two rates and the same points as the terminal. Bench's notes warn that 1 run is too few.
+- On version 3 results, Lift shows tokens per run for both arms and tokens per passing run under the bars.
 - Open **See every run**: the Tandem run lists 6 or more steps (`/spec`, `approve spec.md`, `/plan`, `approve plan.md`, `/tasks`, `/do-task` per task); the plain prompt run lists one. Failed runs name the checks that failed.
 
 ### 6. Make sure the baseline really is plain (5 minutes)

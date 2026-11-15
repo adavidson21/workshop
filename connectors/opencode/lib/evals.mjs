@@ -1,6 +1,6 @@
 // Bench's side of the opencode connector: Tandem's eval cases and results, read from the eng-agents clone that
 // Tandem was installed from (its install record), and a way to start a run in a terminal you can see.
-// Contract: docs/bench.md. The results format is eng-agents' evals/README.md (version 1 and 2).
+// Contract: docs/bench.md. The results format is eng-agents' evals/README.md (versions 1 to 3).
 //
 // Nothing here runs a model or git itself. evals.run opens a terminal window running eng-agents'
 // evals/Invoke-Evals.ps1 with arguments checked against strict patterns (case names must be existing case files),
@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-export const RESULTS_VERSIONS = [1, 2];
+export const RESULTS_VERSIONS = [1, 2, 3];
 export const ARMS = ["tandem", "baseline", "both"];
 export const CASE_RE = /^[a-z0-9][a-z0-9-]{0,60}$/;
 export const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.json$/;
@@ -86,6 +86,15 @@ function caseSummary(c) {
     passAll: c.skipped ? null : passAll,
     meanSeconds,
     skipped: text(c.skipped, 200),
+    // version 3: usage (null when the file has none, or opencode reported none)
+    usageKnown: c.usageKnown === true,
+    meanTokens: c.usageKnown === true ? num(c.meanTokens) : null,
+    meanCost: c.usageKnown === true ? num(c.meanCost) : null,
+    tokensPerPass: c.usageKnown === true ? num(c.tokensPerPass) : null,
+    costPerPass: c.usageKnown === true ? num(c.costPerPass) : null,
+    meanQuestions: num(c.meanQuestions),
+    meanVerifyFails: num(c.meanVerifyFails),
+    promptTokens: num(c.promptTokens),
   };
 }
 
@@ -165,8 +174,12 @@ export function readResult(home, file) {
       pass: r.pass === true,
       seconds: num(r.seconds),
       timedOut: r.timedOut === true,
+      tokens: r.usageKnown === true ? num(r.tokens) : null,
+      cost: r.usageKnown === true ? num(r.cost) : null,
+      questions: num(r.questions),
+      verifyFails: num(r.verifyFails),
       failed: (Array.isArray(r.failed) ? r.failed : []).slice(0, 40).map((f) => ({ check: text(f.check, 200) || "", detail: text(f.detail, 600) || "" })),
-      steps: (Array.isArray(r.steps) ? r.steps : []).slice(0, 40).map((st) => ({ step: text(st.step, 200) || "", ok: st.ok === true, seconds: num(st.seconds), timedOut: st.timedOut === true })),
+      steps: (Array.isArray(r.steps) ? r.steps : []).slice(0, 40).map((st) => ({ step: text(st.step, 200) || "", ok: st.ok === true, seconds: num(st.seconds), timedOut: st.timedOut === true, tokens: r.usageKnown === true ? num(st.tokens) : null })),
       log: text(r.log, 500),
     })),
   })).filter((c) => c.case);

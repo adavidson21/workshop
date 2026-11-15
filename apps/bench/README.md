@@ -8,10 +8,10 @@ Bench stores nothing of its own. The results files live in `evals/results/` in y
 
 | Section | What |
 | --- | --- |
-| Lift | The newest run with both arms: Tandem's pass rate minus the plain prompt's, in points, with a verdict in words, both bars, and a table per case (pass rate, every run passed, average time). Notes say when there are too few runs to trust it. |
+| Lift | The newest run with both arms: Tandem's pass rate minus the plain prompt's, in points, with a verdict in words, both bars, tokens per passing run, and a table per case (pass rate, every run passed, average time, tokens per run). Notes say when there are too few runs to trust it. |
 | History | Every results file, newest first: Tandem version, model, arms, Tandem pass rate, lift. Tick two to compare them case by case; drops in the Tandem arm are called out. |
 | Cases | Tandem's eval cases (`lift` marks those with a plain-prompt arm), and the run form: arms, runs per case, model, auto-approve. **Run in a terminal** opens a terminal in your eng-agents folder (Windows and macOS); **Copy command** gives the same line to paste anywhere. |
-| A results file | From Lift or History: every case, arm and run, pass or fail in words, each step's time, failed checks and the log path. |
+| A results file | From Lift or History: every case, arm and run, pass or fail in words, tokens and cost, questions the agent asked and failed verifies, each step's time and tokens, failed checks and the log path. |
 
 ## How it works
 

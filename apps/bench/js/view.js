@@ -1,6 +1,6 @@
 /* Bench's HTML: pure functions from state to markup (main.js wires events). Every value from a results file is
    escaped. Status always has a word, never color alone (shared/brand/AGENTS.md). */
-import { armTotals, caveats, compare, fmtDay, fmtPoints, fmtSeconds, headline, latestWithLift, tandemRate } from './model.js';
+import { armTotals, caveats, compare, efficiency, fmtCost, fmtDay, fmtPoints, fmtSeconds, fmtTokens, headline, latestWithLift, tandemRate } from './model.js';
 
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (r) => (r == null ? 'n/a' : `${r}%`);
@@ -42,6 +42,11 @@ export function liftHtml(st) {
   const h = headline(r);
   const t = armTotals(r);
   const notes = caveats(r);
+  const eff = efficiency(r);
+  const effLine = eff.tandem && eff.baseline
+    ? `<p class="soft small eff">Tokens per passing run: Tandem ${eff.tandem.tokensPerPass == null ? 'n/a (no pass)' : esc(fmtTokens(eff.tandem.tokensPerPass))}, plain prompt ${eff.baseline.tokensPerPass == null ? 'n/a (no pass)' : esc(fmtTokens(eff.baseline.tokensPerPass))}.</p>`
+    : '';
+  const usage = r.cases.some((c) => c.usageKnown);
   const rows = r.lift.map((l) => {
     const tc = r.cases.find((c) => c.case === l.case && c.arm === 'tandem') || {};
     const bc = r.cases.find((c) => c.case === l.case && c.arm === 'baseline') || {};
@@ -52,6 +57,7 @@ export function liftHtml(st) {
       <td class="num lift ${l.lift > 0 ? 'up' : l.lift < 0 ? 'down' : ''}">${esc(fmtPoints(l.lift))}</td>
       <td>${pass(!!l.tandemAll, l.tandemAll ? 'Yes' : 'No')} <span class="soft">/</span> ${pass(!!l.baselineAll, l.baselineAll ? 'Yes' : 'No')}</td>
       <td class="num soft">${esc(fmtSeconds(tc.meanSeconds))} / ${esc(fmtSeconds(bc.meanSeconds))}</td>
+      ${usage ? `<td class="num soft">${esc(fmtTokens(tc.meanTokens) || 'n/a')} / ${esc(fmtTokens(bc.meanTokens) || 'n/a')}</td>` : ''}
     </tr>`;
   }).join('');
   return `<section class="hero-card" aria-labelledby="liftTitle">
@@ -63,13 +69,14 @@ export function liftHtml(st) {
           <div class="bar"><span class="bl">Tandem</span><span class="track"><span class="fill t" style="width:${t.tandem.rate || 0}%"></span></span><span class="num">${pct(t.tandem.rate)}</span></div>
           <div class="bar"><span class="bl">Plain prompt</span><span class="track"><span class="fill b" style="width:${t.baseline.rate || 0}%"></span></span><span class="num">${pct(t.baseline.rate)}</span></div>
         </div>
+        ${effLine}
       </div>
     </section>
     ${notes.length ? `<ul class="notes">${notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     <section class="block">
       <div class="block-head"><h2 class="section-label">By case</h2><button type="button" class="lnk" data-act="open-result" data-file="${esc(r.file)}">See every run</button></div>
       <div class="table-wrap"><table class="btable">
-        <thead><tr><th scope="col">Case</th><th scope="col" class="num">Tandem</th><th scope="col" class="num">Plain prompt</th><th scope="col" class="num">Lift</th><th scope="col">Every run passed</th><th scope="col" class="num">Avg time</th></tr></thead>
+        <thead><tr><th scope="col">Case</th><th scope="col" class="num">Tandem</th><th scope="col" class="num">Plain prompt</th><th scope="col" class="num">Lift</th><th scope="col">Every run passed</th><th scope="col" class="num">Avg time</th>${usage ? '<th scope="col" class="num">Tokens per run</th>' : ''}</tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
       <p class="soft small">Lift is Tandem's pass rate minus the plain prompt's, in points. Both arms get the same workspace, repo map and repo guide, so it measures Tandem's phases. "Every run passed" means all ${esc(r.runsPerCase || '')} runs of the case passed: reliability, not luck.</p>
@@ -121,8 +128,8 @@ export function resultHtml(st) {
   const groups = r.cases.map((c) => {
     if (c.skipped) return `<section class="case"><h3 class="case-h"><code>${esc(c.case)}</code> <span class="tag">${esc(ARM[c.arm])}</span></h3><p class="soft">Skipped: ${esc(c.skipped)}</p></section>`;
     const runs = c.runs.map((run) => `<li class="run">
-        <div class="run-h">${pass(run.pass, run.pass ? 'Pass' : run.timedOut ? 'Timed out' : 'Fail')}<span class="soft">Run ${esc(run.run)}</span><span class="num soft">${esc(fmtSeconds(run.seconds))}</span>${run.log ? `<button type="button" class="lnk" data-act="copy" data-text="${esc(run.log)}">Copy log path</button>` : ''}</div>
-        ${run.steps.length > 1 ? `<ol class="steps">${run.steps.map((s) => `<li class="${s.ok ? 'ok' : 'bad'}"><span class="sr">${s.ok ? 'done' : 'failed'}: </span>${esc(s.step)} <span class="soft num">${esc(fmtSeconds(s.seconds))}</span></li>`).join('')}</ol>` : ''}
+        <div class="run-h">${pass(run.pass, run.pass ? 'Pass' : run.timedOut ? 'Timed out' : 'Fail')}<span class="soft">Run ${esc(run.run)}</span><span class="num soft">${esc(fmtSeconds(run.seconds))}</span>${run.tokens != null ? `<span class="num soft">${esc(fmtTokens(run.tokens))} tokens${run.cost ? `, ${esc(fmtCost(run.cost))}` : ''}</span>` : ''}${run.questions ? `<span class="tag warn">${esc(run.questions)} question${run.questions === 1 ? '' : 's'} asked</span>` : ''}${run.verifyFails ? `<span class="tag">${esc(run.verifyFails)} failed verify</span>` : ''}${run.log ? `<button type="button" class="lnk" data-act="copy" data-text="${esc(run.log)}">Copy log path</button>` : ''}</div>
+        ${run.steps.length > 1 ? `<ol class="steps">${run.steps.map((s) => `<li class="${s.ok ? 'ok' : 'bad'}"><span class="sr">${s.ok ? 'done' : 'failed'}: </span>${esc(s.step)} <span class="soft num">${esc(fmtSeconds(s.seconds))}${s.tokens ? `, ${esc(fmtTokens(s.tokens))} tokens` : ''}</span></li>`).join('')}</ol>` : ''}
         ${run.failed.length ? `<ul class="fails">${run.failed.map((f) => `<li><b>${esc(f.check)}</b>${f.detail ? `<span class="soft"> ${esc(f.detail)}</span>` : ''}</li>`).join('')}</ul>` : ''}
       </li>`).join('');
     return `<section class="case">

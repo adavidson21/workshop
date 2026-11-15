@@ -74,3 +74,22 @@ test('bodyHtml shows setup notes, loading and errors first', () => {
   assert.match(bodyHtml({ loading: true }), /Reading Tandem/);
   assert.match(bodyHtml({ error: '<oops>' }), /&lt;oops&gt;/);
 });
+
+test('version 3: Lift adds tokens per run and per passing run; a run shows tokens, questions and failed verifies', () => {
+  const v3 = structuredClone(lifted);
+  v3.cases[0] = { ...v3.cases[0], usageKnown: true, meanTokens: 40000 };
+  v3.cases[1] = { ...v3.cases[1], usageKnown: true, meanTokens: 9000 };
+  const h = liftHtml({ results: [v3] });
+  assert.match(h, /Tokens per run<\/th>/);
+  assert.match(h, /40k \/ 9k/);
+  assert.match(h, /Tokens per passing run: Tandem 40k, plain prompt 27k\./);
+  assert.equal(liftHtml({ results: [lifted] }).includes('Tokens per run'), false, 'older files show no token column');
+  const detail = { ...lifted, cases: [{ case: 'feature-outcome', arm: 'tandem', passes: 1, total: 1, rate: 100, passAll: true, runs: [
+    { run: 1, pass: true, seconds: 400, tokens: 41200, cost: 0, questions: 2, verifyFails: 1, failed: [], steps: [{ step: '/spec L1 auto', ok: true, seconds: 60, tokens: 8000 }, { step: 'approve spec.md', ok: true, seconds: 0, tokens: 0 }] }
+  ] }] };
+  const d = resultHtml({ detail });
+  assert.match(d, /41.2k tokens/);
+  assert.match(d, /2 questions asked/);
+  assert.match(d, /1 failed verify/);
+  assert.match(d, /1m 00s, 8k tokens/);
+});

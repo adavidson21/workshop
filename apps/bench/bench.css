@@ -55,6 +55,8 @@ code{font-family:var(--mono);font-size:.86em;background:var(--sunk);padding:.05r
 .mark.ok{color:var(--ok)}
 .mark.bad{color:var(--danger)}
 .tag{display:inline-flex;align-items:center;padding:.05rem .45rem;border-radius:var(--r-pill);background:var(--sunk);color:var(--muted);font-size:var(--fs-xs);font-weight:var(--weight-ui);vertical-align:middle}
+.tag.warn{background:var(--warn-soft);color:var(--ink)}
+.hero-text .eff{margin:var(--space-3) 0 0}
 .tag.accent{background:var(--accent-soft);color:var(--accent-soft-ink)}
 
 /* one results file: each case and arm, each run */

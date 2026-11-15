@@ -122,3 +122,32 @@ export function runCount(args, cases) {
   }
   return n;
 }
+
+/** "12.4k", "850", "1.2M", or an empty string. Token counts read better rounded. */
+export function fmtTokens(n) {
+  if (n == null || !Number.isFinite(n)) return '';
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(Math.round(n));
+}
+
+/** "$0.04", "free" for 0, or an empty string. */
+export function fmtCost(c) {
+  if (c == null || !Number.isFinite(c)) return '';
+  if (c === 0) return 'free';
+  return c < 0.01 ? '<$0.01' : `$${c.toFixed(2)}`;
+}
+
+/** Tokens per passing run for each arm over the lift cases, when the file has usage (version 3). */
+export function efficiency(result) {
+  const both = new Set(((result && result.lift) || []).map((l) => l.case));
+  const out = {};
+  for (const arm of ['tandem', 'baseline']) {
+    const cs = ((result && result.cases) || []).filter((c) => c.arm === arm && both.has(c.case) && c.usageKnown && c.meanTokens != null);
+    if (!cs.length) { out[arm] = null; continue; }
+    const tokens = sum(cs.map((c) => c.meanTokens * (c.total || 0)));
+    const passes = sum(cs.map((c) => c.passes || 0));
+    out[arm] = { tokensPerRun: Math.round(tokens / Math.max(1, sum(cs.map((c) => c.total || 0)))), tokensPerPass: passes ? Math.round(tokens / passes) : null };
+  }
+  return out;
+}

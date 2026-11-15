@@ -76,3 +76,19 @@ test('runRequest checks the form before it goes to the connector; runCount count
   assert.match(runRequest({ cases: ['spec-basic'], arm: 'tandem', runs: 11 }, cases).error, /1 to 10/);
   assert.match(runRequest({ cases: ['spec-basic'], arm: 'tandem', runs: 3, model: 'nope' }, cases).error, /provider\/model/);
 });
+
+test('version 3 usage: tokens and cost formatting, tokens per passing run per arm', async () => {
+  const { efficiency, fmtCost, fmtTokens } = await import('../js/model.js');
+  assert.equal(fmtTokens(850), '850');
+  assert.equal(fmtTokens(12400), '12.4k');
+  assert.equal(fmtTokens(2000000), '2M');
+  assert.equal(fmtTokens(null), '');
+  assert.equal(fmtCost(0), 'free');
+  assert.equal(fmtCost(0.004), '<$0.01');
+  assert.equal(fmtCost(0.0412), '$0.04');
+  const r = result(3, 1);
+  r.cases[0] = { ...r.cases[0], usageKnown: true, meanTokens: 40000 };
+  r.cases[1] = { ...r.cases[1], usageKnown: true, meanTokens: 9000 };
+  assert.deepEqual(efficiency(r), { tandem: { tokensPerRun: 40000, tokensPerPass: 40000 }, baseline: { tokensPerRun: 9000, tokensPerPass: 27000 } });
+  assert.deepEqual(efficiency(result(3, 1)), { tandem: null, baseline: null }, 'no usage in older files');
+});

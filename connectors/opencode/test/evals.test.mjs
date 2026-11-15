@@ -131,3 +131,17 @@ test("commandFor quotes for PowerShell and for sh; openEvalsTerminal opens a win
   const boom = () => { throw new Error("blocked"); };
   await assert.rejects(openEvalsTerminal({ home, args, platform: "win32", run: boom }), (e) => e.status === 500);
 });
+
+test("version 3 files carry usage; a run without usage shows null, never 0", () => {
+  const d = { version: 3, date: "2026-11-15T10:00:00", cases: [
+    { case: "a", arm: "tandem", passes: 1, total: 2, rate: 50, usageKnown: true, meanTokens: 41000, meanCost: 0, tokensPerPass: 82000, costPerPass: 0, meanQuestions: 0.5, meanVerifyFails: 1, promptTokens: 17000 },
+    { case: "a", arm: "baseline", passes: 0, total: 2, rate: 0, usageKnown: false, meanTokens: 0 },
+  ] };
+  const s = summarize(d, "v3.json");
+  assert.equal(s.unsupported, undefined);
+  assert.equal(s.cases[0].meanTokens, 41000);
+  assert.equal(s.cases[0].tokensPerPass, 82000);
+  assert.equal(s.cases[0].promptTokens, 17000);
+  assert.equal(s.cases[1].meanTokens, null, "usage not known: null");
+  assert.equal(summarize({ version: 4, cases: [] }, "v4.json").unsupported, true);
+});
