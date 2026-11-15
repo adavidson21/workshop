@@ -313,7 +313,8 @@ export function installInfo(home = os.homedir()) {
   }
 }
 
-/** The newest two eval results in <eng-agents clone>/evals/results (evals/README.md), summed up per case. */
+/** The newest two eval results in <eng-agents clone>/evals/results (evals/README.md), summed up per case. Tandem arm only:
+ * a version 2 file's baseline rows are for Bench's lift (docs/bench.md). */
 export function evalResults(source) {
   if (!source) return null;
   const dir = path.join(source, "evals", "results");
@@ -327,7 +328,7 @@ export function evalResults(source) {
     .map((n) => {
       try {
         const d = JSON.parse(fs.readFileSync(path.join(dir, n), "utf8"));
-        return { file: n, date: d.date || null, tandem: d.tandem || null, model: d.model || null, runsPerCase: d.runsPerCase || null, cases: (d.cases || []).map((c) => ({ case: c.case, passes: c.passes ?? null, total: c.total ?? null, rate: c.rate ?? null, skipped: c.skipped || null })) };
+        return { file: n, date: d.date || null, tandem: d.tandem || null, model: d.model || null, runsPerCase: d.runsPerCase || null, cases: (d.cases || []).filter((c) => !c.arm || c.arm === "tandem").map((c) => ({ case: c.case, passes: c.passes ?? null, total: c.total ?? null, rate: c.rate ?? null, skipped: c.skipped || null })) };
       } catch {
         return null;
       }

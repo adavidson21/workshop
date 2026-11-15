@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-app-color="bench">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this site, plus Workshop on this computer (127.0.0.1) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:*; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Bench</title>
+<meta name="theme-color" content="#F4F2F3">
+<!-- sets the theme before first paint so there is no flash -->
+<script src="../../shared/theme.js"></script>
+<link rel="icon" type="image/svg+xml" href="../../icons/favicon.svg">
+<link rel="stylesheet" href="../../shared/fonts/fonts.css">
+<link rel="stylesheet" href="../../shared/themes.css">
+<link rel="stylesheet" href="../../shared/ui.css">
+<link rel="stylesheet" href="bench.css">
+</head>
+<body class="b-dense">
+<main class="ws-page" id="app">
+  <header class="page-head">
+    <div class="ph-main">
+      <p class="eyebrow">Tandem evals</p>
+      <h1 class="page-title">Bench<span class="qhint" data-hint="bench-about"><button type="button" aria-label="About Bench">?</button><span class="qhint-tip" role="tooltip">Runs the same task with Tandem and with one plain prompt, on the same model, several times. The difference is the lift. Results live in your eng-agents folder.</span></span></h1>
+    </div>
+    <div class="ph-acts">
+      <button type="button" class="ibtn" id="refreshBtn" aria-label="Refresh" data-tip="Refresh">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 9.5A6 6 0 0 0 5.2 6.2M4 10.5a6 6 0 0 0 10.8 3.3"/><path d="M16.3 4.8v4.7h-4.6M3.7 15.2v-4.7h4.6"/></svg>
+      </button>
+    </div>
+    <nav class="page-tabs" id="tabs" aria-label="Bench sections"></nav>
+  </header>
+  <div id="body" aria-live="polite"></div>
+</main>
+<dialog class="confirm" id="confirmDlg" aria-labelledby="confirmTitle">
+  <h2 id="confirmTitle" class="section-label">Run evals in a terminal?</h2>
+  <p id="confirmText"></p>
+  <div class="acts">
+    <button type="button" class="btn" data-confirm="no">Cancel</button>
+    <button type="button" class="btn primary" data-confirm="yes">Open the terminal</button>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

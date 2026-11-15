@@ -17,7 +17,7 @@ The answer:
 | `version` | `1` | |
 | `pipeline` | Time to PR, gates, review rounds, rework, per item and summed up | `.work`, as eng-agents' `core/scripts/stats/Get-PipelineStats.ps1 -AsJson` (without `generated`) |
 | `findings` | Every review finding with its category, and patterns that repeat | `.work`, as eng-agents' `core/scripts/stats/Get-ReviewFindings.ps1 -AsJson` |
-| `evals` | The newest two eval result files, per case, or `null` | `<eng-agents clone>/evals/results/*.json` ([evals/README.md](https://github.com/adavidson21/eng-agents/blob/main/evals/README.md)) |
+| `evals` | The newest two eval result files, per case (tandem arm only; baseline rows of a version 2 file are for [Bench](bench.md)), or `null` | `<eng-agents clone>/evals/results/*.json` ([evals/README.md](https://github.com/adavidson21/eng-agents/blob/main/evals/README.md)) |
 | `setup` | Installed Tandem version and commit, the workspace, repo guides | `~/.config/opencode/eng-agents/manifest.json` (written by `install.ps1`), the workspace folders |
 
 ## What `.work` gives (`pipeline` and `findings`)
@@ -65,4 +65,4 @@ From `review.md` and every `history/review-*.md` (earlier rounds) in each work i
 
 ## Showing it
 
-Loom shows four parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked) and **Setup**. Each says what to run when it has nothing to show.
+Loom shows four parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked, and a link to Bench for the lift and history) and **Setup**. Each says what to run when it has nothing to show.

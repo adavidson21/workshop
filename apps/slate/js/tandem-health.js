@@ -68,7 +68,7 @@ export function learningHtml(p, f) {
 export function promptsHtml(evals) {
   if (!evals) return '<p class="soft">Tandem\'s install record was not found, so there is nowhere to read eval results from. Install Tandem from its repo (<code>./install.ps1</code>).</p>';
   const { latest, previous } = evals;
-  if (!latest) return '<p class="soft">No eval results yet. In your eng-agents folder: <code>./install.ps1</code>, then <code>./evals/Invoke-Evals.ps1</code>.</p>';
+  if (!latest) return '<p class="soft">No eval results yet. In your eng-agents folder: <code>./install.ps1</code>, then <code>./evals/Invoke-Evals.ps1</code>, or start one from <button type="button" class="lnk" data-act="open-bench">Bench</button>.</p>';
   const prev = Object.fromEntries(((previous && previous.cases) || []).filter(c => c.rate != null).map(c => [c.case, c.rate]));
   const rows = latest.cases.map(c => {
     if (c.skipped) return `<tr><th scope="row">${esc(c.case)}</th><td colspan="3" class="soft">Skipped: ${esc(c.skipped)}</td></tr>`;
@@ -80,7 +80,8 @@ export function promptsHtml(evals) {
   const drops = latest.cases.filter(c => Object.prototype.hasOwnProperty.call(prev, c.case) && c.rate != null && c.rate < prev[c.case]).length;
   return `<p>Tandem ${esc(latest.tandem || '?')}, ${esc(latest.model || 'default model')}, ${esc(String(latest.runsPerCase || '?'))} runs per case, ${esc((latest.date || '').slice(0, 10))}${previous ? `, compared with ${esc(previous.tandem || '?')} on ${esc((previous.date || '').slice(0, 10))}` : ''}.</p>
     ${drops ? `<p class="warn">${plural(drops, 'case')} dropped. Read their failed checks before releasing.</p>` : ''}
-    <table class="htable"><thead><tr><th>Case</th><th class="num">Passed</th><th class="num">Rate</th><th class="num">Change</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <table class="htable"><thead><tr><th>Case</th><th class="num">Passed</th><th class="num">Rate</th><th class="num">Change</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="soft small"><button type="button" class="lnk" data-act="open-bench">Is Tandem helping? See the lift and history in Bench</button></p>`;
 }
 
 export function setupHtml(setup) {

@@ -6,7 +6,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
-import { tandemHealth } from "./lib/tandem-health.mjs";
+import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
+import { ARMS, MAX_RUNS, commandFor, evalsHome, listCases, listResults, openEvalsTerminal, readResult, runArgs } from "./lib/evals.mjs";
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
@@ -257,6 +258,29 @@ const reviewFeedback = obj(["workItemId", "repo", "revision", "headSha", "verdic
   submittedAt: str("Set by the server", { maxLength: 64 }),
 });
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
+const evalsRunSchema = obj(["cases"], {
+  cases: { type: "array", title: "Cases", minItems: 1, maxItems: 40, items: str("Case", { pattern: "^[a-z0-9][a-z0-9-]{0,60}$" }) },
+  arm: { type: "string", title: "Arm", enum: ARMS },
+  runs: { type: "integer", title: "Runs per case", minimum: 1, maximum: MAX_RUNS },
+  model: str("Model (provider/model; empty for opencode's default)", { maxLength: 200 }),
+  autoApprove: { type: "boolean", title: "Approve anything not denied (--auto)" },
+});
+// Bench reads the evals of the eng-agents clone Tandem was installed from (docs/bench.md).
+function needEvals() {
+  const install = installInfo();
+  if (!install || !install.source) throw httpError(409, "Tandem's install record was not found. Install Tandem from its repo (./install.ps1) so Workshop knows where its evals are.");
+  const home = evalsHome(install.source);
+  if (!home) throw httpError(409, `No evals in ${install.source}. Update Tandem (./update.ps1) to get them.`);
+  return home;
+}
+function evalsCall(fn) {
+  try {
+    return fn();
+  } catch (e) {
+    if (e && e.status) throw httpError(e.status, e.message);
+    throw e;
+  }
+}
 const oneOnOne = {
   personId: str("1:1s person id", { minLength: 1, maxLength: 60, pattern: "^[a-z0-9][a-z0-9_-]{0,59}$" }),
   date: str("Day of the 1:1 (YYYY-MM-DD)", { pattern: DAY.source }),
@@ -325,6 +349,56 @@ const actions = {
     async run(args) {
       if (!opt || !opt.workspace) throw httpError(409, "Set the workspace folder in opencode settings first.");
       return tandemHealth({ workRoot, workspace: opt.workspace, since: args.since || null });
+    },
+  },
+  "evals.cases": {
+    title: "Bench: Tandem's eval cases (read only)",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      const home = needEvals();
+      return { source: home.source, cases: listCases(home) };
+    },
+  },
+  "evals.results": {
+    title: "Bench: every eval results file, summed up, newest first (read only)",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      const home = needEvals();
+      return { source: home.source, results: listResults(home) };
+    },
+  },
+  "evals.result": {
+    title: "Bench: one eval results file with every run (read only)",
+    write: false,
+    argsSchema: obj(["file"], { file: str("Results file", { pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}\\.json$" }) }),
+    async run(args) {
+      return evalsCall(() => readResult(needEvals(), args.file));
+    },
+  },
+  "evals.command": {
+    title: "Bench: the command that runs these evals, to copy (read only)",
+    write: false,
+    argsSchema: evalsRunSchema,
+    async run(args) {
+      const home = needEvals();
+      const argv = evalsCall(() => runArgs(args, listCases(home)));
+      return { command: commandFor(home, argv), folder: home.source };
+    },
+  },
+  "evals.run": {
+    title: "Bench: run evals in a terminal window you can see",
+    write: true,
+    argsSchema: evalsRunSchema,
+    async run(args) {
+      const home = needEvals();
+      const argv = evalsCall(() => runArgs(args, listCases(home)));
+      try {
+        return await openEvalsTerminal({ home, args: argv });
+      } catch (e) {
+        throw httpError(e.status || 500, e.message);
+      }
     },
   },
   start: {

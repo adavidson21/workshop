@@ -204,7 +204,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'settings'])
+    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Bench before Settings', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -385,7 +385,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+6'); pg.wait_for_timeout(1200)  # Notes is Alt+4, Runway Alt+5
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes is Alt+4, Runway Alt+5, Bench Alt+6
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
