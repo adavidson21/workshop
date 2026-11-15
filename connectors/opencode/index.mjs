@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
-import { ARMS, MAX_RUNS, commandFor, evalsHome, listCases, listResults, openEvalsTerminal, readResult, runArgs } from "./lib/evals.mjs";
+import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
@@ -258,12 +258,26 @@ const reviewFeedback = obj(["workItemId", "repo", "revision", "headSha", "verdic
   submittedAt: str("Set by the server", { maxLength: 64 }),
 });
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
-const evalsRunSchema = obj(["cases"], {
-  cases: { type: "array", title: "Cases", minItems: 1, maxItems: 40, items: str("Case", { pattern: "^[a-z0-9][a-z0-9-]{0,60}$" }) },
+const evalsRunSchema = obj([], {
+  preset: { type: "string", title: "Run kind", enum: PRESETS },
+  cases: { type: "array", title: "Cases", maxItems: 60, items: str("Case", { pattern: "^[a-z0-9][a-z0-9-]{0,60}$" }) },
   arm: { type: "string", title: "Arm", enum: ARMS },
   runs: { type: "integer", title: "Runs per case", minimum: 1, maximum: MAX_RUNS },
   model: str("Model (provider/model; empty for opencode's default)", { maxLength: 200 }),
+  models: { type: "array", title: "Models (the model matrix)", maxItems: MAX_MODELS, items: str("Model", { maxLength: 200 }) },
   autoApprove: { type: "boolean", title: "Approve anything not denied (--auto)" },
+  judge: str("Writing judge model (provider/model)", { maxLength: 200 }),
+  maxRuns: { type: "integer", title: "Most model runs to start", minimum: 1, maximum: 500 },
+  experiment: str("Experiment id", { maxLength: 120 }),
+});
+const evalsScriptSchema = obj(["script"], {
+  script: { type: "string", title: "Script", enum: ["suggest", "trim", "keep"] },
+  file: str("Results file", { maxLength: 120 }),
+  case: str("Case", { maxLength: 60 }),
+  model: str("Suggestion model", { maxLength: 200 }),
+  command: str("Command", { maxLength: 60 }),
+  id: str("Experiment id", { maxLength: 120 }),
+  drop: { type: "boolean", title: "Drop instead of keep" },
 });
 // Bench reads the evals of the eng-agents clone Tandem was installed from (docs/bench.md).
 function needEvals() {
@@ -383,7 +397,7 @@ const actions = {
     argsSchema: evalsRunSchema,
     async run(args) {
       const home = needEvals();
-      const argv = evalsCall(() => runArgs(args, listCases(home)));
+      const argv = evalsCall(() => runArgs(args, listCases(home), home));
       return { command: commandFor(home, argv), folder: home.source };
     },
   },
@@ -393,9 +407,51 @@ const actions = {
     argsSchema: evalsRunSchema,
     async run(args) {
       const home = needEvals();
-      const argv = evalsCall(() => runArgs(args, listCases(home)));
+      const argv = evalsCall(() => runArgs(args, listCases(home), home));
       try {
         return await openEvalsTerminal({ home, args: argv });
+      } catch (e) {
+        throw httpError(e.status || 500, e.message);
+      }
+    },
+  },
+  "evals.commands": {
+    title: "Bench: every Tandem command's prompt size, files and hash, and agent guard coverage (read only)",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      const home = needEvals();
+      return { source: home.source, commands: readCommands(home), guards: readGuards(home) };
+    },
+  },
+  "evals.experiments": {
+    title: "Bench: improve-loop experiments (read only)",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      const home = needEvals();
+      return { source: home.source, experiments: listExperiments(home) };
+    },
+  },
+  "evals.script.command": {
+    title: "Bench: the command for an improve-loop script, to copy (read only)",
+    write: false,
+    argsSchema: evalsScriptSchema,
+    async run(args) {
+      const home = needEvals();
+      const sc = evalsCall(() => scriptArgs(args.script, args, listCases(home), home));
+      return { command: commandFor(home, sc.args, process.platform, sc.script), folder: home.source };
+    },
+  },
+  "evals.script": {
+    title: "Bench: run an improve-loop script (suggest a fix, trim, keep or drop) in a terminal window you can see",
+    write: true,
+    argsSchema: evalsScriptSchema,
+    async run(args) {
+      const home = needEvals();
+      const sc = evalsCall(() => scriptArgs(args.script, args, listCases(home), home));
+      try {
+        return await openEvalsTerminal({ home, args: sc.args, script: sc.script });
       } catch (e) {
         throw httpError(e.status || 500, e.message);
       }

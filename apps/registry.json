@@ -950,8 +950,8 @@
         "manifestVersion": 1,
         "id": "bench",
         "name": "Bench",
-        "version": "1.0.0",
-        "description": "Is Tandem helping? Tandem's eval results: the lift over a plain prompt on the same model, history, compare two runs, and every run's failed checks. Starts a run in a terminal you can see.",
+        "version": "2.0.0",
+        "description": "Tandem's test suite: which commands pass, fail or changed, what they cost, the lift over a plain prompt, history, and an improve loop that suggests and tests prompt fixes.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 70,
@@ -975,17 +975,33 @@
           },
           {
             "name": "run evals",
-            "path": "cases"
+            "path": "run"
+          },
+          {
+            "name": "improve prompts",
+            "path": "improve"
           }
         ],
         "routes": [
+          {
+            "path": "improve",
+            "title": "What fails, and experiments"
+          },
           {
             "path": "history",
             "title": "Eval history and compare"
           },
           {
-            "path": "cases",
-            "title": "Eval cases and run"
+            "path": "run",
+            "title": "Run evals and settings"
+          },
+          {
+            "path": "lift",
+            "title": "Tandem against a plain prompt, by case"
+          },
+          {
+            "path": "command/:name",
+            "title": "One command's cases and prompt"
           },
           {
             "path": "result/:file",
@@ -1000,19 +1016,29 @@
           {
             "id": "run",
             "title": "Run evals",
-            "route": "cases"
+            "route": "run"
           },
           {
             "id": "history",
             "title": "Eval history",
             "route": "history"
+          },
+          {
+            "id": "improve",
+            "title": "Improve prompts",
+            "route": "improve"
           }
         ],
         "files": [
           "bench.css",
           "js/main.js",
           "js/model.js",
-          "js/view.js"
+          "js/view.js",
+          "js/suite.js",
+          "js/suite-view.js"
+        ],
+        "data": [
+          "settings"
         ]
       }
     },

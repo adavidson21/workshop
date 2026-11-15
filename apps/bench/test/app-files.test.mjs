@@ -15,7 +15,7 @@ test('app.json is a valid Workshop manifest for Bench', () => {
   assert.deepEqual(schemas.validate('app', app), []);
   assert.equal(app.id, 'bench');
   assert.deepEqual(app.connectors, [{ id: 'opencode', required: false }]);
-  assert.equal(app.data, undefined, 'Bench stores nothing of its own');
+  assert.deepEqual(app.data, ['settings'], 'Bench keeps only its settings; results stay in eng-agents');
 });
 
 test('every file app.json lists exists, and every js module is listed', () => {

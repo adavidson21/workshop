@@ -1,17 +1,17 @@
 # Bench
 
-Is Tandem helping, and is a prompt change better or worse? Bench shows Tandem's eval results from your eng-agents folder: the lift over a plain prompt on the same model, the history of every run, a compare of any two, and each run's steps and failed checks. It can start a run in a terminal window you can see.
+The test suite for Tandem's commands and agents. Bench shows, from your eng-agents folder: which commands pass, fail or changed since they last ran, what each costs, how much of Tandem has cases and guards, the lift over a plain prompt on the same model, the history of every run, and an improve loop that suggests prompt fixes and trims, tests them on a scratch copy of Tandem, and keeps the ones that help. Runs and scripts start in a terminal window you can see.
 
-Bench stores nothing of its own. The results files live in `evals/results/` in your eng-agents folder; commit the ones you want to keep as baselines.
+Results, cases and experiments live in your eng-agents folder (commit the results you keep as baselines). Bench keeps only its settings: test, judge and suggestion models and the run budget.
 
 ## Sections
 
 | Section | What |
 | --- | --- |
-| Lift | The newest run with both arms: Tandem's pass rate minus the plain prompt's, in points, with a verdict in words, both bars, tokens per passing run, and a table per case (pass rate, every run passed, average time, tokens per run). Notes say when there are too few runs to trust it. |
-| History | Every results file, newest first: Tandem version, model, arms, Tandem pass rate, lift. Tick two to compare them case by case; drops in the Tandem arm are called out. |
-| Cases | Tandem's eval cases (`lift` marks those with a plain-prompt arm), and the run form: arms, runs per case, model, auto-approve. **Run in a terminal** opens a terminal in your eng-agents folder (Windows and macOS); **Copy command** gives the same line to paste anywhere. |
-| A results file | From Lift or History: every case, arm and run, pass or fail in words, tokens and cost, questions the agent asked and failed verifies, each step's time and tokens, failed checks and the log path. |
+| Overview | The lift card, coverage, and every command with its state in words, cases, pass rate, every run passed, tokens and prompt size; what needs you first. A command opens its cases, files, Run its cases and Suggest trims. |
+| Improve | Failed checks grouped across the latest failing runs, Suggest a fix per case, and experiments with before and after, Test it, Keep and Drop. |
+| History | Every results file, newest first; tick two to compare. A file opens every run: steps, tokens, questions asked, failed checks and the log path. |
+| Run | Run kinds (Affected, Release, Lift, Pick cases), runs, models (the model matrix), the writing judge, auto-approve; Models compared; Settings. |
 
 ## How it works
 
