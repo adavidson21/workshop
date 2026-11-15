@@ -8,7 +8,7 @@ import { namesOf } from './directory-model.js';
 import { adoptNames } from './directory.js';
 /* Prioritizer: Excel export and import (SheetJS, vendored in shared/vendor/). */
 /* ---------- excel export / import ---------- */
-const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','Tracker','Item ID','Item Type','Item State','Item Link','PR Key','PR Link'];
+const HEADERS = ['Rank','Task','Notes','Status','Completed On','Value','Effort','Due','Urgent','Score','Focus On','Waiting','Nudge On','People','Age From','Created','ID','ADO ID','ADO Type','ADO State','ADO Link','PR Key','PR Link'];
 const NO_XLSX = 'Excel tools did not load. Reload the page.';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // An Excel file as a download (shared/save-file.js).
@@ -41,8 +41,9 @@ function buildWorkbook(){
       'Value': t.value ? VALUE[t.value] : '', 'Effort': t.effort || '', 'Due': t.due || '', 'Urgent': t.urgentFlag ? 'Yes' : '',
       'Score': score(t) == null ? '' : Math.round(score(t) * 10) / 10,
       'Focus On': t.focusOn || '', 'Waiting': t.waiting ? 'Yes' : '', 'Nudge On': t.nudgeOn || '', 'People': namesOf(t.who).join(', '),
+      // Column names kept from before GitHub (Docket 11), so old exports and imports still match; a GitHub item's id is owner/repo#12.
       'Age From': t.ageFrom || '', 'Created': t.createdAt || '', 'ID': t.id,
-      'Tracker': t.item ? (t.item.system === 'github' ? 'GitHub' : 'Azure DevOps') : '', 'Item ID': t.item ? t.item.id : '', 'Item Type': t.item ? t.item.type : '', 'Item State': t.item ? t.item.state : '', 'Item Link': t.item ? t.item.url : '',
+      'ADO ID': t.item ? t.item.id : '', 'ADO Type': t.item ? t.item.type : '', 'ADO State': t.item ? t.item.state : '', 'ADO Link': t.item ? t.item.url : '',
       'PR Key': t.pr ? t.pr.key : '', 'PR Link': t.pr ? t.pr.url : ''
     }));
     const ws = XLSX.utils.json_to_sheet(rows, {header: HEADERS});
