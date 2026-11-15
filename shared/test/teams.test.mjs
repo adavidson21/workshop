@@ -34,3 +34,22 @@ test('teams: a connection per area path, grouped into one read per connection (d
   const schemas = SchemaSet.fromDir(new URL('../../docs/schemas/', import.meta.url).pathname);
   for (const i of items) assert.deepEqual(schemas.validate('team', { ...i, updatedAt: 1 }), []);
 });
+
+test('GitHub areas (github:owner/repo[/area]) are read on their repo; ADO paths with slashes are not GitHub', async () => {
+  const T = await import('../teams.js');
+  assert.equal(T.githubRepoOf('github:acme/web/auth'), 'acme/web');
+  assert.equal(T.githubRepoOf('GitHub: acme/web'), 'acme/web');
+  assert.equal(T.githubRepoOf('Proj/Team'), '');
+  assert.equal(T.githubRepoOf('Proj\\Team'), '');
+  assert.equal(T.githubArea('github:acme/web/auth'), 'acme/web/auth');
+  assert.equal(T.isGitHubConnection('acme/web'), true);
+  assert.equal(T.isGitHubConnection('work'), false);
+  const team = { areas: ['Proj\\Team', 'github:acme/web', 'github:acme/web/auth', 'github:me/tools'], connection: 'work', areaConnections: { 'github:me/tools': 'other' } };
+  assert.deepEqual(T.groups(team), [
+    { connection: 'work', areas: ['Proj\\Team'] },
+    { connection: 'acme/web', areas: ['github:acme/web', 'github:acme/web/auth'] },
+    { connection: 'me/tools', areas: ['github:me/tools'] }
+  ]);
+  assert.equal(T.connectionForPath(team, 'github:acme/web/billing'), 'acme/web');
+  assert.equal(T.connectionForPath(team, 'Proj\\Team\\Sub'), 'work');
+});

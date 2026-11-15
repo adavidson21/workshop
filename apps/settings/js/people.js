@@ -210,7 +210,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     const many = conns.length > 1;
     body.innerHTML = `<form class="cfg" data-team-form>
       <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(team.areas.join('\n'))}</textarea>
-        <p class="cfg-help">One per line. Includes everything under each.</p>
+        <p class="cfg-help">One per line. Includes everything under each. For GitHub, write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</p>
         <p class="acts left"><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
         <div class="areas-suggest" data-areas-list></div></div>
       ${many ? `<div class="cfg-row"><label for="tConn">Connection</label><select id="tConn" name="connection" class="cfg-input">${connOptions(team.connection, 'Default')}</select>

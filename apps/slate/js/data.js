@@ -4,6 +4,7 @@
    Writes stamp against what was read and merge on a conflict (docs/data-format.md), so two windows, or Slate and
    a Workshop data import, never lose each other's changes. */
 import { APP, VERSION, applyRequest, applyWork, cleanItem, cleanPrefs, sentIdeaTitles } from './model.js';
+import { isGitHubConnection } from '../../../shared/teams.js';
 
 const blank = (name) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {} });
 
@@ -168,9 +169,11 @@ export async function readWorkOffers(ws, senders, kinds = ['work', 'request']) {
   return out;
 }
 
-/** Which connectors are ready: {ado, opencode} as true or the reason they are not. */
+/** Which connectors are ready, as true or the reason they are not: {ado, adoOnly, github, opencode}. `ado` means a
+    work item tracker is ready (Azure DevOps or GitHub), so the board's tracker features work with either;
+    `adoOnly` and `github` say which. */
 export async function connectorState(ws) {
-  if (ws.backend !== 'agent') return { ado: 'Connect Workshop on this computer to use Azure DevOps.', opencode: 'Connect Workshop on this computer to use Tandem.' };
+  if (ws.backend !== 'agent') { const m = 'Connect Workshop on this computer to use Azure DevOps.'; return { ado: m, adoOnly: m, github: 'Connect Workshop on this computer to use GitHub.', opencode: 'Connect Workshop on this computer to use Tandem.' }; }
   let list = [];
   try { list = await ws.connectors.list(); } catch { list = []; }
   const one = (id, name) => {
@@ -180,10 +183,14 @@ export async function connectorState(ws) {
     if (!c.status || c.status.state !== 'ready') return (c.status && c.status.message) || `The ${name} connector is not ready.`;
     return true;
   };
-  return { ado: one('ado', 'Azure DevOps'), opencode: one('opencode', 'opencode') };
+  const a = one('ado', 'Azure DevOps'), g = one('github', 'GitHub');
+  return { ado: a === true || g === true ? true : a, adoOnly: a, github: g, opencode: one('opencode', 'opencode') };
 }
 
-export const ado = (ws, action, args = {}, opts) => ws.connectors.call('ado', action, args, opts);
+/** A tracker call: to the GitHub connector when the connection is a repo (owner/repo, from a github: team area),
+    else to the ADO connector. Loom names every item by its id plus its connection, so this one rule routes them all. */
+export const trackerOf = (args = {}) => (isGitHubConnection(args.connection) ? 'github' : 'ado');
+export const ado = (ws, action, args = {}, opts) => ws.connectors.call(trackerOf(args), action, args, opts);
 export const tandem = (ws, action, args = {}, opts) => ws.connectors.call('opencode', action, args, opts);
 
 /** The define folder's gate files, read through the opencode connector: {name: text}. Missing files are left out. */

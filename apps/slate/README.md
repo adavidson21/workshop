@@ -122,6 +122,12 @@ The `.work` files stay in your workspace; Slate reads them with the opencode con
 
 Only buttons with the **ADO** mark (an arrow leaving a box) change anything in Azure DevOps: **Post on #n**, **Approve and publish**, **Publish to ADO**, **Publish and build it myself**, **Mark resolved** on an ADO item, **Close as released**, Delegate's **Also assign it to them in Azure DevOps**, and the sprint and person pickers in **Sprints**. Each one opens a confirm with the same banner (**Changes Azure DevOps.**) that lists what changes, and only that confirm's button, which carries the mark too, sends it. Everything else (moving cards, skip ahead, Remove, triage, drafts, Docket tasks) stays on this computer. The mark and the confirm are shared with Runway and Dispatch (`shared/outside.js`).
 
+## GitHub (Loom 4.6.0)
+
+A team area written `github:owner/repo` (or `github:owner/repo/<area>` for issues labeled `area: <area>`) in Settings, People & teams, Team area paths, is read through Workshop's GitHub connector. ADO and GitHub areas can sit on one team: each is read on its own connector, and a card keeps the repo as its connection, so every later call (the panel, Merged, Publish, Delegate, Post questions, Resolve, Close) goes back to GitHub. The board works when either connector is on; a group whose connector is off shows a note instead of its items.
+
+On GitHub, issue types come from labels (`story`, `feature`, `bug`, `task`, `epic`), Epics are milestones, a story's parent is its sub-issue parent, sprints are milestones, and Resolved is a `resolved` label on the open issue. Buttons that change GitHub carry the GitHub mark. Delegate's assign uses the person's identity in People as their GitHub login. Merged reads the PRs that close the issue (`Fixes #12`). Health's team reports stay ADO only.
+
 ## What it needs
 
 | For | Needs |

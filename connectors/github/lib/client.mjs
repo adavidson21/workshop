@@ -13,6 +13,16 @@ export class GhError extends Error {
   }
 }
 
+/** A write GitHub would apply over a newer change: the issue changed since the caller read it (`rev`). */
+export class ConflictError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ConflictError';
+    this.status = 409;
+    this.code = 'conflict';
+  }
+}
+
 /** A settings or argument problem the person can fix. */
 export class SettingsError extends Error {
   constructor(message) {

@@ -46,6 +46,9 @@ export function scenario() {
       'me/tools': [issue('me/tools', 9, 'Personal task')]
     },
     milestones: { 'acme/web': [m1, m2] },
+    parentOf: { 'acme/web#2': 40 },
+    closingPrs: { 'acme/web#40': [{ number: 60, title: 'Faster sign-in', state: 'MERGED', merged: true, url: 'https://github.com/acme/web/pull/60', baseRefName: 'main', closedAt: '2026-11-12T00:00:00Z', repository: { nameWithOwner: 'acme/web' } }], 'acme/web#43': [{ number: 61, title: 'Token check', state: 'OPEN', merged: false, url: 'https://github.com/acme/web/pull/61', baseRefName: 'main', closedAt: null, repository: { nameWithOwner: 'acme/web' } }] },
+    writes: [],
     subIssues: { 'acme/web#40': [issue('acme/web', 43, 'Faster token check', { labels: ['story'], assignees: [] }), issue('acme/web', 44, 'Done story', { labels: ['story'], state: 'closed', assignees: [] })] },
     parents: { 'acme/web#2': { number: 3, title: 'Big epic', url: 'https://github.com/acme/web/issues/3', state: 'OPEN', repository: { nameWithOwner: 'acme/web' }, labels: { nodes: [{ name: 'epic' }] } } },
     comments: { 'acme/web#1': [{ id: 1, body: 'First', user: { login: 'sam' }, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }] },
@@ -108,6 +111,50 @@ export async function startFakeGitHub(data = scenario()) {
       }
       mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/sub_issues$/);
       if (req.method === 'GET' && mm) return send(200, data.subIssues[`${mm[1]}#${mm[2]}`] || []);
+      const bump = () => new Date(Date.parse('2026-11-14T00:00:00Z') + data.writes.length * 1000).toISOString();
+      const json = () => { try { return JSON.parse(body || '{}'); } catch { return {}; } };
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/milestones\/(\d+)$/);
+      if (mm) {
+        const ms = (data.milestones[mm[1]] || []).find(x => x.number === Number(mm[2]));
+        if (!ms) return send(404, { message: 'Not Found' });
+        if (req.method === 'PATCH') { const b = json(); data.writes.push(['PATCH milestone', mm[1], ms.number, b]); Object.assign(ms, b, { updated_at: bump() }); }
+        return send(200, ms);
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/milestones$/);
+      if (mm && req.method === 'POST') {
+        const b = json(); const list = (data.milestones[mm[1]] = data.milestones[mm[1]] || []);
+        const ms = { id: 600 + list.length, number: list.length + 1, title: b.title, description: b.description || '', state: 'open', due_on: null, updated_at: bump(), html_url: `https://github.com/${mm[1]}/milestone/${list.length + 1}` };
+        list.push(ms); data.writes.push(['POST milestone', mm[1], ms.number, b]); return send(201, ms);
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues$/);
+      if (mm && req.method === 'POST') {
+        const b = json(); const list = (data.issues[mm[1]] = data.issues[mm[1]] || []);
+        const num = 100 + list.length;
+        const ms = b.milestone ? (data.milestones[mm[1]] || []).find(x => x.number === b.milestone) : null;
+        const it = issue(mm[1], num, b.title, { labels: b.labels || [], assignees: b.assignees || [], body: b.body || '', milestone: ms || null, updated: bump() });
+        list.push(it); data.writes.push(['POST issue', mm[1], num, b]); return send(201, it);
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/sub_issues$/);
+      if (mm && req.method === 'POST') { const b = json(); data.writes.push(['POST sub_issue', mm[1], Number(mm[2]), b]); return send(201, { ok: true }); }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/);
+      if (mm && req.method === 'POST') {
+        const b = json(); const it = (data.issues[mm[1]] || []).find(i => i.number === Number(mm[2]));
+        data.writes.push(['POST comment', mm[1], Number(mm[2]), b]); if (it) it.updated_at = bump(); return send(201, { id: 9, body: b.body });
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/);
+      if (mm && req.method === 'PATCH') {
+        const b = json(); const it = (data.issues[mm[1]] || []).find(i => i.number === Number(mm[2]));
+        if (!it) return send(404, { message: 'Not Found' });
+        data.writes.push(['PATCH issue', mm[1], it.number, b]);
+        if (b.title !== undefined) it.title = b.title;
+        if (b.body !== undefined) it.body = b.body;
+        if (b.state !== undefined) { it.state = b.state; it.state_reason = b.state_reason || null; }
+        if (b.labels) it.labels = b.labels.map(name => ({ name }));
+        if (b.assignees) { it.assignees = b.assignees.map(login => ({ login })); it.assignee = it.assignees[0] || null; }
+        if (b.milestone !== undefined) it.milestone = b.milestone ? (data.milestones[mm[1]] || []).find(x => x.number === b.milestone) || null : null;
+        it.updated_at = bump();
+        return send(200, it);
+      }
       let m = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)(\/comments)?$/);
       if (req.method === 'GET' && m) {
         const it = (data.issues[m[1]] || []).find(i => i.number === Number(m[2]));
@@ -124,6 +171,27 @@ export async function startFakeGitHub(data = scenario()) {
           const s = String(q.variables?.q || '');
           const nodes = s.includes('review-requested:@me') ? data.prs.requested : s.includes('reviewed-by:@me') ? data.prs.reviewed : [];
           return send(200, { data: { search: { nodes } } });
+        }
+        const repoIssues = () => data.issues[`${q.variables.owner}/${q.variables.name}`] || [];
+        const gqIssue = i => ({ number: i.number, title: i.title, url: i.html_url, state: i.state === 'closed' ? 'CLOSED' : 'OPEN', updatedAt: i.updated_at,
+          labels: { nodes: i.labels.map(l => ({ name: l.name })) }, assignees: { nodes: i.assignees.map(a => ({ login: a.login })) },
+          milestone: i.milestone ? { number: i.milestone.number, title: i.milestone.title, dueOn: i.milestone.due_on } : null,
+          parent: data.parentOf[`${q.variables.owner}/${q.variables.name}#${i.number}`] ? { number: data.parentOf[`${q.variables.owner}/${q.variables.name}#${i.number}`], repository: { nameWithOwner: `${q.variables.owner}/${q.variables.name}` } } : null,
+          comments: { totalCount: i.comments || 0 },
+          closedByPullRequestsReferences: { nodes: data.closingPrs[`${q.variables.owner}/${q.variables.name}#${i.number}`] || [] } });
+        if (text.includes('closedByPullRequestsReferences')) {
+          const it = repoIssues().find(i => i.number === q.variables.number);
+          if (!it) return send(200, { data: { repository: { issue: null } } });
+          const kids = (data.subIssues[`${q.variables.owner}/${q.variables.name}#${it.number}`] || []).map(gqIssue);
+          return send(200, { data: { repository: { issue: { ...gqIssue(it), subIssues: { totalCount: kids.length, nodes: kids } } } } });
+        }
+        if (text.includes('issues(first:100')) {
+          const open = repoIssues().filter(i => i.state === 'open' && !i.pull_request).map(gqIssue);
+          return send(200, { data: { repository: { issues: { totalCount: open.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes: open } } } });
+        }
+        if (text.includes('subIssues(first:50)')) {
+          const kids = (data.subIssues[`${q.variables.owner}/${q.variables.name}#${q.variables.number}`] || []).map(gqIssue);
+          return send(200, { data: { repository: { issue: { parent: null, subIssues: { nodes: kids } } } } });
         }
         if (text.includes('parent{')) {
           const key = `${q.variables.owner}/${q.variables.name}#${q.variables.number}`;

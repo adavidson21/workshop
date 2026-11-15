@@ -46,8 +46,19 @@ export function mine(env) {
   };
 }
 
-/** The connection an area path is read on: its own, else the team's ('' means the connector's default). */
-export const connectionOfArea = (team, area) => ((team && team.areaConnections) || {})[area] || (team && team.connection) || '';
+/* GitHub areas: "github:owner/repo", or "github:owner/repo/<area>" for issues with an area label. The prefix keeps them
+   apart from ADO area paths someone typed with slashes. Their connection is the repo itself, which the GitHub connector
+   reads; ADO connection names never contain a slash, so the two never mix. */
+const GH_AREA = /^github:\s*([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})(?:\/.*)?$/i;
+/** The repo (owner/repo) of a GitHub area, or '' for an ADO area path. */
+export const githubRepoOf = area => { const m = String(area || '').trim().match(GH_AREA); return m ? `${m[1]}/${m[2]}` : ''; };
+/** A GitHub area without its "github:" prefix (owner/repo or owner/repo/<area>), as the GitHub connector takes it. */
+export const githubArea = area => String(area || '').trim().replace(/^github:\s*/i, '');
+/** True for a connection that is a GitHub repo (owner/repo) rather than an ADO connection name. */
+export const isGitHubConnection = c => /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(String(c || ''));
+
+/** The connection an area path is read on: a GitHub area's repo, else its own, else the team's ('' means the connector's default). */
+export const connectionOfArea = (team, area) => githubRepoOf(area) || ((team && team.areaConnections) || {})[area] || (team && team.connection) || '';
 
 /**
  * The team's area paths grouped by connection, in the order the areas are listed: [{connection, areas}]. One ADO
@@ -68,6 +79,7 @@ export function groups(team) {
  * paths are backslash separated and case-insensitive), else the team's connection.
  */
 export function connectionForPath(team, path) {
+  if (githubRepoOf(path)) return githubRepoOf(path);
   const key = p => String(p || '').split('\\').map(x => x.trim()).filter(Boolean).join('\\').toLowerCase();
   const k = key(path);
   let best = null;

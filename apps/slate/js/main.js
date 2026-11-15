@@ -115,13 +115,17 @@ async function readBacklog() {
   let complete = true;
   for (const g of Teams.groups(s.team)) {
     const where = g.connection ? ` (${g.connection})` : '';
+    // A github: area is read by the GitHub connector, everything else by ADO's: skip a group whose connector is not ready.
+    const gh = Teams.isGitHubConnection(g.connection);
+    const ready = gh ? s.conn.github : (s.conn.adoOnly === undefined ? s.conn.ado : s.conn.adoOnly);
+    if (ready !== true) { complete = false; notes.push(`${gh ? 'GitHub' : 'Azure DevOps'}${where}: ${ready}`); continue; }
     try {
       const r = await ado(ws, 'backlog', { areas: g.areas, pointsFields: store.v.prefs.pointsFields, ...connArg(g.connection) });
       reads.push({ connection: r.connection || g.connection, items: r.items || [] });
       if (r.truncated) { complete = false; notes.push(`Showing the newest ${(r.items || []).length} of ${r.total} open items${where}.`); }
     } catch (e) {
       complete = false;
-      notes.push(`Could not read the ADO backlog${where}: ${e.message}`);
+      notes.push(`Could not read the ${gh ? 'GitHub' : 'ADO'} backlog${where}: ${e.message}`);
     }
   }
   s.backlog = mergeBacklogs(reads);
@@ -911,14 +915,14 @@ const ACT = {
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
     const plan = publishPlan(c, files, { area, releaseNotesField: store.v.prefs.releaseNotesField });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
-    showDialog(publishDialogHtml(plan, { area, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan));
+    showDialog(publishDialogHtml(plan, { area, connection: multiConn() || Teams.isGitHubConnection(publishConn(c, plan)) ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan));
   },
   /** Publish, then build it myself: one confirm that lists both. */
   async 'publish-build'(c) {
     const area = (ui.area && ui.area !== NO_AREA ? ui.area : '') || s.team.areas[0] || '';
     const plan = publishPlan(c, filesOf(c.work.define), { area, releaseNotesField: store.v.prefs.releaseNotesField });
     if (!plan.length) return ws.toast('Nothing to publish yet.', { kind: 'warn' });
-    showDialog(publishDialogHtml(plan, { area, build: true, connection: multiConn() ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan, { then: 'build' }));
+    showDialog(publishDialogHtml(plan, { area, build: true, connection: multiConn() || Teams.isGitHubConnection(publishConn(c, plan)) ? publishConn(c, plan) || 'default' : '' }), () => runPublish(c, plan, { then: 'build' }));
   },
   async delegate(c) {
     const owners = ownersOf(c);

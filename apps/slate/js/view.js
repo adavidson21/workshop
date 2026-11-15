@@ -1,6 +1,11 @@
 /* Slate: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
+import { isGitHubConnection } from '../../../shared/teams.js';
+// A card on a GitHub team area (its item's connection is a repo) says GitHub where others say ADO.
+const ghCard = it => !!(it && it.ado && isGitHubConnection(it.ado.connection));
+const sysOut = it => (ghCard(it) ? 'github' : 'ado');
+const sysName = it => (ghCard(it) ? 'GitHub' : 'ADO');
 import { BOARD_COLUMNS, CARD_FIELDS, DETAIL_FIELDS, LEVELS, LEVEL_NAME, STAGE_TITLE, areaOf, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage, releaseGroups } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
@@ -359,7 +364,7 @@ function nextRaw(p) {
       if (p.triage.questions.length) {
         const q = `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`;
         if (it.ado && p.canAdo) return step(`${q} Post them on #${it.ado.id} so whoever asked can answer there, or copy them to send another way.`,
-          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, out: 'ado', title: 'Adds them as a comment on the ADO item, after you confirm' }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, out: sysOut(it), title: `Adds them as a comment on the ${sysName(it)} item, after you confirm` }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
         return step(q, [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
       }
       return step(`Nothing is missing. Define it next, or dig in yourself first.${p.suggestScope && p.triage.size ? ` Triage sized it ${esc(p.triage.size)}, so Define scopes and slices it.` : ''}`, [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
@@ -403,11 +408,11 @@ function nextRaw(p) {
     case 'publish':
       if (!p.canAdo) return step('Approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true })]);
       return step(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
-      [btn('publish', 'Publish to ADO', { primary: true, out: 'ado' }), btn('publish-build', 'Publish and build it myself', { out: 'ado' })], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
+      [btn('publish', 'Publish to ADO', { primary: true, out: sysOut(it) }), btn('publish-build', 'Publish and build it myself', { out: sysOut(it) })], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
     case 'decide': return step(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
       [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), decideBuild(p)]);
     case 'delegated': return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`,
-      [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', 'Open in ADO')] : [btn('mark-resolved', 'Mark resolved', { title: 'Done, waiting for a release' })])]);
+      [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', `Open in ${sysName(it)}`)] : [btn('mark-resolved', 'Mark resolved', { title: 'Done, waiting for a release' })])]);
     default: return step('');
   }
 }
@@ -436,15 +441,15 @@ function devNext(p) {
   const run = p.run;
   const n = (run && run.next) || {};
   const nextBtn = n.command && n.needsYou ? [btn('run-next', n.command.startsWith('/approve') ? 'Approve' : `Run ${n.command}`, { primary: true })] : [];
-  const adoBtn = it.ado ? [btn('ado', 'Open in ADO')] : [];
+  const adoBtn = it.ado ? [btn('ado', `Open in ${sysName(it)}`)] : [];
   switch (p.column) {
     case 'done': return step('Closed. It is off the board; Health still counts it.', adoBtn);
     case 'resolved': return step(`Resolved: merged to main and waiting for a release, under ${esc(areaOf(it) || 'No area path')}. Close it as released when it ships, or close its whole area from the Resolved column.`,
-      [...(it.ado ? [btn('close-one', 'Close as released', { primary: true, out: 'ado' })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
+      [...(it.ado ? [btn('close-one', 'Close as released', { primary: true, out: sysOut(it) })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
     case 'merged':
       if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Mark it resolved here, or link its ADO item below to resolve it there.`, [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
       return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Mark it resolved: in main, waiting for the next release.`,
-        [btn('mark-resolved', 'Mark resolved', { primary: true, out: 'ado', title: `Sets #${it.ado.id} to Resolved in Azure DevOps, after a confirm` }), btn('unmerge', 'Not merged yet')]);
+        [btn('mark-resolved', 'Mark resolved', { primary: true, out: sysOut(it), title: `Sets #${it.ado.id} to Resolved in ${ghCard(it) ? 'GitHub (a resolved label)' : 'Azure DevOps'}, after a confirm` }), btn('unmerge', 'Not merged yet')]);
     case 'review': {
       const prs = (it.prs && it.prs.list) || [];
       const done = prs.filter(x => x.status === 'completed').length;
@@ -505,7 +510,7 @@ function moreHtml(p, extra, shown) {
     const opts = (list) => list.map(st => `<option value="${esc(st)}">${esc(STAGE_TITLE[st] || st)}</option>`).join('');
     move = `<div class="move"><label for="backTo">Move to</label><select id="backTo"${off}>${fwd.length ? `<optgroup label="Skip ahead">${opts(fwd.slice().reverse())}</optgroup>` : ''}${back.length ? `<optgroup label="Move back">${opts(back.slice().reverse())}</optgroup>` : ''}</select>${btn('back', 'Move', { extra: off })}</div>`;
   }
-  if (it.ado && !has('ado')) items.push(btn('ado', 'Open in ADO'));
+  if (it.ado && !has('ado')) items.push(btn('ado', `Open in ${sysName(it)}`));
   if (!it.virtual && it.stage !== 'done' && !has('done')) items.push(btn('done', 'Mark closed', { title: 'Off the board without changing ADO' }));
   if (!it.virtual) items.push(btn('remove', 'Remove from Slate'));
   if (!items.length && !move) return '';
@@ -522,7 +527,7 @@ function fold(key, title, body, open, remembered) {
 export function panelHtml(p) {
   const it = p.item;
   const links = [];
-  if (it.ado) links.push(`<a href="${esc(it.ado.url)}" target="_blank" rel="noopener noreferrer">#${it.ado.id} in ADO</a>`);
+  if (it.ado) links.push(`<a href="${esc(it.ado.url)}" target="_blank" rel="noopener noreferrer">#${it.ado.id} in ${sysName(it)}</a>`);
   for (const [k, f] of Object.entries(it.work || {})) links.push(`<span class="mono" title="${esc(k)}">.work/${esc(f)}</span>`);
   const titleField = it.ado || it.virtual
     ? `<h2 class="ptitle">${esc(it.title)}</h2>`
@@ -601,12 +606,13 @@ export function publishDialogHtml(plan, { area, build = false, connection = '' }
   const n = plan.filter(p => p.op !== 'skip').length;
   const withNote = plan.find(p => p.op === 'create' && p.fields && p.fields.custom);
   const rnKey = withNote ? Object.keys(withNote.fields.custom)[0] : '';
-  return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ADO</h2>
-    ${outsideBanner('ado', `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}${connection ? ` on the ${connection} connection` : ''}. Nothing is sent until you click Publish.`)}
+  const sys = isGitHubConnection(connection) ? 'github' : 'ado';
+  return `<form method="dialog" class="dlg wide" data-form="publish"><h2>Publish to ${sys === 'github' ? 'GitHub' : 'ADO'}</h2>
+    ${outsideBanner(sys, `${n} change${n === 1 ? '' : 's'}${area ? `, in ${area}` : ''}${connection ? (sys === 'github' ? ` in ${connection}` : ` on the ${connection} connection`) : ''}. Nothing is sent until you click Publish.`)}
     <p>Items are tagged <span class="mono">slate</span>.${rnKey ? ` Features carry their release note in <span class="mono">${esc(rnKey)}</span>.` : ''}</p>
     <table class="plan"><thead><tr><th>Change</th><th>Type</th><th>Title</th></tr></thead><tbody>${rows}</tbody></table>
     ${build ? '<p>Then it moves to In flight and Tandem starts on it (Build it myself).</p>' : ''}
-    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok" data-out-ok${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'} ${outsideMark('ado')}</button></div></form>`;
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok" data-out-ok${n ? '' : ' disabled'}>${build ? 'Publish and build' : 'Publish'} ${outsideMark(sys)}</button></div></form>`;
 }
 
 export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
