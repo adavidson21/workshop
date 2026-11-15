@@ -19,7 +19,7 @@
   // Each app's brand jewel accent, from data-app-color on <html> (themes.css has the matching --c-* colors).
   // Workshop's own color is amethyst: the shell, Docket, Settings, Needs you and any app not listed use it.
   // Runway is the one garnet app (the brand default, no data-accent). Sets the brand's data-accent, now and whenever data-app-color changes.
-  const APP_ACCENT = {notes: 'sapphire', slate: 'sapphire', agents: 'tourmaline', receipts: 'tourmaline', runway: 'garnet'};
+  const APP_ACCENT = {notes: 'sapphire', slate: 'sapphire', agents: 'tourmaline', receipts: 'tourmaline', bench: 'tourmaline', runway: 'garnet'};
   (function syncAccent() {
     const el = document.documentElement;
     const set = () => {

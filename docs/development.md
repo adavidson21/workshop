@@ -31,6 +31,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   notes/                Folio
   slate/                Loom: the backlog board (js/) and Tandem's runs (js/dispatch/, Dispatch until Loom 4.0.0)
   people/               People (the people directory and your team's area paths)
+  bench/                Bench (Tandem's eval results, through the opencode connector; docs/bench.md)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
 connectors/             one folder per connector (ADO, opencode)

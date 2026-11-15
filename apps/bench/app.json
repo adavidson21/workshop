@@ -1,0 +1,69 @@
+{
+  "manifestVersion": 1,
+  "id": "bench",
+  "name": "Bench",
+  "version": "1.0.0",
+  "description": "Is Tandem helping? Tandem's eval results: the lift over a plain prompt on the same model, history, compare two runs, and every run's failed checks. Starts a run in a terminal you can see.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 70,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "connectors": [
+    {
+      "id": "opencode",
+      "required": false
+    }
+  ],
+  "aliases": [
+    "bench",
+    "evals",
+    {
+      "name": "eval history",
+      "path": "history"
+    },
+    {
+      "name": "run evals",
+      "path": "cases"
+    }
+  ],
+  "routes": [
+    {
+      "path": "history",
+      "title": "Eval history and compare"
+    },
+    {
+      "path": "cases",
+      "title": "Eval cases and run"
+    },
+    {
+      "path": "result/:file",
+      "title": "Every run in a results file"
+    }
+  ],
+  "commands": [
+    {
+      "id": "refresh",
+      "title": "Refresh eval results"
+    },
+    {
+      "id": "run",
+      "title": "Run evals",
+      "route": "cases"
+    },
+    {
+      "id": "history",
+      "title": "Eval history",
+      "route": "history"
+    }
+  ],
+  "files": [
+    "bench.css",
+    "js/main.js",
+    "js/model.js",
+    "js/view.js"
+  ]
+}

@@ -14,6 +14,7 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
 | **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
 | **Folio** | Your notebook of Markdown files | Nothing |
+| **Bench** | Is Tandem helping? Its eval results: the lift over a plain prompt, history and compare | Tandem (eng-agents) and opencode on this computer |
 | **Settings** | People, teams, Azure DevOps, GitHub, repos, apps on or off | Nothing |
 
 Every app can be turned on or off, so you only see what you use. More on each app: [docs/guide.md](docs/guide.md).

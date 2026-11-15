@@ -905,6 +905,7 @@ const ACT = {
   },
   'ado-note-seen': () => { adoNoteSeen = true; try { localStorage.setItem('slate.adoNoteSeen', '1'); } catch { /* storage off */ } paint(); },
   'setup-dispatch': () => ws.open({ app: 'home' }),
+  'open-bench': () => ws.open({ app: 'bench' }).catch(() => ws.toast('Turn Bench on in Settings, Apps.', { kind: 'warn' })),
   async publish(c) {
     const files = filesOf(c.work.define);
     // A new request goes to the area you are looking at, else your team's first area path.

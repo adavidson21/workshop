@@ -14,6 +14,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Data folder and data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle`, `data-moved` | `tests/contract/data.test.mjs`, `tests/contract/folder.test.mjs`, `tests/contract/merge.test.mjs` |
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
 | Tandem health | [tandem-health.md](tandem-health.md) | `version: 1` | none (`examples/work/expected-health.json`) | `connectors/opencode/test/tandem-health.test.mjs`, eng-agents `Test-HealthFormat.ps1` |
+| Bench (Tandem eval results) | [bench.md](bench.md) | results `version: 1` and `2` | none | `connectors/opencode/test/evals.test.mjs`, `apps/bench/test/*.test.mjs`, eng-agents `Test-Harness.ps1` |
 | Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
 | People directory | [people.md](people.md) | `settings.people` v2 | `person`, `person-group` | `tests/check-contracts.mjs` (examples) |
 | Summaries for other apps | [summaries.md](summaries.md) | `summary` collections v1 | `summary-card` | `tests/check-contracts.mjs` (examples) |
