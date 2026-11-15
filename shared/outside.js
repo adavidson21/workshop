@@ -1,5 +1,6 @@
 /* Outside writes: the one look for any action that changes something outside this computer, today Azure DevOps
-   (the ADO connector's workitem.update and workitem.create) and a git remote (the opencode connector's push).
+   (the ADO connector's workitem.update and workitem.create), GitHub (the GitHub connector's), and a git remote (the
+   opencode connector's push).
    Everything else in Workshop stays on this computer, so it gets no mark.
 
    The rule for apps:
@@ -15,7 +16,8 @@
 
 export const SYSTEMS = Object.freeze({
   ado: Object.freeze({ short: 'ADO', name: 'Azure DevOps' }),
-  git: Object.freeze({ short: 'git', name: 'the git remote' })
+  git: Object.freeze({ short: 'git', name: 'the git remote' }),
+  github: Object.freeze({ short: 'GitHub', name: 'GitHub' })
 });
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -39,7 +41,7 @@ export function outsideBanner(system = 'ado', text = 'Nothing is sent until you 
 
 /**
  * The confirm, as a <form method="dialog"> for an app's own <dialog>.
- *   system  'ado' or 'git'
+ *   system  'ado', 'github' or 'git'
  *   title   the question, e.g. "Resolve #123 in Azure DevOps?"
  *   body    plain text under it (new lines kept)
  *   items   plain text lines listed under the body, e.g. "#123 Fix login"

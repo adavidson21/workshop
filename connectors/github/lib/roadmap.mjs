@@ -19,7 +19,7 @@ const labelNames = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l
 
 /** {repo, area} from "owner/repo" or "owner/repo/<area>" (slashes or Runway's backslashes). Null when not one. */
 export function parseArea(a) {
-  const parts = String(a || '').trim().split(/[\\/]+/).filter(Boolean);
+  const parts = String(a || '').trim().replace(/^github:\s*/i, '').split(/[\\/]+/).filter(Boolean);
   if (parts.length < 2) return null;
   const repo = `${parts[0]}/${parts[1]}`;
   if (!REPO_RE.test(repo)) return null;
