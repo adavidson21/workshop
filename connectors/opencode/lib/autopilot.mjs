@@ -15,7 +15,8 @@ import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
 
 //
 // Runs the build half of the pipeline for one work item without you switching sessions:
-//   (/approve <id> plan|bug) -> /tasks -> /do-task <id> <n> for each open task -> /review <id> auto -> /pr
+//   (/approve <id> plan|bug|quick) -> /tasks (kept as is when /spec drafted it) -> /do-task <id> <n> for each open task -> /review <id> auto -> /pr
+// With eng-agents Core 4.0.0's one feature gate, /approve <id> plan approves the draft spec with the plan.
 // Every step runs in a new session, and the next step comes from the same Get-NextStep rules
 // as the page, read fresh from disk after each step. It never pushes.
 //
@@ -223,7 +224,7 @@ export async function autopilotAction({ folder, action }) {
 
   const gate = it.lane === "bug" ? it.gates.bug : it.lane === "quick" ? it.gates.quick : it.gates.plan;
   const n = it.next || {};
-  const canApprove = n.command && /^\/approve\b/.test(n.command) && (n.stage === "plan" || n.stage === "bug");
+  const canApprove = n.command && /^\/approve\b/.test(n.command) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
   if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan, quick plan or bug analysis waiting for approval.");
   const pendingApprove = action === "resume" && a && a.approveFirst && canApprove;
   if (action !== "approve-start" && !pendingApprove && gate !== "APPROVED") {

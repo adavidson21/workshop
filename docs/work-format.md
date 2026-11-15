@@ -31,7 +31,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | `repos.md` | `/start` | `Lane`, the repo table |
 | `brief.md` | `/start` (skipped with `--cold`) | Nothing is parsed: shown as Markdown for the person (Tandem Core 2.7.0 and later) |
 | `spec.md` | `/spec` | `Status:` gate |
-| `plan.md` | `/plan` | `Status:` gate |
+| `plan.md` | `/spec` (eng-agents Core 4.0.0), or `/plan` | `Status:` gate |
 | `bug.md` | `/bug` | `Status:` gate |
 | `quick.md` | `/quick` (quick lane, Tandem Core 2.25.0 and later) | `Status:` gate |
 | `tasks.md` | `/tasks`, `/bug`, `/review` fixes | Task headings with checkboxes, `Repo:` per task |
@@ -162,6 +162,7 @@ The first matching rule wins. This mirrors `commands/status.md` in eng-agents an
 | --- | --- | --- | --- | --- |
 | 1 | No `repos.md` | `start` | `/start <id> <lane>` | no |
 | 2 | Lane `feature`, no `spec.md` | `spec` | `/spec <id>` | no |
+| 3a | `spec.md` and `plan.md` are both `DRAFT` (one feature gate, eng-agents Core 4.0.0: `/spec` drafts spec, plan and tasks; checked before rule 3) | `plan` | `/approve <id>` (action: "Review spec.md, plan.md and tasks.md") | yes |
 | 3 | `spec.md` is `DRAFT` | `spec` | `/approve <id>` (action: "Review spec.md") | yes |
 | 4 | Lane `feature`, no `plan.md` | `plan` | `/plan <id>` | no |
 | 5 | `plan.md` is `DRAFT` | `plan` | `/approve <id>` (action: "Review plan.md") | yes |

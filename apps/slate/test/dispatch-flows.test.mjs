@@ -30,13 +30,13 @@ beforeEach(load);
 test('the presets follow eng-agents: seven flows, each step named, the ones that stop for you marked', () => {
   assert.deepEqual(FLOWS.map(f => f.id), ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd']);
   const keys = id => stepsOf(FLOWS.find(f => f.id === id), 'feature').map(s => s.key + (s.you ? '*' : ''));
-  assert.deepEqual(keys('feature'), ['start', 'spec*', 'plan*', 'tasks', 'build', 'review', 'pr', 'ship*'], 'README: /start, /spec, /approve, /plan, /approve, /tasks, /do-task, /review, /pr, then you push');
+  assert.deepEqual(keys('feature'), ['start', 'spec*', 'build', 'review', 'pr', 'ship*'], 'README (Core 4.0.0): /start, /spec (spec, plan and tasks), /approve, /do-task, /review, /pr, then you push');
   assert.deepEqual(keys('bug'), ['start', 'bug*', 'build', 'review', 'pr', 'ship*']);
   assert.deepEqual(stepsOf(FLOWS.find(f => f.id === 'quick'), 'bug').map(s => s.key), keys('bug').map(k => k.replace('*', '')), 'Quick change runs as the lane you pick');
   assert.deepEqual(keys('epic'), ['scope', 'stories*', 'slice', 'milestones*', 'backlog'], '/scope, /approve, /slice, /approve milestones, /backlog');
-  assert.deepEqual(keys('docs'), ['draft*', 'check', 'fix*'], '/docs, new session, /check-docs');
-  assert.deepEqual(keys('tsd'), ['draft*', 'check', 'revise*', 'publish*'], '/tsd, /check-docs, revise, /publish');
-  assert.equal(youCount(stepsOf(FLOWS[0])), 3);
+  assert.deepEqual(keys('docs'), ['draft', 'check', 'fix*'], '/docs (picks for itself), new session, /check-docs');
+  assert.deepEqual(keys('tsd'), ['draft', 'check', 'revise*', 'publish*'], '/tsd (picks the flows itself), /check-docs, revise, /publish');
+  assert.equal(youCount(stepsOf(FLOWS[0])), 2);
   for (const f of FLOWS) for (const s of stepsOf(f, 'feature')) assert.ok(s.name && s.what, f.id + '.' + s.key + ' says what it does');
 });
 
@@ -54,8 +54,10 @@ test('each .work folder is in a flow: work items by lane, the rest by kind; Slat
 });
 
 test('where a run is: the stage for work items, the parser state for the rest', () => {
-  assert.equal(stepIndex(item('41207-fix-login-timeout')), 4, 'build');
-  assert.equal(stepLine(item('41207-fix-login-timeout')), 'Step 5 of 8: Build 2/3');
+  assert.equal(stepIndex(item('41207-fix-login-timeout')), 2, 'build');
+  assert.equal(stepLine(item('41207-fix-login-timeout')), 'Step 3 of 6: Build 2/3');
+  assert.equal(stepIndex({ ...item('41207-fix-login-timeout'), stage: 'plan' }), 1, 'one feature gate: the plan stage is in Spec and plan');
+  assert.equal(stepIndex({ ...item('41207-fix-login-timeout'), stage: 'tasks' }), 1, 'and so is tasks');
   assert.equal(stepIndex(item('41610-rate-limit-headers')), 5, 'a bug at Ship: the last step');
   assert.equal(currentStep(item('41300-export-retry-fails')).key, 'bug');
   const epic = st => stepIndex(folder('scope-x', 'scope', { state: st }));
@@ -94,6 +96,11 @@ test('what waits in the Inbox: work-item gates, an epic\'s two approvals, a TSD 
 test('the file to read at a gate, shown in the Inbox card with Read all', () => {
   assert.equal(gateFile(item('41300-export-retry-fails')), 'bug.md');
   assert.equal(gateFile(item('41207-fix-login-timeout')), null, 'no gate, no file');
+  // One feature gate (eng-agents Core 4.0.0): spec and plan are drafts together; read the spec first, send back with /spec.
+  const both = { ...item('41207-fix-login-timeout'), stage: 'plan', gates: { spec: 'DRAFT', plan: 'DRAFT' }, files: ['spec.md', 'plan.md', 'tasks.md'], next: { stage: 'plan', command: '/approve 41207', needsYou: true } };
+  assert.equal(gateFile(both), 'spec.md');
+  assert.equal(sendBackCommand(both), '/spec 41207');
+  assert.equal(sendBackCommand({ ...both, gates: { spec: 'APPROVED', plan: 'DRAFT' } }), '/plan 41207', 'an older item with the spec approved alone');
   assert.equal(gateFile(folder('scope-x', 'scope', { state: 'Milestones in review', files: ['milestones.md'] })), 'milestones.md');
   assert.equal(gateFile(folder('tsd-x', 'tsd', { state: 'Draft, fact-checked', files: ['tsd.md', 'check.md'] })), 'tsd.md');
   assert.equal(gateFile(folder('tsd-x', 'tsd', { state: 'Draft, fact-check found 1 wrong or outdated', files: ['tsd.md', 'check.md'] })), 'check.md');

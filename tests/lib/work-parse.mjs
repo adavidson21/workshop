@@ -173,6 +173,7 @@ function nextStep(item, folder, { hasRepos, hasPr }) {
   const step = (stage, command, action, needsYou) => ({ stage, command, action, text: action ?? commandText(item, command), needsYou });
   if (!hasRepos) return step('start', `/start ${id} ${lane}`, null, false);
   if (lane === 'feature' && g.spec == null) return step('spec', `/spec ${id}`, null, false);
+  if (g.spec === 'DRAFT' && g.plan === 'DRAFT') return step('plan', `/approve ${id}`, 'Review spec.md, plan.md and tasks.md', true);
   if (g.spec === 'DRAFT') return step('spec', `/approve ${id}`, 'Review spec.md', true);
   if (lane === 'feature' && g.plan == null) return step('plan', `/plan ${id}`, null, false);
   if (g.plan === 'DRAFT') return step('plan', `/approve ${id}`, 'Review plan.md', true);

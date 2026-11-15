@@ -13,10 +13,9 @@ export const FLOWS = [
   {
     id: 'feature', name: 'Build a feature', tag: 'Feature', when: 'New behavior, or more than 3 files of change.', handsOff: true, start: 'item', lane: 'feature',
     steps: [
-      { key: 'start', name: 'Set up', file: 'brief.md', what: 'Fetches the work item, picks the repos, makes branches and writes a short brief.' },
-      { key: 'spec', name: 'Spec', you: true, file: 'spec.md', what: 'Asks you questions one at a time, then writes the spec. You approve it.' },
-      { key: 'plan', name: 'Plan', you: true, file: 'plan.md', what: 'Files per repo, the pattern to follow and the test plan. You approve it.' },
-      { key: 'tasks', name: 'Tasks', file: 'tasks.md', what: 'Small tasks, each with a command that proves it works.' },
+      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' },
+      // One gate (eng-agents Core 4.0.0): /spec writes the spec, the plan and the tasks; one /approve covers them.
+      { key: 'spec', also: ['plan', 'tasks'], name: 'Spec and plan', you: true, file: 'spec.md', what: 'Asks at most 3 questions, then writes the spec, the plan (files, pattern to follow, test plan) and small tasks in one go. You approve them once.' },
       { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
       { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the work against the spec, then the code quality. Blockers become fix tasks.' },
       { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for each repo.' },
@@ -26,8 +25,8 @@ export const FLOWS = [
   {
     id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect you can reproduce.', handsOff: true, start: 'item', lane: 'bug',
     steps: [
-      { key: 'start', name: 'Set up', file: 'brief.md', what: 'Fetches the work item, picks the repos, makes branches and writes a short brief.' },
-      { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'The symptom, the code path and the root cause, with at most 3 tasks. You approve it.' },
+      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' },
+      { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'Who is affected, the code path and the root cause, with at most 3 tasks and other places with the same flaw. You approve it.' },
       { key: 'build', name: 'Fix', file: 'progress.md', what: 'A failing test first, then the fix. One task per fresh session.' },
       { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the fix against the bug write-up, then the code quality.' },
       { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for each repo.' },
@@ -35,9 +34,9 @@ export const FLOWS = [
     ]
   },
   {
-    id: 'small', name: 'Small change', tag: 'Small', when: 'One repo, 1 or 2 tasks. One plan to approve instead of a spec and a plan.', handsOff: true, start: 'item', lane: 'quick',
+    id: 'small', name: 'Small change', tag: 'Small', when: 'One repo, 1 or 2 tasks, no schema or API change. One short file instead of a spec and a plan.', handsOff: true, start: 'item', lane: 'quick',
     steps: [
-      { key: 'start', name: 'Set up', file: 'brief.md', what: 'Fetches the work item, picks the repo, makes the branch and writes a short brief.' },
+      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repo and makes the branch.' },
       { key: 'quick', name: 'Quick plan', you: true, file: 'quick.md', what: 'Acceptance criteria, files and a pattern to follow in one file, plus at most 2 tasks. You approve once. Bigger work steps up to the feature lane on its own.' },
       { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
       { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the work against quick.md, then the code quality. Blockers become fix tasks.' },
@@ -52,14 +51,14 @@ export const FLOWS = [
   {
     id: 'spike', name: 'Investigate', tag: 'Spike', when: "You don't know enough to spec it yet. No code changes.", start: 'spike', kind: 'spike',
     steps: [
-      { key: 'investigate', name: 'Investigate', file: 'findings.md', what: 'Reads the code and answers with options and a recommendation.' },
+      { key: 'investigate', name: 'Investigate', file: 'findings.md', what: 'Reads the code and answers with up to 3 options and one recommendation, written for leadership first.' },
       { key: 'findings', name: 'Read the findings', you: true, file: 'findings.md', what: 'Read the answer. Start work from it when it is ready.' }
     ]
   },
   {
     id: 'epic', name: 'Plan an epic', tag: 'Epic', when: 'An idea with no work items yet: epic, features and stories.', start: 'epic', kind: 'scope',
     steps: [
-      { key: 'scope', name: 'Scope', file: 'stories.md', what: 'Asks at most 3 questions, then writes the epic (epics.md) and light stories (stories.md): what and why, 2 to 5 outcome-only scenarios each. Engineering decides how.' },
+      { key: 'scope', name: 'Scope', file: 'stories.md', what: 'Asks at most 3 questions, then writes the epic (epics.md) and light stories (stories.md): what and why, 1 to 3 outcome-only scenarios each. Engineering decides how.' },
       { key: 'stories', name: 'Approve stories', you: true, file: 'stories.md', what: 'Read epics.md and stories.md. Approve them, or send them back with a note.' },
       { key: 'slice', name: 'Slice', file: 'milestones.md', what: 'Puts features and stories in build order (milestones.md). Each feature gets a short description and a release note; code pointers stay local as notes for the builder.' },
       { key: 'milestones', name: 'Approve milestones', you: true, file: 'milestones.md', what: 'Read milestones.md. Approve it, or send it back with a note.' },
@@ -69,7 +68,7 @@ export const FLOWS = [
   {
     id: 'docs', name: 'Write docs', tag: 'Docs', when: 'New or updated documentation, fact-checked against the code.', start: 'docs', kind: 'docs',
     steps: [
-      { key: 'draft', name: 'Draft', you: true, file: 'sources.md', what: 'Asks where the doc lives, who reads it and what they need, shows you an outline, then writes it.' },
+      { key: 'draft', name: 'Draft', file: 'sources.md', what: 'Picks where the doc lives, who reads it and what they need (it tells you, so you can change them), then writes it.' },
       { key: 'check', name: 'Fact-check', file: 'check.md', what: 'A new session checks every claim against the code.' },
       { key: 'fix', name: 'Fix', you: true, file: 'check.md', what: 'Read check.md and fix anything it flags.' }
     ]
@@ -77,7 +76,7 @@ export const FLOWS = [
   {
     id: 'tsd', name: 'Technical spec', tag: 'TSD', when: 'A product or repos told through diagrams.', start: 'tsd', kind: 'tsd',
     steps: [
-      { key: 'draft', name: 'Draft', you: true, file: 'tsd.md', what: 'Confirms the repos with you, lists what is there, asks you to pick the flows, then writes tsd.md.' },
+      { key: 'draft', name: 'Draft', file: 'tsd.md', what: 'Lists what is there, picks the flows to diagram (it tells you, so you can swap them), then writes tsd.md.' },
       { key: 'check', name: 'Fact-check', file: 'check.md', what: 'A new session checks every box and arrow against the code.' },
       { key: 'revise', name: 'Revise', you: true, file: 'check.md', what: 'Fix what check.md flags: edit tsd.md, or run /tsd again.' },
       { key: 'publish', name: 'Publish', you: true, file: 'tsd.md', what: 'Approves it and copies it to the product docs folder. You commit it.' }
@@ -120,7 +119,7 @@ export function stepIndex(it) {
   const steps = stepsOf(f, it.lane);
   if (it.kind === 'item') {
     if (it.stage === 'ship') return steps.length - 1;
-    const i = steps.findIndex(s => s.key === it.stage);
+    const i = steps.findIndex(s => s.key === it.stage || (s.also || []).includes(it.stage));
     return i;
   }
   const st = String(it.state || '');
@@ -225,6 +224,8 @@ export function gateFile(it) {
     const n = it.next || {};
     if (!n.needsYou) return null;
     f = { spec: 'spec.md', plan: 'plan.md', bug: 'bug.md', quick: 'quick.md', review: 'review.md' }[n.stage] || null;
+    // One feature gate: the spec is still a draft, so read it first (the plan and tasks are approved with it).
+    if (n.stage === 'plan' && (it.gates || {}).spec === 'DRAFT') f = 'spec.md';
   } else {
     const step = currentStep(it);
     if (!step || !atGate(it)) return null;
@@ -239,6 +240,7 @@ export function sendBackCommand(it) {
   if (it.kind === 'item') {
     const n = it.next || {};
     if (!n.needsYou || !it.id) return null;
+    if (n.stage === 'plan' && (it.gates || {}).spec === 'DRAFT') return `/spec ${it.id}`; // one gate: /spec redoes all three
     return { spec: `/spec ${it.id}`, plan: `/plan ${it.id}`, bug: `/bug ${it.id}`, quick: `/quick ${it.id}` }[n.stage] || null;
   }
   const f = flowOf(it), i = stepIndex(it);

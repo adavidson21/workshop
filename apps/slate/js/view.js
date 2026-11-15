@@ -128,9 +128,9 @@ const section = (title, body) => body ? `<section class="ps"><h3>${esc(title)}</
 function triageSection(t) {
   if (!t) return '';
   return section('Triage', `${t.summary ? `<p>${esc(t.summary)}</p>` : ''}
-    <dl class="kv">${t.route ? `<dt>Suggested route</dt><dd>${esc(t.route === 'delegate' ? 'Delegate' : t.route === 'myself' ? 'Do it myself' : 'Undecided')}</dd>` : ''}${t.size ? `<dt>Size</dt><dd>${esc(t.size)}</dd>` : ''}</dl>
+    <dl class="kv">${t.route ? `<dt>Suggested route</dt><dd>${esc(t.route === 'delegate' ? 'Delegate' : t.route === 'myself' ? 'Do it myself' : 'Undecided')}</dd>` : ''}${t.size ? `<dt>Size</dt><dd>${esc(t.size)}</dd>` : ''}${t.area ? `<dt>Area</dt><dd>${esc(t.area)}</dd>` : ''}</dl>
     ${t.repos.length ? `<p class="lbl">Products and repos</p><ul>${t.repos.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
-    ${t.questions.length ? `<p class="lbl">Questions for the requester</p><ol class="qs">${t.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ol>` : '<p class="soft">Nothing is missing.</p>'}`);
+    ${t.questions.length ? `<p class="lbl">Questions for the requester</p><ol class="qs">${t.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ol>${t.message ? `<p class="lbl">Message to send</p><p class="msg">${esc(t.message).replace(/\n/g, '<br>')}</p>` : ''}` : '<p class="soft">Nothing is missing.</p>'}`);
 }
 
 function draftSection(p) {
@@ -456,7 +456,7 @@ function devNext(p) {
     }
     default: {
       if (!run && it.run) return step('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open the run')]);
-      if (!run) return step(it.ado ? 'Start runs Tandem on the ADO item: brief, spec, plan, then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
+      if (!run) return step(it.ado ? 'Start runs Tandem on the ADO item: the spec and plan (one approval), then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
         [btn('start', it.ado ? 'Start' : 'Start as local work', { primary: true })]);
       return step(esc(n.text || 'See where it is on the run.'), [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length })]);
     }

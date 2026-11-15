@@ -365,6 +365,8 @@ function nextStep(item, folder) {
 
   if (!item.hasRepos) return step("start", `/start ${id} ${lane}`, null, null, false);
   if (lane === "feature" && g.spec === null) return step("spec", `/spec ${id}`, null, null, false);
+  // One feature gate (eng-agents Core 4.0.0): /spec drafts spec, plan and tasks; /approve approves the spec and plan together.
+  if (g.spec === "DRAFT" && g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review spec.md, plan.md and tasks.md", `Approves the spec and the plan together. After approval: start a new session (/new), then /do-task ${id} 1`, true);
   if (g.spec === "DRAFT") return step("spec", `/approve ${id}`, "Review spec.md", `Answer its open questions first. After approval: /plan ${id}`, true);
   if (lane === "feature" && g.plan === null) return step("plan", `/plan ${id}`, null, null, false);
   if (g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review plan.md", `After approval: /tasks ${id}`, true);

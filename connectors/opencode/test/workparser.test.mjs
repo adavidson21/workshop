@@ -63,6 +63,12 @@ function richWorkspace() {
   w("50002-reviewed/bug.md", "Status: APPROVED\n");
   w("50002-reviewed/tasks.md", "## [x] Task 1: Done thing\n");
   w("50002-reviewed/review.md", "Verdict: changes requested\n");
+  // One feature gate (eng-agents Core 4.0.0): /spec drafted spec, plan and tasks; /approve covers spec and plan.
+  w("50003-one-gate/workitem.md", "# Work item 50003: One gate\n\n- Type: User Story\n");
+  w("50003-one-gate/repos.md", "Lane: feature\n| 1 | gh-repo | dev/feature/50003-one-gate | | |\n");
+  w("50003-one-gate/spec.md", "# Spec\n\nStatus: DRAFT\n");
+  w("50003-one-gate/plan.md", "# Plan\n\nStatus: DRAFT\n");
+  w("50003-one-gate/tasks.md", "## [ ] Task 1: Do it\n- Repo: gh-repo\n");
   w("PR-77/context.md", "# Pull request 77: Tidy logging\n\n- Repo: gh-repo (folder `gh-repo`)\n- Author: Dev Two\n- Branch: feature/logs\n- Source commit: abcdef123\n- Size: 3 files\n");
   w("PR-77/review.md", "Reviewed commit: abcdef1\nReviewed: 2026-11-04\nRecommendation: Approve\nRisk: low\n\n## Summary\n\nFine.\n\n## Comments\n\n### c2\n- File: `a.js`\n- Severity: Should fix\n> Rename this.\n> Please.\n\n### C3\n- Severity: weird\n\n## Questions for the author\n\n- Why now?\n- None\n* <q>\n");
   w("PR-77/history/review-1.md", "old\n");
@@ -153,6 +159,10 @@ test("edge cases on their own: local ids, blocked, paused, PR review, scope, CRL
     assert.equal(by("50001-crlf-item").pr[0].target, "develop");
     assert.equal(by("50001-crlf-item").pr[0].links.pr, "https://github.com/acme/gh-repo/compare/develop...dev/feature/50001-crlf?expand=1");
     assert.equal(by("50002-reviewed").stage, "review");
+    assert.equal(by("50003-one-gate").next.stage, "plan", "one gate: spec and plan drafts wait together at the plan stage");
+    assert.equal(by("50003-one-gate").next.command, "/approve 50003");
+    assert.equal(by("50003-one-gate").next.action, "Review spec.md, plan.md and tasks.md");
+    assert.equal(by("50003-one-gate").bucket, "needs");
     assert.equal(by("PR-77").state, "Approve, 2 comments");
     assert.deepEqual(by("PR-77").prReview.counts, { blocking: 0, "should-fix": 1, optional: 1 });
     assert.deepEqual(by("PR-77").prReview.questions, ["Why now?"]);
