@@ -1306,6 +1306,18 @@ def agents_checks(b, watch):
         af.click('[data-close-run]'); pg.wait_for_timeout(300)
         af.click('#board-root [data-act=close]'); pg.wait_for_timeout(200)
 
+        # Health > Tandem: the opencode connector's tandem.health, read from the example .work (docs/tandem-health.md).
+        af.click('#app .tabs [data-tab=health]')
+        tandem_ok = seen(af, '#tandemBox .tsh')
+        tbox = af.inner_text('#tandemBox') if tandem_ok else ''
+        check('Health shows Tandem: Pipeline, Learning loop, Prompts and Setup, from .work', tandem_ok and all(t in tbox for t in ('Pipeline', 'Learning loop', 'Prompts', 'Setup', 'consistency')))
+        check('Tandem lists recent items that open their run', af.locator('#tandemBox [data-act=open-run][data-id="41610-rate-limit-headers"]').count() == 1)
+        if os.environ.get('LOOM_SHOTS'): af.locator('#tandem').screenshot(path='/tmp/loom-tandem.png')
+        af.click('#tandemBox [data-act=open-run][data-id="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
+        check('an item in Tandem opens its run page', seen(af, '.run-page#item-41610'))
+        af.click('[data-close-run]'); pg.wait_for_timeout(300)
+        af.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(300)
+
         # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
         found = []
         for tab in ('inbox', 'work'):

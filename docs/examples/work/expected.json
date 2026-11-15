@@ -134,7 +134,7 @@
       },
       "blocked": null,
       "paused": null,
-      "last": null,
+      "last": {"date": "2026-10-11", "command": "/pr", "agent": "writer", "did": "PR text for gateway.", "verify": null, "notes": null, "next": "Push the branch and open the PR."},
       "next": {"stage": "ship", "command": null, "action": "Push the branches and open the PRs (text is in pr.md)", "text": "Push the branches and open the PRs (text is in pr.md)", "needsYou": false},
       "bucket": "ship",
       "pr": [

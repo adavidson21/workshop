@@ -13,6 +13,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | SDK | [sdk.md](sdk.md) | `sdk: 1` | `sdk-message` | `tests/check-contracts.mjs` (examples) |
 | Data folder and data files | [data-format.md](data-format.md) | envelope `api: 1`, items per collection | `data-envelope`, `data-bundle`, `data-moved` | `tests/contract/data.test.mjs`, `tests/contract/folder.test.mjs`, `tests/contract/merge.test.mjs` |
 | `.work` files | [work-format.md](work-format.md) | `work: 1` | none (regexes) | `tests/contract/work-format.test.mjs` |
+| Tandem health | [tandem-health.md](tandem-health.md) | `version: 1` | none (`examples/work/expected-health.json`) | `connectors/opencode/test/tandem-health.test.mjs`, eng-agents `Test-HealthFormat.ps1` |
 | Handoffs between apps | [handoffs.md](handoffs.md) | `handoffs` collections v1 | `handoff-item` | `tests/check-contracts.mjs` (examples) |
 | People directory | [people.md](people.md) | `settings.people` v2 | `person`, `person-group` | `tests/check-contracts.mjs` (examples) |
 | Summaries for other apps | [summaries.md](summaries.md) | `summary` collections v1 | `summary-card` | `tests/check-contracts.mjs` (examples) |
@@ -34,7 +35,7 @@ Also here, not contracts: [team-testing.md](team-testing.md) (prerequisites befo
 - `docs/schemas/<name>.schema.json`: JSON Schemas (draft 2020-12 subset, see below).
 - `docs/examples/<name>.<case>.json`: valid examples. Each one must validate against `schemas/<name>.schema.json`.
 - `docs/examples/invalid/<name>.<case>.json`: examples that must fail validation. They prove the schema constrains what the doc says it does.
-- `docs/examples/work/`: a synthetic `.work` folder for [work-format.md](work-format.md).
+- `docs/examples/work/`: a synthetic `.work` folder for [work-format.md](work-format.md) and [tandem-health.md](tandem-health.md).
 - `tests/mock-agent.mjs`: a small agent that implements [agent-api.md](agent-api.md), keeping data in a data folder (a temporary one unless given `dataDir`).
 - `tests/contract/`: the contract suite. It runs against the mock and against the real agent in CI.
 

@@ -16,6 +16,7 @@ import {
 import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
 import { healthHtml, sprintsHtml } from './health.js';
+import { tandemHealthHtml } from './tandem-health.js';
 import { saveFile } from '../../../shared/save-file.js';
 
 const $ = (id) => document.getElementById(id);
@@ -497,6 +498,7 @@ function paint() {
   setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
+    if ($('tandemBox')) setHtml($('tandemBox'), tandemView());
     if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
     if ($('reportsBox')) setHtml($('reportsBox'), reportsView());
   } else {
@@ -587,6 +589,33 @@ function reportsView() {
   return reports.html();
 }
 
+/* ---------- Tandem health: the opencode connector's tandem.health (Workshop docs/tandem-health.md) ---------- */
+const tandemState = { range: '', data: null, error: '', loading: false, at: 0 };
+const TANDEM_STALE_MS = 5 * 60 * 1000;
+function tandemView() {
+  if (s.conn.opencode !== true) {
+    const why = typeof s.conn.opencode === 'string' && s.conn.opencode !== 'Checking…' ? ` ${s.conn.opencode}` : '';
+    return tandemHealthHtml({ note: `Tandem health is read by the opencode connector on this computer.${why}` });
+  }
+  if (!tandemState.loading && (!tandemState.data && !tandemState.error || Date.now() - tandemState.at > TANDEM_STALE_MS)) loadTandem();
+  return tandemHealthHtml(tandemState);
+}
+async function loadTandem() {
+  if (tandemState.loading) return;
+  tandemState.loading = true;
+  const days = parseInt(tandemState.range, 10);
+  const since = days > 0 ? new Date(Date.now() - days * 86400000).toISOString().slice(0, 10) : null;
+  try {
+    tandemState.data = await tandem(ws, 'tandem.health', since ? { since } : {});
+    tandemState.error = '';
+  } catch (e) {
+    tandemState.error = `Could not read Tandem health: ${e && e.message ? e.message : 'unknown error'}`;
+  }
+  tandemState.loading = false;
+  tandemState.at = Date.now();
+  if (ui.tab === 'health') paint();
+}
+
 function sprintsView() {
   if (s.conn.ado !== true) return sprintsHtml({ note: typeof s.conn.ado === 'string' ? `Sprints come from Azure DevOps. ${s.conn.ado}` : 'Checking Azure DevOps…' });
   if (!s.sprints) { loadSprints(); return '<p class="loading">Reading sprints…</p>'; }
@@ -644,6 +673,9 @@ const ACT = {
   tab: (id) => { if (TABS.includes(id)) { ui.tab = id; paint(); } },
   runs: () => requestTab('work'),
   'open-item': (c) => { if (c) { ui.open = c.id; ui.tab = 'board'; paint(); } },
+  'tandem-range': (id) => { tandemState.range = id || ''; loadTandem(); paint(); },
+  'tandem-refresh': () => { loadTandem(); },
+  'open-run': (folder) => { if (folder) openRunPage(folder); },
   refresh: () => { s.details.clear(); return refresh().then(() => ws.toast('Up to date.', { kind: 'success' })); },
   fields: () => {
     showDialog(fieldsDialogHtml(store.v.prefs), async (form) => {
@@ -1288,10 +1320,11 @@ boardRoot.addEventListener('click', async (e) => {
   const fn = ACT[act];
   if (!fn) return;
   const inPanel = panelEl.contains(b);
-  const target = b.dataset.id && !['tab', 'open'].includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
+  const RAW = ['tab', 'open', 'tandem-range', 'tandem-refresh', 'open-run'];
+  const target = b.dataset.id && !RAW.includes(act) ? findCard(b.dataset.id) : inPanel ? findCard(ui.open) : null;
   const menu = b.closest('details.more');
   if (menu) menu.open = false;
-  if (['tab', 'open'].includes(act)) return fn(b.dataset.id);
+  if (RAW.includes(act)) return fn(b.dataset.id);
   if (ui.busy) return;
   ui.busy = true; ui.error = ''; b.disabled = true;
   try { await fn(target || findCard(ui.open), b); }

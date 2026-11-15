@@ -1,0 +1,425 @@
+{
+  "description": "What Tandem health's pipeline and findings parts read from this folder (docs/tandem-health.md), with every file given the same modification time. Get-PipelineStats.ps1 -AsJson (without generated) and Get-ReviewFindings.ps1 -AsJson in eng-agents give the same.",
+  "pipeline": {
+    "version": 1,
+    "since": null,
+    "summary": {
+      "items": 6,
+      "lanes": {
+        "feature": 3,
+        "bug": 2,
+        "quick": 1
+      },
+      "reachedPr": 1,
+      "medianDaysToPr": 3,
+      "medianReviewRounds": 1,
+      "multiReviewRate": 0,
+      "questions": 1,
+      "assumptions": 5,
+      "doTaskRuns": 5,
+      "verifyFailRate": 40,
+      "fullSuiteFails": 1,
+      "tasksAddedByReview": 0,
+      "blockers": 0,
+      "findingCategories": {
+        "consistency": 1,
+        "tests": 1
+      },
+      "retros": 0,
+      "quickEscalations": 0
+    },
+    "gates": {
+      "spec": {
+        "approvals": 1,
+        "unchanged": 0,
+        "edited": 1,
+        "noHash": 0,
+        "unchangedRate": 0
+      },
+      "plan": {
+        "approvals": 1,
+        "unchanged": 1,
+        "edited": 0,
+        "noHash": 0,
+        "unchangedRate": 100
+      },
+      "bug": {
+        "approvals": 1,
+        "unchanged": 1,
+        "edited": 0,
+        "noHash": 0,
+        "unchangedRate": 100
+      }
+    },
+    "items": [
+      {
+        "id": "41207",
+        "name": "fix-login-timeout",
+        "lane": "feature",
+        "repos": 2,
+        "started": "2026-10-12",
+        "prDrafted": null,
+        "daysToPr": null,
+        "phases": {
+          "start": "2026-10-12",
+          "spec": "2026-10-12",
+          "bug": null,
+          "quick": null,
+          "plan": "2026-10-13",
+          "tasks": "2026-10-13",
+          "do-task": "2026-10-14",
+          "review": null,
+          "pr": null
+        },
+        "rounds": {
+          "spec": 1,
+          "plan": 1,
+          "bug": 0,
+          "quick": 0,
+          "review": 0
+        },
+        "gates": [
+          {
+            "file": "spec",
+            "result": "edited"
+          },
+          {
+            "file": "plan",
+            "result": "unchanged"
+          }
+        ],
+        "questions": 1,
+        "assumptions": 3,
+        "doTaskRuns": 1,
+        "verifyFails": 0,
+        "fullSuiteFails": 0,
+        "tasksTotal": 3,
+        "tasksDone": 2,
+        "tasksAdded": 0,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": null,
+        "findings": {
+          "blocker": null,
+          "shouldFix": null,
+          "nit": null
+        },
+        "categories": {}
+      },
+      {
+        "id": "41300",
+        "name": "export-retry-fails",
+        "lane": "bug",
+        "repos": 1,
+        "started": null,
+        "prDrafted": null,
+        "daysToPr": null,
+        "phases": {
+          "start": null,
+          "spec": null,
+          "bug": null,
+          "quick": null,
+          "plan": null,
+          "tasks": null,
+          "do-task": null,
+          "review": null,
+          "pr": null
+        },
+        "rounds": {
+          "spec": 0,
+          "plan": 0,
+          "bug": 0,
+          "quick": 0,
+          "review": 0
+        },
+        "gates": [],
+        "questions": null,
+        "assumptions": null,
+        "doTaskRuns": 0,
+        "verifyFails": 0,
+        "fullSuiteFails": 0,
+        "tasksTotal": 2,
+        "tasksDone": 0,
+        "tasksAdded": null,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": null,
+        "findings": {
+          "blocker": null,
+          "shouldFix": null,
+          "nit": null
+        },
+        "categories": {}
+      },
+      {
+        "id": "41455",
+        "name": "audit-log-filter",
+        "lane": "feature",
+        "repos": 2,
+        "started": null,
+        "prDrafted": null,
+        "daysToPr": null,
+        "phases": {
+          "start": null,
+          "spec": null,
+          "bug": null,
+          "quick": null,
+          "plan": null,
+          "tasks": null,
+          "do-task": null,
+          "review": null,
+          "pr": null
+        },
+        "rounds": {
+          "spec": 0,
+          "plan": 0,
+          "bug": 0,
+          "quick": 0,
+          "review": 0
+        },
+        "gates": [],
+        "questions": null,
+        "assumptions": null,
+        "doTaskRuns": 0,
+        "verifyFails": 0,
+        "fullSuiteFails": 0,
+        "tasksTotal": null,
+        "tasksDone": null,
+        "tasksAdded": null,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": null,
+        "findings": {
+          "blocker": null,
+          "shouldFix": null,
+          "nit": null
+        },
+        "categories": {}
+      },
+      {
+        "id": "41502",
+        "name": "csv-export",
+        "lane": "feature",
+        "repos": 1,
+        "started": "2026-10-17",
+        "prDrafted": null,
+        "daysToPr": null,
+        "phases": {
+          "start": null,
+          "spec": null,
+          "bug": null,
+          "quick": null,
+          "plan": null,
+          "tasks": null,
+          "do-task": "2026-10-17",
+          "review": null,
+          "pr": null
+        },
+        "rounds": {
+          "spec": 0,
+          "plan": 0,
+          "bug": 0,
+          "quick": 0,
+          "review": 0
+        },
+        "gates": [],
+        "questions": null,
+        "assumptions": null,
+        "doTaskRuns": 1,
+        "verifyFails": 1,
+        "fullSuiteFails": 0,
+        "tasksTotal": 2,
+        "tasksDone": 1,
+        "tasksAdded": null,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": null,
+        "findings": {
+          "blocker": null,
+          "shouldFix": null,
+          "nit": null
+        },
+        "categories": {}
+      },
+      {
+        "id": "41610",
+        "name": "rate-limit-headers",
+        "lane": "bug",
+        "repos": 1,
+        "started": "2026-10-08",
+        "prDrafted": "2026-10-11",
+        "daysToPr": 3,
+        "phases": {
+          "start": "2026-10-08",
+          "spec": null,
+          "bug": "2026-10-08",
+          "quick": null,
+          "plan": null,
+          "tasks": null,
+          "do-task": "2026-10-09",
+          "review": "2026-10-11",
+          "pr": "2026-10-11"
+        },
+        "rounds": {
+          "spec": 0,
+          "plan": 0,
+          "bug": 1,
+          "quick": 0,
+          "review": 1
+        },
+        "gates": [
+          {
+            "file": "bug",
+            "result": "unchanged"
+          }
+        ],
+        "questions": 0,
+        "assumptions": 1,
+        "doTaskRuns": 3,
+        "verifyFails": 1,
+        "fullSuiteFails": 1,
+        "tasksTotal": 1,
+        "tasksDone": 1,
+        "tasksAdded": 0,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": "READY",
+        "findings": {
+          "blocker": 0,
+          "shouldFix": 1,
+          "nit": 1
+        },
+        "categories": {
+          "consistency": 1,
+          "tests": 1
+        }
+      },
+      {
+        "id": "41720",
+        "name": "show-item-count",
+        "lane": "quick",
+        "repos": 1,
+        "started": "2026-10-14",
+        "prDrafted": null,
+        "daysToPr": null,
+        "phases": {
+          "start": "2026-10-14",
+          "spec": null,
+          "bug": null,
+          "quick": "2026-10-14",
+          "plan": null,
+          "tasks": null,
+          "do-task": null,
+          "review": null,
+          "pr": null
+        },
+        "rounds": {
+          "spec": 0,
+          "plan": 0,
+          "bug": 0,
+          "quick": 1,
+          "review": 0
+        },
+        "gates": [],
+        "questions": 0,
+        "assumptions": 1,
+        "doTaskRuns": 0,
+        "verifyFails": 0,
+        "fullSuiteFails": 0,
+        "tasksTotal": 1,
+        "tasksDone": 0,
+        "tasksAdded": 0,
+        "quickEscalated": false,
+        "retro": false,
+        "verdict": null,
+        "findings": {
+          "blocker": null,
+          "shouldFix": null,
+          "nit": null
+        },
+        "categories": {}
+      }
+    ]
+  },
+  "findings": {
+    "version": 1,
+    "since": null,
+    "itemsReviewed": 2,
+    "findings": [
+      {
+        "id": "41207",
+        "item": "41207-fix-login-timeout",
+        "file": "history/review-2026-10-13-1.md",
+        "severity": "Blocker",
+        "category": "consistency",
+        "repo": "auth-lib",
+        "location": "auth-lib/src/Session.cs:30",
+        "problem": "Lifetime written inline instead of in config"
+      },
+      {
+        "id": "41610",
+        "item": "41610-rate-limit-headers",
+        "file": "review.md",
+        "severity": "Should fix",
+        "category": "consistency",
+        "repo": "gateway",
+        "location": "gateway/src/RateLimit/HeaderWriter.cs:18",
+        "problem": "The limit is read inline instead of from options"
+      },
+      {
+        "id": "41610",
+        "item": "41610-rate-limit-headers",
+        "file": "review.md",
+        "severity": "Nit",
+        "category": "tests",
+        "repo": "gateway",
+        "location": "gateway/tests/RateLimitTests.cs:40",
+        "problem": "Test name does not say the expected result"
+      }
+    ],
+    "patterns": [
+      {
+        "repo": "auth-lib",
+        "category": "consistency",
+        "itemCount": 1,
+        "items": [
+          "41207-fix-login-timeout"
+        ],
+        "findings": 1,
+        "blockers": 1,
+        "repeats": false,
+        "examples": [
+          "41207-fix-login-timeout: Lifetime written inline instead of in config"
+        ]
+      },
+      {
+        "repo": "gateway",
+        "category": "consistency",
+        "itemCount": 1,
+        "items": [
+          "41610-rate-limit-headers"
+        ],
+        "findings": 1,
+        "blockers": 0,
+        "repeats": false,
+        "examples": [
+          "41610-rate-limit-headers: The limit is read inline instead of from options"
+        ]
+      },
+      {
+        "repo": "gateway",
+        "category": "tests",
+        "itemCount": 1,
+        "items": [
+          "41610-rate-limit-headers"
+        ],
+        "findings": 1,
+        "blockers": 0,
+        "repeats": false,
+        "examples": [
+          "41610-rate-limit-headers: Test name does not say the expected result"
+        ]
+      }
+    ]
+  }
+}

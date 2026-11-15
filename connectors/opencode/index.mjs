@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { tandemHealth } from "./lib/tandem-health.mjs";
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
@@ -315,6 +316,15 @@ const actions = {
     async run(args) {
       needReady();
       return runCommand({ folder: args.folder, command: args.command });
+    },
+  },
+  "tandem.health": {
+    title: "Tandem health: pipeline stats, repeating review findings, eval results and setup (read only)",
+    write: false,
+    argsSchema: obj([], { since: str("Only items started on or after this day (YYYY-MM-DD)", { pattern: "^\\d{4}-\\d{2}-\\d{2}$" }) }),
+    async run(args) {
+      if (!opt || !opt.workspace) throw httpError(409, "Set the workspace folder in opencode settings first.");
+      return tandemHealth({ workRoot, workspace: opt.workspace, since: args.since || null });
     },
   },
   start: {
