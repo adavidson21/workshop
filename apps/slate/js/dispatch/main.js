@@ -158,32 +158,42 @@ async function loadSlate() {
 loadSlate();
 try { ws.data.subscribe('summary', loadSlate, { app: 'slate' }); } catch (e) { /* no data backend */ }
 
-/* ---------- PRs waiting on you: the ADO connector's sync.prs (read-only) ----------
+/* ---------- PRs waiting on you: the tracker connectors' sync.prs (read-only) ----------
+   ADO and GitHub, whichever are on and ready, merged into one list (each item carries its system).
    Checked once when Dispatch connects, when the PR reviews page opens (if older than five minutes),
-   and from Check again. Without the ADO connector (or with it off) the page says how to turn it on. */
-const ADO = 'ado';
+   and from Check again. With neither connector on, the page says how to turn one on. */
+const TRACKERS = ['ado', 'github'];
+const TRACKER_NAMES = { ado: 'Azure DevOps', github: 'GitHub' };
 const INBOX_FRESH_MS = 5 * 60e3;
 async function loadInbox(force) {
   if (ws.backend !== 'agent' || S.inbox.state === 'loading') return;
   if (!force && S.inbox.at && Date.now() - S.inbox.at < INBOX_FRESH_MS) return;
-  let c = null;
-  try { c = (await ws.connectors.list()).find(x => x.id === ADO) || null; } catch (e) { /* the agent is not reachable: try again later */ return; }
-  if (!c || !c.status || c.status.state !== 'ready') { S.inbox = { state: 'off', items: [], notes: [], error: null, at: Date.now() }; schedule(); return; }
+  let list = [];
+  try { list = (await ws.connectors.list()).filter(x => TRACKERS.includes(x.id) && x.status && x.status.state === 'ready'); } catch (e) { /* the agent is not reachable: try again later */ return; }
+  if (!list.length) { S.inbox = { state: 'off', items: [], notes: [], error: null, at: Date.now() }; schedule(); return; }
   S.inbox = { ...S.inbox, state: 'loading' }; schedule();
-  try {
-    const r = await ws.connectors.call(ADO, 'sync.prs', { knownPrs: [] });
-    S.inbox = { state: 'ok', items: (r && r.items) || [], notes: (r && r.notes) || [], error: null, at: Date.now() };
+  const items = [], notes = [], errors = [];
+  for (const c of list) {
+    try {
+      const r = await ws.connectors.call(c.id, 'sync.prs', { knownPrs: [] });
+      items.push(...((r && r.items) || []).map(p => ({ ...p, system: c.id })));
+      notes.push(...((r && r.notes) || []));
+    } catch (e) {
+      errors.push(list.length > 1 ? `${TRACKER_NAMES[c.id]}: ${errText(e)}` : errText(e));
+    }
+  }
+  if (errors.length === list.length) S.inbox = { state: 'error', items: [], notes: [], error: errors.join(' '), at: Date.now() };
+  else {
+    S.inbox = { state: 'ok', items, notes: [...errors, ...notes], error: null, at: Date.now() };
     saveInbox();
     updateBadge();
     publishSummary();
-  } catch (e) {
-    S.inbox = { state: 'error', items: [], notes: [], error: errText(e), at: Date.now() };
   }
   schedule();
 }
-ws.connectors.onStatus(ADO, status => { if (status.state === 'ready' && S.inbox.state === 'off') loadInbox(true); });
+for (const id of TRACKERS) ws.connectors.onStatus(id, status => { if (status.state === 'ready' && S.inbox.state === 'off') loadInbox(true); });
 
-/* The nightly review (opencode connector) cannot ask ADO itself: hand it the inbox each time we get it. */
+/* The nightly review (opencode connector) cannot ask ADO or GitHub itself: hand it the inbox each time we get it. */
 function saveInbox() {
   if (!S.connector || S.connector.state !== 'ready') return;
   read('pr.inbox.save', { prs: (S.inbox.items || []).slice(0, 200).map(prArg) }).catch(() => {});

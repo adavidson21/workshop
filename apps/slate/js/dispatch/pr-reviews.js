@@ -1,11 +1,11 @@
 /* Dispatch: PR reviews. First-pass reviews of teammates' pull requests by Tandem's pr-reviewer agent
    (eng-agents /pr-review, Core 2.6.0). HTML strings from S, tested in Node.
    - Reviews: .work/pr-<id> folders, read by the parser as kind "pr" (items[].prReview: recommendation, risk,
-     comments, questions). Drafts only: nothing here posts to Azure DevOps. Each comment has a Copy button
+     comments, questions). Drafts only: nothing here posts to Azure DevOps or GitHub. Each comment has a Copy button
      so the person pastes the ones they agree with into the PR themselves.
    - Starting: /pr-review sessions not yet tied to a pr-<id> folder (liveMode.live.others), so a failure
      before the folder exists (repo not cloned, ADO not set up) still shows.
-   - Waiting on you: the ADO connector's sync.prs (S.inbox, loaded by main.js), with a Review button each.
+   - Waiting on you: the ADO and GitHub connectors' sync.prs (S.inbox, loaded by main.js), with a Review button each.
    - Review a PR: paste a link (the opencode connector's `pr.review` action).
    - Review all: queues the inbox's PRs that need a first pass (`pr.reviewAll`); the connector runs them
      one at a time and keeps going with Dispatch closed. Its progress is liveMode.live.prQueue (S.L.prQueue),
@@ -36,7 +36,8 @@ export const isReviewSession = o => /^\/pr-review(\s|$)/.test(String((o && (o.co
 /** /pr-review sessions started here that have no pr-<id> folder yet. */
 export function startingReviews() { return looseSessions().filter(isReviewSession); }
 const reviewFolder = id => ((S.D && S.D.items) || []).find(it => it.folder === 'pr-' + id) || null;
-const linkPrId = u => { const m = /\/pullrequest\/(\d+)/i.exec(String(u || '')); return m ? m[1] : null; };
+// ADO: .../_git/<repo>/pullrequest/<n>. GitHub: .../<owner>/<repo>/pull/<n>.
+const linkPrId = u => { const m = /\/(?:pullrequest|pull)\/(\d+)/i.exec(String(u || '')); return m ? m[1] : null; };
 /** A review session for this PR that is still working, started here (folder or not). */
 function reviewRunning(id) {
   const it = reviewFolder(id);
@@ -90,10 +91,11 @@ function promptsFor(sid) {
 /** A link check for the paste box: the PR number, or what is wrong. */
 export function reviewUrlCheck(raw) {
   const u = String(raw || '').trim();
-  if (!u) return { ok: false, error: 'Paste the pull request link from Azure DevOps.' };
+  if (!u) return { ok: false, error: 'Paste the pull request link from Azure DevOps or GitHub.' };
   if (!/^https?:\/\//i.test(u)) return { ok: false, error: 'That is not a link. Copy it from the browser address bar on the PR page.' };
   const id = linkPrId(u);
-  if (!id || !/\/_git\//i.test(u)) return { ok: false, error: 'That is not an Azure DevOps pull request link. It ends in /pullrequest/<number>.' };
+  const ado = /\/_git\/[^/]+\/pullrequest\/\d+/i.test(u), gh = /^https?:\/\/[^/]+\/[^/]+\/[^/]+\/pull\/\d+/i.test(u);
+  if (!id || (!ado && !gh)) return { ok: false, error: 'That is not a pull request link. In Azure DevOps it ends in /pullrequest/<number>; on GitHub, /pull/<number>.' };
   return { ok: true, id, url: u };
 }
 
@@ -169,7 +171,7 @@ export function reviewCard(it, p) {
   if (isBusy(s) || perms.length || qs.length || (s && s.error)) body += sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.');
   const files = (it.files || []);
   const foot = [];
-  if (safe(pr.url)) foot.push(link(pr.url, 'Open the PR in Azure DevOps', 'btn'));
+  if (safe(pr.url)) foot.push(link(pr.url, /\/pull\/\d+/.test(pr.url) && !/\/_git\//.test(pr.url) ? 'Open the PR on GitHub' : 'Open the PR in Azure DevOps', 'btn'));
   if (files.includes('review.md')) foot.push(fileBtn(it.folder, 'review.md', 'plain', 'review.md'));
   if (files.includes('context.md')) foot.push(fileBtn(it.folder, 'context.md', 'plain', 'context.md'));
   if (pr.history) foot.push(`<span class="dim">${plural(pr.history, 'earlier review')} in <code>history/</code></span>`);
@@ -230,12 +232,12 @@ function inboxHtml() {
   const starts = startingReviews().map(startingCard).join('');
   let body;
   if (inbox.state === 'off') {
-    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> and add a PR source to list PRs waiting on you. Or review one by its link.</p>' +
+    body = '<div class="rv-note"><p>Turn on the <strong>ADO connector</strong> (with a PR source) or the <strong>GitHub connector</strong> to list PRs waiting on you. Or review one by its link.</p>' +
       (S.mode === 'local' ? '<button type="button" class="btn" data-settings="1">Open Settings</button>' : '') + '</div>';
   } else if (inbox.state === 'error') {
-    body = `<p class="err">${h(inbox.error || 'Could not check Azure DevOps.')}</p>`;
+    body = `<p class="err">${h(inbox.error || 'Could not check for pull requests.')}</p>`;
   } else if (inbox.state !== 'ok') {
-    body = '<p class="dim rv-loading"><span class="spin" aria-hidden="true"></span>Checking Azure DevOps.</p>';
+    body = '<p class="dim rv-loading"><span class="spin" aria-hidden="true"></span>Checking for pull requests.</p>';
   } else if (!(inbox.items || []).length) {
     body = `<p class="dim">Nothing is waiting on you${inbox.at ? ` (checked ${ago(inbox.at)})` : ''}.</p>`;
   } else {
@@ -321,7 +323,7 @@ export function reviewsHtml() {
   const earlier = reviewItems().filter(it => !listed.has(String((it.prReview && it.prReview.id) || it.folder.replace(/^pr-/, ''))));
   const st = S.ui.prReview || {};
   const linkBtn = st.open ? '' : '<button type="button" class="btn" data-rv-open="1">Review a link</button>';
-  let html = `<div class="scope-head"><h2>Reviews</h2><span class="dim">Teammates' PRs. Drafts only: nothing is posted to Azure DevOps.</span>${linkBtn}</div>`;
+  let html = `<div class="scope-head"><h2>Reviews</h2><span class="dim">Teammates' PRs. Drafts only: nothing is posted to Azure DevOps or GitHub.</span>${linkBtn}</div>`;
   html += pasteHtml() + queueHtml() + inboxHtml();
   if (earlier.length) {
     const name = inbox.state === 'ok' ? 'Earlier reviews' : 'Reviews';

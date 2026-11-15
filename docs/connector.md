@@ -1,6 +1,6 @@
 # Connector module
 
-Version: **`api: 1`**. A connector is the only code in Workshop that talks to an outside system (ADO, opencode, later GitHub or Jira). Apps never call outside systems; they call a connector through the agent.
+Version: **`api: 1`**. A connector is the only code in Workshop that talks to an outside system (ADO, GitHub, opencode). Apps never call outside systems; they call a connector through the agent.
 
 ## Where it lives
 

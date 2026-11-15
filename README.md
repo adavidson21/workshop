@@ -9,12 +9,12 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | App | What it's for | Needs |
 | --- | --- | --- |
 | **Needs you** | A panel from the top bar on every app: what waits on you across apps, what's coming up, Weekly status and the **Get started** checklist | Nothing |
-| **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps adds your work items and PRs) |
-| **Loom** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox, Chat and PR reviews | Nothing for the board (Azure DevOps adds your backlog; the agents need opencode and an AI provider) |
+| **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps or GitHub adds your work items and PRs) |
+| **Loom** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox, Chat and PR reviews | Nothing for the board (Azure DevOps adds your backlog; Azure DevOps or GitHub adds PRs waiting on you; the agents need opencode and an AI provider) |
 | **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
 | **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
 | **Folio** | Your notebook of Markdown files | Nothing |
-| **Settings** | People, teams, Azure DevOps, repos, apps on or off | Nothing |
+| **Settings** | People, teams, Azure DevOps, GitHub, repos, apps on or off | Nothing |
 
 Every app can be turned on or off, so you only see what you use. More on each app: [docs/guide.md](docs/guide.md).
 

@@ -110,13 +110,13 @@ export function mergeKeys(fresh, keys, value) {
 /**
  * Where a connector stands, for the nav, Status and the pages that depend on it.
  *   missing  not installed          off    installed, switched off
- *   empty    on, nothing to talk to (ADO: no connection)
+ *   empty    on, nothing to talk to (ADO or GitHub: no connection)
  *   error    on and set up, but not working        ready   working
  */
 export function connectorState(info, config) {
   if (!info) return 'missing';
   if (!info.enabled) return 'off';
-  if (info.id === 'ado' && !(config && Array.isArray(config.connections) && config.connections.length)) return 'empty';
+  if ((info.id === 'ado' || info.id === 'github') && !(config && Array.isArray(config.connections) && config.connections.length)) return 'empty';
   return info.status && info.status.state === 'error' ? 'error' : 'ready';
 }
 
