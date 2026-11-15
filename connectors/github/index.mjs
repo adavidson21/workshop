@@ -1,10 +1,13 @@
-// GitHub connector: issues assigned to you, pull requests waiting on your review, and roadmaps (milestones, Features
-// and stories), in the same shapes as the ADO connector, so Docket, Loom and Runway treat both trackers alike. Read only. See connectors/github/README.md.
+// GitHub connector: issues assigned to you, pull requests waiting on your review, roadmaps (milestones, Features and
+// stories) and Loom's backlog and writes, in the same shapes as the ADO connector, so Docket, Loom and Runway treat
+// both trackers alike. Two write actions (workitem.update, workitem.create) run only with `confirm: true`. Read only. See connectors/github/README.md.
 import { GhError, SettingsError } from './lib/client.mjs';
 import { DEFAULT_TYPES, normalize, pickConnection } from './lib/config.mjs';
 import { areasMine, cleanKnown, cleanKnownPrs, getIssue, sync } from './lib/issues.mjs';
 import { syncPrs } from './lib/prs.mjs';
 import { iterationsList, roadmapList } from './lib/roadmap.mjs';
+import { backlogList, createItem, findItem, getItem, isRepo, itemPrs, repoIterations, updateItem } from './lib/items.mjs';
+import { ConflictError } from './lib/client.mjs';
 import { clientFor } from './lib/client.mjs';
 import { configFromUrl } from './lib/url.mjs';
 import { authTracker, tokenStatus } from './lib/token.mjs';
@@ -71,7 +74,7 @@ async function guarded(ctx, label, fn) {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof GhError || e instanceof SettingsError) {
+    if (e instanceof GhError || e instanceof SettingsError || e instanceof ConflictError) {
       ctx.log.warn(`${label} failed: ${e.message}`);
       throw e;
     }
@@ -87,7 +90,7 @@ export default {
   api: 1,
   id: 'github',
   name: 'GitHub',
-  version: '1.1.0',
+  version: '1.2.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Issue (owner/repo#12)' },
   actions: {
@@ -140,14 +143,20 @@ export default {
         properties: {
           id: { type: ['string', 'integer'], description: 'owner/repo#12, or a number with repo.' },
           repo: { type: 'string', maxLength: 200 },
-          connection: { type: 'string', maxLength: 40 },
+          connection: { type: 'string', maxLength: 200 },
           details: { type: 'boolean' },
           extras: { type: 'boolean' },
-          comments: { type: 'boolean' }
+          comments: { type: 'boolean' },
+          html: { type: 'boolean' },
+          history: { type: 'boolean' },
+          pullRequests: { type: 'boolean' },
+          pointsFields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 10 },
+          fields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 20 }
         }
       },
       async run(args, ctx) {
-        return guarded(ctx, 'workitem.get', () => getIssue(deps(ctx), args || {}));
+        // A repo as the connection is Loom's way (an issue number in that repo); otherwise owner/repo#12 or a number with repo.
+        return guarded(ctx, 'workitem.get', () => (isRepo(args?.connection) ? getItem(deps(ctx), args || {}) : getIssue(deps(ctx), args || {})));
       }
     },
     roadmap: {
@@ -161,7 +170,7 @@ export default {
           includeClosed: { type: 'boolean' },
           stories: { type: 'boolean' },
           fields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 20 },
-          connection: { type: 'string', maxLength: 40 }
+          connection: { type: 'string', maxLength: 200 }
         }
       },
       async run(args, ctx) {
@@ -175,9 +184,92 @@ export default {
     'iterations.list': {
       title: 'Sprints (none on GitHub outside Projects)',
       write: false,
-      argsSchema: { type: 'object', properties: { project: { type: 'string', maxLength: 200 }, connection: { type: 'string', maxLength: 40 } } },
+      argsSchema: { type: 'object', properties: { project: { type: 'string', maxLength: 200 }, connection: { type: 'string', maxLength: 200 } } },
       async run(args, ctx) {
-        return guarded(ctx, 'iterations.list', async () => iterationsList(deps(ctx), args || {}));
+        return guarded(ctx, 'iterations.list', async () => (isRepo(args?.connection) ? repoIterations(deps(ctx), args) : iterationsList(deps(ctx), args || {})));
+      }
+    },
+    backlog: {
+      title: 'Open issues under the areas, for Loom',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['areas'],
+        properties: {
+          areas: { type: 'array', items: { type: 'string', maxLength: 400 }, minItems: 1, maxItems: 50 },
+          types: { type: 'array', items: { type: 'string', maxLength: 60 }, maxItems: 10 },
+          pointsFields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 10 },
+          fields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 20 },
+          connection: { type: 'string', maxLength: 200 }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'backlog', async () => {
+          const out = await backlogList(deps(ctx), args || {});
+          ctx.log.info(`backlog: ${out.items.length} items`);
+          return out;
+        });
+      }
+    },
+    'workitem.find': {
+      title: 'Find an issue number in every repo in Settings',
+      write: false,
+      argsSchema: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.find', () => findItem(deps(ctx), args || {}));
+      }
+    },
+    'workitem.prs': {
+      title: 'Pull requests that close an issue and its sub-issues',
+      write: false,
+      argsSchema: { type: 'object', required: ['id'], properties: { id: { type: 'integer' }, connection: { type: 'string', maxLength: 200 }, repo: { type: 'string', maxLength: 200 }, children: { type: 'boolean' } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.prs', () => itemPrs(deps(ctx), args || {}));
+      }
+    },
+    'workitem.update': {
+      title: 'Change an issue (or an Epic milestone)',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        required: ['id', 'changes'],
+        properties: {
+          id: { type: 'integer' },
+          rev: { type: 'number' },
+          connection: { type: 'string', maxLength: 200 },
+          repo: { type: 'string', maxLength: 200 },
+          changes: { type: 'object' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.update', async () => {
+          const out = await updateItem(deps(ctx), args || {});
+          ctx.log.info(`workitem.update: ${out.connection}#${out.id}`);
+          return out;
+        });
+      }
+    },
+    'workitem.create': {
+      title: 'Create an issue (an Epic is a milestone)',
+      write: true,
+      argsSchema: {
+        type: 'object',
+        required: ['type', 'title'],
+        properties: {
+          type: { type: 'string', maxLength: 60 },
+          title: { type: 'string', minLength: 1, maxLength: 256 },
+          project: { type: 'string', maxLength: 200 },
+          connection: { type: 'string', maxLength: 200 },
+          parent: { type: 'integer' },
+          fields: { type: 'object' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'workitem.create', async () => {
+          const out = await createItem(deps(ctx), args || {});
+          ctx.log.info(`workitem.create: ${out.connection} ${out.id}`);
+          return out;
+        });
       }
     },
     'connection.resolve': {

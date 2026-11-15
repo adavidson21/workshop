@@ -79,3 +79,22 @@ test('setup actions work before a token is set', () => withAgent(async ({ agent 
   assert.equal(u.status, 200);
   assert.ok(Array.isArray(u.json.result.notes));
 }, { env: {} }));
+
+test('writes need confirm: true; with it, Loom-style calls (repo as connection) update and create', () => withAgent(async ({ agent, srv }) => {
+  const no = await post(agent, '/api/connectors/github/workitem.update', { args: { id: 2, connection: 'acme/web', changes: { title: 'x' } } });
+  assert.equal(no.status, 400);
+  assert.equal(no.json.code, 'confirm_required');
+  assert.equal(srv.data.writes.length, 0, 'nothing reached GitHub');
+  const up = await post(agent, '/api/connectors/github/workitem.update', { args: { id: 2, connection: 'acme/web', changes: { title: 'Dark mode' } }, confirm: true });
+  assert.equal(up.status, 200);
+  assert.equal(up.json.result.title, 'Dark mode');
+  const made = await post(agent, '/api/connectors/github/workitem.create', { args: { type: 'Bug', title: 'Crash', connection: 'acme/web' }, confirm: true });
+  assert.equal(made.status, 200);
+  assert.equal(made.json.result.type, 'Bug');
+  const stale = await post(agent, '/api/connectors/github/workitem.update', { args: { id: 2, connection: 'acme/web', rev: 1, changes: { title: 'y' } }, confirm: true });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.json.code, 'conflict');
+  const bl = await post(agent, '/api/connectors/github/backlog', { args: { areas: ['acme/web'], connection: 'acme/web' } });
+  assert.equal(bl.status, 200);
+  assert.ok(bl.json.result.items.some(i => i.id === 2 && i.title === 'Dark mode'));
+}));
