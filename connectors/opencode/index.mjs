@@ -330,7 +330,7 @@ const actions = {
   start: {
     title: "Start a work item",
     write: true,
-    argsSchema: obj(["id", "lane"], { id: str("Work item id", { pattern: "^[0-9]{1,10}$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug", "quick"] }, project: projectId }),
+    argsSchema: obj(["id", "lane"], { id: str("Work item id (ADO number, or GitHub owner/repo#12)", { pattern: "^([0-9]{1,10}|[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}#[0-9]{1,9})$" }), lane: { type: "string", title: "Lane", enum: ["feature", "bug", "quick"] }, project: projectId }),
     async run(args) {
       needReady();
       const r = await startItem(args);

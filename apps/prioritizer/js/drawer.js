@@ -1,5 +1,6 @@
 import { deleteTask, moveTask, quickSort, toggleDone, toggleFocus, wontDo } from './actions.js';
-import { ADO_GONE, PR_GONE, PR_TIER } from './ado.js';
+import { PR_GONE, PR_TIER, goneText, itemRef } from './tracker.js';
+import { trackerName } from './tracker-status.js';
 import { EFFORTS, EQ, ICON, POINTS, PRI, PRI_ORDER, VALUE, VQ } from './constants.js';
 import { engDrawer, engOpen, engStart } from './eng.js';
 import { prAiAgain, prAiDrawer, prAiOpen } from './pr-ai.js';
@@ -97,10 +98,10 @@ function renderDrawer(){
     <div class="dbody">
       <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
       ${t.done ? '' : `<input class="d-first" data-f="firstStep" data-fk="firstStep" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="First step (optional)" aria-label="First step" value="${esc(t.firstStep || '')}">`}
-      ${t.ado ? `<div class="dado"><a href="${esc(t.ado.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.ado.type || 'item')} #${t.ado.id} in ADO</a><span>${esc(t.ado.state)}${t.ado.project ? ' · ' + esc(t.ado.project) : ''}</span>${t.ado.gone ? `<span class="chip">${ADO_GONE[t.ado.gone]}</span>` : ''}</div>` : ''}
-      ${t.ado ? slateDrawer(t) : ''}
-      ${t.ado ? engDrawer(t) : ''}
-      ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ADO</a><span>${esc(t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? 'Waiting for author' : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
+      ${t.item ? `<div class="dado"><a href="${esc(t.item.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.item.type || 'item')} ${esc(itemRef(t.item))} in ${trackerName(t.item.system)}</a><span>${esc(t.item.state)}${t.item.project && t.item.system !== 'github' ? ' · ' + esc(t.item.project) : ''}</span>${t.item.gone ? `<span class="chip">${goneText(t.item.gone, t.item.system)}</span>` : ''}</div>` : ''}
+      ${t.item ? slateDrawer(t) : ''}
+      ${t.item ? engDrawer(t) : ''}
+      ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ${trackerName(t.pr.system)}</a><span>${esc(t.pr.system === 'github' ? t.pr.project || t.pr.repo : t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? (t.pr.system === 'github' ? 'Changes requested' : 'Waiting for author') : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${t.pr ? prAiDrawer(t) : ''}
       ${sortHtml(t)}${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
@@ -117,7 +118,7 @@ function renderDrawer(){
       <div class="dfld"><label for="dPeople">People</label><div class="drow"><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">${t.done ? '' : `<button class="btn" data-d="assign" data-fk="assign" data-tip="Pick someone and hand it over (A)">${ICON.addPerson}<span>Hand off</span></button>`}</div>
         <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
       ${planFieldHtml(t)}
-      ${t.pr || (t.ado && !t.ado.pasted) ? '' : repeatFieldHtml(t)}
+      ${t.pr || (t.item && !t.item.pasted) ? '' : repeatFieldHtml(t)}
       <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
       ${productFieldHtml(t)}
       <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
@@ -146,7 +147,7 @@ function sortHtml(t){
 }
 /* The ADO item is on Slate's board too (slate-link.js): where, and a way there. Inside Workshop only. */
 function slateDrawer(t){
-  const sl = embedded ? slateFor(t.ado.id) : null;
+  const sl = embedded && t.item.system !== 'github' ? slateFor(t.item.id) : null;
   if (!sl) return '';
   return `<div class="dado dslate"><button class="lnk" data-d="open-slate" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Slate</button><span>${esc(slateLabel(sl))}</span></div>`;
 }
@@ -240,7 +241,7 @@ drawer.addEventListener('click', e => {
   if (a === 'wont') return wontDo(t.id);
   if (a === 'delete') return deleteTask(t.id);
   if (a === 'done') return toggleDone(t.id);
-  if (a === 'eng-open') return engOpen(t.ado.id);
+  if (a === 'eng-open') return engOpen(t.item.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
   if (a === 'prai-open') return prAiOpen(t);
   if (a === 'prai-again') return prAiAgain(t, b);

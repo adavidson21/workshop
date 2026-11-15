@@ -91,7 +91,7 @@ test('a board saved by the localStorage app becomes three valid envelopes, keepi
   assert.deepEqual(envs.tasks.deleted, {gone1: 1792000000000});
   assert.equal(envs.tasks.meta.capacity, raw.capacity);
   assert.equal(envs.people, undefined, 'Docket keeps no people of its own; names on tasks become directory ids later');
-  assert.deepEqual(envs.settings.meta.ado, raw.ado);
+  assert.deepEqual(envs.settings.meta.tracker, raw.ado);   // the fixture is a board from before Docket 11
 });
 
 test('envelopes put back into a board give the same board', () => {
@@ -103,7 +103,7 @@ test('envelopes put back into a board give the same board', () => {
   assert.deepEqual(board.lists, strip(raw.lists));
   assert.deepEqual(board.tasks, strip(raw.tasks));
   assert.equal(board.capacity, raw.capacity);
-  assert.deepEqual(board.ado, raw.ado);
+  assert.deepEqual(board.tracker, raw.ado);
   assert.equal(board.view, 'today', 'which view a window shows is not data');
   // And from the board back to envelopes, with the stamps they came with.
   for (const col of COLLECTIONS){

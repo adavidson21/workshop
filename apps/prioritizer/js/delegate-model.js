@@ -77,7 +77,7 @@ export function handoffText(t, names = [], fmtDate = d => d){
   const out = [t.title];
   if (names.length) out[0] = `${names.join(', ')}: ${t.title}`;
   if (t.notes && t.notes.trim()) out.push('', t.notes.trim());
-  const link = t.ado && t.ado.url ? t.ado.url : t.pr && t.pr.url ? t.pr.url : '';
+  const link = t.item && t.item.url ? t.item.url : t.pr && t.pr.url ? t.pr.url : '';
   if (link) out.push('', link);
   if (t.due) out.push('', `Due ${fmtDate(t.due)}`);
   return out.join('\n');

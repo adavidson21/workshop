@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { connectorNote, prMatchKey, reachNote, shouldAutoConnect } from '../js/ado-status.js';
+import { connectorNote, prMatchKey, reachNote, shouldAutoConnect } from '../js/tracker-status.js';
 
 const ready = (extra = {}) => ({ id: 'ado', enabled: true, status: { state: 'ready', message: null, details: {}, ...extra } });
 
@@ -44,7 +44,7 @@ test('not reachable: own site, not paired, says to install or start Workshop, pa
     const m = reachNote(w);
     assert.match(m, /Install or start Workshop/);
     assert.match(m, /pair this site/);
-    assert.match(m, /turn on the ADO connector in Workshop Settings/);
+    assert.match(m, /turn on the ADO or GitHub connector in Workshop Settings/);
   }
 });
 
@@ -58,7 +58,7 @@ test('not reachable: paired before, but Workshop does not answer', () => {
 test('not reachable: inside Workshop with no agent', () => {
   const m = reachNote({ mode: 'browser', backend: 'browser', storage: 'folder' }, { embedded: true, pairSaved: true });
   assert.match(m, /Install or start Workshop/);
-  assert.match(m, /turn on the ADO connector/);
+  assert.match(m, /turn on the ADO or GitHub connector/);
 });
 
 test('not reachable: Workshop stopped answering after the page loaded', () => {

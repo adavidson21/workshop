@@ -87,10 +87,13 @@ export function resetActions() {
   starting.clear();
   pushing.clear();
 }
+const GITHUB_ID = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}#\d{1,9}$/;
+
 export async function startItem({ id, lane, project }) {
   needOpencode();
   const wid = String(id || "").trim();
-  if (!/^\d{1,10}$/.test(wid)) throw httpError(400, "The work item id must be a number.");
+  // An ADO work item id, or a GitHub issue as owner/repo#12 (eng-agents /start turns it into a local work item).
+  if (!/^\d{1,10}$/.test(wid) && !GITHUB_ID.test(wid)) throw httpError(400, "The work item id must be a number, or a GitHub issue as owner/repo#12.");
   if (lane !== "feature" && lane !== "bug" && lane !== "quick") throw httpError(400, 'Lane must be "feature", "bug" or "quick".');
   if (folderForToken(wid)) throw httpError(409, `Work item ${wid} is already started. Open the dashboard to continue it.`);
   const prev = starting.get(wid);

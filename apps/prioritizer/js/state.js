@@ -3,7 +3,7 @@
 import { cleanFirstStep } from './first-step-model.js';
 import { cleanProduct } from './products-link.js';
 import { scheduleSave } from './storage.js';
-import { ADO_SYNC_MAX, ADO_SYNC_MIN, ADO_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
+import { TRACKER_SYNC_MAX, TRACKER_SYNC_MIN, TRACKER_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
 import { isTriaged } from './model.js';
 import { render } from './render.js';
 import { MAIN_LIST } from './store-format.js';
@@ -18,7 +18,7 @@ import { cleanFollow } from './delegate-model.js';
 const PR_SHOW = ['all', 'mine', 'none'];   // the PR filter's values (see shown)
 function fresh(){
   const main = {id: MAIN_LIST, name: 'Main', parentId: null};
-  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, ado: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: ADO_SYNC_MINUTES, prTiers: cleanTiers(), prSlots: cleanSlots(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}, follow: cleanFollow()};
+  return {version: 2, lists: [main], scope: 'all', view: 'today', lens: 'rank', prs: 'all', colorIdx: 0, tasks: [], capacity: 20, capacityAt: 0, tracker: {skip: [], skipPr: [], choose: true, pending: [], syncMinutes: TRACKER_SYNC_MINUTES, prTiers: cleanTiers(), prSlots: cleanSlots(), prHeld: [], prHoldMinutes: PR_HOLD_DEFAULT}, rowFields: {hidden: []}, follow: cleanFollow()};
 }
 function normalizeRanks(s){
   s.tasks.sort((a,b) => (a.rank ?? 0) - (b.rank ?? 0)).forEach((t,i) => t.rank = i + 1);
@@ -43,8 +43,10 @@ function migrateTask(t){
   t.done = t.done === true;
   if (!t.done) t.doneAt = null;
   t.wontDo = t.wontDo === true && t.done;
-  t.ado = cleanAdo(t.ado);
-  if (!t.ado) delete t.ado;
+  if (t.ado && !t.item) t.item = {...t.ado, system: 'ado'};   // before Docket 11 (GitHub): the link was t.ado
+  delete t.ado;
+  t.item = cleanItem(t.item);
+  if (!t.item) delete t.item;
   t.pr = cleanPr(t.pr);
   if (!t.pr) delete t.pr;
   // Re-entry breadcrumbs (focus.js): an extra field older readers keep as is, so tasks stay at v3.
@@ -58,13 +60,16 @@ function migrateTask(t){
   if ('product' in t){ const pr = cleanProduct(t.product); if (pr) t.product = pr; else delete t.product; }
   delete t.urgent; delete t.important;
 }
-// ADO link on a task: {id, type, state, url, project, due, gone, pasted}. Anything malformed is dropped.
-function cleanAdo(a){
+// Tracker link on a task: {system, id, type, state, url, project, due, gone, pasted}. system is 'ado' (id a number)
+// or 'github' (id "owner/repo#12"). Anything malformed is dropped.
+const GH_ID = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}#\d{1,9}$/;
+function cleanItem(a){
   if (!a || typeof a !== 'object') return null;
-  const id = parseInt(a.id, 10);
-  if (!(id > 0)) return null;
+  const system = a.system === 'github' ? 'github' : 'ado';
+  const id = system === 'github' ? (GH_ID.test(String(a.id)) ? String(a.id) : null) : parseInt(a.id, 10);
+  if (system === 'github' ? !id : !(id > 0)) return null;
   const str = v => typeof v === 'string' ? v.slice(0, 500) : '';
-  const o = {id, type: str(a.type), state: str(a.state), url: /^https?:\/\//.test(a.url) ? str(a.url) : '', project: str(a.project)};
+  const o = {system, id, type: str(a.type), state: str(a.state), url: /^https?:\/\//.test(a.url) ? str(a.url) : '', project: str(a.project)};
   if (isDate(a.due)) o.due = a.due;
   if (['closed','removed','reassigned','missing','filtered'].includes(a.gone)) o.gone = a.gone;
   if (a.pasted === true) o.pasted = true;   // pasted into Docket (js/paste.js), not from a sync: syncs leave it alone until ADO lists it as yours
@@ -79,7 +84,7 @@ function cleanPr(a){
   const id = parseInt(a.id ?? a.key.split('|').pop(), 10);
   if (!(id > 0)) return null;
   const str = v => typeof v === 'string' ? v.slice(0, 500) : '';
-  const o = {key: a.key.slice(0, 500), id, repo: str(a.repo), project: str(a.project), url: /^https?:\/\//.test(a.url) ? str(a.url) : '',
+  const o = {key: a.key.slice(0, 500), system: a.system === 'github' ? 'github' : 'ado', id, repo: str(a.repo), project: str(a.project), url: /^https?:\/\//.test(a.url) ? str(a.url) : '',
     author: str(a.author), tier: ['blocking','asked','pool'].includes(a.tier) ? a.tier : 'pool',
     via: Array.isArray(a.via) ? a.via.filter(v => typeof v === 'string').slice(0, 10) : [], waiting: a.waiting === true, lastBlocker: a.lastBlocker === true};
   if (PR_GONES.includes(a.gone)) o.gone = a.gone;
@@ -89,7 +94,7 @@ function cleanPr(a){
 }
 // A new work item waiting for you to add or skip it.
 function cleanPending(a){
-  const link = cleanAdo(a); if (!link) return null;
+  const link = cleanItem(a); if (!link) return null;
   const pr = parseInt(a.priority, 10);
   return Object.assign(link, {title: typeof a.title === 'string' ? a.title.slice(0, 500) : '', priority: pr >= 1 && pr <= 4 ? pr : null, seen: isDate(a.seen) ? a.seen : todayStr()});
 }
@@ -144,19 +149,22 @@ function sanitize(s){
   if (s.scope !== 'all' && !ids.has(s.scope)) s.scope = 'all';
   if (!PR_SHOW.includes(s.prs)) s.prs = 'all';
   delete s.includeSub; delete s.activeListId;
-  s.ado = s.ado && typeof s.ado === 'object' ? s.ado : {};
-  if (s.ado.listId && !ids.has(s.ado.listId)) delete s.ado.listId;
-  s.ado.skip = Array.isArray(s.ado.skip) ? s.ado.skip.filter(n => Number.isInteger(n)).slice(-500) : [];
-  s.ado.skipPr = Array.isArray(s.ado.skipPr) ? s.ado.skipPr.filter(k => typeof k === 'string').slice(-500) : [];
-  s.ado.choose = s.ado.choose !== false;   // new work items wait for you to pick them (default)
-  const mins = Math.round(+s.ado.syncMinutes);
-  s.ado.syncMinutes = mins >= ADO_SYNC_MIN && mins <= ADO_SYNC_MAX ? mins : ADO_SYNC_MINUTES;
-  s.ado.prTiers = cleanTiers(s.ado.prTiers);
-  s.ado.prSlots = cleanSlots(s.ado.prSlots);
-  s.ado.pending = Array.isArray(s.ado.pending) ? s.ado.pending.map(cleanPending).filter(Boolean).slice(0, 300) : [];
-  if (s.ado.prListId && !ids.has(s.ado.prListId)) delete s.ado.prListId;
-  s.ado.prHeld = cleanHeld(s.ado.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
-  s.ado.prHoldMinutes = cleanHoldMinutes(s.ado.prHoldMinutes);
+  if (s.ado && typeof s.ado === 'object' && !s.tracker) s.tracker = s.ado;   // before Docket 11 (GitHub): state.ado
+  delete s.ado;
+  s.tracker = s.tracker && typeof s.tracker === 'object' ? s.tracker : {};
+  if (s.tracker.listId && !ids.has(s.tracker.listId)) delete s.tracker.listId;
+  // Item keys ("ado:123", "github:owner/repo#12"); a bare number is an ADO id from before Docket 11.
+  s.tracker.skip = Array.isArray(s.tracker.skip) ? s.tracker.skip.map(n => Number.isInteger(n) ? `ado:${n}` : n).filter(k => typeof k === 'string' && /^(ado|github):.{1,200}$/.test(k)).slice(-500) : [];
+  s.tracker.skipPr = Array.isArray(s.tracker.skipPr) ? s.tracker.skipPr.filter(k => typeof k === 'string').slice(-500) : [];
+  s.tracker.choose = s.tracker.choose !== false;   // new work items wait for you to pick them (default)
+  const mins = Math.round(+s.tracker.syncMinutes);
+  s.tracker.syncMinutes = mins >= TRACKER_SYNC_MIN && mins <= TRACKER_SYNC_MAX ? mins : TRACKER_SYNC_MINUTES;
+  s.tracker.prTiers = cleanTiers(s.tracker.prTiers);
+  s.tracker.prSlots = cleanSlots(s.tracker.prSlots);
+  s.tracker.pending = Array.isArray(s.tracker.pending) ? s.tracker.pending.map(cleanPending).filter(Boolean).slice(0, 300) : [];
+  if (s.tracker.prListId && !ids.has(s.tracker.prListId)) delete s.tracker.prListId;
+  s.tracker.prHeld = cleanHeld(s.tracker.prHeld, cleanPr);       // PRs waiting for Tandem's review before they become tasks
+  s.tracker.prHoldMinutes = cleanHoldMinutes(s.tracker.prHoldMinutes);
   s.rowFields = cleanRowFields(s.rowFields);   // which optional row fields are hidden (row-fields-model.js)
   s.follow = cleanFollow(s.follow);            // follow-up days for delegated tasks (delegate-model.js)
   normalizeRanks(s);
@@ -220,7 +228,7 @@ const defaultListId = () => state.scope !== 'all' && listById(state.scope) ? sta
 function shown(t){
   if (!t.pr || t.done) return true;
   if (state.prs === 'mine') return t.pr.tier !== 'pool';
-  if (state.prs === 'none') return state.scope === state.ado.prListId;
+  if (state.prs === 'none') return state.scope === state.tracker.prListId;
   return true;
 }
 // How many open tasks the PR filter hides in the current scope.
@@ -244,4 +252,4 @@ function inboxQueue(){
 // Today's Ranked column: open tasks in rank order, without the Inbox's, what is waiting on someone, and PR reviews
 // (blocking ones are pinned on Today; the rest are Up next's Reviews line).
 const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting && !t.pr);
-export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanAdo, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanItem, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

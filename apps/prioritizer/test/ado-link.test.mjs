@@ -24,13 +24,13 @@ test('paste from ADO Copy to clipboard keeps the text and the link', () => {
   const html = '<html><body><!--StartFragment--><a href="https://dev.azure.com/acme/Platform/_workitems/edit/12345">Issue 12345</a>: ABC<!--EndFragment--></body></html>';
   const got = adoFromPaste('Issue 12345: ABC', html);
   assert.equal(got.text, 'Issue 12345: ABC');
-  assert.deepEqual(got.ado, {id: 12345, url: 'https://dev.azure.com/acme/Platform/_workitems/edit/12345', project: 'Platform', type: 'Issue', pasted: true});
+  assert.deepEqual(got.item, {id: 12345, url: 'https://dev.azure.com/acme/Platform/_workitems/edit/12345', project: 'Platform', system: 'ado', type: 'Issue', pasted: true});
 });
 
 test('paste of a bare URL gives a starter title; plain text gives nothing', () => {
   const got = adoFromPaste('https://dev.azure.com/acme/P/_workitems/edit/5', '');
   assert.equal(got.text, 'ADO 5: ');
-  assert.equal(got.ado.id, 5);
+  assert.equal(got.item.id, 5);
   assert.equal(adoFromPaste('Buy milk', ''), null);
   assert.equal(adoFromPaste('See this', '<a href="https://example.com">x</a>'), null);
 });

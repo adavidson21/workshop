@@ -1,7 +1,7 @@
 import { adoFromPaste } from './ado-link.js';
 import { drawerId } from './drawer.js';
 import { drawer } from './render.js';
-import { cleanAdo, commit, findTask } from './state.js';
+import { cleanItem, commit, findTask } from './state.js';
 /* Prioritizer: Pasting an ADO work item link (ADO's "Copy to clipboard", or a work item URL) into an add box or a
    task's title keeps the link on the task, so it opens in ADO. Pasted into notes, the URL is kept in the text. */
 
@@ -30,17 +30,17 @@ function onPaste(e){
   const f = el.dataset.f;
   if (f === 'notes' && drawer.contains(el)){
     e.preventDefault();
-    insert(el, got.text.startsWith('ADO ') ? got.ado.url : `${got.text} (${got.ado.url})`);
+    insert(el, got.text.startsWith('ADO ') ? got.item.url : `${got.text} (${got.item.url})`);
     return;
   }
   e.preventDefault();
   insert(el, got.text);
   if (f === 'title' && drawer.contains(el)){
     const t = findTask(drawerId);
-    if (t && !t.ado){ t.ado = cleanAdo(got.ado); commit(); }
+    if (t && !t.item){ t.item = cleanItem(got.item); commit(); }
     return;
   }
-  if (el.id === 'cmdInput' || el.closest('.pform,.qform')) pending.set(el, got.ado);
+  if (el.id === 'cmdInput' || el.closest('.pform,.qform')) pending.set(el, got.item);
 }
 
 function pasteInit(){ document.addEventListener('paste', onPaste, true); }

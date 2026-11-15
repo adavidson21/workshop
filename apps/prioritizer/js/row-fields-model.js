@@ -11,7 +11,7 @@
 export const ROW_GROUPS = ['Work links', 'Dates', 'Follow-up', 'Health', 'Context', 'Actions'];
 
 export const ROW_FIELDS = [
-  {key: 'ado', group: 'Work links', label: 'ADO item number'},
+  {key: 'ado', group: 'Work links', label: 'Work item number'},
   {key: 'pr', group: 'Work links', label: 'PR number'},
   {key: 'prai', group: 'Work links', label: 'AI review'},
   {key: 'agent', group: 'Work links', label: 'Agent status'},

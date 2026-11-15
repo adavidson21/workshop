@@ -510,7 +510,7 @@ function autoPlan(dp, item, taskId, due){
   return to;
 }
 
-/* PR reviews by group (Docket ADO settings, state.ado.prSlots): put a task into the first block of `kind` that
+/* PR reviews by group (Docket ADO settings, state.tracker.prSlots): put a task into the first block of `kind` that
    has not ended yet, today first, then the next work days (up to `days`). Blocks without a time count as open.
    `from`: a kind to move the task out of first (its group changed). Never moves a task planned by hand into
    another kind. Returns {date, section}, or null when nothing fits or the task is already planned. */

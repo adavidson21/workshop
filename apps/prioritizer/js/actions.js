@@ -4,7 +4,7 @@ import { isStale, isTriaged, urgency } from './model.js';
 import { unslotDay } from './dayplan.js';
 import { toast } from './overlays.js';
 import { parseQuick } from './quick-add.js';
-import { cleanAdo, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state, rankedOpen } from './state.js';
+import { cleanItem, commit, defaultListId, findTask, isFocus, normalizeRanks, scopeOpen, state, rankedOpen } from './state.js';
 import { fmtDay, todayStr, uid } from './util.js';
 import { focusTaskClosed } from './focus.js';
 import { assign } from './directory.js';
@@ -15,9 +15,9 @@ import { clearFirstStep } from './first-step-model.js';
 function addTask(text, attrs = {}){
   const p = parseQuick(text);
   if (!p.title) return null;
-  const ado = attrs.ado ? cleanAdo(attrs.ado) : null;
+  const ado = attrs.item ? cleanItem(attrs.item) : null;
   if (ado){
-    const have = state.tasks.find(x => x.ado && x.ado.id === ado.id && !x.done);
+    const have = state.tasks.find(x => x.item && x.item.id === ado.id && !x.done);
     if (have){ toast(`${ado.type || 'Item'} ${ado.id} is already on your board`, 'Open', () => openDrawer(have.id)); return null; }
   }
   const maxRank = state.tasks.reduce((m,t) => Math.max(m, t.rank), 0);
@@ -33,7 +33,7 @@ function addTask(text, attrs = {}){
   assign(t, [...(attrs.who || []), ...p.people]);
   // >@name: handed over, so waiting on them with a follow-up date (delegate-model.js).
   if (p.delegate){ t.waiting = true; t.nudgeOn = followDate(); }
-  if (ado) t.ado = ado;
+  if (ado) t.item = ado;
   // +product (products-link.js): an extra field, only when there is one.
   if (p.product || attrs.product) t.product = p.product || attrs.product;
   state.tasks.push(t);
@@ -93,13 +93,13 @@ function deleteTask(id){
   const i = state.tasks.findIndex(t => t.id === id); if (i < 0) return;
   const [t] = state.tasks.splice(i, 1);
   focusTaskClosed(id);
-  if (t.ado) state.ado.skip.push(t.ado.id);
-  if (t.pr) state.ado.skipPr.push(t.pr.key);
+  if (t.item) state.tracker.skip.push(t.item.id);
+  if (t.pr) state.tracker.skipPr.push(t.pr.key);
   if (drawerId === id) closeDrawer(true);
   commit();
-  toast(t.ado || t.pr ? 'Task deleted. It won\'t come back from ADO.' : 'Task deleted', 'Undo', () => {
-    state.tasks.push(t); if (t.ado) state.ado.skip = state.ado.skip.filter(n => n !== t.ado.id);
-    if (t.pr) state.ado.skipPr = state.ado.skipPr.filter(k => k !== t.pr.key); normalizeRanks(state); commit();
+  toast(t.item || t.pr ? 'Task deleted. It won\'t come back from a sync.' : 'Task deleted', 'Undo', () => {
+    state.tasks.push(t); if (t.item) state.tracker.skip = state.tracker.skip.filter(n => n !== t.item.id);
+    if (t.pr) state.tracker.skipPr = state.tracker.skipPr.filter(k => k !== t.pr.key); normalizeRanks(state); commit();
   });
 }
 // Reassign the existing rank slots of these tasks in the given order (hidden tasks keep their place).
