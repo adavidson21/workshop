@@ -1,6 +1,6 @@
 # `.work` file format
 
-Version: **`work: 1`**, matching eng-agents at commit `e2d202a` (core 2.1.0, Dashboard 1.6.1).
+Version: **`work: 1`**, matching eng-agents at commit `e2d202a` (core 2.1.0, Dashboard 1.6.1), with the quick lane (`quick.md`, Tandem Core 2.25.0) added.
 
 eng-agents (Tandem) writes these files; the opencode connector and Dispatch read them. This document is the contract between the two repos. Any change to the wording below, in either repo, is a contract change ([README.md](README.md), Changing a contract).
 
@@ -33,6 +33,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | `spec.md` | `/spec` | `Status:` gate |
 | `plan.md` | `/plan` | `Status:` gate |
 | `bug.md` | `/bug` | `Status:` gate |
+| `quick.md` | `/quick` (quick lane, Tandem Core 2.25.0 and later) | `Status:` gate |
 | `tasks.md` | `/tasks`, `/bug`, `/review` fixes | Task headings with checkboxes, `Repo:` per task |
 | `review.md` | `/review` | `Verdict:` |
 | `pr.md` | `/pr` | One section per repo: `Branch`, `Title`, `Description` |
@@ -54,7 +55,7 @@ A value is cleaned before use: trimmed, one pair of surrounding backticks remove
 | File | Labels |
 | --- | --- |
 | `workitem.md` | `Type`, `State`, `Link`, `ADO`, `Fetched` |
-| `repos.md` | `Lane` (`feature`, `bug` or `spike`; lower-cased) |
+| `repos.md` | `Lane` (`feature`, `bug`, `quick` or `spike`; lower-cased) |
 | `paused.md` | `Paused`, `Reason`, `In progress` |
 
 `ADO` is written by `Get-WorkItem.ps1` as `<connection> (<collection>/<project>)` (regex `adoLine`). The project part is optional.
@@ -166,19 +167,23 @@ The first matching rule wins. This mirrors `commands/status.md` in eng-agents an
 | 5 | `plan.md` is `DRAFT` | `plan` | `/approve <id>` (action: "Review plan.md") | yes |
 | 6 | Lane `bug`, no `bug.md` | `bug` | `/bug <id>` | no |
 | 7 | `bug.md` is `DRAFT` | `bug` | `/approve <id>` (action: "Review bug.md and tasks.md") | yes |
-| 8 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane) | `/tasks <id>` | no |
-| 9 | An unchecked task exists, and the item is blocked | `build` | `/do-task <id> <first unchecked n>` | yes |
-| 10 | An unchecked task exists | `build` | `/do-task <id> <first unchecked n>` | no |
-| 11 | No `review.md`, or `tasks.md` was modified after `review.md` | `review` | `/review <id>` | no |
-| 12 | Verdict contains `CHANGES` | `review` | none (action: "Pick which review.md findings become fix tasks, then /do-task them") | yes |
-| 13 | No `pr.md` | `pr` | `/pr <id>` | no |
-| 14 | Otherwise | `ship` | none (action: "Push the branches and open the PRs (text is in pr.md)") | no |
+| 8 | Lane `quick`, no `quick.md` | `quick` | `/quick <id>` | no |
+| 9 | `quick.md` is `DRAFT` | `quick` | `/approve <id>` (action: "Review quick.md and tasks.md") | yes |
+| 10 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane) | `/tasks <id>` | no |
+| 11 | An unchecked task exists, and the item is blocked | `build` | `/do-task <id> <first unchecked n>` | yes |
+| 12 | An unchecked task exists | `build` | `/do-task <id> <first unchecked n>` | no |
+| 13 | No `review.md`, or `tasks.md` was modified after `review.md` | `review` | `/review <id>` | no |
+| 14 | Verdict contains `CHANGES` | `review` | none (action: "Pick which review.md findings become fix tasks, then /do-task them") | yes |
+| 15 | No `pr.md` | `pr` | `/pr <id>` | no |
+| 16 | Otherwise | `ship` | none (action: "Push the branches and open the PRs (text is in pr.md)") | no |
 
 A paused item (`paused.md` with `Status: PAUSED`) keeps its computed next step, but goes in the `paused` bucket and its resume command is `/resume <id>`.
 
 Buckets: `paused` if paused, else `needs` if the next step needs the engineer, else `ship` if the stage is `ship`, else `active`. Notes folders and `other` folders are in `notes`.
 
-Stages: `start`, `spec`, `plan`, `bug`, `tasks`, `build`, `review`, `pr`, `ship`.
+Stages: `start`, `spec`, `plan`, `bug`, `quick`, `tasks`, `build`, `review`, `pr`, `ship`.
+
+In the quick lane, `/quick` writes both `quick.md` and `tasks.md`, so rule 10 never fires there. When `/quick` finds the work too big it sets `Lane: feature` in `repos.md` and the item follows the feature rules from then on.
 
 ## Step words
 
@@ -191,13 +196,14 @@ Shells show a step in plain words instead of the command. These are the only wor
 | `plan` | Write the plan |
 | `tasks` | Split the plan into tasks |
 | `bug` | Analyze the bug |
+| `quick` | Write the quick plan |
 | `review` | Review the changes |
 | `pr` | Write the PR text |
 | `resume` | Resume this item |
 | `approve` | Approve |
 | `do-task <id> <n>` | Task `<n>`: `<task title>` |
 
-When a step has an action (rules 3, 5, 7, 9, 12, 14), the action text is shown instead of the words.
+When a step has an action (rules 3, 5, 7, 9, 11, 14, 16), the action text is shown instead of the words.
 
 ## Known quirks
 

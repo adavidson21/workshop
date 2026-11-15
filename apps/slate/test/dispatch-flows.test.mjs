@@ -28,7 +28,7 @@ const folder = (name, kind, extra) => ({ folder: name, kind, id: null, title: na
 beforeEach(load);
 
 test('the presets follow eng-agents: seven flows, each step named, the ones that stop for you marked', () => {
-  assert.deepEqual(FLOWS.map(f => f.id), ['feature', 'bug', 'quick', 'spike', 'epic', 'docs', 'tsd']);
+  assert.deepEqual(FLOWS.map(f => f.id), ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd']);
   const keys = id => stepsOf(FLOWS.find(f => f.id === id), 'feature').map(s => s.key + (s.you ? '*' : ''));
   assert.deepEqual(keys('feature'), ['start', 'spec*', 'plan*', 'tasks', 'build', 'review', 'pr', 'ship*'], 'README: /start, /spec, /approve, /plan, /approve, /tasks, /do-task, /review, /pr, then you push');
   assert.deepEqual(keys('bug'), ['start', 'bug*', 'build', 'review', 'pr', 'ship*']);

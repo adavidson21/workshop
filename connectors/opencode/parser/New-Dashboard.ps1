@@ -520,7 +520,7 @@ function Get-LastModified {
 
 function Get-FileList {
     param([string]$Folder)
-    $order = @("workitem.md", "brief.md", "repos.md", "spec.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md")
+    $order = @("workitem.md", "brief.md", "repos.md", "spec.md", "quick.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md")
     $names = @(Get-ChildItem -LiteralPath $Folder -File -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
     $known = @($order | Where-Object { $names -contains $_ })
     $other = @($names | Where-Object { $order -notcontains $_ } | Sort-Object)
@@ -534,7 +534,7 @@ function Get-FileList {
 # as stepWords; /do-task becomes "Task <n>: <title>".
 $script:StepWords = [ordered]@{
     start = "Set up the repos and branches"; spec = "Write the spec"; plan = "Write the plan"; tasks = "Split the plan into tasks"
-    bug = "Analyze the bug"; review = "Review the changes"; pr = "Write the PR text"; resume = "Resume this item"; approve = "Approve"
+    bug = "Analyze the bug"; quick = "Write the quick plan"; review = "Review the changes"; pr = "Write the PR text"; resume = "Resume this item"; approve = "Approve"
 }
 function Get-CommandText {
     param($I, [string]$Command)
@@ -568,6 +568,8 @@ function Get-NextStep {
     if ($g.plan -eq "DRAFT") { return (& $step "plan" "/approve $id" "Review plan.md" "After approval: /tasks $id" $true) }
     if ($lane -eq "bug" -and $null -eq $g.bug) { return (& $step "bug" "/bug $id" $null $null $false) }
     if ($g.bug -eq "DRAFT") { return (& $step "bug" "/approve $id" "Review bug.md and tasks.md" "After approval: start a new session (/new), then /do-task $id 1" $true) }
+    if ($lane -eq "quick" -and $null -eq $g.quick) { return (& $step "quick" "/quick $id" $null $null $false) }
+    if ($g.quick -eq "DRAFT") { return (& $step "quick" "/approve $id" "Review quick.md and tasks.md" "After approval: start a new session (/new), then /do-task $id 1" $true) }
     if ($I.tasks.total -eq 0 -and -not (Test-Path -LiteralPath $tasksPath)) {
         $st = $(if ($lane -eq "bug") { "bug" } else { "tasks" })
         return (& $step $st "/tasks $id" $null $null $false)
@@ -780,6 +782,7 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             spec = (Get-GateStatus (Join-Path $folder "spec.md"))
             plan = (Get-GateStatus (Join-Path $folder "plan.md"))
             bug = (Get-GateStatus (Join-Path $folder "bug.md"))
+            quick = (Get-GateStatus (Join-Path $folder "quick.md"))
             review = $verdict
         }
         tasks = $tasks

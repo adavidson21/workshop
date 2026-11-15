@@ -19,10 +19,10 @@ import { REPO_DEPTH } from "./context.mjs";
 // Each pipeline command in plain words (stepWords). Dispatch shows these instead of the command.
 export const STEP_WORDS = Object.freeze({
   start: "Set up the repos and branches", spec: "Write the spec", plan: "Write the plan", tasks: "Split the plan into tasks",
-  bug: "Analyze the bug", review: "Review the changes", pr: "Write the PR text", resume: "Resume this item", approve: "Approve",
+  bug: "Analyze the bug", quick: "Write the quick plan", review: "Review the changes", pr: "Write the PR text", resume: "Resume this item", approve: "Approve",
 });
 
-const FILE_ORDER = ["workitem.md", "brief.md", "repos.md", "spec.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md"];
+const FILE_ORDER = ["workitem.md", "brief.md", "repos.md", "spec.md", "quick.md", "bug.md", "plan.md", "tasks.md", "review.md", "pr.md", "paused.md", "progress.md", "findings.md", "tsd.md", "inventory.md", "sources.md", "check.md"];
 
 // ------------------------------------------------------------------- helpers
 
@@ -370,6 +370,8 @@ function nextStep(item, folder) {
   if (g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review plan.md", `After approval: /tasks ${id}`, true);
   if (lane === "bug" && g.bug === null) return step("bug", `/bug ${id}`, null, null, false);
   if (g.bug === "DRAFT") return step("bug", `/approve ${id}`, "Review bug.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
+  if (lane === "quick" && g.quick === null) return step("quick", `/quick ${id}`, null, null, false);
+  if (g.quick === "DRAFT") return step("quick", `/approve ${id}`, "Review quick.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
   if (item.tasks.total === 0 && !exists(tasksPath)) return step(lane === "bug" ? "bug" : "tasks", `/tasks ${id}`, null, null, false);
   const open = item.tasks.list.filter((t) => !t.done).sort((a, b) => a.n - b.n);
   if (open.length) {
@@ -711,6 +713,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         spec: gateStatus(path.join(folder, "spec.md")),
         plan: gateStatus(path.join(folder, "plan.md")),
         bug: gateStatus(path.join(folder, "bug.md")),
+        quick: gateStatus(path.join(folder, "quick.md")),
         review: verdict,
       },
       tasks, blocked, paused, last,

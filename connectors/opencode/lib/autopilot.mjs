@@ -124,7 +124,7 @@ async function autoStep(folder, finished = false) {
     if (n.stage === "ship") return autoSet(folder, "done", "PR text is ready in pr.md. Push the branches and open the PRs.");
 
     let cmd = n.command;
-    const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug");
+    const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
     if (approving && a.approveFirst) cmd = `/approve ${it.id} ${n.stage}`;
     else if (n.needsYou || !cmd) return autoSet(folder, "waiting", needsYouText(it));
 
@@ -221,13 +221,13 @@ export async function autopilotAction({ folder, action }) {
   const s = sessions.get(currentSession(folder));
   if (s && s.status !== "idle") throw httpError(409, "This item's agent is still working. Wait for it, or stop it first.");
 
-  const gate = it.lane === "bug" ? it.gates.bug : it.gates.plan;
+  const gate = it.lane === "bug" ? it.gates.bug : it.lane === "quick" ? it.gates.quick : it.gates.plan;
   const n = it.next || {};
   const canApprove = n.command && /^\/approve\b/.test(n.command) && (n.stage === "plan" || n.stage === "bug");
-  if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan or bug analysis waiting for approval.");
+  if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan, quick plan or bug analysis waiting for approval.");
   const pendingApprove = action === "resume" && a && a.approveFirst && canApprove;
   if (action !== "approve-start" && !pendingApprove && gate !== "APPROVED") {
-    throw httpError(409, `Autopilot starts after ${it.lane === "bug" ? "bug.md" : "plan.md"} is approved.`);
+    throw httpError(409, `Autopilot starts after ${it.lane === "bug" ? "bug.md" : it.lane === "quick" ? "quick.md" : "plan.md"} is approved.`);
   }
 
   if (action === "resume" && a) {

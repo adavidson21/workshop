@@ -15,7 +15,7 @@
         {"folder": "auth-lib", "branch": "dev/feature/41207-fix-login-timeout", "shared": true, "why": "Session lifetime setting"},
         {"folder": "web-app", "branch": "dev/feature/41207-fix-login-timeout", "shared": false, "why": "Renewal page uses the new setting"}
       ],
-      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "review": null},
+      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "quick": null, "review": null},
       "tasks": {
         "total": 3,
         "done": 2,
@@ -45,7 +45,7 @@
       "repos": [
         {"folder": "export-service", "branch": "dev/bug/41300-export-retry-fails", "shared": false, "why": "Retry loop"}
       ],
-      "gates": {"spec": null, "plan": null, "bug": "DRAFT", "review": null},
+      "gates": {"spec": null, "plan": null, "bug": "DRAFT", "quick": null, "review": null},
       "tasks": {
         "total": 1,
         "done": 0,
@@ -73,7 +73,7 @@
       "repos": [
         {"folder": "web-app", "branch": "dev/feature/41455-audit-log-filter", "shared": false, "why": "Audit page"}
       ],
-      "gates": {"spec": "DRAFT", "plan": null, "bug": null, "review": null},
+      "gates": {"spec": "DRAFT", "plan": null, "bug": null, "quick": null, "review": null},
       "tasks": {"total": 0, "done": 0, "list": []},
       "blocked": null,
       "paused": {"since": "2026-10-16 09:30", "reason": "Waiting on design", "inProgress": "none (paused between steps)", "wip": null, "waiting": "- Final filter design from the designer"},
@@ -95,7 +95,7 @@
       "repos": [
         {"folder": "reports-api", "branch": "dev/feature/41502-csv-export", "shared": false, "why": "New endpoint"}
       ],
-      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "review": null},
+      "gates": {"spec": "APPROVED", "plan": "APPROVED", "bug": null, "quick": null, "review": null},
       "tasks": {
         "total": 2,
         "done": 1,
@@ -124,7 +124,7 @@
       "repos": [
         {"folder": "gateway", "branch": "dev/bug/41610-rate-limit-headers", "shared": false, "why": "Response headers"}
       ],
-      "gates": {"spec": null, "plan": null, "bug": "APPROVED", "review": "READY"},
+      "gates": {"spec": null, "plan": null, "bug": "APPROVED", "quick": null, "review": "READY"},
       "tasks": {
         "total": 1,
         "done": 1,
@@ -140,6 +140,34 @@
       "pr": [
         {"repo": "gateway", "branch": "dev/bug/41610-rate-limit-headers", "target": "main", "title": "Send rate limit headers on every response", "description": "Adds the standard rate limit headers.\n\n- Header values come from the limiter\n\nTesting: dotnet test, all pass.\n\nWork item: #41610"}
       ]
+    },
+    {
+      "folder": "41720-show-item-count",
+      "kind": "item",
+      "id": "41720",
+      "title": "Show how many items an order has",
+      "type": "User Story",
+      "adoState": "Active",
+      "ado": {"connection": "work", "collection": "Main", "project": "Web"},
+      "lane": "quick",
+      "laneGuessed": false,
+      "repos": [
+        {"folder": "web-app", "branch": "dev/feature/41720-show-item-count", "shared": false, "why": "The order summary lives here"}
+      ],
+      "gates": {"spec": null, "plan": null, "bug": null, "quick": "DRAFT", "review": null},
+      "tasks": {
+        "total": 1,
+        "done": 0,
+        "list": [
+          {"n": 1, "title": "Show the item count on the summary", "done": false, "repo": "web-app"}
+        ]
+      },
+      "blocked": null,
+      "paused": null,
+      "last": {"date": "2026-10-14 10:20", "command": "/quick", "agent": "planner", "did": "Wrote quick.md and 1 task.", "verify": null, "notes": null, "next": "/approve 41720"},
+      "next": {"stage": "quick", "command": "/approve 41720", "action": "Review quick.md and tasks.md", "text": "Review quick.md and tasks.md", "needsYou": true},
+      "bucket": "needs",
+      "pr": []
     },
     {
       "folder": "spike-cache-options",

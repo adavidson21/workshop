@@ -24,7 +24,7 @@ export function regexesFromDoc(markdown) {
 }
 
 const STEP_WORDS = { start: 'Set up the repos and branches', spec: 'Write the spec', plan: 'Write the plan', tasks: 'Split the plan into tasks',
-  bug: 'Analyze the bug', review: 'Review the changes', pr: 'Write the PR text', resume: 'Resume this item', approve: 'Approve' };
+  bug: 'Analyze the bug', quick: 'Write the quick plan', review: 'Review the changes', pr: 'Write the PR text', resume: 'Resume this item', approve: 'Approve' };
 
 export function parseWorkRoot(root, R) {
   const read = p => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
@@ -147,7 +147,7 @@ export function parseWorkRoot(root, R) {
       if (/^-?\s*nothing\.?$/i.test(paused.waiting || '')) paused.waiting = null;
     }
 
-    const gates = { spec: gate(path.join(folder, 'spec.md')), plan: gate(path.join(folder, 'plan.md')), bug: gate(path.join(folder, 'bug.md')), review };
+    const gates = { spec: gate(path.join(folder, 'spec.md')), plan: gate(path.join(folder, 'plan.md')), bug: gate(path.join(folder, 'bug.md')), quick: gate(path.join(folder, 'quick.md')), review };
     const hasPr = fs.existsSync(path.join(folder, 'pr.md'));
     const item = { folder: name, kind: 'item', id, title, type, adoState: field(wi, 'State'), ado, lane, laneGuessed, repos, gates, tasks, blocked, paused, last };
     item.next = nextStep(item, folder, { hasRepos: reposText != null, hasPr });
@@ -178,6 +178,8 @@ function nextStep(item, folder, { hasRepos, hasPr }) {
   if (g.plan === 'DRAFT') return step('plan', `/approve ${id}`, 'Review plan.md', true);
   if (lane === 'bug' && g.bug == null) return step('bug', `/bug ${id}`, null, false);
   if (g.bug === 'DRAFT') return step('bug', `/approve ${id}`, 'Review bug.md and tasks.md', true);
+  if (lane === 'quick' && g.quick == null) return step('quick', `/quick ${id}`, null, false);
+  if (g.quick === 'DRAFT') return step('quick', `/approve ${id}`, 'Review quick.md and tasks.md', true);
   const tasksPath = path.join(folder, 'tasks.md'), reviewPath = path.join(folder, 'review.md');
   if (item.tasks.total === 0 && !fs.existsSync(tasksPath)) return step(lane === 'bug' ? 'bug' : 'tasks', `/tasks ${id}`, null, false);
   const open = item.tasks.list.filter(t => !t.done).sort((a, b) => a.n - b.n);

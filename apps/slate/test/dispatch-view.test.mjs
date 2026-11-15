@@ -384,7 +384,7 @@ test('3.0 start work: pick a flow, then fill it in; each flow sends its own acti
   S.L.opencode = { ...(S.L.opencode || {}), connected: true };
   html = render();
   assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
-  assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['feature', 'bug', 'quick', 'spike', 'epic', 'docs', 'tsd']);
+  assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd']);
   assert.match(html, /data-flow="feature".*8 steps, 3 stops for you.*Hands-off after you approve/s);
   assert.match(html, /data-flow="spike"[^>]*>.*2 steps, 1 stop for you/s);
   // Feature: no ADO set up, so it is described.
