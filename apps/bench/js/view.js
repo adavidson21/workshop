@@ -1,5 +1,6 @@
 /* Bench's HTML: pure functions from state to markup (main.js wires events). Every value from a results file is
    escaped. Status always has a word, never color alone (shared/brand/AGENTS.md). */
+import { commandHtml, improveHtml, overviewHtml, runHtml } from './suite-view.js';
 import { armTotals, caveats, compare, efficiency, fmtCost, fmtDay, fmtPoints, fmtSeconds, fmtTokens, headline, latestWithLift, tandemRate } from './model.js';
 
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8,9 +9,10 @@ const ARM = { tandem: 'Tandem', baseline: 'Plain prompt' };
 const VERDICT_CLASS = { helps: 'ok', edge: 'ok', same: 'muted', worse: 'danger', none: 'muted' };
 
 export const TABS = [
-  { id: 'lift', label: 'Lift', path: '' },
+  { id: 'overview', label: 'Overview', path: '' },
+  { id: 'improve', label: 'Improve', path: 'improve' },
   { id: 'history', label: 'History', path: 'history' },
-  { id: 'cases', label: 'Cases', path: 'cases' }
+  { id: 'run', label: 'Run', path: 'run' }
 ];
 
 export function tabsHtml(active) {
@@ -37,7 +39,7 @@ export function liftHtml(st) {
     const any = (st.results || []).find((x) => !x.unsupported);
     return emptyHtml('No lift yet',
       `The lift compares Tandem with one plain prompt on the same model and the same task. ${any ? 'Your results so far ran the Tandem arm only.' : 'There are no eval results yet.'} Run <code>feature-outcome</code> with both arms to see it.`,
-      { act: 'go-cases', label: 'Set up a run' });
+      { act: 'go-run', label: 'Set up a run' });
   }
   const h = headline(r);
   const t = armTotals(r);
@@ -60,7 +62,9 @@ export function liftHtml(st) {
       ${usage ? `<td class="num soft">${esc(fmtTokens(tc.meanTokens) || 'n/a')} / ${esc(fmtTokens(bc.meanTokens) || 'n/a')}</td>` : ''}
     </tr>`;
   }).join('');
-  return `<section class="hero-card" aria-labelledby="liftTitle">
+  if (st.card) return heroOnly(r, h, t, effLine);
+  return `<div class="block-head"><button type="button" class="lnk" data-act="back-overview">← Overview</button></div>
+    <section class="hero-card" aria-labelledby="liftTitle">
       <div class="hero-num ${VERDICT_CLASS[h.verdict]}"><span class="big num">${esc(fmtPoints(h.points))}</span><span class="unit">points</span></div>
       <div class="hero-text">
         <h2 id="liftTitle" class="section-label">${esc(h.text)}.</h2>
@@ -83,9 +87,29 @@ export function liftHtml(st) {
     </section>`;
 }
 
+function heroOnly(r, h, t, effLine) {
+  return `<section class="hero-card" aria-labelledby="liftTitle">
+      <div class="hero-num ${VERDICT_CLASS[h.verdict]}"><span class="big num">${esc(fmtPoints(h.points))}</span><span class="unit">points</span></div>
+      <div class="hero-text">
+        <h2 id="liftTitle" class="section-label">${esc(h.text)}.</h2>
+        <p class="soft">${meta(r)} · <button type="button" class="lnk" data-act="open-lift">By case</button></p>
+        <div class="bars" role="img" aria-label="Tandem ${pct(t.tandem.rate)}, plain prompt ${pct(t.baseline.rate)}">
+          <div class="bar"><span class="bl">Tandem</span><span class="track"><span class="fill t" style="width:${t.tandem.rate || 0}%"></span></span><span class="num">${pct(t.tandem.rate)}</span></div>
+          <div class="bar"><span class="bl">Plain prompt</span><span class="track"><span class="fill b" style="width:${t.baseline.rate || 0}%"></span></span><span class="num">${pct(t.baseline.rate)}</span></div>
+        </div>
+        ${effLine}
+      </div>
+    </section>`;
+}
+
+/** The lift card for Overview's top, or nothing when no run had both arms. */
+export function liftCardHtml(st) {
+  return latestWithLift(st.results) ? liftHtml({ ...st, card: true }) : '';
+}
+
 export function historyHtml(st) {
   const list = (st.results || []).filter((r) => !r.unsupported);
-  if (!list.length) return emptyHtml('No results yet', 'Each eval run writes a results file to <code>evals/results/</code> in your eng-agents folder. Commit the ones you want to keep as baselines.', { act: 'go-cases', label: 'Set up a run' });
+  if (!list.length) return emptyHtml('No results yet', 'Each eval run writes a results file to <code>evals/results/</code> in your eng-agents folder. Commit the ones you want to keep as baselines.', { act: 'go-run', label: 'Set up a run' });
   const sel = st.compare || [];
   const rows = list.map((r) => {
     const h = headline(r);
@@ -143,50 +167,16 @@ export function resultHtml(st) {
     ${groups}`;
 }
 
-export function casesHtml(st) {
-  const cases = st.cases || [];
-  if (!cases.length) return emptyHtml('No eval cases found', `Bench reads cases from <code>evals/cases/</code> in ${st.source ? `<code>${esc(st.source)}</code>` : 'your eng-agents folder'}.`, null);
-  const f = st.form;
-  const rows = cases.map((c) => `<li class="pick">
-      <label><input type="checkbox" name="case" value="${esc(c.name)}"${f.cases.includes(c.name) ? ' checked' : ''}>
-        <span class="pick-main"><code>${esc(c.name)}</code>${c.lift ? ' <span class="tag accent">lift</span>' : ''}${c.needs.map((n) => ` <span class="tag">needs ${esc(n)}</span>`).join('')}${c.steps > 1 ? ` <span class="tag">${esc(c.steps)} steps</span>` : ''}
-        <span class="pick-desc soft">${esc(c.description)}</span></span>
-      </label></li>`).join('');
-  return `<form id="runForm" class="runform" novalidate>
-    <section class="block">
-      <div class="block-head"><h2 class="section-label">Cases</h2><span class="soft small">From <code>${esc(st.source || '')}</code></span></div>
-      <ul class="picks">${rows}</ul>
-    </section>
-    <section class="block run-opts" aria-labelledby="runTitle">
-      <h2 id="runTitle" class="section-label">Run</h2>
-      <div class="fields">
-        <label class="field"><span>Arms</span>
-          <select name="arm">
-            <option value="both"${f.arm === 'both' ? ' selected' : ''}>Both: show the lift</option>
-            <option value="tandem"${f.arm === 'tandem' ? ' selected' : ''}>Tandem only</option>
-            <option value="baseline"${f.arm === 'baseline' ? ' selected' : ''}>Plain prompt only</option>
-          </select></label>
-        <label class="field"><span>Runs per case</span><input name="runs" type="number" min="1" max="10" value="${esc(f.runs)}"></label>
-        <label class="field grow"><span>Model</span><input name="model" type="text" placeholder="Your opencode default" value="${esc(f.model)}" spellcheck="false" autocomplete="off"></label>
-      </div>
-      <label class="check"><input type="checkbox" name="autoApprove"${f.autoApprove ? ' checked' : ''}> Approve anything not denied <span class="soft">(--auto; runs happen in throwaway folders with no remote)</span></label>
-      ${st.formError ? `<p class="warn-line" role="alert">${esc(st.formError)}</p>` : ''}
-      <div class="acts">
-        <button type="submit" class="btn primary">Run in a terminal</button>
-        <button type="button" class="btn" data-act="copy-command">Copy command</button>
-      </div>
-      <p class="soft small">The run happens in a terminal window you can see, in your eng-agents folder. Come back here when it finishes and press Refresh. Pick the same free model every time you compare.</p>
-    </section>
-  </form>`;
-}
-
 /** The whole page body under the header, for the current tab (or a result's runs). */
 export function bodyHtml(st) {
   if (st.note) return emptyHtml(st.note.title, st.note.body, st.note.action || null);
   if (st.loading) return '<p class="soft loading">Reading Tandem\'s evals…</p>';
   if (st.error) return `<p class="warn-line" role="alert">${esc(st.error)}</p>`;
   if (st.view === 'result') return resultHtml(st);
+  if (st.view === 'command') return commandHtml(st);
+  if (st.view === 'lift') return liftHtml(st);
   if (st.tab === 'history') return historyHtml(st);
-  if (st.tab === 'cases') return casesHtml(st);
-  return liftHtml(st);
+  if (st.tab === 'improve') return improveHtml(st);
+  if (st.tab === 'run') return runHtml(st);
+  return overviewHtml(st, liftCardHtml(st));
 }

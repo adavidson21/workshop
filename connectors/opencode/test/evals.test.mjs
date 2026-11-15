@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import { commandFor, evalsHome, liftOf, listCases, listResults, openEvalsTerminal, readResult, runArgs, summarize } from "../lib/evals.mjs";
+import { commandFor, evalsHome, liftOf, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs, summarize } from "../lib/evals.mjs";
 import { evalResults } from "../lib/tandem-health.mjs";
 
 function clone() {
@@ -60,7 +60,7 @@ test("listResults sums up version 1 and 2 files newest first, with the lift; rea
     assert.equal(list[2].unsupported, true);
     const [latest, old] = list;
     assert.deepEqual(latest.arms, ["tandem", "baseline"]);
-    assert.deepEqual(latest.lift, [{ case: "feature-outcome", tandem: 67, baseline: 33, lift: 34, tandemAll: false, baselineAll: false }]);
+    assert.deepEqual(latest.lift, [{ case: "feature-outcome", model: null, tandem: 67, baseline: 33, lift: 34, tandemAll: false, baselineAll: false }]);
     assert.equal(old.cases[0].arm, "tandem", "version 1 rows are the tandem arm");
     assert.equal(old.cases[0].meanSeconds, 15, "mean seconds worked out from runs");
     assert.equal(old.cases[0].passAll, false);
@@ -143,5 +143,86 @@ test("version 3 files carry usage; a run without usage shows null, never 0", () 
   assert.equal(s.cases[0].tokensPerPass, 82000);
   assert.equal(s.cases[0].promptTokens, 17000);
   assert.equal(s.cases[1].meanTokens, null, "usage not known: null");
-  assert.equal(summarize({ version: 4, cases: [] }, "v4.json").unsupported, true);
+  assert.equal(summarize({ version: 5, cases: [] }, "v5.json").unsupported, true);
+});
+
+test("version 4: lift per case and model, kind, experiment id and files hash", () => {
+  const d = { version: 4, models: ["p/one", "p/two"], model: "p/one", kind: "lift", overlay: "/x/eng-agents/evals/experiments/fix-spec-20261115-1-ab12/overlay", compareTo: "a.json", cases: [
+    { case: "a", arm: "tandem", model: "p/one", rate: 100, passes: 1, total: 1, filesHash: "0123456789ab" },
+    { case: "a", arm: "baseline", model: "p/one", rate: 0, passes: 0, total: 1, filesHash: null },
+    { case: "a", arm: "tandem", model: "p/two", rate: 50, passes: 1, total: 2, filesHash: "nothex" },
+    { case: "a", arm: "baseline", model: "p/two", rate: 50, passes: 1, total: 2 },
+  ] };
+  const s = summarize(d, "v4.json");
+  assert.deepEqual(s.models, ["p/one", "p/two"]);
+  assert.equal(s.kind, "lift");
+  assert.equal(s.experiment, "fix-spec-20261115-1-ab12");
+  assert.deepEqual(s.lift.map((l) => [l.model, l.lift]), [["p/one", 100], ["p/two", 0]]);
+  assert.equal(s.cases[0].filesHash, "0123456789ab");
+  assert.equal(s.cases[2].filesHash, null, "a bad hash is dropped");
+});
+
+test("runArgs presets: affected, release, lift, the model matrix, judge, budget and an experiment", () => {
+  const known = [{ name: "feature-outcome", lift: true }, { name: "spec-basic", lift: false }];
+  assert.deepEqual(runArgs({ preset: "affected", runs: 1 }, known), ["-Affected", "-Arm", "tandem", "-Runs", "1"]);
+  assert.deepEqual(runArgs({ preset: "release", cases: ["spec-basic"], arm: "both" }, known), ["-Release", "-Runs", "3"]);
+  assert.deepEqual(runArgs({ preset: "lift", runs: 5 }, known), ["-Case", "feature-outcome", "-Arm", "both", "-Runs", "5"]);
+  assert.deepEqual(runArgs({ cases: ["spec-basic"], models: ["p/one", "p/two"], judge: "p/judge", maxRuns: 40 }, known),
+    ["-Case", "spec-basic", "-Arm", "tandem", "-Runs", "3", "-Models", "p/one,p/two", "-Judge", "p/judge", "-MaxRuns", "40"]);
+  const bad = (a) => assert.throws(() => runArgs(a, known), (e) => e.status === 400);
+  bad({ preset: "nightly" });
+  bad({ cases: ["spec-basic"], models: ["a/1", "a/2", "a/3", "a/4", "a/5"] });
+  bad({ cases: ["spec-basic"], judge: "nope" });
+  bad({ cases: ["spec-basic"], maxRuns: 0 });
+  bad({ cases: ["spec-basic"], experiment: "../../etc" });
+  const src = clone();
+  try {
+    const home = evalsHome(src);
+    fs.mkdirSync(path.join(src, "evals", "experiments", "trim-spec-1-ab12", "overlay", "commands"), { recursive: true });
+    const a = runArgs({ cases: ["spec-basic"], experiment: "trim-spec-1-ab12" }, listCases(home), home);
+    assert.deepEqual(a.slice(-4), ["-Overlay", path.join(src, "evals", "experiments", "trim-spec-1-ab12", "overlay"), "-Label", "trim-spec-1-ab12"]);
+    assert.throws(() => runArgs({ cases: ["spec-basic"], experiment: "trim-spec-2-ab12" }, listCases(home), home), (e) => e.status === 400);
+  } finally { fs.rmSync(src, { recursive: true, force: true }); }
+});
+
+test("commands.json, guard coverage and experiments are read from the clone; case commands and kinds", () => {
+  const src = clone();
+  try {
+    const ev = path.join(src, "evals");
+    fs.writeFileSync(path.join(ev, "commands.json"), JSON.stringify({ version: 1, commands: [{ command: "spec", agent: "planner", tokens: 4000, readTokens: 900, hash: "0123456789ab", files: ["core/commands/spec.md"] }, { command: "../x" }] }));
+    fs.mkdirSync(path.join(ev, "guards"), { recursive: true });
+    fs.writeFileSync(path.join(ev, "guards", "expected.json"), JSON.stringify({ all: [{}, {}], agents: { planner: [{}, {}] } }));
+    fs.mkdirSync(path.join(src, "core", "agents"), { recursive: true });
+    fs.writeFileSync(path.join(src, "core", "agents", "planner.md"), "x");
+    fs.writeFileSync(path.join(src, "core", "agents", "chat.md"), "x");
+    const exp = path.join(ev, "experiments", "trim-spec-20261115-1-ab12");
+    fs.mkdirSync(exp, { recursive: true });
+    fs.writeFileSync(path.join(exp, "experiment.json"), JSON.stringify({ id: "trim-spec-20261115-1-ab12", kind: "trim", command: "spec", file: "commands/spec.md", reason: "cut", created: "2026-11-15T10:00:00", status: "proposed", results: ["4.1.0-1.json", "../bad.json"] }));
+    const home = evalsHome(src);
+    assert.deepEqual(readCommands(home).map((c) => c.command), ["spec"]);
+    assert.deepEqual(readGuards(home).agents, [{ agent: "chat", rows: 0 }, { agent: "planner", rows: 4 }]);
+    const ex = listExperiments(home);
+    assert.equal(ex[0].kind, "trim");
+    assert.deepEqual(ex[0].results, ["4.1.0-1.json"]);
+    const cases = listCases(home);
+    assert.deepEqual(cases.find((c) => c.name === "feature-outcome").commands, ["spec"]);
+    assert.equal(cases.find((c) => c.name === "feature-outcome").kind, "outcome");
+    assert.equal(cases.find((c) => c.name === "spec-basic").kind, "behavior");
+  } finally { fs.rmSync(src, { recursive: true, force: true }); }
+});
+
+test("scriptArgs checks suggest, trim and keep requests", () => {
+  const known = [{ name: "spec-basic" }];
+  assert.deepEqual(scriptArgs("trim", { command: "tsd" }, known), { script: "Suggest-Trim.ps1", args: ["-Command", "tsd"] });
+  assert.deepEqual(scriptArgs("keep", { id: "fix-spec-1-ab12", drop: true }, known), { script: "Keep-Experiment.ps1", args: ["-Id", "fix-spec-1-ab12", "-Drop"] });
+  assert.deepEqual(scriptArgs("suggest", { file: "4.1.0-1.json", case: "spec-basic", model: "p/strong" }, known).args, ["-Results", "4.1.0-1.json", "-Case", "spec-basic", "-Model", "p/strong"]);
+  const bad = (k, a) => assert.throws(() => scriptArgs(k, a, known), (e) => e.status === 400);
+  bad("suggest", { file: "../x.json", case: "spec-basic", model: "p/m" });
+  bad("suggest", { file: "a.json", case: "nope", model: "p/m" });
+  bad("suggest", { file: "a.json", case: "spec-basic", model: "" });
+  bad("trim", { command: "a b" });
+  bad("keep", { id: "x;rm" });
+  bad("rm", {});
+  const home = { root: "/c/eng-agents/evals", script: "/c/eng-agents/evals/Invoke-Evals.ps1", source: "/c/eng-agents" };
+  assert.match(commandFor(home, ["-Command", "tsd"], "darwin", "Suggest-Trim.ps1"), /pwsh -NoProfile -File '\/c\/eng-agents\/evals\/Suggest-Trim.ps1' -Command 'tsd'/);
 });

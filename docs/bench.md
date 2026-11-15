@@ -1,8 +1,8 @@
 # Bench
 
-Version: results **`version: 1` to `3`**, from Tandem (eng-agents) Core 3.2.0 and opencode connector 1.13.0.
+Version: **Bench 2**. Results `version: 1` to `4`, from Tandem (eng-agents) Core 4.1.0 and opencode connector 1.14.0.
 
-Bench answers "is Tandem helping?" and "is this prompt change better or worse?". It reads Tandem's eval cases and results from the eng-agents clone Tandem was installed from, and starts a run in a terminal window you can see. It stores nothing of its own.
+Bench is the test suite for Tandem's commands and agents. It answers "is Tandem helping?", "which commands fail or changed?", "what does each cost?" and "is this prompt change better or worse?". It reads Tandem's eval cases, results, prompt sizes and experiments from the eng-agents clone Tandem was installed from, and starts runs and improve-loop scripts in a terminal window you can see. Its only data of its own is its `settings` collection: the test, judge and suggestion models and the run budget.
 
 This document is the contract between the Bench app, the opencode connector and eng-agents' evals. Changing a field below, in any of the three, is a contract change ([README.md](README.md), Changing a contract).
 
@@ -14,6 +14,22 @@ This document is the contract between the Bench app, the opencode connector and 
 | Cases | `<clone>/evals/cases/<name>.json` ([evals/README.md](https://github.com/adavidson21/eng-agents/blob/main/evals/README.md)) |
 | Results | `<clone>/evals/results/*.json`, one file per `Invoke-Evals.ps1` run |
 | The runner | `<clone>/evals/Invoke-Evals.ps1` |
+| Prompt sizes and file hashes | `<clone>/evals/commands.json` (`Get-PromptSize.ps1 -Write`, checked in CI) |
+| Agent guards | `<clone>/evals/guards/expected.json` (`Test-AgentGuards.ps1`, in CI, no model) |
+| Writing rubrics | `<clone>/evals/rubrics/<name>.json` with `good.md` and `bad.md` |
+| Experiments | `<clone>/evals/experiments/<id>/experiment.json` and `overlay/` (not committed) |
+| Bench's settings | `<dataDir>/bench/settings.json`: schema `bench.settings`, one item `prefs` with `testModel`, `judgeModel`, `suggestModel` (each `provider/model` or empty) and `maxRuns` (1 to 500, default 30) |
+
+## Bench's pages
+
+| Page | What |
+| --- | --- |
+| **Overview** | The lift card (when a run had both arms), coverage (commands with cases, agents guarded), and one row per command: state in words (Failing, Prompt changed, Not run yet, No cases, Passing), cases, pass rate, every run passed, tokens per run, prompt size. What needs you comes first. A row opens the command: its cases, files and hash, Run its cases, Suggest trims. |
+| **Improve** | What fails: failed checks across each failing case's latest run, grouped, with Suggest a fix per case (needs a suggestion model). Experiments: before and after (pass rate, tokens), with Test it, Keep and Drop. |
+| **History** | Every results file; tick two to compare (as Bench 1). |
+| **Run** | Run kinds: Affected (cases whose prompts changed, worked out the same way as `-Affected`), Release, Lift, Pick cases; runs, models (several = the model matrix), the judge, auto-approve; Run in a terminal or Copy command; Models compared; Settings. |
+
+A case's "prompt changed" state: its current files hash (sha256 of its commands' hashes from `commands.json`, joined by commas, first 12 hex) differs from the `filesHash` of its latest tandem results. Bench and `Get-CaseFilesHash` work it out the same way.
 
 ## Arms and the lift
 
@@ -23,6 +39,8 @@ This document is the contract between the Bench app, the opencode connector and 
 - A case takes part in the baseline arm only if it has a `baseline.prompt`. Lift cases are graded on the outcome only (files, tests, scope), never on Tandem's own files.
 
 ## Results file
+
+Version 4 (Core 4.1.0) adds top-level `models`, `kind` (`custom`, `affected`, `release`, `lift`, `experiment`), `label`, `overlay`, `judge` and `compareTo`, and per case entry `model` and `filesHash` (tandem arm only). Lift rows are per case and model. An experiment's file (`overlay` set) is never the latest result of a case and never what later runs compare against.
 
 Version 3 (Core 3.2.0) adds usage to version 2, read from `opencode run --format json`: per case `usageKnown`, `meanTokens`, `meanCost`, `tokensPerPass`, `costPerPass`, `meanQuestions`, `meanToolCalls`, `meanVerifyFails` and `promptTokens`; per run `tokens`, `cost`, `toolCalls`, `questions`, `verifyFails`, `usageKnown`; per step `tokens` and `cost`. When `usageKnown` is false the connector passes the usage numbers on as `null`, never 0. Free models report a cost of 0: compare them on tokens.
 
@@ -56,7 +74,11 @@ All on the opencode connector ([connectors/opencode/README.md](../connectors/ope
 | `evals.results` | no | | `{source, results}`: every results file summed up, newest first by `date` (at most 200): `{file, version, date, tandem, model, runsPerCase, autoApprove, arms, cases: [{case, arm, passes, total, rate, passAll, meanSeconds, skipped, usageKnown, meanTokens, meanCost, tokensPerPass, costPerPass, meanQuestions, meanVerifyFails, promptTokens}], lift: [{case, tandem, baseline, lift, tandemAll, baselineAll}]}`. A file of another version is `{file, version, unsupported: true}`. |
 | `evals.result` | no | `file` (a file name, no folders) | The same summary, with each case's `runs: [{run, pass, seconds, timedOut, tokens, cost, questions, verifyFails, failed: [{check, detail}], steps: [{step, ok, seconds, timedOut, tokens}], log}]`. 404 for a missing file. |
 | `evals.command` | no | as `evals.run` | `{command, folder}`: the line to paste into a terminal in `folder`. |
-| `evals.run` | yes | `cases` (existing case names), `arm` (`tandem`, `baseline` or `both`), `runs` (1 to 10), `model` (`provider/model`, optional), `autoApprove` | Opens a terminal window (Windows: PowerShell; macOS: Terminal) in the clone running `Invoke-Evals.ps1` with those arguments, each checked first: a case must be an existing case file, `both` and `baseline` need a case with a baseline prompt. `{ok, command}`. 501 on other systems (copy the command instead). |
+| `evals.run` | yes | `preset` (`custom`, `affected`, `release`, `lift`), `cases` (existing case names; needed for `custom`), `arm` (`tandem`, `baseline` or `both`), `runs` (1 to 10), `model` or `models` (up to 4, `provider/model`), `autoApprove`, `judge` (`provider/model`), `maxRuns` (1 to 500), `experiment` (an id under `evals/experiments/`) | Opens a terminal window (Windows: PowerShell; macOS: Terminal) in the clone running `Invoke-Evals.ps1` with those arguments, each checked first: a case must be an existing case file, `both` and `baseline` need a case with a baseline prompt, an experiment must exist. `release` ignores `cases` and `arm`; `lift` defaults to every case with a baseline prompt. `{ok, command}`. 501 on other systems (copy the command instead). |
+| `evals.commands` | no | | `{source, commands: [{command, agent, tokens, readTokens, hash, files}], guards: {agents: [{agent, rows}]} or null}` from `commands.json` and `guards/expected.json`. Empty when the clone has none (older Tandem). |
+| `evals.experiments` | no | | `{source, experiments: [{id, kind, command, file, reason, case, created, status, results}]}`, newest first. |
+| `evals.script.command` | no | as `evals.script` | `{command, folder}` to copy. |
+| `evals.script` | yes | `script`: `suggest` (`file`, `case`, `model`), `trim` (`command`) or `keep` (`id`, optional `drop`) | Opens a terminal running `Suggest-Fix.ps1`, `Suggest-Trim.ps1` or `Keep-Experiment.ps1` with checked arguments. Keep copies the experiment's file into the clone's `core/` (no git: you commit). |
 
 The connector runs no model and no git. `evals.run` puts the command in a window in front of you, as if you had typed it, like Settings' Update button.
 
@@ -95,16 +117,27 @@ pwsh -NoProfile -File evals/Test-Fixtures.ps1
 
 **Pass when:** each ends with "all checks passed". These prove the graders tell good output from bad, the runner runs steps in order with Tandem left out of the baseline, and the sample code behaves as the cases assume. If one fails, stop: results from a broken checker mean nothing.
 
-### 4. Open Bench (2 minutes)
+Also run, still with no model:
+
+```
+pwsh -NoProfile -File evals/Test-AgentGuards.ps1
+pwsh -NoProfile -File evals/Test-Judge.ps1
+pwsh -NoProfile -File evals/Get-PromptSize.ps1 -Check
+```
+
+**Pass when:** every agent's guard rows pass, the rubrics are well formed, and `commands.json` is up to date.
+
+### 4. Open Bench and set it up (5 minutes)
 
 1. Open Workshop, then **Bench** on the rail. (Settings, Apps if it is off.)
-2. Lift says "No lift yet". History says "No results yet" unless you have older runs. Cases lists Tandem's cases, with `feature-outcome` marked `lift`.
+2. Overview shows coverage (about 17 of 36 commands with cases, 11 of 11 agents guarded) and every command as Not run yet or No cases.
+3. Run, Settings: put your free model in **Test model**. Leave Judge and Suggestion empty for now, or put the same free model in both. Save.
 
-**Pass when:** Cases shows your eng-agents folder path under "From" and the cases. If it says to turn on the opencode connector or install Tandem, do that and press Refresh.
+**Pass when:** Overview lists every command and Run, Pick cases shows your eng-agents folder path under "From". If it says to turn on the opencode connector or install Tandem, do that and press Refresh.
 
 ### 5. One small run (10 to 20 minutes)
 
-1. In Bench, Cases: tick only `feature-outcome`. Arms **Both: show the lift**, Runs **1**, Model your model, auto-approve on.
+1. In Bench, Run, **Pick cases**: tick only `feature-outcome`. Arms **Both: show the lift**, Runs **1**, auto-approve on.
 2. Press **Run in a terminal**, read the confirm (it should say 2 model runs), and confirm.
 3. A terminal opens in your eng-agents folder and starts. Leave it running. On a system where no terminal opens, press **Copy command** and paste it into one.
 4. When it finishes it prints two tables and `Results: ...json`.
@@ -138,21 +171,47 @@ pwsh -NoProfile -File evals/Test-Fixtures.ps1
 
 In your eng-agents folder, commit the results file the terminal printed (`evals/results/<version>-<time>.json`). Every later run is compared with the newest file in that folder, and History keeps them all.
 
-### 9. Your first optimize cycle (1 to 2 hours each)
+### 9. The whole suite once (1 to 3 hours, unattended)
 
-1. Open the failed Tandem runs in Bench and group them by the failed check or step.
-2. Change one prompt in eng-agents (`core/commands/` or `core/agents/`) aimed at the biggest group. One change per cycle.
-3. `./install.ps1`, then run the same cases, arms, runs and model again.
-4. In History, tick the old run and the new one. Keep the change only if the Tandem arm went up and no Tandem case dropped (Bench calls drops out).
-5. Every few cycles, also run the other cases (`-Arm tandem`, all cases) so a gain on one task did not break another.
+1. Run, **Release**, 3 runs. Confirm; it states the run count (about 70: 23 cases, 3 runs each). Raise Most runs per click in Settings if it refuses.
+2. When it finishes, Refresh. Overview now has a state for every covered command.
 
-**Pass when:** you can show a History compare where a prompt change moved the Tandem arm up with no drops. That compare is your proof.
+**Pass when:** every covered command shows Passing, Failing or Prompt changed (none Not run yet), and History lists a `release` run. Commit its results file as your suite baseline.
+
+### 10. A prompt change and Affected (15 minutes)
+
+1. In eng-agents, change one line in `core/commands/tsd.md`, then `./evals/Get-PromptSize.ps1 -Write` and `./install.ps1`.
+2. Refresh Bench: `/tsd` shows **Prompt changed**, and Run, Affected says 1 case.
+3. Run Affected. Refresh when it finishes.
+
+**Pass when:** only `tsd-draft` ran, and `/tsd` is no longer Prompt changed. Undo the line afterwards (and `-Write`, `./install.ps1` again).
+
+### 11. The judge (20 minutes)
+
+1. In eng-agents: `./evals/Test-Judge.ps1 -Model <your judge model>`.
+2. If it passes, put that model in Bench's Settings as Judge model, then Run, Pick cases: `spike-findings`, `triage-words`, `tsd-draft`, with **Grade writing with the judge** on, 1 run.
+
+**Pass when:** Test-Judge passes every good example and fails every bad one, and each writing case's run page lists the judge's yes and no answers. If Test-Judge fails, that model cannot tell good writing from bad: try another before trusting its grades.
+
+### 12. Your first improve cycle (1 to 2 hours each)
+
+1. Improve, What fails: pick the biggest group, and press **Suggest a fix** on one of its cases (needs a suggestion model).
+2. When the terminal finishes, Refresh: an experiment appears with its reason. Press **Test it**. Refresh when that finishes.
+3. Keep it only if it says **Better** or **Same passes, fewer tokens**; otherwise Drop.
+4. For a heavy command (Overview's Prompt column), open it and press **Suggest trims**, test one or two, and keep a trim that does not drop.
+5. After a Keep: review and commit the change in eng-agents, `./install.ps1`, then Run, Affected.
+
+**Pass when:** you can show an experiment marked Better (or cheaper) that you kept, and the Affected run after it with no drops. That is a prompt improvement with proof.
 
 ## Keeping it working
 
 - **Graders are tested.** Every case has a good and a bad golden output (`evals/goldens/`); CI fails if a grader stops telling them apart. A new case needs both before it is trusted.
 - **The runner is tested.** `evals/Test-Harness.ps1` runs `Invoke-Evals.ps1` against a fake opencode in CI, including the baseline's config without Tandem.
 - **The fixtures are tested.** `evals/Test-Fixtures.ps1` (CI, with dotnet) checks the sample code: the correct version passes the hidden tests, the planted bug fails them.
-- **The contract is tested.** `connectors/opencode/test/evals.test.mjs` reads version 1 and 2 files and refuses bad run arguments; `apps/bench/test/` checks Bench's numbers and pages.
+- **Guards are tested.** `evals/Test-AgentGuards.ps1` (CI, no model) checks every agent's permissions; a new agent without rows fails.
+- **The judge is tested.** Every rubric has good and bad examples; `Test-Judge.ps1 -Model` must pass before a judge model's grades count.
+- **Prompt sizes stay current.** CI fails when `evals/commands.json` is out of date, so Bench's Prompt changed state is always right.
+- **The contract is tested.** `connectors/opencode/test/evals.test.mjs` reads versions 1 to 4, refuses bad run and script arguments; `apps/bench/test/` checks Bench's numbers (including that its files hash matches eng-agents') and pages.
+- **Coverage is visible.** Overview's "commands with cases" number shows at once when a new command has no case.
 - **Results are history.** Commit a results file after each release-worthy run. A model change gets its own baseline; never compare across models.
 - **Add your own cases** the way evals/README.md, Adding a case, says, with made-up code only. For a lift case, grade the outcome only and give the plain prompt the same information the work item gives Tandem.

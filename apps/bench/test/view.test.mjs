@@ -1,7 +1,7 @@
 // js/view.js: what each tab shows, and that results-file text is escaped.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bodyHtml, casesHtml, historyHtml, liftHtml, resultHtml, tabsHtml } from '../js/view.js';
+import { bodyHtml, historyHtml, liftCardHtml, liftHtml, resultHtml, tabsHtml } from '../js/view.js';
 
 const lifted = {
   file: '3.1.0-1.json', date: '2026-11-14T10:00:00', tandem: '3.1.0', model: 'opencode/<b>free</b>', runsPerCase: 3, autoApprove: true, arms: ['tandem', 'baseline'],
@@ -15,7 +15,8 @@ const tandemOnly = { file: '3.0.0-1.json', date: '2026-11-10T10:00:00', tandem: 
 
 test('tabs mark the current one', () => {
   assert.match(tabsHtml('history'), /data-tab="history" aria-current="page"/);
-  assert.equal((tabsHtml('lift').match(/aria-current/g) || []).length, 1);
+  assert.equal((tabsHtml('overview').match(/aria-current/g) || []).length, 1);
+  assert.match(tabsHtml('overview'), /Overview.*Improve.*History.*Run/s);
 });
 
 test('Lift shows the points, the verdict in words, both bars and the per-case table, and escapes the model', () => {
@@ -59,14 +60,12 @@ test('A result shows every run with pass or fail in words, steps and failed chec
   assert.match(resultHtml({ detail: { unsupported: true, version: 9 } }), /version 9/);
 });
 
-test('Cases shows the run form with one primary button and the cases that can show a lift', () => {
-  const h = casesHtml({ source: '/Users/me/eng-agents', cases: [{ name: 'feature-outcome', description: 'outcome', lift: true, needs: ['dotnet'], steps: 6 }], form: { cases: ['feature-outcome'], arm: 'both', runs: 3, model: '', autoApprove: true } });
-  assert.match(h, /value="feature-outcome" checked/);
-  assert.match(h, /tag accent">lift/);
-  assert.match(h, /needs dotnet/);
-  assert.match(h, /6 steps/);
-  assert.equal((h.match(/btn primary/g) || []).length, 1);
-  assert.match(h, /Run in a terminal/);
+test('the lift card is the hero only, with a link to the per-case page', () => {
+  const card = liftCardHtml({ results: [lifted] });
+  assert.match(card, /\+67<\/span>/);
+  assert.match(card, /data-act="open-lift"/);
+  assert.equal(card.includes('By case</h2>'), false);
+  assert.equal(liftCardHtml({ results: [tandemOnly] }), '');
 });
 
 test('bodyHtml shows setup notes, loading and errors first', () => {
