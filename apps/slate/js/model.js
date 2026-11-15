@@ -451,6 +451,9 @@ export function parseTriage(text) {
     size: ['S', 'M', 'L', 'XL'].includes(size) ? size : null,
     summary: s.summary || '',
     questions: bullets(s['questions for the requester']),
+    // eng-agents Core 4.0.0: the questions as one message in the engineer's voice, and the area path that owns it.
+    message: /^<.*>$/.test((s['message to the requester'] || '').trim()) ? '' : (s['message to the requester'] || '').trim(),
+    area: (() => { const a = (/^\s*Area:\s*(.+?)\s*$/im.exec(s['suggested route'] || '') || [])[1] || ''; return /^(unknown|<.*>)$/i.test(a) ? '' : a; })(),
     repos: bullets(s['products and repos']),
     related: bullets(s['related items']),
     suggestion: s['suggested route'] || '',
@@ -743,6 +746,7 @@ export function suggestsScope(item, triage) {
 
 /** The triage questions as one message for the requester (copied, or posted on the ADO item). */
 export function questionsText(item, triage) {
+  if (triage && triage.message) return triage.message; // written by /triage in the engineer's voice, ready to send
   const qs = (triage && triage.questions) || [];
   return `${item.title}${item.ado ? ` (#${item.ado.id})` : ''}\n\nA few questions before we start:\n${qs.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
 }

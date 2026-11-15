@@ -176,6 +176,18 @@ test('triage.md: route, size, summary and the questions for the requester', () =
   assert.equal(t.repos.length, 1);
   assert.deepEqual(parseTriage(TRIAGE.replace(/- Which columns\?\n- Should it include cancelled orders\?/, '- None.')).questions, []);
   assert.equal(parseTriage(''), null);
+  assert.equal(t.message, '', 'no message section in older triage files');
+  assert.equal(questionsText({ title: 'Export orders' }, t).split('\n')[2], 'A few questions before we start:', 'older files: the canned message');
+});
+
+test('triage.md (eng-agents Core 4.0.0): the message to send, in the engineer\'s voice, and the owning area path', () => {
+  const text = TRIAGE.replace('## Suggested route\n', '## Message to the requester\n\nHey, quick couple of questions: which columns do you need, and should cancelled orders be in it?\n\n## Suggested route\n\nArea: Project\\Orders\n');
+  const t = parseTriage(text);
+  assert.equal(t.message, 'Hey, quick couple of questions: which columns do you need, and should cancelled orders be in it?');
+  assert.equal(t.area, 'Project\\Orders');
+  assert.equal(questionsText({ title: 'Export orders' }, t), t.message, 'Copy and Post send the message as written');
+  assert.equal(parseTriage(TRIAGE.replace('## Suggested route\n', '## Suggested route\n\nArea: unknown\n')).area, '', 'unknown is no area');
+  assert.equal(parseTriage(TRIAGE.replace('## Suggested route\n', '## Message to the requester\n\n<message>\n\n## Suggested route\n')).message, '', 'a placeholder is no message');
 });
 
 test('refine.md: status, type, parent, description and acceptance criteria without fences', () => {

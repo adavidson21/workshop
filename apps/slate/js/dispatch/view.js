@@ -113,7 +113,7 @@ export function stateVar(it) {
 // Done stages are checked, the current one is a filled label in the item's state color with what is
 // happening under it, later stages are faint with a dashed line.
 const STOPS = {
-  feature: [['start', 'Start'], ['spec', 'Spec'], ['plan', 'Plan'], ['tasks', 'Tasks'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']],
+  feature: [['start', 'Start'], ['spec', 'Spec and plan'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']],
   bug: [['start', 'Start'], ['bug', 'Bug'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']],
   quick: [['start', 'Start'], ['quick', 'Quick plan'], ['build', 'Build'], ['review', 'Review'], ['pr', 'PR']]
 };
@@ -130,9 +130,9 @@ function hereSub(it, key) {
   return 'Up next';
 }
 function doneTip(it, key) {
-  const g = { spec: 'spec', plan: 'plan', bug: 'bug', quick: 'quick', review: 'review' }[key];
+  const g = { spec: 'plan', plan: 'plan', bug: 'bug', quick: 'quick', review: 'review' }[key];
   const v = g && it.gates ? it.gates[g] : null;
-  if (v === 'APPROVED') return key + '.md approved';
+  if (v === 'APPROVED') return key === 'spec' ? 'spec.md and plan.md approved' : key + '.md approved';
   if (v === 'READY') return 'Review: READY';
   if (key === 'build' && it.tasks && it.tasks.total) return plural(it.tasks.total, 'task') + ' done';
   return 'Done';
@@ -140,7 +140,9 @@ function doneTip(it, key) {
 export function track(it) {
   const stops = STOPS[it.lane] || STOPS.feature;
   let idx = -1;
-  for (let i = 0; i < stops.length; i++) if (stops[i][0] === it.stage) idx = i;
+  // One feature gate (eng-agents Core 4.0.0): the plan and tasks stages sit inside "Spec and plan".
+  const stage = it.lane === 'feature' && (it.stage === 'plan' || it.stage === 'tasks') ? 'spec' : it.stage;
+  for (let i = 0; i < stops.length; i++) if (stops[i][0] === stage) idx = i;
   if (it.stage === 'ship') idx = stops.length - 1; // PR text written: the PR stage is where it waits
   let out = `<div class="track" role="img" aria-label="${h(trackLabel(it, stops, idx))}" style="--state:${stateVar(it)}">`;
   for (let j = 0; j < stops.length; j++) {

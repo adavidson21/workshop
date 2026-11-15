@@ -42,12 +42,14 @@ test('Loom 4.0 the page is a header with five tabs; every folder is in one place
 });
 test('1.2.0 clearer track: checked, current and faint stages', () => {
   const t = track(item('41207-fix-login-timeout')); // feature at build, 2 of 3 tasks
-  assert.equal(count(t, /class="stop done"/g), 4, 'start, spec, plan, tasks are checked');
+  assert.equal(count(t, /class="stop done"/g), 2, 'start, and spec and plan, are checked');
   assert.match(t, /class="stop here"[^>]*><span class="dot"><\/span><span class="name">Build<\/span><span class="sub">Working<\/span>/, 'build is current; its session is busy');
   assert.equal(count(t, /class="stop "/g), 2, 'review and PR are faint');
   const ship = track(item('41610-rate-limit-headers'));
   assert.match(ship, /class="stop here"[^>]*>.*?<span class="name">PR<\/span><span class="sub">Ready to open<\/span>/);
-  assert.match(t, /aria-label="Stage 5 of 7: Build, Working"/);
+  assert.match(t, /aria-label="Stage 3 of 5: Build, Working"/);
+  const gate = track({ ...item('41207-fix-login-timeout'), stage: 'plan' });
+  assert.match(gate, /class="stop here"[^>]*>.*?<span class="name">Spec and plan<\/span>/, 'one feature gate: the plan stage shows as Spec and plan');
 });
 
 test('1.4.0 one main button per step, command in the tooltip, plain words', () => {
@@ -89,7 +91,7 @@ test('3.0 Work: rows grouped Tandem working, Up next, Shipping, Paused and Done,
   assert.match(html, /<h3 id="gh-working">Tandem working <span class="n">1<\/span>/, '41207 has a busy session');
   assert.match(html, /<h3 id="gh-paused">Paused <span class="n">1<\/span>/);
   assert.match(html, /<article class="rrow" id="item-41207"[^>]*><span class="sd running"[^>]*><\/span><button type="button" class="rr-t" data-open-run="41207-fix-login-timeout"><span class="num">#41207<\/span>/);
-  assert.match(html, /<span class="tag">Feature<\/span> · Step 5 of 8: Build 2\/3/);
+  assert.match(html, /<span class="tag">Feature<\/span> · Step 3 of 6: Build 2\/3/);
   assert.match(html, /<span class="turnw t-tandem">Tandem:<\/span>/);
   assert.match(html, /<span class="turnw t-hold">Paused:<\/span> Waiting on design/);
   assert.doesNotMatch(html, /id="item-41300"|id="item-41502"|id="item-41610"/, 'what waits on you is only in the Inbox');
@@ -105,8 +107,8 @@ test('3.0 a run opens its own page: the flow track is its navigation, the step s
   let html = render();
   assert.match(html, /data-close-run="board">&larr; Board</);
   assert.match(html, /<article class="item run-page" id="item-41207"/);
-  assert.deepEqual([...html.matchAll(/data-step="(\w+)"/g)].map(m => m[1]), ['start', 'spec', 'plan', 'tasks', 'build', 'review', 'pr', 'ship']);
-  assert.match(html, /<ol class="flow" aria-label="Step 5 of 8: Build, Working">/);
+  assert.deepEqual([...html.matchAll(/data-step="(\w+)"/g)].map(m => m[1]), ['start', 'spec', 'build', 'review', 'pr', 'ship']);
+  assert.match(html, /<ol class="flow" aria-label="Step 3 of 6: Build, Working">/);
   assert.match(html, /<li class="fstep done you"><button type="button" data-step="spec" aria-pressed="false"/, 'a ring on the steps that stop for you');
   assert.match(html, /<li class="fstep here sel"><button type="button" data-step="build" aria-pressed="true"/, 'the step it is at is in view');
   assert.match(html, /<section class="spanel here" aria-label="Build">.*Tasks <span class="bar"/s);
@@ -115,7 +117,7 @@ test('3.0 a run opens its own page: the flow track is its navigation, the step s
   // A done step shows what it wrote, read through file.read.
   S.ui.step['41207-fix-login-timeout'] = 'spec';
   html = render();
-  assert.match(html, /<section class="spanel done" aria-label="Spec">.*<span class="mono">spec\.md<\/span>.*Loading\./s);
+  assert.match(html, /<section class="spanel done" aria-label="Spec and plan">.*<span class="mono">spec\.md<\/span>.*Loading\./s);
   S.files['41207-fix-login-timeout/spec.md'] = { text: '# Spec\n\nRenewal lasts **30 minutes**.', at: 1 };
   assert.match(render(), /Renewal lasts <strong>30 minutes<\/strong>/);
   S.ui.step['41207-fix-login-timeout'] = 'review';
@@ -385,13 +387,13 @@ test('3.0 start work: pick a flow, then fill it in; each flow sends its own acti
   html = render();
   assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
   assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd']);
-  assert.match(html, /data-flow="feature".*8 steps, 3 stops for you.*Hands-off after you approve/s);
+  assert.match(html, /data-flow="feature".*6 steps, 2 stops for you.*Hands-off after you approve/s);
   assert.match(html, /data-flow="spike"[^>]*>.*2 steps, 1 stop for you/s);
   // Feature: no ADO set up, so it is described.
   S.ui.start.flow = 'feature';
   html = render();
   assert.match(html, /<h3 id="start-h">Build a feature<\/h3>.*data-flow="">&larr; All flows/s);
-  assert.match(html, /<ol class="fline"><li class="">Set up<\/li><li class="you">Spec<\/li>/);
+  assert.match(html, /<ol class="fline"><li class="">Set up<\/li><li class="you">Spec and plan<\/li>/);
   assert.doesNotMatch(html, /data-start-src/, 'no ADO choice when Tandem has no ADO set up');
   assert.match(html, /data-draft="start:title"/);
   assert.doesNotMatch(html, /start:repro|data-start-lane/, 'no repro steps and no lane pick for a feature');

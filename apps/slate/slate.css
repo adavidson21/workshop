@@ -95,6 +95,7 @@ html{font-size:clamp(14px,.25vw + 12px,16px)}
 :where(#board-root) .ps h3:where(:not(.loom-run *)){margin:0 0 .4rem;font-family:var(--sans);font-size:.74rem;font-weight:600;color:var(--eyebrow)}
 :where(#board-root) .ps p:where(:not(.loom-run *)),:where(#board-root) .ps li:where(:not(.loom-run *)){font-size:.88rem}
 :where(#board-root) .ps ul:where(:not(.loom-run *)),:where(#board-root) .ps ol:where(:not(.loom-run *)){margin:.2rem 0 .6rem;padding-left:1.2rem}
+:where(#board-root) .ps .msg:where(:not(.loom-run *)){margin:.2rem 0 .6rem;padding:.5rem .7rem;border-left:2px solid var(--line);color:var(--ink)}
 :where(#board-root) .lbl:where(:not(.loom-run *)){margin:.6rem 0 .2rem;font-size:.78rem !important;color:var(--muted);font-weight:600}
 :where(#board-root) .kv:where(:not(.loom-run *)){display:grid;grid-template-columns:auto 1fr;gap:.15rem .8rem;margin:.4rem 0;font-size:.86rem}
 :where(#board-root) .kv dt:where(:not(.loom-run *)){color:var(--muted)}
