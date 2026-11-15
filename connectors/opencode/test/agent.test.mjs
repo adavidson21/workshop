@@ -77,7 +77,7 @@ test("status, state and write actions through the agent; events on the stream; t
     const st = expectJson(await call(agent, "status", {}), 200, "connector-call-response").result;
     assert.equal(st.app, "eng-agents-dashboard");
     assert.equal(st.api, 1);
-    assert.equal(st.items.length, 5);
+    assert.equal(st.items.length, 6);
 
     const events = await openEvents(agent);
     try {

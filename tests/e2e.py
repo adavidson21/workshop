@@ -1311,7 +1311,7 @@ def agents_checks(b, watch):
         for tab in ('inbox', 'work'):
             open_tab(af, tab); pg.wait_for_timeout(250)
             found += af.eval_on_selector_all('.page [id^="item-"]', 'els => els.map(e => e.id)')
-        check('every .work folder is in one place', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-spike-cache-options', 'item-tsd-billing-api']))
+        check('every .work folder is in one place', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-41720', 'item-spike-cache-options', 'item-tsd-billing-api']))
         af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
         inbox = af.text_content('.page')
         check('the Inbox has the run to review and the code review to do', 'Ready for your review' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
@@ -1465,7 +1465,7 @@ def agents_checks(b, watch):
         sp.click('.fchip:has-text("Orders API")')
         check('a run moves to a project from its chip', seen(sp, '.page .rrow#item-41207') and sp.locator('.page .rrow').count() == 1)
         sp.click('.top-start')
-        check('Start work opens on the flow picker, the presets in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['feature', 'bug', 'quick', 'spike', 'epic', 'docs', 'tsd'])
+        check('Start work opens on the flow picker, the presets in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd'])
         sp.click('.fcard[data-flow=quick]')
         check('a flow shows its steps, and starts in the project filtered to', seen(sp, '.fline') and sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
         sp.keyboard.press('Escape')
