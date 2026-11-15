@@ -144,6 +144,10 @@ ui.adoPublishing = false;
 ui.adoIterations = null;     // {mapId, iterations}: the sprint lists the last refresh read, for Publish
 ui.adoRefreshed = null;      // the roadmap id refreshed since it was opened
 const adoReady = () => !!(ado && ado.state.ready);
+const adoSystems = () => (ado && ado.state.systems) || [];
+// The tracker a roadmap follows: Azure DevOps unless meta.ado says GitHub.
+const srcName = src => (src && src.system === 'github' ? 'GitHub' : 'ADO');
+const srcReady = src => !!(ado && (ado.readyFor ? ado.readyFor(src) : ado.state.ready));
 const adoMod = () => import('./ado/model.js');
 if (ws.backend === 'agent') {
   import('./ado/index.js').then(m => {
@@ -249,7 +253,7 @@ function paintMap() {
   app.querySelector('.body').dataset.mode = ui.mode;
   const rbar = app.querySelector('[data-r="rbar"]');
   if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked(), ui.owner));
-  setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly, publish: pub ? pub.publishCount(doc) : 0, publishing: ui.adoPublishing }));
+  setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly, publish: pub ? pub.publishCount(doc) : 0, publishing: ui.adoPublishing, systems: adoSystems() }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
   tl.innerHTML = svg(L, { theme: isDark() ? 'dark' : 'light', selected: ui.selected, today: today(), interactive: true, dim: notFor(doc.items, ui.owner), hint: ui.hint });
@@ -627,6 +631,7 @@ async function sourceForm(base, opts) {
   if (!f) return null;
   const m = await adoMod();
   const src = m.cleanSource({
+    system: f.system ? f.system.value : (base.system || 'ado'),
     mode: f.mode ? f.mode.value : (base.mode || 'linked'),
     areas: f.areas.value,
     types: [...f.querySelectorAll('[name="type"]:checked')].map(x => x.value),
@@ -643,13 +648,15 @@ async function sourceForm(base, opts) {
 async function fromAdo() {
   if (!adoReady()) return;
   const d = await ado.defaults();
-  const r = await sourceForm({ areas: d.areas, connection: d.connection }, { title: 'Team roadmap' });
+  const systems = adoSystems();
+  const system = systems.includes('ado') ? 'ado' : 'github';
+  const r = await sourceForm({ areas: system === 'ado' ? d.areas : [], connection: system === 'ado' ? d.connection : '', system, systems }, { title: 'Team roadmap', heading: systems.length > 1 ? 'From Azure DevOps or GitHub' : `From ${system === 'github' ? 'GitHub' : 'Azure DevOps'}` });
   if (!r) return;
   try {
-    toast('Reading Epics and Features from ADO.');
+    toast(`Reading Epics and Features from ${srcName(r.src)}.`);
     const doc = blankDoc(r.title || 'Team roadmap');
     const out = await ado.refresh(doc, r.src, { dir: await adoDir() });
-    if (!out.doc.items.length) toast('No Epics or Features under those area paths. The roadmap is empty for now.', 'warn');
+    if (!out.doc.items.length) toast(r.src.system === 'github' ? 'No milestones or feature issues there. The roadmap is empty for now.' : 'No Epics or Features under those area paths. The roadmap is empty for now.', 'warn');
     ui.adoRefreshed = null;
     const id = await store.create(out.doc);
     ui.adoRefreshed = id;
@@ -661,8 +668,9 @@ async function fromAdo() {
 async function adoSource() {
   if (!adoReady() || v.readOnly) return;
   const cur = v.doc.meta.ado;
-  const d = cur ? { ...cur } : await ado.defaults();
-  const r = await sourceForm(d, { chooseMode: false, heading: cur ? 'Change what comes from ADO' : 'Add items from Azure DevOps', mode: cur ? cur.mode : 'linked' });
+  const systems = adoSystems();
+  const d = cur ? { ...cur, systems: cur.system === 'github' ? ['github'] : ['ado'] } : { ...(await ado.defaults()), system: systems.includes('ado') ? 'ado' : 'github', systems };
+  const r = await sourceForm(d, { chooseMode: false, heading: cur ? `Change what comes from ${srcName(cur)}` : `Add items from ${systems.length > 1 ? 'Azure DevOps or GitHub' : srcName(d)}`, mode: cur ? cur.mode : 'linked' });
   if (!r) return;
   edit(doc => { doc.meta.ado = { ...(doc.meta.ado || {}), ...r.src }; });
   adoRefresh(true);
@@ -671,7 +679,7 @@ async function adoSource() {
 /** Refresh from ADO. Applied to the roadmap as it is when the answer comes, so edits made meanwhile are kept.
     Resolves true when it refreshed. */
 async function adoRefresh(manual = false) {
-  if (!v.doc || !v.doc.meta.ado || !adoReady() || ui.adoRefreshing || v.readOnly) return false;
+  if (!v.doc || !v.doc.meta.ado || !srcReady(v.doc.meta.ado) || ui.adoRefreshing || v.readOnly) return false;
   const id = v.mapId;
   ui.adoRefreshing = true; ui.adoRefreshed = id; requestPaint();
   try {
@@ -686,8 +694,9 @@ async function adoRefresh(manual = false) {
       counts = r;
     });
     if (manual || (counts && (counts.added || counts.differs))) {
-      const bits = counts && src.mode !== 'live' ? [counts.added && `${counts.added} added`, counts.updated && `${counts.updated} updated`, counts.differs && `${counts.differs} differ from ADO`, counts.missing && `${counts.missing} not found`].filter(Boolean) : [];
-      toast(bits.length ? `From ADO: ${bits.join(', ')}.` : 'Up to date with ADO.', 'success');
+      const name = srcName(src);
+      const bits = counts && src.mode !== 'live' ? [counts.added && `${counts.added} added`, counts.updated && `${counts.updated} updated`, counts.differs && `${counts.differs} differ from ${name}`, counts.missing && `${counts.missing} not found`].filter(Boolean) : [];
+      toast(bits.length ? `From ${name}: ${bits.join(', ')}.` : `Up to date with ${name}.`, 'success');
     }
     return true;
   } catch (e) { toastErr(e); return false; }
@@ -698,7 +707,7 @@ async function adoRefresh(manual = false) {
     after the person confirms send them with workitem.update (js/ado/publish.js). Then show what happened and
     refresh again. The only place Runway writes to ADO. */
 async function adoPublish() {
-  if (!pub || !v.doc || live() || v.readOnly || ui.adoPublishing || !adoReady()) return;
+  if (!pub || !v.doc || live() || v.readOnly || ui.adoPublishing || !adoReady() || (v.doc.meta.ado && v.doc.meta.ado.system === 'github')) return;
   const id = v.mapId;
   let sent = false;
   ui.adoPublishing = true; requestPaint();

@@ -366,3 +366,55 @@ test('release notes: pulled, kept on refresh, and updated when ADO changes them'
   const next = mergeLinked(first, pulled(result(withNotes({ 2: { 'Custom.ReleaseNotes': 'Now with redirects' } })), ITER, SRC), SRC, result(ITEMS())).doc;
   assert.equal(next.items.find(i => i.ado && i.ado.id === 2).ado.releaseNotes, 'Now with redirects');
 });
+
+// ---------- GitHub (the GitHub connector's roadmap: milestones as Epics, feature issues, sub-issues as stories) ----------
+const GH = { connection: 'github', fetchedAt: '2026-11-14T00:00:00Z', total: 4, truncated: false, items: [
+  { id: 501, ref: 'acme/web milestone v2.1', rev: 0, type: 'Epic', title: 'v2.1', state: 'Open', area: 'acme/web', iteration: '', parentId: null, targetDate: '2026-12-15', startDate: null, url: 'https://github.com/acme/web/milestone/1' },
+  { id: 3000000040, ref: 'acme/web#40', rev: 0, type: 'Feature', title: 'Sign-in overhaul', state: 'Open', area: 'acme/web/auth', iteration: '', parentId: 501, targetDate: '2026-12-15', startDate: null, storiesTotal: 2, storiesDone: 1, url: 'https://github.com/acme/web/issues/40', assignee: { name: 'kim', email: '' } },
+  { id: 3000000041, ref: 'acme/web#41', rev: 0, type: 'Feature', title: 'Reports', state: 'Open', area: 'acme/web', iteration: '', parentId: null, targetDate: null, startDate: null, url: 'https://github.com/acme/web/issues/41' },
+  { id: 3000000043, ref: 'acme/web#43', rev: 0, type: 'User Story', title: 'Faster token check', state: 'Open', area: 'acme/web/auth', iteration: '', parentId: 3000000040, targetDate: null, startDate: null, url: 'https://github.com/acme/web/issues/43' }
+] };
+
+test('GitHub: a source keeps its slashes and says it is GitHub; ADO paths still turn slashes into backslashes', () => {
+  const g = cleanSource({ system: 'github', areas: 'acme/web\nacme\\web\\auth' });
+  assert.equal(g.system, 'github');
+  assert.deepEqual(g.areas, ['acme/web', 'acme/web/auth']);
+  const a = cleanSource({ areas: 'Proj/Team' });
+  assert.equal(a.system, 'ado');
+  assert.deepEqual(a.areas, ['Proj\\Team']);
+});
+
+test('GitHub: lanes by area (repo, and repo/area label), Epic milestones, stories under Features, readable names', () => {
+  const src = cleanSource({ system: 'github', areas: ['acme/web', 'acme/web/auth'], types: ['Epic', 'Feature'] });
+  const d = pulled(GH, {}, src);
+  assert.deepEqual(d.lanes.map(l => l.title), ['web', 'auth']);
+  const byKey = Object.fromEntries(d.items.map(i => [i.key, i]));
+  assert.equal(byKey['3000000040'].laneKey, 'area:acme/web/auth');
+  assert.equal(byKey['3000000041'].laneKey, 'area:acme/web');
+  assert.equal(byKey['3000000040'].end, '2026-12-15');
+  assert.match(byKey['3000000040'].notes, /^Feature acme\/web#40 · Open · 1 of 2 stories done\nhttps:\/\/github\.com\/acme\/web\/issues\/40$/);
+  const epics = pulled(GH, {}, cleanSource({ system: 'github', areas: ['acme/web'], types: ['Epic', 'Feature', 'User Story'], lanes: 'epic' }));
+  assert.deepEqual(epics.lanes.map(l => l.title), ['v2.1', 'No Epic']);
+  assert.ok(epics.items.some(i => i.title === 'Sign-in overhaul > Faster token check'));
+});
+
+test('GitHub: the connector module reads from the GitHub connector, skips sprints, and refuses Publish', async () => {
+  const calls = [];
+  const ws = {
+    connectors: {
+      list: async () => [{ id: 'ado', status: { state: 'disabled' } }, { id: 'github', status: { state: 'ready' } }],
+      call: async (id, action, args) => { calls.push([id, action, args]); return action === 'roadmap' ? GH : { iterations: [] }; },
+      onStatus: () => () => {}
+    },
+    data: { get: async () => null }
+  };
+  const a = createAdo(ws);
+  await a.check();
+  assert.deepEqual(a.state.systems, ['github']);
+  assert.equal(a.readyFor({ system: 'github' }), true);
+  assert.equal(a.readyFor({ system: 'ado' }), false);
+  const out = await a.pull({ system: 'github', areas: ['acme/web'] });
+  assert.deepEqual(calls.map(c => [c[0], c[1]]), [['github', 'roadmap']]);
+  assert.equal(out.data.items.length, 3);
+  await assert.rejects(a.publish({ system: 'github', rows: [] }), /read only/);
+});

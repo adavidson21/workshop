@@ -1,9 +1,10 @@
-// GitHub connector: issues assigned to you and pull requests waiting on your review, in the same shapes as the ADO
-// connector, so Docket and Loom treat both trackers alike. Read only. See connectors/github/README.md.
+// GitHub connector: issues assigned to you, pull requests waiting on your review, and roadmaps (milestones, Features
+// and stories), in the same shapes as the ADO connector, so Docket, Loom and Runway treat both trackers alike. Read only. See connectors/github/README.md.
 import { GhError, SettingsError } from './lib/client.mjs';
 import { DEFAULT_TYPES, normalize, pickConnection } from './lib/config.mjs';
 import { areasMine, cleanKnown, cleanKnownPrs, getIssue, sync } from './lib/issues.mjs';
 import { syncPrs } from './lib/prs.mjs';
+import { iterationsList, roadmapList } from './lib/roadmap.mjs';
 import { clientFor } from './lib/client.mjs';
 import { configFromUrl } from './lib/url.mjs';
 import { authTracker, tokenStatus } from './lib/token.mjs';
@@ -86,7 +87,7 @@ export default {
   api: 1,
   id: 'github',
   name: 'GitHub',
-  version: '1.0.0',
+  version: '1.1.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Issue (owner/repo#12)' },
   actions: {
@@ -147,6 +148,36 @@ export default {
       },
       async run(args, ctx) {
         return guarded(ctx, 'workitem.get', () => getIssue(deps(ctx), args || {}));
+      }
+    },
+    roadmap: {
+      title: 'Epics (milestones), Features and stories for Runway',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['areas'],
+        properties: {
+          areas: { type: 'array', items: { type: 'string', maxLength: 400 }, minItems: 1, maxItems: 50 },
+          includeClosed: { type: 'boolean' },
+          stories: { type: 'boolean' },
+          fields: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 20 },
+          connection: { type: 'string', maxLength: 40 }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'roadmap', async () => {
+          const out = await roadmapList(deps(ctx), args || {});
+          ctx.log.info(`roadmap: ${out.items.length} items`);
+          return out;
+        });
+      }
+    },
+    'iterations.list': {
+      title: 'Sprints (none on GitHub outside Projects)',
+      write: false,
+      argsSchema: { type: 'object', properties: { project: { type: 'string', maxLength: 200 }, connection: { type: 'string', maxLength: 40 } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'iterations.list', async () => iterationsList(deps(ctx), args || {}));
       }
     },
     'connection.resolve': {

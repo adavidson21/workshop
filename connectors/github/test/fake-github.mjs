@@ -5,11 +5,12 @@ import http from 'node:http';
 export const TOKEN = 'test-github-token';
 export const EXPIRES = '2099-01-31 00:00:00 UTC';
 
-const issue = (repo, number, title, { labels = [], assignees = ['me'], state = 'open', reason = null, milestone = null, body = '', pr = false, updated = '2026-11-10T12:00:00Z' } = {}) => ({
+const issue = (repo, number, title, { labels = [], assignees = ['me'], state = 'open', reason = null, milestone = null, body = '', pr = false, updated = '2026-11-10T12:00:00Z', subs = null } = {}) => ({
   id: 1000 + number, number, title, state, state_reason: reason, body, comments: 2,
   labels: labels.map(name => ({ name })), assignees: assignees.map(login => ({ login })), assignee: assignees[0] ? { login: assignees[0] } : null,
   milestone, updated_at: updated, html_url: `https://github.com/${repo}/issues/${number}`,
   repository_url: `https://api.github.com/repos/${repo}`, repository: { full_name: repo },
+  ...(subs ? { sub_issues_summary: { total: subs[0], completed: subs[1], percent_completed: 0 } } : {}),
   ...(pr ? { pull_request: { url: 'x' } } : {})
 });
 
@@ -23,7 +24,8 @@ const pr = (repo, number, title, { author = 'alex', draft = false, state = 'OPEN
 
 /** The default scenario. Tests may change it before starting the server. */
 export function scenario() {
-  const m1 = { title: 'v2.1', due_on: '2026-12-15T08:00:00Z', html_url: 'https://github.com/acme/web/milestone/1' };
+  const m1 = { id: 501, number: 1, title: 'v2.1', state: 'open', due_on: '2026-12-15T08:00:00Z', updated_at: '2026-11-01T00:00:00Z', html_url: 'https://github.com/acme/web/milestone/1' };
+  const m2 = { id: 502, number: 2, title: 'v3.0', state: 'open', due_on: null, updated_at: '2026-11-02T00:00:00Z', html_url: 'https://github.com/acme/web/milestone/2' };
   return {
     me: 'me',
     issues: {
@@ -35,10 +37,16 @@ export function scenario() {
         issue('acme/web', 4, 'A pull request', { pr: true }),
         issue('acme/web', 5, 'Closed done', { state: 'closed', reason: 'completed' }),
         issue('acme/web', 6, 'Closed not planned', { state: 'closed', reason: 'not_planned' }),
-        issue('acme/web', 7, 'Someone else has it', { assignees: ['sam'] })
+        issue('acme/web', 7, 'Someone else has it', { assignees: ['sam'] }),
+        issue('acme/web', 40, 'Sign-in overhaul', { labels: ['feature', 'area: auth'], milestone: m1, assignees: ['kim'], subs: [2, 1],
+          body: 'Make sign-in faster.\n\n## Release note\nSign-in is faster.' }),
+        issue('acme/web', 41, 'Reports', { labels: ['feature'], assignees: [] }),
+        issue('acme/web', 42, 'Old feature', { labels: ['feature'], state: 'closed', reason: 'completed', assignees: [] })
       ],
       'me/tools': [issue('me/tools', 9, 'Personal task')]
     },
+    milestones: { 'acme/web': [m1, m2] },
+    subIssues: { 'acme/web#40': [issue('acme/web', 43, 'Faster token check', { labels: ['story'], assignees: [] }), issue('acme/web', 44, 'Done story', { labels: ['story'], state: 'closed', assignees: [] })] },
     parents: { 'acme/web#2': { number: 3, title: 'Big epic', url: 'https://github.com/acme/web/issues/3', state: 'OPEN', repository: { nameWithOwner: 'acme/web' }, labels: { nodes: [{ name: 'epic' }] } } },
     comments: { 'acme/web#1': [{ id: 1, body: 'First', user: { login: 'sam' }, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }] },
     teams: [{ slug: 'platform', name: 'Platform', organization: { login: 'acme' } }],
@@ -86,6 +94,20 @@ export async function startFakeGitHub(data = scenario()) {
         const per = Number(u.searchParams.get('per_page') || 30);
         return send(200, rows.slice((page - 1) * per, page * per));
       }
+      let mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/milestones$/);
+      if (req.method === 'GET' && mm) {
+        const st = u.searchParams.get('state') || 'open';
+        return send(200, (data.milestones[mm[1]] || []).filter(x => st === 'all' || x.state === st));
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues$/);
+      if (req.method === 'GET' && mm) {
+        const st = u.searchParams.get('state') || 'open';
+        const want = (u.searchParams.get('labels') || '').split(',').filter(Boolean).map(x => x.toLowerCase());
+        const rows = (data.issues[mm[1]] || []).filter(i => (st === 'all' || i.state === st) && want.every(w => i.labels.some(l => l.name.toLowerCase() === w)));
+        return send(200, rows);
+      }
+      mm = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/sub_issues$/);
+      if (req.method === 'GET' && mm) return send(200, data.subIssues[`${mm[1]}#${mm[2]}`] || []);
       let m = p.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)(\/comments)?$/);
       if (req.method === 'GET' && m) {
         const it = (data.issues[m[1]] || []).find(i => i.number === Number(m[2]));
