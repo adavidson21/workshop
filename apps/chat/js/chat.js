@@ -9,7 +9,8 @@
      (Chat's own and opencode's), @ for workspace files, ! for a shell command, Up for the last message, Esc twice
      to stop. A message sent while opencode is working waits in a queue and goes when it is done.
    - New chat: the same composer. Its agent list starts with Hub, which swaps in the hub's box (hub.js): one box that
-     asks Tandem or captures a task, receipt or note.
+     asks Tandem or captures a task, receipt or note. Then Rewrite (Chat 2.2.0), which swaps in Rewrite a draft
+     (rewrite.js): the same composer with For and Reader in its bar, your drafts and their rewrites as turns.
 
    Everything goes through the opencode connector's chat.* actions; a message, a command or a click is the only
    thing that makes opencode act, and opencode's own permission settings decide what an agent may do, exactly as in
@@ -29,6 +30,9 @@ const PHONE = '(max-width: 820px)';
 const NEW = '__new';
 const HUB = 'hub';
 const HUB_AGENT = { name: HUB, description: 'Ask Tandem, or capture a task, receipt or note for your apps' };
+const REWRITE = 'rewrite';
+const REWRITE_AGENT = { name: REWRITE, description: 'Rewrite a draft in your voice for an audience' };
+const MODES = { [HUB]: 'Hub', [REWRITE]: 'Rewrite' }; // New chat's own modes, not opencode agents
 
 const ICON = {
   side: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -50,7 +54,7 @@ function loadSide() { try { return localStorage.getItem(SIDE_KEY) === 'closed'; 
 function saveSide(closed) { try { localStorage.setItem(SIDE_KEY, closed ? 'closed' : 'open'); } catch (e) { /* blocked */ } }
 const phone = () => typeof matchMedia === 'function' && matchMedia(PHONE).matches;
 
-export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', noteOf = async () => {}, aiReady = () => ({ ready: false, why: '' }) } = {}) {
+export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHtml = () => '', noteOf = async () => {}, aiReady = () => ({ ready: false, why: '' }) } = {}) {
   const el = document.createElement('section');
   el.className = 'chat';
   el.setAttribute('aria-label', 'Chat');
@@ -80,21 +84,25 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   };
   const itemOf = sid => listed().find(c => c.session === sid) || null;
   const agents = () => (options && options.agents) || [];
-  /** The agents the picker offers here: New chat adds Hub at the top. */
-  const agentChoices = () => (sel ? agents() : [HUB_AGENT, ...agents()]);
+  /** The agents the picker offers here: New chat adds Hub and, with Rewrite a draft on hand, Rewrite at the top. */
+  const agentChoices = () => (sel ? agents() : [HUB_AGENT, ...(rewrite ? [REWRITE_AGENT] : []), ...agents()]);
   function agentNow() {
     const want = sel ? (sessPick[sel] || {}).agent : pick.agent;
     const names = agentChoices().map(a => a.name);
     if (want && (names.includes(want) || !options)) return want;
     if (!sel && pick.agent === HUB) return HUB;
-    return names.includes('build') ? 'build' : names.find(n => n !== HUB) || (sel ? '' : HUB);
+    if (!sel && rewrite && pick.agent === REWRITE) return REWRITE;
+    return names.includes('build') ? 'build' : names.find(n => !MODES[n]) || (sel ? '' : HUB);
   }
   const modelNow = () => (sel ? ((sessPick[sel] || {}).model ?? pick.model) : pick.model) || '';
   function setPick(kind, value) {
     if (sel) sessPick[sel] = { agent: agentNow(), model: modelNow(), ...(sessPick[sel] || {}), [kind]: value };
-    if (!(kind === 'agent' && value === HUB && sel)) { pick = { ...pick, [kind]: value }; writeJson(PICK_KEY, pick); }
+    if (!(kind === 'agent' && MODES[value] && sel)) { pick = { ...pick, [kind]: value }; writeJson(PICK_KEY, pick); }
   }
   const hubMode = () => !sel && agentNow() === HUB;
+  const rewriteMode = () => !sel && !!rewrite && agentNow() === REWRITE;
+  /* New chat is for chatting: Rewrite stays picked only until you ask for a New chat. */
+  function leaveRewrite() { if (pick.agent === REWRITE) { pick = { ...pick, agent: '' }; writeJson(PICK_KEY, pick); } }
 
   async function loadOptions() {
     if (!aiReady().ready) return;
@@ -142,6 +150,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     focusBox();
   }
   function focusBox() {
+    if (rewriteMode()) { rewrite.focus(); return; }
     const box = hubMode() ? hubEl && hubEl.querySelector('.cap-in') : el.querySelector(`[data-keep="chat:${key()}"]`);
     if (box && !box.disabled) box.focus();
   }
@@ -155,7 +164,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   const confirm = { confirm: true };
   function pickArgs() {
     const a = agentNow(), m = modelFromKey(modelNow());
-    return { ...(a && a !== HUB ? { agent: a } : {}), ...(m ? { model: m } : {}) };
+    return { ...(a && !MODES[a] ? { agent: a } : {}), ...(m ? { model: m } : {}) };
   }
   async function send() {
     const k = key();
@@ -278,7 +287,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   function openPop(kind) {
     if (kind === 'agent') {
       const list = agentChoices();
-      pop = { kind, items: list.map(a => ({ value: a.name, label: a.name === HUB ? 'Hub' : a.name, desc: a.description || '' })), i: Math.max(0, list.findIndex(a => a.name === agentNow())), q: '' };
+      pop = { kind, items: list.map(a => ({ value: a.name, label: MODES[a.name] || a.name, desc: a.description || '' })), i: Math.max(0, list.findIndex(a => a.name === agentNow())), q: '' };
     } else if (kind === 'model') pop = { kind, items: modelItems(''), i: 0, q: '' };
     draw();
     const q = el.querySelector('[data-pop-q]');
@@ -368,8 +377,8 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     return `<aside class="chat-side" aria-label="Chats">` +
       `<div class="chat-side-top"><button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button>` +
       `<button type="button" class="chat-icon" data-chat-new title="New chat" aria-label="New chat">${ICON.plus}</button></div>` +
-      `<button type="button" class="chat-newbtn${sel ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
-      `<button type="button" class="chat-newbtn rw-btn" data-chat-rewrite>${ICON.pen}<span>Rewrite a draft</span></button>` +
+      `<button type="button" class="chat-newbtn${sel || rewriteMode() ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
+      (rewrite ? `<button type="button" class="chat-newbtn rw-btn${rewriteMode() ? ' on' : ''}" data-chat-rewrite>${ICON.pen}<span>Rewrite a draft</span></button>` : '') +
       `<input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="Search chats" aria-label="Search chats" value="${esc(query)}">` +
       `<div class="chat-scope" role="group" aria-label="Show"><button type="button" class="${all ? '' : 'on'}" data-chat-all="0" aria-pressed="${!all}">Chats</button><button type="button" class="${all ? 'on' : ''}" data-chat-all="1" aria-pressed="${all}" title="Every opencode session in the workspace: runs, PR reviews and the terminal">All sessions</button></div>` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
@@ -385,8 +394,8 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   function picksHtml() {
     const a = agentNow();
     const models = (options && options.models) || [];
-    return `<button type="button" class="pick pick-agent${a === HUB ? ' hub' : ''}" data-pick="agent" title="Agent (Tab switches)" aria-haspopup="listbox"><span>${esc(a === HUB ? 'Hub' : a || 'Default agent')}</span>${ICON.caret}</button>` +
-      (a === HUB ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`);
+    return `<button type="button" class="pick pick-agent${MODES[a] ? ' hub' : ''}" data-pick="agent" title="Agent (Tab switches)" aria-haspopup="listbox"><span>${esc(MODES[a] || a || 'Default agent')}</span>${ICON.caret}</button>` +
+      (MODES[a] ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`);
   }
   function composeHtml() {
     const k = key();
@@ -425,11 +434,12 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       (busy ? '<button type="button" class="btn ghost" data-chat-stop>Stop</button>' : '') + '</span>';
   }
   function paneHtml() {
+    if (!sel && rewriteMode()) return `<div class="chat-pane chat-home is-rw">${topHtml('Rewrite a draft')}<div class="chat-rw" data-rw-home></div></div>`;
     if (!sel) {
       const hubOn = hubMode();
       const errs = (optErr ? `<p class="hub-error">${esc(optErr)}</p>` : '') + (err ? `<p class="hub-error">${esc(err)}</p>` : '');
       const body = hubOn
-        ? `<div class="chat-hub-picks">${picksHtml()}<span class="hub-meta">Ask Tandem, or capture a task, receipt or note. Pick another agent to work like opencode.</span></div><div class="chat-hub" data-hub-home></div>`
+        ? `<div class="chat-hub-picks pop-anchor down">${pop && pop.kind === 'agent' ? popHtml() : ''}${picksHtml()}<span class="hub-meta">Ask Tandem, or capture a task, receipt or note. Pick another agent to work like opencode.</span></div><div class="chat-hub" data-hub-home></div>`
         : '<div class="chat-hub" data-hub-home hidden></div>';
       return `<div class="chat-pane chat-home${hubOn ? ' is-hub' : ''}">${topHtml('New chat')}<div class="chat-scroll"><div class="chat-col chat-start">` +
         `<h3 class="chat-hello">${hubOn ? 'What do you want to ask or capture?' : 'What are we working on?'}</h3>` +
@@ -461,8 +471,26 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
     return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;
   }
+  /* Put Rewrite a draft's element in its pane, redrawing it when the picker it shows changed. `force`: it was just
+     moved, so draw it now and put focus back where it was. */
+  let rwBar = null, rwSeen = false;
+  function mountRewrite(force = false, focus = null) {
+    if (!rewrite || !el.isConnected) return;
+    const home = el.querySelector('[data-rw-home]');
+    if (!home) { rwBar = null; return; }
+    const moved = !home.contains(rewrite.el);
+    if (moved) home.appendChild(rewrite.el);
+    const now = picksHtml() + popHtml();
+    if (!rwSeen) { rwSeen = true; rwBar = now; rewrite.shown(); }
+    else if (moved || force || now !== rwBar) { rwBar = now; rewrite.paint(); }
+    if (focus) {
+      const box = rewrite.el.querySelector(`[data-keep="${focus.key}"]`);
+      if (box) { box.focus(); if (focus.range) try { box.setSelectionRange(focus.range[0], focus.range[1]); } catch (e) { /* not a text field */ } }
+    }
+  }
   /* Put the hub's element in the New chat pane, keeping focus and the caret if it was being typed in. */
   function mountHub() {
+    mountRewrite();
     if (!hubEl || !el.isConnected) return;
     const home = el.querySelector('[data-hub-home]');
     if (!home || home.contains(hubEl)) return;
@@ -491,11 +519,14 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     const a = document.activeElement, inHub = hubEl && a && hubEl.contains(a) ? a : null;
     const range = inHub && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
     const popFocus = a && el.contains(a) && a.hasAttribute && a.hasAttribute('data-pop-i') ? a.getAttribute('data-pop-i') : null;
+    const inRw = rewrite && a && rewrite.el.contains(a) && a.getAttribute('data-keep') ? { key: a.getAttribute('data-keep'), range: typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null } : null;
     const back = keepFocus(el);
     if (hubEl && el.contains(hubEl)) hubEl.remove();
+    if (rewrite && el.contains(rewrite.el)) rewrite.el.remove();
     el.innerHTML = html;
     lastHtml = html; lastFirst = el.firstChild;
     back();
+    mountRewrite(true, inRw);
     if (popFocus != null) { const b = el.querySelector(`[data-pop-i="${popFocus}"]`); if (b) b.focus(); }
     mountHub();
     if (inHub && hubEl.contains(inHub)) { inHub.focus(); if (range) try { inHub.setSelectionRange(range[0], range[1]); } catch (e) { /* not a text field */ } }
@@ -549,6 +580,12 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
         } else t.blur();
         return;
       }
+    } else if (t.matches('[data-rw-input]')) {
+      if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing) {
+        e.preventDefault();
+        setPick('agent', cycleAgent(agentChoices(), agentNow(), e.shiftKey));
+        draw(); focusBox();
+      } else if (e.key === 'Escape' && pop) { e.preventDefault(); pop = null; draw(); focusBox(); }
     } else if (t.matches('[data-pop-q]') || t.matches('[data-pop-i]')) {
       if (popKeys(e)) { e.preventDefault(); if (t.matches('[data-pop-i]')) { const b = el.querySelector('.pop-it.on'); if (b) b.focus(); } }
     } else if (t.matches('[data-chat-rename-box]')) {
@@ -569,7 +606,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     if (hub && b.closest('.hub-intro') && hub.click(b)) return;
     const d = b.dataset;
     if (d.chatOpen != null) select(d.chatOpen);
-    else if (d.chatNew != null) { select(null); loadOptions(); }
+    else if (d.chatNew != null) { leaveRewrite(); select(null); loadOptions(); }
     else if (d.chatSide != null) toggleSide();
     else if (d.chatSend != null) send();
     else if (d.chatStop != null) stop();
@@ -608,6 +645,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     else if (d.qReject != null) answer({ kind: 'question', id: d.qReject, reject: true });
   });
 
+  if (rewrite) rewrite.setBar({ picks: picksHtml, pop: popHtml });
   draw();
   return {
     el,
@@ -621,8 +659,9 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     },
     mountHub,
     /* Open one chat (#/chat/<session>, an Inbox Open); null: New chat. `hub`: New chat with the hub's box. */
-    open(session, { hub: wantHub = false } = {}) {
-      if (!session && wantHub) { pick = { ...pick, agent: HUB }; writeJson(PICK_KEY, pick); }
+    open(session, { hub: wantHub = false, rewrite: wantRewrite = false } = {}) {
+      if (!session && (wantHub || wantRewrite)) { pick = { ...pick, agent: wantRewrite && rewrite ? REWRITE : HUB }; writeJson(PICK_KEY, pick); }
+      else if (!session) leaveRewrite();
       select(session); loadList();
     },
     /* The hub turned a message into a chat: list it now and open it. */
