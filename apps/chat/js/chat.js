@@ -5,7 +5,7 @@
      this browser); on a phone it is a drawer.
    - One chat in view: the turns in a centered column with tool calls, diffs, thinking and to-dos (parts.js), the
      permission prompts and questions to answer right there, and the composer pinned at the bottom.
-   - opencode is always on here: Chat works whenever the opencode connector is on and ready (Chat 2.1.0 dropped the
+   - opencode is always on here: Chat works whenever the opencode connector is on and ready (Chat 2.2.0 dropped the
      separate AI switch). Turn the connector off in Settings to stop it.
    - The composer: an agent picker (Tab and Shift+Tab cycle it, like the TUI) and a model picker, / for commands
      (Chat's own and opencode's), @ for workspace files, ! for a shell command, Up for the last message, Esc twice

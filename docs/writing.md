@@ -47,4 +47,4 @@ The page builds the whole prompt (style guide, the newest 6 samples for the audi
 - `voice.run` (write, needs `confirm`): `{kind: "style" | "rewrite" | "learn", prompt}` starts a new opencode session with opencode's read-only `plan` agent (else Tandem's read-only `chat`, else opencode's default) and returns `{session}`.
 - `voice.result`: `{session}` returns `{state: "running"}`, `{state: "done", text}` (the agent's last reply) or `{state: "failed", error}`.
 
-Both run whenever the opencode connector is on, like the hub and chats (since connector 1.16.0; turn the connector off to stop them). The draft and samples are fenced in the prompt and called text, not instructions; the agent is read only, so a draft cannot make it change files or run commands. Nothing is posted or sent by Workshop.
+Both run whenever the opencode connector is on, like the hub and chats (since connector 1.17.0; turn the connector off to stop them). The draft and samples are fenced in the prompt and called text, not instructions; the agent is read only, so a draft cannot make it change files or run commands. Nothing is posted or sent by Workshop.

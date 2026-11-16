@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 const rejects = (p, code, re) => assert.rejects(p, (e) => e.code === code && (!re || re.test(e.message)));
 
-test("there is no AI switch: it runs with the old hub setting missing (1.16.0)", async () => {
+test("there is no AI switch: it runs with the old hub setting missing (1.17.0)", async () => {
   assert.ok((await runVoice({ kind: "rewrite", prompt: "x" }, { config: {} })).session);
 });
 

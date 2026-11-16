@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 const rejects = (p, code, re) => assert.rejects(p, (e) => e.code === code && (!re || re.test(e.message)));
 
-test("there is no AI switch: chats work with the old hub setting off or missing (1.16.0)", async () => {
+test("there is no AI switch: chats work with the old hub setting off or missing (1.17.0)", async () => {
   assert.deepEqual(await startChat({ text: "hi" }, { config: {} }), { session: "ses_1" });
   assert.equal(listChats({ config: { hub: false } }).items.length, 1);
 });

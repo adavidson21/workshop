@@ -5,7 +5,7 @@
 // <Workshop home>/data/_connectors/opencode/hub/<id>/, never in the workspace or .work, and runs Tandem's
 // /hub <path to request.md> in a new session (eng-agents Core 2.9.0). The hub agent writes route.json and, for a
 // question, answer.md next to it. hub.result reads them back. Both run whenever the connector is on (the `hub` setting
-// is no longer read since 1.16.0).
+// is no longer read since 1.17.0).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -43,7 +43,7 @@ export function folderFor(id, root) {
   return path.join(root, id);
 }
 
-/** Since connector 1.16.0 the hub is on whenever this connector is on (the old `hub` setting is no longer read). */
+/** Since connector 1.17.0 the hub is on whenever this connector is on (the old `hub` setting is no longer read). */
 export function needHub() {}
 
 const line = (v, max = 200) => String(v == null ? "" : v).replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);

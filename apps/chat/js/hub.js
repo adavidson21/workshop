@@ -20,7 +20,7 @@
    When the hub cannot reach Tandem (browser mode, the connector off or not ready, no /hub command), the box
    still captures with the same rules as Home's quick capture, and questions say how to turn the hub on.
 
-   Since Chat 2.1.0 there is no AI switch here: AI is on whenever the opencode connector is on and ready (turn the
+   Since Chat 2.2.0 there is no AI switch here: AI is on whenever the opencode connector is on and ready (turn the
    connector off in Settings to stop it). When it cannot run, a line under the input says why. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';

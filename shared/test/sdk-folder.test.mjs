@@ -63,17 +63,18 @@ test('collections: a stale rev is a conflict carrying the stored copy; a missing
 test('collections: two tabs, write loop with merge, tombstones keep a deletion', async () => {
   const fs = new FakeFolder();
   const a = store(fs, 'w-a'), b = store(fs, 'w-b');
-  const first = sdkData.stamp(null, envelope([{ id: 'p1', title: 'One' }, { id: 'p2', title: 'Two' }]));
+  // Explicit times: two stamps in the same millisecond tie, and a tie keeps the copy on disk (merge picks remote).
+  const first = sdkData.stamp(null, envelope([{ id: 'p1', title: 'One' }, { id: 'p2', title: 'Two' }]), 1000);
   await a.put('notes', 'pages', first);
   const readA = await a.get('notes', 'pages'), readB = await b.get('notes', 'pages');
 
   // b deletes p2; a edits p1 from its older copy.
-  const editB = sdkData.stamp(readB, { ...structuredClone(readB), items: readB.items.filter(i => i.id !== 'p2') });
+  const editB = sdkData.stamp(readB, { ...structuredClone(readB), items: readB.items.filter(i => i.id !== 'p2') }, 2000);
   assert.equal((await b.put('notes', 'pages', editB)).rev, 2);
   const onDisk = JSON.parse(fs.read('notes/pages.json'));
   assert.ok(onDisk.deleted && onDisk.deleted.p2, 'the deletion is a tombstone in the file');
 
-  const editA = sdkData.stamp(readA, { ...structuredClone(readA), items: readA.items.map(i => (i.id === 'p1' ? { ...i, title: 'One, edited' } : i)) });
+  const editA = sdkData.stamp(readA, { ...structuredClone(readA), items: readA.items.map(i => (i.id === 'p1' ? { ...i, title: 'One, edited' } : i)) }, 3000);
   const err = await a.put('notes', 'pages', editA).catch(e => e);
   assert.equal(err.code, 'conflict');
   const merged = sdkData.merge(editA, err.current);

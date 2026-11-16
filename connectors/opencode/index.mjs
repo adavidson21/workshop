@@ -129,7 +129,7 @@ export const configSchema = {
     hub: {
       type: "boolean",
       title: "Hub",
-      description: "No longer used: since 1.16.0 Chat, the hub and Writing use AI whenever this connector is on. Turn the connector off to stop them. Kept so saved settings stay valid.",
+      description: "No longer used: since 1.17.0 Chat, the hub and Writing use AI whenever this connector is on. Turn the connector off to stop them. Kept so saved settings stay valid.",
     },
     pollSeconds: {
       type: "integer",

@@ -41,7 +41,7 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
 | `prReviews.nightlyAt` | `7:00 PM` | (new) | Local time, like `2:00 AM` (`02:00` works too). Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Empty turns it off. Hosted pages may change it. |
 | `prReviews.onSync` | `true` | (new) | Each time an app saves the PRs waiting on you (`pr.inbox.save`, after Docket or Dispatch checks Azure DevOps), new PRs and PRs with a new commit are queued for `/pr-review` at once, blocking tier first. A PR is queued once per commit, so a failed review is not retried on every check. Docket shows the result on its PR tasks (`pr.reviews`). Off: only Review all and the nightly run. Hosted pages may change it. |
-| `hub` | | (new) | No longer used since 1.16.0: Chat, the hub and Writing use AI whenever this connector is on. Kept so saved settings stay valid; Settings hides it. |
+| `hub` | | (new) | No longer used since 1.17.0: Chat, the hub and Writing use AI whenever this connector is on. Kept so saved settings stay valid; Settings hides it. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
