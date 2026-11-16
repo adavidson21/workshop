@@ -915,7 +915,7 @@ def agent_checks(b, watch):
         hp.goto(HOSTED + '/#/settings'); hp.wait_for_timeout(2000)
         check('a paired hosted page runs in hosted mode', hp.evaluate('document.documentElement.dataset.mode') == 'hosted')
         hs = next((f for f in hp.frames if '/apps/settings/' in f.url), None)
-        check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
+        check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'read only here' in hs.inner_text('#modeNote') and 'Change them on this computer' in hs.inner_text('#modeNote')
               and hs.locator(f'#modeNote a[href="{url}/"]').count() == 1
               and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn:not(.app-row)').count() == 2)
         put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
