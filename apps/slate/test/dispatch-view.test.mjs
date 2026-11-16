@@ -208,7 +208,8 @@ test('2.0 Inbox: every prompt answerable in place with where it came from, then 
   assert.match(html, /<h3 id="gh-code">Code reviews to do <span class="n">1<\/span>/);
   assert.match(html, /<h3 id="gh-failed">Stopped or blocked <span class="n">1<\/span>/, '41502 is blocked');
   assert.match(html, /data-tab="inbox" aria-current="page"><span>Inbox<\/span><span class="cnt gate">6<\/span>/);
-  assert.match(html, /<b>6 things need you\.<\/b>.*data-walk="start"[^>]*>Go through them</s);
+  assert.match(html, /data-inbox-chip="all" aria-selected="true">All<span class="n">6<\/span>.*data-walk="start"[^>]*>Go through them</s);
+  assert.ok(html.indexOf('gh-failed') < html.indexOf('gh-asks') && html.indexOf('gh-asks') < html.indexOf('gh-gates') && html.indexOf('gh-gates') < html.indexOf('gh-code'), 'most urgent first');
   assert.deepEqual(prompts().map(p => p.id), ['per_1', 'per_2', 'que_1']);
 });
 

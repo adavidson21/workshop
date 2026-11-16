@@ -92,6 +92,15 @@ const NO_ADO_HINT = {
   done: 'Done, waiting for a release. Mark it closed when it ships.'
 };
 
+// A small icon for each column's header (stroke, currentColor).
+const svg = p => `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const COL_ICON = {
+  shape: svg('<path d="M8 2.5a4 4 0 0 1 2.4 7.2c-.5.4-.9 1-.9 1.6v.2h-3v-.2c0-.6-.4-1.2-.9-1.6A4 4 0 0 1 8 2.5Z"/><path d="M6.5 14h3"/>'),
+  decide: svg('<path d="M8 14V8"/><path d="M8 8 4 4M8 8l4-4"/><path d="M2.5 4.5V2.5h2M13.5 4.5V2.5h-2"/>'),
+  build: svg('<path d="M9.5 3.5 12.5 6.5"/><path d="M11 2a2.5 2.5 0 0 0-3 3.2L2.5 10.7a1.4 1.4 0 0 0 2 2L10 7.2A2.5 2.5 0 0 0 14 4.5l-1.6 1.1-1.9-1.9L11 2Z"/>'),
+  done: svg('<circle cx="8" cy="8" r="5.5"/><path d="m5.6 8.1 1.7 1.7 3.2-3.4"/>')
+};
+
 export function boardHtml(columns, s) {
   const total = BOARD_COLUMNS.reduce((n, d) => n + (columns[d.key] || []).length, 0);
   if (!total && s.filtered) {
@@ -102,15 +111,15 @@ export function boardHtml(columns, s) {
       <p>${esc(s.backlogNote || (s.noAdo ? 'Add an idea or a request. Ideas waiting in Runway, and requests you capture on Home with s, show here too.' : 'Add an idea or a request, or set your team\'s area paths in Settings, People and teams, so Slate can list your ADO backlog. Ideas waiting in Runway show here too.'))}</p>
       ${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}</div>`;
   }
-  // Empty columns take a narrow strip so the full ones get the width; each still takes drops.
-  const tracks = BOARD_COLUMNS.map(d => (columns[d.key] || []).length ? 'minmax(13.75rem,1fr)' : 'minmax(8.5rem,.45fr)').join(' ');
-  const minW = BOARD_COLUMNS.reduce((n, d) => n + ((columns[d.key] || []).length ? 13.75 : 8.5), 0);
+  // Every column the same width, so cards moving between them never reflow the board (Loom UX v1).
+  const tracks = `repeat(${BOARD_COLUMNS.length},minmax(13.75rem,1fr))`;
+  const minW = BOARD_COLUMNS.length * 13.75;
   return `<div class="board" style="--cols:${BOARD_COLUMNS.length};grid-template-columns:${tracks};min-width:${minW}rem">${BOARD_COLUMNS.map(d => {
     const list = columns[d.key] || [];
     const body = d.key === 'done' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
     const hint = s.noAdo && NO_ADO_HINT[d.key] || d.hint;
-    return `<section class="col${list.length ? '' : ' empty-col'}" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header><h2>${esc(d.title)}${hint && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('slate.' + d.key + (s.noAdo && NO_ADO_HINT[d.key] ? '-local' : ''), hint, 'About ' + d.title) : ''}</h2><span class="count">${list.length}</span></header>
-      ${body}</section>`;
+    return `<section class="col${list.length ? '' : ' empty-col'}" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header title="${esc(hint || '')}"><span class="col-ic" aria-hidden="true">${COL_ICON[d.key] || ''}</span><h2>${esc(d.title)}</h2><span class="count">${list.length}</span></header>
+      ${d.sub ? `<p class="col-sub">${esc(d.sub)}</p>` : ''}${body}</section>`;
   }).join('')}</div>`;
 }
 

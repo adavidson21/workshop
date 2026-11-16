@@ -38,10 +38,10 @@ export const levelOfType = (type) => ADO_LEVEL[type] || 'story';
 export const STAGES = ['new', 'triaged', 'waiting', 'shaping', 'brief', 'defining', 'ready', 'decide', 'delegated', 'dev', 'resolved', 'done'];
 // The board: four lanes (Loom). Each lane holds several steps; the card's chip names the step.
 export const BOARD_COLUMNS = [
-  { key: 'shape', title: 'Shape', hint: 'New requests, ideas, ADO items and runs, then triage, waiting on the requester, an interview with you, or a brief to read. The card says which.' },
-  { key: 'decide', title: 'Decide', hint: 'Define it, publish it to ADO, then delegate it with a brief or build it yourself. Delegated work waits here until it resolves.' },
-  { key: 'build', title: 'Build', hint: 'Building in Tandem, in review, or merged. Waiting on you comes first. The card says which.' },
-  { key: 'done', title: 'Done', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
+  { key: 'shape', title: 'Shape', sub: 'Ideas and requests getting scoped', hint: 'New requests, ideas, ADO items and runs, then triage, waiting on the requester, an interview with you, or a brief to read. The card says which.' },
+  { key: 'decide', title: 'Decide', sub: 'Defined, then who builds it', hint: 'Define it, publish it to ADO, then delegate it with a brief or build it yourself. Delegated work waits here until it resolves.' },
+  { key: 'build', title: 'Build', sub: 'Being built, by Tandem or a person', hint: 'Building in Tandem, in review, or merged. Waiting on you comes first. The card says which.' },
+  { key: 'done', title: 'Done', sub: 'Merged, waiting for a release', hint: 'Merged to main and waiting for a release, by area path. Close as released when it ships.' }
 ];
 
 /**
@@ -977,13 +977,13 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   const shaping = items.filter(it => it.runwayPending).slice(-50)
     .map(it => ({ id: it.runwayPending, title: it.title.slice(0, 200), route: `item/${it.id}` }));
   return [
-    card('needs', 'list', 'Needs you in Slate', { rows: needs.slice(0, 20), count: needs.length, route: '' }),
-    card('shaping', 'list', 'Runway ideas in Slate', { rows: shaping }),
+    card('needs', 'list', 'Needs you in Loom', { rows: needs.slice(0, 20), count: needs.length, route: '' }),
+    card('shaping', 'list', 'Runway ideas in Loom', { rows: shaping }),
     card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
     card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
-    card('ado', 'list', 'ADO items in Slate', { rows: ado }),
-    card('runs', 'list', 'Runs in Slate', { rows: runs }),
-    card('tracked', 'list', 'ADO items on Slate\'s board', { rows: tracked.slice(-200) })
+    card('ado', 'list', 'ADO items in Loom', { rows: ado }),
+    card('runs', 'list', 'Runs in Loom', { rows: runs }),
+    card('tracked', 'list', 'ADO items on Loom\'s board', { rows: tracked.slice(-200) })
   ];
 }
 

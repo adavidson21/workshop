@@ -1327,7 +1327,10 @@ def agents_checks(b, watch):
         af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
         inbox = af.text_content('.page')
         check('the Inbox has the run to review and the code review to do', 'Ready for your review' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
-        check('the Inbox card shows the file you are approving (file.read)', seen(af, '#item-41300 .finline .doc') and 'Root cause' in af.inner_text('#item-41300 .finline'))
+        check('the Inbox card keeps the draft closed until Read', af.locator('#item-41300 .finline').count() == 0)
+        af.click('#item-41300 [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('Read shows the file you are approving (file.read)', seen(af, '#item-41300 .finline .doc') and 'Root cause' in af.inner_text('#item-41300 .finline'))
+        af.click('#item-41300 [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(200)
 
         # Go through them: one at a time, with keys.
         af.click('[data-walk=start]'); pg.wait_for_timeout(300)
