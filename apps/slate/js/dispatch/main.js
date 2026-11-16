@@ -6,13 +6,14 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
-import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun } from '../loom.js';
+import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
+import { closedLine, closedWith, prefillFor, safeDecode } from './start-prefill.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
@@ -413,6 +414,9 @@ function wantFocus(path) {
   // Chat and the hub moved to the Chat app (Loom 4.8.0); Reviews is the Inbox's PRs chip.
   if (/^(hub|chat)(\/|$)/.test(p)) { openChat(p); setTab('inbox'); return; }
   if (/^reviews\/?$/.test(p)) { S.ui.inboxChip = 'prs'; setTab('inbox'); return; }
+  // start/<flow>[/<text>]: Start work on that flow's card, filled in with the text (Chat's flow suggestions).
+  const sm = /^start(?:\/([a-z]+))?(?:\/([\s\S]*))?$/.exec(p);
+  if (sm) { const fl = sm[1] || ''; const text = sm[2] ? safeDecode(sm[2]) : ''; setTab('board'); openStart(fl, text ? prefillFor(fl, { title: text, summary: text.length > 120 ? text : '' }, '') : null); return; }
   const [head, rest] = [p.split('/')[0], p.split('/').slice(1).join('/')];
   if (!head) return;
   if ((head === 'work' || OLD_TABS[head]) && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
@@ -427,6 +431,7 @@ function tryKey() {
 }
 ws.on('route', p => wantFocus(p.path));
 onTabRequest(t => { if (ui().tab !== t || ui().run) setTab(t); });
+onNudges(() => schedule());
 // A run inside its card on the board (loom.js): its step and buttons, and its full page from the card.
 setRunRenderer(folder => (S.D ? runCardHtml(folder) : ''));
 onPanelRun(() => { loadFiles(); schedule(); });
@@ -511,22 +516,26 @@ function closeOverlays(force) {
 
 /* ---------- start work: pick a flow (view.js startSheetHtml, flows.js) ---------- */
 function focusFirst(sel) { const box = app.querySelector(sel); if (box) box.focus(); }
-const LEGACY_START = { describe: 'quick', spike: 'spike', ado: 'feature' };
-let lastLane = 'feature';
-/** Opens Start work: on the flow picker, or on one flow's form (a flow id, or Dispatch 2.x's describe, ado, spike). */
-function openStart(flow) {
+// Older flows and modes open the card that took them over (flow cards v1): Quick change and Small change are Build a
+// feature (no ADO item, or the Small change size), Technical spec is Write docs (its type).
+const LEGACY_START = { describe: ['feature', { src: 'describe' }], quick: ['feature', { src: 'describe' }], small: ['feature', { size: 'small' }],
+  tsd: ['docs', { type: 'tsd' }], spike: ['spike', {}], ado: ['feature', { src: 'ado' }] };
+/** Opens Start work: on the flow picker, or on one flow's form (a flow id, or an older flow or mode). `fill`: drafts. */
+function openStart(flow, fill) {
   closeOverlays();
-  const f = FLOW_IDS.includes(flow) ? flow : LEGACY_START[flow] || null;
-  ui().start = { flow: f, src: null, lane: lastLane, project: startProject(), busy: false, error: null };
+  const [f, extra] = LEGACY_START[flow] || (FLOW_IDS.includes(flow) ? [flow, {}] : [null, {}]);
+  ui().start = { flow: f, src: null, size: 'normal', type: 'docs', timebox: '', project: startProject(), busy: false, error: null, ...extra };
+  for (const [k, v] of Object.entries(fill || {})) ui().drafts['start:' + k] = v;
   paint();
   focusFirst(f ? '.start-first' : '.fcard');
 }
 const STARTED = {
-  spike: () => 'Investigating. It is under Starting on Work until its folder exists.',
+  spike: () => 'Investigating. Its card is on the board; the findings come to the Inbox.',
   'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show in the Inbox.',
-  'docs.start': () => 'Drafting the doc. Tandem asks where it lives and who reads it; the questions show in the Inbox.',
+  'docs.start': () => 'Drafting the doc. The draft comes to the Inbox for your read.',
   'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show in the Inbox.'
 };
+const BOARD_STARTED = { request: 'Added to the board. Triage is running; pick the path when it is done.', handoff: 'Added to the board. Tandem is drafting the story for you to approve.' };
 // The click on Start is the approval for this write action.
 async function startGo() {
   const st = ui().start;
@@ -535,22 +544,57 @@ async function startGo() {
   if (r.error) { st.error = r.error; paint(); return; }
   st.busy = true; st.error = null; paint();
   try {
+    if (r.board) {
+      // Handle a request, Hand to a person: the board half adds the card and starts its first step (loom.js).
+      await boardCommand(r.board, r.args);
+      for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
+      closeOverlays();
+      toast(BOARD_STARTED[r.board]);
+      setTab('board');
+      schedule();
+      return;
+    }
     const res = await write(r.action, r.args);
     // Slate tracks every run from start to resolved: tell it about this one (Start was the person's click).
     try { await sendWork(ws, workOffer({ action: r.action, args: r.args, res, from: st.from })); } catch (e) { /* Slate is optional */ }
+    // Started from a spike's findings: the spike is closed, with what came of it.
+    if (st.from) await closeSpike(st.from, closedLine(r, res));
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
-    if (st.flow === 'quick') lastLane = st.lane;
     closeOverlays();
     const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
     toast(STARTED[r.action] ? STARTED[r.action]()
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane}${pname}. It is in All runs and on the board; the agent may ask you to confirm repos.`
-      : `Starting #${r.args.id} as a ${r.args.lane}${pname}. It shows up in All runs and on the board when its folder is ready.`);
-    setTab('work');
+      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the board; the agent may ask you to confirm repos.`
+      : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the board once its folder is ready.`);
+    setTab('board');
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
   fetchSoon();
   schedule();
+}
+/** A spike's findings fork: write closed.md ("Closed: <what came of it>"), which takes it off the Inbox (workparser). */
+async function closeSpike(folder, line) {
+  try {
+    let cur = null;
+    try { cur = await read('file.read', { folder, file: 'closed.md' }); } catch (e) { cur = null; }
+    await write('file.write', { folder, file: 'closed.md', text: line + '\n', ...(cur ? { expected: cur.text } : {}) });
+  } catch (e) { toast('Could not close the spike: ' + errText(e), true); }
+}
+/** Write docs, Save to Folio: copy the doc into its .work folder as doc.md, where Folio's Tandem section shows it,
+ *  and mark it saved. The click is the approval for the reads and both writes. */
+async function saveDocToFolio(folder) {
+  const key = 'folio:' + folder;
+  if (ui().busy[key]) return;
+  ui().busy[key] = true; schedule();
+  try {
+    const doc = await read('docs.doc', { folder });
+    let cur = null;
+    try { cur = await read('file.read', { folder, file: 'doc.md' }); } catch (e) { cur = null; }
+    await write('file.write', { folder, file: 'doc.md', text: doc.text, ...(cur ? { expected: cur.text } : {}) });
+    await write('file.write', { folder, file: 'saved.md', text: `Saved to Folio from ${doc.path} on ${dateStr(new Date())}. It is in Folio under Tandem, ${folder}/doc.md.\n` });
+    toast(`Saved. Open Folio, Tandem, ${folder}, to read it.`);
+  } catch (e) { toast(errText(e), true); }
+  finally { delete ui().busy[key]; fetchSoon(); schedule(); }
 }
 
 /* ---------- send back with a note, and the Inbox one at a time (pages.js) ---------- */
@@ -632,15 +676,14 @@ function openRepos() {
   ui().repos = true;
   paint();
 }
-// Start work from a Research folder: Describe it, filled in from the findings. Nothing starts until Start.
-function startFromDoc(folder) {
+// Start work from a spike's findings (the findings fork): Build it, Fix it or Write it up, filled in from the findings.
+// Nothing starts until Start; then the spike is closed with what came of it.
+function startFromDoc(folder, flow = 'feature') {
   const it = itemForFolder(folder);
   if (!it) return;
   const d = S.files[it.folder + '/findings.md'];
-  ui().drafts['start:title'] = String(it.title || '').slice(0, 200);
-  ui().drafts['start:desc'] = [it.summary || '', d && d.text ? `From .work/${it.folder}/findings.md:\n\n${d.text}` : `See .work/${it.folder}.`].filter(Boolean).join('\n\n').slice(0, 8000);
-  openStart('quick');
-  if (ui().start) ui().start.from = it.folder;
+  openStart(flow, prefillFor(flow, it, d && d.text));
+  if (ui().start) { ui().start.from = it.folder; if (flow !== 'docs') ui().start.src = 'describe'; }
 }
 function draftGuide(folder) {
   closeOverlays();
@@ -911,6 +954,8 @@ listen('click', ev => {
   }
   const ff = t.closest('[data-filter-flow]');
   if (ff) { ui().flow = ff.getAttribute('data-filter-flow') || 'all'; paint(); return; }
+  const bit = t.closest('[data-board-item]');
+  if (bit) { setTab('board'); routeBoard('item/' + bit.getAttribute('data-board-item')); return; }
   const oit = t.closest('[data-open-item]');
   if (oit) { openKey(oit.getAttribute('data-open-item')); return; }
   const odoc = t.closest('[data-open-doc]');
@@ -924,9 +969,17 @@ listen('click', ev => {
   if (t.closest('[data-projects-open]')) { closeOverlays(); ui().projects = true; paint(); return; }
   if (t.closest('[data-repos-open]')) { openRepos(); return; }
   const dst = t.closest('[data-doc-start]');
-  if (dst) { startFromDoc(dst.getAttribute('data-doc-start')); return; }
+  if (dst) { startFromDoc(dst.getAttribute('data-doc-start'), dst.getAttribute('data-doc-flow') || 'feature'); return; }
   const dnote = t.closest('[data-doc-note]');
-  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.files[it.folder + '/findings.md']; if (d && d.text) noteOf(it.title, d.text); return; }
+  if (dnote) {
+    const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.files[it.folder + '/findings.md'];
+    if (d && d.text) { noteOf(it.title, d.text); if (it.kind === 'spike') act(() => closeSpike(it.folder, closedWith('saved as a note')), null, it.folder); }
+    return;
+  }
+  const sclose = t.closest('[data-spike-close]');
+  if (sclose) { const f = sclose.getAttribute('data-spike-close'); act(() => closeSpike(f, closedWith('nothing more to do')), () => toast('Closed. It is in Done on the board.'), f); return; }
+  const dfolio = t.closest('[data-docs-folio]');
+  if (dfolio) { saveDocToFolio(dfolio.getAttribute('data-docs-folio')); return; }
   if (t.closest('[data-proj-new]')) { openProject(null); return; }
   const pe = t.closest('[data-proj-edit]');
   if (pe) { openProject(pe.getAttribute('data-proj-edit')); return; }
@@ -950,8 +1003,10 @@ listen('click', ev => {
   if (fl && ui().start) { ui().start.flow = fl.getAttribute('data-flow') || null; ui().start.error = null; paint(); focusFirst(ui().start.flow ? '.start-first' : '.fcard'); return; }
   const ssrc = t.closest('[data-start-src]');
   if (ssrc && ui().start) { ui().start.src = ssrc.getAttribute('data-start-src'); ui().start.error = null; paint(); focusFirst('.start-first'); return; }
-  const sl = t.closest('[data-start-lane]');
-  if (sl && ui().start) { ui().start.lane = sl.getAttribute('data-start-lane'); ui().start.error = null; paint(); return; }
+  for (const [attr, k] of [['data-start-size', 'size'], ['data-start-type', 'type'], ['data-start-timebox', 'timebox']]) {
+    const b = t.closest(`[${attr}]`);
+    if (b && ui().start) { ui().start[k] = b.getAttribute(attr); ui().start.error = null; paint(); if (k !== 'timebox') focusFirst('.start-first'); return; }
+  }
   if (t.closest('[data-repo-open]')) { openRepo(); return; }
   if (t.closest('[data-repo-go]')) { repoGo(); return; }
   const gb = t.closest('[data-guide]');

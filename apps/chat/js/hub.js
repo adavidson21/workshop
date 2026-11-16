@@ -12,7 +12,7 @@
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
      changed (Tab) or dismissed. Accepted captures go to Loom's own `handoffs` collection with accepted: true
      (shared/capture-box.js); Docket, Rapport and Notes add them when they load. Nothing else is written.
-   - ask: the answer, with sources. Buttons: Make it a spike (with a confirm), Save as note.
+   - ask: the answer, with sources. Flow cards (Start work in Loom on the flow the ask fits), Save as note.
    - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
    - clarify: chips that send the message again with the choice (a new chat).
    Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
@@ -26,7 +26,7 @@
    why under the input for a few seconds. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
-import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
+import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, flowCardsHtml, flowRoute, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 import { keepFocus, lastTandem } from './thread.js';
 
 const OC = 'opencode';
@@ -217,10 +217,8 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     catch (e) { ws.toast(e.message || 'Could not start that.', { kind: 'error' }); }
     draw();
   }
-  async function spike(card) {
-    try { await ws.connectors.call(OC, 'spike', { topic: card.text.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. It shows below.', { kind: 'success' }); }
-    catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
-  }
+  /** A flow card: Loom's Start work on that flow, filled in with the ask. Nothing starts until Start there. */
+  function openFlow(id, text) { ws.open({ app: 'slate', path: flowRoute(id, text) }).catch(() => ws.toast('Turn Loom on in Settings, Apps.', { kind: 'warn' })); }
   async function saveNote(card) {
     await noteOf(card.text, card.answer || card.said || '');
   }
@@ -256,8 +254,9 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     if (route && route.intent === 'ask' && route.ask.repos.length) body += `<p class="hub-meta">Looked in ${route.ask.repos.map(esc).join(', ')}</p>`;
     // No answer file: show what the session said, so a reply is never lost behind an error.
     if (card.answer == null && card.said && card.state !== 'running' && (asked || card.badRoute)) body += `<p class="hub-meta">Tandem said:</p><div class="hub-answer">${answerHtml(card.said)}</div>`;
-    // Make it a spike and Save as note sit under Tandem's newest answer only (a chat with follow-ups has its own).
-    if (actions && asked && card.state !== 'running' && (card.answer != null || card.said)) body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
+    // Flow cards and Save as note sit under Tandem's newest answer only (a chat with follow-ups has its own).
+    // Flow cards (Loom flow cards v1) replace Make it a spike: the one or two flows the ask fits, plus Save as note.
+    if (actions && asked && card.state !== 'running' && (card.answer != null || card.said)) body += flowCardsHtml(card.text, 'data-hub-flow') + `<p class="hub-actions"><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
     if (card.state === 'noanswer' && !card.said) body += '<p class="hub-meta">The hub ended without an answer. Ask again, or rephrase.</p>';
     if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Chat expects, so nothing was captured or opened. Its reply is shown as is.</p>';
     if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
@@ -354,7 +353,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     else if (d.hubSave != null) saveEdit(card, +d.hubSave);
     else if (d.hubKind != null) { const r = card.rows[+d.hubKind]; r.p = { ...retarget(r.p, nextKind(r.p.kind), rulesCtx()), confidence: r.p.confidence, reason: r.p.reason }; draw(); }
     else if (d.hubAct != null) runAct(card);
-    else if (d.hubSpike != null) spike(card);
+    else if (d.hubFlow != null) openFlow(d.hubFlow, card.text);
     else if (d.hubNote != null) saveNote(card);
     else if (d.hubChoice != null) send(`${card.text} (${card.route.clarify.choices[+d.hubChoice]})`);
     else return false;

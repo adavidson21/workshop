@@ -15,7 +15,7 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
+import { TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
@@ -209,6 +209,24 @@ function readWorkFile({ folder, file }) {
   } catch {
     throw httpError(404, `.work/${folder}/${file} not found.`);
   }
+}
+
+// The doc a docs-<name> folder is about (Write docs, Save to Folio): sources.md names it on a "Doc:" line (eng-agents
+// Core 4.2.0 /docs), relative to the workspace. Only a Markdown or text file inside the workspace, at most 1 MB.
+export const DOC_LINE = /^Doc:\s*`?([^`\r\n]+?)`?\s*$/im;
+function readDocOf({ folder: f }) {
+  if (!/^docs-[A-Za-z0-9._-]{1,120}$/.test(String(f || ""))) throw httpError(400, "Only a docs-<name> folder has a doc.");
+  const sources = readWorkFile({ folder: f, file: "sources.md" }).text;
+  const m = DOC_LINE.exec(sources);
+  if (!m) throw httpError(404, "sources.md does not say where the doc is (no Doc: line). Run /docs again, or copy the doc into Folio yourself.");
+  const rel = m[1].trim().replace(/\\/g, "/");
+  const base = path.resolve(opt.workspace);
+  const full = path.resolve(base, rel);
+  if (!/\.(md|mdx|markdown|txt)$/i.test(full) || !(full === base || full.startsWith(base + path.sep)) || rel.includes("\0")) throw httpError(404, "The doc is not a Markdown file in the workspace.");
+  let st;
+  try { st = fs.statSync(full); } catch { throw httpError(404, `${rel} not found.`); }
+  if (!st.isFile() || st.size > 1024 * 1024) throw httpError(413, `${rel} is not a file of 1 MB or less.`);
+  return { folder: f, path: rel, text: fs.readFileSync(full, "utf8") };
 }
 
 // Why Tandem's .work folder must not be edited right now, or null: its session is working or autopilot runs it.
@@ -495,7 +513,7 @@ const actions = {
   spike: {
     title: "Start a spike (investigate, no code changes)",
     write: true,
-    argsSchema: obj(["topic"], { topic: str("What to investigate", { minLength: 1, maxLength: 500 }) }),
+    argsSchema: obj(["topic"], { topic: str("The question to answer", { minLength: 1, maxLength: 500 }), timebox: { type: "string", title: "Timebox (Core 4.2.0)", enum: TIMEBOXES } }),
     async run(args) {
       needReady();
       return startSpike(args);
@@ -609,6 +627,15 @@ const actions = {
       // Slate's PM folders keep their own rules; any other folder is Notebook's and Dispatch's editor (lib/docs.mjs).
       if (PM_FOLDER.test(String(args.folder || ""))) return writePmFile(args);
       return writeWorkFile(args, { root: workRoot, busyFor });
+    },
+  },
+  "docs.doc": {
+    title: "Read the doc a Write docs folder is about (from sources.md's Doc: line)",
+    write: false,
+    argsSchema: obj(["folder"], { folder: str("A docs-<name> folder", { minLength: 1, maxLength: 130 }) }),
+    async run(args) {
+      needReady();
+      return readDocOf(args);
     },
   },
   "docs.list": {

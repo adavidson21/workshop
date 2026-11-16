@@ -138,3 +138,19 @@ const panelSubs = new Set();
 export function setPanelRun(folder) { folder = folder || ''; if (folder === panelFolder) return; panelFolder = folder; for (const f of panelSubs) f(folder); }
 export const panelRun = () => panelFolder;
 export function onPanelRun(f) { panelSubs.add(f); }
+
+/* Flow cards that run on the board (Handle a request, Hand to a person): the runs half's Start work hands the form
+   to the board half, which adds the card and starts its first step. Resolves what the board half returns. */
+let boardCmd = null;
+export function onBoardCommand(fn) { boardCmd = fn; }
+export function boardCommand(name, args) {
+  if (!boardCmd) return Promise.reject(new Error('The board is still loading. Try again in a moment.'));
+  return Promise.resolve().then(() => boardCmd(name, args));
+}
+
+/* Hand-offs with no movement (the board half works them out; the runs half's Inbox shows them). */
+let nudges = [];
+const nudgeSubs = new Set();
+export function setNudges(list) { nudges = Array.isArray(list) ? list : []; for (const f of nudgeSubs) f(nudges); }
+export const currentNudges = () => nudges;
+export function onNudges(f) { nudgeSubs.add(f); }

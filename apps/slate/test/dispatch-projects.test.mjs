@@ -42,6 +42,9 @@ const memStorage = () => { const m = new Map(); return { getItem: k => (m.has(k)
 beforeEach(() => load());
 
 test('no sidebar: Work has project chips with counts, and All projects is the default', () => {
+  // Past their stops (flow cards v1: a spike at its findings and a TSD draft to read wait in the Inbox).
+  S.D.items.find(it => it.folder === 'spike-cache-options').state = 'Closed';
+  S.D.items.find(it => it.folder === 'tsd-billing-api').state = 'Published';
   S.ui.tab = 'work';
   const html = render();
   assert.doesNotMatch(html, /class="side|data-side-/);

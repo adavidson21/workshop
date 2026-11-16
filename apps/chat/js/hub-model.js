@@ -172,3 +172,42 @@ export const HUB_GIVE_UP_MS = 10 * 60 * 1000;
 
 /* Sessions the hub started (their command is /hub ...): Dispatch lists them only while they need you. */
 export const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
+
+/* ---------- flow suggestions (Loom flow cards v1) ----------
+   Under an answer, Chat offers the one or two Loom flow cards the ask fits, from the words in it. A card opens Loom's
+   Start work on that flow, filled in with the ask (route start/<flow>/<text>); nothing starts until Start there. */
+export const FLOW_CARDS = {
+  request: ['Handle a request', 'Triage it, then pick the path.'],
+  feature: ['Build a feature', 'Spec and plan, then the build.'],
+  bug: ['Fix a bug', 'Root cause with a repro, then the fix.'],
+  spike: ['Investigate', 'Answer the question first. No code changes.'],
+  epic: ['Plan an epic', 'An epic, features and stories.'],
+  handoff: ['Hand to a person', 'Define it, assign it, follow it.'],
+  docs: ['Write docs', 'Docs or a technical spec, fact-checked.']
+};
+const FLOW_WORDS = [
+  ['bug', /\b(bug|broken|break[s]?|error[s]?|fail(s|ed|ing)?|crash(es|ed)?|exception|regression|wrong|doesn'?t work|not working|500s?)\b/i],
+  ['docs', /\b(document(ation)?|docs?|readme|runbook|write[- ]?up|tech(nical)? spec|tsd|diagram[s]?)\b/i],
+  ['handoff', /\b(delegate|hand (it )?(off|over)|assign (it|this)|someone else|have (\w+ )?(build|do|take) (it|this))\b/i],
+  ['request', /\b(asked (for|me|us)|is asking|requested|request(s)?|wants us|would like|customer|client|stakeholder)\b/i],
+  ['epic', /\b(epic|initiative|roadmap|v\d+(\.\d+)?|a new (product|module|area))\b/i],
+  ['spike', /\b(how hard|what would it take|how (does|do|is|are)|why (does|do|is|are)|should we|options? for|is it possible|can we|investigate|look into)\b/i],
+  ['feature', /\b(add|build|support|implement|allow|let (users|people)|make it|new feature|feature)\b/i]
+];
+/** One or two flows for an ask, best first. A question with no other clue is a spike, then a feature. */
+export function suggestFlows(text) {
+  const t = String(text || '');
+  const hits = FLOW_WORDS.filter(([, re]) => re.test(t)).map(([id]) => id);
+  const out = [...new Set(hits)];
+  if (!out.length) return ['spike', 'feature'];
+  if (out.length === 1) out.push(out[0] === 'spike' ? 'feature' : 'spike');
+  return out.slice(0, 2);
+}
+/** The flow cards under an answer. Each button carries data-flow-card (the flow id); the caller opens Loom with it. */
+export function flowCardsHtml(text, attr = 'data-flow-card') {
+  const ids = suggestFlows(text);
+  return `<div class="hub-flows" role="group" aria-label="Start work from this"><span class="hub-meta">Start work from this</span>` +
+    ids.map(id => `<button type="button" class="hub-flow" ${attr}="${esc(id)}"><b>${esc(FLOW_CARDS[id][0])}</b><span>${esc(FLOW_CARDS[id][1])}</span></button>`).join('') + '</div>';
+}
+/** The Loom route for a flow card: Start work on that flow, filled in with the ask. */
+export const flowRoute = (id, text) => `start/${FLOW_CARDS[id] ? id : 'spike'}/${encodeURIComponent(String(text || '').trim().slice(0, 2000))}`;

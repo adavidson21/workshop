@@ -9,7 +9,7 @@
    and its buttons. No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
 import { h, md, plural, ago, stamp, fileBtn, fileOf, asking, itemSession, isBusy, itemKey, itemForFolder, stateVar, track, nextHtml, nextBtns, autoHtml, agentHtml, leftOffHtml,
-  permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, slateChip, slateOf, idLink, safeUrl, link, runBtn, autoIs,
+  permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, slateChip, slateOf, idLink, safeUrl, link, runBtn, runFork, autoIs,
   activityHtml, onboardHtml, pickItem, pickupHtml, looseSessions, openAttr, bucketOf, reviewHref } from './view.js';
 import { projectChip, projectFilterHtml, inProject, runStatus, statusDot, runLabel } from './projects.js';
 import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toReviewCount, reviewsAsking } from './pr-reviews.js';
@@ -17,10 +17,10 @@ import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toRevie
 const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
 import { docHtml } from './doc.js';
 import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
-  folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder } from './flows.js';
+  folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder, forkHtml } from './flows.js';
 
 export { TABS } from '../loom.js';
-import { TABS, BOARD_TABS, panelRun } from '../loom.js';
+import { TABS, BOARD_TABS, panelRun, currentNudges } from '../loom.js';
 // `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
 export const TAB_IDS = [...TABS.map(t => t[0]), 'work'];
 /** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
@@ -49,7 +49,9 @@ export function inboxData() {
   const failed = newest(workItems().filter(it => it.kind === 'item' && !isShip(it) && !it.paused && !asking(it) && isStopped(it)));
   const stopped = new Set(failed);
   const gates = newest(workItems().filter(it => atGate(it) && !codeSet.has(it) && !stopped.has(it)));
-  return { asks, gates, code, failed, prs: toReviewCount() };
+  // Hand-offs with no movement in 3 working days (the board half works them out; flow cards v1).
+  const nudges = currentNudges();
+  return { asks, gates, code, failed, nudges, prs: toReviewCount() };
 }
 /** A run whose last step failed or says it is blocked, or whose session stopped with an error. */
 export function isStopped(it) {
@@ -57,7 +59,7 @@ export function isStopped(it) {
   return !!it.blocked || (!!s && !!s.error && !isBusy(s) && !autoIs(it, 'running'));
 }
 /** The rail badge and the Inbox tab count: rows that need you (teammates' PRs are counted on Reviews). */
-export function inboxCount(d = inboxData()) { return d.asks.length + d.gates.length + d.code.length + d.failed.length; }
+export function inboxCount(d = inboxData()) { return d.asks.length + d.gates.length + d.code.length + d.failed.length + (d.nudges || []).length; }
 /** Folders that are in the Inbox (asking, at a gate, a code review, stopped): Work leaves them out. */
 export function inboxFolders(d = inboxData()) {
   const set = new Set([...d.gates, ...d.code, ...d.failed].map(it => it.folder));
@@ -71,7 +73,8 @@ export function walkList(d = inboxData()) {
     d.failed.map(it => ({ key: 'failed:' + it.folder, kind: 'failed', it })),
     d.asks.map(a => ({ key: 'ask:' + a.x.id, kind: 'ask', a })),
     d.gates.map(it => ({ key: 'gate:' + it.folder, kind: 'gate', it })),
-    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it }))
+    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it })),
+    (d.nudges || []).map(n => ({ key: 'nudge:' + n.id, kind: 'nudge', n }))
   ).filter(x => !done[x.key]);
 }
 
@@ -136,25 +139,42 @@ export function sendBackHtml(it) {
 }
 const CMD_LABEL = { approve: 'Approve', slice: 'Slice', backlog: 'Make the backlog', 'check-docs': 'Fact-check', publish: 'Publish', tsd: 'Run /tsd', scope: 'Scope' };
 function cmdLabel(cmd) { const n = String(cmd || '').split(/\s+/)[0].replace(/^\//, ''); return CMD_LABEL[n] || 'Run'; }
-/** The buttons at a folder's current step (epic, docs, TSD, spike): its next command, and what else fits there. */
+/** The buttons at a folder's current step (epic, docs, TSD, spike): its next command, and what else fits there. At a
+ *  fork (a spike's findings, a doc's final read) the choices are path cards (flow cards v1). */
 export function folderActs(it, inline) {
   const f = flowOf(it);
   const i = stepIndex(it);
   const out = [];
-  if (f && f.id === 'tsd' && i === 2) {
-    out.push(`<button type="button" class="btn primary" data-file="${h(it.folder)}" data-name="tsd.md" data-mode="edit">Edit tsd.md</button>`);
-    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish', true));
-  } else if (f && f.id === 'tsd' && i === 3) {
-    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish'));
-  } else if (f && f.id === 'spike') {
-    if (i === 1) out.push(`<button type="button" class="btn primary" data-doc-start="${h(it.folder)}" title="Opens Start work with the findings as the description">Start work from this</button>`);
+  const edit = (file, label, primary) => `<button type="button" class="btn${primary ? ' primary' : ''}" data-file="${h(it.folder)}" data-name="${h(file)}" data-mode="edit">${h(label)}</button>`;
+  const id = f && f.id;
+  if (id === 'tsd' && i === 1) {
+    const cmd = folderCommand(it) || `/check-docs .work/${it.folder}/tsd.md`;
+    out.push(runBtn(it, cmd, 'Fact-check it'), edit('tsd.md', 'Edit tsd.md'));
+  } else if (id === 'tsd' && i === 3) {
+    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish'), edit('tsd.md', 'Edit tsd.md'));
+  } else if (id === 'spike' && i === 1) {
     const d = fileOf(it.folder, 'findings.md');
-    if (inline && d && d.text) out.push(`<button type="button" class="btn ghost" data-doc-note="${h(it.folder)}">Save as note</button>`);
-  } else if (f && f.id === 'docs' && i === 1) {
+    const doc = (flow, label, desc) => ({ label, desc, attrs: `data-doc-start="${h(it.folder)}" data-doc-flow="${flow}"`, title: 'Opens Start work with the findings filled in. Nothing starts until Start.' });
+    out.push(forkHtml([
+      doc('feature', 'Build it', 'Start a feature from the findings.'),
+      doc('bug', 'Fix it', 'Start a bug fix from the findings.'),
+      doc('docs', 'Write it up', 'Write docs from what it found.'),
+      { label: 'Save as note', desc: 'Keep the findings in Notes and close it.', attrs: `data-doc-note="${h(it.folder)}"`, disabled: !(d && d.text), title: d && d.text ? '' : 'Read the findings first' },
+      { label: 'Close', desc: 'Nothing more to do.', attrs: `data-spike-close="${h(it.folder)}"` }
+    ], 'What next for this spike'));
+  } else if (id === 'docs' && i === 1) {
     const cmd = folderCommand(it);
-    if (cmd) out.push(runBtn(it, cmd, 'Fact-check'));
+    if (cmd) out.push(runBtn(it, cmd, 'Looks right: fact-check it'));
     else if (inline) out.push(`<span class="docs-path"><input type="text" class="mono" data-draft="dc:${h(it.folder)}" value="${h(S.ui.drafts['dc:' + it.folder] || '')}" placeholder="Path of the doc, like docs/run-locally.md" spellcheck="false" autocomplete="off" aria-label="Path of the doc to fact-check">` +
       `<button type="button" class="btn primary" data-docs-check="${h(it.folder)}">Fact-check</button></span>`);
+  } else if (id === 'docs' && i === 3) {
+    const busy = !!S.ui.busy['folio:' + it.folder];
+    out.push(forkHtml([
+      runFork(it, `/publish ${it.folder}`, 'Save in the repo', 'Approves it where it lives in the repo. You commit it and open the PR.'),
+      { label: busy ? 'Saving' : 'Save to Folio', desc: 'A copy in Folio, under Tandem. Nothing is committed.', attrs: `data-docs-folio="${h(it.folder)}"`, disabled: busy }
+    ], 'Where the doc goes'));
+  } else if (id === 'epic' && i === 4) {
+    out.push(runBtn(it, `/backlog ${it.folder} ado`, 'Create in ADO'), runBtn(it, `/backlog ${it.folder} csv`, 'Make an import file instead', true));
   } else {
     const cmd = folderCommand(it);
     if (cmd && !isFinished(it)) out.push(runBtn(it, cmd, cmdLabel(cmd)));
@@ -203,7 +223,14 @@ export function runCardHtml(folder) {
   if (d.failed.includes(it)) return failedCard(it);
   return `<div class="rows">${workRow(it)}</div>`;
 }
+/** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */
+function nudgeRow(n) {
+  return `<article class="rrow nudge-row">${statusDot('review')}<button type="button" class="rr-t" data-board-item="${h(n.id)}">${h(n.title)}</button>` +
+    `<span class="rr-m">${n.assigneeName ? 'With ' + h(n.assigneeName) + ', no' : 'No'} movement in ${h(n.days)} working days</span>` +
+    `<span class="rr-act"><button type="button" class="btn" data-hot="a" data-board-item="${h(n.id)}">Open the card</button></span></article>`;
+}
 function walkRowHtml(x) {
+  if (x.kind === 'nudge') return `<div class="rows">${nudgeRow(x.n)}</div>`;
   if (x.kind === 'ask') return askHtml(x.a);
   if (x.kind === 'gate') return gateCard(x.it, true);
   if (x.kind === 'code') return `<div class="rows">${codeRow(x.it)}</div>`;
@@ -246,6 +273,7 @@ export function inboxHtml() {
   if (show('blocked') && d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="icards">${d.failed.map(failedCard).join('')}</div>`);
   if (show('agents') && d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
   if (show('agents') && d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(it => gateCard(it)).join('')}</div>`);
+  if (chip === 'all' && d.nudges && d.nudges.length) html += section('nudges', 'Hand-offs with no movement', d.nudges.length, `<div class="rows">${d.nudges.map(nudgeRow).join('')}</div>`, 'Check in, then mark it Followed up on its card.');
   if (show('prs') && d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
   // Teammates' PRs: a line on All, the whole review list (Review a link, first passes, earlier reviews) on PRs.
   if (chip === 'prs') html += `<section class="group inbox-reviews" aria-label="Teammates' PRs">${reviewsHtml()}</section>`;
@@ -289,7 +317,7 @@ const WORK_GROUPS = [
 function flowFilterHtml(list) {
   const n = id => list.filter(it => (flowOf(it) || {}).id === id).length;
   const cur = S.ui.flow || 'all';
-  const shown = FLOWS.filter(f => f.id !== 'quick' && n(f.id));
+  const shown = FLOWS.filter(f => !f.board && n(f.id));
   const other = list.filter(it => !flowOf(it)).length;
   if (shown.length + (other ? 1 : 0) < 2) return '';
   const chip = (id, label, c) => `<button type="button" class="fchip${cur === id ? ' on' : ''}" data-filter-flow="${h(id)}" aria-pressed="${cur === id}"><span>${h(label)}</span><span class="n">${c}</span></button>`;
@@ -390,7 +418,7 @@ export function stepFile(it, step, rel) {
 }
 function stepPanelHtml(it, step) {
   const rel = stepRel(it, step);
-  const sub = rel === 'here' ? hereWords(it, step) : rel === 'done' ? 'Done' : step.you ? 'Stops for you' : 'Tandem runs this';
+  const sub = rel === 'here' ? hereWords(it, step) : rel === 'done' ? 'Done' : step.you === 'blockers' ? 'Stops only on blockers' : step.you ? 'Stops for you' : 'Tandem runs this';
   let body = '';
   const file = stepFile(it, step, rel);
   if (rel === 'here') {
@@ -403,7 +431,9 @@ function stepPanelHtml(it, step) {
       const acts = folderActs(it, true);
       const turn = turnHtml(it);
       if (!file && it.summary) body += `<p class="pre">${md(it.summary)}</p>`;
-      body += `<div class="do"><span class="act">${turn || h(step.what)}</span>${acts ? `<span class="row" style="margin-left:auto">${acts}</span>` : ''}</div>`;
+      // Path cards (a fork) go under the line, full width; buttons sit at its end.
+      const forks = /class="forks"/.test(acts);
+      body += `<div class="do"><span class="act">${turn || h(step.what)}</span>${acts && !forks ? `<span class="row" style="margin-left:auto">${acts}</span>` : ''}</div>` + (forks ? acts : '');
       if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
     }
     body += fileInline(it, file, false) + agentHtml(it);
@@ -413,7 +443,7 @@ function stepPanelHtml(it, step) {
     body += file ? fileInline(it, file, false) : '';
     if (!file && !(it.kind === 'item' && step.key === 'build')) body += '<p class="dim">Nothing to show for this step.</p>';
   } else {
-    body += `<p class="dim">${step.you ? 'This step stops for you.' : 'Tandem runs this step.'} It has not started.</p>`;
+    body += `<p class="dim">${step.you === 'blockers' ? 'Tandem runs this step; it stops for you only on blockers it cannot turn into fix tasks.' : step.you ? 'This step stops for you.' : 'Tandem runs this step.'} It has not started.</p>`;
   }
   return `<section class="spanel ${rel}" aria-label="${h(step.name)}"><div class="sp-head"><h3>${h(step.name)}</h3><span class="sp-sub">${h(sub)}</span></div>` +
     `<p class="sp-what">${h(step.what)}</p>${body}</section>`;

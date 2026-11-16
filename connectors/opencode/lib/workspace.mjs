@@ -182,12 +182,15 @@ export async function promptLoose(title, text, agent) {
 }
 
 /** /spike <topic>: an investigation with no code changes. Linked to its spike-<name> folder once it exists. */
-export function startSpike({ topic }) {
+// A spike's optional timebox (eng-agents Core 4.2.0 /spike --timebox): how long the investigation may take.
+export const TIMEBOXES = ["1h", "2h", "4h", "1d"];
+export function startSpike({ topic, timebox }) {
   const t = String(topic || "").replace(/[\r\n]+/g, " ").trim();
   if (!t) throw httpError(400, "Say what to investigate.");
   if (t.length > 500) throw httpError(400, "Keep the question under 500 characters.");
+  if (timebox != null && timebox !== "" && !TIMEBOXES.includes(timebox)) throw httpError(400, `The timebox must be one of ${TIMEBOXES.join(", ")}.`);
   const before = new Set(spikeFolders());
-  return runLoose("spike", t, () => spikeFolders().find((f) => !before.has(f)) || null);
+  return runLoose("spike", timebox ? `${t} --timebox ${timebox}` : t, () => spikeFolders().find((f) => !before.has(f)) || null);
 }
 const spikeFolders = () => ((model && model.items) || []).filter((i) => /^spike-/.test(i.folder)).map((i) => i.folder);
 

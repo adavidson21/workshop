@@ -1,7 +1,7 @@
 // view.js is pure HTML builders: check the board, the panel's steps and More render, and escape what comes from files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SHOWN, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, linkPickDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
+import { MAX_SHOWN, MAX_FORK, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, linkPickDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
 import { cleanItem, cleanPrefs, newItem, setStage, shapeState, timeline } from '../js/model.js';
 
 const base = (item, extra = {}) => ({
@@ -37,10 +37,11 @@ test('panel: an idea in Inbox offers Shape it; a request offers Triage and Inter
   assert.doesNotMatch(h, /data-act="skip"/, 'Already shaped is gone: Move to in More does it');
   const req = panelHtml(base(newItem({ title: 'A request' }), { canLocal: true, forward: ['defining', 'decide'] }));
   const next = req.slice(req.indexOf('<div class="next">'));
-  assert.match(next, /data-act="triage"/);
-  assert.match(next, /data-act="shape"[^>]*>Interview me</);
+  assert.match(next, /<div class="forks" role="group" aria-label="Pick the next path"><button type="button" class="fork rec" data-act="triage"><span class="fk-t">Triage<span class="fk-rec">Suggested/, 'path cards (flow cards v1)');
+  assert.match(next, /data-act="shape"[^>]*><span class="fk-t">Interview me</);
+  assert.match(next, /data-act="define"[^>]*><span class="fk-t">Define now</);
   const more = req.slice(req.indexOf('<details class="more">'), req.indexOf('</details>'));
-  assert.match(more, /data-act="define"[^>]*>Define now</);
+  assert.match(more, /data-act="decline"[^>]*>Decline</);
   assert.match(more, /data-act="build-local"/);
   assert.match(more, /data-act="roadmap-add"/);
   assert.match(more, /<optgroup label="Skip ahead"><option value="decide">Decide: who builds it\?<\/option><option value="defining">Decide: define<\/option>/);
@@ -86,10 +87,10 @@ const STEPS = () => {
   ];
 };
 
-test(`panel: no step shows more than ${MAX_SHOWN} buttons; the rest are in More`, () => {
+test(`panel: no step shows more than ${MAX_SHOWN} buttons (${MAX_FORK} path cards at a fork); the rest are in More`, () => {
   for (const [name, p] of STEPS()) {
     const n = nextOf(p);
-    assert.ok((n.shown || []).length <= MAX_SHOWN, `${name}: ${(n.shown || []).length} shown`);
+    assert.ok((n.shown || []).length <= (n.fork ? MAX_FORK : MAX_SHOWN), `${name}: ${(n.shown || []).length} shown`);
     const h = panelHtml(p);
     const box = /<div class="next">[\s\S]*?<div class="acts">([\s\S]*?)<\/div><\/div>/.exec(h);
     if (box) assert.ok((box[1].match(/<button/g) || []).length <= MAX_SHOWN, `${name}: next box`);
@@ -156,7 +157,7 @@ test('panel: the brief offers Send to Define, Keep going and Edit', () => {
   const files = { 'brief.md': '# Brief: An idea\n\nProduct: Reports\nLevel: User Story\nSize: S\n\n## Problem\n\nNo export.\n' };
   const h = panelHtml(base(it, { column: 'brief', files }));
   assert.match(h, /refine \(one story\)/);
-  assert.match(h, /data-act="send-define"/);
+  assert.match(h, /data-act="build-it"[^>]*><span class="fk-t">Build it<span class="fk-rec">Suggested.*data-act="fix-it".*data-act="investigate".*data-act="hand-off".*data-act="decline"/s, 'the brief fork: five paths');
   assert.match(h, /data-act="keep-going"/);
   assert.match(h, /id="bnotes"/);
   assert.match(h, /data-act="edit-brief"/);
@@ -216,7 +217,8 @@ test('panel: In flight and Resolved by step, with Link ADO item when there is no
   assert.doesNotMatch(review, /data-act="check-prs"/);
   const merged = cleanItem({ ...newItem({ title: 'Merged', ado: { id: 7, type: 'Feature' } }), stage: 'dev', merged: '2026-11-05' });
   const m = panelHtml(base(merged, { dev: true, column: 'merged' }));
-  assert.match(m, /data-act="mark-resolved"[^>]*>Mark resolved <span class="out-mark" data-out="ado"/);
+  assert.match(m, /data-act="mark-resolved"[^>]*>Resolve in ADO <span class="out-mark" data-out="ado"/);
+  assert.match(m, /Resolve in ADO finishes it/);
   assert.doesNotMatch(m, /id="linkAdo"/);
   const r = panelHtml(base(resolved('w_r', 'Done', 'Web', 9), { dev: true, column: 'resolved' }));
   assert.match(r, /data-act="close-one"[^>]*>Close as released <span class="out-mark" data-out="ado"/);
@@ -262,7 +264,10 @@ test('panel: with Tandem off, agent buttons stay but are disabled with the reaso
   assert.ok(n.shown.every(b => !/ disabled/.test(b)), 'nothing here needs an agent');
   const off = 'Tandem is not set up on this computer.';
   const tri = nextOf(base(cleanItem({ ...newItem({ title: 't' }), stage: 'triaged' }), { column: 'triage', triage: { summary: 's', route: 'delegate', size: 'S', repos: [], questions: [] }, tandemOff: off }));
-  for (const b of tri.shown) assert.match(b, /^<button disabled title="Needs Tandem: Tandem is not set up on this computer\."/);
+  for (const b of tri.shown) {
+    if (/data-act="decline"/.test(b)) assert.doesNotMatch(b, / disabled/, 'Decline needs no agent');
+    else assert.match(b, /^<button disabled title="Needs Tandem: Tandem is not set up on this computer\."/);
+  }
   assert.match(tri.text, /Agent steps need Tandem, which is not set up here\./);
   const on = nextOf(steps['inbox request']);
   assert.ok(on.shown.every(b => !/ disabled/.test(b)), 'Tandem on: nothing disabled');
@@ -344,9 +349,10 @@ test('outside writes: every button that changes ADO carries the mark, and local 
 test('outside writes: Who builds it? says when Build it myself publishes first', () => {
   const it = cleanItem({ ...newItem({ title: 'x' }), stage: 'decide' });
   const ready = panelHtml(base(it, { column: 'decide', canAdo: true, draft: { ready: true } }));
-  assert.match(ready, /data-act="myself"[^>]*data-out>Publish and build it myself <span class="out-mark"/);
+  assert.match(ready, /data-act="myself"[^>]*data-out><span class="fk-t">Publish and build it myself <span class="out-mark"/);
+  assert.match(ready, /data-act="delegate"[^>]*><span class="fk-t">Hand to a person</);
   const notReady = panelHtml(base(it, { column: 'decide', canAdo: true, draft: { ready: false } }));
-  assert.match(notReady, /data-act="build-local"[^>]*>Build it myself, skip ADO</);
+  assert.match(notReady, /data-act="build-local"[^>]*><span class="fk-t">Build it myself, skip ADO</);
   assert.doesNotMatch(notReady, /data-act="myself"/);
 });
 
