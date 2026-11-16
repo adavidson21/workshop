@@ -48,3 +48,18 @@ test('the Chat sidebar: groups by day, newest first, and search by every word', 
   assert.equal(matchChat(items[0], 'api billing'), false);
   assert.equal(matchChat(items[0], '  '), true);
 });
+
+test('echoes: a sent message stays until opencode stores it, or a minute passes with opencode idle', async () => {
+  const { liveEchoes, ECHO_MS } = await import('../js/thread.js');
+  const now = 1_000_000;
+  const e = { text: 'fix the build', base: 2, at: now };
+  const two = [{ role: 'you', text: 'hi' }, { role: 'tandem', text: 'hello' }];
+  assert.equal(liveEchoes([e], two, { now }).length, 1, 'not stored yet: still shown');
+  assert.equal(liveEchoes([e], [...two, { role: 'you', text: 'fix the build' }], { now }).length, 0, 'stored: gone');
+  assert.equal(liveEchoes([e], two, { now: now + ECHO_MS + 1 }).length, 0, 'never stored and idle: gone after a minute');
+  assert.equal(liveEchoes([e], two, { now: now + ECHO_MS + 1, busy: true }).length, 1, 'kept while opencode is working');
+  const blind = { text: 'fix the build', base: null, at: now };
+  assert.equal(liveEchoes([blind], two, { now }).length, 1, 'turns were not read when sent: kept until the text shows');
+  assert.equal(liveEchoes([blind], [...two, { role: 'you', text: ' fix the build ' }], { now }).length, 0);
+  assert.deepEqual(liveEchoes(null, null), []);
+});

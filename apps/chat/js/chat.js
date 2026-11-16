@@ -18,7 +18,7 @@
    thing that makes opencode act, and opencode's own permission settings decide what an agent may do, exactly as in
    the terminal. Drawn into its own element, so typing survives repaints (keepFocus). */
 import { esc, flowCardsHtml, flowRoute } from './hub-model.js';
-import { WRITING, groupChats, keepFocus, lastTandem, matchChat, tandemTurn, youTurn } from './thread.js';
+import { WRITING, groupChats, keepFocus, lastTandem, liveEchoes, matchChat, tandemTurn, youTurn } from './thread.js';
 import { BUILTINS, HELP, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptHtml, questionAnswers, richRows, splitRevert, tokens } from './parts.js';
 
 const OC = 'opencode';
@@ -71,6 +71,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const drafts = {};
   const picked = {}; // draft key -> Set of @files picked from the popup
   const queue = {}; // session -> [{parsed, agent, model, files, text}]
+  const echo = {}; // session (or NEW while starting) -> [{text, files, agent, base, at}]: sent, not stored by opencode yet
   const open = new Set(); // tool and thinking blocks flipped from their default
   const answers = {}, custom = {}; // question id -> per question: picked labels, typed answer
   const history = [];
@@ -86,6 +87,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   };
   const itemOf = sid => listed().find(c => c.session === sid) || null;
   const agents = () => (options && options.agents) || [];
+  const echoing = sid => !!(echo[sid] && echo[sid].length);
+  const echoTurns = sid => (echo[sid] || []).map(e => ({ id: '', role: 'you', text: e.text, agent: e.agent, parts: e.files.map(f => ({ type: 'file', name: f })) }));
+  /* Working: opencode says so, or a message is on its way to it. */
+  const working = () => !!(sel && ((conv && conv.busy) || echoing(sel)));
   /** The agents the picker offers here: New chat adds Hub and, with Rewrite a draft on hand, Rewrite at the top. */
   const agentChoices = () => (sel ? agents() : [HUB_AGENT, ...(rewrite ? [REWRITE_AGENT] : []), ...agents()]);
   function agentNow() {
@@ -133,6 +138,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       const r = await ws.connectors.call(OC, 'chat.messages', { session: want });
       if (sel !== want) return;
       conv = r; err = r.error || '';
+      if (echo[want]) echo[want] = liveEchoes(echo[want], r.turns, { busy: !!r.busy });
       const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
       if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; }
       if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
@@ -140,7 +146,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     draw();
     if (sel !== want) return;
     if (conv && !conv.busy && !conv.waiting && (queue[want] || []).length) { flush(want); return; }
-    if (conv && (conv.busy || conv.waiting || (queue[want] || []).length) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
+    if (conv && (conv.busy || conv.waiting || (queue[want] || []).length || echoing(want)) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
   }
   function select(session) {
     if (!session && hub) hub.clearDone();
@@ -180,12 +186,15 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     history.push(text.trim());
     if (history.length > 50) history.shift();
     drafts[k] = ''; picked[k] = new Set();
-    if (sel && conv && (conv.busy || conv.waiting)) { (queue[sel] = queue[sel] || []).push(job); draw(); return; }
+    if (sel && ((conv && (conv.busy || conv.waiting)) || echoing(sel))) { (queue[sel] = queue[sel] || []).push(job); draw(); return; }
     await run(sel, job);
   }
   async function run(session, job) {
     const { parsed, files, agent, model } = job;
     const pickOf = { ...(agent ? { agent } : {}), ...(model ? { model } : {}) };
+    const ek = session || NEW;
+    const mine = { text: parsed.kind === 'text' ? parsed.text : job.text, files, agent: agent || null, base: !session ? 0 : conv ? (conv.turns || []).length : null, at: Date.now() };
+    echo[ek] = [...(echo[ek] || []), mine];
     sending = true; err = ''; draw();
     try {
       let r = null;
@@ -197,17 +206,16 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (!session && sid) {
         sessPick[sid] = { agent: agent || '', model: model ? modelKey(model) : '' };
         pending.set(sid, { session: sid, from: 'you', title: job.text.replace(/\s+/g, ' ').slice(0, 80), at: Date.now(), last: Date.now(), busy: true });
+        echo[sid] = (echo[NEW] || []).filter(e => e === mine); echo[NEW] = (echo[NEW] || []).filter(e => e !== mine);
         sending = false;
         select(sid);
         loadList();
         return;
       }
-      if (sel === session) {
-        const shown = parsed.kind === 'text' ? parsed.text : job.text;
-        conv = { ...(conv || {}), busy: true, revert: null, turns: [...((conv && conv.turns) || []), { id: '', role: 'you', text: shown, agent: agent || null, parts: files.map(f => ({ type: 'file', name: f })) }] };
-      }
+      if (sel === session && conv) conv = { ...conv, revert: null };
       setTimeout(loadConv, 400);
     } catch (e) {
+      echo[ek] = (echo[ek] || []).filter(x => x !== mine);
       const msg = e.message || "Couldn't send that.";
       if (session && /still working/.test(msg)) { (queue[session] = queue[session] || []).unshift(job); setTimeout(loadConv, BUSY_MS); }
       else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; }
@@ -400,7 +408,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   function composeHtml() {
     const k = key();
     const off = !aiReady().ready;
-    const busy = !!(sel && conv && conv.busy);
+    const busy = working();
     const draft = drafts[k] || '';
     const shell = /^\s*!/.test(draft);
     const q = sel ? (queue[sel] || []).length : 0;
@@ -441,6 +449,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   }
   function paneHtml() {
     if (!sel && rewriteMode()) return `<div class="chat-pane chat-home is-rw">${topHtml('Rewrite a draft')}<div class="chat-rw" data-rw-home></div></div>`;
+    if (!sel && echoing(NEW)) {
+      return `<div class="chat-pane">${topHtml('New chat')}<div class="chat-scroll" data-chat-follow><div class="chat-col"><div class="turns">` +
+        richRows(echoTurns(NEW), { busy: true, activity: 'Starting' }) + '</div></div></div>' + composeHtml() + '</div>';
+    }
     if (!sel) {
       const hubOn = hubMode();
       const errs = (optErr ? `<p class="hub-error">${esc(optErr)}</p>` : '') + (err ? `<p class="hub-error">${esc(err)}</p>` : '');
@@ -452,7 +464,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
         `<h3 class="chat-hello">${hubOn ? 'What do you want to ask or capture?' : 'What are we working on?'}</h3>` +
         helpHtml() + errs + '</div></div>' + (hubOn ? hubCompose : '<div class="chat-hub" data-hub-home hidden></div>' + composeHtml()) + '</div>';
     }
-    const busy = !!(conv && conv.busy);
+    const busy = working();
     const c = itemOf(sel) || conv || {};
     const fromHub = c.from === 'hub' || (conv && conv.from === 'hub') || !!c.hub;
     const head = topHtml(c.title || (conv && conv.title) || 'Chat', headBtns(busy));
@@ -467,10 +479,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       rows += '<p class="hub-meta">Loading the answer...</p>';
     }
     const { shown, undone } = splitRevert(later, conv && conv.revert);
-    rows += richRows(shown, { open, details, busy: busy && !(first && first.running), activity: conv && conv.activity });
+    rows += richRows(shown.concat(echoTurns(sel)), { open, details, busy: busy && !(first && first.running), activity: (conv && conv.activity) || (echoing(sel) ? 'Sending' : '') });
     if (undone) rows += `<p class="divider undo"><span>Undid ${undone} message${undone === 1 ? '' : 's'} and ${undone === 1 ? 'its' : 'their'} changes. <button type="button" class="lnk" data-builtin="redo">Redo</button> brings ${undone === 1 ? 'it' : 'them'} back; your next message drops ${undone === 1 ? 'it' : 'them'}.</span></p>`;
     for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
-    if (!conv && !first && !fromHub) rows += '<p class="hub-meta">Loading...</p>';
+    if (!conv && !first && !fromHub && !echoing(sel)) rows += '<p class="hub-meta">Loading...</p>';
     if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
     else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Loom\'s Inbox.</p>';
     if (conv && !busy && later.length && lastTandem(later)) rows += afterHtml();
