@@ -2,6 +2,7 @@
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { isGitHubConnection } from '../../../shared/teams.js';
+import { filterOptions } from '../../../shared/products.js';
 // A card on a GitHub team area (its item's connection is a repo) says GitHub where others say ADO.
 const ghCard = it => !!(it && it.ado && isGitHubConnection(it.ado.connection));
 const sysOut = it => (ghCard(it) ? 'github' : 'ado');
@@ -19,7 +20,7 @@ const btn = (act, label, { id = '', primary = false, extra = '', title = '', out
 const noteHtml = (n) => typeof n === 'string' ? `<p class="note">${esc(n)}</p>`
   : `<p class="note">${esc(n.text)}${(n.acts || []).map(a => ` ${btn(a.act, a.label, { extra: ' data-small' })}`).join('')}</p>`;
 
-export function topHtml(ui, notes, areas = []) {
+export function topHtml(ui, notes, areas = [], products = []) {
   const tab = (key, label) => `<button type="button" class="tab${ui.tab === key ? ' on' : ''}" role="tab" aria-selected="${ui.tab === key}" data-act="tab" data-id="${key}">${label}</button>`;
   const board = ui.tab === 'board';
   return `<div class="top">
@@ -27,6 +28,7 @@ export function topHtml(ui, notes, areas = []) {
     ${board ? `<label class="sr" for="q">Search</label><input id="q" class="q" type="search" placeholder="${ui.noAdo ? 'Search titles' : 'Search titles and #ids'}" value="${esc(ui.q)}" autocomplete="off">
     <label class="sr" for="lvl">Level</label><select id="lvl" class="lvl"><option value="">All levels</option>${LEVELS.map(l => `<option value="${l}"${ui.level === l ? ' selected' : ''}>${LEVEL_NAME[l]}</option>`).join('')}</select>
     ${areas.length ? `<label class="sr" for="area">Area path</label><select id="area" class="area" title="Show one area path and everything under it"><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.path)}"${ui.area === a.path ? ' selected' : ''}>${'\u00a0\u00a0'.repeat(a.depth)}${esc(a.label)} (${a.count})</option>`).join('')}</select>` : ''}
+    ${products.some(p => !p.archived) ? `<label class="sr" for="prod">Product</label><select id="prod" class="prod" title="Show one product's work: its area paths, its repos, or its name in the title">${filterOptions(products, ui.product, esc)}</select>` : ''}
     <span class="grow"></span>
     ${ui.canRuns ? btn('runs', 'All runs', { title: 'Every Tandem run in one list, with flow and project filters' }) : ''}
     ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}

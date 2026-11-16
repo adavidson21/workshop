@@ -139,3 +139,16 @@ kbd{font-family:var(--mono);font-size:.76rem;padding:.02rem .32rem;border:1px so
   .tip{display:none}
 }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Dropdowns look like Workshop's in every app (Workshop UX v1): no native control, the app's own border and
+   background, and one chevron in the theme's muted ink. The base is :where() so an app's own select rules win;
+   the chevron and its room are kept over an app's background shorthand. A list box (multiple or size) is left as is. */
+:where(select:not([multiple]):not([size])){border:1px solid var(--line);border-radius:var(--r-sm,6px);background-color:var(--surface);color:var(--ink);min-height:2rem;padding:.3rem .6rem;cursor:pointer}
+select:not([multiple]):not([size]){-webkit-appearance:none;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%)!important;
+  background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%!important;background-size:5px 5px!important;background-repeat:no-repeat!important;
+  padding-right:1.75rem!important;text-overflow:ellipsis}
+select:not([multiple]):not([size]):hover:not(:disabled){border-color:var(--line-strong)}
+select:not([multiple]):not([size]):focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+select:disabled{opacity:.55;cursor:not-allowed}
+select option{background:var(--surface);color:var(--ink)}

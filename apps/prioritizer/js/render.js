@@ -8,7 +8,9 @@ import { slateFor, slateLabel } from './slate-link.js';
 import { prAiChip } from './pr-ai.js';
 import { closeSide } from './events.js';
 import { ageDays, fmtScore, isStale, isTriaged, nudgeDue, score, stillUrgent, tier } from './model.js';
-import { childrenOf, commit, hiddenCount, inboxQueue, isWaiting, listById, saveUi, scopeListIds, scopeName, shown, state, topLists, ui } from './state.js';
+import { childrenOf, commit, hiddenCount, inboxQueue, productPick, isWaiting, listById, saveUi, scopeListIds, scopeName, shown, state, topLists, ui } from './state.js';
+import { focusSettings } from './focus-hours.js';
+import { weekFocusMinutes } from '../../../shared/focus.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, today, todayStr } from './util.js';
 import { embedded, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
@@ -153,7 +155,8 @@ function renderSide(){
 // The scope, plus what the PR filter hides here, so a filtered view never looks like the whole board.
 function scopeLabel(){
   const n = hiddenCount();
-  return scopeName() + (n ? ` · ${n} ${state.prs === 'mine' ? 'team ' : ''}PR${n === 1 ? '' : 's'} hidden` : '');
+  const prod = productById(productPick());
+  return scopeName() + (prod ? ` · ${prod.name}` : '') + (n ? ` · ${n} ${state.prs === 'mine' ? 'team ' : ''}PR${n === 1 ? '' : 's'} hidden` : '');
 }
 // Header actions are round icon buttons; the tooltip and aria-label carry the words.
 const hbtn = (icon, tip, attrs, cls = '') => `<button class="hbtn${cls ? ' ' + cls : ''}" ${attrs} aria-label="${esc(tip.split('.')[0])}" data-tip="${esc(tip)}">${icon}</button>`;
@@ -288,16 +291,26 @@ const doneGroup = (ts, label = 'Done today') => ts.length ? `<details class="don
   <div class="rows">${ts.map(t => row(t, {compact: true})).join('')}</div></details>` : '';
 const emptyHTML = `<div class="empty"><b>No tasks yet.</b>${TOUCH ? 'Tap + to add one.' : 'Press N to add one.'}<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div></div>`;
 
+/* The week's size in effort points. By points (the default), what you typed. By focus hours (Docket 11.2.0), your
+   focus hours in Settings for a week divided by hours per point, so the line moves when your week does. Focus
+   hours off or empty falls back to the points you typed. */
+function weekFocusHours(){ return weekFocusMinutes(focusSettings()) / 60; }
+function weekCapacity(){
+  if (state.capacityFrom !== 'focus') return state.capacity;
+  const h = weekFocusHours();
+  return h > 0 ? Math.max(1, Math.round(h / (state.hoursPerPoint || 1))) : state.capacity;
+}
+
 /* capacity: line goes after the last task that fits (Build spec: Capacity line) */
 function capacityCut(open){
   let sum = 0, cut = -1;
   for (let i = 0; i < open.length; i++){
     const pts = isTriaged(open[i]) ? POINTS[open[i].effort] : 0;
-    if (sum + pts <= state.capacity){ sum += pts; cut = i; }
+    if (sum + pts <= weekCapacity()){ sum += pts; cut = i; }
     else break;
   }
   if (cut === -1 && open.length){ cut = 0; sum = POINTS[open[0].effort] || 0; }
   return {cut, sum};
 }
 
-export { col, focusCol, inboxOpen, planWeek, setPlanWeek, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, weekOff };
+export { weekCapacity, weekFocusHours, col, focusCol, inboxOpen, planWeek, setPlanWeek, setCol, setInboxOpen, setLens, app, capacityCut, scopeLabel, doneGroup, doneOpen, drawer, emptyHTML, main, openQuad, render, row, sel, setDoneOpen, setOpenQuad, setScope, setSel, setView, setWeekOff, weekOff };

@@ -1359,5 +1359,10 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
 .capset summary{list-style:none;cursor:pointer;font-size:.82rem;color:var(--muted);padding:.2rem .5rem;border-radius:var(--r-sm)}
 .capset summary::-webkit-details-marker{display:none}
 .capset summary:hover{background:var(--hover);color:var(--ink)}
-.capset[open] .cap{position:absolute;right:0;top:calc(100% + 4px);z-index:5;display:flex;align-items:center;gap:.4rem;padding:.5rem .6rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg,0 8px 24px rgba(0,0,0,.12));font-size:.82rem;white-space:nowrap}
-.capset .cap input{width:4.2rem}
+.capset[open]>summary{background:var(--hover);color:var(--ink)}
+.capset .cappop{position:absolute;right:0;top:calc(100% + 4px);z-index:5;width:16rem;box-sizing:border-box;display:flex;flex-direction:column;gap:.55rem;padding:.65rem .75rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg,0 8px 24px rgba(0,0,0,.12));font-size:.82rem}
+.capset .capby{display:flex;gap:.9rem}
+.capset .capby label{display:flex;align-items:center;gap:.35rem;cursor:pointer}
+.capset .cap{display:flex;align-items:center;gap:.4rem}
+.capset .capnote{margin:0;color:var(--muted);line-height:1.4}
+.capset .cap input{width:4.6rem}

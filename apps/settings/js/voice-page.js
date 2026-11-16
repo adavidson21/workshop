@@ -1,10 +1,10 @@
 /* Settings, Writing (docs/writing.md): three pages, Voice, Audiences and Rules.
-   Voice: samples per audience, Build my style guide, the style guide (editable), and Rewrite a draft with
-   one-click feedback (Sent as is, I changed it, Didn't use). Audiences: caps, rules, shared rules, banned words.
+   Voice: samples per audience, Build my style guide and the style guide (editable). Rewrite a draft is in Chat
+   since Settings 6.4.0: Chat saves your answers in its `writing-feedback` collection and this page applies them
+   (shared/voice.js, applyPending). Audiences: caps, rules, shared rules, banned words.
    Rules: what it learned, by status. Saves Settings' `writing` collection meta (voice-model.js); the AI steps go
    through the opencode connector's voice.run and voice.result (read-only agent, needs Hub on). */
 import * as V from './voice-model.js';
-import * as D from '../../../shared/people.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const errText = e => (e && e.message) || String(e);
@@ -12,11 +12,9 @@ const OC = 'opencode';
 const POLL_MS = 2000, WAIT_MS = 4 * 60 * 1000;
 
 export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promise(r => setTimeout(r, ms)) }) {
-  let env = null, val = V.defaults(), people = [];
+  let env = null, val = V.defaults();
   let busy = '';                 // 'style' | 'rewrite' | 'learn' while an AI step runs
-  let draft = null;              // {audience, reader, input, text, warnings, answered}
   let showSamples = '';          // audience id whose samples are listed
-  let typed = { input: '', audience: '', reader: '' }; // the Rewrite form as typed, kept across repaints
 
   const voiceEl = pageEl('writing-voice'), audEl = pageEl('writing-audiences'), rulesEl = pageEl('writing-rules');
   const sec = (el, cls) => { const s = document.createElement('section'); s.className = `card ${cls}`; el.appendChild(s); return s; };
@@ -29,6 +27,14 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
     if (env && env.schema !== V.SCHEMA) env = null;
     val = V.fromEnvelope(env).value;
     paint();
+    await applyChat();
+  }
+  // Answers from Chat's Rewrite a draft not applied yet: samples, rules and learned changes.
+  async function applyChat() {
+    let fb = null;
+    try { fb = await ws.data.get(V.FEEDBACK, { app: 'chat' }); } catch { return; }
+    const items = fb && Array.isArray(fb.items) ? fb.items : [];
+    if (V.applyPending(val, items) !== val) await save(v => V.applyPending(v, items));
   }
   async function save(change, msg) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -68,38 +74,15 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
   };
 
   /* ---------- paint ---------- */
-  const audOptions = sel => val.audiences.map(a => `<option value="${esc(a.id)}"${a.id === sel ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
-  const readerOptions = sel => `<option value="">Anyone</option>` + people.map(p => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
 
   function paint() {
     paintRewrite(); paintSamples(); paintStyle(); paintAudiences(); paintShared(); paintRules();
   }
 
   function paintRewrite() {
-    const ready = V.totalSamples(val) > 0;
-    const d = draft || typed;
     rewriteSec.innerHTML = `<h2>Rewrite a draft</h2>
-      <p class="sub">Paste what you wrote, the way it came out. You get back one version in your voice for that audience. Nothing is sent anywhere but your opencode, and nothing is posted.</p>
-      ${ready ? '' : '<p class="cfg-help">Add a few samples below first, so it knows how you write.</p>'}
-      <form class="wv-rw">
-        <div class="cfg-row"><label for="wvAud">For</label><select id="wvAud" class="cfg-input" data-aud>${audOptions(d.audience || val.audiences[0].id)}</select>
-          <label for="wvReader">Reader</label><select id="wvReader" class="cfg-input" data-reader>${readerOptions(d.reader || '')}</select></div>
-        <textarea class="cfg-input wv-text" rows="7" data-input aria-label="Your draft" placeholder="Paste your draft here">${esc(d.input || '')}</textarea>
-        <div class="acts left"><button class="btn primary" data-go${busy ? ' disabled' : ''}>${busy === 'rewrite' ? 'Rewriting...' : 'Rewrite'}</button></div>
-      </form>
-      ${d.text ? `<div class="wv-out">
-        <h3 class="shead">In your voice</h3>
-        <textarea class="cfg-input wv-text" rows="7" readonly data-out aria-label="Rewritten draft">${esc(d.text)}</textarea>
-        ${d.warnings.length ? `<ul class="wv-warn">${d.warnings.map(w => `<li class="warn-text">${esc(w)}</li>`).join('')}</ul>` : ''}
-        <div class="acts left"><button type="button" class="btn" data-copy>Copy</button></div>
-        ${d.answered ? `<p class="sub">${esc(d.answered)}</p>` : `<p class="sub">Then tell it what happened. This is how it learns.</p>
-        <div class="acts left wv-fb">
-          <button type="button" class="btn" data-fb="approved"${busy ? ' disabled' : ''}>Sent as is</button>
-          <button type="button" class="btn" data-fb="edited-open"${busy ? ' disabled' : ''}>I changed it</button>
-          <button type="button" class="btn ghost" data-fb="rejected-open"${busy ? ' disabled' : ''}>Didn't use</button>
-        </div>
-        <div class="wv-more" data-more hidden></div>`}
-      </div>` : ''}`;
+      <p class="sub">Rewrite a draft is in Chat now, next to your conversations. What you tell it there (Sent as is, I changed it, Didn't use) still teaches this page: new samples and rules show up here.</p>
+      <div class="acts left"><button type="button" class="btn primary" data-open-rewrite>Open in Chat</button></div>`;
   }
 
   function paintSamples() {
@@ -175,76 +158,9 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
       ${group('rejected', 'Rejected', 'Kept so it is not proposed again.', [['proposed', 'Restore'], ['delete', 'Delete']])}`;
   }
 
-  /* ---------- events: Rewrite ---------- */
-  rewriteSec.addEventListener('input', e => { if (!draft && e.target.matches('[data-input]')) typed.input = e.target.value; });
-  rewriteSec.addEventListener('change', e => {
-    if (e.target.matches('[data-aud]')) { typed.audience = e.target.value; if (draft) draft.audience = e.target.value; }
-    if (e.target.matches('[data-reader]')) { typed.reader = e.target.value; if (draft) draft.reader = e.target.value; }
-  });
-  rewriteSec.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    const input = f.querySelector('[data-input]').value.trim();
-    const audience = f.querySelector('[data-aud]').value, readerId = f.querySelector('[data-reader]').value;
-    if (!input) { toast('Paste a draft first.'); return; }
-    if (input.length > V.MAX_TEXT) { toast('That draft is too long. Rewrite a shorter part.', 'error'); return; }
-    const person = people.find(p => p.id === readerId);
-    draft = { audience, reader: readerId, input, text: '', warnings: [], answered: '' };
-    typed = { input: '', audience, reader: readerId };
-    try {
-      const text = (await ai('rewrite', V.rewritePrompt(val, { audience, draft: input, reader: V.readerOf(person) }))).trim();
-      draft = Object.assign({}, draft, { text, warnings: V.check(val, audience, text) });
-    } catch (err) { toast(aiError(err), 'error'); }
-    paint();
-  });
-  rewriteSec.addEventListener('click', async e => {
-    const t = e.target;
-    if (t.matches('[data-copy]')) {
-      try { await navigator.clipboard.writeText(draft.text); toast('Copied.'); } catch { rewriteSec.querySelector('[data-out]').select(); toast('Press Ctrl+C to copy.'); }
-      return;
-    }
-    const fb = t.dataset.fb;
-    if (!fb || !draft) return;
-    const more = rewriteSec.querySelector('[data-more]');
-    const person = people.find(p => p.id === draft.reader);
-    const ctx = { audience: draft.audience, reader: person ? person.name : '', draft: draft.text };
-    if (fb === 'edited-open') {
-      more.hidden = false;
-      more.innerHTML = `<textarea class="cfg-input wv-text" rows="6" data-final aria-label="What you sent">${esc(draft.text)}</textarea>
-        <div class="acts left"><button type="button" class="btn primary" data-fb="edited">Save what I sent</button></div>`;
-      more.querySelector('textarea').focus();
-      return;
-    }
-    if (fb === 'rejected-open') {
-      more.hidden = false;
-      more.innerHTML = `<input class="cfg-input" data-reason maxlength="300" placeholder="Why not? Optional, but a reason teaches it the most (like: too formal for Erik)">
-        <div class="acts left"><button type="button" class="btn" data-fb="rejected">Done</button></div>`;
-      more.querySelector('input').focus();
-      return;
-    }
-    if (fb === 'approved') {
-      if (await save(v => V.applyFeedback(v, Object.assign({ verdict: 'approved' }, ctx)))) { draft.answered = 'Saved as a sample. Thanks.'; paintRewrite(); }
-      return;
-    }
-    if (fb === 'rejected') {
-      const reason = (more.querySelector('[data-reason]') || {}).value || '';
-      if (await save(v => V.applyFeedback(v, Object.assign({ verdict: 'rejected', reason }, ctx)))) { draft.answered = reason.trim() ? 'Got it. That is a rule now (see Rules).' : 'Noted.'; paintRewrite(); }
-      return;
-    }
-    if (fb === 'edited') {
-      const final = ((more.querySelector('[data-final]') || {}).value || '').trim();
-      if (!final) { toast('Paste what you sent.'); return; }
-      if (final === draft.text.trim()) { if (await save(v => V.applyFeedback(v, Object.assign({ verdict: 'approved' }, ctx)))) { draft.answered = 'Same as the draft, so saved as a sample.'; paintRewrite(); } return; }
-      if (!(await save(v => V.applyFeedback(v, Object.assign({ verdict: 'edited', final }, ctx))))) return;
-      draft.answered = 'Saved what you sent as a sample. Looking at what you changed...';
-      paintRewrite();
-      try {
-        const parsed = V.parseLearn(await ai('learn', V.learnPrompt(val, { audience: ctx.audience, draft: ctx.draft, final })));
-        await save(v => V.applyLearn(v, parsed, ctx));
-        draft.answered = parsed.kind === 'new' ? `Learned a proposed rule: ${parsed.text}` : parsed.kind === 'same' ? 'Same change as before, so that rule is active now.' : 'Saved. Nothing new to learn from that change.';
-      } catch (err) { draft.answered = 'Saved what you sent. Could not look at the change: ' + aiError(err); }
-      paintRewrite();
-    }
+  /* ---------- events: Rewrite (in Chat) ---------- */
+  rewriteSec.addEventListener('click', e => {
+    if (e.target.closest('[data-open-rewrite]')) ws.open({ app: 'chat', path: 'rewrite' }).catch(() => {});
   });
 
   /* ---------- events: Samples and style ---------- */
@@ -310,7 +226,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
     if (busy) return;
     try { const fresh = await ws.data.get(V.COLLECTION); if (fresh && fresh.schema === V.SCHEMA && (!env || fresh.rev !== env.rev)) { env = fresh; val = V.fromEnvelope(env).value; paint(); } } catch { /* keep */ }
   });
-  try { people = D.active(await ws.people.get(), { kind: 'person' }).sort((a, b) => a.name.localeCompare(b.name)); } catch { people = []; }
+  ws.data.subscribe(V.FEEDBACK, () => { if (!busy) applyChat(); }, { app: 'chat' });
   await load();
   return { reload: load };
 }

@@ -19,7 +19,8 @@ import { activeTask, askCrumb, imBack, logInterrupt, notNow, openShutdown, openS
 import { addPerson } from './directory.js';
 import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from './delegate.js';
 import { nameOf } from './directory-model.js';
-import { carryLeft, closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setReviewsOpen, setTrayQ, sortKey, toggleStaleOnly, copyText, recapData, recapText } from './views.js';
+import { ws } from './ws.js';
+import { setCapOpen, carryLeft, closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setReviewsOpen, setTrayQ, sortKey, toggleStaleOnly, copyText, recapData, recapText } from './views.js';
 /* Prioritizer: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -44,6 +45,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('#modal') || e.target.closest('#cmd') || e.target.closest('#drawer')) return;
   if (menuEl){ if (menuEl.contains(e.target)) return; closeMenu(); }
   const t = e.target;
+  if (t.closest('[data-open-focus]')){ if (ws) ws.open({app: 'settings', path: 'focus'}).catch(() => {}); return; }
   if (t.closest('input.rename')) return;
   const m = t.closest('[data-menu]'); if (m){ e.stopPropagation(); openListMenu(m.dataset.menu, m); return; }
   const pm = t.closest('[data-pmenu]'); if (pm){ e.stopPropagation(); openPersonMenu(pm.dataset.pmenu, pm); return; }
@@ -126,12 +128,14 @@ document.addEventListener('click', e => {
   const ir = t.closest('.col-inbox .inrows .row[data-id]'); if (ir) setCol('inbox');
   const r = t.closest('.row[data-id]'); if (r && !t.closest('.qform,.pform')){ openDrawer(r.dataset.id); return; }
 });
-document.addEventListener('toggle', e => { if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); if (e.target.id === 'revLine') setReviewsOpen(e.target.open); }, true);
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('capset')) setCapOpen(e.target.open); if (e.target.id === 'doneGrp') setDoneOpen(e.target.open); if (e.target.id === 'revLine') setReviewsOpen(e.target.open); }, true);
 // The column you work in on Today: where triage keys go, and where Left and Right move from.
 const colOf = el => el && el.closest && el.closest('main .col[data-col]');
 document.addEventListener('mousedown', e => { const c = colOf(e.target); if (c && c.dataset.col !== col) setCol(c.dataset.col); }, true);
 document.addEventListener('change', e => {
   if (e.target.id === 'importFile'){ const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); }
+  if (e.target.matches && e.target.matches('[data-capfrom]')){ state.capacityFrom = e.target.value === 'focus' ? 'focus' : 'points'; commit(); return; }
+  if (e.target.id === 'hppIn'){ const n = +e.target.value; if (n >= 0.25){ state.hoursPerPoint = Math.min(8, Math.round(n * 4) / 4); } commit(); return; }
   if (e.target.id === 'capIn'){ const n = Math.round(+e.target.value); if (n >= 1){ state.capacity = Math.min(999, n); } commit(); }
 });
 document.addEventListener('input', e => {

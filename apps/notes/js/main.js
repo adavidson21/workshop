@@ -23,6 +23,7 @@ import { collapseTitle, makeLink, taskText, titleEmpty, toggleTask, toggleWrap }
 import { createEditor } from './editor.js';
 import { applySlash, slashAt, slashItems } from './slash.js';
 import { formatTable } from './tables.js';
+import * as Products from '../../../shared/products.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
 import { actionItems, forRapport, offerFor, offerId, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
@@ -72,6 +73,7 @@ const ui = {
   mode: 'live',
   sideClosed: store('side-closed') === '1',   // desktop: the pages list is folded away
   panelClosed: store('panel-closed') === '1', // desktop: the About this page panel is folded away
+  product: store('product') || '', // the product filter on Notes
   section: SECTION_IDS.includes(store('section')) ? store('section') : 'notes',
   menu: false,                // the note's ⋯ menu is open
   drawer: false,              // phone: the pages drawer is open
@@ -146,12 +148,31 @@ const productSetup = startProductSetup(ws, notes, {
 });
 const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });
 
+/* The product filter (Workshop UX v1, shared/products.js): Notes shows the notes for one product. A note is the
+   product's when it is its product note, links to it, has its product/<slug> tag, or says its name. */
+let products = [];
+const readProducts = () => ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { products = Products.list(env); }, () => { products = []; });
+readProducts().then(() => paintChrome());
+try { ws.data.subscribe(Products.COLLECTION, () => readProducts().then(() => paintChrome()), { app: Products.APP }); } catch { /* no data backend */ }
+function productPaths(paths) {
+  const p = Products.picked(products, ui.product);
+  if (!p) return paths;
+  const own = Products.notePath(p), tag = 'product/' + p.slug;
+  return paths.filter(path => {
+    if (path === own) return true;
+    const n = notes.index && notes.index.notes.get(path);
+    if (n && ((n.links || []).some(l => l.target === own) || (n.tags || []).some(t => t === tag || t === p.slug))) return true;
+    const t = notes.texts.get(path);
+    return Products.belongsTo(p, { text: `${n ? n.title : ''}\n${t ? t.content : ''}` });
+  });
+}
+
 /* ---------- painting ---------- */
 
 function state() {
   const tdoc = ui.path && isTandem(ui.path) ? { item: doc && doc.item, busy: tandem.busy(ui.path) } : null;
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
-  return { live: hasLive, notes, ui, found, tree: tree(notesPaths(notes.texts.keys()), [...ui.extraFolders]), where: whereSaved(), sent, canSend, dir,
+  return { live: hasLive, notes, ui, found, tree: tree(productPaths(notesPaths(notes.texts.keys())), Products.picked(products, ui.product) ? [] : [...ui.extraFolders]), products, product: Products.picked(products, ui.product), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
@@ -1603,6 +1624,7 @@ function showSearch(q) {
   if (box) box.value = q;
 }
 side.addEventListener('input', (e) => { if (e.target.matches('[data-search]')) setQuery(e.target.value); });
+side.addEventListener('change', (e) => { if (e.target.matches('[data-product]')) { ui.product = e.target.value; store('product', ui.product); paintChrome(); } });
 side.addEventListener('keydown', (e) => {
   // Delete on a focused note in the sidebar trashes it (with the usual confirm).
   if (e.key === 'Delete' && e.target.matches('a.row[data-open]')) { e.preventDefault(); trashNote(e.target.dataset.open); return; }

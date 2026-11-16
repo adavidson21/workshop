@@ -66,3 +66,18 @@ test('products: owners from People "Owns", by name, other name, repo or area pat
   assert.deepEqual(P.ownersOf(product, people).map(o => [o.name, o.hits]), [['Al', ['portal-ui']], ['Bea', ['sample portal']], ['Cy', ['Project\\Team']]]);
   assert.deepEqual(P.ownersOf(null, people), []);
 });
+
+test('product filter: a thing is the product\'s by id, area path, repo or its name as a word', () => {
+  const p = { id: 'p_app', name: 'Beacon', alsoCalled: ['BCN'], areas: ['Proj\\Team\\Beacon'], repos: ['org/beacon-api'], archived: false };
+  assert.equal(P.belongsTo(null, {}), true, 'no product: everything');
+  assert.equal(P.belongsTo(p, { productId: 'p_app' }), true);
+  assert.equal(P.belongsTo(p, { areas: ['proj\\team\\beacon\\web'] }), true, 'under an area path, case ignored');
+  assert.equal(P.belongsTo(p, { areas: ['Proj\\Team\\Beacons'] }), false, 'a sibling that only starts the same is not under it');
+  assert.equal(P.belongsTo(p, { repos: ['https://dev.example/org/_git/beacon-api'] }), true, 'repos by their last part');
+  assert.equal(P.belongsTo(p, { text: 'Fix the Beacon login' }), true);
+  assert.equal(P.belongsTo(p, { text: 'the bcn export' }), true, 'another name counts');
+  assert.equal(P.belongsTo(p, { text: 'beacons everywhere' }), false, 'whole words only');
+  assert.equal(P.picked([p], 'p_app'), p);
+  assert.equal(P.picked([{ ...p, archived: true }], 'p_app'), null, 'an archived product filters nothing');
+  assert.match(P.filterOptions([p], 'p_app'), /<option value="p_app" selected>Beacon<\/option>/);
+});

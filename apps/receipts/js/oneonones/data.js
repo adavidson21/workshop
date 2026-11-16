@@ -13,7 +13,7 @@
 
    The first load copies the old 1:1s app's people, settings and notes in (copyLegacy). The old files are never
    changed or removed. */
-import { APP, VERSION, SOURCES, PEOPLE, SETTINGS, NOTES, LEGACY, LEGACY_FILES_DAYS, HANDOFFS, cleanPerson, readHandoffs, sentIds, withHandoffs, legacyEnvelope, legacyNotePath, newPersonId, notePath, notesFor, sortPeople } from './model.js';
+import { APP, VERSION, SOURCES, PEOPLE, SETTINGS, NOTES, LEGACY, LEGACY_FILES_DAYS, HANDOFFS, cleanPerson, readHandoffs, sentIds, withHandoffs, legacyEnvelope, legacyNotePath, newPersonId, notePath, notesFor, sortPeople, directorySuggestions, personFromDirectory } from './model.js';
 
 const OC = 'opencode';
 const blank = (name, meta) => ({ schema: `${APP}.${name}`, version: VERSION, rev: 0, items: [], deleted: {}, ...(meta ? { meta: { updatedAt: 0, ...meta } } : {}) });
@@ -71,6 +71,7 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
 
   function fromEnvelopes() {
     v.people = sortPeople((env[PEOPLE].items || []).map(cleanPerson).filter(p => p.id));
+    queueMicrotask(() => autoAddReports());
     const m = env[SETTINGS].meta || {};
     v.settings = { aiDraft: m.aiDraft !== false };
     v.moved = m.moved && typeof m.moved === 'object' ? m.moved : null;
@@ -163,6 +164,20 @@ export function createOneOnOnes(ws, { onChange = () => {}, now = () => Date.now(
   function setOwn(entries, dir) {
     v.src.receiptsEntries = entries || null;
     v.dir = dir || null;
+    autoAddReports();
+  }
+
+  /** Your reports are in 1:1s without adding them again (Rapport UX v1): each report in the directory with no 1:1s
+      person yet gets one, once. Archiving them in 1:1s keeps them out; your manager and peers are still added by
+      hand. */
+  let adding = false;
+  async function autoAddReports() {
+    if (adding || !v.loaded || !v.dir) return;
+    const todo = directorySuggestions(v.people, v.dir).filter(d => d.relation === 'report');
+    if (!todo.length) return;
+    adding = true;
+    try { for (const d of todo) await savePerson(personFromDirectory(d)); } catch (e) { /* shown next time; nothing lost */ }
+    finally { adding = false; }
   }
 
   /* ---------- people ---------- */

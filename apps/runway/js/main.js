@@ -7,6 +7,7 @@ import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
 import { saveFile } from '../../../shared/save-file.js';
+import * as Products from '../../../shared/products.js';
 import { SNAP, addDays, isDate, periodEnd, periodStart, sizeEnd, sprintOf, toDay, today } from './dates.js';
 import { APP, MAX_DEPTH, blankDoc, cleanItem, descendants, fromEnvelope, goalFor, levels, setGoal, moveItem, newId, nextOrder, placeBeside, removeItem, resizeItem, schedule, setLane, setParent, viewRange } from './model.js';
 import { parse, reconcile, serialize } from './outline.js';
@@ -128,6 +129,7 @@ const ui = {
   pendingRoute: null,
   opened: null,
   owner: (() => { try { return localStorage.getItem('runway.owner') || ''; } catch (e) { return ''; } })(),
+  product: (() => { try { return localStorage.getItem('runway.product') || ''; } catch (e) { return ''; } })(),
   detailsOpen: (() => { try { return localStorage.getItem('runway.details') !== 'closed'; } catch (e) { return true; } })(),
   unsOpen: (() => { try { return localStorage.getItem('runway.unscheduled') !== 'closed'; } catch (e) { return true; } })(),
   unsFilter: ''
@@ -189,7 +191,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), pending: pending.v, shaping, workItems: workItemsApp, templates: TEMPLATES }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), pending: pending.v, shaping, workItems: workItemsApp, templates: TEMPLATES, products, product: Products.picked(products, ui.product) }));
 }
 
 
@@ -234,6 +236,17 @@ function watchWidth(el) {
   tlSeen = el; tlWidth = el.clientWidth; tlResize.observe(el);
 }
 
+/* The product filter (Workshop UX v1, shared/products.js): your products from Settings. In a roadmap, the lanes
+   for the picked product: a lane named for it, or holding ADO items under its area paths. None match: every lane. */
+let products = [];
+const readProducts = () => ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { products = Products.list(env); }, () => { products = []; });
+function productLanes(doc) {
+  const p = Products.picked(products, ui.product);
+  if (!p) return null;
+  const ids = doc.lanes.filter(l => Products.belongsTo(p, { text: l.title, areas: doc.items.filter(i => i.lane === l.id && i.ado && i.ado.area).map(i => i.ado.area) })).map(l => l.id);
+  return ids.length ? ids : null;
+}
+
 function paintMap() {
   if (app.dataset.view !== 'map' || !app.querySelector('.map') || ui.shellLocked !== locked()) mapShell();
   const doc = ui.dragDoc || v.doc;
@@ -241,7 +254,7 @@ function paintMap() {
   // While dragging a bar the range holds still, so what is under the pointer does not shift as the item moves.
   const range = ui.dragDoc && ui.drag && ui.drag.range ? ui.drag.range : viewRange(doc, sched);
   const tlEl = app.querySelector('[data-tl]');
-  const L = layout(doc, { sched, range, gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true, fill: tlEl ? tlEl.clientWidth : 0 });
+  const L = layout(doc, { sched, range, only: productLanes(doc), gutter: window.innerWidth < 600 ? 120 : 200, goalRow: true, fill: tlEl ? tlEl.clientWidth : 0 });
   watchWidth(tlEl);
   ui.L = L; ui.range = range;
   if (ui.selected && !doc.items.some(i => i.id === ui.selected)) ui.selected = null;
@@ -252,7 +265,7 @@ function paintMap() {
   else { const s = tbar.querySelector('.save'); if (s) { s.dataset.save = v.save; s.textContent = { saved: 'Saved', saving: 'Saving', unsaved: 'Not saved yet' }[v.save]; } }
   app.querySelector('.body').dataset.mode = ui.mode;
   const rbar = app.querySelector('[data-r="rbar"]');
-  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked(), ui.owner));
+  if (!rbar.contains(document.activeElement)) setHtml(rbar, rangeHtml(v, range, locked(), ui.owner, products, Products.picked(products, ui.product) ? ui.product : ''));
   setHtml(app.querySelector('[data-r="adobar"]'), adoBarHtml(doc, { ready: adoReady(), message: ado ? ado.state.message : '', refreshing: ui.adoRefreshing, readOnly: !!v.readOnly, publish: pub ? pub.publishCount(doc) : 0, publishing: ui.adoPublishing, systems: adoSystems() }));
   const tl = app.querySelector('[data-tl]');
   const scroll = tl.scrollLeft;
@@ -572,6 +585,7 @@ function setMode(mode) {
 
 app.addEventListener('click', async e => {
   const t = e.target.closest('button, a');
+  if (t && t.matches('[data-product-clear]')) { ui.product = ''; try { localStorage.setItem('runway.product', ''); } catch (err) { /* per window */ } requestPaint(); return; }
   if (!t || !app.contains(t)) return;
   if (app.dataset.view === 'list') {
     if (t.dataset.open) { e.preventDefault(); go(t.dataset.open); }
@@ -819,6 +833,12 @@ function applyOutline() {
 
 app.addEventListener('change', e => {
   const t = e.target;
+  if (t.matches('[data-product]')) {
+    ui.product = t.value;
+    try { localStorage.setItem('runway.product', ui.product); } catch (err) { /* per window only */ }
+    requestPaint();
+    return;
+  }
   if (t.matches('[data-owner]')) {
     ui.owner = t.value;
     try { localStorage.setItem('runway.owner', ui.owner); } catch (err) { /* per window only */ }
@@ -1189,6 +1209,8 @@ window.addEventListener('beforeunload', e => { if (store.hasPending()) { store.f
 window.__runway = { store, ui, ws, paint, route, edit, applyOutline, flush: () => store.flush(), get ado() { return ado; } };
 
 paint();
+readProducts().then(requestPaint);
+try { ws.data.subscribe(Products.COLLECTION, () => readProducts().then(requestPaint), { app: Products.APP }); } catch (e) { /* no data backend */ }
 await store.load();
 pending.load().then(() => pending.pickup()).catch(() => {});
 const first = ui.pendingRoute ?? (ws.embedded ? null : location.hash.replace(/^#\/?/, ''));

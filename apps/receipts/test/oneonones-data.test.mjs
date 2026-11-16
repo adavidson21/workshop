@@ -18,7 +18,20 @@ test('loads its own collections and reads other apps without writing them', asyn
   assert.equal(d.v.src.receiptsEntries.schema, 'receipts.entries');
   assert.equal(d.v.dir, DIR);
   assert.equal(d.v.oc, true);
-  assert.deepEqual(ws.puts, [], 'loading writes nothing');
+  await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(ws.puts, ['oneonones/people'], 'loading writes only the reports it adds to 1:1s');
+});
+
+test('your reports are in 1:1s without adding them: once each, never archived ones, not your manager or peers', async () => {
+  const ws = fakeWs({});
+  const d = createOneOnOnes(ws, { now: () => NOW });
+  await d.loadAll();
+  d.setOwn(receiptsEntries([]), DIR);
+  await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(d.v.people.map(p => p.personId), ['p_r1'], 'Dev One only: Dev Two is archived, the manager and peer are added by hand');
+  d.setOwn(receiptsEntries([]), DIR);
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(ws.store['oneonones/people'].items.length, 1, 'added once');
 });
 
 test('people: added with a generated id, edited in place, unknown fields kept', async () => {

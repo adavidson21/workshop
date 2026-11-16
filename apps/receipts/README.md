@@ -2,6 +2,8 @@
 
 Receipts, 1:1s and goals for you, your reports and your manager. Write down what you and your people did as it happens, tag it with your review form's sections, prep every 1:1 from what you already know, keep the team's OKRs as a tree, and when review season comes, Rapport turns it into a draft grouped by section, with the gaps called out.
 
+**4.3.0.** Your reports are in 1:1s without adding them: each report in People gets a 1:1s person once (archive one in 1:1s to keep them out). Your manager and peers are still added by hand.
+
 **4.2.0 (Rapport UX v1).** One header line: the tabs are the title. The composer comes first, with the period's counts as one quiet line under it instead of tiles; section chips fill in when picked; Ctrl+Enter is in Save's tooltip. Reports shows counts in words. A report's 1:1 prep hides empty Docket groups, uses one date format, calls its receipts New receipts, and shows Log follow-ups once there is a note. Review explains receipts with no section instead of marking every section empty. Goals hides Expand and Collapse all until there are team goals.
 
 Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. The app id stays `receipts`, so nothing you saved moved.

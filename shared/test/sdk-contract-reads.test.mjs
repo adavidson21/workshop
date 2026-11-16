@@ -1,7 +1,7 @@
 // docs/shared.md, B5: an app reads another app's data only through the contracts. The SDK refuses the rest.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTRACT_READS, RETIRED_READS, canReadData } from '../workshop-sdk.js';
+import { CONTRACT_READS, PAIR_READS, RETIRED_READS, canReadData } from '../workshop-sdk.js';
 
 test('an app always reads its own collections', () => {
   for (const c of ['tasks', 'entries/person-one/2026', 'summary', 'handoffs']) assert.equal(canReadData('prioritizer', 'prioritizer', c), true, c);
@@ -38,4 +38,12 @@ test('a retired app\'s data is readable only by the app that took it over', () =
   assert.equal(canReadData('receipts', 'oneonones', 'settings'), true);
   assert.equal(canReadData('receipts', 'oneonones', 'other'), false);
   assert.equal(canReadData('prioritizer', 'oneonones', 'people'), false);
+});
+
+test('a pair read: Settings reads Chat\'s writing feedback; no other app does', () => {
+  assert.equal(canReadData('settings', 'chat', 'writing-feedback'), true);
+  assert.equal(canReadData('runway', 'chat', 'writing-feedback'), false);
+  assert.equal(canReadData('settings', 'chat', 'sessions'), false);
+  assert.equal(canReadData('chat', 'settings', 'writing'), true, 'Chat reads your voice from Settings');
+  assert.throws(() => { PAIR_READS.chat.other = []; });
 });

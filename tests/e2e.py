@@ -467,8 +467,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 1)
         if rf2:
             # A report's page: start 1:1s, write today's note, log a win twice: one receipt.
-            rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-report]', timeout=5000)
-            rf2.click('[data-start-report]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
+            # Reports are in 1:1s without adding them (Rapport 4.3.0): the page offers today's note, not Start 1:1s.
+            rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-note], [data-start-report]', timeout=5000)
+            check('a report is in 1:1s without adding them', rf2.locator('[data-start-report]').count() == 0)
+            if rf2.locator('[data-start-report]').count(): rf2.click('[data-start-report]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
             rf2.click('[data-start-note]'); rf2.wait_for_selector('#oo-editor', timeout=5000)
             text = rf2.input_value('#oo-editor')
             check("Rapport's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
@@ -1573,7 +1575,7 @@ def main():
             fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
             fp.goto(HUB + '/'); fp.wait_for_timeout(3000)
             ff = next((f for f in fp.frames if '/apps/home/' in f.url), None)
-            check('on a new browser the Needs you panel opens once, with Get started', fp.is_visible('#spanel') and ff is not None and 'Set up Workshop' in ff.inner_text('#app'))
+            check('on a new browser the Needs you panel opens once, with Get started as one line under your day', fp.is_visible('#spanel') and ff is not None and ff.locator('#app > .su-strip').count() == 1 and ff.locator('#app .setup').count() == 0)
             fp.reload(); fp.wait_for_timeout(3000)
             check('and only once', not fp.is_visible('#spanel'))
             fresh.close()

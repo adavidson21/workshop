@@ -138,3 +138,32 @@ export function ownersOf(product, people) {
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/* ---------- the product filter (Workshop UX v1) ----------
+   Loom, Runway, Docket and Folio can show one product's work. A thing is that product's when it names the product
+   (`productId`), sits under one of its ADO area paths, touches one of its repos, or says its name or another name
+   as a whole word. Pure; each app hands in what it knows about a thing. */
+const areaKey = p => String(p || '').split(/[\\/]/).map(x => x.trim()).filter(Boolean).join('\\').toLowerCase();
+const repoKey = r => String(r || '').trim().replace(/\.git$/i, '').split(/[\\/:]/).filter(Boolean).pop().toLowerCase();
+const wordRe = n => new RegExp(`(^|[^a-z0-9])${String(n).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`);
+
+/** True when the thing belongs to `product`. thing: {productId, areas[], repos[], text}. No product: always true. */
+export function belongsTo(product, { productId = '', areas = [], repos = [], text = '' } = {}) {
+  if (!product) return true;
+  if (productId && productId === product.id) return true;
+  const roots = (product.areas || []).map(areaKey).filter(Boolean);
+  if (roots.length && (areas || []).some(a => { const k = areaKey(a); return !!k && roots.some(r => k === r || k.startsWith(r + '\\')); })) return true;
+  const own = new Set((product.repos || []).map(r => repoKey(r || '')).filter(Boolean));
+  if (own.size && (repos || []).some(r => r && own.has(repoKey(r)))) return true;
+  const t = String(text || '').toLowerCase();
+  return !!t && [product.name, ...(product.alsoCalled || [])].filter(n => n && String(n).trim().length > 1).some(n => wordRe(n.trim()).test(t));
+}
+
+/** The product picked in a filter, from its id, or null (all products, or one that is gone or archived). */
+export const picked = (items, id) => (id && (items || []).find(p => p.id === id && !p.archived)) || null;
+
+/** The filter's <option>s: All products, then each active product. `sel` the picked id. */
+export function filterOptions(items, sel = '', esc = s => String(s)) {
+  const act = (items || []).filter(p => !p.archived);
+  return `<option value="">All products</option>` + act.map(p => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+}

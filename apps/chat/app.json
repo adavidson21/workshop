@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "chat",
   "name": "Chat",
-  "version": "1.0.0",
-  "description": "Ask Tandem about your repos and work, or capture a task, receipt or note in plain words. Read only: Tandem changes nothing on its own.",
+  "version": "1.1.0",
+  "description": "Ask Tandem about your repos and work, capture a task, receipt or note in plain words, or rewrite a draft in your voice. Read only: Tandem changes nothing on its own.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 16,
@@ -35,6 +35,10 @@
   },
   "routes": [
     {
+      "path": "rewrite",
+      "title": "Rewrite a draft"
+    },
+    {
       "path": "hub/:text",
       "title": "Ask or capture"
     },
@@ -51,10 +55,15 @@
     {
       "id": "new",
       "title": "New chat"
+    },
+    {
+      "id": "rewrite",
+      "title": "Rewrite a draft"
     }
   ],
   "data": [
-    "handoffs"
+    "handoffs",
+    "writing-feedback"
   ],
   "files": [
     "chat.css",
@@ -62,6 +71,7 @@
     "js/chat.js",
     "js/hub.js",
     "js/hub-model.js",
-    "js/thread.js"
+    "js/thread.js",
+    "js/rewrite.js"
   ]
 }

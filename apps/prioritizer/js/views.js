@@ -1,7 +1,7 @@
 import { quickSort, wontDo } from './actions.js';
 import { EFFORTS, EQ, ICON, LENSES, POINTS, PRI, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
-import { capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, weekOff } from './render.js';
+import { weekCapacity, weekFocusHours, capacityCut, col, doneGroup, emptyHTML, inboxOpen, main, openQuad, planWeek, render, row, setView, weekOff } from './render.js';
 import { commit, findTask, inScope, inboxQueue, initials, isDoneToday, isFocus, listById, orderedLists, rankedOpen, saveUi, scopeListIds, scopeOpen, state, ui } from './state.js';
 import { $, addDays, dateStr, esc, fmtDay, fmtMD, isDate, parseD, plural, todayStr } from './util.js';
 import { D, cardsFor, getDirectory, mentionOf, nameOf, namesOf, others } from './directory-model.js';
@@ -72,13 +72,14 @@ function rankHtml(){
     return `<div class="ranklist rows">${open.map(t => row(t, {estimate: true, dim: t.focusOn === t0})).join('') || '<div class="colempty">Nothing stale.</div>'}</div>`;
   }
   const {cut, sum} = capacityCut(open);
-  const over = sum > state.capacity;
+  const cap = weekCapacity();
+  const over = sum > cap;
   let html = '';
   open.forEach((t, i) => {
     html += row(t, {rank: i + 1, top: i < 3, estimate: true, dim: t.focusOn === t0});
     if (i === cut){
       // The line is what matters: what fits this week and what does not. The points stay in its tooltip (Docket UX v1).
-      html += `<div class="capline${over ? ' over' : ''}" role="separator" data-tip="${sum} of ${state.capacity} effort points"><span>${over ? 'Over this week' : 'Fits this week'}${i === open.length - 1 ? (over ? '' : '. Room for more.') : ''}</span></div>`;
+      html += `<div class="capline${over ? ' over' : ''}" role="separator" data-tip="${sum} of ${cap} effort points${state.capacityFrom === 'focus' && weekFocusHours() ? `, from ${fmtHours(weekFocusHours())} of focus hours` : ''}"><span>${over ? 'Over this week' : 'Fits this week'}${i === open.length - 1 ? (over ? '' : '. Room for more.') : ''}</span></div>`;
       if (i < open.length - 1) html += `<div class="belowcap">Not this week</div>`;
     }
   });
@@ -138,7 +139,7 @@ function rankCol(plan, lens){
   }
   const open = rankedOpen(), stale = open.filter(isStale).length;
   const tools = lens === 'rank' ? `${stale ? `<button class="chipbtn${staleOnly ? ' on' : ''}" data-staleonly aria-pressed="${staleOnly}" data-tip="Tasks untouched for twice their value's window">${ICON.stale}Stale <b class="num">${stale}</b></button>` : ''}
-      <details class="capset"><summary data-tip="How much fits in a week, in effort points (XS 1, S 2, M 3, L 5, XL 8)">Week size</summary><label class="cap"><input type="number" id="capIn" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> points</label></details>
+      ${capsetHtml()}
       ${open.length > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
   return `<section class="col col-rank" data-col="rank" aria-label="Week: Ranked">
     <header class="colh"><h3>Everything open</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}
@@ -426,4 +427,21 @@ function renderArchive(){
   </div>`;
 }
 
-export { carryLeft, setReviewsOpen, toggleStaleOnly, sortKey, closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday };
+let capOpen = false;
+const setCapOpen = v => { capOpen = !!v; };
+const fmtHours = h => `${Math.round(h * 10) / 10}h`;
+/* Week size (Docket 11.2.0): points you type, or your focus hours from Settings at so many hours per point. */
+function capsetHtml(){
+  const fromFocus = state.capacityFrom === 'focus', h = weekFocusHours();
+  const by = `<div class="capby" role="radiogroup" aria-label="Size the week by">
+      <label><input type="radio" name="capFrom" value="points" data-capfrom${fromFocus ? '' : ' checked'}> Points</label>
+      <label><input type="radio" name="capFrom" value="focus" data-capfrom${fromFocus ? ' checked' : ''}> My focus hours</label></div>`;
+  const body = fromFocus
+    ? (h ? `<label class="cap"><input type="number" id="hppIn" min="0.25" max="8" step="0.25" value="${state.hoursPerPoint}" aria-label="Focus hours per effort point"> hours per point</label>
+        <p class="capnote">${fmtHours(h)} of focus a week, so about <b>${weekCapacity()} points</b>.</p>`
+      : `<p class="capnote">No focus hours yet, so it uses ${state.capacity} points. Set them in <button type="button" class="lnk" data-open-focus>Settings, Focus hours</button>.</p>`)
+    : `<label class="cap"><input type="number" id="capIn" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> points</label>`;
+  return `<details class="capset"${capOpen ? ' open' : ''}><summary data-tip="How much fits in a week, in effort points (XS 1, S 2, M 3, L 5, XL 8)">Week size</summary><div class="cappop">${by}${body}</div></details>`;
+}
+
+export { setCapOpen, carryLeft, setReviewsOpen, toggleStaleOnly, sortKey, closeNeed, openNeed, openInboxAnyway, peopleFilter, setPeopleFilter, setTrayQ, copyText, dayLabel, recapData, recapText, renderArchive, renderPeople, renderToday };

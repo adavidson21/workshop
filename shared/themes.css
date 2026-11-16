@@ -20,15 +20,15 @@
 
 /* Per-app colors (for swatches and pop-out bands): each app's jewel accent, light and dark. */
 :root,:root[data-theme=light]{
-  --c-workshop:#693375;--c-prioritizer:#693375;--c-chat:#693375;--c-notes:#33407A;--c-slate:#33407A;--c-agents:#056374;--c-receipts:#056374;--c-bench:#056374;--c-runway:#7A1B36;
+  --c-workshop:#693375;--c-prioritizer:#693375;--c-chat:#693375;--c-notes:#33407A;--c-slate:#3E5260;--c-agents:#056374;--c-receipts:#056374;--c-bench:#056374;--c-runway:#7A1B36;
   --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-chat-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-receipts-on:#FFFFFF;--c-bench-on:#FFFFFF;--c-runway-on:#FFFFFF}
 :root[data-theme=dark]{
-  --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
-  --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
+  --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B3C1CC;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
+  --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#17222A;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme]){
-    --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B4BDF0;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
-    --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#131832;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
+    --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B3C1CC;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
+    --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#17222A;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
 }
 /* Workshop's names for brand tokens */
 :root{
@@ -48,3 +48,10 @@
 @media (min-width:1100px){:root{--gutter:28px;--w-page:72rem}}
 @media (min-width:1600px){:root{--gutter:36px;--w-page:88rem}}
 @media (min-width:2100px){:root{--gutter:44px;--w-page:104rem}}
+
+/* Loom's own color, slate grey (Workshop UX v1): the brand library has four jewel accents and Folio already uses
+   sapphire, so Loom's accent is defined here, beside the brand's, with the same four tokens. AA as text on the page,
+   on white and on the panel color, in both themes. */
+:root[data-accent=loom]{ --accent:#3E5260; --on-accent:#FFFFFF; --accent-soft:#E6ECF0; --accent-soft-ink:#3E5260; }
+:root[data-theme=dark][data-accent=loom]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme])[data-accent=loom]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; } }

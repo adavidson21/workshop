@@ -2,6 +2,8 @@
 
 Team and project roadmaps. Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export a PNG or SVG image, or Markdown.
 
+**3.3.0.** A **Product** filter: on the list it shows the roadmaps that name the product; in a roadmap, beside Owner, it shows the lanes for it (a lane named for it, or holding ADO items under its area paths). Your products come from Settings.
+
 **3.2.0 (Runway UX v1).** The roadmap list is a grid of cards, each with what is dated next on it, and ways to start across the bottom: **Team quarter** (this quarter, a goal per month, a lane per product from Settings), **Project plan** (discovery, build, launch, with milestones), **Blank**, the example, Import Markdown and Azure DevOps. An item's panel shows title, dates, status, owners and description first; lane, level, milestone, color and Starts after fold under More (open when one is set).
 
 An app in Workshop (`apps/runway/`, moved from adavidson21/runway on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. Plain JavaScript ES modules, no build step, no dependencies.

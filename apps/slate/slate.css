@@ -381,3 +381,4 @@ html{font-size:clamp(14px,.25vw + 12px,16px)}
 .rp-col span{font-family:var(--sans);font-variant-numeric:tabular-nums}
 .rp-table tr:hover td{background:var(--hover)}
 @media (min-width:1600px){.rp-insight{max-width:60rem}.rp-bars,.rp-cols{max-width:60rem}}
+:where(#board-root) .prod:where(:not(.loom-run *)){max-width:14rem}
