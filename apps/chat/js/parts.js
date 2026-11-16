@@ -187,11 +187,14 @@ export function metaHtml(turn) {
 export function richRows(turns, { open, details = false, busy = false, activity = '' } = {}) {
   const list = Array.isArray(turns) ? turns : [];
   const rows = [];
+  let lastAgent = null;
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     if (t.role === 'you') {
       const files = (t.parts || []).filter(p => p.type === 'file').map(p => `<span class="att-chip">${esc(p.name)}</span>`).join('');
-      const tag = t.agent ? `<span class="you-agent">${esc(t.agent)}</span>` : '';
+      // The agent shows only when it changed from your last message (Chat 2.3.0): the picker already says which.
+      const tag = t.agent && lastAgent !== null && t.agent !== lastAgent ? `<span class="you-agent">${esc(t.agent)}</span>` : '';
+      if (t.agent) lastAgent = t.agent;
       rows.push(`<div class="turn you"><span class="who">You</span><div class="tx">${esc(t.text)}${files ? `<span class="att">${files}</span>` : ''}</div>${tag}</div>`);
       continue;
     }

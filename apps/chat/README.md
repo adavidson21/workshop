@@ -8,7 +8,9 @@ The **Hub** agent (first in New chat's list) is the one box that asks Tandem or 
 
 **Chat 1.1.0** adds **Rewrite a draft** (moved from Settings, Writing): paste a draft, pick the audience and reader, get one version in your voice, then say Sent as is, I changed it or Didn't use. Your samples, style guide and rules stay in Settings, Writing; your answers go to this app's `writing-feedback` collection and Settings learns from them ([docs/writing.md](../../docs/writing.md)).
 
-**Chat 2.2.0** makes Rewrite a draft part of New chat instead of a screen of its own: pick **Rewrite** in the composer's agent picker (after Hub; Tab cycles to it), or click **Rewrite a draft** in the sidebar. Your drafts and their rewrites show as turns, For and Reader sit in the composer's bar, and each rewrite has its own Copy and feedback. New chat goes back to chatting.
+**Chat 2.2.0** makes Rewrite a draft part of New chat instead of a screen of its own: pick **Rewrite** in the composer's agent picker (after Hub; Tab cycles to it), or use the Rewrite a draft command or `#/chat/rewrite`. Your drafts and their rewrites show as turns, For and Reader sit in the composer's bar, and each rewrite has its own Copy and feedback. New chat goes back to chatting.
+
+**Chat 2.3.0** is a cleaner page. The sidebar is New chat, search with an **All** toggle (every opencode session), and the list. Under the last answer, one **Start work...** button opens the flow cards and Save as note. Your messages name the agent only when it changed. Hub uses the same composer at the bottom as every agent (Tab cycles out of it), with its captures just above the box. The key hints show only in New chat.
 
 The top bar's **Capture** is the quick add (rules only, no AI); Chat is where you ask.
 

@@ -301,3 +301,26 @@ button.tool-line:hover { background: var(--hover); }
 .hub-flow:hover, .hub-flow:focus-visible { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 .hub-flow b { font: 600 14px/1.25 var(--sans); }
 .hub-flow span { font: 400 12.5px/1.35 var(--sans); color: var(--muted); }
+
+/* ---------- Chat 2.3.0: a cleaner page ---------- */
+/* sidebar: New chat and the collapse button on one row; All beside search */
+.chat-side-top { gap: 6px; padding: 0; }
+.chat-side-top .chat-newbtn { flex: 1; width: auto; }
+.chat-find { display: flex; gap: 4px; align-items: center; }
+.chat-find .chat-search { flex: 1; min-width: 0; }
+.chat-all { flex: none; min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: transparent; color: var(--muted); font: 500 12.5px/1 var(--sans); cursor: pointer; }
+.chat-all:hover { color: var(--ink); }
+.chat-all.on { background: var(--surface); color: var(--ink); border-color: var(--accent); }
+/* under the last answer: one quiet button, its menu below */
+.chat-after { margin-top: 2px; }
+.chat-after-btn { min-height: 28px; padding: 3px 10px; font-size: 13px; color: var(--muted); }
+.chat-after-btn.on, .chat-after-btn:hover { color: var(--ink); }
+.chat-after-menu { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--raise); }
+.chat-after-menu .hub-flows { margin: 0; }
+/* Hub in the bottom composer: the input line loses its own frame, captures float just above the box */
+.hub-box .chat-hub .hub-line, .chat-home .hub-box .chat-hub .hub-line { border: 0; box-shadow: none; padding: 4px 0; background: transparent; border-radius: 0; }
+.hub-box .cap-prompt { display: none; }
+.hub-box .cap-in { font-size: 15px; }
+.hub-box .hub-status { margin: 2px 0 2px; }
+.hub-anchor .hub-cards, .chat-home .hub-anchor .hub-cards { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 2; max-height: min(52vh, 460px); overflow-y: auto; margin: 0; padding: 4px; }
+.chat-after-menu .hub-flows > .hub-meta { display: none; }
