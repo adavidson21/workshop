@@ -7,7 +7,7 @@ Version: the `settings.writing` collection is version 1. The code is `shared/voi
 ## Use
 
 1. **Once:** Settings, Writing, Voice. Under Samples, paste 5 to 10 messages you sent that landed well, per audience (a line with `---` between messages). Click **Build my style guide**, read it, fix anything wrong, and save.
-2. **Each time:** Chat, **Rewrite** (pick it in New chat's agent picker, click **Rewrite a draft** in the sidebar, or `#/chat/rewrite`). Paste your draft as it came out, pick the audience in **For** (and a **Reader** from People, if it matters), and press Enter. The rewrite shows under your draft like a chat answer. Copy the result.
+2. **Each time:** Chat, **Rewrite** (pick it in New chat's agent picker, use the Rewrite a draft command, or `#/chat/rewrite`). Paste your draft as it came out, pick the audience in **For** (and a **Reader** from People, if it matters), and press Enter. The rewrite shows under your draft like a chat answer. Copy the result.
 3. **Then one click:** **Sent as is**, **I changed it** (paste what you sent), or **Didn't use** (an optional reason).
 4. **Now and then:** Writing, Rules. Approve or reject what it proposed, pin what should never change.
 

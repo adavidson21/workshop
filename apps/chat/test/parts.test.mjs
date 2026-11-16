@@ -100,3 +100,12 @@ test('Markdown: code fences, lists, tables, links; no HTML gets through', () => 
   assert.doesNotMatch(h, /href="javascript/);
   assert.equal(inline('*it* and _it_ and snake_case_name'), '<i>it</i> and <i>it</i> and snake_case_name');
 });
+
+test('your turns name the agent only when it changed (Chat 2.3.0)', () => {
+  const html = richRows([
+    { id: 'u1', role: 'you', text: 'one', agent: 'build', parts: [] },
+    { id: 'u2', role: 'you', text: 'two', agent: 'build', parts: [] },
+    { id: 'u3', role: 'you', text: 'three', agent: 'plan', parts: [] },
+  ]);
+  assert.deepEqual([...html.matchAll(/you-agent">(\w+)/g)].map(m => m[1]), ['plan']);
+});

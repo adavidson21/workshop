@@ -144,7 +144,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   }
   function select(session) {
     if (!session && hub) hub.clearDone();
-    sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false;
+    sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false; afterOpen = false;
     if (phone()) drawer = false;
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     draw();
@@ -377,12 +377,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : `<p class="chat-empty">${esc(aiReady().why || 'Turn on the opencode connector in Settings to talk to opencode.')}</p>`)
       : !shown.length ? `<p class="chat-empty">No chats match "${esc(query)}".</p>` : '';
     return `<aside class="chat-side" aria-label="Chats">` +
-      `<div class="chat-side-top"><button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button>` +
-      `<button type="button" class="chat-icon" data-chat-new title="New chat" aria-label="New chat">${ICON.plus}</button></div>` +
-      `<button type="button" class="chat-newbtn${sel || rewriteMode() ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
-      (rewrite ? `<button type="button" class="chat-newbtn rw-btn${rewriteMode() ? ' on' : ''}" data-chat-rewrite>${ICON.pen}<span>Rewrite a draft</span></button>` : '') +
-      `<input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="Search chats" aria-label="Search chats" value="${esc(query)}">` +
-      `<div class="chat-scope" role="group" aria-label="Show"><button type="button" class="${all ? '' : 'on'}" data-chat-all="0" aria-pressed="${!all}">Chats</button><button type="button" class="${all ? 'on' : ''}" data-chat-all="1" aria-pressed="${all}" title="Every opencode session in the workspace: runs, PR reviews and the terminal">All sessions</button></div>` +
+      `<div class="chat-side-top"><button type="button" class="chat-newbtn${sel ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
+      `<button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button></div>` +
+      `<div class="chat-find"><input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="${all ? 'Search all sessions' : 'Search chats'}" aria-label="Search chats" value="${esc(query)}">` +
+      `<button type="button" class="chat-all${all ? ' on' : ''}" data-chat-all="${all ? '0' : '1'}" aria-pressed="${all}" title="${all ? 'Showing every opencode session (runs, PR reviews, the terminal). Click for just your chats.' : 'Show every opencode session in the workspace: runs, PR reviews and the terminal'}">All</button></div>` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
       `<nav class="chat-list">${list}${empty}</nav></aside>`;
   }
@@ -412,7 +410,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       : escAt && busy && Date.now() - escAt < 1500 ? 'Press Esc again to stop.'
       : shell ? 'Shell: runs in the workspace through opencode.'
       : q ? `${q} message${q === 1 ? '' : 's'} queued. ${q === 1 ? 'It goes' : 'They go'} when opencode is done.`
-      : 'Enter sends · Tab agent · / commands · @ files · ! shell';
+      : sel ? '' : 'Enter sends · Tab agent · / commands · @ files · ! shell';
     const action = busy && !draft.trim()
       ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop (Esc twice)" aria-label="Stop">${ICON.stop}</button>`
       : `<button type="button" class="chat-send" data-chat-send title="${busy ? 'Queue' : 'Send'}" aria-label="${busy ? 'Queue' : 'Send'}"${off || sending ? ' disabled' : ''}>${ICON.up}</button>`;
@@ -435,18 +433,24 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       icon(ICON.compact, 'compact', 'Compact this chat (/compact)') + icon(ICON.term, 'terminal', 'Open in the opencode terminal') +
       (busy ? '<button type="button" class="btn ghost" data-chat-stop>Stop</button>' : '') + '</span>';
   }
+  /* Under the last answer: one quiet Start work... button; its menu has the flow cards and Save as note (Chat 2.3.0). */
+  let afterOpen = false;
+  function afterHtml() {
+    const menu = afterOpen ? `<div class="chat-after-menu" role="menu">${flowCardsHtml(titleOf(sel), 'data-chat-flow')}<button class="btn ghost" type="button" data-builtin="export">Save as note</button></div>` : '';
+    return `<div class="chat-after"><button type="button" class="btn ghost chat-after-btn${afterOpen ? ' on' : ''}" data-chat-after aria-expanded="${afterOpen}">Start work...</button>${menu}</div>`;
+  }
   function paneHtml() {
     if (!sel && rewriteMode()) return `<div class="chat-pane chat-home is-rw">${topHtml('Rewrite a draft')}<div class="chat-rw" data-rw-home></div></div>`;
     if (!sel) {
       const hubOn = hubMode();
       const errs = (optErr ? `<p class="hub-error">${esc(optErr)}</p>` : '') + (err ? `<p class="hub-error">${esc(err)}</p>` : '');
-      const body = hubOn
-        ? `<div class="chat-hub-picks pop-anchor down">${pop && pop.kind === 'agent' ? popHtml() : ''}${picksHtml()}<span class="hub-meta">Ask Tandem, or capture a task, receipt or note. Pick another agent to work like opencode.</span></div><div class="chat-hub" data-hub-home></div>`
-        : '<div class="chat-hub" data-hub-home hidden></div>';
+      // Hub sits in the same composer at the bottom as every agent (Chat 2.3.0); its captures show just above it.
+      const hubCompose = `<div class="chat-compose"><div class="chat-col pop-anchor hub-anchor">${popHtml()}<div class="chat-box hub-box">` +
+        `<div class="chat-hub" data-hub-home></div><div class="chat-bar">${picksHtml()}<span class="grow"></span></div></div>` +
+        `<p class="chat-hint" aria-live="polite">Enter sends · Tab agent</p></div></div>`;
       return `<div class="chat-pane chat-home${hubOn ? ' is-hub' : ''}">${topHtml('New chat')}<div class="chat-scroll"><div class="chat-col chat-start">` +
         `<h3 class="chat-hello">${hubOn ? 'What do you want to ask or capture?' : 'What are we working on?'}</h3>` +
-        (hubOn ? '' : '<p class="hub-meta">Works like opencode: pick an agent and a model, / for commands, @ for files, ! for the shell.</p>') +
-        body + helpHtml() + errs + '</div></div>' + (hubOn ? '' : composeHtml()) + '</div>';
+        helpHtml() + errs + '</div></div>' + (hubOn ? hubCompose : '<div class="chat-hub" data-hub-home hidden></div>' + composeHtml()) + '</div>';
     }
     const busy = !!(conv && conv.busy);
     const c = itemOf(sel) || conv || {};
@@ -469,7 +473,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (!conv && !first && !fromHub) rows += '<p class="hub-meta">Loading...</p>';
     if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
     else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Loom\'s Inbox.</p>';
-    if (conv && !busy && later.length && lastTandem(later)) rows += `<div class="chat-after">${flowCardsHtml(titleOf(sel), 'data-chat-flow')}<p class="hub-actions"><button class="btn ghost" type="button" data-builtin="export">Save as note</button></p></div>`;
+    if (conv && !busy && later.length && lastTandem(later)) rows += afterHtml();
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
     return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;
   }
@@ -582,6 +586,12 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
         } else t.blur();
         return;
       }
+    } else if (hubEl && t.matches('.cap-in') && hubEl.contains(t)) {
+      if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing) {
+        e.preventDefault();
+        setPick('agent', cycleAgent(agentChoices(), agentNow(), e.shiftKey));
+        draw(); focusBox();
+      } else if (e.key === 'Escape' && pop) { e.preventDefault(); pop = null; draw(); focusBox(); }
     } else if (t.matches('[data-rw-input]')) {
       if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing) {
         e.preventDefault();
@@ -620,8 +630,9 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       const box = el.querySelector('[data-chat-rename-box]');
       if (box) { box.focus(); box.select(); }
     }
-    else if (d.chatFlow != null) openFlow(d.chatFlow);
-    else if (d.builtin != null) builtin(d.builtin, '');
+    else if (d.chatAfter != null) { afterOpen = !afterOpen; draw(); }
+    else if (d.chatFlow != null) { afterOpen = false; openFlow(d.chatFlow); }
+    else if (d.builtin != null) { if (d.builtin === 'export') afterOpen = false; builtin(d.builtin, ''); }
     else if (d.pick != null) { if (pop && pop.kind === d.pick) { pop = null; draw(); } else openPop(d.pick); }
     else if (d.popI != null) choose(+d.popI);
     else if (d.tool != null) { if (open.has(d.tool)) open.delete(d.tool); else open.add(d.tool); draw(); }

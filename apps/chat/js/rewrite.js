@@ -125,7 +125,7 @@ export function startRewrite(ws, { sleep = ms => new Promise(r => setTimeout(r, 
     const note = !loaded ? '<p class="hub-meta">Loading your voice...</p>'
       : ready ? '' : '<p class="rw-note">Add a few samples in Settings, Writing, first, so it knows how you write. <button type="button" class="lnk" data-rw-settings>Open Writing</button></p>';
     const intro = empty
-      ? `<h3 class="chat-hello">What do you want to rewrite?</h3><p class="hub-meta">Paste what you wrote, the way it came out. You get back one version in your voice for that audience. Nothing is sent anywhere but your opencode, and nothing is posted.</p>`
+      ? `<h3 class="chat-hello">What do you want to rewrite?</h3><p class="hub-meta">Paste it the way it came out. You get one version in your voice. Nothing is posted.</p>`
       : '';
     const turns = items.map((it, i) => itemHtml(it, i === items.length - 1)).join('');
     const hint = busy === 'rewrite' ? 'Rewriting...' : busy === 'learn' ? 'Looking at what you changed...' : 'Enter rewrites · Shift+Enter new line · Tab agent';
