@@ -5,8 +5,8 @@
    acted on. toProposal turns a route proposal into the capture shape shared/capture.js uses, so the review list
    and toHandoff work the same as Home's quick capture. answerHtml renders answer.md as escaped text with code,
    bold, lists and http(s) links only. */
-import { readCards, targetsFor } from '../../../../shared/summary.js';
-import { EMPTY, find, label, membersOf } from '../../../../shared/people.js';
+import { readCards, targetsFor } from '../../../shared/summary.js';
+import { EMPTY, find, label, membersOf } from '../../../shared/people.js';
 
 export const TARGETS = ['prioritizer', 'receipts', 'notes'];
 export const PAYLOAD_KINDS = ['task', 'win', 'feedback', 'growth', 'concern', 'note'];

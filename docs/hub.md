@@ -1,6 +1,6 @@
 # Hub
 
-The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives on Dispatch's Chat tab (New chat; a message that is not a capture or go becomes a chat, docs/chat.md) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
+The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives in the Chat app (New chat; Loom's Chat tab until Loom 4.8.0; a message that is not a capture or go becomes a chat, docs/chat.md) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
 
 This contract covers the two files Workshop and Tandem pass between them, `request.md` and `route.json`, and how captures reach other apps.
 
@@ -9,7 +9,7 @@ Version: `route.json` is version 1.
 ## Flow
 
 1. The person types in the hub and presses Enter. Enter counts as the click for `confirm: true`.
-2. Dispatch calls the opencode connector's `hub.run` (`write: true`, it starts an agent). The connector writes `request.md` in its own folder, `<Workshop home>/data/_connectors/opencode/hub/<id>/`, never in the workspace or `.work`, and runs `/hub <path to request.md>` in a new session.
+2. Chat calls the opencode connector's `hub.run` (`write: true`, it starts an agent). The connector writes `request.md` in its own folder, `<Workshop home>/data/_connectors/opencode/hub/<id>/`, never in the workspace or `.work`, and runs `/hub <path to request.md>` in a new session.
 3. Tandem's **hub** agent writes `route.json` next to it. For a question it goes on to answer and writes `answer.md`.
 4. Dispatch reads both through `hub.result`, checks `route.json` against [schemas/hub-route.schema.json](schemas/hub-route.schema.json), and shows the result. Anything that does not match is dropped, never acted on.
 
@@ -85,7 +85,7 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 
 ## Captures
 
-The person reviews each proposal in the hub (or the top bar's Capture) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`agents.handoffs` or `home.handoffs`) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
+The person reviews each proposal in the hub (or the top bar's Capture) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`chat.handoffs` or `home.handoffs`; `slate.handoffs` before Loom 4.8.0) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
 
 Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
 

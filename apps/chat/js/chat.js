@@ -133,7 +133,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   function titleOf(sid) { const c = itemOf(sid) || conv || {}; return c.title || 'Chat'; }
   async function spike() {
     const topic = titleOf(sel);
-    try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. Follow it on Work.', { kind: 'success' }); }
+    try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. Follow it in Loom.', { kind: 'success' }); }
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
   function toggleSide() {

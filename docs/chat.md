@@ -1,12 +1,12 @@
-# Conversations with Tandem (hub threads and the Chat tab)
+# Conversations with Tandem (the Chat app)
 
-Dispatch lets you talk to Tandem (eng-agents on opencode) directly: follow up on a hub answer, or start a chat. Both use Tandem's read-only **chat** agent (eng-agents Core 2.14.0) through the opencode connector's `chat.*` actions. Plan: `claude/conversations-v1-plan.md` in the Workshop project.
+The Chat app (`apps/chat`, its own rail app since Loom 4.8.0; before that Loom's Chat tab) lets you talk to Tandem (eng-agents on opencode) directly: follow up on a hub answer, or start a chat. Both use Tandem's read-only **chat** agent (eng-agents Core 2.14.0) through the opencode connector's `chat.*` actions. Plan: `claude/conversations-v1-plan.md` in the Workshop project.
 
 ## Where they show
 
-- **Chat tab** (routes `#/agents/chat` for New chat, `#/agents/chat/<session>` for one chat), laid out like ChatGPT since Dispatch 4.1.0. A sidebar of chats: **New chat**, search (titles), the list grouped by Today, Yesterday, Previous 7 days and Older, with Rename and Remove on each row. The sidebar collapses (kept in this browser as `dispatch.chatSide`); on a phone it is a drawer. One chat in view, messages in a centered column, the composer pinned at the bottom.
+- **Chat** (routes `#/chat` for New chat, `#/chat/<session>` for one chat, `#/chat/hub/<text>` to ask or capture; Loom's old `chat` and `hub/<text>` routes open it), laid out like ChatGPT since Dispatch 4.1.0. A sidebar of chats: **New chat**, search (titles), the list grouped by Today, Yesterday, Previous 7 days and Older, with Rename and Remove on each row. The sidebar collapses (kept in this browser as `dispatch.chatSide`); on a phone it is a drawer. One chat in view, messages in a centered column, the composer pinned at the bottom.
 - **New chat** is the hub's box. Every first message goes through `/hub`, so one box still captures: a capture (or go) is handled right there and is not listed. Anything else (a question, a suggested action, a choice, or a run that ended without a route) becomes a chat: listed in the sidebar right away and opened, with the hub's answer as Tandem's first turn. Follow-ups go to the hub message's own opencode session, so Tandem keeps the context. Chats started before Dispatch 2.0 are listed too. Automated work (runs, PR reviews) never shows here.
-- **Questions in a thread.** When Tandem asks a permission or a question in a hub card's or a conversation's session, it is answered right there, with the same controls as Dispatch's Inbox (which lists it too).
+- **Questions in a thread.** When Tandem asks a permission or a question in a hub card's or a conversation's session, Chat says so with a link to Loom's Inbox, which lists it with the controls to answer it.
 
 ## Rules
 

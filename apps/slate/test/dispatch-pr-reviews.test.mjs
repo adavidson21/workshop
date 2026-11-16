@@ -55,11 +55,13 @@ function load() {
 }
 beforeEach(load);
 
-test('PR reviews have their own tab: not in Runs or the run counts; the Reviews tab counts PRs with no review yet', () => {
+test('PR reviews are the Inbox\'s PRs chip: not in Runs or the run counts; the chip counts PRs with no review yet', () => {
   for (const t of ['inbox', 'runs', 'ship', 'research']) { S.ui.tab = t; assert.doesNotMatch(render(), /id="item-pr-812"/, t); }
-  assert.match(render(), /data-tab="reviews"><span>Reviews<\/span><span class="cnt" title="1 PR waiting on you with no review yet">1<\/span>/);
-  S.ui.tab = 'reviews';
+  S.ui.tab = 'inbox';
+  assert.match(render(), /data-inbox-chip="prs" aria-selected="false">PRs<span class="n">2<\/span>/, 'the code review and the PR with no review yet');
+  S.ui.inboxChip = 'prs';
   const page = render();
+  S.ui.inboxChip = 'all';
   assert.match(page, /<h2>Reviews<\/h2>/);
   assert.doesNotMatch(page, /<aside>/, 'no side panels');
   assert.match(page, /id="item-pr-812"/);
@@ -251,7 +253,7 @@ test('a review of a PR no longer waiting on you is listed under Earlier reviews;
   assert.match(html, /<h3 id="gh-rvl">Reviews <span class="n">1<\/span>/);
 });
 
-test('a reviewer asking you something shows in the Inbox with a link to Reviews, and on the Reviews tab count', () => {
+test('a reviewer asking you something shows in the Inbox with a link to its review', () => {
   S.L.items['pr-812'] = { current: 'ses_rv3', sessions: [{ id: 'ses_rv3', command: '/pr-review ' + LINK }] };
   S.L.sessions.ses_rv3 = { id: 'ses_rv3', status: 'idle', command: '/pr-review ' + LINK, folder: 'pr-812' };
   S.L.questions.push({ id: 'q_rv', sessionID: 'ses_rv3', folder: 'pr-812', questions: [{ question: 'Which base branch?', options: [] }] });
@@ -259,7 +261,7 @@ test('a reviewer asking you something shows in the Inbox with a link to Reviews,
   const page = render();
   assert.match(page, /<span class="tag">PR review<\/span><span class="st">Add discount to cart total<\/span><button type="button" class="lnk plain" data-hot="o" data-open-item="pr-812">Open<\/button>/);
   assert.match(page, /data-qsend="q_rv"/);
-  assert.match(page, /data-tab="reviews"><span>Reviews<\/span><span class="cnt gate" title="The reviewer is waiting for you">1<\/span>/);
+  assert.match(page, /data-inbox-chip="agents" aria-selected="false">Agents need you<span class="n">\d+<\/span>/);
   assert.ok(inboxCount() >= 1);
 });
 test('3.0 a run at Ship: its code review is in the Inbox, its PR box on its page, and Shipping on Work once reviewed', () => {

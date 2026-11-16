@@ -24,8 +24,8 @@
    cannot run here. In Workshop on this computer a click flips the setting (putConfig, which restarts the
    connector). On a hosted page it cannot (connector settings are local only, docs/security.md), so a click shows
    why under the input for a few seconds. */
-import { createCaptureStore } from '../../../../shared/capture-box.js';
-import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../../shared/capture.js';
+import { createCaptureStore } from '../../../shared/capture-box.js';
+import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 import { keepFocus, lastTandem } from './thread.js';
 
@@ -38,7 +38,7 @@ const KEEP_CARDS = 100;
 const NOT_A_CHAT = new Set(['capture', 'go']);
 
 export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, onStatus = () => {}, asksHtml = () => '' } = {}) {
-  const store = createCaptureStore(ws, { sender: 'slate' });
+  const store = createCaptureStore(ws, { sender: 'chat' });
   /* newest first: {id, text, state, route, answer, error, session, rows, at, threaded}. A threaded card is a
      conversation: Chat shows it (intro, introHtml); the New chat pane shows only the others (captures, errors). */
   const cards = [];
@@ -76,7 +76,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
         ai = { ...ai, state: on ? 'on' : 'off', canFlip: local && !!config, config };
         status = on ? { ready: true, why: '' } : { ready: false, why: local
           ? 'AI is off. Captures still work here, with simple rules.'
-          : 'AI is off. Turn it on from Loom in Workshop on this computer (hosted pages cannot change it). Captures still work here, with simple rules.' };
+          : 'AI is off. Turn it on from Chat in Workshop on this computer (hosted pages cannot change it). Captures still work here, with simple rules.' };
       }
     } catch (e) { status = { ready: false, why: "Couldn't reach Workshop on this computer." }; }
     draw();
@@ -259,12 +259,12 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     // Make it a spike and Save as note sit under Tandem's newest answer only (a chat with follow-ups has its own).
     if (actions && asked && card.state !== 'running' && (card.answer != null || card.said)) body += `<p class="hub-actions"><button class="btn" type="button" data-hub-spike>Make it a spike</button><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
     if (card.state === 'noanswer' && !card.said) body += '<p class="hub-meta">The hub ended without an answer. Ask again, or rephrase.</p>';
-    if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Loom expects, so nothing was captured or opened. Its reply is shown as is.</p>';
+    if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Chat expects, so nothing was captured or opened. Its reply is shown as is.</p>';
     if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
     if (route && route.intent === 'act') {
       body += actAllowed(route.act)
         ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-act ${card.acted ? 'disabled' : ''}>${esc(route.act.label)}</button></p>`
-        : `<p class="hub-meta">Suggested: ${esc(route.act.label)}. Loom does not run that from the hub.</p>`;
+        : `<p class="hub-meta">Suggested: ${esc(route.act.label)}. Chat does not run that from here.</p>`;
     }
     if (route && route.intent === 'clarify') {
       body += `<p class="hub-ask">${esc(route.clarify.question)}</p><p class="hub-actions">${route.clarify.choices.map((c, i) => `<button class="btn" type="button" data-hub-choice="${i}">${esc(c)}</button>`).join('')}</p>`;
@@ -323,7 +323,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
       await ws.connectors.putConfig(OC, { ...ai.config, hub: turnOn });
       ws.toast(turnOn ? 'AI is on. The opencode connector restarts.' : 'AI is off. Captures still work, with simple rules.', { kind: 'success' });
     } catch (e) {
-      ws.toast(e && e.code === 'local_only' ? 'Change this from Loom in Workshop on this computer.' : "Couldn't change the AI setting. Try again.", { kind: 'error' });
+      ws.toast(e && e.code === 'local_only' ? 'Change this from Chat in Workshop on this computer.' : "Couldn't change the AI setting. Try again.", { kind: 'error' });
     }
     ai.busy = false;
     await check();

@@ -33,7 +33,7 @@ const MAX_TEXT = 2000;
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
   home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'slate', agents: 'slate', loom: 'slate',
-  hub: 'slate', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
+  hub: 'chat', chat: 'chat', ask: 'chat', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
   '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', goals: 'receipts', okrs: 'receipts', runway: 'runway', roadmap: 'runway'
 };
 /* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
