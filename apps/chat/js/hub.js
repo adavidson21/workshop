@@ -17,21 +17,17 @@
    - clarify: chips that send the message again with the choice (a new chat).
    Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
 
-   When the hub cannot reach Tandem (browser mode, the connector or its Hub setting off, no /hub command), the box
+   When the hub cannot reach Tandem (browser mode, the connector off or not ready, no /hub command), the box
    still captures with the same rules as Home's quick capture, and questions say how to turn the hub on.
 
-   The AI button at the end of the input shows the Hub setting: lit when on, slashed when off, dimmed when the hub
-   cannot run here. In Workshop on this computer a click flips the setting (putConfig, which restarts the
-   connector). On a hosted page it cannot (connector settings are local only, docs/security.md), so a click shows
-   why under the input for a few seconds. */
+   Since Chat 2.1.0 there is no AI switch here: AI is on whenever the opencode connector is on and ready (turn the
+   connector off in Settings to stop it). When it cannot run, a line under the input says why. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
 import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 import { keepFocus, lastTandem } from './thread.js';
 
 const OC = 'opencode';
-/* A sparkle. The slash shows only when AI is off (agents.css, .hub-ai). */
-const AI_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path class="spark" d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path class="spark" d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/><line class="slash" x1="4" y1="20" x2="20" y2="4"/></svg>';
 const POLL_MS = 1500;
 const KEEP_CARDS = 100;
 /* Captures and go are done on the page (the New chat pane); every other hub message is a conversation in Chat. */
@@ -44,40 +40,25 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   const cards = [];
   const loading = new Set();
   let src = {}, status = { ready: false, why: 'Checking the hub...' };
-  /* The AI button at the end of the input. state: checking | on | off | na (the hub cannot run here).
-     canFlip: this page may change the Hub setting (Workshop on this computer, connector ready). */
-  let ai = { state: 'checking', canFlip: false, config: null, busy: false };
-  let noteTimer = 0;
 
   root.classList.add('hub');
   root.innerHTML = `
     <label class="cap-line hub-line"><span class="cap-prompt" aria-hidden="true">&gt;</span>
-      <input class="cap-in" type="text" autocomplete="off" aria-label="Hub: ask Tandem or capture" placeholder="Ask about your repos and work, or capture a task, receipt or note">
-      <button type="button" class="hub-ai" data-state="checking" aria-pressed="false">${AI_ICON}</button></label>
+      <input class="cap-in" type="text" autocomplete="off" aria-label="Hub: ask Tandem or capture" placeholder="Ask about your repos and work, or capture a task, receipt or note"></label>
     <p class="hub-status" aria-live="polite" hidden></p>
     <div class="hub-cards"></div>`;
   const input = root.querySelector('.cap-in');
   const statusEl = root.querySelector('.hub-status');
-  const aiBtn = root.querySelector('.hub-ai');
   const list = root.querySelector('.hub-cards');
 
   /* ---------- what is available ---------- */
   async function check() {
-    ai = { ...ai, state: 'na', canFlip: false, config: null };
     if (ws.backend !== 'agent') { status = { ready: false, why: 'The hub needs Workshop on this computer. Captures still work here, with simple rules.' }; return draw(); }
     try {
       const c = (await ws.connectors.list()).find(x => x.id === OC);
       if (!c || c.status.state === 'disabled') status = { ready: false, why: 'Turn on the opencode connector in Settings to ask Tandem. Captures still work here, with simple rules.' };
       else if (c.status.state !== 'ready') status = { ready: false, why: c.status.message || 'The opencode connector is not ready yet.' };
-      else {
-        let on = false, config = null;
-        try { const cfg = await ws.connectors.getConfig(OC); config = cfg && cfg.config; on = !!(config && config.hub === true); } catch (e) { on = false; }
-        const local = ws.mode === 'local';
-        ai = { ...ai, state: on ? 'on' : 'off', canFlip: local && !!config, config };
-        status = on ? { ready: true, why: '' } : { ready: false, why: local
-          ? 'AI is off. Captures still work here, with simple rules.'
-          : 'AI is off. Turn it on from Chat in Workshop on this computer (hosted pages cannot change it). Captures still work here, with simple rules.' };
-      }
+      else status = { ready: true, why: '' };
     } catch (e) { status = { ready: false, why: "Couldn't reach Workshop on this computer." }; }
     draw();
     onStatus(status);
@@ -280,7 +261,8 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   }
   let lastHtml = null, lastFirst = null;
   function draw() {
-    drawAi();
+    statusEl.textContent = status.ready ? '' : status.why;
+    statusEl.hidden = status.ready || !status.why;
     const html = cards.filter(c => !c.threaded).map(cardHtml).join('');
     onChange();
     // Same markup: leave it, so the card under the pointer keeps its hover (no flicker).
@@ -290,45 +272,6 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     lastHtml = html; lastFirst = list.firstChild;
     back();
   }
-
-  /* ---------- the AI button ---------- */
-  function aiTip() {
-    if (ai.busy) return 'Saving...';
-    if (ai.state === 'checking') return 'Checking the hub...';
-    if (ai.state === 'on') return 'AI is on: Enter sends to Tandem. Captures wait for you to accept them; nothing changes in Azure DevOps or git.' + (ai.canFlip ? ' Click to turn AI off.' : '');
-    if (ai.state === 'off' && ai.canFlip) return 'AI is off. Captures still work here, with simple rules. Click to turn AI on.';
-    return status.why;
-  }
-  function drawAi() {
-    const tip = aiTip();
-    aiBtn.dataset.state = ai.busy ? 'checking' : ai.state;
-    aiBtn.setAttribute('aria-pressed', ai.state === 'on' ? 'true' : 'false');
-    aiBtn.setAttribute('aria-label', tip);
-    aiBtn.title = tip;
-    aiBtn.classList.toggle('locked', !ai.canFlip);
-  }
-  /* A short note under the input, then gone. Used when the button cannot flip the setting here. */
-  function note(text) {
-    clearTimeout(noteTimer);
-    statusEl.textContent = text;
-    statusEl.hidden = false;
-    noteTimer = setTimeout(() => { statusEl.hidden = true; }, 7000);
-  }
-  async function flipAi() {
-    if (ai.busy || ai.state === 'checking') return;
-    if (!ai.canFlip) return note(status.why || aiTip());
-    const turnOn = ai.state !== 'on';
-    ai.busy = true; drawAi();
-    try {
-      await ws.connectors.putConfig(OC, { ...ai.config, hub: turnOn });
-      ws.toast(turnOn ? 'AI is on. The opencode connector restarts.' : 'AI is off. Captures still work, with simple rules.', { kind: 'success' });
-    } catch (e) {
-      ws.toast(e && e.code === 'local_only' ? 'Change this from Chat in Workshop on this computer.' : "Couldn't change the AI setting. Try again.", { kind: 'error' });
-    }
-    ai.busy = false;
-    await check();
-  }
-  aiBtn.addEventListener('click', e => { e.preventDefault(); flipAi(); });
 
   /* ---------- input ---------- */
   input.addEventListener('keydown', e => {

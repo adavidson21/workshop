@@ -20,9 +20,8 @@ beforeEach(() => {
 });
 const rejects = (p, code, re) => assert.rejects(p, (e) => e.code === code && (!re || re.test(e.message)));
 
-test("refused while AI (the Hub setting) is off", async () => {
-  await rejects(runVoice({ kind: "rewrite", prompt: "x" }, { config: {} }), "unavailable", /Hub/);
-  await rejects(voiceResult({ session: "ses_1" }, { config: {} }), "unavailable");
+test("there is no AI switch: it runs with the old hub setting missing (1.16.0)", async () => {
+  assert.ok((await runVoice({ kind: "rewrite", prompt: "x" }, { config: {} })).session);
 });
 
 test("a run uses the read-only plan agent and returns the last reply once idle", async () => {

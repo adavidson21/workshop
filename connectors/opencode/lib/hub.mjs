@@ -4,8 +4,8 @@
 // hub.run saves what Dispatch sends as request.md in this connector's own folder,
 // <Workshop home>/data/_connectors/opencode/hub/<id>/, never in the workspace or .work, and runs Tandem's
 // /hub <path to request.md> in a new session (eng-agents Core 2.9.0). The hub agent writes route.json and, for a
-// question, answer.md next to it. hub.result reads them back. Both refuse unless the connector's `hub` setting is
-// on (off by default; only Workshop on this computer can change it).
+// question, answer.md next to it. hub.result reads them back. Both run whenever the connector is on (the `hub` setting
+// is no longer read since 1.16.0).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -43,10 +43,8 @@ export function folderFor(id, root) {
   return path.join(root, id);
 }
 
-/** Refuses unless the `hub` setting is on. */
-export function needHub(config = ctx && ctx.config) {
-  if (!config || config.hub !== true) throw httpError(503, "The hub is off. Turn on Hub in the opencode connector's settings (Workshop on this computer).");
-}
+/** Since connector 1.16.0 the hub is on whenever this connector is on (the old `hub` setting is no longer read). */
+export function needHub() {}
 
 const line = (v, max = 200) => String(v == null ? "" : v).replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const list = (v) => (Array.isArray(v) ? v.slice(0, LIST_MAX) : []);
