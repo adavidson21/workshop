@@ -153,6 +153,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   function paintImport() {
     const body = q('.import-body');
     if (!body) return;
+    if (pending) q('#import').hidden = false; // a chosen sheet shows its preview, even if Import was not opened first
     if (!pending) { body.innerHTML = ''; return; }
     const { plan, name } = pending;
     const c = plan.counts;
