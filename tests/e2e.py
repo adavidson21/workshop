@@ -879,6 +879,7 @@ def agent_checks(b, watch):
         if not docket_declares('sprints'): print('SKIP  app settings (the Docket checkout declares no sprints setting yet)')
         else:
             check('Settings shows the switch an app declares in its manifest, at its default', sw.count() == 1 and sw.is_checked())
+            p1.click('.app-row[data-app=prioritizer] .app-opts > summary')  # an app's own switches fold under Options (Settings 6.3.0)
             sw.click()
             # The save is async: poll for it (up to 6 s) instead of one fixed wait, which flaked on a slow CI runner.
             got, settings_file = {}, os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')
