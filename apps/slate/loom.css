@@ -36,7 +36,7 @@ body[data-loom-tab] #runs-root .page { max-width: 1120px; }
 body[data-loom-tab=chat] #runs-root .page { max-width: none; }
 
 /* The Ask bar lives with Chat, not over the Inbox. */
-body[data-loom-tab=inbox] #hub { display: none; }
+body[data-loom-tab=inbox] #runs-root > #hub { display: none; }
 
 /* Inbox chips (All, Blocked, Agents need you, PRs). */
 #runs-root .inbox-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
