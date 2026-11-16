@@ -1,26 +1,34 @@
-/* Dispatch: the Chat tab (docs/chat.md), laid out like ChatGPT (Dispatch 4.1.0):
-   - A sidebar of chats: New chat, search, the list grouped by Today, Yesterday, Previous 7 days and Older. Each row can
-     be renamed or removed. The sidebar collapses (kept in this browser); on a phone it is a drawer.
-   - One chat in view: the messages in a centered column, the composer pinned at the bottom.
-   - New chat: the hub's box (hub.js) in the middle of the pane. Every first message goes through Tandem's /hub, so
-     one box still captures: a capture comes back as rows to accept right there (not listed as a chat), and anything
-     else (a question, a suggested action, a choice) becomes a chat in the sidebar and opens.
+/* Chat (docs/chat.md): opencode in Workshop, laid out like ChatGPT and working like the opencode TUI (Chat 2.0.0).
+   - A sidebar: New chat, search, the list grouped by Today, Yesterday, Previous 7 days and Older, with Rename and
+     Remove on each row. Chats shows the chats you started and hub threads; All sessions adds every opencode session
+     in the workspace (runs, PR reviews, the terminal), like the TUI's /sessions. The sidebar collapses (kept in
+     this browser); on a phone it is a drawer.
+   - One chat in view: the turns in a centered column with tool calls, diffs, thinking and to-dos (parts.js), the
+     permission prompts and questions to answer right there, and the composer pinned at the bottom.
+   - The composer: an agent picker (Tab and Shift+Tab cycle it, like the TUI) and a model picker, / for commands
+     (Chat's own and opencode's), @ for workspace files, ! for a shell command, Up for the last message, Esc twice
+     to stop. A message sent while opencode is working waits in a queue and goes when it is done.
+   - New chat: the same composer. Its agent list starts with Hub, which swaps in the hub's box (hub.js): one box that
+     asks Tandem or captures a task, receipt or note.
 
-   Replies go to Tandem's read-only `chat` agent through the opencode connector (chat.send, write: true, Enter or
-   Send is the click). It reads code, repo guides, product notes and .work, and changes nothing. Starting work stays
-   behind buttons with confirms: Make it a spike. When Tandem asks you something in a chat, the question is
-   answered right in the thread (asksHtml, the same controls as the Inbox).
-
-   Drawn into its own element, which main.js moves into the page when the Chat tab is in view, so typing survives
-   Loom's repaints. The hub's element (hubEl) is moved into the New chat pane the same way. */
+   Everything goes through the opencode connector's chat.* actions; a message, a command or a click is the only
+   thing that makes opencode act, and opencode's own permission settings decide what an agent may do, exactly as in
+   the terminal. Drawn into its own element, so typing survives repaints (keepFocus). */
 import { esc } from './hub-model.js';
-import { WRITING, groupChats, keepFocus, lastTandem, matchChat, tandemTurn, turnRows, youTurn } from './thread.js';
+import { WRITING, groupChats, keepFocus, lastTandem, matchChat, tandemTurn, youTurn } from './thread.js';
+import { BUILTINS, HELP, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptHtml, questionAnswers, richRows, splitRevert, tokens } from './parts.js';
 
 const OC = 'opencode';
 const LIST_MS = 10000;
-const BUSY_MS = 1500;
+const BUSY_MS = 1000;
 const SIDE_KEY = 'dispatch.chatSide';
+const PICK_KEY = 'chat.pick';
+const ALL_KEY = 'chat.all';
+const DETAILS_KEY = 'chat.details';
 const PHONE = '(max-width: 820px)';
+const NEW = '__new';
+const HUB = 'hub';
+const HUB_AGENT = { name: HUB, description: 'Ask Tandem, or capture a task, receipt or note for your apps' };
 
 const ICON = {
   side: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -28,9 +36,16 @@ const ICON = {
   pen: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>',
   up: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 19V6M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
-  stop: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>'
+  stop: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 010 12h-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M15 14l5-5-5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  compact: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M8 4l4 4 4-4M8 20l4-4 4 4M4 12h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  term: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><rect x="3" y="4.5" width="18" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  caret: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
+function readJson(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; } }
+function writeJson(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* blocked */ } }
 function loadSide() { try { return localStorage.getItem(SIDE_KEY) === 'closed'; } catch (e) { return false; } }
 function saveSide(closed) { try { localStorage.setItem(SIDE_KEY, closed ? 'closed' : 'open'); } catch (e) { /* blocked */ } }
 const phone = () => typeof matchMedia === 'function' && matchMedia(PHONE).matches;
@@ -41,26 +56,62 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   el.setAttribute('aria-label', 'Chat');
   let items = [], sel = null, conv = null, err = '', listErr = '', sending = false, visible = false;
   let query = '', renaming = null, renameText = '', closed = loadSide(), drawer = false;
+  let all = !!readJson(ALL_KEY, false), details = !!readJson(DETAILS_KEY, false);
+  let options = null, optErr = '';
+  let pick = { agent: '', model: '', ...readJson(PICK_KEY, {}) };
+  let pop = null; // {kind: 'slash' | 'file' | 'agent' | 'model', items, i, q}
+  let help = false, escAt = 0, note = '';
+  const sessPick = {}; // session -> {agent, model}
   const drafts = {};
-  const pending = new Map(); // session -> item, for a chat the hub just opened that the connector has not listed yet
-  let listTimer = 0, convTimer = 0;
+  const picked = {}; // draft key -> Set of @files picked from the popup
+  const queue = {}; // session -> [{parsed, agent, model, files, text}]
+  const open = new Set(); // tool and thinking blocks flipped from their default
+  const answers = {}, custom = {}; // question id -> per question: picked labels, typed answer
+  const history = [];
+  const pending = new Map(); // session -> item, for a chat just started that the connector has not listed yet
+  let listTimer = 0, convTimer = 0, fileTimer = 0, noteTimer = 0;
 
   /* ---------- data ---------- */
+  const key = () => sel || NEW;
   const listed = () => {
     const out = items.slice();
     for (const [sid, it] of pending) if (!out.some(c => c.session === sid)) out.push(it);
     return out;
   };
   const itemOf = sid => listed().find(c => c.session === sid) || null;
+  const agents = () => (options && options.agents) || [];
+  /** The agents the picker offers here: New chat adds Hub at the top. */
+  const agentChoices = () => (sel ? agents() : [HUB_AGENT, ...agents()]);
+  function agentNow() {
+    const want = sel ? (sessPick[sel] || {}).agent : pick.agent;
+    const names = agentChoices().map(a => a.name);
+    if (want && (names.includes(want) || !options)) return want;
+    if (!sel && pick.agent === HUB) return HUB;
+    return names.includes('build') ? 'build' : names.find(n => n !== HUB) || (sel ? '' : HUB);
+  }
+  const modelNow = () => (sel ? ((sessPick[sel] || {}).model ?? pick.model) : pick.model) || '';
+  function setPick(kind, value) {
+    if (sel) sessPick[sel] = { agent: agentNow(), model: modelNow(), ...(sessPick[sel] || {}), [kind]: value };
+    if (!(kind === 'agent' && value === HUB && sel)) { pick = { ...pick, [kind]: value }; writeJson(PICK_KEY, pick); }
+  }
+  const hubMode = () => !sel && agentNow() === HUB;
+
+  async function loadOptions() {
+    if (!aiReady().ready) return;
+    try { options = await ws.connectors.call(OC, 'chat.options', {}); optErr = ''; }
+    catch (e) { optErr = e.message || "Couldn't read opencode's agents and models."; }
+    draw();
+  }
   async function loadList() {
     clearTimeout(listTimer);
     if (!aiReady().ready) { items = []; listErr = ''; draw(); return; }
     try {
-      items = (await ws.connectors.call(OC, 'chat.list', {})).items || [];
+      items = (await ws.connectors.call(OC, 'chat.list', all ? { all: true } : {})).items || [];
       listErr = '';
       for (const c of items) pending.delete(c.session);
     } catch (e) { listErr = e.message || "Couldn't list your chats."; }
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
+    if (!options && !optErr) loadOptions();
     draw();
     if (visible) listTimer = setTimeout(loadList, LIST_MS);
   }
@@ -72,13 +123,18 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       const r = await ws.connectors.call(OC, 'chat.messages', { session: want });
       if (sel !== want) return;
       conv = r; err = r.error || '';
+      const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
+      if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; }
+      if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
     } catch (e) { if (sel === want) err = e.message || "Couldn't read this chat."; }
     draw();
-    if (sel === want && conv && (conv.busy || conv.waiting) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
+    if (sel !== want) return;
+    if (conv && !conv.busy && !conv.waiting && (queue[want] || []).length) { flush(want); return; }
+    if (conv && (conv.busy || conv.waiting || (queue[want] || []).length) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
   }
   function select(session) {
     if (!session && hub) hub.clearDone();
-    sel = session || null; conv = null; err = ''; renaming = null;
+    sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false;
     if (phone()) drawer = false;
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     draw();
@@ -86,30 +142,108 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     focusBox();
   }
   function focusBox() {
-    const box = sel ? el.querySelector('[data-keep^="chat:"]') : hubEl && hubEl.querySelector('.cap-in');
+    const box = hubMode() ? hubEl && hubEl.querySelector('.cap-in') : el.querySelector(`[data-keep="chat:${key()}"]`);
     if (box && !box.disabled) box.focus();
   }
+  function flash(text) {
+    note = text; draw();
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { note = ''; draw(); }, 2600);
+  }
 
-  /* ---------- sending ---------- */
+  /* ---------- doing things ---------- */
+  const confirm = { confirm: true };
+  function pickArgs() {
+    const a = agentNow(), m = modelFromKey(modelNow());
+    return { ...(a && a !== HUB ? { agent: a } : {}), ...(m ? { model: m } : {}) };
+  }
   async function send() {
-    if (!sel) return;
-    const text = String(drafts[sel] || '').trim();
-    if (!text || sending) return;
+    const k = key();
+    const text = String(drafts[k] || '');
+    const parsed = parseInput(text);
+    if (parsed.kind === 'empty' || sending) return;
+    pop = null;
+    if (parsed.kind === 'builtin') { drafts[k] = ''; draw(); return builtin(parsed.name, parsed.args); }
+    const files = parsed.kind === 'text' ? filesIn(text, picked[k]) : [];
+    const job = { parsed, files, text: text.trim(), ...pickArgs() };
+    history.push(text.trim());
+    if (history.length > 50) history.shift();
+    drafts[k] = ''; picked[k] = new Set();
+    if (sel && conv && (conv.busy || conv.waiting)) { (queue[sel] = queue[sel] || []).push(job); draw(); return; }
+    await run(sel, job);
+  }
+  async function run(session, job) {
+    const { parsed, files, agent, model } = job;
+    const pickOf = { ...(agent ? { agent } : {}), ...(model ? { model } : {}) };
     sending = true; err = ''; draw();
     try {
-      await ws.connectors.call(OC, 'chat.send', { session: sel, text }, { confirm: true });
-      drafts[sel] = '';
-      conv = { ...(conv || {}), busy: true, turns: [...((conv && conv.turns) || []), { role: 'you', text }] };
+      let r = null;
+      if (parsed.kind === 'shell') r = await ws.connectors.call(OC, 'chat.shell', { ...(session ? { session } : {}), command: parsed.command, ...pickOf }, confirm);
+      else if (parsed.kind === 'command') r = await ws.connectors.call(OC, 'chat.command', { ...(session ? { session } : {}), name: parsed.name, args: parsed.args, ...pickOf }, confirm);
+      else if (session) await ws.connectors.call(OC, 'chat.send', { session, text: parsed.text, ...pickOf, ...(files.length ? { files } : {}) }, confirm);
+      else r = await ws.connectors.call(OC, 'chat.start', { text: parsed.text, ...pickOf, ...(files.length ? { files } : {}) }, confirm);
+      const sid = session || (r && r.session);
+      if (!session && sid) {
+        sessPick[sid] = { agent: agent || '', model: model ? modelKey(model) : '' };
+        pending.set(sid, { session: sid, from: 'you', title: job.text.replace(/\s+/g, ' ').slice(0, 80), at: Date.now(), last: Date.now(), busy: true });
+        sending = false;
+        select(sid);
+        loadList();
+        return;
+      }
+      if (sel === session) {
+        const shown = parsed.kind === 'text' ? parsed.text : job.text;
+        conv = { ...(conv || {}), busy: true, revert: null, turns: [...((conv && conv.turns) || []), { id: '', role: 'you', text: shown, agent: agent || null, parts: files.map(f => ({ type: 'file', name: f })) }] };
+      }
       setTimeout(loadConv, 400);
     } catch (e) {
-      err = /no chat agent/.test(e.message || '') ? 'Tandem has no chat agent yet. Run the Tandem install command again (eng-agents Core 2.14.0), then restart opencode.' : (e.message || "Couldn't send that.");
+      const msg = e.message || "Couldn't send that.";
+      if (session && /still working/.test(msg)) { (queue[session] = queue[session] || []).unshift(job); setTimeout(loadConv, BUSY_MS); }
+      else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; }
     }
     sending = false; draw();
     focusBox();
   }
+  function flush(session) {
+    const job = (queue[session] || []).shift();
+    if (job) run(session, job);
+  }
+  async function builtin(name, args) {
+    const needChat = () => { if (!sel) { err = 'Open a chat first.'; draw(); return false; } return true; };
+    err = '';
+    if (name === 'new') return select(null);
+    if (name === 'help') { help = !help; return draw(); }
+    if (name === 'details') { details = !details; writeJson(DETAILS_KEY, details); open.clear(); return draw(); }
+    if (name === 'models') return openPop('model');
+    if (name === 'agents') return openPop('agent');
+    if (name === 'sessions') { all = true; writeJson(ALL_KEY, all); if (closed) { closed = false; saveSide(false); } if (phone()) drawer = true; draw(); return loadList(); }
+    if (name === 'terminal') {
+      try { await ws.connectors.call(OC, 'terminal', sel ? { session: sel } : {}); flash('Opened in a terminal window.'); }
+      catch (e) { ws.toast(e.message || "Couldn't open a terminal.", { kind: 'error' }); }
+      return;
+    }
+    if (!needChat()) return;
+    if (name === 'export') return noteOf(titleOf(sel), lastTandem((conv && conv.turns) || []) || ((hub && hub.intro(sel)) || {}).answer || '');
+    try {
+      if (name === 'undo') {
+        const r = await ws.connectors.call(OC, 'chat.undo', { session: sel }, confirm);
+        if (r && r.text && !drafts[sel]) drafts[sel] = r.text;
+      } else if (name === 'redo') await ws.connectors.call(OC, 'chat.redo', { session: sel }, confirm);
+      else if (name === 'compact') { const m = modelFromKey(modelNow()); await ws.connectors.call(OC, 'chat.compact', { session: sel, ...(m ? { model: m } : {}) }, confirm); }
+    } catch (e) { err = e.message || `Couldn't ${name}.`; }
+    draw();
+    loadConv();
+    focusBox();
+  }
   async function stop() {
     if (!sel) return;
-    try { await ws.connectors.call(OC, 'abort', { session: sel }, { confirm: true }); } catch (e) { ws.toast(e.message || "Couldn't stop it.", { kind: 'error' }); }
+    if (queue[sel]) queue[sel] = [];
+    try { await ws.connectors.call(OC, 'abort', { session: sel }, confirm); } catch (e) { ws.toast(e.message || "Couldn't stop it.", { kind: 'error' }); }
+    loadConv();
+  }
+  async function answer(args) {
+    try { await ws.connectors.call(OC, 'answer', args, confirm); }
+    catch (e) { ws.toast(e.message || "Couldn't answer that.", { kind: 'error' }); }
     loadConv();
   }
   async function remove(session) {
@@ -133,7 +267,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   function titleOf(sid) { const c = itemOf(sid) || conv || {}; return c.title || 'Chat'; }
   async function spike() {
     const topic = titleOf(sel);
-    try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, { confirm: true }); ws.toast('Spike started. Follow it in Loom.', { kind: 'success' }); }
+    try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, confirm); ws.toast('Spike started. Follow it in Loom.', { kind: 'success' }); }
     catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
   }
   function toggleSide() {
@@ -143,24 +277,96 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     if (!closed || drawer) { const s = el.querySelector('[data-chat-search]'); if (s && drawer) s.focus(); }
   }
 
+  /* ---------- the popups: / commands, @ files, agents, models ---------- */
+  function openPop(kind) {
+    if (kind === 'agent') {
+      const list = agentChoices();
+      pop = { kind, items: list.map(a => ({ value: a.name, label: a.name === HUB ? 'Hub' : a.name, desc: a.description || '' })), i: Math.max(0, list.findIndex(a => a.name === agentNow())), q: '' };
+    } else if (kind === 'model') pop = { kind, items: modelItems(''), i: 0, q: '' };
+    draw();
+    const q = el.querySelector('[data-pop-q]');
+    if (q) q.focus(); else { const b = el.querySelector('[data-pop-i].on') || el.querySelector('[data-pop-i]'); if (b) b.focus(); }
+  }
+  function modelItems(q) {
+    const list = matchModels(q, (options && options.models) || []);
+    const out = q ? [] : [{ value: '', label: 'Default model', desc: "The agent's or opencode's own choice" }];
+    return out.concat(list.slice(0, 200).map(m => ({ value: modelKey(m), label: m.name, desc: m.providerName })));
+  }
+  function popFromInput(t) {
+    const p = popupFor(t.value, t.selectionStart);
+    if (!p) { if (pop && (pop.kind === 'slash' || pop.kind === 'file')) { pop = null; draw(); } return; }
+    if (p.kind === 'slash') {
+      const list = matchCommands(p.q, (options && options.commands) || []);
+      pop = list.length ? { kind: 'slash', items: list.map(c => ({ value: c.name, label: '/' + c.name, desc: c.description || '' })), i: 0, q: p.q } : null;
+      draw();
+      return;
+    }
+    clearTimeout(fileTimer);
+    const want = p.q;
+    fileTimer = setTimeout(async () => {
+      try {
+        const r = await ws.connectors.call(OC, 'chat.files', { query: want });
+        const box = el.querySelector(`[data-keep="chat:${key()}"]`);
+        const now = box && popupFor(box.value, box.selectionStart);
+        if (!now || now.kind !== 'file' || now.q !== want) return;
+        const files = (r && r.files) || [];
+        pop = files.length ? { kind: 'file', items: files.map(f => ({ value: f, label: f, desc: '' })), i: 0, q: want, start: now.start } : null;
+      } catch (e) { pop = null; }
+      draw();
+    }, 140);
+  }
+  function choose(i) {
+    if (!pop) return;
+    const it = pop.items[i];
+    const kind = pop.kind;
+    pop = null;
+    if (!it) return draw();
+    const k = key();
+    if (kind === 'agent') { setPick('agent', it.value); draw(); return focusBox(); }
+    if (kind === 'model') { setPick('model', it.value); draw(); return focusBox(); }
+    if (kind === 'slash') {
+      if (BUILTINS.some(b => b.name === it.value)) { drafts[k] = ''; draw(); return builtin(it.value, ''); }
+      drafts[k] = `/${it.value} `;
+    } else if (kind === 'file') {
+      const box = el.querySelector(`[data-keep="chat:${k}"]`);
+      const t = String(drafts[k] || ''), caret = box ? box.selectionStart : t.length;
+      const p = popupFor(t, caret);
+      if (p && p.kind === 'file') drafts[k] = `${t.slice(0, p.start)}@${it.value} ${t.slice(caret)}`;
+      (picked[k] = picked[k] || new Set()).add(it.value);
+    }
+    draw();
+    const box = el.querySelector(`[data-keep="chat:${k}"]`);
+    if (box) { box.value = drafts[k]; box.focus(); const end = kind === 'file' ? drafts[k].length : box.value.length; try { box.setSelectionRange(end, end); } catch (e) { /* not a text field */ } }
+  }
+  function popHtml() {
+    if (!pop) return '';
+    const title = { slash: 'Commands', file: 'Files', agent: 'Agent', model: 'Model' }[pop.kind];
+    const search = pop.kind === 'model' ? `<input class="pop-q" data-keep="chat-pop-q" data-pop-q placeholder="Search models" aria-label="Search models" value="${esc(pop.q)}">` : '';
+    const cur = pop.kind === 'agent' ? agentNow() : pop.kind === 'model' ? modelNow() : null;
+    const rows = pop.items.map((it, i) => `<li><button type="button" class="pop-it${i === pop.i ? ' on' : ''}${cur != null && it.value === cur ? ' cur' : ''}" data-pop-i="${i}" role="option" aria-selected="${i === pop.i}"><span class="pop-l">${esc(it.label)}</span>${it.desc ? `<span class="pop-d">${esc(it.desc)}</span>` : ''}</button></li>`).join('');
+    const empty = !pop.items.length ? '<p class="pop-none">Nothing matches.</p>' : '';
+    return `<div class="pop" data-pop><p class="pop-t">${title}</p>${search}<ul role="listbox" aria-label="${title}">${rows}</ul>${empty}</div>`;
+  }
+
   /* ---------- drawing ---------- */
   function rowHtml(c) {
     if (renaming === c.session) {
       return `<li class="chat-row renaming"><input class="chat-rename" data-keep="chat-rename" data-chat-rename-box value="${esc(renameText)}" aria-label="Name this chat" maxlength="80"></li>`;
     }
-    return `<li class="chat-row${c.session === sel ? ' on' : ''}"><button type="button" class="chat-item${c.session === sel ? ' on' : ''}" data-chat-open="${esc(c.session)}"${c.session === sel ? ' aria-current="true"' : ''}>` +
+    const outside = c.from === 'opencode';
+    return `<li class="chat-row${c.session === sel ? ' on' : ''}${outside ? ' outside' : ''}"><button type="button" class="chat-item${c.session === sel ? ' on' : ''}" data-chat-open="${esc(c.session)}"${c.session === sel ? ' aria-current="true"' : ''}>` +
       `<span class="chat-t">${c.busy ? '<span class="spin" aria-hidden="true"></span>' : ''}${esc(c.title)}</span>` +
-      (c.waiting ? '<span class="chat-dot" title="Tandem is asking you something"><span class="sr">Needs you</span></span>' : '') + '</button>' +
+      (c.waiting ? '<span class="chat-dot" title="opencode is asking you something"><span class="sr">Needs you</span></span>' : '') + '</button>' +
       `<span class="chat-acts"><button type="button" class="chat-act" data-chat-rename="${esc(c.session)}" title="Rename" aria-label="Rename ${esc(c.title)}">${ICON.pen}</button>` +
-      `<button type="button" class="chat-act" data-chat-remove="${esc(c.session)}" title="Remove from this list. The opencode session is kept." aria-label="Remove ${esc(c.title)}">${ICON.x}</button></span></li>`;
+      (outside ? '' : `<button type="button" class="chat-act" data-chat-remove="${esc(c.session)}" title="Remove from this list. The opencode session is kept." aria-label="Remove ${esc(c.title)}">${ICON.x}</button>`) + '</span></li>';
   }
   function sideHtml() {
-    const all = listed();
-    const shown = all.filter(c => matchChat(c, query));
+    const every = listed();
+    const shown = every.filter(c => matchChat(c, query));
     const groups = groupChats(shown);
     const list = groups.map(g => `<h3 class="chat-h">${esc(g.label)}</h3><ul>${g.items.map(rowHtml).join('')}</ul>`).join('');
-    const empty = !all.length
-      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Ask Tandem something to start one.</p>' : '<p class="chat-empty">Turn on AI with the sparkle button in New chat to talk to Tandem.</p>')
+    const empty = !every.length
+      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : '<p class="chat-empty">Turn on AI with the sparkle button in New chat to talk to opencode.</p>')
       : !shown.length ? `<p class="chat-empty">No chats match "${esc(query)}".</p>` : '';
     return `<aside class="chat-side" aria-label="Chats">` +
       `<div class="chat-side-top"><button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button>` +
@@ -168,6 +374,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       `<button type="button" class="chat-newbtn${sel ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
       `<button type="button" class="chat-newbtn rw-btn" data-chat-rewrite>${ICON.pen}<span>Rewrite a draft</span></button>` +
       `<input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="Search chats" aria-label="Search chats" value="${esc(query)}">` +
+      `<div class="chat-scope" role="group" aria-label="Show"><button type="button" class="${all ? '' : 'on'}" data-chat-all="0" aria-pressed="${!all}">Chats</button><button type="button" class="${all ? 'on' : ''}" data-chat-all="1" aria-pressed="${all}" title="Every opencode session in the workspace: runs, PR reviews and the terminal">All sessions</button></div>` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
       `<nav class="chat-list">${list}${empty}</nav></aside>`;
   }
@@ -178,18 +385,64 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       : '';
     return `<header class="chat-top">${sideBtn}<h2>${esc(title)}</h2>${extra}</header>`;
   }
+  function picksHtml() {
+    const a = agentNow();
+    const models = (options && options.models) || [];
+    return `<button type="button" class="pick pick-agent${a === HUB ? ' hub' : ''}" data-pick="agent" title="Agent (Tab switches)" aria-haspopup="listbox"><span>${esc(a === HUB ? 'Hub' : a || 'Default agent')}</span>${ICON.caret}</button>` +
+      (a === HUB ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`);
+  }
+  function composeHtml() {
+    const k = key();
+    const off = !aiReady().ready;
+    const busy = !!(sel && conv && conv.busy);
+    const draft = drafts[k] || '';
+    const shell = /^\s*!/.test(draft);
+    const q = sel ? (queue[sel] || []).length : 0;
+    const ctx = sel && conv && conv.totals ? [conv.totals.context ? `${tokens(conv.totals.context)} context` : '', money(conv.totals.cost)].filter(Boolean).join(' · ') : '';
+    const hint = off ? esc(aiReady().why || 'AI is off.')
+      : note ? esc(note)
+      : escAt && busy && Date.now() - escAt < 1500 ? 'Press Esc again to stop.'
+      : shell ? 'Shell: runs in the workspace through opencode.'
+      : q ? `${q} message${q === 1 ? '' : 's'} queued. ${q === 1 ? 'It goes' : 'They go'} when opencode is done.`
+      : 'Enter sends · Tab agent · / commands · @ files · ! shell';
+    const action = busy && !draft.trim()
+      ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop (Esc twice)" aria-label="Stop">${ICON.stop}</button>`
+      : `<button type="button" class="chat-send" data-chat-send title="${busy ? 'Queue' : 'Send'}" aria-label="${busy ? 'Queue' : 'Send'}"${off || sending ? ' disabled' : ''}>${ICON.up}</button>`;
+    return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}<div class="chat-box${shell ? ' shell' : ''}">` +
+      `<textarea rows="1" data-keep="chat:${esc(k)}" placeholder="${off ? 'Turn on AI with the sparkle button in New chat' : sel ? 'Message opencode' : 'Ask anything, or / for commands'}" aria-label="Message to opencode"${off ? ' disabled' : ''}>${esc(draft)}</textarea>` +
+      `<div class="chat-bar">${picksHtml()}<span class="grow"></span>${ctx ? `<span class="chat-ctx">${esc(ctx)}</span>` : ''}${action}</div></div>` +
+      `<p class="chat-hint" aria-live="polite">${hint}</p></div></div>`;
+  }
+  function helpHtml() {
+    if (!help) return '';
+    const cmds = matchCommands('', (options && options.commands) || []);
+    return `<div class="chat-help"><h3>Keys</h3><dl>${HELP.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
+      `<h3>Commands</h3><dl>${cmds.map(c => `<dt>/${esc(c.name)}</dt><dd>${esc(c.description || '')}</dd>`).join('')}</dl>` +
+      '<p class="hub-meta">opencode\'s own permission settings decide what an agent may do without asking, as in the terminal.</p></div>';
+  }
+  function headBtns(busy) {
+    const icon = (b, name, title) => `<button type="button" class="chat-icon" data-builtin="${name}" title="${title}" aria-label="${title}">${b}</button>`;
+    return `<span class="row">` + icon(ICON.undo, 'undo', 'Undo the last message (/undo)') +
+      (conv && conv.revert ? icon(ICON.redo, 'redo', 'Redo (/redo)') : '') +
+      icon(ICON.compact, 'compact', 'Compact this chat (/compact)') + icon(ICON.term, 'terminal', 'Open in the opencode terminal') +
+      (busy ? '<button type="button" class="btn ghost" data-chat-stop>Stop</button>' : '') + '</span>';
+  }
   function paneHtml() {
     if (!sel) {
-      return `<div class="chat-pane chat-home">${topHtml('New chat')}<div class="chat-scroll"><div class="chat-col chat-start">` +
-        '<h3 class="chat-hello">What do you want to ask or capture?</h3>' +
-        '<p class="hub-meta">Ask about your repos and work, or capture a task, receipt or note. Tandem reads and changes nothing on its own.</p>' +
-        '<div class="chat-hub" data-hub-home></div></div></div></div>';
+      const hubOn = hubMode();
+      const errs = (optErr ? `<p class="hub-error">${esc(optErr)}</p>` : '') + (err ? `<p class="hub-error">${esc(err)}</p>` : '');
+      const body = hubOn
+        ? `<div class="chat-hub-picks">${picksHtml()}<span class="hub-meta">Ask Tandem, or capture a task, receipt or note. Pick another agent to work like opencode.</span></div><div class="chat-hub" data-hub-home></div>`
+        : '<div class="chat-hub" data-hub-home hidden></div>';
+      return `<div class="chat-pane chat-home${hubOn ? ' is-hub' : ''}">${topHtml('New chat')}<div class="chat-scroll"><div class="chat-col chat-start">` +
+        `<h3 class="chat-hello">${hubOn ? 'What do you want to ask or capture?' : 'What are we working on?'}</h3>` +
+        (hubOn ? '' : '<p class="hub-meta">Works like opencode: pick an agent and a model, / for commands, @ for files, ! for the shell.</p>') +
+        body + helpHtml() + errs + '</div></div>' + (hubOn ? '' : composeHtml()) + '</div>';
     }
     const busy = !!(conv && conv.busy);
     const c = itemOf(sel) || conv || {};
     const fromHub = c.from === 'hub' || (conv && conv.from === 'hub') || !!c.hub;
-    const head = topHtml(c.title || 'Chat', `<span class="row">${busy ? `<button type="button" class="btn ghost" data-chat-stop>Stop</button>` : ''}</span>`);
-    // A hub chat's first question and answer come from the hub's card (the connector leaves the /hub run out).
+    const head = topHtml(c.title || (conv && conv.title) || 'Chat', headBtns(busy));
     const later = (conv && conv.turns) || [];
     const first = fromHub && hub ? hub.intro(sel, { actions: !later.length }) : null;
     let rows = '';
@@ -200,22 +453,19 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       rows += youTurn(c.title || '');
       rows += '<p class="hub-meta">Loading the answer...</p>';
     }
-    rows += turnRows(later, { busy: busy && !(first && first.running) });
+    const { shown, undone } = splitRevert(later, conv && conv.revert);
+    rows += richRows(shown, { open, details, busy: busy && !(first && first.running), activity: conv && conv.activity });
+    if (undone) rows += `<p class="divider undo"><span>Undid ${undone} message${undone === 1 ? '' : 's'} and ${undone === 1 ? 'its' : 'their'} changes. <button type="button" class="lnk" data-builtin="redo">Redo</button> brings ${undone === 1 ? 'it' : 'them'} back; your next message drops ${undone === 1 ? 'it' : 'them'}.</span></p>`;
+    for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
     if (!conv && !first && !fromHub) rows += '<p class="hub-meta">Loading...</p>';
-    if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">Tandem is asking you something. Answer it in the Inbox.</p>';
-    if (conv && !busy && later.length && lastTandem(later)) rows += '<p class="hub-actions chat-after"><button class="btn" type="button" data-chat-spike>Make it a spike</button><button class="btn ghost" type="button" data-chat-note>Save as note</button></p>';
+    if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
+    else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Loom\'s Inbox.</p>';
+    if (conv && !busy && later.length && lastTandem(later)) rows += '<p class="hub-actions chat-after"><button class="btn" type="button" data-chat-spike>Make it a spike</button><button class="btn ghost" type="button" data-builtin="export">Save as note</button></p>';
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
-    const off = !aiReady().ready;
-    const lock = off || busy || sending;
-    const box = `<div class="chat-compose"><div class="chat-col"><div class="chat-box"><textarea rows="1" data-keep="chat:${esc(sel)}" placeholder="${off ? 'Turn on AI with the sparkle button in New chat' : 'Message Tandem'}" aria-label="Message to Tandem"${lock ? ' disabled' : ''}>${esc(drafts[sel] || '')}</textarea>` +
-      (busy ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop" aria-label="Stop">${ICON.stop}</button>`
-        : `<button type="button" class="chat-send" data-chat-send title="Send" aria-label="Send"${lock ? ' disabled' : ''}>${ICON.up}</button>`) + '</div>' +
-      `<p class="chat-hint">${off ? esc(aiReady().why || 'AI is off.') : 'Read only. Enter sends, Shift+Enter for a new line.'}</p></div></div>`;
-    return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col"><div class="turns">${rows}</div></div></div>${box}</div>`;
+    return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;
   }
   /* Put the hub's element in the New chat pane, keeping focus and the caret if it was being typed in. */
   function mountHub() {
-    // Only while the tab is on the page: before Dispatch is connected the hub lives under the setup page.
     if (!hubEl || !el.isConnected) return;
     const home = el.querySelector('[data-hub-home]');
     if (!home || home.contains(hubEl)) return;
@@ -224,69 +474,109 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     home.appendChild(hubEl);
     if (mine) { mine.focus(); if (range) try { mine.setSelectionRange(range[0], range[1]); } catch (e) { /* not a text field */ } }
   }
-  /* The tab fills the window under Dispatch's header: the page's offset sets the height (agents.css, .chat). */
+  /* The chat fills the window under the page's header (chat.css, .chat). */
   function fit() {
     if (!el.isConnected) return;
     const top = Math.max(0, Math.round(el.getBoundingClientRect().top + (window.scrollY || 0)));
     el.style.setProperty('--chat-top', (top + 20) + 'px');
   }
   if (typeof window !== 'undefined') window.addEventListener('resize', () => { if (visible) fit(); });
-  function grow(t) { if (!t) return; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 220) + 'px'; }
+  function grow(t) { if (!t) return; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 260) + 'px'; }
   let lastHtml = null, lastFirst = null;
   function draw() {
     el.classList.toggle('side-closed', closed);
     el.classList.toggle('drawer-open', drawer);
     const html = sideHtml() + paneHtml() + (drawer ? '<div class="chat-scrim" data-chat-side></div>' : '');
-    // Same markup: leave it, so the row under the pointer keeps its hover (no flicker).
     if (html === lastHtml && el.firstChild === lastFirst && el.firstChild) { mountHub(); return; }
     const scroller = el.querySelector('[data-chat-follow]');
-    const atEnd = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+    const atEnd = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    const keepTop = scroller && !atEnd ? scroller.scrollTop : null;
     const a = document.activeElement, inHub = hubEl && a && hubEl.contains(a) ? a : null;
     const range = inHub && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
+    const popFocus = a && el.contains(a) && a.hasAttribute && a.hasAttribute('data-pop-i') ? a.getAttribute('data-pop-i') : null;
     const back = keepFocus(el);
     if (hubEl && el.contains(hubEl)) hubEl.remove();
     el.innerHTML = html;
     lastHtml = html; lastFirst = el.firstChild;
     back();
+    if (popFocus != null) { const b = el.querySelector(`[data-pop-i="${popFocus}"]`); if (b) b.focus(); }
     mountHub();
     if (inHub && hubEl.contains(inHub)) { inHub.focus(); if (range) try { inHub.setSelectionRange(range[0], range[1]); } catch (e) { /* not a text field */ } }
-    grow(el.querySelector('[data-keep^="chat:"]'));
+    grow(el.querySelector(`[data-keep="chat:${key()}"]`));
     const s = el.querySelector('[data-chat-follow]');
-    if (s && atEnd) s.scrollTop = s.scrollHeight;
+    if (s) s.scrollTop = atEnd ? s.scrollHeight : keepTop;
+    const on = el.querySelector('.pop-it.on');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
   }
 
   /* ---------- input ---------- */
   el.addEventListener('input', e => {
     const t = e.target;
     const k = t.getAttribute && t.getAttribute('data-keep');
-    if (k && k.startsWith('chat:')) { drafts[k.slice(5)] = t.value; grow(t); }
-    else if (k === 'chat-search') { query = t.value; draw(); }
+    if (k && k.startsWith('chat:')) {
+      const was = /^\s*!/.test(drafts[k.slice(5)] || '');
+      drafts[k.slice(5)] = t.value; grow(t);
+      popFromInput(t);
+      if (was !== /^\s*!/.test(t.value)) draw();
+    } else if (k === 'chat-search') { query = t.value; draw(); }
     else if (k === 'chat-rename') renameText = t.value;
+    else if (k === 'chat-pop-q' && pop) { pop.q = t.value; pop.items = modelItems(t.value); pop.i = 0; draw(); }
+    else if (t.hasAttribute && t.hasAttribute('data-q-custom')) { const id = t.getAttribute('data-q-custom'); (custom[id] = custom[id] || {})[+t.getAttribute('data-qi')] = t.value; }
   });
+  function popKeys(e) {
+    if (!pop) return false;
+    const n = pop.items.length;
+    if (e.key === 'ArrowDown' && n) { pop.i = (pop.i + 1) % n; draw(); return true; }
+    if (e.key === 'ArrowUp' && n) { pop.i = (pop.i - 1 + n) % n; draw(); return true; }
+    if ((e.key === 'Enter' || e.key === 'Tab') && n) { choose(pop.i); return true; }
+    if (e.key === 'Escape') { pop = null; draw(); focusBox(); return true; }
+    return false;
+  }
   el.addEventListener('keydown', e => {
     const t = e.target;
-    if (t.matches && t.matches('[data-keep^="chat:"]') && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
-    else if (t.matches && t.matches('[data-chat-rename-box]')) {
+    if (!t.matches) return;
+    if (t.matches('[data-keep^="chat:"]')) {
+      if (e.isComposing) return;
+      if ((pop && (pop.kind === 'slash' || pop.kind === 'file')) && popKeys(e)) { e.preventDefault(); return; }
+      if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setPick('agent', cycleAgent(agentChoices(), agentNow(), e.shiftKey));
+        draw(); focusBox(); return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+      if (e.key === 'ArrowUp' && !t.value && history.length) { e.preventDefault(); drafts[key()] = history[history.length - 1]; draw(); return; }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (sel && conv && conv.busy) {
+          if (Date.now() - escAt < 1500) { escAt = 0; stop(); } else { escAt = Date.now(); draw(); setTimeout(draw, 1600); }
+        } else t.blur();
+        return;
+      }
+    } else if (t.matches('[data-pop-q]') || t.matches('[data-pop-i]')) {
+      if (popKeys(e)) { e.preventDefault(); if (t.matches('[data-pop-i]')) { const b = el.querySelector('.pop-it.on'); if (b) b.focus(); } }
+    } else if (t.matches('[data-chat-rename-box]')) {
       if (e.key === 'Enter') { e.preventDefault(); rename(); }
       else if (e.key === 'Escape') { e.preventDefault(); renaming = null; draw(); }
-    } else if (t.matches && t.matches('[data-chat-search]') && e.key === 'Escape' && query) { e.preventDefault(); query = ''; draw(); }
+    } else if (t.matches('[data-chat-search]') && e.key === 'Escape' && query) { e.preventDefault(); query = ''; draw(); }
   });
   el.addEventListener('focusout', e => {
-    // Clicking away saves the new name, like Enter.
     if (e.target.matches && e.target.matches('[data-chat-rename-box]') && renaming) setTimeout(() => { if (renaming) rename(); }, 0);
+    // A picker closes when focus leaves it.
+    if (pop && (pop.kind === 'agent' || pop.kind === 'model')) setTimeout(() => { const a = document.activeElement; if (pop && !(a && a.closest && a.closest('[data-pop]'))) { pop = null; draw(); } }, 0);
   });
+  el.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('[data-pop-i]')) e.preventDefault(); });
   el.addEventListener('click', e => {
     const b = e.target.closest('button,[data-chat-side]');
     if (!b || (hubEl && hubEl.contains(b))) return;
-    // A button in a hub chat's first answer (Make it a spike, Save as note, a suggested action, a choice).
     if (hub && b.closest('.hub-intro') && hub.click(b)) return;
     const d = b.dataset;
     if (d.chatOpen != null) select(d.chatOpen);
-    else if (d.chatNew != null) select(null);
+    else if (d.chatNew != null) { select(null); loadOptions(); }
     else if (d.chatSide != null) toggleSide();
     else if (d.chatSend != null) send();
     else if (d.chatStop != null) stop();
     else if (d.chatRemove != null) remove(d.chatRemove);
+    else if (d.chatAll != null) { all = d.chatAll === '1'; writeJson(ALL_KEY, all); draw(); loadList(); }
     else if (d.chatRename != null) {
       renaming = d.chatRename; renameText = (itemOf(renaming) || {}).title || '';
       draw();
@@ -294,24 +584,49 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       if (box) { box.focus(); box.select(); }
     }
     else if (d.chatSpike != null) spike();
-    else if (d.chatNote != null && conv) noteOf(titleOf(sel), lastTandem(conv.turns) || ((hub && hub.intro(sel)) || {}).answer || '');
+    else if (d.builtin != null) builtin(d.builtin, '');
+    else if (d.pick != null) { if (pop && pop.kind === d.pick) { pop = null; draw(); } else openPop(d.pick); }
+    else if (d.popI != null) choose(+d.popI);
+    else if (d.tool != null) { if (open.has(d.tool)) open.delete(d.tool); else open.add(d.tool); draw(); }
+    else if (d.copy != null) {
+      const code = b.parentElement && b.parentElement.querySelector('code');
+      if (code && navigator.clipboard) navigator.clipboard.writeText(code.textContent).then(() => ws.toast('Copied.', { kind: 'success' }), () => {});
+    }
+    else if (d.perm != null) answer({ kind: 'permission', id: d.id, reply: d.perm });
+    else if (d.qPick != null) {
+      const p = ((conv && conv.prompts) || []).find(x => x.id === d.qPick);
+      const qi = +d.qi, q = p && p.questions[qi];
+      if (!q) return;
+      const mine = ((answers[p.id] = answers[p.id] || [])[qi] = answers[p.id][qi] || []);
+      const i = mine.indexOf(d.label);
+      if (q.multiple) { if (i >= 0) mine.splice(i, 1); else mine.push(d.label); }
+      else answers[p.id][qi] = i >= 0 ? [] : [d.label];
+      draw();
+    }
+    else if (d.qSend != null) {
+      const p = ((conv && conv.prompts) || []).find(x => x.id === d.qSend);
+      if (p) answer({ kind: 'question', id: p.id, answers: questionAnswers(p, answers, custom) });
+    }
+    else if (d.qReject != null) answer({ kind: 'question', id: d.qReject, reject: true });
   });
 
   draw();
   return {
     el,
-    /* main.js calls this when the Chat tab comes into view or leaves it. */
+    /* main.js calls this when Chat comes into view or leaves it. */
     show(on) {
       if (on) { mountHub(); fit(); }
       if (on === visible) return;
       visible = on;
       clearTimeout(listTimer); clearTimeout(convTimer);
-      if (on) { loadList(); if (sel) loadConv(); }
+      if (on) { loadList(); loadOptions(); if (sel) loadConv(); }
     },
-    /* Take the hub's element back into the New chat pane (after the setup page had it). */
     mountHub,
-    /* Open one chat (#/agents/chat/<session>, an Inbox Open); null: New chat. */
-    open(session) { select(session); loadList(); },
+    /* Open one chat (#/chat/<session>, an Inbox Open); null: New chat. `hub`: New chat with the hub's box. */
+    open(session, { hub: wantHub = false } = {}) {
+      if (!session && wantHub) { pick = { ...pick, agent: HUB }; writeJson(PICK_KEY, pick); }
+      select(session); loadList();
+    },
     /* The hub turned a message into a chat: list it now and open it. */
     opened(card) {
       if (!card || !card.session) return;
@@ -319,8 +634,8 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       select(card.session);
       loadList();
     },
-    /* The agents' prompts or a hub card changed (main.js, hub.js): redraw. */
-    redraw() { if (sel && visible && conv && conv.waiting !== !!asksHtml(sel)) loadConv(); else draw(); },
-    refresh: loadList
+    /* A hub card changed, or AI was turned on or off (main.js, hub.js): redraw. */
+    redraw() { draw(); },
+    refresh() { loadList(); loadOptions(); }
   };
 }

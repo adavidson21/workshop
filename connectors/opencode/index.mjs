@@ -25,7 +25,7 @@ import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
-import { MAX_TEXT as CHAT_MAX, chatMessages, listChats, removeChat, renameChat, resetChats, sendChat, startChat } from "./lib/chat.mjs";
+import { MAX_FILES as CHAT_FILES, MAX_TEXT as CHAT_MAX, chatFiles, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, startChat, undoChat } from "./lib/chat.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 
@@ -258,6 +258,13 @@ const reviewFeedback = obj(["workItemId", "repo", "revision", "headSha", "verdic
   submittedAt: str("Set by the server", { maxLength: 64 }),
 });
 const session = str("opencode session id", { minLength: 1, maxLength: 200 });
+// Chat: an optional session (none starts a new chat), and the agent, model and @files a message goes with.
+const chatSession = str("opencode session id (empty: a new chat)", { maxLength: 200 });
+const chatPick = {
+  agent: str("Agent (empty: opencode's default)", { maxLength: 64, pattern: "^[A-Za-z0-9._-]*$" }),
+  model: { type: "object", title: "Model (empty: the agent's or opencode's default)", additionalProperties: false, required: ["provider", "id"], properties: { provider: str("Provider id", { minLength: 1, maxLength: 200 }), id: str("Model id", { minLength: 1, maxLength: 200 }) } },
+  files: { type: "array", title: "Workspace files to attach (@path)", maxItems: CHAT_FILES, items: str("File path in the workspace", { minLength: 1, maxLength: 500 }) },
+};
 const evalsRunSchema = obj([], {
   preset: { type: "string", title: "Run kind", enum: PRESETS },
   cases: { type: "array", title: "Cases", maxItems: 60, items: str("Case", { pattern: "^[a-z0-9][a-z0-9-]{0,60}$" }) },
@@ -765,26 +772,89 @@ const actions = {
       return voiceResult(args, { config: ctxRef && ctxRef.config });
     },
   },
+  "chat.options": {
+    title: "Chat: the agents, models and commands opencode offers",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return chatOptions({ config: ctxRef && ctxRef.config });
+    },
+  },
   "chat.start": {
-    title: "Start a chat with Tandem (read-only chat agent)",
+    title: "Start a chat with opencode (any agent and model; opencode's permission settings apply)",
     write: true,
-    argsSchema: obj(["text"], { text: str("The first message", { minLength: 1, maxLength: CHAT_MAX }) }),
+    argsSchema: obj(["text"], { text: str("The first message", { minLength: 1, maxLength: CHAT_MAX }), ...chatPick }),
     async run(args) {
       needReady();
       return startChat(args, { config: ctxRef && ctxRef.config });
     },
   },
   "chat.send": {
-    title: "Send the next message in a hub thread or chat (read-only chat agent)",
+    title: "Send the next message in a chat or an opencode session (any agent and model)",
     write: true,
-    argsSchema: obj(["session", "text"], { session, text: str("The message", { minLength: 1, maxLength: CHAT_MAX }) }),
+    argsSchema: obj(["session", "text"], { session, text: str("The message", { minLength: 1, maxLength: CHAT_MAX }), ...chatPick }),
     async run(args) {
       needReady();
       return sendChat(args, { config: ctxRef && ctxRef.config });
     },
   },
+  "chat.command": {
+    title: "Run a slash command in a chat, or in a new chat",
+    write: true,
+    argsSchema: obj(["name"], { session: chatSession, name: str("Command name", { minLength: 1, maxLength: 65 }), args: str("Arguments", { maxLength: CHAT_MAX }), agent: chatPick.agent, model: chatPick.model }),
+    async run(args) {
+      needReady();
+      return commandChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.shell": {
+    title: "Run a shell command through opencode in the workspace (!command)",
+    write: true,
+    argsSchema: obj(["command"], { session: chatSession, command: str("Command", { minLength: 1, maxLength: 4000 }), agent: chatPick.agent, model: chatPick.model }),
+    async run(args) {
+      needReady();
+      return shellChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.undo": {
+    title: "Undo the last message in a chat, and its file changes (opencode revert)",
+    write: true,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return undoChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.redo": {
+    title: "Bring back what undo took back",
+    write: true,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return redoChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.compact": {
+    title: "Compact a chat: opencode summarizes it to free up context",
+    write: true,
+    argsSchema: obj(["session"], { session, model: chatPick.model }),
+    async run(args) {
+      needReady();
+      return compactChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.files": {
+    title: "Find workspace files for @ mentions",
+    write: false,
+    argsSchema: obj([], { query: str("Part of a file path", { maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      return chatFiles(args, { config: ctxRef && ctxRef.config });
+    },
+  },
   "chat.messages": {
-    title: "The turns of a hub thread or chat",
+    title: "The turns of a chat or opencode session, with tool calls, diffs and prompts",
     write: false,
     argsSchema: obj(["session"], { session }),
     async run(args) {
@@ -795,10 +865,10 @@ const actions = {
   "chat.list": {
     title: "Chats: everything from the hub that is not a capture or go, and chats you started",
     write: false,
-    argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" } }),
+    argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" }, all: { type: "boolean", title: "Every opencode session in the workspace as well" } }),
     async run(args) {
       needReady();
-      return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs) });
+      return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs), all: !!(args && args.all) });
     },
   },
   "chat.remove": {
@@ -811,7 +881,7 @@ const actions = {
     },
   },
   "chat.rename": {
-    title: "Rename a chat in Dispatch's list (the opencode session keeps its title)",
+    title: "Rename a chat in Chat's list (the opencode session keeps its title)",
     write: false,
     argsSchema: obj(["session", "title"], { session, title: str("New name", { minLength: 1, maxLength: 80 }) }),
     async run(args) {

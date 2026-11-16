@@ -31,6 +31,7 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     providers, // tests may change this
     n: 0,
     commandResult: null, // set to {status, body} to make the next command call fail
+    agents: null, // 1.x: set to true to answer /agent (build and general)
   };
 
   const auth = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
@@ -84,6 +85,9 @@ export async function startFakeOpencode({ kind, version, password = null, userna
       return json(res, 200, {});
     }
     if ((r = m(/^\/session\/([^/]+)\/prompt_async$/))) return json(res, 200, {});
+    if (req.method === "GET" && p === "/agent" && s.agents) return json(res, 200, [{ name: "build", mode: "primary", builtIn: true }, { name: "general", mode: "subagent" }]);
+    if (req.method === "GET" && p === "/find/file") return json(res, 200, [`src/${url.searchParams.get("query")}.cs`]);
+    if ((r = m(/^\/session\/([^/]+)\/(shell|revert|unrevert|summarize)$/))) return json(res, 200, true);
     if ((r = m(/^\/session\/([^/]+)\/abort$/))) return json(res, 200, true);
     if ((r = m(/^\/session\/([^/]+)\/permissions\/([^/]+)$/))) {
       s.permissions = s.permissions.filter((x) => x.id !== r[2]);

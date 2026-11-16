@@ -1,8 +1,10 @@
 # Chat
 
-Ask Tandem about your repos and work, or capture a task, receipt or note in plain words. One box: a capture comes back as rows to accept, a place opens the app, and anything else becomes a chat in the sidebar. Tandem's `chat` agent is read only: it reads code, repo guides, product notes and `.work`, and changes nothing. Starting work is a button with a confirm.
+opencode with a better screen. **Chat 2.0.0** works like the opencode TUI, so you can use it instead of opening opencode: pick any agent (Tab cycles them) and model, `/` for commands (yours and Tandem's), `@` for workspace files, `!` for a shell command, undo and redo, compact, and every opencode session in the workspace under **All sessions**. Tool calls, diffs, thinking and to-dos show in the thread, and permission prompts are answered right there. opencode's own permission settings decide what an agent may do, as in the terminal. Contract: [docs/chat.md](../../docs/chat.md).
 
-**Chat 1.0.0** moves Loom's Chat tab and the hub into their own app on the rail (Loom 4.8.0). Contracts: [docs/chat.md](../../docs/chat.md) and [docs/hub.md](../../docs/hub.md). Captures go to this app's own `handoffs` collection; Docket, Rapport, Folio, Runway and Loom add them when they next load ([docs/handoffs.md](../../docs/handoffs.md)). When Tandem asks you something in a chat, Loom's Inbox has it.
+The **Hub** agent (first in New chat's list) is the one box that asks Tandem or captures a task, receipt or note in plain words: a capture comes back as rows to accept, a place opens the app, and anything else becomes a chat. A hub thread's follow-ups go to Tandem's read-only `chat` agent unless you pick another.
+
+**Chat 1.0.0** moves Loom's Chat tab and the hub into their own app on the rail (Loom 4.8.0). Contracts: [docs/chat.md](../../docs/chat.md) and [docs/hub.md](../../docs/hub.md). Captures go to this app's own `handoffs` collection; Docket, Rapport, Folio, Runway and Loom add them when they next load ([docs/handoffs.md](../../docs/handoffs.md)). When opencode asks you something in a chat, answer it in the chat (Loom's Inbox lists it too).
 
 **Chat 1.1.0** adds **Rewrite a draft** (moved from Settings, Writing): paste a draft, pick the audience and reader, get one version in your voice, then say Sent as is, I changed it or Didn't use. Your samples, style guide and rules stay in Settings, Writing; your answers go to this app's `writing-feedback` collection and Settings learns from them ([docs/writing.md](../../docs/writing.md)).
 
@@ -13,7 +15,7 @@ The top bar's **Capture** is the quick add (rules only, no AI); Chat is where yo
 - `#/chat`: New chat
 - `#/chat/hub/<text>`: ask or capture `<text>` (Capture's "ask" and Loom's old `hub/<text>` route land here)
 - `#/chat/rewrite`: Rewrite a draft
-- `#/chat/<session>` or `#/chat/chat/<session>`: one chat
+- `#/chat/<session>` or `#/chat/chat/<session>`: one chat, or any opencode session in the workspace
 
 ## Tests
 

@@ -1,11 +1,12 @@
-/* Chat (docs/chat.md): conversations with Tandem and the hub's ask-or-capture box, as their own app since
-   Loom 4.8.0. chat.js draws the sidebar and the chat in view; hub.js the New chat box, which captures with
-   rules or asks Tandem. Everything goes through the SDK: the opencode connector's chat.* and hub.* actions,
-   and this app's own `handoffs` for captures (docs/handoffs.md).
+/* Chat (docs/chat.md): opencode in Workshop, working like the opencode TUI (Chat 2.0.0), plus the hub's
+   ask-or-capture box. chat.js draws the sidebar, the chat in view and the composer; hub.js the box behind the Hub
+   agent, which captures with rules or asks Tandem. Everything goes through the SDK: the opencode connector's chat.*
+   and hub.* actions, and this app's own `handoffs` for captures (docs/handoffs.md).
 
-   Routes: #/chat (New chat), #/chat/hub/<text> asks or captures <text>, #/chat/<session> or
-   #/chat/chat/<session> opens one chat, #/chat/rewrite opens Rewrite a draft (rewrite.js, Chat 1.1.0). When Tandem
-   asks you something in a chat, Loom's Inbox has it. */
+   Routes: #/chat (New chat), #/chat/hub/<text> asks or captures <text> with the Hub, #/chat/<session> or
+   #/chat/chat/<session> opens one chat (any opencode session in the workspace), #/chat/rewrite opens Rewrite a
+   draft (rewrite.js, Chat 1.1.0). Permission prompts and questions are answered in the chat; Loom's Inbox lists
+   them too. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { useApps } from '../../../shared/capture.js';
@@ -49,10 +50,9 @@ function route(path) {
   const p = String(path || '').replace(/^\/+/, '');
   rewriting(p === 'rewrite');
   if (p === 'rewrite') return;
-  if (/^hub(\/|$)/.test(p)) { const text = decodeURIComponent(p.replace(/^hub\/?/, '')).trim(); chat.open(null); if (text) hub.ask(text); else hub.focus(); return; }
+  if (/^hub(\/|$)/.test(p)) { const text = decodeURIComponent(p.replace(/^hub\/?/, '')).trim(); chat.open(null, { hub: true }); if (text) hub.ask(text); else hub.focus(); return; }
   const sid = p.replace(/^chat\/?/, '').trim();
   chat.open(sid || null);
-  if (!sid) hub.focus();
 }
 ws.on('route', r => route(r && r.path));
 // Go somewhere in Chat, so the address (and Back) follow: through the shell when embedded.
@@ -62,4 +62,4 @@ function go(path) {
 }
 ws.commands.register({ id: 'new', title: 'New chat' });
 ws.commands.register({ id: 'rewrite', title: 'Rewrite a draft' });
-ws.on('command', ({ id }) => { if (id === 'new') { rewriting(false); chat.open(null); hub.focus(); } if (id === 'rewrite') go('rewrite'); });
+ws.on('command', ({ id }) => { if (id === 'new') { rewriting(false); chat.open(null); } if (id === 'rewrite') go('rewrite'); });

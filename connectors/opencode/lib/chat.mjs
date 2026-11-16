@@ -1,22 +1,32 @@
-// opencode connector: conversations from Dispatch (Workshop docs/chat.md). Workshop only, not in the eng-agents
-// live server.
+// opencode connector: the Chat app's conversations with opencode (Workshop docs/chat.md). Workshop only, not in the
+// eng-agents live server.
 //
-// Two kinds of conversation, both with Tandem's read-only `chat` agent (eng-agents Core 2.14.0):
-// - "you": an ad hoc chat started from Dispatch's Chat tab (chat.start).
-// - "hub": a hub message's session (hub.run) that you follow up on from its card (chat.send).
-// Every message names agent "chat", so a follow-up never goes to opencode's default agent, which can edit code.
+// Since connector 1.15.0 Chat works like the opencode TUI: any agent (build, plan, Tandem's agents), any model of a
+// connected provider, slash commands, !shell, @file, undo and redo, compact, and every session in the workspace,
+// with tool calls, diffs and permission prompts shown in the thread. opencode's own permission settings decide what
+// an agent may do, exactly as in the terminal. Chat only ever acts on a message you send or a button you click.
 //
-// The list of conversations is kept in this connector's own folder, <Workshop home>/data/_connectors/opencode/
-// chats.json (mode 0600), so a thread can go on after a restart. The turns themselves stay in opencode.
-// Everything is refused unless the connector's `hub` setting is on: one AI switch for the hub and chats.
+// Three kinds of conversation in the list:
+// - "you": a chat started from Chat (chat.start, chat.command, chat.shell without a session).
+// - "hub": a hub message's session (hub.run) that you follow up on.
+// - "oc": any other opencode session in the workspace that you opened from All sessions and sent a message in.
+// A message with no agent named goes to opencode's default agent (build unless your opencode config says
+// otherwise); a hub thread's follow-ups default to Tandem's read-only `chat` agent.
+//
+// The list is kept in this connector's own folder, <Workshop home>/data/_connectors/opencode/chats.json (mode
+// 0600), so a thread can go on after a restart. The turns themselves stay in opencode. Everything is refused unless
+// the connector's `hub` setting is on: one AI switch for the hub and chats.
 
 import fs from "node:fs";
 import path from "node:path";
-import { ctx, httpError, log } from "./context.mjs";
+import { ctx, httpError, inWorkspace, log, opt } from "./context.mjs";
 import { broadcastLive } from "./live.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 
+/** Hub threads' follow-ups default to this read-only agent (eng-agents Core 2.14.0). */
 export const AGENT = "chat";
+export const MAX_FILES = 20;
+export const MAX_ALL = 200;
 export const KEEP = 100;
 export const MAX_TEXT = 20000;
 export const MAX_TURNS = 100;
@@ -43,7 +53,7 @@ function load() {
   try {
     const d = JSON.parse(fs.readFileSync(chatFile(), "utf8"));
     for (const c of Array.isArray(d.items) ? d.items : []) {
-      if (c && typeof c.session === "string" && (c.from === "you" || c.from === "hub")) chats.set(c.session, c);
+      if (c && typeof c.session === "string" && (c.from === "you" || c.from === "hub" || c.from === "oc")) chats.set(c.session, c);
     }
   } catch { /* none yet */ }
   return chats;
@@ -83,7 +93,7 @@ export function noteIntent(hubId, intent) {
 const NOT_A_CHAT = new Set(["capture", "go"]);
 function isChat(c) {
   if (c.hidden) return false;
-  if (c.from === "you" || c.replies > 0) return true;
+  if (c.from === "you" || c.from === "oc" || c.replies > 0) return true;
   if (!c.intent) { const i = routeIntent(c.hub); if (i) c.intent = i; }
   return !NOT_A_CHAT.has(c.intent);
 }
@@ -94,9 +104,40 @@ const titleOf = (text) => String(text || "").replace(/\s+/g, " ").trim().slice(0
 export function needAi(config = ctx && ctx.config) {
   if (!config || config.hub !== true) throw httpError(503, "AI is off. Turn on Hub in the opencode connector's settings (Workshop on this computer).");
 }
-function needChat() {
+/** opencode must be connected; a named agent must be one opencode has (when it lists them). */
+function needOc() {
   if (!oc.connected || !oc.api) throw httpError(503, "opencode is not connected.");
-  if (oc.agents.size && !oc.agents.has(AGENT)) throw httpError(400, `opencode has no ${AGENT} agent. Run the Tandem install command again (eng-agents Core 2.14.0), then restart opencode.`);
+}
+const AGENT_RE = /^[A-Za-z0-9._-]{1,64}$/;
+function cleanAgent(agent) {
+  if (agent == null || agent === "") return null;
+  const a = String(agent);
+  if (!AGENT_RE.test(a)) throw httpError(400, "Bad agent name.");
+  if (oc.agents.size && !oc.agents.has(a)) {
+    if (a === AGENT) throw httpError(400, `opencode has no ${AGENT} agent. Run the Tandem install command again (eng-agents Core 2.14.0), then restart opencode.`);
+    throw httpError(400, `opencode has no agent named ${a}.`);
+  }
+  return a;
+}
+const MODEL_PART = /^[A-Za-z0-9._:@/+-]{1,200}$/;
+function cleanModel(model) {
+  if (model == null || model === "") return null;
+  const m = typeof model === "string" ? { provider: model.split("/")[0], id: model.split("/").slice(1).join("/") } : model;
+  if (!m || !MODEL_PART.test(String(m.provider || "")) || !MODEL_PART.test(String(m.id || ""))) throw httpError(400, "Bad model.");
+  return { provider: String(m.provider), id: String(m.id) };
+}
+/** @path mentions: workspace files only, sent as absolute paths. */
+function cleanFiles(files) {
+  if (files == null) return [];
+  if (!Array.isArray(files) || files.length > MAX_FILES) throw httpError(400, `Up to ${MAX_FILES} files.`);
+  const root = opt && opt.workspace;
+  return files.map((f) => {
+    const s = String(f || "").trim();
+    if (!s || s.length > 500 || s.includes("\0") || !root) throw httpError(400, "Bad file.");
+    const full = path.resolve(root, s);
+    if (!inWorkspace(full)) throw httpError(400, `${s} is not in the workspace.`);
+    return full;
+  });
 }
 function cleanText(text) {
   const t = String(text || "").trim();
@@ -104,13 +145,39 @@ function cleanText(text) {
   if (t.length > MAX_TEXT) throw httpError(400, `The message is over ${MAX_TEXT} characters.`);
   return t;
 }
+/** A conversation in the list, or any opencode session in the workspace (All sessions). */
 function known(session) {
-  const c = load().get(String(session || ""));
-  if (!c) throw httpError(404, "That is not a hub thread or chat from Dispatch.");
-  return c;
+  const sid = String(session || "");
+  const c = load().get(sid);
+  if (c) return c;
+  if (sid && sessions.has(sid)) return { session: sid, from: "oc", title: (sessions.get(sid) || {}).title || "Session", unlisted: true };
+  throw httpError(404, "That is not a chat or an opencode session in this workspace.");
+}
+/** Sending in a session from All sessions lists it. */
+function adopt(c, now) {
+  if (!c.unlisted) return c;
+  const e = { session: c.session, from: "oc", title: titleOf(c.title), at: now, last: now, replies: 0 };
+  load().set(c.session, e);
+  return e;
 }
 const busy = (sid) => !!(sessions.get(sid) && sessions.get(sid).status !== "idle");
-const waiting = (sid) => [...permissions.values()].some((p) => p.sessionID === sid) || [...questions.values()].some((q) => q.sessionID === sid);
+/** The session and the subagent sessions under it (their permission prompts belong to this chat). */
+function family(sid) {
+  const out = new Set([sid]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const s of sessions.values()) if (s.parent && out.has(s.parent) && !out.has(s.id)) { out.add(s.id); grew = true; }
+  }
+  return out;
+}
+function promptsFor(sid) {
+  const fam = family(sid);
+  const list = [];
+  for (const p of permissions.values()) if (fam.has(p.sessionID)) list.push({ kind: "permission", id: p.id, session: p.sessionID, permission: p.permission || "", title: p.title || "", patterns: (p.patterns || []).slice(0, 20), always: (p.always || []).slice(0, 20), message: p.message || null });
+  for (const q of questions.values()) if (fam.has(q.sessionID)) list.push({ kind: "question", id: q.id, session: q.sessionID, title: q.title || "", questions: q.questions || [] });
+  return list;
+}
+const waiting = (sid) => promptsFor(sid).length > 0;
 
 /** hub.run calls this, so a hub thread can be followed up even after the connector restarts. */
 export function recordHub(session, id, text, now = Date.now()) {
@@ -118,74 +185,252 @@ export function recordHub(session, id, text, now = Date.now()) {
   try { save(); } catch (e) { log(`chat list not saved: ${e.message}`); }
 }
 
-async function send(session, text) {
-  await oc.api.prompt(session, text, AGENT);
-  upsertSession(session, { status: "busy", busySince: Date.now(), activity: "Reading your message", error: null, text: null });
+function markBusy(sid, activity) {
+  upsertSession(sid, { status: "busy", busySince: Date.now(), activity, error: null, text: null });
   broadcastLive();
 }
-
-/** A new ad hoc chat: a new session, first message to the chat agent. */
-export async function startChat({ text }, { config, now = Date.now() } = {}) {
-  needAi(config);
-  const t = cleanText(text);
-  needChat();
-  const created = await oc.api.createSession(titleOf(t));
-  const sid = created.id;
-  load().set(sid, { session: sid, from: "you", title: titleOf(t), at: now, last: now, replies: 0 });
-  save();
-  await send(sid, t);
-  log(`chat started in ${sid}`);
-  return { session: sid };
+/** For calls opencode answers only when the agent finishes: the error, if any, lands on the session. */
+function later(sid, promise) {
+  Promise.resolve(promise).then((r) => {
+    if (r && r.ok === false) { upsertSession(sid, { status: "idle", activity: null, error: `opencode: ${errOf(r)}` }); broadcastLive(); }
+  }, (e) => { if (e && e.name !== "AbortError") { upsertSession(sid, { status: "idle", activity: null, error: e.message }); broadcastLive(); } });
+}
+function errOf(r) {
+  const d = r && r.data;
+  const m = d && typeof d === "object" ? d.message || (d.data && d.data.message) || d.name : null;
+  return m ? String(m).slice(0, 300) : `HTTP ${r ? r.status : "?"}`;
 }
 
-/** The next message in a hub thread or chat. Refused while the agent is still answering. */
-export async function sendChat({ session, text }, { config, now = Date.now() } = {}) {
-  needAi(config);
-  const c = known(session);
-  const t = cleanText(text);
-  needChat();
-  if (busy(c.session)) throw httpError(409, "Tandem is still answering. Wait for it, or stop it first.");
-  await send(c.session, t);
+async function send(session, { text, agent, model, files }) {
+  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files });
+  else await oc.api.prompt(session, text, agent);
+  markBusy(session, "Reading your message");
+}
+function opts(args, { forHub = false } = {}) {
+  const agent = cleanAgent(args.agent != null && args.agent !== "" ? args.agent : forHub ? AGENT : null);
+  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files) };
+}
+async function newSession(title, now) {
+  const created = await oc.api.createSession(titleOf(title));
+  const sid = created.id;
+  upsertSession(sid, { title: created.title || titleOf(title) });
+  load().set(sid, { session: sid, from: "you", title: titleOf(title), at: now, last: now, replies: 0 });
+  save();
+  return sid;
+}
+function touch(c, now) {
   c.last = now;
   c.replies = (c.replies || 0) + 1;
   save();
+}
+function needIdle(sid) {
+  if (busy(sid)) throw httpError(409, "opencode is still working in this chat. Wait for it, or stop it first.");
+}
+
+/** A new chat: a new session, first message to the agent you picked (opencode's default when none). */
+export async function startChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const t = cleanText(args.text);
+  needOc();
+  const o = opts(args);
+  const sid = await newSession(t, now);
+  await send(sid, { text: t, ...o });
+  log(`chat started in ${sid}${o.agent ? ` with ${o.agent}` : ""}`);
+  return { session: sid };
+}
+
+/** The next message in a chat or any workspace session. Refused while opencode is still working (Chat queues it). */
+export async function sendChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const c = known(args.session);
+  const t = cleanText(args.text);
+  needOc();
+  const o = opts(args, { forHub: c.from === "hub" });
+  needIdle(c.session);
+  await send(c.session, { text: t, ...o });
+  touch(adopt(c, now), now);
   return { ok: true };
 }
 
+/** A slash command (/name args), in a chat or in a new one. */
+export async function commandChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const name = String(args.name || "").replace(/^\//, "");
+  if (!/^[A-Za-z0-9._:-]{1,64}$/.test(name)) throw httpError(400, "Bad command name.");
+  const rest = String(args.args || "").trim();
+  if (rest.length > MAX_TEXT) throw httpError(400, `The arguments are over ${MAX_TEXT} characters.`);
+  if (args.session) known(args.session);
+  needOc();
+  if (oc.commands.size && !oc.commands.has(name)) throw httpError(400, `opencode has no /${name} command.`);
+  const o = { agent: cleanAgent(args.agent), model: cleanModel(args.model) };
+  let sid;
+  if (args.session) { const c = known(args.session); needIdle(c.session); sid = c.session; touch(adopt(c, now), now); }
+  else sid = await newSession(`/${name}${rest ? " " + rest : ""}`, now);
+  markBusy(sid, `/${name}`);
+  upsertSession(sid, { command: `/${name}${rest ? " " + rest : ""}` });
+  if (oc.api.commandRich) later(sid, oc.api.commandRich(sid, { name, args: rest, ...o }));
+  else later(sid, oc.api.runCommand(sid, name, rest).then((e) => (e ? { ok: false, status: 502, data: { message: e } } : { ok: true })));
+  return { session: sid };
+}
+
+/** !command: a shell command run through opencode in the workspace (the TUI's shell mode). */
+export async function shellChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const command = String(args.command || "").trim();
+  if (!command) throw httpError(400, "Type a command first.");
+  if (command.length > 4000) throw httpError(400, "The command is over 4000 characters.");
+  needOc();
+  if (!oc.api.shell) throw httpError(501, "This opencode cannot run shell commands from Chat.");
+  const o = { agent: cleanAgent(args.agent), model: cleanModel(args.model) };
+  let sid;
+  if (args.session) { const c = known(args.session); needIdle(c.session); sid = c.session; touch(adopt(c, now), now); }
+  else sid = await newSession(`!${command}`, now);
+  markBusy(sid, `$ ${command.split(/\r?\n/)[0].slice(0, 120)}`);
+  later(sid, oc.api.shell(sid, { command, ...o }));
+  return { session: sid };
+}
+
+/** /undo: takes back the last message and the file changes after it (opencode's revert). */
+export async function undoChat({ session }, { config } = {}) {
+  needAi(config);
+  const c = known(session);
+  needOc();
+  if (!oc.api.revert) throw httpError(501, "This opencode cannot undo from Chat.");
+  needIdle(c.session);
+  const info = await oc.api.sessionInfo(c.session);
+  const turns = await oc.api.richMessages(c.session, MAX_TURNS * 2);
+  const users = turns.filter((m) => m.role === "user" && m.id);
+  const stop = info.revert ? turns.findIndex((m) => m.id === info.revert) : turns.length;
+  const target = users.filter((m) => turns.indexOf(m) < (stop < 0 ? turns.length : stop)).pop();
+  if (!target) throw httpError(400, "Nothing to undo.");
+  await oc.api.revert(c.session, target.id);
+  broadcastLive();
+  return { ok: true, text: target.text };
+}
+
+/** /redo: brings back what undo took back. */
+export async function redoChat({ session }, { config } = {}) {
+  needAi(config);
+  const c = known(session);
+  needOc();
+  if (!oc.api.unrevert) throw httpError(501, "This opencode cannot redo from Chat.");
+  needIdle(c.session);
+  await oc.api.unrevert(c.session);
+  broadcastLive();
+  return { ok: true };
+}
+
+/** /compact: opencode summarizes the session so far to free up context. */
+export async function compactChat({ session, model }, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const c = known(session);
+  needOc();
+  if (!oc.api.summarize) throw httpError(501, "This opencode cannot compact from Chat.");
+  needIdle(c.session);
+  let m = cleanModel(model);
+  if (!m) {
+    const turns = await oc.api.richMessages(c.session, 20).catch(() => []);
+    const last = turns.filter((t) => t.role === "assistant" && t.model).pop();
+    m = last ? last.model : null;
+  }
+  markBusy(c.session, "Compacting");
+  touch(adopt(c, now), now);
+  later(c.session, oc.api.summarize(c.session, m));
+  return { ok: true };
+}
+
+/** What the composer can offer: agents, models, commands. */
+export async function chatOptions({ config } = {}) {
+  needAi(config);
+  needOc();
+  const [agents, models, commands] = await Promise.all([
+    oc.api.agentList ? oc.api.agentList().catch(() => []) : [...oc.agents].map((name) => ({ name, description: "", mode: "all" })),
+    oc.api.modelList ? oc.api.modelList().catch(() => ({ models: [], defaults: {} })) : { models: [], defaults: {} },
+    oc.api.commandList ? oc.api.commandList().catch(() => []) : [...oc.commands].map((name) => ({ name, description: "" })),
+  ]);
+  return {
+    kind: oc.kind,
+    version: oc.version || null,
+    agents: agents.filter((a) => a.mode !== "subagent" && !a.hidden).map(({ name, description, mode, builtIn }) => ({ name, description: String(description).slice(0, 300), mode, builtIn })),
+    subagents: agents.filter((a) => a.mode === "subagent" && !a.hidden).map(({ name, description }) => ({ name, description: String(description).slice(0, 300) })),
+    models: models.models.slice(0, 500),
+    defaults: models.defaults,
+    commands: commands.slice(0, 300).map((c) => ({ name: c.name, description: String(c.description).slice(0, 300) })),
+    can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles },
+  };
+}
+
+/** Workspace files for @ mentions. */
+export async function chatFiles({ query }, { config } = {}) {
+  needAi(config);
+  needOc();
+  const q = String(query || "").trim().slice(0, 200);
+  if (!oc.api.findFiles) return { files: [] };
+  return { files: (await oc.api.findFiles(q)).slice(0, 50) };
+}
+
 /**
- * The turns of a hub thread or chat, oldest first, text only: [{role: "you" | "tandem", text, at}]. For a hub
- * thread the /hub run itself (the command and its routing reply) is left out: the card already shows it.
+ * A chat's turns, oldest first, with their parts (chat-parts.mjs): [{id, role: "you" | "tandem", text, at, agent,
+ * model, tokens, cost, error, parts}]. For a hub thread the /hub run itself (the command and its routing reply) is
+ * left out: the card already shows it. Also the session's state: busy, what it is doing, permission prompts and
+ * questions (its subagents' too), whether an undo is pending, and totals.
  */
 export async function chatMessages({ session }, { config } = {}) {
   needAi(config);
   const c = known(session);
-  if (!oc.connected || !oc.api) throw httpError(503, "opencode is not connected.");
-  let turns = await oc.api.messages(c.session, MAX_TURNS * 2);
+  needOc();
+  const rich = !!oc.api.richMessages;
+  let turns = rich ? await oc.api.richMessages(c.session, MAX_TURNS * 2) : await oc.api.messages(c.session, MAX_TURNS * 2);
   if (c.from === "hub") {
     const first = turns.findIndex((m) => m.role === "user");
     let i = first < 0 ? 0 : first + 1;
     while (i < turns.length && turns[i].role === "assistant") i++;
     turns = turns.slice(i);
   }
+  const info = oc.api.sessionInfo ? await oc.api.sessionInfo(c.session).catch(() => null) : null;
   const s = sessions.get(c.session);
+  const shown = turns.filter((m) => m.text || (m.parts && m.parts.length) || m.error).slice(-MAX_TURNS);
+  let cost = 0, context = 0, agent = null, model = null;
+  for (const m of turns) {
+    if (typeof m.cost === "number") cost += m.cost;
+    if (m.role === "assistant" && m.tokens) { const t = m.tokens; const sum = t.input + t.output + t.reasoning + t.cacheRead + t.cacheWrite; if (sum) context = sum; }
+    if (m.role === "user" && m.agent) agent = m.agent;
+    if (m.model) model = m.model;
+  }
+  const prompts = promptsFor(c.session);
   return {
     session: c.session,
     from: c.from,
-    title: c.title,
+    title: c.title || (info && info.title) || "Chat",
+    listed: !c.unlisted,
     busy: busy(c.session),
-    waiting: waiting(c.session),
+    waiting: prompts.length > 0,
+    prompts,
+    activity: (s && s.status !== "idle" && s.activity) || null,
+    revert: (info && info.revert) || null,
+    parent: (info && info.parent) || (s && s.parent) || null,
+    agent,
+    model,
+    totals: { cost, context },
     ...(s && s.error ? { error: s.error } : {}),
-    turns: turns.filter((m) => m.text).slice(-MAX_TURNS).map((m) => ({ role: m.role === "user" ? "you" : "tandem", text: m.text.slice(0, MAX_TEXT), at: m.at })),
+    turns: shown.map((m) => ({
+      id: m.id || "",
+      role: m.role === "user" ? "you" : "tandem",
+      text: String(m.text || "").slice(0, MAX_TEXT),
+      at: m.at,
+      ...(rich ? { agent: m.agent || null, model: m.model || null, tokens: m.tokens || null, cost: m.cost == null ? null : m.cost, error: m.error || null, parts: m.parts || [], ...(m.summary ? { summary: true } : {}) } : {}),
+    })),
   };
 }
 
 /**
- * Conversations for the Chat tab, newest activity first: every chat you started, and every hub message that is not
- * a capture or go (Connector 1.9.0; before, only hub threads you followed up on). With `hubs: true`, the newest HUB_RECENT hub threads instead (followed up or not), so Dispatch can show its
- * hub cards again after a reload.
+ * Conversations for the Chat list, newest activity first: every chat you started, every hub message that is not a
+ * capture or go, and sessions from All sessions you sent in. With `all: true`, every top-level opencode session in
+ * the workspace as well (runs, PR reviews, the terminal), like the TUI's /sessions. With `hubs: true`, the newest
+ * HUB_RECENT hub threads instead (followed up or not), so the hub can show its cards again after a reload.
  */
 export const HUB_RECENT = 12;
-export function listChats({ config, hubs = false } = {}) {
+export function listChats({ config, hubs = false, all = false } = {}) {
   needAi(config);
   if (hubs) {
     const items = [...load().values()].filter((c) => c.from === "hub").sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, HUB_RECENT)
@@ -197,23 +442,34 @@ export function listChats({ config, hubs = false } = {}) {
     .sort((a, b) => (b.last || 0) - (a.last || 0))
     .map((c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, replies: c.replies || 0, busy: busy(c.session), waiting: waiting(c.session),
       ...(c.hub ? { hub: c.hub } : {}), ...(c.intent ? { intent: c.intent } : {}) }));
-  return { items };
+  if (!all) return { items };
+  const have = new Set(load().keys());
+  const others = [...sessions.values()]
+    .filter((s) => !s.parent && !have.has(s.id))
+    .map((s) => {
+      const t = typeof s.updated === "number" ? s.updated : Date.parse(s.updated || "") || 0;
+      return { session: s.id, from: "opencode", title: s.title || "Untitled session", at: t, last: t, replies: 0, busy: busy(s.id), waiting: waiting(s.id) };
+    })
+    .sort((a, b) => (b.last || 0) - (a.last || 0))
+    .slice(0, MAX_ALL);
+  return { items: items.concat(others) };
 }
 
-/** Stops listing a conversation in the Chat tab. The opencode session is kept. */
+/** Stops listing a conversation in the Chat list. The opencode session is kept. */
 export function removeChat({ session }, { config } = {}) {
   needAi(config);
   const c = known(session);
+  if (c.unlisted) return { ok: true };
   if (c.from === "hub") c.hidden = true;
   else load().delete(c.session);
   save();
   return { ok: true };
 }
 
-/** Renames a conversation in the Chat tab (Dispatch's list only; the opencode session keeps its own title). */
-export function renameChat({ session, title }, { config } = {}) {
+/** Renames a conversation in the Chat list (the opencode session keeps its own title). */
+export function renameChat({ session, title }, { config, now = Date.now() } = {}) {
   needAi(config);
-  const c = known(session);
+  const c = adopt(known(session), now);
   const t = String(title || "").replace(/\s+/g, " ").trim();
   if (!t) throw httpError(400, "Type a name first.");
   c.title = t.slice(0, TITLE_MAX);
