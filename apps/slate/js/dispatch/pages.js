@@ -67,10 +67,10 @@ export function inboxFolders(d = inboxData()) {
 export function walkList(d = inboxData()) {
   const done = (S.ui.walk && S.ui.walk.done) || {};
   return [].concat(
+    d.failed.map(it => ({ key: 'failed:' + it.folder, kind: 'failed', it })),
     d.asks.map(a => ({ key: 'ask:' + a.x.id, kind: 'ask', a })),
     d.gates.map(it => ({ key: 'gate:' + it.folder, kind: 'gate', it })),
-    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it })),
-    d.failed.map(it => ({ key: 'failed:' + it.folder, kind: 'failed', it }))
+    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it }))
   ).filter(x => !done[x.key]);
 }
 
@@ -103,6 +103,8 @@ function section(id, title, n, body, hint) {
 }
 /** The first button gets the A key in Go through them. */
 const hot = (html, key) => html.replace(/<(button|a) /, `<$1 data-hot="${key}" `);
+/** One primary per card: the first button keeps its style, any later primary turns into a plain button. */
+const secondary = html => { let n = 0; return html.replace(/class="btn primary/g, m => (n++ ? 'class="btn' : m)); };
 
 /** A .work file shown inline: rendered, with Open (the file sheet) and, when it may be edited, Edit. peek: only the
  *  first part, with Read all to open the rest. */
@@ -160,15 +162,19 @@ export function folderActs(it, inline) {
 }
 /** One run waiting on you at a gate, as a card: whose turn and what for, the flow so far, the file to read (the first
  *  part; Read all for the rest), and its buttons: approve, send back with a note, edit the file, open the run. */
-function gateCard(it) {
+function gateCard(it, expanded) {
   const file = gateFile(it);
+  // Collapsed to one card's worth by default: the draft opens on Read (Loom UX v1). Go through them shows it.
+  const key = 'card:' + it.folder;
+  const open = !!expanded || !!S.ui.open[key];
   const sb = sendBackCommand(it);
   const btns = it.kind === 'item' ? nextBtns(it, false) : folderActs(it, false);
   return `<article class="icard gate" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
     `<p class="src"><span class="tag">${h(flowTag(it))}</span><button type="button" class="st lnk plain" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
     `${miniTrack(it)}<button type="button" class="lnk plain" data-hot="o" data-open-run="${h(it.folder)}">Open</button></p>` +
-    `<p class="iturn">${turnHtml(it)}</p>` + (it.kind === 'item' ? autoHtml(it) : '') + fileInline(it, file, true) +
-    `<div class="row acts">${hot(btns, 'a')}` + (sb ? `<button type="button" class="btn ghost" data-hot="s" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back</button>` : '') + '</div>' +
+    `<p class="iturn">${turnHtml(it)}</p>` + (it.kind === 'item' ? autoHtml(it) : '') + (open ? fileInline(it, file, true) : '') +
+    `<div class="row acts">${hot(secondary(btns), 'a')}` + (file ? `<button type="button" class="btn ghost" data-peek="${h(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Read'} ${h(file)}</button>` : '') +
+    (sb ? `<button type="button" class="btn ghost" data-hot="s" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back</button>` : '') + '</div>' +
     sendBackHtml(it) + '</article>';
 }
 function failedCard(it) {
@@ -198,7 +204,7 @@ export function runCardHtml(folder) {
 }
 function walkRowHtml(x) {
   if (x.kind === 'ask') return askHtml(x.a);
-  if (x.kind === 'gate') return gateCard(x.it);
+  if (x.kind === 'gate') return gateCard(x.it, true);
   if (x.kind === 'code') return `<div class="rows">${codeRow(x.it)}</div>`;
   return failedCard(x.it);
 }
@@ -217,24 +223,35 @@ function walkHtml(d) {
     `<button type="button" class="btn" data-walk="stop">Done</button></span></div>${walkRowHtml(x)}` +
     '<p class="walk-keys"><kbd>A</kbd> approve or the main button <kbd>S</kbd> send back <kbd>N</kbd> skip <kbd>P</kbd> previous <kbd>O</kbd> open <kbd>Esc</kbd> stop</p></section>';
 }
+/** The Inbox's chips: All, Blocked, Agents need you, PRs. Each filters; All keeps the urgency order (Loom UX v1). */
+export const INBOX_CHIPS = [['all', 'All'], ['blocked', 'Blocked'], ['agents', 'Agents need you'], ['prs', 'PRs']];
+function chipCounts(d) {
+  return { all: inboxCount(d) + (d.prs || 0), blocked: d.failed.length, agents: d.asks.length + d.gates.length, prs: d.code.length + (d.prs || 0) };
+}
 export function inboxHtml() {
   const d = inboxData();
   const n = inboxCount(d);
   let html = (S.digestHtml ? S.digestHtml(h) : '') + onboardHtml();
   if (n && S.ui.walk) return html + walkHtml(d);
-  if (n) {
-    html += `<div class="inbox-head"><p><b>${plural(n, 'thing needs', 'things need')} you.</b> Approve what you have read; send back what needs another pass.</p>` +
-      (n > 1 ? '<button type="button" class="btn primary" data-walk="start" title="One at a time, with keys">Go through them</button>' : '') + '</div>';
+  const c = chipCounts(d);
+  const chip = INBOX_CHIPS.some(([k]) => k === S.ui.inboxChip) ? S.ui.inboxChip : 'all';
+  if (c.all) {
+    html += `<div class="inbox-head"><div class="chips" role="tablist" aria-label="Show">${INBOX_CHIPS.map(([k, label]) =>
+      `<button type="button" role="tab" class="chip${chip === k ? ' on' : ''}" data-inbox-chip="${k}" aria-selected="${chip === k}">${h(label)}<span class="n">${c[k]}</span></button>`).join('')}</div>` +
+      (n > 1 ? '<button type="button" class="btn" data-walk="start" title="One at a time, with keys">Go through them</button>' : '') + '</div>';
   }
-  if (d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
-  if (d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(gateCard).join('')}</div>`);
-  if (d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
-  if (d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="icards">${d.failed.map(failedCard).join('')}</div>`);
-  if (d.prs) {
+  const show = k => chip === 'all' || chip === k;
+  // Most urgent first: what is stopped, then agents waiting on you, then code to review.
+  if (show('blocked') && d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="icards">${d.failed.map(failedCard).join('')}</div>`);
+  if (show('agents') && d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
+  if (show('agents') && d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(it => gateCard(it)).join('')}</div>`);
+  if (show('prs') && d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
+  if (show('prs') && d.prs) {
     html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-tab="reviews">Open Reviews</button></div>`;
   }
+  if (c.all && chip !== 'all' && !c[chip]) html += '<div class="empty small"><p>Nothing here right now.</p></div>';
   if (!n) {
-    html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
+    if (!d.prs) html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
     const runs = workItems().filter(it => it.kind === 'item' && !isShip(it));
     const by = {};
     runs.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });

@@ -26,3 +26,50 @@ body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-roo
 #board-root .run-in .run-h { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
 #board-root .run-in .run-h h3 { margin: 0; }
 #board-root .loom-run .icard, #board-root .loom-run .rows { margin: 0; }
+
+/* ---------- Loom UX v1 (claude/loom-ux-v1-plan.md) ---------- */
+
+/* One layout for every tab: the tab bar never moves when you switch tabs. Pages read at a comfortable width,
+   lined up with the tab bar on the left; the board and Health still fill the window. */
+body[data-loom-tab] #runs-root .wrap { max-width: none; margin: 0; padding: 18px 1.25rem 48px; }
+body[data-loom-tab] #runs-root .page { max-width: 1120px; }
+body[data-loom-tab=chat] #runs-root .page { max-width: none; }
+
+/* The Ask bar lives with Chat, not over the Inbox. */
+body[data-loom-tab=inbox] #hub { display: none; }
+
+/* Inbox chips (All, Blocked, Agents need you, PRs). */
+#runs-root .inbox-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+#runs-root .inbox-head .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+#runs-root .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: 500 13.5px/1.2 var(--sans); cursor: pointer; }
+#runs-root .chip:hover { border-color: var(--line-strong, var(--line)); background: var(--hover); }
+#runs-root .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+#runs-root .chip .n { font-size: 12px; opacity: .75; font-variant-numeric: tabular-nums; }
+#runs-root .chip.on .n { opacity: .9; }
+
+/* Step marks: one per step, done ones checked, the current one in the app color, its name written out. */
+:where(#runs-root, .loom-run) .mtrack { display: inline-flex; gap: 4px; align-items: center; margin-left: 6px; }
+:where(#runs-root, .loom-run) .mtrack i { width: 12px; height: 12px; border-radius: 50%; display: inline-grid; place-items: center;
+  background: transparent; border: 1.5px solid color-mix(in srgb, var(--muted) 45%, var(--surface)); color: var(--on-accent); box-sizing: border-box; }
+:where(#runs-root, .loom-run) .mtrack i.done { background: var(--go); border-color: var(--go); }
+:where(#runs-root, .loom-run) .mtrack i.here { background: var(--state, var(--gate)); border-color: var(--state, var(--gate)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--state, var(--gate)) 25%, transparent); }
+:where(#runs-root, .loom-run) .mtrack i.you:not(.done):not(.here) { border-style: dashed; }
+:where(#runs-root, .loom-run) .mstep { font: 500 12.5px/1.2 var(--sans); color: var(--muted); margin-left: 6px; white-space: nowrap; }
+
+/* Board columns: icon, title and count, then one line on what the column is for. */
+#board-root .col header { align-items: center; }
+#board-root .col .col-ic { display: inline-flex; color: var(--muted); }
+#board-root .col-sub { margin: .15rem .2rem .7rem; font-size: .8rem; line-height: 1.35; color: var(--muted); }
+
+/* The card panel sits beside the board instead of over it; the board scrolls sideways if it needs to. */
+@media (min-width: 761px) {
+  #board-root .work > .panel:not([hidden]) { position: static; width: auto; box-shadow: none; }
+  #board-root .work:has(> .panel:not([hidden])) { grid-template-columns: minmax(0, 1fr) min(30rem, 42vw); }
+  #board-root .work.wide:has(> .panel:not([hidden])) { grid-template-columns: minmax(16rem, 1fr) min(64rem, 62vw); }
+}
+
+/* Health: an empty metric is a quiet line, not a headline. */
+#board-root .big.none { font: 500 1rem/1.4 var(--sans) !important; color: var(--muted); margin: .4rem 0 .5rem !important; letter-spacing: 0; }
+/* Board and Health keep the toolbar right under the tab bar. */
+body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-root .wrap { padding-bottom: 0; }
+body[data-loom-tab=health] #board-root #top { display: none; }

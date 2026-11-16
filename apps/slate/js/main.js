@@ -109,7 +109,7 @@ const backlogOf = (it) => (it && it.ado ? s.backlog.find(b => sameAdo(it.ado, b)
 async function readBacklog() {
   s.backlogNote = '';
   if (s.conn.ado !== true) { s.backlog = []; return; }
-  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths (Settings, People & teams, Team area paths) so Slate can list your ADO backlog. Home\'s Get started has a step for it.'; return; }
+  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths (Settings, People & teams, Team area paths) so Loom can list your ADO backlog. Home\'s Get started has a step for it.'; return; }
   const reads = [];
   const notes = [];
   let complete = true;
@@ -400,8 +400,8 @@ function columnOf(it) {
 }
 
 /* Focus hours (Workshop docs/focus.md): the shell holds the rail badge during focus and lunch; items that start
-   waiting on you meanwhile are counted in Slate's `held` summary card, for the release toast and Loom's digest. */
-const focusHold = createHolder(ws, { label: n => `${n} Slate item${n === 1 ? '' : 's'} waiting on you`, route: '', onChange: () => publishSummary() });
+   waiting on you meanwhile are counted in Loom's `held` summary card, for the release toast and Loom's digest. */
+const focusHold = createHolder(ws, { label: n => `${n} Loom item${n === 1 ? '' : 's'} waiting on you`, route: '', onChange: () => publishSummary() });
 let waitingSeen = null;
 function noteWaiting(list) {
   const ids = new Set(list.map(it => it.id));
@@ -473,7 +473,7 @@ function notes() {
   const n = [];
   if (s.conn.ado !== true && s.conn.ado !== 'Checking…') {
     if (!adoNotSetUp()) n.push(`Azure DevOps: ${s.conn.ado}`);
-    else if (!adoNoteSeen) n.push({ text: 'Slate works without Azure DevOps: requests and ideas you add stay here. Connect it in Settings to see your team\'s backlog and publish to it.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] });
+    else if (!adoNoteSeen) n.push({ text: 'Loom works without Azure DevOps: requests and ideas you add stay here. Connect it in Settings to see your team\'s backlog and publish to it.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] });
   }
   const off = agentsOff();
   if (off) n.push({ text: `Agent steps (triage, interview, drafting, building) need Tandem. ${off} You can still write drafts yourself and delegate.`, acts: [{ act: 'setup-dispatch', label: 'How to set it up' }] });
@@ -492,6 +492,7 @@ function setHtml(el, html) {
   drawn.set(el, { html, first: el.firstChild });
 }
 
+let lastShown = null;
 function paint() {
   // Keep Loom's tab bar on the board half's tab (opening an item from Health switches to Board).
   if (BOARD_TABS.includes(currentTab()) && currentTab() !== ui.tab) requestTab(ui.tab);
@@ -509,6 +510,12 @@ function paint() {
     setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
+  // The card you opened stays in view beside the panel (the board scrolls sideways at half a screen).
+  if (ui.open && ui.open !== lastShown) {
+    const el = mainEl.querySelector('.card.open');
+    if (el && el.scrollIntoView) requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  }
+  lastShown = ui.open;
   const waitingItems = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); });
   const waiting = waitingItems.length;
   setBadge('board', waiting);
@@ -784,7 +791,7 @@ const ACT = {
     if (!c || !c.fromRunway) return;
     await store.dismiss(c.fromRunway);
     ui.open = null;
-    ws.toast('Hidden from Slate. It stays in Runway.', { kind: 'success' });
+    ws.toast('Hidden from Loom. It stays in Runway.', { kind: 'success' });
   },
   'edit-understanding': () => { ui.shapeEditing = 'understanding.md'; paint(); },
   'edit-brief': () => { ui.shapeEditing = 'brief.md'; paint(); },
@@ -1116,8 +1123,8 @@ const ACT = {
     if (a && a.busy) return ws.toast('An agent is running on it. Move it when the run stops.', { kind: 'warn' });
     if (forwardTargets(c).includes(to)) {
       const skip = to === 'decide'
-        ? 'Slate skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
-        : agentsOff() ? 'Slate skips the steps before it. In Define, write the story or stories yourself (Tandem is not set up, so no agent drafts them).' : 'Slate skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
+        ? 'Loom skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
+        : agentsOff() ? 'Loom skips the steps before it. In Define, write the story or stories yourself (Tandem is not set up, so no agent drafts them).' : 'Loom skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
       const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it from its run.' : '';
       return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
@@ -1131,7 +1138,7 @@ const ACT = {
     if (c.stage === 'delegated') notes.push('It stays assigned in ADO, and any Docket task stays: change those yourself if needed.');
     if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it from its run.');
     if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push('What it published stays in ADO; publishing again updates or skips those items.');
-    showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Slate moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
+    showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Loom moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
       await store.update(c.id, x => moveBack(x, to));
       ui.editing = false; ui.shapeEditing = null;
       paint();
@@ -1139,7 +1146,7 @@ const ACT = {
     });
   },
   async keep(c) { await store.update(c.id, x => { delete x.reopened; }); },
-  remove: (c) => showDialog(confirmHtml('Remove from Slate?', 'Slate forgets this item. Nothing changes in ADO or in .work.', 'Remove'), async () => {
+  remove: (c) => showDialog(confirmHtml('Remove from Loom?', 'Loom forgets this item. Nothing changes in ADO or in .work.', 'Remove'), async () => {
     await store.change(list => { const i = list.findIndex(x => x.id === c.id); if (i >= 0) list.splice(i, 1); });
     ui.open = null; paint();
   })
@@ -1424,7 +1431,7 @@ async function route(path) {
 }
 
 /** Runway's Work item button: the Slate item for a roadmap item, made the first time from Runway's `roadmap-item`
-    offer (docs/handoffs.md). Slate never reads Runway's roadmaps. */
+    offer (docs/handoffs.md). Loom never reads Runway's roadmaps. */
 async function fromRunway(map, item) {
   let it = store.v.items.find(x => x.runway && x.runway.map === map && x.runway.item === item);
   if (!it) {
@@ -1443,7 +1450,8 @@ async function fromRunway(map, item) {
 
 // Routes come through the runs half's router, which owns the tab bar (loom.js splitRoute).
 onBoardRoute((p) => route(p || ''));
-onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; paint(); } });
+// Switching tabs closes the card panel: it belongs to the board, not to Health (Loom UX v1).
+onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; ui.open = null; ui.editing = false; ui.shapeEditing = null; paint(); } });
 // The runs half repainted: the run in the open card's panel follows it.
 onRunsPainted(() => { if (ui.open && !panelEl.hidden) paintPanel(); });
 ws.on('command', (p) => {

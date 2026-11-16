@@ -93,7 +93,7 @@ test('what waits in the Inbox: work-item gates, an epic\'s two approvals, a TSD 
   assert.doesNotMatch(render(), /id="item-scope-change-requests"/, 'not on Work while it waits on you');
 });
 
-test('the file to read at a gate, shown in the Inbox card with Read all', () => {
+test('the file to read at a gate: the Inbox card opens it on Read, then Read all', () => {
   assert.equal(gateFile(item('41300-export-retry-fails')), 'bug.md');
   assert.equal(gateFile(item('41207-fix-login-timeout')), null, 'no gate, no file');
   // One feature gate (eng-agents Core 4.0.0): spec and plan are drafts together; read the spec first, send back with /spec.
@@ -107,6 +107,10 @@ test('the file to read at a gate, shown in the Inbox card with Read all', () => 
   assert.deepEqual(wantedFiles(), [['41300-export-retry-fails', 'bug.md']], 'the Inbox asks for its gate files');
   S.files['41300-export-retry-fails/bug.md'] = { text: '# Bug\n\n' + Array.from({ length: 20 }, (_, i) => `- line ${i}`).join('\n'), at: 1 };
   let html = render();
+  assert.doesNotMatch(html, /<section class="finline/, 'collapsed until you open it');
+  assert.match(html, /data-peek="card:41300-export-retry-fails" aria-expanded="false">Read bug\.md</);
+  S.ui.open['card:41300-export-retry-fails'] = true;
+  html = render();
   assert.match(html, /<section class="finline peek" aria-label="bug\.md">.*data-peek="peek:41300-export-retry-fails\/bug\.md" aria-expanded="false">Read all</s);
   S.ui.open['peek:41300-export-retry-fails/bug.md'] = true;
   html = render();
@@ -157,18 +161,18 @@ test('whose turn, in plain words', () => {
 
 test('Go through them: one row at a time with keys, a row you acted on leaves, and it ends on "That is everything"', () => {
   const list = walkList();
-  assert.deepEqual(list.map(x => x.key), ['gate:41300-export-retry-fails', 'code:41610-rate-limit-headers', 'failed:41502-csv-export']);
-  S.ui.walk = { i: 0, done: {} };
+  assert.deepEqual(list.map(x => x.key), ['failed:41502-csv-export', 'gate:41300-export-retry-fails', 'code:41610-rate-limit-headers'], 'most urgent first');
+  S.ui.walk = { i: 1, done: {} };
   let html = render();
-  assert.match(html, /<section class="walk" aria-label="Go through them" data-walk-key="gate:41300-export-retry-fails"><div class="walk-head"><span class="walk-n">1 of 3<\/span>/);
-  assert.match(html, /data-walk="prev" disabled>Previous.*data-walk="next">Skip.*data-walk="stop">Done/s);
+  assert.match(html, /<section class="walk" aria-label="Go through them" data-walk-key="gate:41300-export-retry-fails"><div class="walk-head"><span class="walk-n">2 of 3<\/span>/);
+  assert.match(html, /data-walk="prev">Previous.*data-walk="next">Skip.*data-walk="stop">Done/s);
   assert.match(html, /<button data-hot="a" type="button" class="btn primary" data-auto="41300-export-retry-fails" data-act="approve-start"/, 'A presses the main button');
   assert.match(html, /data-hot="s" data-sb-toggle="41300-export-retry-fails"/);
   assert.match(html, /<kbd>A<\/kbd> approve/);
   assert.equal((html.match(/class="icard/g) || []).length, 1, 'one at a time');
   assert.deepEqual(wantedFiles(), [['41300-export-retry-fails', 'bug.md']]);
-  S.ui.walk.i = 1;
-  assert.match(render(), /2 of 3.*data-hot="a" href="review\.html\?id=41610&amp;repo=gateway"/s);
+  S.ui.walk.i = 2;
+  assert.match(render(), /3 of 3.*data-hot="a" href="review\.html\?id=41610&amp;repo=gateway"/s);
   S.ui.walk.done = { 'gate:41300-export-retry-fails': 1, 'code:41610-rate-limit-headers': 1, 'failed:41502-csv-export': 1 };
   assert.match(render(), /That is everything\..*data-walk="stop">Back to the Inbox/s);
 });

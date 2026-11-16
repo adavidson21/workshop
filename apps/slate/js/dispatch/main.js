@@ -908,6 +908,8 @@ listen('click', ev => {
   if (stp && ui().run) { ui().step[ui().run] = stp.getAttribute('data-step'); paint(); return; }
   const wk = t.closest('[data-walk]');
   if (wk) { walk(wk.getAttribute('data-walk')); return; }
+  const ic = t.closest('[data-inbox-chip]');
+  if (ic) { ui().inboxChip = ic.getAttribute('data-inbox-chip'); paint(); return; }
   const pk = t.closest('[data-peek]');
   if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = !ui().open[k]; paint(); return; }
   const sbt = t.closest('[data-sb-toggle]');

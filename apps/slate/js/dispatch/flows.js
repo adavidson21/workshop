@@ -338,7 +338,15 @@ export function miniTrack(it) {
   const steps = stepsOf(flowOf(it), it.lane);
   const i = stepIndex(it);
   if (!steps.length || i < 0) return '';
-  return `<span class="mtrack" aria-hidden="true">${steps.map((s, j) => `<i class="${j < i || i >= steps.length ? 'done' : j === i ? 'here' : ''}${s.you ? ' you' : ''}"></i>`).join('')}</span>`;
+  const done = i >= steps.length;
+  const here = done ? null : steps[i];
+  const label = done ? 'Done' : `Step ${i + 1} of ${steps.length}: ${here.name}`;
+  // One small mark per step, its name on hover; the current step's name is written out next to them (Loom UX v1).
+  const marks = steps.map((s, j) => {
+    const cls = j < i || done ? 'done' : j === i ? 'here' : '';
+    return `<i class="${cls}${s.you ? ' you' : ''}" title="${h(s.name + (s.you ? ' (you)' : ''))}">${cls === 'done' ? CHECK : ''}</i>`;
+  }).join('');
+  return `<span class="mtrack" role="img" aria-label="${h(label)}">${marks}</span><span class="mstep">${h(done ? 'Done' : here.name)}</span>`;
 }
 
 /** The Start work card for one flow. */

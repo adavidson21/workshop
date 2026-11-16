@@ -21,8 +21,9 @@ test('board: four lanes; cards name their step', () => {
   const it = { ...newItem({ title: 'An idea', kind: 'idea' }), age: 0, facts: null };
   const h = boardHtml({ shape: [it, { ...it, id: 'w_2', step: 'Waiting on requester' }], decide: [{ ...it, id: 'w_3', stage: 'delegated', step: 'With Sam' }] }, { open: null });
   assert.deepEqual([...h.matchAll(/<section class="col[^"]*" aria-label="([^"]+)"/g)].map(m => m[1]), ['Shape', 'Decide', 'Build', 'Done']);
-  assert.deepEqual([...h.matchAll(/<section class="col empty-col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Build', 'Done'], 'empty lanes are narrow strips');
-  assert.match(h, /grid-template-columns:minmax\(13\.75rem,1fr\) minmax\(13\.75rem,1fr\) minmax\(8\.5rem,\.45fr\)/);
+  assert.deepEqual([...h.matchAll(/<section class="col empty-col" aria-label="([^"]+)"/g)].map(m => m[1]), ['Build', 'Done']);
+  assert.match(h, /grid-template-columns:repeat\(4,minmax\(13\.75rem,1fr\)\)/, 'every column the same width');
+  assert.match(h, /<p class="col-sub">Ideas and requests getting scoped<\/p>/, 'each column says what it is for');
   assert.match(h, />Idea</);
   assert.match(h, /class="chip step">Waiting on requester</);
   assert.match(h, /class="chip step">With Sam</);

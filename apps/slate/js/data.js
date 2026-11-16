@@ -14,7 +14,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
 
   async function read(name) {
     const e = await ws.data.get(name);
-    if (e && (e.schema !== `${APP}.${name}` || e.version > VERSION)) return null; // a newer Slate wrote it: leave it alone
+    if (e && (e.schema !== `${APP}.${name}` || e.version > VERSION)) return null; // a newer Loom wrote it: leave it alone
     return e || blank(name);
   }
 
@@ -42,18 +42,18 @@ export function createStore(ws, { onChange = () => {} } = {}) {
     v.error = '';
     try {
       env.items = await read('items');
-      if (!env.items) { v.readOnly = true; env.items = blank('items'); v.error = 'A newer version of Slate saved these items. Update Workshop to change them.'; }
+      if (!env.items) { v.readOnly = true; env.items = blank('items'); v.error = 'A newer version of Loom saved these items. Update Workshop to change them.'; }
       env.handoffs = (await read('handoffs')) || blank('handoffs');
       v.loaded = true;
     } catch (e) {
-      v.error = e && e.message ? e.message : 'Slate could not read its items.';
+      v.error = e && e.message ? e.message : 'Loom could not read its items.';
     }
     show();
   }
 
   /** Change items: fn(items array, as plain records) may add, edit or remove. Resolves the stored items. */
   async function change(fn) {
-    if (v.readOnly) throw Object.assign(new Error('A newer version of Slate saved these items. Update Workshop to change them.'), { code: 'unsupported' });
+    if (v.readOnly) throw Object.assign(new Error('A newer version of Loom saved these items. Update Workshop to change them.'), { code: 'unsupported' });
     const before = (await read('items')) || env.items;
     const after = structuredClone(before);
     fn(after.items);
@@ -65,7 +65,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
 
   /** Save the field settings (items' meta.fields), keeping anything else in meta. */
   async function savePrefs(prefs) {
-    if (v.readOnly) throw Object.assign(new Error('A newer version of Slate saved these items. Update Workshop to change them.'), { code: 'unsupported' });
+    if (v.readOnly) throw Object.assign(new Error('A newer version of Loom saved these items. Update Workshop to change them.'), { code: 'unsupported' });
     const before = (await read('items')) || env.items;
     const after = structuredClone(before);
     after.meta = { ...(after.meta || {}), fields: cleanPrefs(prefs) };
@@ -76,7 +76,7 @@ export function createStore(ws, { onChange = () => {} } = {}) {
 
   /** Hide a Runway pending idea from New (items' meta.dismissed), keeping anything else in meta. */
   async function dismiss(id) {
-    if (v.readOnly) throw Object.assign(new Error('A newer version of Slate saved these items. Update Workshop to change them.'), { code: 'unsupported' });
+    if (v.readOnly) throw Object.assign(new Error('A newer version of Loom saved these items. Update Workshop to change them.'), { code: 'unsupported' });
     const before = (await read('items')) || env.items;
     const after = structuredClone(before);
     const was = Array.isArray(after.meta && after.meta.dismissed) ? after.meta.dismissed : [];

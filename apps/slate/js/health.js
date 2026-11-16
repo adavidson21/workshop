@@ -18,10 +18,10 @@ export function healthHtml(h, { names = {} } = {}) {
   const load = Object.entries(h.load).sort((a, b) => b[1] - a[1]);
   return `<div class="health">
     <section class="hcard"><h2>Request to decision</h2>
-      <p class="big">${h.toDecision.median == null ? 'No decisions yet' : `${h.toDecision.median} day${h.toDecision.median === 1 ? '' : 's'}`}</p>
+      <p class="big${h.toDecision.median == null ? ' none' : ''}">${h.toDecision.median == null ? 'No decisions yet' : `${h.toDecision.median} day${h.toDecision.median === 1 ? '' : 's'}`}</p>
       <p class="soft">Median days from a request coming in to deciding who builds it${h.toDecision.n ? `, over ${h.toDecision.n} item${h.toDecision.n === 1 ? '' : 's'}` : ''}.</p></section>
     <section class="hcard"><h2>Request to resolved</h2>
-      <p class="big">${!h.toResolved || h.toResolved.median == null ? 'Nothing resolved yet' : `${h.toResolved.median} day${h.toResolved.median === 1 ? '' : 's'}`}</p>
+      <p class="big${!h.toResolved || h.toResolved.median == null ? ' none' : ''}">${!h.toResolved || h.toResolved.median == null ? 'Nothing resolved yet' : `${h.toResolved.median} day${h.toResolved.median === 1 ? '' : 's'}`}</p>
       <p class="soft">Median days from a request coming in to merged and resolved${h.toResolved && h.toResolved.n ? `, over ${h.toResolved.n} item${h.toResolved.n === 1 ? '' : 's'}` : ''}.${h.closed ? ` ${h.closed} closed and off the board.` : ''}</p></section>
     <section class="hcard wide"><h2>Where requests sit</h2>
       <table class="htable"><thead><tr><th>Lane</th><th class="num">Items</th><th class="num">Median days</th><th class="num">Stale</th></tr></thead><tbody>${rows}</tbody></table>
@@ -50,5 +50,5 @@ export function sprintsHtml({ sprints, groups, people, note }) {
         <span class="chip lv-${esc(it.level)}">${esc(LEVEL_NAME[it.level] || 'Story')}</span>
         <label class="sr" for="sp-${esc(it.id)}">Sprint</label><select id="sp-${esc(it.id)}" data-sprint="${esc(it.id)}">${opts((it.adoNow && it.adoNow.iteration) || '')}</select>
         <label class="sr" for="as-${esc(it.id)}">Assigned to</label><select id="as-${esc(it.id)}" data-assign="${esc(it.id)}">${who(it)}</select></li>`).join('') || '<li class="soft">Nothing here.</li>'}</ul></section>`;
-  }).join('')}<p class="soft small">Only items Slate knows (published, delegated or yours) are listed.${btn('refresh', 'Refresh')}</p></div>`;
+  }).join('')}<p class="soft small">Only items Loom knows (published, delegated or yours) are listed.${btn('refresh', 'Refresh')}</p></div>`;
 }
