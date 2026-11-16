@@ -311,7 +311,7 @@ button.g-prog:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .g-missing ul{list-style:none;margin:.5rem 0 0;padding:0;border-top:1px solid var(--rule)}
 .g-missing li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.4rem .2rem;border-bottom:1px solid var(--line)}
 .g-unknown{margin-top:1rem}
-.g-empty{margin:1rem 0 1.6rem;max-width:40rem}
+.g-empty{margin:1rem 0 1.6rem}
 
 /* a doc */
 .g-dhead{display:flex;align-items:flex-end;flex-wrap:wrap;gap:.6rem 1rem;margin-bottom:1rem}
@@ -416,3 +416,25 @@ button.cov.gap:hover{border-style:solid;background:var(--surface);color:var(--in
 .draft textarea{font:400 .92rem/1.6 var(--sans);border:0;border-radius:var(--r-lg);box-shadow:var(--raise);padding:1rem 1.1rem}
 .num{font-family:var(--sans);font-variant-numeric:tabular-nums}
 .feed:empty{display:none}
+
+/* ---------- Rapport UX v1 ---------- */
+/* One header line: the tabs are the title. */
+.head{display:none}
+/* The period's counts as one quiet line under the composer. */
+.statline{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .5rem;margin:.75rem 0 1.4rem;font-size:.88rem;color:var(--muted)}
+.statline .stat{display:inline;padding:0;margin:0;border:0;font-size:inherit}
+.statline .stat b{font-size:inherit;font-weight:650;color:var(--ink)}
+.statline .stat.warn b{color:var(--warn)}
+.statline .sep{color:color-mix(in srgb,var(--muted) 50%,transparent)}
+.statline .stat-link{font-size:inherit}
+/* Section chips are toggles: selected ones are filled in the app's color. */
+.composer .chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.composer .chip:not(.on){border-style:dashed}
+/* Reports: counts in words. */
+.roster .pnums{font-size:.84rem;color:var(--muted)}
+.roster .pnums .cn{color:var(--warn)}
+.roster .pnums .dim{color:var(--muted)}
+.legend{font-size:.78rem;color:var(--muted)}
+/* Coverage: an empty section is a quiet outlined pill you can click to add to it. */
+.cov.gap{border:1px solid var(--line);border-style:solid;background:transparent}
+button.cov.gap:hover{background:var(--hover);color:var(--ink)}

@@ -52,6 +52,8 @@ const UNAVAILABLE = {
 // missing: a message for that source when it has a better one (Docket writes its summary only when it runs).
 const unavailable = (s, link, missing) => `<p class="soft">${esc((s.state === 'missing' && missing) || UNAVAILABLE[s.state] || 'Not available.')}${s.state === 'unlinked' && link ? ` <button class="lnk" data-route="settings">People and links</button>` : ''}</p>`;
 
+// One date format everywhere on the page: "Nov 14" (Rapport UX v1).
+const day = d => { const t = new Date(String(d || '') + 'T12:00:00'); return isNaN(t) ? String(d || '') : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
 function rows(title, list, fmt, empty = 'None') {
   return `<div class="grp"><h4>${esc(title)} <span class="num soft">${list.length}</span></h4>${list.length
     ? `<ul>${list.map(x => `<li>${fmt(x)}</li>`).join('')}</ul>` : `<p class="soft">${esc(empty)}</p>`}</div>`;
@@ -61,25 +63,28 @@ function rows(title, list, fmt, empty = 'None') {
 const viaHtml = t => (t.via ? ` <span class="soft">via ${esc(t.viaName ? '@' + t.viaName : 'a group')}</span>` : '');
 
 export function packetHtml(p) {
+  // Docket's groups show only when they have something; all empty is one line.
+  const dk = p.docket.state === 'ok' ? [
+    p.docket.open.length ? rows('Open, tagged with them', p.docket.open, t => `${esc(t.title)}${viaHtml(t)}${t.due ? ` <span class="soft">due ${esc(day(t.due))}</span>` : ''}`) : '',
+    p.docket.waiting.length ? rows('Waiting on them', p.docket.waiting, t => `${esc(t.title)}${viaHtml(t)}${t.nudgeOn ? ` <span class="soft">nudge ${esc(day(t.nudgeOn))}</span>` : ''}`) : '',
+    p.docket.nudges.length ? rows('Nudges due', p.docket.nudges, t => esc(t.title)) : ''].join('') : '';
   const docket = p.docket.state === 'ok'
-    ? rows('Open, tagged with them', p.docket.open, t => `${esc(t.title)}${viaHtml(t)}${t.due ? ` <span class="soft">due ${esc(t.due)}</span>` : ''}`)
-      + rows('Waiting on them', p.docket.waiting, t => `${esc(t.title)}${viaHtml(t)}${t.nudgeOn ? ` <span class="soft">nudge ${esc(t.nudgeOn)}</span>` : ''}`)
-      + rows('Nudges due', p.docket.nudges, t => esc(t.title))
+    ? dk || '<p class="soft">Nothing open with them in Docket.</p>'
     : unavailable(p.docket, true, 'Nothing from Docket yet. Open Docket once and their tasks show here.');
   const receipts = p.receipts.state === 'ok'
-    ? (p.receipts.total ? KINDS.filter(k => p.receipts.groups[k].length).map(k => rows(KIND_LABELS[k], p.receipts.groups[k], e => `<span class="soft num">${esc(e.date)}</span> ${esc(e.text)}`)).join('') : '<p class="soft">No receipts about them in this period.</p>')
+    ? (p.receipts.total ? KINDS.filter(k => p.receipts.groups[k].length).map(k => rows(KIND_LABELS[k], p.receipts.groups[k], e => `<span class="soft num">${esc(day(e.date))}</span> ${esc(e.text)}`)).join('') : '<p class="soft">No receipts about them in this period.</p>')
     : unavailable(p.receipts, true);
   // Slate: shown only when Slate is here and has delegated something to them.
   const slate = p.slate && p.slate.state === 'ok' && p.slate.items.length
     ? `<section><h3 class="section-label">Delegated in Slate</h3>${rows('With them now', p.slate.items, t => `<button class="lnk" data-slate="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
   const last = p.last.state === 'ok'
-    ? rows(`Open follow-ups from ${p.last.day}`, p.last.open, t => esc(t))
+    ? rows(`Open follow-ups from ${day(p.last.day)}`, p.last.open, t => esc(t))
     : `<p class="soft">${p.last.state === 'unreadable' ? "Couldn't read the last note." : 'No earlier 1:1 note.'}</p>`;
   return `<section class="packet" aria-label="Prep">
-    <p class="since soft">Since ${esc(p.since)}${p.sinceFrom === 'note' ? ' (the last 1:1 note)' : ' (cadence, no earlier note)'}</p>
+    <p class="since soft">Since ${esc(day(p.since))}${p.sinceFrom === 'note' ? ', the last 1:1 note' : ''}</p>
     <section><h3 class="section-label">Docket</h3>${docket}</section>
     ${slate}
-    <section><h3 class="section-label">Receipts</h3>${receipts}</section>
+    <section><h3 class="section-label">New receipts</h3>${receipts}</section>
     <section><h3 class="section-label">Last 1:1</h3>${last}</section>
   </section>`;
 }
@@ -131,16 +136,16 @@ export function aiHtml(ai, { enabled, ready }) {
  * Reports (`panel`) it is a section above their receipts, with how often you meet.
  */
 export function personHtml({ person, packet, note, notes, today, ai, aiOpts, tidy = null, panel = false, due = null }) {
-  const log = `<button class="btn" data-log${note ? '' : ' disabled'}>Log follow-ups</button>`;
+  const log = note ? '<button class="btn" data-log>Log follow-ups</button>' : '';
   const cols = `<div class="cols">
     <div class="left">${packetHtml(packet)}</div>
     <div class="right">${noteHtml(note, notes, today)}${tidy ? tidyHtml(tidy, { ...aiOpts, note, name: person.name }) : ''}${aiHtml(ai, aiOpts)}</div>
   </div>`;
   if (panel) {
-    const when = due ? (due.lastDay ? `Last 1:1 ${esc(due.lastDay)}` : 'No 1:1 notes yet') + ` · every ${esc(plural(person.cadenceDays, 'day'))}` : '';
+    const when = due ? (due.lastDay ? `Last 1:1 ${esc(day(due.lastDay))}` : 'No 1:1 notes yet') + ` · every ${esc(plural(person.cadenceDays, 'day'))}` : '';
     return `<section class="oo-panel" aria-label="1:1">
       <div class="oo-head"><h3 class="section-label">1:1${due && due.due ? ' <span class="due">Due</span>' : ''}</h3><span class="soft small">${when}</span><span class="grow"></span>
-        <div class="oo-acts">${log}<button class="btn ghost" data-route="settings">People and links</button></div></div>
+        <div class="oo-acts">${log}<button class="btn" data-route="settings">People and links</button></div></div>
       ${cols}</section>`;
   }
   return header(person.name, '1:1 prep', `${log}<button class="btn" data-route="">All 1:1s</button>`) + cols;

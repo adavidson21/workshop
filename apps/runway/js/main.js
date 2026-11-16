@@ -12,7 +12,7 @@ import { APP, MAX_DEPTH, blankDoc, cleanItem, descendants, fromEnvelope, goalFor
 import { parse, reconcile, serialize } from './outline.js';
 import { ROW, barAt, dateAt, laneAt, layout, rowAt, svg } from './timeline.js';
 import { exportSvg, fileName, markdown, periodName, toPng } from './export.js';
-import { exampleOutline } from './example.js';
+import { exampleOutline, templateOutline, TEMPLATES } from './example.js';
 import { createStore } from './store.js';
 import { roadmapItemOffer, sendOffer } from './offers.js';
 import { SENDERS, createPending, ideaToItem, sendersFrom, workItemsFrom, writeToMap } from './pending.js';
@@ -189,7 +189,7 @@ function paint() {
 
 function paintList() {
   if (app.dataset.view !== 'list') { app.dataset.view = 'list'; app.innerHTML = '<div class="list"></div>'; }
-  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), pending: pending.v, shaping, workItems: workItemsApp }));
+  setHtml(app.firstElementChild, listHtml(v, { canPair: !ws.embedded && canPair(ws), paired: !ws.embedded && isPaired(ws), ado: adoReady(), pending: pending.v, shaping, workItems: workItemsApp, templates: TEMPLATES }));
 }
 
 
@@ -577,6 +577,13 @@ app.addEventListener('click', async e => {
     if (t.dataset.open) { e.preventDefault(); go(t.dataset.open); }
     else if ('new' in t.dataset) newRoadmap();
     else if ('example' in t.dataset) docFromText(exampleOutline()).then(newRoadmap);
+    else if (t.dataset.template) {
+      // A starter template: Team quarter gets a lane per product from Settings (docs/products.md), when there are any.
+      let products = [];
+      if (t.dataset.template === 'quarter') { try { const e = await ws.data.get('products', { app: 'settings' }); products = ((e && e.items) || []).filter(x => x && !x.archived && x.name).map(x => x.name); } catch { /* none */ } }
+      const text = templateOutline(t.dataset.template, { products });
+      if (text) docFromText(text).then(newRoadmap); else newRoadmap();
+    }
     else if ('import' in t.dataset) importMarkdown();
     else if ('fromado' in t.dataset) fromAdo();
     else if (t.dataset.dup) {

@@ -77,7 +77,8 @@ function rankHtml(){
   open.forEach((t, i) => {
     html += row(t, {rank: i + 1, top: i < 3, estimate: true, dim: t.focusOn === t0});
     if (i === cut){
-      html += `<div class="capline${over ? ' over' : ''}" role="separator"><span><b class="num">${sum}</b> of <span class="num">${state.capacity}</span> pts this week${i === open.length - 1 ? (over ? '' : '. Room for more.') : ''}</span></div>`;
+      // The line is what matters: what fits this week and what does not. The points stay in its tooltip (Docket UX v1).
+      html += `<div class="capline${over ? ' over' : ''}" role="separator" data-tip="${sum} of ${state.capacity} effort points"><span>${over ? 'Over this week' : 'Fits this week'}${i === open.length - 1 ? (over ? '' : '. Room for more.') : ''}</span></div>`;
       if (i < open.length - 1) html += `<div class="belowcap">Not this week</div>`;
     }
   });
@@ -137,7 +138,7 @@ function rankCol(plan, lens){
   }
   const open = rankedOpen(), stale = open.filter(isStale).length;
   const tools = lens === 'rank' ? `${stale ? `<button class="chipbtn${staleOnly ? ' on' : ''}" data-staleonly aria-pressed="${staleOnly}" data-tip="Tasks untouched for twice their value's window">${ICON.stale}Stale <b class="num">${stale}</b></button>` : ''}
-      <label class="cap" data-tip="Weekly capacity in effort points (XS 1, S 2, M 3, L 5, XL 8)">${ICON.gauge}<input type="number" id="capIn" class="mono" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"></label>
+      <details class="capset"><summary data-tip="How much fits in a week, in effort points (XS 1, S 2, M 3, L 5, XL 8)">Week size</summary><label class="cap"><input type="number" id="capIn" min="1" max="999" value="${state.capacity}" aria-label="Weekly capacity in points"> points</label></details>
       ${open.length > 1 ? `<button class="ibtn" data-suggest aria-label="Suggest an order" data-tip="Suggest an order by score (you preview it first)">${ICON.wand}</button>` : ''}` : '';
   return `<section class="col col-rank" data-col="rank" aria-label="Week: Ranked">
     <header class="colh"><h3>Everything open</h3>${open.length ? `<span class="n num">${open.length}</span>` : ''}

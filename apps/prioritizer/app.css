@@ -1045,9 +1045,9 @@ body.shellfocus.focusing .phead{padding-top:1.6rem}
 .col-inbox .row:hover .qsort,.col-inbox .row.sel .qsort,.col-inbox .row:focus-within .qsort{display:inline-flex}
 @media (hover:none){.col-inbox .qsort{display:inline-flex}}
 .col-inbox .inrows{margin-top:0}
-/* the header's day actions: their words show from 1440px wide */
+/* the header's day actions: their words show from 1100px wide (the app frame, not the window) */
 .hbtn.lab .hl{display:none}
-@media (min-width:1440px){
+@media (min-width:1100px){
   .hbtn.lab{width:auto;border-radius:999px;padding:0 .85rem 0 .7rem;gap:.4rem;display:inline-flex;align-items:center;font-size:.84rem;font-weight:500;color:var(--ink)}
   .hbtn.lab .hl{display:inline}
   .hbtn.lab svg{width:15px;height:15px;color:var(--muted)}
@@ -1353,3 +1353,11 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
   .col.rail .railbtn{width:auto;padding:.35rem .7rem}
 }
 .htools .lens.range{margin-right:.35rem}
+
+/* Docket UX v1: the week's line says what fits; the week's size folds into a small control. */
+.capset{position:relative}
+.capset summary{list-style:none;cursor:pointer;font-size:.82rem;color:var(--muted);padding:.2rem .5rem;border-radius:var(--r-sm)}
+.capset summary::-webkit-details-marker{display:none}
+.capset summary:hover{background:var(--hover);color:var(--ink)}
+.capset[open] .cap{position:absolute;right:0;top:calc(100% + 4px);z-index:5;display:flex;align-items:center;gap:.4rem;padding:.5rem .6rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg,0 8px 24px rgba(0,0,0,.12));font-size:.82rem;white-space:nowrap}
+.capset .cap input{width:4.2rem}

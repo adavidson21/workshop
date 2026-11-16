@@ -321,17 +321,17 @@ export function panel(state) {
   return `
     <section><h2 class="section-label">Outline</h2>
       ${heads.length ? `<ul class="outline">${heads.map(h => `<li style="--l:${h.level}"><a href="#" data-line="${h.line}" data-anchor="${esc(h.id)}">${esc(h.text)}</a></li>`).join('')}</ul>` : '<p class="soft small">No headings.</p>'}</section>
-    <section><h2 class="section-label">Backlinks <span class="count">${backs.length}</span></h2>
+    ${backs.length ? `<section><h2 class="section-label">Backlinks <span class="count">${backs.length}</span></h2>
       ${backs.length ? `<ul class="backlinks">${backs.map(b => {
         const from = notes.index.notes.get(b.from);
         const line = plainText((lines(b.from)[b.line] || '').trim().replace(/^([-*+]|\d+[.)]|#+|>)\s+/, ''));
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
-      }).join('')}</ul>` : '<p class="soft small">No notes link here yet.</p>'}</section>
+      }).join('')}</ul>` : ''}</section>` : ''}
     ${sendHtml(state, n)}
-    <section><h2 class="section-label">History</h2>
-      ${state.versions ? `<button class="btn ghost small" data-act="history">${state.versions} earlier version${state.versions === 1 ? '' : 's'}</button>` : '<p class="soft small">Earlier versions are kept here as you edit.</p>'}</section>
-    <section><h2 class="section-label">Tags</h2>
-      ${tags.length ? `<ul class="all-tags">${tags.map(([t, ps]) => `<li><a href="#" class="tag${n && n.tags.includes(t) ? ' on' : ''}" data-tag="${esc(t)}"${n && n.tags.includes(t) ? ' title="On this note"' : ''}>#${esc(t)}</a> <span class="count">${ps.length}</span></li>`).join('')}</ul>` : '<p class="soft small">Add tags with <code>#tag</code> or <code>tags: [a, b]</code> in frontmatter.</p>'}</section>`;
+    ${state.versions ? `<section><h2 class="section-label">History</h2>
+      <button class="btn ghost small" data-act="history">${state.versions} earlier version${state.versions === 1 ? '' : 's'}</button></section>` : ''}
+    ${tags.length ? `<section><h2 class="section-label">Tags</h2>
+      ${tags.length ? `<ul class="all-tags">${tags.map(([t, ps]) => `<li><a href="#" class="tag${n && n.tags.includes(t) ? ' on' : ''}" data-tag="${esc(t)}"${n && n.tags.includes(t) ? ' title="On this note"' : ''}>#${esc(t)}</a> <span class="count">${ps.length}</span></li>`).join('')}</ul>` : ''}</section>` : ''}`;
 }
 
 /* A Tandem page's panel: its outline and the run's other documents. */

@@ -67,26 +67,28 @@ export function underOptions(doc, lane) {
   return `<option value="">Nothing (top level)</option>${parentChoices(doc, null, lane).map(o => `<option value="${esc(o.id)}">${esc(LEVELS[lv.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}`;
 }
 
-export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null } = {}) {
-  const adoBtn = ado ? '<button class="btn" data-fromado>From Azure DevOps</button>' : '';
-  const rows = [...v.list].sort((a, b) => b.changed - a.changed).map(r => `
-    <li class="rrow">
+// The list page (Runway UX v1): ways to start across the top (a template, the example, Markdown, ADO), then one card
+// per roadmap with what is coming up next on it, in a grid that fills the width.
+const fmtSoon = d => { const [y, m, dd] = d.split('-').map(Number); return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${dd}`; };
+export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null, templates = [] } = {}) {
+  const adoBtn = ado ? '<button class="tcard" data-fromado><b>From Azure DevOps</b><span>Epics and features from your team\'s area paths.</span></button>' : '';
+  const cards = [...v.list].sort((a, b) => b.changed - a.changed).map(r => {
+    const next = (r.soon || [])[0];
+    return `<li class="rcard">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
-      <span class="rmeta">${esc(relTime(r.changed))}</span>
-      <span class="racts">
-        <button class="btn ghost" data-dup="${esc(r.id)}">Duplicate</button>
-        <button class="btn text-danger" data-del="${esc(r.id)}">Remove</button>
-      </span>
-    </li>`).join('');
-  const empty = `<div class="engcard"><h2>Start a roadmap</h2>
-    <p>Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export an image or Markdown.</p>
-    <div class="acts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-example>Start from an example</button><button class="btn ghost" data-import>Import Markdown</button>${adoBtn}</div></div>`;
-  return `<header class="lhead">
-      <h1 class="page-title">Roadmaps</h1>
-      ${v.list.length ? `<div class="lacts"><button class="btn primary" data-new>${ICON.plus}New roadmap</button><button class="btn" data-import>Import Markdown</button>${adoBtn}<button class="btn ghost" data-example>Example</button></div>` : ''}
-    </header>
+      ${next ? `<p class="rnext">${next.kind === 'goal' ? 'Goal' : 'Next'}: ${esc(next.title)} <span class="rmeta">${esc(fmtSoon(next.date))}</span></p>` : '<p class="rnext rmeta">Nothing dated coming up</p>'}
+      <div class="rfoot"><span class="rmeta">Edited ${esc(relTime(r.changed))}</span>
+        <span class="racts"><button class="btn ghost small" data-dup="${esc(r.id)}">Duplicate</button><button class="btn ghost small text-danger" data-del="${esc(r.id)}">Remove</button></span></div>
+    </li>`;
+  }).join('');
+  const starts = `<section class="starts" aria-label="Start a roadmap"><h2 class="section-label">${v.list.length ? 'Start another' : 'Start a roadmap'}</h2><div class="tcards">
+    ${templates.map(t => `<button class="tcard${t.id === 'quarter' ? ' main' : ''}" ${t.id === 'blank' ? 'data-new' : `data-template="${esc(t.id)}"`}><b>${esc(t.name)}</b><span>${esc(t.what)}</span></button>`).join('')}
+    <button class="tcard" data-example><b>Example</b><span>A filled-in platform roadmap to look around.</span></button>
+    <button class="tcard" data-import><b>Import Markdown</b><span>An outline you already have.</span></button>${adoBtn}</div></section>`;
+  return `<header class="lhead"><h1 class="page-title">Roadmaps</h1></header>
     ${pendingHtml(pending, v.list.length > 0, { shaping, workItems })}
-    ${v.list.length ? `<ul class="rlist">${rows}</ul>` : empty}
+    ${v.list.length ? `<ul class="rcards">${cards}</ul>` : ''}
+    ${starts}
     ${canPair ? `<p class="hint pairline">Your roadmaps are saved in this browser. <button class="lnk" data-pair>Use Workshop on this computer</button> to keep them in your Workshop folder.</p>` : ''}
     ${paired ? `<p class="hint pairline">Saved in your Workshop folder. <button class="lnk" data-unpair>Stop using Workshop on this computer</button></p>` : ''}`;
 }
@@ -257,12 +259,11 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { ad
   const level = levels(doc).get(id) || 0;
   const under = parentChoices(doc, id);
   const lvAll = levels(doc);
+  // The fields you change most come first; lane, level, milestone, color and Starts after fold under More (Runway UX v1).
+  const moreOpen = !!(it.dependsOn.length || it.color || it.parent);
   return `<form class="panel" data-panel="${esc(id)}" aria-label="Item">
     <header><span class="eyebrow">${it.milestone ? 'Milestone' : LEVELS[level]}</span><button type="button" class="ibtn" data-close aria-label="Close">${ICON.close}</button></header>
     <label class="pf"><span>Title</span><input data-f="title" value="${esc(it.title)}" maxlength="200"${ro}></label>
-    <label class="pf"><span>Lane</span><select data-f="lane"${ro}>${lanes.map(l => `<option value="${esc(l.id)}"${(it.lane || '') === l.id ? ' selected' : ''}>${esc(l.title)}</option>`).join('')}</select></label>
-    <label class="pf"><span>Under</span><select data-f="parent"${ro}><option value="">Nothing (top level)</option>${under.map(o => `<option value="${esc(o.id)}"${it.parent === o.id ? ' selected' : ''}>${esc(LEVELS[lvAll.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}</select><small class="hint">Epic, then feature, story and task. Each level has its own color.</small></label>
-    <label class="pc"><input type="checkbox" data-f="milestone"${it.milestone ? ' checked' : ''}${ro}> Milestone (one date)</label>
     ${sized ? `<p class="hint">${esc(`${it.size.n} ${it.size.unit}${it.size.n === 1 ? '' : 's'}`)}${s ? `, ${esc(fmt(s.start))} to ${esc(fmt(s.end))}` : ''}. Set dates to pin it.</p>` : ''}
     <div class="prow">
       <label class="pf"><span>${it.milestone ? 'Date' : 'Start'}</span><input type="date" data-f="start" value="${esc(it.start || (s ? s.start : ''))}"${ro}></label>
@@ -272,17 +273,22 @@ export function panelHtml(doc, id, sched = schedule(doc), readOnly = false, { ad
     <label class="pf"><span>Status</span><select data-f="status"${ro}>${STATUSES.map(x => `<option value="${x}"${it.status === x ? ' selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>
     <label class="pf"><span>Owners</span><input data-f="who" list="ownerList" value="${esc((it.who || []).map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off"${ro}>
       <datalist id="ownerList">${choices().map(o => `<option value="@${esc(o.handle)}" label="${esc(o.name)}${o.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist>
-      <small class="hint">People and groups from People in Workshop. A new name is added there as a contact.</small></label>
+      </label>
+    <label class="pf"><span>Description</span><textarea data-f="notes" rows="3" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
+    ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
+    ${it.ado ? adoPanel(it, readOnly, { addPerson }) : ''}
+    ${workItems ? `<div class="pf"><span>Work item</span><div class="prow"><button type="button" class="btn" data-workitem>${esc(workItems)}</button></div><small class="hint">Triage it, define its stories and publish them to ADO, then delegate it or build it yourself.</small></div>` : ''}
+    <details class="pmore"${moreOpen ? ' open' : ''}><summary>More: lane, level, color, starts after</summary>
+    <label class="pf"><span>Lane</span><select data-f="lane"${ro}>${lanes.map(l => `<option value="${esc(l.id)}"${(it.lane || '') === l.id ? ' selected' : ''}>${esc(l.title)}</option>`).join('')}</select></label>
+    <label class="pf"><span>Under</span><select data-f="parent"${ro}><option value="">Nothing (top level)</option>${under.map(o => `<option value="${esc(o.id)}"${it.parent === o.id ? ' selected' : ''}>${esc(LEVELS[lvAll.get(o.id) || 0])}: ${esc(o.title)}</option>`).join('')}</select><small class="hint">Epic, then feature, story and task. Each level has its own color.</small></label>
+    <label class="pc"><input type="checkbox" data-f="milestone"${it.milestone ? ' checked' : ''}${ro}> Milestone (one date)</label>
     <fieldset class="pf"><legend>Color</legend><div class="swatches">
       <label class="swl" title="${LEVELS[level]} color"><input type="radio" name="color" data-f="color" value=""${!it.color ? ' checked' : ''}${ro}><span class="swc auto" style="--c:${PALETTE.light[LEVEL_COLORS[level]]};--cd:${PALETTE.dark[LEVEL_COLORS[level]]}">A</span></label>
       ${COLORS.map(c => `<label class="swl" title="${c}"><input type="radio" name="color" data-f="color" value="${c}"${it.color === c ? ' checked' : ''}${ro}><span class="swc" style="--c:${PALETTE.light[c]};--cd:${PALETTE.dark[c]}"></span></label>`).join('')}
     </div></fieldset>
     <fieldset class="pf"><legend>Starts after</legend>${others.length ? `<div class="deps">${others.map(o => `<label class="pc"><input type="checkbox" data-dep="${esc(o.id)}"${it.dependsOn.includes(o.id) ? ' checked' : ''}${ro}> ${esc(o.title)}</label>`).join('')}</div>` : '<p class="hint">No other items yet.</p>'}
       ${it.afterMissing.length ? `<p class="hint">Not in this roadmap: ${esc(it.afterMissing.join(', '))}</p>` : ''}</fieldset>
-    ${it.ado ? adoPanel(it, readOnly, { addPerson }) : ''}
-    ${workItems ? `<div class="pf"><span>Work item</span><div class="prow"><button type="button" class="btn" data-workitem>${esc(workItems)}</button></div><small class="hint">Triage it, define its stories and publish them to ADO, then delegate it or build it yourself.</small></div>` : ''}
-    <label class="pf"><span>Description</span><textarea data-f="notes" rows="4" maxlength="4000" placeholder="What this delivers, and why"${ro}>${esc(it.notes)}</textarea><small class="hint">Shows under the timeline and in exports.</small></label>
-    ${links.length ? `<ul class="plinks">${links.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join('')}</ul>` : ''}
+    </details>
     <footer>${readOnly ? '' : `<button type="button" class="btn text-danger" data-delete>Delete</button>`}</footer>
   </form>`;
 }

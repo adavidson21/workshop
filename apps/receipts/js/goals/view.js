@@ -89,7 +89,7 @@ export function treeHtml(s) {
   const q = s.quarter;
   const pick = `<label class="g-q"><span class="sr">Quarter</span><select data-g-quarter>${s.quarters.map(k => opt(k, quarterLabel(k) + (k === s.current ? ' (this quarter)' : ''), k === q)).join('')}</select></label>`;
   const bar = `<div class="g-top">${pick}<span class="grow"></span>
-    <button type="button" class="btn" data-g-expand="all">Expand all</button><button type="button" class="btn" data-g-expand="none">Collapse all</button>
+    ${s.hasTeam ? '<button type="button" class="btn ghost" data-g-expand="all">Expand all</button><button type="button" class="btn ghost" data-g-expand="none">Collapse all</button>' : ''}
     ${s.hasTeam ? `<button type="button" class="btn" data-g-open="${esc(s.teamPath)}">Team goals</button>` : ''}</div>`;
   if (s.loading) return bar + '<p class="loading">Loading goals.</p>';
   const t = s.tree;

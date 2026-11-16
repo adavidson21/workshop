@@ -2,6 +2,8 @@
 
 Team and project roadmaps. Type an outline, one item per line, and Runway draws the timeline. Drag bars to change dates, then export a PNG or SVG image, or Markdown.
 
+**3.2.0 (Runway UX v1).** The roadmap list is a grid of cards, each with what is dated next on it, and ways to start across the bottom: **Team quarter** (this quarter, a goal per month, a lane per product from Settings), **Project plan** (discovery, build, launch, with milestones), **Blank**, the example, Import Markdown and Azure DevOps. An item's panel shows title, dates, status, owners and description first; lane, level, milestone, color and Starts after fold under More (open when one is set).
+
 An app in Workshop (`apps/runway/`, moved from adavidson21/runway on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**. Plain JavaScript ES modules, no build step, no dependencies.
 
 **Its look** (Runway 2.0.0): Workshop's look (`shared/themes.css`) with Runway's own plum. Sentence-case labels, titles in Schibsted Grotesk, roadmaps as raised white cards, a pill view switch, and the timeline and its exported image drawn in the same colors and fonts. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.

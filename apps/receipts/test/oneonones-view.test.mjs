@@ -83,7 +83,7 @@ test("a report's page: the 1:1 section, or one click to start, both escaped", as
   const p = { ...PERSON, name: 'Dev <One>' };
   const packet = buildPacket({ person: p, today: TODAY, now: NOW, notes: [], lastText: null, src: {} });
   const html = personHtml({ person: p, packet, note: null, notes: [], today: TODAY, ai: { state: 'idle' }, aiOpts: { enabled: true, ready: false }, panel: true, due: { lastDay: '', days: null, due: true } });
-  assert.ok(html.includes('oo-panel') && html.includes('Due') && html.includes('data-log'));
+  assert.ok(html.includes('oo-panel') && html.includes('Due') && !html.includes('data-log'), 'Log follow-ups shows once there is a note');
   assert.ok(!html.includes('Dev <One>'), 'the name is not drawn raw');
   assert.ok(!html.includes('All 1:1s'), 'no way back on a report page: it is already on their page');
 });
