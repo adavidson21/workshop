@@ -450,7 +450,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.click('[data-product-new]'); sf.fill('#prName', 'Sample <i>Portal</i>'); sf.fill('#prAka', 'SP, Portal')
         sf.fill('#prRepos', 'Platform/portal-ui\nportal-api'); sf.fill('#prAreas', 'Project\\Team\\Portal')
         sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(500)
-        check('Products: added, listed with its note path and an Open Folio button', sf.locator('#products .person b').all_inner_texts() == ['Sample <i>Portal</i>']
+        check('Products: added, listed with its note path and an Open Folio button', sf.locator('#products .product h3').all_inner_texts() == ['Sample <i>Portal</i>']
               and 'products/sample-i-portal-i.md' in sf.inner_text('#products') and sf.locator('[data-product-open]').count() == 1)
         sf.click('[data-product-new]'); sf.fill('#prName', 'sample <I>portal</I>'); sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(300)
         check('Products: a second product with the same name is refused', 'already a product' in sf.inner_text('[data-product-form] .msg'))
@@ -879,6 +879,7 @@ def agent_checks(b, watch):
         if not docket_declares('sprints'): print('SKIP  app settings (the Docket checkout declares no sprints setting yet)')
         else:
             check('Settings shows the switch an app declares in its manifest, at its default', sw.count() == 1 and sw.is_checked())
+            p1.click('.app-row[data-app=prioritizer] .app-opts > summary')  # an app's own switches fold under Options (Settings 6.3.0)
             sw.click()
             # The save is async: poll for it (up to 6 s) instead of one fixed wait, which flaked on a slow CI runner.
             got, settings_file = {}, os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')
@@ -914,7 +915,7 @@ def agent_checks(b, watch):
         hp.goto(HOSTED + '/#/settings'); hp.wait_for_timeout(2000)
         check('a paired hosted page runs in hosted mode', hp.evaluate('document.documentElement.dataset.mode') == 'hosted')
         hs = next((f for f in hp.frames if '/apps/settings/' in f.url), None)
-        check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'open Workshop on this computer' in hs.inner_text('#modeNote')
+        check('hosted Settings is read-only and links to Workshop on this computer', hs is not None and 'read only here' in hs.inner_text('#modeNote') and 'Change them on this computer' in hs.inner_text('#modeNote')
               and hs.locator(f'#modeNote a[href="{url}/"]').count() == 1
               and hs.locator('[data-enable]:not([disabled])').count() == 0 and hs.locator('.conn:not(.app-row)').count() == 2)
         put = hs.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});

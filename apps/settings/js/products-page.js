@@ -23,8 +23,8 @@ export async function mountProducts({ ws, toast, el }) {
 
   el.insertAdjacentHTML('beforeend', `
     <section class="card" id="products">
-      <h2>Products${qh('products', 'The products you work on. Folio makes a note for each one (Products in Folio) with what is here filled in, for you to edit. Tandem reads that note before working on the product and adds what it learns.')}</h2>
-      <p class="sub">Add a product once. Folio makes its note, filled in from here, the next time it opens.</p>
+      <h2 class="dup">Products${qh('products', 'The products you work on. Folio makes a note for each one (Products in Folio) with what is here filled in, for you to edit. Tandem reads that note before working on the product and adds what it learns.')}</h2>
+
       <div class="products-body"><p class="sub">Loading...</p></div>
     </section>`);
   const body = () => el.querySelector('.products-body');
@@ -99,18 +99,26 @@ export async function mountProducts({ ws, toast, el }) {
     return `<span class="person-meta">${notes ? 'Note made the next time Folio opens' : ''}</span><button class="btn" data-product-open="${esc(p.slug)}">Open Folio</button>`;
   }
 
+  // A product is a card with everything it ties together: owners, repos, area paths and its Folio note, plus what
+  // is still missing to set it up (Settings UX v1).
+  const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+  const chips = (list, cls) => list.map(x => `<span class="pchip ${cls}" title="${esc(x)}">${esc(String(x).split(/[\\/]/).pop())}</span>`).join('');
   function row(p) {
-    if (editing === p.id) return `<li class="person editing">${form(p)}</li>`;
+    if (editing === p.id) return `<li class="product editing">${form(p)}</li>`;
     const owners = P.ownersOf(p, people);
-    const bits = [
-      `<span class="mono">${esc(P.notePath(p))}</span>`,
-      p.alsoCalled.length ? `also ${esc(p.alsoCalled.join(', '))}` : '',
-      p.repos.length ? `${p.repos.length} repo${p.repos.length === 1 ? '' : 's'}` : '',
-      p.areas.length ? `${p.areas.length} area path${p.areas.length === 1 ? '' : 's'}` : '',
-      owners.length ? `owners ${esc(owners.map(o => o.name).join(', '))}` : ''
-    ].filter(Boolean);
-    return `<li class="person${p.archived ? ' archived' : ''}"><div><b>${esc(p.name)}</b>${p.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
-      <div class="acts left">${p.archived ? '' : noteBit(p)}<button class="btn" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
+    const hasNote = notes && notes.has(P.notePath(p));
+    const todo = [!p.repos.length && 'Add a repo', !p.areas.length && 'Link an area path', !owners.length && 'Name an owner (People, Owns)'].filter(Boolean);
+    return `<li class="product${p.archived ? ' archived' : ''}">
+      <div class="pc-head"><h3>${esc(p.name)}</h3>${p.archived ? '<span class="state">Archived</span>' : ''}
+        ${owners.length ? `<span class="stack" title="Owners: ${esc(owners.map(o => o.name).join(', '))}">${owners.slice(0, 4).map(o => `<span class="avatar" aria-hidden="true">${esc(initials(o.name))}</span>`).join('')}</span>` : ''}</div>
+      ${p.alsoCalled.length ? `<p class="person-meta">Also ${esc(p.alsoCalled.join(', '))}</p>` : ''}
+      <div class="pc-rows">
+        ${p.repos.length ? `<div class="pc-row"><span class="pc-k">Repos</span><span class="pc-v">${chips(p.repos, 'repo')}</span></div>` : ''}
+        ${p.areas.length ? `<div class="pc-row"><span class="pc-k">Area paths</span><span class="pc-v">${chips(p.areas, 'area')}</span></div>` : ''}
+        <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${esc(P.notePath(p))}${hasNote ? '' : `<span class="dim">${notes ? ', made the next time Folio opens' : ''}</span>`}</span></div>
+      </div>
+      ${todo.length && !p.archived ? `<p class="pc-todo">To finish: ${esc(todo.join(', '))}</p>` : ''}
+      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
   }
 
   function paint() {
@@ -119,9 +127,9 @@ export async function mountProducts({ ws, toast, el }) {
     if (unreadable) { b.innerHTML = `<p class="err">Products were saved by another Workshop version (version ${esc(unreadable)}). Update Workshop to change them.</p>`; return; }
     const live = all().filter(p => !p.archived), archived = all().filter(p => p.archived);
     b.innerHTML = `
-      ${live.length ? `<ul class="people">${live.map(row).join('')}</ul>` : '<p class="sub">No products yet.</p>'}
-      ${editing === 'new' ? `<div class="person editing">${form({})}</div>` : '<div class="acts left"><button class="btn primary" data-product-new>Add a product</button></div>'}
-      ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(row).join('')}</ul></details>` : ''}`;
+      ${live.length ? `<ul class="products">${live.map(row).join('')}</ul>` : `<div class="products-empty"><p><b>No products yet.</b> A product ties together its repos, ADO area paths, owners and a Folio note that Tandem reads before it works on it.</p></div>`}
+      ${editing === 'new' ? `<div class="product editing">${form({})}</div>` : '<div class="acts left"><button class="btn primary" data-product-new>Add a product</button></div>'}
+      ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="products">${archived.map(row).join('')}</ul></details>` : ''}`;
     const first = b.querySelector('.editing input[name=name]');
     if (first) first.focus();
   }

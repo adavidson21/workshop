@@ -88,18 +88,29 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
         <button type="button" class="btn" data-item-cancel>Cancel</button><button class="btn primary">Save</button></div>`;
   }
 
+  // Initials in a soft color picked from the name, so the same person always looks the same (Settings UX v1).
+  const HUES = ['amethyst', 'sapphire', 'tourmaline', 'garnet'];
+  const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+  const hue = n => HUES[[...String(n || '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
+  const avatar = it => `<span class="avatar" data-hue="${hue(it.name)}" aria-hidden="true">${esc(initials(it.name))}</span>`;
   function itemRow(it) {
     if (editing === it.id) return `<li class="person editing">${it.kind === 'group' ? groupForm(it) : personForm(it)}</li>`;
-    const bits = it.kind === 'group'
-      ? [D.membersOf(dir, it.id).map(p => esc(p.name)).join(', ') || 'No members']
-      : [esc(D.RELATION_LABEL[it.relation]), D.onTeam(it) ? 'on my team' : '', it.role ? esc(it.role) : '', it.adoIdentity ? `<span class="mono">${esc(it.adoIdentity)}</span>` : '',
-         Array.isArray(it.owns) && it.owns.length ? `owns ${esc(it.owns.join(', '))}` : '',
-         D.groupsOf(dir, it.id).map(g => `@${esc(g.handle)}`).join(' ')].filter(Boolean);
-    return `<li class="person${it.archived ? ' archived' : ''}"><div><b>${esc(it.name)}</b> <span class="mono handle">@${esc(it.handle)}</span>${it.archived ? ' <span class="state">Archived</span>' : ''}<p class="person-meta">${bits.join(' · ')}</p></div>
-      <button class="btn" data-item-edit="${esc(it.id)}">Edit</button></li>`;
+    if (it.kind === 'group') {
+      const members = D.membersOf(dir, it.id);
+      return `<li class="person${it.archived ? ' archived' : ''}"><button type="button" class="person-row" data-item-edit="${esc(it.id)}" title="Edit ${esc(it.name)}">
+        <span class="avatar group" aria-hidden="true">@</span><span class="pr-main"><b>${esc(it.name)}</b> <span class="handle">@${esc(it.handle)}</span>
+        <span class="person-meta">${members.length ? `<span class="stack">${members.slice(0, 5).map(avatar).join('')}</span>${esc(members.map(p => p.name.split(' ')[0]).join(', '))}` : 'No members'}</span></span></button></li>`;
+    }
+    const bits = [it.role ? esc(it.role) : '', !['self', 'report'].includes(it.relation) && D.onTeam(it) ? 'on my team' : it.relation === 'report' && !D.onTeam(it) ? 'not on my team' : '',
+      Array.isArray(it.owns) && it.owns.length ? `owns ${esc(it.owns.join(', '))}` : '', D.groupsOf(dir, it.id).map(g => `@${esc(g.handle)}`).join(' ')].filter(Boolean);
+    return `<li class="person${it.archived ? ' archived' : ''}"><button type="button" class="person-row" data-item-edit="${esc(it.id)}" title="Edit ${esc(it.name)}">
+      ${avatar(it)}<span class="pr-main"><b>${esc(it.name)}</b> <span class="handle">@${esc(it.handle)}</span>${it.archived ? ' <span class="state">Archived</span>' : ''}
+      ${bits.length ? `<span class="person-meta">${bits.join(' · ')}</span>` : ''}</span></button></li>`;
   }
 
   /* ---------- the people list ---------- */
+  // Grouped by how they relate to you, so the list reads like your org.
+  const BY_REL = [['self', 'You'], ['manager', 'My manager'], ['report', 'My team'], ['peer', 'Peers'], ['contact', 'Others']];
   const matches = it => {
     if (filter === 'team' && !(it.kind === 'person' && D.onTeam(it))) return false;
     if (filter !== 'all' && filter !== 'team' && it.relation !== filter) return false;
@@ -121,12 +132,12 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     const filtered = query || filter !== 'all';
     const html = `
       <p class="count">${plural(all.length, 'person', 'people')}${filtered ? ` · ${people.length} shown` : ''}</p>
-      ${people.length ? `<ul class="people">${people.map(itemRow).join('')}</ul>` : `<p class="sub">${all.length ? 'No one matches.' : 'No one yet. Add yourself, your manager and your reports, or import a spreadsheet.'}</p>`}
       ${editing === 'new-person' ? `<div class="person editing">${personForm(preset || { relation: hasSelf ? 'report' : 'self' })}</div>` : ''}
+      ${editing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
+      ${people.length ? BY_REL.map(([rel, label]) => { const list = people.filter(p => p.relation === rel); return list.length ? `<h3 class="people-sub">${esc(label)} <span class="n">${list.length}</span></h3><ul class="people">${list.map(itemRow).join('')}</ul>` : ''; }).join('')
+        : `<p class="sub">${all.length ? 'No one matches.' : 'No one yet. Add yourself, your manager and your reports, or import a spreadsheet.'}</p>`}
       ${filter === 'all' || filter === 'groups' ? `<h3 class="people-sub">Groups${qh('people.groups', 'Groups are assigned like a person, for example @leadership. Tasks on a group show for each of its members.')}</h3>
       ${groups.length ? `<ul class="people">${groups.map(itemRow).join('')}</ul>` : '<p class="sub">No groups yet. A group like @leadership is assigned like a person.</p>'}` : ''}
-      ${editing === 'new-group' ? `<div class="person editing">${groupForm({})}</div>` : ''}
-      <div class="acts left">${editing && editing.startsWith('new') ? '' : '<button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button>'}</div>
       ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="people">${archived.map(itemRow).join('')}</ul></details>` : ''}`;
     // Same markup: leave it, so the row under the pointer keeps its hover (no flicker on a save echo).
     if (html === peopleHtml && body.firstChild === peopleFirst && body.firstChild) return;
@@ -142,6 +153,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   function paintImport() {
     const body = q('.import-body');
     if (!body) return;
+    if (pending) q('#import').hidden = false; // a chosen sheet shows its preview, even if Import was not opened first
     if (!pending) { body.innerHTML = ''; return; }
     const { plan, name } = pending;
     const c = plan.counts;
@@ -231,14 +243,15 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   /* ---------- the pages ---------- */
   peopleEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="people-list">
-      <h2>People and groups${qh('people', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Docket, Runway, Rapport and Home all use this list.')}</h2>
+      <h2 class="dup">People and groups${qh('people', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Docket, Runway, Rapport and Home all use this list.')}</h2>
       <div class="bar"><label class="sr" for="q">Search people</label><input id="q" class="cfg-input" type="search" placeholder="Search by name, handle, role or email" autocomplete="off">
         <label class="sr" for="f">Show</label><select id="f" class="cfg-input">
           <option value="all">Everyone</option><option value="team">On my team</option><option value="report">Direct reports</option>
-          <option value="peer">Peers</option><option value="contact">Contacts</option><option value="groups">Groups only</option></select></div>
+          <option value="peer">Peers</option><option value="contact">Contacts</option><option value="groups">Groups only</option></select>
+        <span class="bar-acts"><button class="btn primary" data-person-new>Add a person</button><button class="btn" data-group-new>Add a group</button><button class="btn ghost" data-import-open>Import</button></span></div>
       <div class="people-body"><p class="sub">Loading...</p></div>
     </section>
-    <section class="card" id="import">
+    <section class="card" id="import" hidden>
       <h2>Import from a spreadsheet${qh('people.import', 'Download the template, fill in one person per row, then import it. A row with the handle or name of someone already here updates them. You see every change before anything is saved.')}</h2>
       <div class="acts left"><button class="btn" data-template>Download template</button><button class="btn" data-people-export>Download current list</button>
         <label class="btn primary"><input type="file" accept=".xlsx,.xls,.csv" data-sheet hidden>Import a spreadsheet</label><span class="msg" aria-live="polite"></span></div>
@@ -246,7 +259,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     </section>`);
   teamEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="team">
-      <h2>Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.')}</h2>
+      <h2 class="dup">Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.')}</h2>
       <p class="sub">Plain text, so you can fill them in before Azure DevOps is connected.</p>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`);
@@ -260,6 +273,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   peopleEl.addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t) return;
+    if (t.matches('[data-import-open]')) { const c = q('#import'); c.hidden = !c.hidden; if (!c.hidden) c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
     if (t.matches('[data-person-new]')) { editing = 'new-person'; preset = null; return paintPeople(); }
     if (t.matches('[data-group-new]')) { editing = 'new-group'; return paintPeople(); }
     if (t.matches('[data-item-edit]')) { editing = t.dataset.itemEdit; return paintPeople(); }

@@ -17,6 +17,35 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
   hist.className = 'card focus-history';
   el.appendChild(hist);
   let histOpen = false; // History folds away; it stays open across repaints once opened
+  let exactOpen = false; // Exact times fold away under the grid
+  sec.addEventListener('toggle', e => { if (e.target.matches('details.fh-exact')) exactOpen = e.target.open; }, true);
+  // Painting: press on a half hour to start (it flips), drag over others to give them the same state.
+  let paintDay = null, paintOn = true, painted = null;
+  const cellAt = e => e.target.closest && e.target.closest('[data-cell]');
+  sec.addEventListener('pointerdown', e => {
+    const c = cellAt(e);
+    if (!c) return;
+    e.preventDefault();
+    paintOn = !c.classList.contains('on');
+    painted = new Map();
+    paintDay = true;
+    mark(c);
+  });
+  function mark(c) {
+    c.classList.toggle('on', paintOn);
+    const d = c.dataset.cell;
+    if (!painted.has(d)) painted.set(d, new Set(SLOTS.filter(m => inBlocks(val.week[d], m))));
+    const set = painted.get(d), m = +c.dataset.m;
+    if (paintOn) set.add(m); else set.delete(m);
+  }
+  sec.addEventListener('pointerover', e => { if (!paintDay) return; const c = cellAt(e); if (c) mark(c); });
+  window.addEventListener('pointerup', () => {
+    if (!paintDay) return;
+    paintDay = null;
+    for (const [d, set] of painted) setSlots(d, set);
+    painted = null;
+    paint();
+  });
   hist.addEventListener('toggle', e => { if (e.target.matches('details.fh-hist-fold')) histOpen = e.target.open; }, true);
 
   async function load() {
@@ -47,19 +76,50 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
     </div>`;
   };
 
+  /* The week grid (Settings UX v1): drag across half hours to paint focus, like a calendar. Exact times stay
+     editable below. Painting a day rebuilds that day's blocks from its painted half hours. */
+  const G0 = 7 * 60, G1 = 19 * 60, STEP = 30;
+  const SLOTS = Array.from({ length: (G1 - G0) / STEP }, (_, i) => G0 + i * STEP);
+  const inBlocks = (list, m) => (list || []).some(b => F.isTime(b.start) && F.isTime(b.end) && F.toMin(b.start) <= m && m < F.toMin(b.end));
+  const lunchAt = (d, m) => val.lunch.enabled && val.lunch.days.includes(d) && F.isTime(val.lunch.start) && F.toMin(val.lunch.start) <= m && m < F.toMin(val.lunch.start) + (val.lunch.minutes || 0);
+  function setSlots(d, on) {
+    // Blocks wholly outside the grid's hours are kept as they are; the rest come from the painted half hours.
+    const outside = (val.week[d] || []).filter(b => F.isTime(b.start) && F.isTime(b.end) && (F.toMin(b.end) <= G0 || F.toMin(b.start) >= G1));
+    const runs = [];
+    for (const m of SLOTS) {
+      if (!on.has(m)) continue;
+      const last = runs[runs.length - 1];
+      if (last && last.end === m) last.end = m + STEP; else runs.push({ start: m, end: m + STEP });
+    }
+    val.week[d] = [...outside, ...runs.map(r => ({ start: F.fromMin(r.start), end: F.fromMin(r.end) }))]
+      .sort((a, b) => F.toMin(a.start) - F.toMin(b.start));
+  }
+  const PRESETS = { mornings: [540, 720], afternoons: [780, 960] };
+  function gridHtml() {
+    const head = F.WEEKDAYS.map(d => `<span class="fg-dh">${DAY_LABEL[d].slice(0, 3)}</span>`).join('');
+    const rows = SLOTS.map(m => `<span class="fg-t">${m % 60 ? '' : F.fromMin(m).replace(/^0/, '')}</span>` + F.WEEKDAYS.map(d =>
+      `<span class="fg-c${inBlocks(val.week[d], m) ? ' on' : ''}${lunchAt(d, m) ? ' lunch' : ''}" data-cell="${d}" data-m="${m}" title="${DAY_LABEL[d]} ${F.fromMin(m)}"></span>`).join('')).join('');
+    return `<div class="fh-presets"><span class="sub">Quick start:</span><button type="button" class="btn small" data-preset="mornings">Mornings 9 to 12</button>
+      <button type="button" class="btn small" data-preset="afternoons">Afternoons 1 to 4</button><button type="button" class="btn ghost small" data-preset="clear">Clear</button></div>
+      <div class="fh-grid" role="grid" aria-label="Focus blocks: drag to paint, weekdays across, the day down"><span></span>${head}${rows}</div>
+      <p class="cfg-help fh-legend"><span class="fg-key on"></span> Focus <span class="fg-key lunch"></span> Lunch. Drag to add or remove half hours.</p>`;
+  }
+
   function paint() {
     const { errors, warnings } = F.validateSettings(val);
     const l = val.lunch;
     const lunchErr = errors.find(x => x.day === 'lunch');
-    sec.innerHTML = `<h2>Focus hours</h2>
+    sec.innerHTML = `<h2 class="dup">Focus hours</h2>
       <p class="sub">Protected focus time and a protected lunch. During either, badges, pickups and new-item toasts wait and come back together when the block ends. Blocking pull requests still show during focus. Nothing is lost: every app keeps syncing and saving.</p>
       <form class="fh-form">
         <div class="cfg-row cfg-check fh-switch"><input type="checkbox" class="toggle" role="switch" id="fhOn" data-on${val.enabled ? ' checked' : ''}><label for="fhOn">Focus hours ${val.enabled ? 'on' : 'off'}</label></div>
         ${saved ? '' : '<p class="cfg-help">Not saved yet. Focus hours stay off until you save this page.</p>'}
         <h3 class="shead">Weekly focus blocks</h3>
+        ${gridHtml()}
+        <details class="fh-exact"${exactOpen || errors.some(x => x.day !== 'lunch') ? ' open' : ''}><summary>Exact times</summary>
         <div class="fh-week">${F.WEEKDAYS.map(d => `<div class="fh-day" data-day="${d}"><span class="fh-dname">${DAY_LABEL[d]}</span>
           <div class="fh-blocks">${(val.week[d] || []).map((b, i) => blockRow(d, b, i, errors, warnings)).join('') || '<span class="state">No focus</span>'}
-          <button type="button" class="btn ghost small" data-add="${d}">Add block</button></div></div>`).join('')}</div>
+          <button type="button" class="btn ghost small" data-add="${d}">Add block</button></div></div>`).join('')}</div></details>
         <h3 class="shead">Lunch</h3>
         <div class="fh-lunch">
           <label class="switch"><input type="checkbox" data-lunch-on${l.enabled ? ' checked' : ''}> Protect lunch</label>
@@ -98,6 +158,18 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
     paint();
   });
   sec.addEventListener('click', e => {
+    const pre = e.target.closest('[data-preset]');
+    if (pre) {
+      const k = pre.dataset.preset;
+      for (const d of F.WEEKDAYS) {
+        if (k === 'clear') { val.week[d] = []; continue; }
+        if (['sat', 'sun'].includes(d)) continue;
+        const [a, b] = PRESETS[k];
+        setSlots(d, new Set(SLOTS.filter(m => m >= a && m < b)));
+      }
+      paint();
+      return;
+    }
     const add = e.target.closest('[data-add]');
     if (add) {
       const d = add.dataset.add, list = val.week[d] || (val.week[d] = []);

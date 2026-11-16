@@ -290,8 +290,13 @@ function card(title, sub, pageId = 'overview', order = 50, hint = '') {
   sec.className = 'card';
   sec.dataset.order = order;
   const qh = hint && title && globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme?.hints.html('settings.' + title.toLowerCase().replace(/[^a-z]+/g, '-'), hint.replace(/<[^>]+>/g, ''), 'About ' + title) : '';
-  sec.innerHTML = `${title ? `<h2>${esc(title)}${qh}</h2>` : ''}${sub ? `<p class="sub">${sub}</p>` : ''}`;
   const el = page(pageId);
+  // A card named like its page or its tab ("Apps" on Apps, "People and groups" on People & groups) does not say
+  // the name again: the page title already does (Settings UX v1).
+  const pg = pages.get(pageId), norm = t => String(t || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z]+/g, ' ').trim();
+  const same = title && pg && [pg.label, (navs.get(pg.nav) || {}).label].some(l => norm(l) === norm(title));
+  sec.innerHTML = `${title && !same ? `<h2>${esc(title)}${qh}</h2>` : ''}${sub ? `<p class="sub">${sub}</p>` : ''}`;
+  if (same) sec.classList.add('untitled');
   const after = [...el.querySelectorAll(':scope > .card')].find(c => Number(c.dataset.order) > order);
   el.insertBefore(sec, after || null);
   return sec;
@@ -313,6 +318,7 @@ function agentAddress() {
   try { const p = JSON.parse(localStorage.getItem('workshop.agent') || 'null'); return p && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(p.url) ? p.url : null; } catch (e) { return null; }
 }
 
+const LOCK = '<svg class="lock" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>';
 function header() {
   const note = $('#modeNote');
   // Local: this is the page the agent serves, Workshop on this computer. Workshop itself is the hosted site.
@@ -320,9 +326,10 @@ function header() {
   else if (readOnly) {
     const at = agentAddress();
     // Only this computer's settings, connections and repos are read only here; people, groups and team area paths are not.
-    note.innerHTML = 'This computer, Azure DevOps and Repos are read only here. To change them, open Workshop on this computer'
-      + (at ? ` at <a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">${esc(at)}</a>.` : ' (run <code>workshop open</code>).')
-      + ' People, groups and team area paths change here.';
+    // One quiet line: what is locked here and where to change it (Settings UX v1). People, groups and team area
+    // paths still change here.
+    note.innerHTML = `<span class="ro-line">${LOCK}<span>Apps, this computer, Azure DevOps and repos are read only here.</span> `
+      + (at ? `<a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">Change them on this computer</a>` : '<span>Change them on this computer (<code>workshop open</code>).</span>') + '</span>';
     document.body.classList.add('ro');
   }
   // Browser mode: no subtitle. Status's "Workshop on this computer" card says how to connect.
@@ -538,26 +545,35 @@ async function appsCard() {
 
   const status = a => {
     if (!a.canTurnOff) return 'Always on.';
-    if (!a.on) return 'Off. Not in the rail.';
+    if (!a.on) return 'Off';
     if (view.workMode && a.separate && !a.downloaded) return `Not downloaded yet, so it is not in Workshop. Run this on your computer, then reload: <code>${esc(a.command)}</code> ${copyBtn(a.command)}`;
     if (view.workMode && a.separate && a.problem) return `Left out of the pinned copy: ${esc(a.problem)}. Update it with <code>workshop update</code> ${copyBtn('workshop update')}`;
     if (view.workMode && !a.inWorkshop) return `Not in the pinned copy yet. Run <code>workshop pin</code> ${copyBtn('workshop pin')}`;
     if (view.workMode && a.separate) return `In Workshop${a.ref ? `, ${esc(a.ref)}` : ''}.`;
-    return 'In the rail.';
+    return '';
   };
+  // A grid of app cards (Settings UX v1): the app's icon in its color, its name, one line on what it is for, its
+  // switch, and its own options (like Docket's Use sprints) under Options.
+  box.classList.add('app-grid');
+  const short = d => { const t = String(d || '').split(/(?<=[.:])\s/)[0].replace(/[.:]$/, ''); return t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '...' : t; };
   const render = () => {
     box.querySelectorAll('.app-row').forEach(el => el.remove());
     for (const a of view.apps) {
       const row = document.createElement('div');
-      row.className = 'app-row';
+      row.className = 'app-row' + (a.on ? '' : ' off');
       row.dataset.app = a.id;
       const locked = readOnly || !a.canTurnOff;
-      row.innerHTML = `<div class="conn-head">
-          <div><h3>${esc(a.name)}</h3>${a.description ? `<p class="conn-about">${esc(a.description)}</p>` : ''}</div>
-          <input type="checkbox" class="toggle" role="switch" aria-label="${esc(a.name)} on"${a.on ? ' checked' : ''}${locked ? ' disabled' : ''}>
+      const why = !a.canTurnOff ? 'Always on' : readOnly ? 'Change this from Workshop on this computer' : '';
+      const opts = appSettingsHtml(a);
+      row.innerHTML = `<div class="app-top">
+          <span class="app-ic" aria-hidden="true" style="--ic:url('../${esc(a.id)}/icon.svg');--app:var(--c-${esc(a.id)}, var(--accent))"></span>
+          <h3>${esc(a.name)}</h3>
+          ${a.canTurnOff ? `<input type="checkbox" class="toggle" role="switch" aria-label="${esc(a.name)} on"${a.on ? ' checked' : ''}${locked ? ' disabled' : ''}${why ? ` title="${esc(why)}"` : ''}>` : '<span class="app-always">Always on</span>'}
+          ${a.canTurnOff && readOnly ? LOCK : ''}
         </div>
-        <p class="conn-status app-status">${status(a)}</p>${appSettingsHtml(a)}`;
-      row.querySelector('.toggle').addEventListener('change', e => flip(a, e.target));
+        ${a.description ? `<p class="conn-about" title="${esc(a.description)}">${esc(short(a.description))}</p>` : ''}
+        <p class="conn-status app-status">${a.canTurnOff ? status(a) : ''}</p>${opts ? `<details class="app-opts"><summary>Options</summary>${opts}</details>` : ''}`;
+      if (a.canTurnOff) row.querySelector('.toggle').addEventListener('change', e => flip(a, e.target));
       row.querySelectorAll('[data-app-setting]').forEach(el => el.addEventListener('change', e => setAppSetting(a, e.target)));
       box.appendChild(row);
     }
@@ -614,7 +630,7 @@ async function appsCard() {
     catch (err) { toast('Could not copy. Select the command and copy it instead.', 'error'); }
   });
   render();
-  if (readOnly) sec.insertAdjacentHTML('beforeend', '<p class="sub">Change these from Workshop on this computer.</p>');
+  if (readOnly) sec.insertAdjacentHTML('afterbegin', `<p class="sub ro-line">${LOCK}<span>Turn apps on or off from Workshop on this computer.</span></p>`);
 }
 
 /* ---------- connectors ----------
@@ -1257,7 +1273,7 @@ async function reposTab(list) {
       + added
       + (todo.length ? `<div class="repo-todo"><p>${plural(todo.length, 'repo points', 'repos point')} at Azure DevOps but ${todo.length === 1 ? 'is' : 'are'} not saved yet, so agents may pick the wrong project.</p><button type="button" class="btn primary" data-map-all>Save ${todo.length === 1 ? 'it' : 'them'}</button></div>` : '')
       + (st.oc ? (st.rows.length ? `<ul class="people repos">${items}</ul>` : (hiddenList().length ? '<p class="sub">No repos to show. The ones you hid are under Hidden folders.</p>' : `<p class="sub">No repos in your workspace (<code>${esc(st.oc.workspace || '')}</code>) yet.</p>`)) : '')
-      + (st.oc ? (st.adding ? addForm() : '<div class="acts left"><button type="button" class="btn primary" data-add-open>Add a repo</button></div>') : '')
+      + (st.oc ? (st.adding ? addForm() : (readOnly ? '' : '<div class="acts left"><button type="button" class="btn primary" data-add-open>Add a repo</button></div>')) : '')
       + hiddenCard();
     if (st.adding) body.querySelector('#raUrl').focus();
     const first = body.querySelector('.repo.editing input');

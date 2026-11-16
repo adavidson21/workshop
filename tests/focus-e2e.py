@@ -107,6 +107,8 @@ def main():
         pg.evaluate("location.hash = '#/settings/focus'"); pg.clock.run_for(2000); pg.wait_for_timeout(1500)
         sf = frame_of(pg, 'settings')
         sf.wait_for_selector('.fh-form', timeout=8000)
+        sf.click('.fh-exact > summary'); pg.wait_for_timeout(200)  # Exact times fold under the week grid (Settings UX v1)
+        check('Settings shows the week grid with the default mornings painted', sf.locator('.fh-grid .fg-c.on[data-cell=mon]').count() == 6)
         check('Settings opens Focus hours with the defaults filled in', sf.locator('.fh-day[data-day=mon] input[data-f=start]').input_value() == '09:00' and sf.locator('.fh-day[data-day=sat] .fh-block').count() == 0)
         check('Settings previews today', 'Today: focus 09:00 to 12:00, lunch 12:00 to 13:00' in sf.inner_text('.fh-preview'))
         sf.click('.fh-day[data-day=tue] [data-add]'); pg.wait_for_timeout(200)
