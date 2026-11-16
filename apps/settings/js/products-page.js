@@ -115,7 +115,7 @@ export async function mountProducts({ ws, toast, el }) {
       <div class="pc-rows">
         ${p.repos.length ? `<div class="pc-row"><span class="pc-k">Repos</span><span class="pc-v">${chips(p.repos, 'repo')}</span></div>` : ''}
         ${p.areas.length ? `<div class="pc-row"><span class="pc-k">Area paths</span><span class="pc-v">${chips(p.areas, 'area')}</span></div>` : ''}
-        <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${hasNote ? `<button class="lnk" data-product-open="${esc(p.slug)}">${esc(P.notePath(p))}</button>` : `<span class="dim">${notes ? 'Folio makes it the next time it opens' : 'In Folio'}</span>`}</span></div>
+        <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${esc(P.notePath(p))}${hasNote ? '' : `<span class="dim">${notes ? ', made the next time Folio opens' : ''}</span>`}</span></div>
       </div>
       ${todo.length && !p.archived ? `<p class="pc-todo">To finish: ${esc(todo.join(', '))}</p>` : ''}
       <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;

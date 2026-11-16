@@ -450,7 +450,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.click('[data-product-new]'); sf.fill('#prName', 'Sample <i>Portal</i>'); sf.fill('#prAka', 'SP, Portal')
         sf.fill('#prRepos', 'Platform/portal-ui\nportal-api'); sf.fill('#prAreas', 'Project\\Team\\Portal')
         sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(500)
-        check('Products: added, listed with its note path and an Open Folio button', sf.locator('#products .person b').all_inner_texts() == ['Sample <i>Portal</i>']
+        check('Products: added, listed with its note path and an Open Folio button', sf.locator('#products .product h3').all_inner_texts() == ['Sample <i>Portal</i>']
               and 'products/sample-i-portal-i.md' in sf.inner_text('#products') and sf.locator('[data-product-open]').count() == 1)
         sf.click('[data-product-new]'); sf.fill('#prName', 'sample <I>portal</I>'); sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(300)
         check('Products: a second product with the same name is refused', 'already a product' in sf.inner_text('[data-product-form] .msg'))
