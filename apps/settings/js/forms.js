@@ -87,7 +87,11 @@ function objectField(schema, value, env, o) {
     if (flat && sub.description) sectionEl(sectionOf(key)).appendChild(help(sub.description));
     readers[key] = node.readValue;
     const into = sectionOf(key) ? sectionEl(sectionOf(key)) : (more && fold.includes(key)) ? more : wrap;
-    into.appendChild(row(sub, node, key, required.has(key)));
+    const r = row(sub, node, key, required.has(key));
+    // A field the connector keeps only so old settings stay valid ("No longer used: ...") is not shown; its value
+    // is still read back, so saving never drops it (Settings UX v1).
+    if (/^No longer used/i.test(sub.description || '')) r.hidden = true;
+    into.appendChild(r);
   }
   if (more) wrap.appendChild(more);
   for (const d of sections.values()) wrap.appendChild(d);
