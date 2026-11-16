@@ -452,11 +452,13 @@ function reviewView() {
 function settingsView(fs) {
   const c = cfg();
   const unlisted = R.unlistedSections(entries(), c.sections);
-  const where = ws.embedded ? 'Workshop' : ws.storage === 'folder' ? `the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'Workshop on this computer' : 'this browser';
+  // Say where the data physically is (Rapport copy v2): never "in Workshop", which reads like a server.
+  // ws.storage is the shared store's mode, so it is right inside Workshop too.
+  const where = ws.storage === 'folder' ? `in the folder ${fs && fs.name ? `"${fs.name}"` : 'you picked'}` : ws.storage === 'agent' ? 'in your Workshop folder' : 'in this browser';
   return `<section class="set">
       <h3 class="section-label">Privacy and storage</h3>
-      <p class="lede">${I.lock} Your receipts, 1:1 notes and goals are saved in ${esc(where)}.</p>
-      ${ws.embedded ? `<p class="fine">Storage and backups are in Workshop's Settings.</p>`
+      <p class="lede">${I.lock} Your receipts, 1:1 notes and goals stay on this computer, ${esc(where)}.</p>
+      ${ws.embedded ? `<p class="fine">Nothing is sent anywhere. Change where they are stored in Workshop's Settings.</p>`
       : ws.storage === 'indexeddb' ? `<p class="fine">Clearing browsing data deletes them. Save to a folder to keep them as files (Chrome or Edge).</p>
         <div class="acts"><button class="btn" data-act="folder">Save to a folder</button></div>`
       : ws.storage === 'folder' && fs && fs.permission !== 'granted' ? `<div class="acts"><button class="btn primary" data-act="allow">Allow access to the folder</button></div>` : ''}
@@ -465,7 +467,7 @@ function settingsView(fs) {
         <label class="btn">Restore from a backup<input type="file" accept=".json,application/json" data-act="import" hidden></label>
         <button class="btn" data-act="dl-csv-all">${I.down} All receipts (.csv)</button>
       </div>
-      <p class="fine">Restoring merges a backup in. It never deletes receipts. Backups hold receipts, 1:1 people and settings; 1:1 notes and goals are Markdown files in your Workshop folder.</p>
+      <p class="fine">Restoring merges a backup in and never deletes receipts. A backup includes receipts, 1:1 people and settings. It does not include 1:1 notes and goals, since those are already saved as Markdown files.</p>
     </section>
     <form class="set" data-form="cycle">
       <h3 class="section-label">Review cycle</h3>
