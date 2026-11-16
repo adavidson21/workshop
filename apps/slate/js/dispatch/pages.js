@@ -13,7 +13,8 @@ import { h, md, plural, ago, stamp, fileBtn, fileOf, asking, itemSession, isBusy
   activityHtml, onboardHtml, pickItem, pickupHtml, looseSessions, openAttr, bucketOf, reviewHref } from './view.js';
 import { projectChip, projectFilterHtml, inProject, runStatus, statusDot, runLabel } from './projects.js';
 import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toReviewCount, reviewsAsking } from './pr-reviews.js';
-import { isHubCommand } from './hub-model.js';
+/** A session the hub started (`/hub <text>`): it belongs to the Chat app, not to a run. */
+const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
 import { docHtml } from './doc.js';
 import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
   folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder } from './flows.js';
@@ -82,8 +83,8 @@ export function askSource(sessionID, folder) {
   const o = looseSessions().find(x => x.session === sessionID);
   const s = L() && L().sessions[sessionID];
   const title = (s && s.title) || (o && o.command) || 'opencode session';
-  if (o && isHubCommand(o.command)) return { label: title, open: 'data-tab="chat"', what: 'Hub' };
-  if (o && isReviewSession(o)) return { label: title, open: 'data-tab="reviews"', what: 'PR review' };
+  if (o && isHubCommand(o.command)) return { label: title, open: `data-open-chat="${h(sessionID)}"`, what: 'Chat' };
+  if (o && isReviewSession(o)) return { label: title, open: 'data-inbox-chip="prs"', what: 'PR review' };
   if (o) return { label: title, open: 'data-tab="work"', what: 'Starting' };
   return { label: title, open: `data-open-chat="${h(sessionID)}"`, what: 'Conversation' };
 }
@@ -235,7 +236,7 @@ export function inboxHtml() {
   if (n && S.ui.walk) return html + walkHtml(d);
   const c = chipCounts(d);
   const chip = INBOX_CHIPS.some(([k]) => k === S.ui.inboxChip) ? S.ui.inboxChip : 'all';
-  if (c.all) {
+  if (c.all || chip !== 'all' || S.conn === 'on') {
     html += `<div class="inbox-head"><div class="chips" role="tablist" aria-label="Show">${INBOX_CHIPS.map(([k, label]) =>
       `<button type="button" role="tab" class="chip${chip === k ? ' on' : ''}" data-inbox-chip="${k}" aria-selected="${chip === k}">${h(label)}<span class="n">${c[k]}</span></button>`).join('')}</div>` +
       (n > 1 ? '<button type="button" class="btn" data-walk="start" title="One at a time, with keys">Go through them</button>' : '') + '</div>';
@@ -246,10 +247,12 @@ export function inboxHtml() {
   if (show('agents') && d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
   if (show('agents') && d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(it => gateCard(it)).join('')}</div>`);
   if (show('prs') && d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
-  if (show('prs') && d.prs) {
-    html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-tab="reviews">Open Reviews</button></div>`;
+  // Teammates' PRs: a line on All, the whole review list (Review a link, first passes, earlier reviews) on PRs.
+  if (chip === 'prs') html += `<section class="group inbox-reviews" aria-label="Teammates' PRs">${reviewsHtml()}</section>`;
+  else if (chip === 'all' && d.prs) {
+    html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-inbox-chip="prs">Show PRs</button></div>`;
   }
-  if (c.all && chip !== 'all' && !c[chip]) html += '<div class="empty small"><p>Nothing here right now.</p></div>';
+  if (c.all && chip !== 'all' && chip !== 'prs' && !c[chip]) html += '<div class="empty small"><p>Nothing here right now.</p></div>';
   if (!n) {
     if (!d.prs) html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
     const runs = workItems().filter(it => it.kind === 'item' && !isShip(it));

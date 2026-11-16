@@ -1,7 +1,7 @@
 // Conversation pieces shared by hub threads and the Chat tab (js/thread.js). Synthetic data only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lastTandem, since, turnsHtml } from '../js/dispatch/thread.js';
+import { lastTandem, since, turnsHtml } from '../js/thread.js';
 
 test('turns: yours as escaped text, Tandem as safe Markdown, a writing line while busy', () => {
   const html = turnsHtml([
@@ -32,7 +32,7 @@ test('lastTandem and since', () => {
 });
 
 test('the Chat sidebar: groups by day, newest first, and search by every word', async () => {
-  const { groupChats, matchChat } = await import('../js/dispatch/thread.js');
+  const { groupChats, matchChat } = await import('../js/thread.js');
   const now = new Date(2026, 10, 12, 15).getTime(), h = 3600000;
   const items = [
     { session: 'a', title: 'Sample API version', last: now - h },

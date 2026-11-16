@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { actAllowed, answerHtml, checkRoute, hubContext, hubId, isHubCommand, isLow, repairRoute, toProposal } from '../js/dispatch/hub-model.js';
+import { actAllowed, answerHtml, checkRoute, hubContext, hubId, isHubCommand, isLow, repairRoute, toProposal } from '../js/hub-model.js';
 import { directory } from '../../../shared/people.js';
 
 const dir = directory({ schema: 'settings.people', version: 2, items: [

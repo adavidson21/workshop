@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTE = {}  # every app is in apps/ (they had their own repos until Nov 2026)
 OUT = os.path.join(ROOT, 'tests', 'out', 'layout')
 SIZES = [(960, 1000), (1440, 900), (1920, 1080), (2560, 1440)]
-APPS = ['home', 'prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'settings']
+APPS = ['home', 'prioritizer', 'slate', 'chat', 'receipts', 'notes', 'runway', 'bench', 'settings']
 # List and form pages: their content stays inside --w-page plus gutters (88rem at 1920, 104rem at 2560).
 CAPPED = {'settings': '.wrap', 'bench': '.ws-page'}
 

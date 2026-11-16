@@ -1246,7 +1246,7 @@ export function render() {
   // The tab bar is always there: Board and Health work without the agents (loom.js); the other tabs show the setup.
   const bar = `<header class="top">${brandHtml()}${tabsHtml()}</header>`;
   if ((!S.connector || S.connector.state !== 'ready' || !S.D) && BOARD_TABS.includes(S.ui.tab)) return bar + overlaysHtml();
-  if (!S.connector || S.connector.state !== 'ready' || !S.D) return bar + (S.digestHtml ? S.digestHtml(h) : '') + setupHtml() + '<section class="setup-hub" aria-label="Capture"><div id="hub-slot"></div></section>' + overlaysHtml();
+  if (!S.connector || S.connector.state !== 'ready' || !S.D) return bar + (S.digestHtml ? S.digestHtml(h) : '') + setupHtml() + overlaysHtml();
   return headerHtml() + bannersHtml() + `<div class="page" data-page="${h(S.ui.tab)}">${pageHtml()}</div>` + (S.D.gitAvailable ? '' : '<p class="note">git was not found on PATH, so repo state is missing.</p>') + overlaysHtml();
 }
 

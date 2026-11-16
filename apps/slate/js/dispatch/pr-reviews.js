@@ -330,8 +330,6 @@ export function reviewsHtml() {
     html += `<section class="group" aria-labelledby="gh-rvl"><h3 id="gh-rvl">${name} <span class="n">${earlier.length}</span></h3>` +
       (inbox.state === 'ok' ? '<p class="hint">No longer waiting on you, or reviewed by link.</p>' : '') +
       `<div class="items">${earlier.map(it => reviewCard(it)).join('')}</div></section>`;
-  } else if (inbox.state !== 'ok' && !startingReviews().length) {
-    html += '<div class="empty small"><p>No reviews yet. Review a PR by its link.</p></div>';
   }
   return html;
 }

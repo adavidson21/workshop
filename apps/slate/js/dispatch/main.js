@@ -14,8 +14,7 @@ import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
-import { startHub } from './hub.js';
-import { startChat } from './chat.js';
+import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { useApps } from '../../../../shared/capture.js';
@@ -40,22 +39,17 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 // On its own page: the same top bar as the other tools (crumbs and the light/dark toggle).
 if (!ws.embedded) mountBar('Loom');
 
-/* ---------- the hub (hub.js) and the Chat tab (chat.js) ----------
-   The hub is drawn once into #hub; chat.js keeps it in its New chat pane, and before Dispatch is connected
-   paint() moves it under the setup page (#hub-slot), so captures always work. A hub message that is not a
-   capture or go becomes a chat: chat.opened lists it and opens it. */
+/* Chat and the hub are their own app since Loom 4.8.0 (apps/chat): Loom opens it for chat and hub routes. Save as
+   note still sends a note to Notes from here, through Loom's handoffs. */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
 ws.apps.list().then(list => { useApps(list); S.hasNotes = list.some(a => a.id === 'notes'); schedule(); }).catch(() => {});
-let chat = null;
-const hubEl = document.getElementById('hub');
-const hub = startHub(ws, hubEl, {
-  onThread: card => { if (chat) chat.opened(card); },
-  onChange: () => { if (chat) chat.redraw(); },
-  onStatus: () => { if (chat) chat.refresh(); },
-  asksHtml: sid => sessionAsksHtml(sid)
-});
-chat = startChat(ws, { hub, hubEl, asksHtml: sid => sessionAsksHtml(sid), noteOf: (t, a) => hub.noteOf(t, a), aiReady: () => hub.status() });
-chat.mountHub();
+const notesOut = createCaptureStore(ws, { sender: 'slate' });
+async function noteOf(title, answer) {
+  const t = String(title).slice(0, 120);
+  const p = { kind: 'note', to: 'notes', text: `${title}\n\n${answer || ''}`.trim().slice(0, 2000), title: t, payload: { kind: 'note', title: t } };
+  try { await notesOut.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
+}
+const openChat = path => ws.open(path ? { app: 'chat', path } : { app: 'chat' });
 
 /* ---------- the setup guide (view.js guideHtml), shown while this page can't reach Workshop ----------
    Progress, the port and the computer type are kept per browser. Pairing works like the shell's Connect
@@ -262,8 +256,6 @@ async function fetchState() {
     publishSummary();
     watchPrompts();
     if (d.projects && pruneView(S.view, new Set(d.projects.projects.map(p => p.id)))) saveViewNow();
-    hub.redraw();
-    chat.redraw();
   } catch (e) {
     if (e.code === 'unavailable' && /Workshop is not running|fetch/i.test(errText(e))) S.conn = 'off';
     else if (e.code === 'disabled' || e.code === 'unavailable') await loadStatus();
@@ -418,8 +410,9 @@ function wantFocus(path) {
   // The board half's routes (item/<id>, health, sprints, board) open its tab and go to it (loom.js splitRoute).
   const sr = splitRoute(p);
   if (sr.half === 'board') { setTab(sr.tab); routeBoard(sr.path); return; }
-  if (/^hub(\/|$)/.test(p)) { const text = p.replace(/^hub\/?/, '').trim(); setTab('chat'); chat.open(null); if (text) hub.ask(text); else hub.focus(); return; }
-  if (/^chat(\/|$)/.test(p)) { const sid = p.replace(/^chat\/?/, '').trim(); setTab('chat'); chat.open(sid || null); return; }
+  // Chat and the hub moved to the Chat app (Loom 4.8.0); Reviews is the Inbox's PRs chip.
+  if (/^(hub|chat)(\/|$)/.test(p)) { openChat(p); setTab('inbox'); return; }
+  if (/^reviews\/?$/.test(p)) { S.ui.inboxChip = 'prs'; setTab('inbox'); return; }
   const [head, rest] = [p.split('/')[0], p.split('/').slice(1).join('/')];
   if (!head) return;
   if ((head === 'work' || OLD_TABS[head]) && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
@@ -469,20 +462,10 @@ function paint() {
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   const draftTop = key ? a.scrollTop : 0;
   const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
-  const inChat = chat.el.contains(a) || hubEl.contains(a) ? a : null;
-  const chatSel = inChat && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   app.innerHTML = html;
   lastHtml = html; lastFirst = app.firstChild;
   // Board and Health show the board half's page under the tab bar (loom.js); a run's page hides it.
   loomTab(S.ui.run ? 'run' : S.ui.tab);
-  // The Chat tab is its own element (chat.js), moved in rather than redrawn, so typing survives. The hub lives in
-  // it, except before Dispatch is connected, when it sits under the setup page.
-  const slot = app.querySelector('#chat-slot');
-  const hubSlot = app.querySelector('#hub-slot');
-  if (slot) slot.replaceWith(chat.el);
-  if (hubSlot) hubSlot.replaceWith(hubEl); else chat.mountHub();
-  chat.show(!!slot);
-  if (inChat && inChat.isConnected) { inChat.focus(); if (chatSel) try { inChat.setSelectionRange(chatSel[0], chatSel[1]); } catch (e) { /* not a text field */ } }
   // Entry animations play once: an element that was already on screen keeps still through repaints.
   ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
   loadFiles();
@@ -699,6 +682,8 @@ async function saveSettings() {
 /* ---------- tabs, a run's page, projects (pages.js, projects.js, local.js) ---------- */
 function setTab(tab, keep) {
   tab = OLD_TABS[tab] || tab;
+  // Reviews is the Inbox's PRs chip since Loom 4.8.0.
+  if (tab === 'reviews') { ui().inboxChip = 'prs'; tab = 'inbox'; loadInbox(false); }
   if (!TAB_IDS.includes(tab)) tab = 'inbox';
   if (!keep) ui().run = null;
   if (tab !== 'inbox') ui().walk = null;
@@ -909,7 +894,7 @@ listen('click', ev => {
   const wk = t.closest('[data-walk]');
   if (wk) { walk(wk.getAttribute('data-walk')); return; }
   const ic = t.closest('[data-inbox-chip]');
-  if (ic) { ui().inboxChip = ic.getAttribute('data-inbox-chip'); paint(); return; }
+  if (ic) { ui().inboxChip = ic.getAttribute('data-inbox-chip'); if (ui().inboxChip === 'prs') loadInbox(false); if (ui().tab !== 'inbox') { setTab('inbox'); return; } paint(); return; }
   const pk = t.closest('[data-peek]');
   if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = !ui().open[k]; paint(); return; }
   const sbt = t.closest('[data-sb-toggle]');
@@ -931,7 +916,7 @@ listen('click', ev => {
   const odoc = t.closest('[data-open-doc]');
   if (odoc) { openRun(odoc.getAttribute('data-open-doc')); return; }
   const ochat = t.closest('[data-open-chat]');
-  if (ochat) { setTab('chat'); chat.open(ochat.getAttribute('data-open-chat')); return; }
+  if (ochat) { openChat('chat/' + ochat.getAttribute('data-open-chat')); return; }
   const crun = t.closest('[data-close-run]');
   if (crun) { setTab(crun.getAttribute('data-close-run')); return; }
   const fp = t.closest('[data-filter-project]');
@@ -941,7 +926,7 @@ listen('click', ev => {
   const dst = t.closest('[data-doc-start]');
   if (dst) { startFromDoc(dst.getAttribute('data-doc-start')); return; }
   const dnote = t.closest('[data-doc-note]');
-  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.files[it.folder + '/findings.md']; if (d && d.text) hub.noteOf(it.title, d.text); return; }
+  if (dnote) { const it = itemForFolder(dnote.getAttribute('data-doc-note')); const d = it && S.files[it.folder + '/findings.md']; if (d && d.text) noteOf(it.title, d.text); return; }
   if (t.closest('[data-proj-new]')) { openProject(null); return; }
   const pe = t.closest('[data-proj-edit]');
   if (pe) { openProject(pe.getAttribute('data-proj-edit')); return; }

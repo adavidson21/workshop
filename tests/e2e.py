@@ -204,7 +204,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Bench before Settings', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'settings'])
+    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat after Loom, Bench before Settings', rail == ['prioritizer', 'slate', 'chat', 'receipts', 'notes', 'runway', 'bench', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -224,7 +224,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/prioritizer/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
     check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
@@ -232,7 +232,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
         check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
 
-    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
@@ -253,7 +253,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
-        pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
+        pg.keyboard.press('Alt+5'); pg.wait_for_timeout(500)
         check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
@@ -313,9 +313,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Shape] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
               and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
-        check('one board of four lanes, no lane switcher, Loom\'s five tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
+        check('one board of four lanes, no lane switcher, Loom\'s three tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
               and slf.locator('.top [data-act=lane]').count() == 0
-              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['inbox', 'board', 'health', 'chat', 'reviews'])
+              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['inbox', 'board', 'health'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
         check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
@@ -385,7 +385,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes is Alt+4, Runway Alt+5, Bench Alt+6
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Chat is Alt+3, Notes Alt+5, Runway Alt+6, Bench Alt+7
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -1256,7 +1256,7 @@ def agents_checks(b, watch):
         return json.loads(fx.stdout.readline())
     tmp = tempfile.mkdtemp()
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('prioritizer', 'slate', 'settings'):
+    for name in ('prioritizer', 'chat', 'slate', 'settings'):
         copy_app(name, os.path.join(apps, name))
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
@@ -1276,7 +1276,7 @@ def agents_checks(b, watch):
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Loom has five tabs and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'board', 'health', 'chat', 'reviews']
+        check('Loom has three tabs and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'board', 'health']
               and af.locator('#app .side, #app aside').count() == 0)
         check('#/slate/<id> opens that run on its own page, under Board', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
@@ -1377,15 +1377,17 @@ def agents_checks(b, watch):
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('#g-asks').count() == 0)
         check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
 
-        # Chat (Dispatch 4.1.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
-        af.click('#app .tabs [data-tab=chat]'); pg.wait_for_timeout(400)
-        check('Chat opens on New chat, with the hub box in it', af.locator('.chat-newbtn.on').count() == 1 and af.locator('.chat-home #hub .cap-in').is_visible())
-        check('the sidebar has New chat and search', af.locator('.chat-side .chat-search').is_visible() and af.inner_text('.chat-top h2') == 'New chat')
-        af.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
-        check('the sidebar closes, the hub box stays, and it is remembered', af.locator('.chat-side').count() == 1 and not af.locator('.chat-side').is_visible()
-              and af.locator('.chat-home #hub .cap-in').is_visible() and af.evaluate("localStorage.getItem('dispatch.chatSide')") == 'closed')
-        af.click('.chat-top [data-chat-side]'); pg.wait_for_timeout(200)
-        check('and opens again', af.locator('.chat-side').is_visible() and af.evaluate("localStorage.getItem('dispatch.chatSide')") == 'open')
+        # Chat (its own app since Loom 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
+        pg.click('.app-btn[data-app=chat]'); pg.wait_for_timeout(1500)
+        cf = next(f for f in pg.frames if '/apps/chat/' in f.url)
+        check('Chat opens from the rail on New chat, with the hub box in it', seen(cf, '.chat-newbtn.on') and cf.locator('.chat-home #hub .cap-in').is_visible())
+        check('the sidebar has New chat and search', cf.locator('.chat-side .chat-search').is_visible() and cf.inner_text('.chat-top h2') == 'New chat')
+        cf.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
+        check('the sidebar closes, the hub box stays, and it is remembered', cf.locator('.chat-side').count() == 1 and not cf.locator('.chat-side').is_visible()
+              and cf.locator('.chat-home #hub .cap-in').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'closed')
+        cf.click('.chat-top [data-chat-side]'); pg.wait_for_timeout(200)
+        check('and opens again', cf.locator('.chat-side').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'open')
+        pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(800)
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
@@ -1470,8 +1472,8 @@ def agents_checks(b, watch):
         check('All runs lists what is in flight, on one column, and points at the Inbox', seen(sp, '#item-41207') and sp.inner_text('.scope-head h2') == 'All runs' and sp.locator('#app aside').count() == 0 and sp.locator('.inbox-prs.waiting').count() == 1)
         sp.click('#item-41207 [data-open-run]')
         check('a row opens its run page', seen(sp, '.run-page#item-41207'))
-        sp.click('#app .tabs [data-tab=reviews]')
-        check('Reviews is its own tab', seen(sp, '.scope-head h2') and sp.inner_text('.scope-head h2') == 'Reviews')
+        open_tab(sp, 'inbox'); sp.click('[data-inbox-chip=prs]')
+        check('Reviews is the Inbox\'s PRs chip', seen(sp, '.inbox-reviews') and 'Review a link' in sp.inner_text('.inbox-reviews'))
         sp.click('[data-more-menu]'); sp.click('[data-projects-open]'); sp.click('[data-proj-new]')
         sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]'); sp.wait_for_timeout(800)
         open_tab(sp, 'work')
@@ -1591,6 +1593,9 @@ def main():
             check('Loom opens from the rail, as an app in the shell, on the Board', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
             if af: af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
             check('Loom\'s Inbox in browser mode shows the setup guide', af is not None and 'Connect Loom to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
+            pg.click('.app-btn[data-app=chat]'); pg.wait_for_timeout(1500)
+            af = next((f for f in pg.frames if '/apps/chat/' in f.url), None)
+            check('Chat opens from the rail in browser mode', af is not None and pg.url.endswith('#/chat'))
             if af:
                 check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
                 af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
@@ -1598,10 +1603,10 @@ def main():
                 af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
                 check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
                 af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
-                sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
+                sent = af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'chat'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.kind]); }")
                 check('Accept in the hub saves an accepted note handoff', sent == [['notes', True, 'note']] and af.locator('#hub .hub-row.sent').count() == 1)
                 af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
-                check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
+                check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'chat'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
                 af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
                 check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
             check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))

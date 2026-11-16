@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "4.7.0",
-  "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox, Chat and PR reviews.",
+  "version": "4.8.0",
+  "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox for what needs you, PR reviews included.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 15,
@@ -32,7 +32,6 @@
   "aliases": [
     "loom",
     "dispatch",
-    "hub",
     "backlog",
     "requests",
     "enhancements",
@@ -51,10 +50,6 @@
     {
       "name": "inbox",
       "path": "inbox"
-    },
-    {
-      "name": "chat",
-      "path": "chat"
     },
     {
       "name": "reviews",
@@ -92,15 +87,15 @@
     },
     {
       "path": "chat",
-      "title": "Chat with Tandem"
+      "title": "Chat with Tandem (opens Chat)"
     },
     {
       "path": "hub/:text",
-      "title": "Ask the hub"
+      "title": "Ask the hub (opens Chat)"
     },
     {
       "path": "reviews",
-      "title": "PR reviews"
+      "title": "PR reviews (the Inbox, PRs)"
     },
     {
       "path": ":id",
@@ -179,10 +174,6 @@
     "js/dispatch/pages.js",
     "js/dispatch/local.js",
     "js/dispatch/pr-reviews.js",
-    "js/dispatch/hub.js",
-    "js/dispatch/hub-model.js",
-    "js/dispatch/chat.js",
-    "js/dispatch/thread.js",
     "review.html",
     "review.css",
     "js/dispatch/review.js",

@@ -9,7 +9,8 @@
    Pure parts (mergeCards, splitRoute) are tested in Node. */
 
 export const BOARD_TABS = ['board', 'health'];
-export const TABS = [['inbox', 'Inbox'], ['board', 'Board'], ['health', 'Health'], ['chat', 'Chat'], ['reviews', 'Reviews']];
+// Chat is its own app and Reviews is the Inbox's PRs chip since Loom 4.8.0.
+export const TABS = [['inbox', 'Inbox'], ['board', 'Board'], ['health', 'Health']];
 
 /**
  * Which half a route belongs to: the board half for its own paths (item/<id>, health, health/reports, reports, sprints, board, runway/...,
