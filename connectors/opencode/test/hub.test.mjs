@@ -34,7 +34,7 @@ test("the request goes to the connector's own folder, never the workspace", () =
   assert.throws(() => folderFor("a", root), (e) => e.code === "bad_request");
 });
 
-test("there is no hub switch: it runs with the old setting off or missing (1.16.0)", async () => {
+test("there is no hub switch: it runs with the old setting off or missing (1.17.0)", async () => {
   await runHub({ id: "hub_abc", text: "x" }, { root, start, config: {} });
   assert.equal(started.length, 1);
   assert.equal(hubResult({ id: "hub_abc" }, { root, config: { hub: false } }).state, "running");
