@@ -5,6 +5,7 @@
 
 import { httpError, inWorkspace, opt } from "./context.mjs";
 import { folderForArgs, folderForPrompt, linkFrom } from "./links.mjs";
+import { v2Turn } from "./chat-parts.mjs";
 import { appendText, errText, httpJson, oc, parseProviders, permissions, questions, refreshPromptsSoon, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 
 export function makeV2(url, password) {
@@ -81,7 +82,7 @@ export function makeV2(url, password) {
       if (!list) return null;
       for (const s of list) {
         wsSessions.add(s.id);
-        upsertSession(s.id, { title: s.title || null, updated: s.time && s.time.updated });
+        upsertSession(s.id, { title: s.title || null, updated: s.time && s.time.updated, parent: s.parentID || s.parentId || null });
       }
       const act = await call("/api/session/active");
       const active = act.ok && act.data && act.data.data ? act.data.data : {};
@@ -154,6 +155,71 @@ export function makeV2(url, password) {
     async rejectQuestion(q) {
       const r = await call(`/api/session/${q.sessionID}/form/${q.id}`, { method: "DELETE" });
       if (!r.ok) throw httpError(502, `opencode could not dismiss it (${errText(r)}).`);
+    },
+    /* ---------- Chat (chat.mjs). The 2.x routes beyond what the dashboard used are read loosely: an error from
+       opencode is shown as it is. ---------- */
+    async agentList() {
+      const r = await call(`/api/agent?${loc()}`, { timeout: 5000 });
+      const list = r.ok && r.data && Array.isArray(r.data.data) ? r.data.data : [];
+      return list.filter((a) => a && a.name).map((a) => ({ name: a.name, description: a.description || "", mode: a.mode || "all", builtIn: !!(a.builtIn || a.native), hidden: !!a.hidden }));
+    },
+    async modelList() {
+      const r = await call(`/api/provider?${loc()}`, { timeout: 5000 });
+      const d = r.ok && r.data ? (r.data.data && typeof r.data.data === "object" && !Array.isArray(r.data.data) ? r.data.data : r.data) : null;
+      const all = d && (Array.isArray(d.all) ? d.all : Array.isArray(d.providers) ? d.providers : Array.isArray(d) ? d : null);
+      if (!all) return { models: [], defaults: {} };
+      const on = Array.isArray(d.connected) ? new Set(d.connected) : null;
+      const models = [];
+      for (const pr of all) {
+        if (!pr || !pr.id || (on && !on.has(pr.id))) continue;
+        const ms = Array.isArray(pr.models) ? pr.models : Object.values(pr.models || {});
+        for (const m of ms) if (m && m.id) models.push({ provider: pr.id, providerName: pr.name || pr.id, id: m.id, name: m.name || m.id });
+      }
+      return { models, defaults: d.default && typeof d.default === "object" ? d.default : {} };
+    },
+    async commandList() {
+      const r = await call(`/api/command?${loc()}`);
+      const list = r.ok && r.data && Array.isArray(r.data.data) ? r.data.data : [];
+      return list.filter((c) => c && c.name).map((c) => ({ name: c.name, description: c.description || "" }));
+    },
+    async sessionInfo(id) {
+      const r = await call(`/api/session/${id}`);
+      const d = r.ok && r.data ? r.data.data || r.data : null;
+      if (!d) throw httpError(404, "opencode has no such session.");
+      return { id: d.id || id, title: d.title || null, parent: d.parentID || d.parentId || null, revert: (d.revert && (d.revert.messageID || d.revert.messageId)) || null };
+    },
+    async richMessages(id, limit = 100) {
+      const r = await call(`/api/session/${id}/message?limit=${limit}&order=desc`);
+      const list = r.ok && r.data && Array.isArray(r.data.data) ? r.data.data : null;
+      if (!list) throw httpError(502, `opencode could not list the messages (${errText(r)}).`);
+      return list.slice().reverse().filter((m) => m.type === "user" || m.type === "assistant").map((m) => v2Turn(m, opt.workspace));
+    },
+    async promptRich(id, { text, agent, model, files }) {
+      const body = { text, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}), ...(files && files.length ? { files } : {}) };
+      const r = await call(`/api/session/${id}/prompt`, { method: "POST", body });
+      if (!r.ok) throw httpError(502, `opencode did not take the message (${errText(r)}).`);
+    },
+    async commandRich(id, { name, args, agent, model }) {
+      return call(`/api/session/${id}/command`, { method: "POST", body: { name, text: args || "", ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) }, timeout: 30000 });
+    },
+    async shell(id, { command, agent }) {
+      return call(`/api/session/${id}/shell`, { method: "POST", body: { command, ...(agent ? { agent } : {}) }, timeout: 30000 });
+    },
+    async revert(id, messageID) {
+      const r = await call(`/api/session/${id}/revert`, { method: "POST", body: { messageID } });
+      if (!r.ok) throw httpError(502, `opencode could not undo it (${errText(r)}).`);
+    },
+    async unrevert(id) {
+      const r = await call(`/api/session/${id}/unrevert`, { method: "POST" });
+      if (!r.ok) throw httpError(502, `opencode could not redo it (${errText(r)}).`);
+    },
+    async summarize(id, model) {
+      return call(`/api/session/${id}/compact`, { method: "POST", body: model ? { model: { providerID: model.provider, modelID: model.id } } : {}, timeout: 30000 });
+    },
+    async findFiles(query) {
+      const r = await call(`/api/find/file?query=${encodeURIComponent(query)}&${loc()}`, { timeout: 5000 });
+      const d = r.ok && r.data ? (Array.isArray(r.data) ? r.data : r.data.data) : null;
+      return Array.isArray(d) ? d.map((x) => (typeof x === "string" ? x : x && (x.path || x.file))).filter((x) => typeof x === "string") : [];
     },
     eventsRequest() {
       return { url: base + "/api/event", headers: auth };

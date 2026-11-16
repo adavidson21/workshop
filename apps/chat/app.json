@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "chat",
   "name": "Chat",
-  "version": "1.1.0",
-  "description": "Ask Tandem about your repos and work, capture a task, receipt or note in plain words, or rewrite a draft in your voice. Read only: Tandem changes nothing on its own.",
+  "version": "2.0.0",
+  "description": "opencode with a better screen: any agent and model, /commands, @files, !shell, diffs and permission prompts. Hub asks Tandem or captures; Rewrite a draft uses your voice.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 16,
@@ -19,9 +19,10 @@
     }
   ],
   "aliases": [
-    "chat",
     "ask",
+    "chat",
     "hub",
+    "opencode",
     "tandem"
   ],
   "handoffs": {
@@ -72,6 +73,8 @@
     "js/hub.js",
     "js/hub-model.js",
     "js/thread.js",
-    "js/rewrite.js"
+    "js/rewrite.js",
+    "js/parts.js",
+    "js/md.js"
   ]
 }

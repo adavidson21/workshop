@@ -8,6 +8,7 @@ import { folderForArgs, linkFrom } from "./links.mjs";
 import { appendText, errText, httpJson, oc, parseProviders, permissions, questions, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 import { loadState } from "./opencode-connect.mjs";
 import { broadcastLive } from "./live.mjs";
+import { v1Turn } from "./chat-parts.mjs";
 
 export function makeV1(url) {
   const base = url.replace(/\/+$/, "");
@@ -81,7 +82,7 @@ export function makeV1(url) {
     async loadSessions() {
       const r = await call("/session");
       if (!r.ok || !Array.isArray(r.data)) return null;
-      for (const s of r.data) upsertSession(s.id, { title: s.title, updated: s.time && s.time.updated });
+      for (const s of r.data) upsertSession(s.id, { title: s.title, updated: s.time && s.time.updated, parent: s.parentID || null });
       const st = await call("/session/status");
       const map = st.ok && st.data && typeof st.data === "object" ? st.data : {};
       for (const s of r.data) upsertSession(s.id, { status: map[s.id] ? map[s.id].type : "idle" });
@@ -148,6 +149,82 @@ export function makeV1(url) {
       const r = await call(`/question/${q.id}/reject`, { method: "POST" });
       if (!r.ok) throw httpError(502, `opencode could not dismiss it (${errText(r)}).`);
     },
+    /* ---------- Chat (chat.mjs): the parts of opencode the TUI uses ---------- */
+    /** Every agent: [{name, description, mode, builtIn}]. */
+    async agentList() {
+      const r = await call("/agent", { timeout: 5000 });
+      if (!r.ok || !Array.isArray(r.data)) return [];
+      return r.data.filter((a) => a && a.name).map((a) => ({ name: a.name, description: a.description || "", mode: a.mode || "all", builtIn: !!(a.builtIn || a.native), hidden: !!a.hidden }));
+    },
+    /** Models of the connected providers: {models: [{provider, providerName, id, name}], defaults: {provider: model}}. */
+    async modelList() {
+      for (const p of ["/provider", "/config/providers"]) {
+        const r = await call(p, { timeout: 5000 });
+        if (!r.ok || !r.data || typeof r.data !== "object") continue;
+        const all = Array.isArray(r.data.all) ? r.data.all : Array.isArray(r.data.providers) ? r.data.providers : null;
+        if (!all) continue;
+        const on = Array.isArray(r.data.connected) ? new Set(r.data.connected) : null;
+        const models = [];
+        for (const pr of all) {
+          if (!pr || !pr.id || (on && !on.has(pr.id))) continue;
+          for (const m of Object.values(pr.models || {})) if (m && m.id) models.push({ provider: pr.id, providerName: pr.name || pr.id, id: m.id, name: m.name || m.id });
+        }
+        return { models, defaults: r.data.default && typeof r.data.default === "object" ? r.data.default : {} };
+      }
+      return { models: [], defaults: {} };
+    },
+    /** Every command: [{name, description}]. */
+    async commandList() {
+      const r = await call("/command");
+      return r.ok && Array.isArray(r.data) ? r.data.filter((c) => c && c.name).map((c) => ({ name: c.name, description: c.description || "" })) : [];
+    },
+    /** The session itself: {id, title, parent, revert}. */
+    async sessionInfo(id) {
+      const r = await call(`/session/${id}`);
+      if (!r.ok || !r.data) throw httpError(404, "opencode has no such session.");
+      return { id: r.data.id, title: r.data.title || null, parent: r.data.parentID || null, revert: (r.data.revert && r.data.revert.messageID) || null };
+    },
+    /** Rich turns, oldest first (chat-parts.mjs): text, reasoning, tool calls with output and diffs, files. */
+    async richMessages(id, limit = 100) {
+      const r = await call(`/session/${id}/message`, { query: { limit: String(limit) } });
+      if (!r.ok || !Array.isArray(r.data)) throw httpError(502, `opencode could not list the messages (${errText(r)}).`);
+      return r.data.map((m) => v1Turn(m, opt.workspace));
+    },
+    /** A message with any agent and model, and files as file parts (what the TUI sends for @path). */
+    async promptRich(id, { text, agent, model, files }) {
+      const parts = [{ type: "text", text }];
+      for (const f of files || []) parts.push({ type: "file", mime: "text/plain", url: "file://" + (f.startsWith("/") ? "" : "/") + f.replace(/\\/g, "/"), filename: f.split(/[\\/]/).pop() });
+      const body = { parts, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) };
+      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body });
+      if (!r.ok) throw httpError(502, `opencode did not take the message (${errText(r)}).`);
+    },
+    /** A slash command. opencode answers when the agent finishes, so this does not wait: errors land on the session. */
+    async commandRich(id, { name, args, agent, model }) {
+      const body = { command: name, arguments: args || "", ...(agent ? { agent } : {}), ...(model ? { model: `${model.provider}/${model.id}` } : {}) };
+      return call(`/session/${id}/command`, { method: "POST", body, timeout: 0 });
+    },
+    /** !command: runs in the workspace through opencode, like the TUI's shell mode. Does not wait either. */
+    async shell(id, { command, agent, model }) {
+      const body = { command, agent: agent || "build", ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) };
+      return call(`/session/${id}/shell`, { method: "POST", body, timeout: 0 });
+    },
+    async revert(id, messageID) {
+      const r = await call(`/session/${id}/revert`, { method: "POST", body: { messageID } });
+      if (!r.ok) throw httpError(502, `opencode could not undo it (${errText(r)}).`);
+    },
+    async unrevert(id) {
+      const r = await call(`/session/${id}/unrevert`, { method: "POST" });
+      if (!r.ok) throw httpError(502, `opencode could not redo it (${errText(r)}).`);
+    },
+    /** /compact. Answers when the summary is written, so this does not wait. */
+    async summarize(id, model) {
+      return call(`/session/${id}/summarize`, { method: "POST", body: model ? { providerID: model.provider, modelID: model.id } : {}, timeout: 0 });
+    },
+    /** Files in the workspace for @ mentions, as opencode finds them. */
+    async findFiles(query) {
+      const r = await call("/find/file", { query: { query, dirs: "false" }, timeout: 5000 });
+      return r.ok && Array.isArray(r.data) ? r.data.filter((x) => typeof x === "string") : [];
+    },
     eventsRequest() {
       const u = new URL(base + "/event");
       u.searchParams.set("directory", opt.workspace);
@@ -159,7 +236,7 @@ export function makeV1(url) {
       switch (ev.type) {
         case "session.created":
         case "session.updated":
-          if (p.info) upsertSession(p.info.id, { title: p.info.title, updated: p.info.time && p.info.time.updated });
+          if (p.info) upsertSession(p.info.id, { title: p.info.title, updated: p.info.time && p.info.time.updated, parent: p.info.parentID || null });
           break;
         case "session.deleted":
           if (p.info) sessions.delete(p.info.id);

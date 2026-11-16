@@ -10,7 +10,7 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | --- | --- | --- |
 | **Needs you** | A panel from the top bar on every app: what waits on you across apps, what's coming up, Weekly status and the **Get started** checklist | Nothing |
 | **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps or GitHub adds your work items and PRs) |
-| **Chat** | Ask Tandem about your repos and work, or capture a task, receipt or note in plain words; read only | opencode and an AI provider to ask Tandem (captures work without them) |
+| **Chat** | opencode with a better screen: any agent and model, /commands, @files, !shell, tool calls and diffs, permission prompts, every session in the workspace. Its Hub agent asks Tandem or captures a task, receipt or note | opencode and an AI provider (captures work without them) |
 | **Loom** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox for what needs you, PR reviews included | Nothing for the board (Azure DevOps adds your backlog; Azure DevOps or GitHub adds PRs waiting on you; the agents need opencode and an AI provider) |
 | **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
 | **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
