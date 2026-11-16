@@ -81,6 +81,27 @@ export function cleanSettings(meta) {
   };
 }
 
+/** Minutes of focus blocks in a week (lunch inside a block is taken out). 0 when focus hours are off or unset. */
+export function weekFocusMinutes(settings) {
+  const st = settings && settings.week ? settings : null;
+  if (!st || st.enabled === false) return 0;
+  let total = 0;
+  for (const d of WEEKDAYS) {
+    for (const b of (st.week[d] || [])) {
+      const a = toMin(b.start), e = toMin(b.end);
+      if (a == null || e == null || e <= a) continue;
+      let m = e - a;
+      const l = st.lunch;
+      if (l && l.enabled && Array.isArray(l.days) && l.days.includes(d) && isTime(l.start)) {
+        const ls = toMin(l.start), le = ls + (l.minutes || 60);
+        m -= Math.max(0, Math.min(e, le) - Math.max(a, ls));
+      }
+      total += Math.max(0, m);
+    }
+  }
+  return total;
+}
+
 /**
  * Checks the Settings form. {errors: [{day, i, text}], warnings: [{day, i, text}]}. Errors stop Save: an end not
  * after its start, blocks in a day that overlap. Warnings do not: a focus block that overlaps lunch (lunch wins).

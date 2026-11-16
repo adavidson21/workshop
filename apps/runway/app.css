@@ -316,3 +316,6 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:var(--raise),var(--shadow-l
 .panel .pmore{border-top:1px solid var(--line);padding-top:.6rem;margin-top:.2rem}
 .panel .pmore summary{cursor:pointer;font-size:.86rem;color:var(--accent);margin-bottom:.4rem}
 .panel .pmore[open] summary{margin-bottom:.7rem}
+
+/* The product filter beside the page title (Workshop UX v1). */
+.lhead:has(select){grid-template-columns:1fr auto;align-items:end}

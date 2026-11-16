@@ -156,3 +156,21 @@ a { color: inherit; text-underline-offset: 2px; }
   .chat-pane .turn.you .tx { max-width: 88%; }
   .chat-start { padding-top: 8vh; }
 }
+
+/* Rewrite a draft (Chat 1.1.0): in place of the chats, one column. */
+.rw{display:flex;flex-direction:column;min-height:0}
+.rw[hidden]{display:none}
+.rw-top{gap:.6rem}
+.rw-col{max-width:46rem;width:100%;margin:0 auto;padding:1rem 1.2rem 2rem;display:flex;flex-direction:column;gap:.8rem}
+.rw-form,.rw-out,.rw-more{display:flex;flex-direction:column;gap:.6rem}
+.rw-pick{display:flex;flex-wrap:wrap;gap:1rem}
+.rw-pick label{display:flex;align-items:center;gap:.45rem;font-size:.9rem;color:var(--muted)}
+.rw-text,.rw-in{width:100%;box-sizing:border-box;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md,8px);padding:.6rem .7rem}
+.rw-text{resize:vertical;line-height:1.5}
+.rw-text:focus,.rw-in:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.rw-out h3{margin:.4rem 0 0;font-size:1rem}
+.rw-warn{margin:0;padding-left:1.1rem;color:var(--warn)}
+.rw-note{margin:0;padding:.55rem .7rem;border-radius:var(--r-md,8px);background:var(--panel);font-size:.92rem}
+.rw-fb .btn.on{border-color:var(--accent)}
+.chat-newbtn.rw-btn{margin-top:.15rem;background:none}
+.chat[hidden]{display:none}

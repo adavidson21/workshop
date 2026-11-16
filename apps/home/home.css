@@ -218,3 +218,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 .su-state{font:600 .8rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
 .sig b,.su-line .su-count,.ftasks li::before,.blocks .bt,.blocks .bk,.ud{font-family:var(--sans);font-variant-numeric:tabular-nums}
 .pair,.ftasks,.blocks,.uplist,.weekcols{border-top-color:var(--line)}
+
+/* Get started is its own place (Workshop UX v1): the one-line strip sits under your day; open, the checklist
+   takes the page in place of the day, and Fold brings the day back. */
+#app > .su-strip{margin-top:1.2rem}
+#app.setup-mode > .cols,#app.setup-mode > .card.note{display:none}

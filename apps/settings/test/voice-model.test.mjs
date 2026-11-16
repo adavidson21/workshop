@@ -88,3 +88,25 @@ test('audiences: add with a unique id', () => {
   assert.equal(v.audiences[2].id, 'leadership-2');
   assert.deepEqual(V.lines(' a \n\n b '), ['a', 'b']);
 });
+
+test('feedback from Chat: applied once each, in order; a learned rule and a repeat change', () => {
+  let v = V.defaults();
+  const a = V.feedbackItem({ verdict: 'approved', audience: 'leadership', draft: 'Shipped the fix today.' }, 1000);
+  const b = V.feedbackItem({ verdict: 'rejected', audience: 'leadership', reason: 'Too formal', draft: 'x' }, 2000);
+  const c = V.feedbackItem({ verdict: 'edited', audience: 'business', draft: 'a', final: 'b', learn: { kind: 'new', text: 'Say when it changes.' } }, 3000);
+  v = V.applyPending(v, [c, a, b]);
+  assert.equal(V.sampleCount(v, 'leadership'), 1);
+  assert.equal(V.sampleCount(v, 'business'), 1);
+  assert.ok(v.rules.some(r => r.text === 'Too formal' && r.status === 'active'));
+  const proposed = v.rules.find(r => r.text === 'Say when it changes.');
+  assert.equal(proposed.status, 'proposed');
+  assert.deepEqual(v.applied, [a.id, b.id, c.id]);
+  assert.equal(V.applyPending(v, [a, b, c]), v, 'already applied: unchanged');
+  const learn = V.learnForSave(v, { kind: 'same', index: 0 }, 'business');
+  assert.deepEqual(learn, { kind: 'same', ruleId: proposed.id });
+  const d = V.feedbackItem({ verdict: 'edited', audience: 'business', draft: 'c', final: 'd', learn }, 4000);
+  v = V.applyPending(v, [d]);
+  assert.equal(v.rules.find(r => r.id === proposed.id).status, 'active');
+  const back = V.fromEnvelope(V.toEnvelope(null, v)).value;
+  assert.deepEqual(back.applied, v.applied, 'applied ids survive the envelope');
+});

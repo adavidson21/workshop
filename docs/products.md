@@ -30,7 +30,7 @@ Settings keeps one collection named `products`, so its schema is `settings.produ
 | `areas` | Optional. Azure DevOps area paths, up to 20, as ADO writes them. |
 | `archived` | Optional, `true` when archived. Archived products are kept and can be restored; they are never deleted from the UI. |
 
-`meta` is not used in version 1. `shared/products.js` has the reader (`list`), the form rules (`fieldsOf`, `problem`, `upsert`) and `ownersOf` (people whose People "Owns" names the product, another name, a repo or an area path).
+`meta` is not used in version 1. `shared/products.js` has the reader (`list`), the form rules (`fieldsOf`, `problem`, `upsert`) and `ownersOf` (people whose People "Owns" names the product, another name, a repo or an area path), and the product filter Loom, Runway, Docket and Folio share: `belongsTo(product, {productId, areas, repos, text})` (true when the thing names the product, sits under one of its area paths, touches one of its repos, or says its name or another name as a whole word), `picked` and `filterOptions`.
 
 ## Rules
 

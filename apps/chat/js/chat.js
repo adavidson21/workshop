@@ -166,6 +166,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       `<div class="chat-side-top"><button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button>` +
       `<button type="button" class="chat-icon" data-chat-new title="New chat" aria-label="New chat">${ICON.plus}</button></div>` +
       `<button type="button" class="chat-newbtn${sel ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
+      `<button type="button" class="chat-newbtn rw-btn" data-chat-rewrite>${ICON.pen}<span>Rewrite a draft</span></button>` +
       `<input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="Search chats" aria-label="Search chats" value="${esc(query)}">` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
       `<nav class="chat-list">${list}${empty}</nav></aside>`;

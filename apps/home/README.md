@@ -4,12 +4,14 @@ A panel over the app you are in (Home 4.0.0, `"panel": true` in `app.json`, see 
 
 It shows and links; work happens in each app. The **Capture** button in the top bar (or Ctrl+. on any app) is the one place to capture or ask.
 
+**5.2.0 (Workshop UX v1).** Get started is its own place: Needs you opens on your day, with one line at the bottom for setup. Click it and the checklist takes the page; fold it to go back.
+
 What it shows:
 
 - **Needs you:** one list of everything waiting on you, from every app's summary (`needs` cards, docs/summaries.md): agents asking a question, Slate items to decide or approve, 1:1s due, and from Docket (its `needs` card) PRs blocked on you, follow-ups due, work that came back, new ADO items and overdue tasks. Urgent first. When Dispatch also has "pull requests waiting for your review", it is one row: Docket's blocked count, with Dispatch's count as its note. Each row opens the place to act (and closes the panel). With focus hours on (Settings, Focus hours; docs/focus.md), during focus only pull requests blocked on you show (Docket's `blocking` summary card) and the rest folds to "N items held until 1:00"; during lunch and after your day ends (Day's done) the whole list folds ("held until morning" in the evening). The button's count follows the same rule (the shell shows only the blocking part during focus).
 - **Coming up:** dated things in the next two weeks from every app's `upcoming` card (1:1s due, milestones).
 - **This week** and **Weekly status** (in More, and a labeled button on Friday afternoons): a draft of your status update from every app's `done-week` card (tasks finished in Docket, decisions in Slate, runs shipped with Dispatch, your wins in Rapport), with Next week and Risks headings to fill in. Edit, then Copy.
-- **Get started:** a checklist for someone new. The panel opens by itself once per browser while it is unfinished. It stays expanded until every core step is done or skipped (fold it to one line and it stays folded). Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
+- **Get started:** a checklist for someone new. Get started is its own place: Needs you opens on your day, with one line at the bottom (the next step and how many are done). Click it and the checklist takes the page; fold it to go back to your day. The panel opens by itself once per browser while setup is unfinished, so the Get started line is seen. Each step ticks itself off when Workshop sees it done, and the open step says exactly what to do next, with commands to copy and buttons to the right app:
   1. Connect Workshop on this computer: **Work computer** (the default: the work mode installer) or **Personal computer** (the usual one, then Connect). The choice is saved.
   2. Add yourself: opens Settings, People with a person set to **You**.
   3. Keep your data backed up: company OneDrive in work mode, otherwise any folder your computer backs up.

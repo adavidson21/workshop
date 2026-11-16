@@ -1,6 +1,7 @@
 /* Runway's HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
+import { belongsTo, filterOptions } from '../../../shared/products.js';
 import { SCALES, fmt } from './dates.js';
 import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, itemColor, levels, linksIn, parentChoices, schedule } from './model.js';
 import { PALETTE, esc } from './timeline.js';
@@ -70,9 +71,12 @@ export function underOptions(doc, lane) {
 // The list page (Runway UX v1): ways to start across the top (a template, the example, Markdown, ADO), then one card
 // per roadmap with what is coming up next on it, in a grid that fills the width.
 const fmtSoon = d => { const [y, m, dd] = d.split('-').map(Number); return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${dd}`; };
-export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null, templates = [] } = {}) {
+export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null, templates = [], products = [], product = null } = {}) {
   const adoBtn = ado ? '<button class="tcard" data-fromado><b>From Azure DevOps</b><span>Epics and features from your team\'s area paths.</span></button>' : '';
-  const cards = [...v.list].sort((a, b) => b.changed - a.changed).map(r => {
+  // The product filter (Workshop UX v1): roadmaps that say the product's name, in the title or what is coming up.
+  const mine = r => !product || belongsTo(product, { text: [r.title, ...(r.soon || []).map(x => x.title)].join(' ') });
+  const shown = [...v.list].filter(mine);
+  const cards = shown.sort((a, b) => b.changed - a.changed).map(r => {
     const next = (r.soon || [])[0];
     return `<li class="rcard">
       <a class="rtitle" href="#/${esc(r.id)}" data-open="${esc(r.id)}">${esc(r.title)}</a>
@@ -85,9 +89,10 @@ export function listHtml(v, { canPair = false, paired = false, ado = false, pend
     ${templates.map(t => `<button class="tcard${t.id === 'quarter' ? ' main' : ''}" ${t.id === 'blank' ? 'data-new' : `data-template="${esc(t.id)}"`}><b>${esc(t.name)}</b><span>${esc(t.what)}</span></button>`).join('')}
     <button class="tcard" data-example><b>Example</b><span>A filled-in platform roadmap to look around.</span></button>
     <button class="tcard" data-import><b>Import Markdown</b><span>An outline you already have.</span></button>${adoBtn}</div></section>`;
-  return `<header class="lhead"><h1 class="page-title">Roadmaps</h1></header>
+  const prodSel = v.list.length && products.some(p => !p.archived) ? `<label class="fld"><span class="sr">Product</span><select data-product aria-label="Product">${filterOptions(products, product ? product.id : '', esc)}</select></label>` : '';
+  return `<header class="lhead"><h1 class="page-title">Roadmaps</h1>${prodSel}</header>
     ${pendingHtml(pending, v.list.length > 0, { shaping, workItems })}
-    ${v.list.length ? `<ul class="rcards">${cards}</ul>` : ''}
+    ${shown.length ? `<ul class="rcards">${cards}</ul>` : v.list.length ? `<p class="hint">No roadmap mentions ${esc(product.name)}. <button class="lnk" data-product-clear>Show all roadmaps</button></p>` : ''}
     ${starts}
     ${canPair ? `<p class="hint pairline">Your roadmaps are saved in this browser. <button class="lnk" data-pair>Use Workshop on this computer</button> to keep them in your Workshop folder.</p>` : ''}
     ${paired ? `<p class="hint pairline">Saved in your Workshop folder. <button class="lnk" data-unpair>Stop using Workshop on this computer</button></p>` : ''}`;
@@ -122,7 +127,7 @@ function ownerFilter(owner) {
     ${list.map(it => `<option value="${esc(it.id)}"${owner === it.id ? ' selected' : ''}>${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}</option>`).join('')}</select></label>`;
 }
 
-export function rangeHtml(v, range, locked = false, owner = '') {
+export function rangeHtml(v, range, locked = false, owner = '', products = [], product = '') {
   const auto = !v.doc.meta.range;
   return `<div class="rbar">
     <span class="eyebrow">Showing</span>
@@ -131,6 +136,7 @@ export function rangeHtml(v, range, locked = false, owner = '') {
     <label class="fld"><span class="sr">To</span><input type="date" data-to value="${esc(range.to)}" aria-label="To"></label>
     <button class="btn ghost" data-fit${auto ? ' disabled' : ''}>Fit to items</button>
     ${ownerFilter(owner)}
+    ${products.some(p => !p.archived) ? `<label class="fld"><span class="sr">Product</span><select data-product aria-label="Product" title="Show the lanes for one product: a lane named for it, or with its area paths">${filterOptions(products, product, esc)}</select></label>` : ''}
     <span class="grow"></span>
     ${locked ? '' : `<button class="btn ghost" data-addlane>${ICON.plus}Lane</button>
     <button class="btn ghost" data-additem>${ICON.plus}Item <kbd>N</kbd></button>`}

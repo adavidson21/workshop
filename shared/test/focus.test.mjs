@@ -457,3 +457,11 @@ test('watchFocus: passes the day bounds and yesterday from the stores', async ()
   assert.equal(w.current.state, 'dayDone');
   w.stop();
 });
+
+test('weekFocusMinutes: blocks across the week, lunch inside a block taken out, off is 0', () => {
+  const st = F.cleanSettings({ enabled: true, week: { mon: [{ start: '09:00', end: '13:00' }], tue: [{ start: '14:00', end: '16:00' }] },
+    lunch: { enabled: true, start: '12:00', minutes: 60, days: ['mon', 'tue'] } });
+  assert.equal(F.weekFocusMinutes(st), 3 * 60 + 2 * 60);
+  assert.equal(F.weekFocusMinutes({ ...st, enabled: false }), 0);
+  assert.equal(F.weekFocusMinutes(null), 0);
+});

@@ -1,7 +1,7 @@
 // storage.js comes first: it pulls in events.js and, through it, drawer.js before render.js. drawer.js no longer
 // does anything when it loads (its listeners are in drawerInit, called by main.js), but keep this order.
 import { cleanFirstStep } from './first-step-model.js';
-import { cleanProduct } from './products-link.js';
+import { PRODUCT_ID, cleanProduct, productById } from './products-link.js';
 import { scheduleSave } from './storage.js';
 import { TRACKER_SYNC_MAX, TRACKER_SYNC_MIN, TRACKER_SYNC_MINUTES, EFFORTS, LENSES, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, UI_KEY, VIEWS, initials } from './constants.js';
 import { isTriaged } from './model.js';
@@ -127,6 +127,8 @@ function sanitize(s){
   if (!VIEWS.includes(s.view)) s.view = 'today';
   s.capacity = Number.isFinite(+s.capacity) && +s.capacity >= 1 ? Math.min(999, Math.round(+s.capacity)) : 20;
   s.capacityAt = Number.isFinite(s.capacityAt) ? s.capacityAt : 0;
+  if (s.capacityFrom !== 'focus') s.capacityFrom = 'points';
+  s.hoursPerPoint = Number.isFinite(+s.hoursPerPoint) && +s.hoursPerPoint >= 0.25 ? Math.min(8, Math.round(+s.hoursPerPoint * 4) / 4) : 1;
   // who: people and group ids from Workshop's people directory (directory-model.js). Names a task still has in
   // `people` (saved before ids, or just imported) stay until directory.js adoptNames turns them into ids.
   delete s.people; delete s.personLinks;
@@ -183,6 +185,7 @@ function pickWindow(o){
   const w = {};
   for (const k of ['view','lens','scope']) if (typeof o[k] === 'string') w[k] = o[k];
   if (PR_SHOW.includes(o.prs)) w.prs = o.prs;
+  if (typeof o.product === 'string' && (o.product === 'all' || PRODUCT_ID.test(o.product))) w.product = o.product;
   if (Number.isFinite(o.colorIdx)) w.colorIdx = o.colorIdx;
   return w;
 }
@@ -226,13 +229,20 @@ const defaultListId = () => state.scope !== 'all' && listById(state.scope) ? sta
    'none'. Per window, like scope. Picking the Pull requests list itself always shows its PRs, so 'none' never
    leaves you looking at an empty list you chose. Work items, your own tasks and done tasks are never hidden. */
 function shown(t){
+  return productShown(t) && prShown(t);
+}
+/* The product filter (Workshop UX v1): per window, like scope. A task shows when it names the product picked
+   (its Product field, or +product in Quick add). A product that is gone from Settings filters nothing. */
+const productPick = () => state.product && state.product !== 'all' && productById(state.product) ? state.product : '';
+const productShown = t => { const p = productPick(); return !p || t.product === p; };
+function prShown(t){
   if (!t.pr || t.done) return true;
   if (state.prs === 'mine') return t.pr.tier !== 'pool';
   if (state.prs === 'none') return state.scope === state.tracker.prListId;
   return true;
 }
 // How many open tasks the PR filter hides in the current scope.
-const hiddenCount = () => state.tasks.filter(t => !t.done && scopeListIds().includes(t.listId) && !shown(t)).length;
+const hiddenCount = () => state.tasks.filter(t => !t.done && scopeListIds().includes(t.listId) && productShown(t) && !prShown(t)).length;
 const inScope = t => scopeListIds().includes(t.listId) && shown(t);
 const isDoneToday = t => t.done && !t.wontDo && t.doneAt === todayStr();
 const scopeOpen = () => state.tasks.filter(t => !t.done && inScope(t)).sort((a,b) => a.rank - b.rank);
@@ -252,4 +262,4 @@ function inboxQueue(){
 // Today's Ranked column: open tasks in rank order, without the Inbox's, what is waiting on someone, and PR reviews
 // (blocking ones are pinned on Today; the rest are Up next's Reviews line).
 const rankedOpen = () => scopeOpen().filter(t => !inInbox(t) && !t.waiting && !t.pr);
-export { inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanItem, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };
+export { productPick, inInbox, inboxQueue, rankedOpen, PR_GONES, PR_SHOW, hiddenCount, shown, isWaiting, setWaiting, childrenOf, cleanItem, cleanPending, cleanPr, cleanSlots, cleanTiers, commit, prGroup, defaultListId, findTask, fresh, inScope, initials, isDoneToday, isFocus, listById, migrateTask, normalizeRanks, orderedLists, sanitize, save, saveUi, scopeListIds, scopeName, scopeOpen, setState, state, topLists, triageQueue, ui };

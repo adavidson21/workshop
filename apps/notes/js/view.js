@@ -1,6 +1,7 @@
 /* Notes: HTML for the page. Pure functions of state; every piece of note text is escaped here or by
    markdown.js. main.js owns events and the editor. */
 import { esc, plainText } from './markdown.js';
+import { filterOptions } from '../../../shared/products.js';
 import { age, baseName, dirOf, stem } from './model.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
 import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
@@ -70,6 +71,7 @@ export function sidebar(state) {
     <label class="search"><span class="sr">Search notes</span>
       <input type="search" data-search value="${esc(q)}" placeholder="Search" autocomplete="off" spellcheck="false">
     </label>
+    ${!q.trim() && ui.section === 'notes' && (state.products || []).some(p => !p.archived) ? `<label class="prodf"><span class="sr">Product</span><select data-product aria-label="Show notes for a product">${filterOptions(state.products, state.product ? state.product.id : '', esc)}</select></label>` : ''}
     ${q.trim() || ui.section !== 'notes' ? '' : pinnedHtml(state)}
     <nav class="side-body" aria-label="${q.trim() ? 'Search results' : esc(sec.name)}">${body}</nav>
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}
@@ -169,6 +171,7 @@ function tandemHtml(state) {
 function treeHtml(state) {
   const { tree, ui, notes } = state;
   if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
+  if (state.product && !tree.notes.length && !tree.folders.length) return `<p class="side-note">No notes for ${esc(state.product.name)} yet.</p>`;
   if (!tree.notes.filter(p => !PINNED.includes(p)).length && !tree.folders.length) return notes.texts.has(QUICK) ? '' : '<p class="side-note">No notes yet. Make one with <kbd>N</kbd>.</p>';
   return `<ul class="tree" role="tree">${folderItems(tree, state, 0)}</ul>`;
 }

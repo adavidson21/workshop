@@ -6,6 +6,7 @@ import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import * as People from '../../../shared/people.js';
 import * as Teams from '../../../shared/teams.js';
+import * as Products from '../../../shared/products.js';
 import { sendersFrom } from '../../../shared/handoffs.js';
 import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } from './data.js';
 import {
@@ -30,7 +31,7 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
 
 const ui = {
-  tab: 'board', q: '', level: '', area: remember('area') || '', open: null,
+  tab: 'board', q: '', level: '', area: remember('area') || '', product: remember('product') || '', open: null,
   editing: false, shapeEditing: null, busy: false, error: '',
   wide: remember('wide') === '1',
   picks: {},       // question id -> {index: [labels]}: what is ticked in the panel, kept across repaints
@@ -39,6 +40,10 @@ const ui = {
   folds: Object.fromEntries(['details', 'timeline'].map(k => [k, remember(`fold.${k}`)]).filter(([, v]) => v === '1' || v === '0').map(([k, v]) => [k, v === '1']))
 };
 const TABS = ['board', 'health'];
+// Your products from Settings, for the product filter (Workshop UX v1, shared/products.js).
+let products = [];
+const readProducts = () => ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { products = Products.list(env); }, () => { products = []; });
+const productNow = () => Products.picked(products, ui.product);
 const s = {
   conn: { ado: 'Checking…', opencode: 'Checking…' },
   team: { areas: [], connection: '', areaConnections: {} },
@@ -342,7 +347,7 @@ function allCards() {
 function columns() {
   const cols = {};
   const push = (k, c) => (cols[k] ||= []).push(c);
-  const list = filterCards(allCards(), { q: ui.q, level: ui.level, area: ui.area });
+  const list = filterCards(allCards(), { q: ui.q, level: ui.level, area: ui.area, product: productNow() });
   const inflight = [];
   for (const c of list) {
     if (c.stage === 'done') continue;
@@ -500,14 +505,14 @@ function paint() {
   const board = ui.tab === 'board' && store.v.loaded;
   ui.noAdo = s.conn.ado !== true && s.conn.ado !== 'Checking…';
   ui.canRuns = s.conn.opencode === true;
-  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : []));
+  setHtml(topEl, topHtml(ui, ui.tab === 'board' ? notes() : [], board ? areaOptions(allCards(), s.team.areas, ui.area) : [], board ? products : []));
   if (ui.tab === 'health') {
     if (!mainEl.querySelector('.health')) mountHealth();
     if ($('tandemBox')) setHtml($('tandemBox'), tandemView());
     if ($('sprintsBox')) setHtml($('sprintsBox'), sprintsView());
     if ($('reportsBox')) setHtml($('reportsBox'), reportsView());
   } else {
-    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
+    setHtml(mainEl, store.v.loaded ? boardHtml(columns(), { open: ui.open, backlogNote: s.backlogNote, filtered: !!(ui.area || ui.level || ui.q.trim() || productNow()), noAdo: ui.noAdo }) : '<p class="loading">Loading…</p>');
   }
   paintPanel();
   // The card you opened stays in view beside the panel (the board scrolls sideways at half a screen).
@@ -1167,7 +1172,7 @@ async function buildMyself(it) {
 /** The Resolved group for an area key (lower case area path, or '' for none). */
 function groupOf(key) {
   const k = String(key || '');
-  return releaseGroups(filterCards(store.v.items, { q: ui.q, level: ui.level, area: ui.area })).find(g => g.area.toLowerCase() === k) || null;
+  return releaseGroups(filterCards(store.v.items, { q: ui.q, level: ui.level, area: ui.area, product: productNow() })).find(g => g.area.toLowerCase() === k) || null;
 }
 
 /** Change an ADO item's state, with the rev read just before (someone may have changed it since the board loaded). */
@@ -1355,6 +1360,7 @@ boardRoot.addEventListener('change', async (e) => {
   if (reports && e.target.closest('#reportsBox') && reports.change(e.target)) return;
   if (e.target.id === 'lvl') { ui.level = e.target.value; paint(); return; }
   if (e.target.id === 'area') { ui.area = e.target.value; remember('area', ui.area); paint(); return; }
+  if (e.target.id === 'prod') { ui.product = e.target.value; remember('product', ui.product); paint(); return; }
   if (e.target.dataset.qpick) {
     const id = e.target.dataset.qpick, i = Number(e.target.dataset.qi);
     const ticked = [...panelEl.querySelectorAll(`input[data-qpick="${CSS.escape(id)}"][data-qi="${i}"]:checked`)].map(x => x.value);
@@ -1465,6 +1471,8 @@ ws.on('online', () => { store.load().then(() => refresh()).catch(() => {}); });
 let ocTimer = null;
 try { ws.connectors.on('opencode', '*', () => { clearTimeout(ocTimer); ocTimer = setTimeout(() => refresh({ backlog: false }).catch(() => {}), 400); }); } catch { /* browser mode */ }
 try { ws.people.subscribe((d) => { s.people = d; paint(); }); } catch { /* no directory */ }
+readProducts().then(paint).catch(() => {});
+try { ws.data.subscribe(Products.COLLECTION, () => readProducts().then(paint).catch(() => {}), { app: Products.APP }); } catch { /* no data backend */ }
 try { ws.data.subscribe('summary', () => readPending().then(paint).catch(() => {}), { app: 'runway' }); } catch { /* no data backend */ }
 // Captures from Home and the Dispatch hub show up as soon as they are accepted, not at the next refresh.
 for (const app of ['home', APP]) { try { ws.data.subscribe('handoffs', () => readWork().then(paint).catch(() => {}), { app }); } catch { /* no data backend */ } }

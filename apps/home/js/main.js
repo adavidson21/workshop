@@ -38,15 +38,18 @@ function setupPart() {
     const label = view.complete ? 'Get started' : `Get started · ${view.finished} of ${view.total}`;
     return { into: 'menu', html: `<button class="mi${view.complete ? '' : ' acc'}" role="menuitem" data-setup-show>${ICON.ring}${esc(label)}</button>`, copies: [] };
   }
-  const open = setupOpen !== null ? setupOpen : !(view.complete || setup.s.folded);
-  if (!open) return { into: 'after', html: setupStrip(view), copies: [] };
+  // Get started is its own place (Workshop UX v1): Needs you opens on your day, with one line at the bottom for
+  // setup. The line opens the checklist in place of the day; Fold goes back.
+  if (setupOpen !== true) return { into: 'end', html: setupStrip(view), copies: [] };
   const out = setupCard(view, openStep, { facts: { ...setup.s.facts, name: v.profile.name }, platform, origin: location.origin, settings: settingsTarget(), showDone, machine: setup.s.machine });
-  return { into: 'after', html: out.html, copies: out.copies };
+  return { into: 'after', html: out.html, copies: out.copies, own: true };
 }
 function placeSetup(part) {
   copies = [];
+  app.classList.toggle('setup-mode', !!(part && part.own));
   const hello = app.querySelector('.hello');
   if (!hello || !part) return;
+  if (part.into === 'end') { app.insertAdjacentHTML('beforeend', part.html); return; }
   if (part.into === 'menu') { const menu = hello.querySelector('.hmenu'); if (menu) menu.insertAdjacentHTML('beforeend', part.html); return; }
   copies = part.copies;
   hello.insertAdjacentHTML('afterend', part.html);

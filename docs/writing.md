@@ -1,13 +1,13 @@
 # Writing voice
 
-Settings, Writing: rewrite a draft in your own voice for a given audience (Leadership, Business teams, or your own), and learn from what you send. Local only: no outside writing service. The AI steps run through opencode with the provider you already use, so they follow Approved AI providers like everything else.
+Rewrite a draft in your own voice for a given audience (Leadership, Business teams, or your own), and learn from what you send. Local only: no outside writing service. The AI steps run through opencode with the provider you already use, so they follow Approved AI providers like everything else. Settings, Writing holds your samples, style guide and rules; Rewrite a draft is in Chat (since Chat 1.1.0 and Settings 6.4.0).
 
-Version: the `settings.writing` collection is version 1. The code is `apps/settings/js/voice-model.js` (pure) and `voice-page.js` (the pages); the connector side is `connectors/opencode/lib/voice.mjs`.
+Version: the `settings.writing` collection is version 1. The code is `shared/voice.js` (pure, shared; `apps/settings/js/voice-model.js` re-exports it), Settings' `voice-page.js` (the pages) and Chat's `js/rewrite.js` (Rewrite a draft); the connector side is `connectors/opencode/lib/voice.mjs`.
 
 ## Use
 
 1. **Once:** Settings, Writing, Voice. Under Samples, paste 5 to 10 messages you sent that landed well, per audience (a line with `---` between messages). Click **Build my style guide**, read it, fix anything wrong, and save.
-2. **Each time:** Rewrite a draft. Paste your draft as it came out, pick the audience (and a reader from People, if it matters), and click **Rewrite**. Copy the result.
+2. **Each time:** Chat, **Rewrite a draft** (in the sidebar under New chat, or `#/chat/rewrite`). Paste your draft as it came out, pick the audience (and a reader from People, if it matters), and click **Rewrite**. Copy the result.
 3. **Then one click:** **Sent as is**, **I changed it** (paste what you sent), or **Didn't use** (an optional reason).
 4. **Now and then:** Writing, Rules. Approve or reject what it proposed, pin what should never change.
 
@@ -23,7 +23,10 @@ Settings keeps one collection named `writing` (`settings.writing`, `<dataDir>/se
 | `style` | The style guide, Markdown, editable. |
 | `samples` | `{<audience id>: [{id, text, from: "you" or "approved", at}]}`. At most 20 per audience: over that, the oldest `approved` (a draft you sent) goes first. Samples you pasted are never dropped automatically. |
 | `rules` | Learned rules: `{id, text, status, audience, reader, from, seen, at}`. `status` is `proposed`, `active`, `pinned` or `rejected`. An empty `audience` or `reader` means any. |
+| `applied` | Ids of Chat feedback items already applied (the newest 300). |
 | `updatedAt` | Stamped on each save. |
+
+Chat may write only its own data, so your answers to a rewrite are items in Chat's `writing-feedback` collection (`chat.writing-feedback`, newest 200): `{id, kind: "feedback", verdict, audience, reader, draft, final, reason, learn, updatedAt}`, where `learn` is `{kind: "new", text}`, `{kind: "same", ruleId}` or null. Settings applies items not in `applied` when it loads and whenever the collection changes (`applyPending`), and Chat applies the same pending items to what it reads, so a reason counts on your next rewrite even before Settings opens.
 
 ## How it learns
 

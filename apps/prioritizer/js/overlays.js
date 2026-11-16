@@ -3,7 +3,8 @@ import { applyOrder } from './actions.js';
 import { hideTip } from './events.js';
 import { byScore, fmtScore, isTriaged, score } from './model.js';
 import { setScope } from './render.js';
-import { childrenOf, commit, listById, orderedLists, scopeOpen, state, topLists } from './state.js';
+import { childrenOf, commit, listById, orderedLists, productPick, scopeOpen, state, topLists } from './state.js';
+import { activeProducts } from './products-link.js';
 import { $, esc, plural, uid } from './util.js';
 /* Prioritizer: Modal, menus, list and scope menus, theme menu, toast, and the Suggest order preview. */
 /* ---------- modal, menu, toast ---------- */
@@ -128,6 +129,11 @@ function openScopeMenu(anchor){
   const opt = (k, label, n) => `<button data-prs="${k}" role="menuitemradio" aria-checked="${state.prs === k}"${state.prs === k ? ' class="on"' : ''}>${label}${n != null ? `<span class="mut grow-l">${n}</span>` : ''}</button>`;
   const prHtml = prs.length ? `<div class="sep"></div><div class="mhead">Pull requests</div>`
     + opt('all', 'All', prs.length) + opt('mine', 'Only ones that need me', mine) + opt('none', 'None') : '';
+  // Products (Workshop UX v1): once Settings has any, filter to the tasks for one.
+  const prods = activeProducts(), pick = productPick() || 'all';
+  const popt = (id, label, n) => `<button data-prod="${id}" role="menuitemradio" aria-checked="${pick === id}"${pick === id ? ' class="on"' : ''}>${esc(label)}${n ? `<span class="mut grow-l">${n}</span>` : ''}</button>`;
+  const prodHtml = prods.length ? `<div class="sep"></div><div class="mhead">Products</div>` + popt('all', 'All products')
+    + prods.map(p => popt(p.id, p.name, state.tasks.filter(t => !t.done && t.product === p.id).length)).join('') : '';
   // Lists live here (Docket 9.0.0), not in the sidebar: pick one, open its options, or add a new one.
   const open = ids => state.tasks.filter(t => !t.done && ids.includes(t.listId)).length;
   const n = l => open(l.parentId ? [l.id] : [l.id, ...childrenOf(l.id).map(c => c.id)]);
@@ -135,8 +141,10 @@ function openScopeMenu(anchor){
     + `<button class="mopt" data-lm="${l.id}" aria-label="Options for ${esc(l.name)}">${ICON.dots}</button></div>`;
   const one = state.lists.length === 1;
   popMenu(`<div class="mhead">Lists</div>` + (one ? '' : `<button data-sc="all" role="menuitemradio" aria-checked="${state.scope === 'all'}"${state.scope === 'all' ? ' class="on"' : ''}><i class="dot"></i><span class="grow">All lists</span><span class="mut">${state.tasks.filter(t => !t.done).length || ''}</span></button>`)
-    + orderedLists().map(item).join('') + `<button data-newlist>${ICON.plus}<span>New list</span></button>` + prHtml, anchor)
+    + orderedLists().map(item).join('') + `<button data-newlist>${ICON.plus}<span>New list</span></button>` + prodHtml + prHtml, anchor)
     .addEventListener('click', e => {
+      const pd = e.target.closest('[data-prod]');
+      if (pd){ closeMenu(true); state.product = pd.dataset.prod; commit(); return; }
       const p = e.target.closest('[data-prs]');
       if (p){ closeMenu(true); state.prs = p.dataset.prs; commit(); return; }
       const lm = e.target.closest('[data-lm]');

@@ -39,6 +39,8 @@ function envelopeFromBoard(col, board, shadow, held = []){
     const here = new Set(board.tasks.map(t => t.id)), lists = new Set(board.lists.map(l => l.id));
     env.items = board.tasks.map(item).concat(held.filter(t => !here.has(t.id) && !lists.has(t.listId)).map(item));
     env.meta = {updatedAt: metaAt, capacity: board.capacity};
+    // Week size from focus hours (Docket 11.2.0): absent while it is points, the default.
+    if (board.capacityFrom === 'focus'){ env.meta.capacityFrom = 'focus'; env.meta.hoursPerPoint = board.hoursPerPoint; }
   }
   if (col === 'settings'){
     env.meta = {updatedAt: metaAt, tracker: clone(board.tracker) || {}};
@@ -59,6 +61,7 @@ function applyEnvelope(col, env, board){
     const lists = new Set(board.lists.map(l => l.id));
     board.tasks = items.filter(t => lists.has(t.listId));
     if (env && env.meta && env.meta.capacity !== undefined) board.capacity = env.meta.capacity;
+    if (env && env.meta){ board.capacityFrom = env.meta.capacityFrom === 'focus' ? 'focus' : 'points'; if (env.meta.hoursPerPoint !== undefined) board.hoursPerPoint = env.meta.hoursPerPoint; }
     return items.filter(t => !lists.has(t.listId));
   }
   if (col === 'settings'){

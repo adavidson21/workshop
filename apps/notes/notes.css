@@ -652,3 +652,8 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .ph{font-family:var(--sans);font-weight:600}
 .tpl-f{font:600 .8rem/1.2 var(--sans)}
 .app-chip,.pill{font:600 .72rem/1 var(--sans);letter-spacing:0;text-transform:none}
+
+/* The product filter under the search on Notes (Workshop UX v1). */
+.prodf{display:block;padding:0 .8rem .7rem}
+.prodf select{width:100%;font-size:.86rem}
+@media (max-width:760px){.prodf{padding-inline:var(--gut)}}

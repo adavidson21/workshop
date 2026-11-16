@@ -22,6 +22,7 @@
    The .work files are read with the opencode connector's file.read: triage.md, questions.md, understanding.md,
    brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.16.0); the parsers below follow them and
    eng-agents core/scripts/ado/Export-Backlog.ps1 for milestones.md. */
+import { belongsTo } from '../../../shared/products.js';
 
 export const APP = 'slate';
 export const VERSION = 1;
@@ -405,9 +406,17 @@ export function areaOptions(list, roots = [], keep = '') {
 }
 
 /** Text search, level and area filter. */
-export function filterCards(list, { q = '', level = '', area = '' } = {}) {
+export function filterCards(list, { q = '', level = '', area = '', product = null } = {}) {
   const words = String(q).toLowerCase().split(/\s+/).filter(Boolean);
-  return list.filter(c => (!level || c.level === level) && inArea(c, area) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''} ${c.requester || ''}`.toLowerCase().includes(w)));
+  return list.filter(c => (!level || c.level === level) && inArea(c, area) && ofProduct(c, product) && words.every(w => `${c.title} ${c.ado ? '#' + c.ado.id : ''} ${c.requester || ''}`.toLowerCase().includes(w)));
+}
+
+/** True when the card is the product's (Workshop UX v1, shared/products.js belongsTo): its area path, the repos of
+    its pull requests, or the product's name in its title. No product: every card. */
+export function ofProduct(c, product) {
+  if (!product) return true;
+  const repos = c.prs && Array.isArray(c.prs.list) ? c.prs.list.map(p => p.repository) : [];
+  return belongsTo(product, { areas: [areaOf(c)], repos, text: `${c.title || ''} ${c.requester || ''}` });
 }
 
 /* ---------- .work files ---------- */
