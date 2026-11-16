@@ -626,6 +626,10 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             $base.recommendation = Get-Section $f "Recommendation"
             $base.nextText = Get-Section $f "Next step"
             $base.state = $(if ($f) { "Findings written" } else { "In progress" })
+            # An error log diagnosis (Core 4.3.0 /spike --log): the fix type it chose, and that a log started it.
+            $fixType = Get-Field $f "Fix type"
+            if ($fixType) { $base.fixType = $fixType }
+            if (Test-Path -LiteralPath (Join-Path $folder "log.md")) { $base.fromLog = $true }
             # Loom's findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
             $closed = Read-Text (Join-Path $folder "closed.md")
             if ($f -and $closed) {

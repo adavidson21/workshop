@@ -1046,6 +1046,15 @@ export function startRequest(st, drafts) {
   }
   const lane = flow === 'bug' || (st.flow === 'quick' && st.lane === 'bug') ? 'bug' : st.size === 'small' || st.flow === 'small' ? 'quick' : 'feature';
   if (flow !== 'feature' && flow !== 'bug') return { error: 'Pick a flow.' };
+  // Fix a bug from an error log: a diagnosis first (Core 4.3.0 /spike <folder> --log), configuration before code.
+  if (flow === 'bug' && st.src === 'log') {
+    const log = String(drafts['start:log'] || '').replace(/\r\n?/g, '\n');
+    if (!log.trim()) return { error: 'Paste the error log or stack trace.' };
+    if (log.length > MAX_LOG) return { error: `Keep the log under ${MAX_LOG / 1000}k characters: the lines around the first error are enough.` };
+    const args = { log };
+    if (one('where')) args.where = one('where').slice(0, 300);
+    return { action: 'spike', args };
+  }
   if (startSrc(st) === 'ado') {
     const r = startCheck(d('id'), lane);
     if (r.error) return r;
@@ -1063,7 +1072,9 @@ export function startRequest(st, drafts) {
   return { action: 'start.local', args };
 }
 /** Where a feature or bug comes from: an ADO item (when Tandem has ADO set up) or described ("No ADO item"). */
-export const startSrc = st => (adoOn() && (st.src || (st.mode === 'describe' || st.flow === 'quick' ? 'describe' : 'ado')) === 'ado' ? 'ado' : 'describe');
+export const startSrc = st => st.src === 'log' && startFlowOf(st) === 'bug' ? 'log' : (adoOn() && (st.src || (st.mode === 'describe' || st.flow === 'quick' ? 'describe' : 'ado')) === 'ado' ? 'ado' : 'describe');
+/** The longest log Start work sends (the connector's MAX_LOG). */
+export const MAX_LOG = 100000;
 // What /tsd takes: a product name from the repo map, or repo folders (as the connector checks).
 export const TSD_TARGET = /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,299}$/;
 export function startCheck(raw, lane) {
@@ -1114,7 +1125,13 @@ function startFormHtml(f, st) {
   // Build a feature, Fix a bug: an ADO item, or no ADO item (described). A feature can be a small change.
   const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';
   const src = startSrc(st);
-  const srcPick = adoOn() ? toggle('data-start-src', src, [['ado', 'ADO work item'], ['describe', 'No ADO item']], 'Where the work is') : '';
+  const srcOpts = [...(adoOn() ? [['ado', 'ADO work item']] : []), ['describe', adoOn() ? 'No ADO item' : 'Describe it'], ...(f.id === 'bug' ? [['log', 'Error log']] : [])];
+  const srcPick = srcOpts.length > 1 ? toggle('data-start-src', src, srcOpts, 'Where the work is') : '';
+  if (src === 'log') {
+    return srcPick + `<p>Paste the log. Tandem finds where it happens, checks the configuration first, then the code, and writes the probable root cause, why, and a solution: a setting change when one fixes it. Nothing is changed. Runs <code>/spike --log</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">The error log or stack trace</span><span class="cfg-d">Passwords, keys, tokens and email addresses are masked before it is saved, but take out anything sensitive first.</span><textarea class="mono start-first" rows="10" data-draft="start:log" spellcheck="false" placeholder="System.TimeoutException: The operation has timed out.&#10;   at Eligibility.Client.Check() in Client.cs:line 42">${dv('log')}</textarea></label>` +
+      `<label class="cfg-row"><span class="cfg-t">Where it happened</span><span class="cfg-d">Optional: the service and environment, if the log does not say.</span><input type="text" data-draft="start:where" value="${dv('where')}" placeholder="eligibility-api, production" maxlength="300" autocomplete="off"></label>`;
+  }
   const sizePick = f.id === 'feature' ? `<div class="cfg-row"><span class="cfg-t">Size</span>${toggle('data-start-size', st.size === 'small' ? 'small' : 'normal', [['normal', 'Feature'], ['small', 'Small change']], 'Size')}` +
     `<span class="cfg-d">${st.size === 'small' ? 'One repo, 1 or 2 tasks, no schema or API change: one short plan to approve instead of a spec and plan.' : 'Spec and plan to approve, then the build.'}</span></div>` : '';
   if (src === 'ado') {
@@ -1139,16 +1156,16 @@ function startSheetHtml() {
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>';
   } else {
     const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';
-    const shown = flowById(f.id === 'docs' && st.type === 'tsd' ? 'tsd' : f.id === 'feature' && lane === 'quick' ? 'small' : f.id);
+    const shown = flowById(f.id === 'docs' && st.type === 'tsd' ? 'tsd' : f.id === 'feature' && lane === 'quick' ? 'small' : f.id === 'bug' && startSrc(st) === 'log' ? 'diagnose' : f.id);
     const steps = shownSteps(stepsOf(shown, lane));
     const flowLine = `<div class="start-flow"><button type="button" class="lnk plain" data-flow="">&larr; All flows</button>` +
       `<ol class="fline">${steps.map(s => `<li class="${s.you === true ? 'you' : s.you ? 'maybe' : ''}">${h(s.name)}</li>`).join('')}</ol>` +
-      (f.handsOff ? '<p class="note">Hands-off after you approve: <b>Approve and build</b> runs the tasks, review and PR text, and stops only when it needs you. It never pushes.</p>' : '') + '</div>';
+      (f.handsOff && shown.id !== 'diagnose' ? '<p class="note">Hands-off after you approve: <b>Approve and build</b> runs the tasks, review and PR text, and stops only when it needs you. It never pushes.</p>' : '') + '</div>';
     body = flowLine + `<form class="cfg" data-start-form="1" novalidate>${startFormHtml(f, st)}</form>` +
       (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
-      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : h(GO_LABEL[f.id] || 'Start')}</button>`;
+      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : h(f.id === 'bug' && startSrc(st) === 'log' ? 'Diagnose' : GO_LABEL[f.id] || 'Start')}</button>`;
   }
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet${f ? '' : ' wide'}" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
 }

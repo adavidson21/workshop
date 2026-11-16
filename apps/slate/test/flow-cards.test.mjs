@@ -123,3 +123,50 @@ test('the panel draws a fork as path cards under the step line', () => {
   assert.match(h, /<div class="next"><p>Triage is done and nothing is missing for the requester\. Pick the path\.<\/p><div class="forks" role="group" aria-label="Pick the next path">/);
   assert.match(h, /<span class="fk-t">Skip to the brief<span class="fk-rec">Suggested<\/span><\/span><span class="fk-d">Write the brief from the triage now, no questions\.<\/span>/);
 });
+
+test('Fix a bug from an error log: a diagnosis, configuration first (Core 4.3.0)', async () => {
+  const { S, resetUi } = await import('../js/dispatch/state.js');
+  const { render, startRequest } = await import('../js/dispatch/view.js');
+  const { flowOf, flowTag, stepIndex, atGate, turnHtml, gateFile } = await import('../js/dispatch/flows.js');
+  const { looksLikeLog } = await import('../js/dispatch/start-prefill.js');
+  const fs = await import('node:fs');
+  S.D = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
+  S.L = S.D.liveMode.live; S.conn = 'on'; S.connector = { state: 'ready', message: null }; S.mode = 'local'; S.embedded = true;
+  S.now = Date.parse('2026-10-21T12:00:00Z'); S.files = {}; S.slate = new Map(); S.copyStore = [];
+  resetUi();
+  S.L.opencode = { ...(S.L.opencode || {}), connected: true };
+  // The form: Error log is a source on Fix a bug only.
+  S.ui.start = { flow: 'bug', src: 'log', busy: false, error: null };
+  let html = render();
+  assert.match(html, /data-start-src="log" aria-pressed="true" class="on">Error log/);
+  assert.match(html, /<li class="">Diagnose<\/li><li class="you">Diagnosis<\/li>/);
+  assert.match(html, /data-draft="start:log".*data-draft="start:where".*data-start-go="1">Diagnose</s);
+  S.ui.start = { flow: 'feature', src: 'log', busy: false, error: null };
+  assert.doesNotMatch(render(), /data-start-src="log"/, 'not on Build a feature');
+  const req = (st, d) => startRequest(st, d);
+  assert.deepEqual(req({ flow: 'bug', src: 'log' }, { 'start:log': 'System.TimeoutException: x\n  at A.B()', 'start:where': ' api,  prod ' }), { action: 'spike', args: { log: 'System.TimeoutException: x\n  at A.B()', where: 'api, prod' } });
+  assert.match(req({ flow: 'bug', src: 'log' }, {}).error, /Paste the error log/);
+  assert.match(req({ flow: 'bug', src: 'log' }, { 'start:log': 'x'.repeat(100001) }).error, /under 100k/);
+  // The run: its own flow, in the Inbox at the diagnosis, with the fork.
+  const diag = (fixType) => ({ folder: 'spike-log-timeout', kind: 'spike', fromLog: true, fixType, id: null, title: 'Eligibility timeout', state: 'Findings written', bucket: 'notes', files: ['log.md', 'findings.md'], summary: 'The timeout is 5 seconds.', modifiedMs: S.now });
+  const d = diag('Configuration');
+  assert.equal(flowOf(d).id, 'diagnose');
+  assert.equal(flowTag(d), 'Error log');
+  assert.equal(stepIndex(d), 1);
+  assert.ok(atGate(d));
+  assert.equal(gateFile(d), 'findings.md');
+  assert.match(turnHtml(d), /read the diagnosis, then pick what is next\. <b>Configuration fix\.<\/b> The timeout is 5 seconds\./);
+  S.D.items.push(d);
+  S.ui.start = null; S.ui.tab = 'inbox';
+  html = render();
+  assert.match(html, /aria-label="What next for this error"><button (?:data-hot="a" )?type="button" class="fork rec" data-spike-close="spike-log-timeout" data-close-how="applied the configuration change"><span class="fk-t">Apply the change.*data-doc-flow="bug"[^>]*><span class="fk-t">Fix it in code instead.*data-doc-flow="spike".*data-doc-note.*data-spike-close="spike-log-timeout"><span class="fk-t">Close/s);
+  S.D.items[S.D.items.length - 1] = diag('Code');
+  html = render();
+  assert.doesNotMatch(html, /Apply the change/, 'a code fix has no change to apply');
+  assert.match(html, /class="fork rec" data-doc-start="spike-log-timeout" data-doc-flow="bug"[^>]*><span class="fk-t">Fix it<span class="fk-rec">Suggested/);
+  // Pasted into Chat: a log goes to the Error log box.
+  assert.ok(looksLikeLog('2026-11-16 07:01 ERROR failed\nSystem.TimeoutException: x\n   at A.B() in C.cs:line 4'));
+  assert.ok(looksLikeLog('System.NullReferenceException: Object reference not set to an instance of an object.'));
+  assert.ok(!looksLikeLog('Export fails after one retry'));
+  assert.ok(!looksLikeLog('Add CSV export\nto the reports page'));
+});

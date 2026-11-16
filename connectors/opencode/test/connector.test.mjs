@@ -233,6 +233,27 @@ for (const kind of ["v1", "v2"]) {
       fs.rmSync(path.join(ws.dir, ".work", "docs-run-gateway-locally"), { recursive: true, force: true });
     });
 
+    test("spike with a log: makes spike-log-<name> with log.md (secrets masked) and runs /spike <folder> --log", async () => {
+      await rejects(call("spike", {}, ctx()), "bad_request", /what to investigate/);
+      await rejects(call("spike", { log: "x".repeat(100001) }, ctx()), "bad_request");
+      const route = (sid) => (kind === "v1" ? `POST /session/${sid}/command` : `POST /api/session/${sid}/command`);
+      const args = (b) => (kind === "v1" ? b.arguments : b.text);
+      const log = "2026-11-16 07:01:02 ERROR Request failed\r\nSystem.TimeoutException: The operation has timed out.\n   at Eligibility.Client.Check() in Client.cs:line 42\nconn: Server=db;Password=hunter2;User=svc\nuser jane@example.com";
+      const r = await call("spike", { log, where: "eligibility-api, production", timebox: "1h" }, ctx());
+      assert.equal(r.folder, "spike-log-timeout-operation-has-timed-out");
+      await waitFor(() => fake.count(route(r.session)) === 1, "the /spike call");
+      assert.equal(args(fake.bodiesFor(route(r.session)).at(-1)), `${r.folder} --log --timebox 1h`);
+      const md = fs.readFileSync(path.join(ws.dir, ".work", r.folder, "log.md"), "utf8");
+      assert.match(md, /^# Error log\n\nPasted in Loom on \d{4}-\d{2}-\d{2}\. 2 values that looked like secrets or email addresses were masked\.\n\nWhere: eligibility-api, production\n\n````text\n2026-11-16 07:01:02 ERROR/);
+      assert.ok(!md.includes("hunter2") && !md.includes("jane@example.com") && !md.includes("\r"), "masked, one line ending");
+      assert.match(md, /at Eligibility\.Client\.Check\(\) in Client\.cs:line 42/);
+      const again = await call("spike", { log }, ctx());
+      assert.equal(again.folder, "spike-log-timeout-operation-has-timed-out-2", "never reuses a folder");
+      await finish(r.session);
+      await finish(again.session);
+      for (const f of [r.folder, again.folder]) fs.rmSync(path.join(ws.dir, ".work", f), { recursive: true, force: true });
+    });
+
     test("oneonone.draft runs /one-on-one <packet path> in a new session; oneonone.result reads draft.md back", async () => {
       const args = { personId: "p_test1", date: "2026-11-03" };
       const dir = path.join(ctx().home, "data", "_connectors", "opencode", "oneonones", "p_test1-2026-11-03");

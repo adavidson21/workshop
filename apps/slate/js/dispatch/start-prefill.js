@@ -33,3 +33,14 @@ export const closedWith = (how, now = new Date()) => `Closed: ${how} on ${today(
 
 /** decodeURIComponent that never throws (a route typed by hand). */
 export function safeDecode(s) { try { return decodeURIComponent(s); } catch { return String(s); } }
+
+/** True when text looks like an error log or stack trace rather than a sentence: several lines with an exception,
+ *  stack frames, or timestamped error lines. */
+export function looksLikeLog(text) {
+  const t = String(text || '');
+  const lines = t.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return /\b[A-Z][A-Za-z.]*(Exception|Error)\s*:/.test(t) && t.length > 60;
+  const frames = lines.filter(l => /^\s*(at |File "|#\d+ |\s+at\s)/.test(l)).length;
+  const errs = lines.filter(l => /\b(ERROR|FATAL|CRITICAL|Exception|Traceback|panic:)\b/.test(l)).length;
+  return frames >= 1 || errs >= 2 || (errs >= 1 && /\d{2}:\d{2}:\d{2}/.test(t));
+}

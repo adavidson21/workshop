@@ -37,7 +37,7 @@ export const FLOWS = [
     ]
   },
   {
-    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect you can reproduce. An ADO item, or describe it.', handsOff: true, start: 'item', lane: 'bug',
+    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect: an ADO item, describe it, or paste an error log.', handsOff: true, start: 'item', lane: 'bug',
     steps: [
       SET_UP,
       { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'A repro with evidence, the code path and the root cause, with at most 3 tasks and other places with the same flaw. You approve it.' },
@@ -82,6 +82,14 @@ export const FLOWS = [
       { key: 'save', name: 'Save', you: true, fork: true, file: 'sources.md', what: 'Pick where it goes: the repo (approved in place; you commit it and open the PR) or Folio.' }
     ]
   },
+  // Fix a bug from an error log (Core 4.3.0 /spike --log): a diagnosis, no code changes. Picked on Fix a bug's form.
+  {
+    id: 'diagnose', name: 'Diagnose an error log', tag: 'Error log', when: 'A log or stack trace: probable root cause, why, and a fix, configuration first.', start: 'item', kind: 'spike', picker: false,
+    steps: [
+      { key: 'investigate', name: 'Diagnose', file: 'findings.md', what: 'Reads the log, finds where it happens in the code, checks the configuration first, then the code. No changes.' },
+      { key: 'findings', name: 'Diagnosis', you: true, fork: true, file: 'findings.md', what: 'The probable root cause, why, and a solution, configuration first. Then pick: apply the change and close, fix it in code, investigate more, save it as a note, or close.' }
+    ]
+  },
   // Technical spec: a Write docs type since flow cards v1 (picked on the Write docs form). Kept for tsd- folders.
   {
     id: 'tsd', name: 'Technical spec', tag: 'TSD', when: 'A product or repos told through diagrams.', start: 'docs', kind: 'tsd', picker: false,
@@ -122,6 +130,7 @@ const LANE_FLOW = { feature: 'feature', bug: 'bug', quick: 'small' };
 export function flowOf(it) {
   if (!it) return null;
   if (it.kind === 'item') return flowById(LANE_FLOW[it.lane] || 'feature');
+  if (it.kind === 'spike' && it.fromLog) return flowById('diagnose');
   return flowById(KIND_FLOW[it.kind]) || null;
 }
 /** A local work item (no tracker) started with Quick change shows that name. */
@@ -153,7 +162,7 @@ export function stepIndex(it) {
     return i;
   }
   const st = String(it.state || '');
-  if (f.id === 'spike') return /^Closed/i.test(st) ? 2 : /^Findings written/i.test(st) ? 1 : 0;
+  if (f.kind === 'spike') return /^Closed/i.test(st) ? 2 : /^Findings written/i.test(st) ? 1 : 0;
   if (f.id === 'epic') return Object.prototype.hasOwnProperty.call(SCOPE_AT, st) ? SCOPE_AT[st] : 0;
   // Draft, Read draft (you), Fact-check, Final read (you), Save (you): flow cards v1.
   if (f.id === 'docs') {
@@ -236,13 +245,14 @@ export function turnHtml(it) {
   }
   const f = flowOf(it);
   const said = step && step.you && f && (YOUR_TURN[f.id + '.' + step.key] || YOUR_TURN[step.key]);
-  if (said) return '<span class="turnw t-you">Your turn:</span> ' + h(said) + (step.key === 'findings' && it.recommendation ? ' ' + md(it.recommendation) : '');
+  if (said) return '<span class="turnw t-you">Your turn:</span> ' + h(said) + (f.id === 'diagnose' && it.fixType ? ' <b>' + h(it.fixType) + ' fix.</b>' : '') + (step.key === 'findings' && (f.id === 'diagnose' ? it.summary : it.recommendation) ? ' ' + md(f.id === 'diagnose' ? it.summary : it.recommendation) : '');
   const nx = it.nextText ? md(liveNote(it.nextText)) : '';
   return step && step.you ? '<span class="turnw t-you">Your turn:</span> ' + (nx || h(step.name.toLowerCase())) : nx ? '<span class="turnw t-next">Up next:</span> ' + nx : '';
 }
 // What you do at a folder flow's stop, in plain words (flow cards v1).
 const YOUR_TURN = {
   findings: 'read the findings, then pick what is next.',
+  'diagnose.findings': 'read the diagnosis, then pick what is next.',
   read: 'read the draft, then send it to the fact-check.',
   final: 'fix what check.md flags, then pick where it goes.',
   'tsd.final': 'fix what check.md flags, then publish it.',

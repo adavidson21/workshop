@@ -184,13 +184,60 @@ export async function promptLoose(title, text, agent) {
 /** /spike <topic>: an investigation with no code changes. Linked to its spike-<name> folder once it exists. */
 // A spike's optional timebox (eng-agents Core 4.2.0 /spike --timebox): how long the investigation may take.
 export const TIMEBOXES = ["1h", "2h", "4h", "1d"];
-export function startSpike({ topic, timebox }) {
+export const MAX_LOG = 100000;
+/**
+ * A spike: a question to answer, or an error log to diagnose (Core 4.3.0 /spike <folder> --log, Loom's Fix a bug from
+ * an error log). With a log, the connector makes the spike-log-<name> folder and writes log.md (secrets masked)
+ * itself, because a log is many lines and a command argument is one.
+ */
+export function startSpike({ topic, timebox, log: logText, where }, root = workRoot) {
   const t = String(topic || "").replace(/[\r\n]+/g, " ").trim();
+  if (timebox != null && timebox !== "" && !TIMEBOXES.includes(timebox)) throw httpError(400, `The timebox must be one of ${TIMEBOXES.join(", ")}.`);
+  const tb = timebox ? ` --timebox ${timebox}` : "";
+  if (logText != null && String(logText).trim()) {
+    const raw = String(logText).replace(/\r\n?/g, "\n");
+    if (raw.length > MAX_LOG) throw httpError(400, `Keep the log under ${MAX_LOG / 1000}k characters: the lines around the first error are enough.`);
+    const folder = logFolder(raw, t, root);
+    const { text, count } = redactLog(raw);
+    const w = String(where || "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
+    const fence = "````";
+    const body = [`# Error log`, "", `Pasted in Loom on ${new Date().toISOString().slice(0, 10)}.${count ? ` ${count} value${count === 1 ? "" : "s"} that looked like secrets or email addresses ${count === 1 ? "was" : "were"} masked.` : ""}`,
+      ...(w ? ["", `Where: ${redactLog(w).text}`] : []), ...(t ? ["", `Note: ${redactLog(t).text}`] : []), "", fence + "text", text.replace(/`{4,}/g, "```").trimEnd(), fence, ""].join("\n");
+    fs.mkdirSync(path.join(root, folder));
+    fs.writeFileSync(path.join(root, folder, "log.md"), body);
+    return runLoose("spike", `${folder} --log${tb}`, () => folder).then((r) => ({ ...r, folder }));
+  }
   if (!t) throw httpError(400, "Say what to investigate.");
   if (t.length > 500) throw httpError(400, "Keep the question under 500 characters.");
-  if (timebox != null && timebox !== "" && !TIMEBOXES.includes(timebox)) throw httpError(400, `The timebox must be one of ${TIMEBOXES.join(", ")}.`);
   const before = new Set(spikeFolders());
-  return runLoose("spike", timebox ? `${t} --timebox ${timebox}` : t, () => spikeFolders().find((f) => !before.has(f)) || null);
+  return runLoose("spike", t + tb, () => spikeFolders().find((f) => !before.has(f)) || null);
+}
+
+/** Masks what looks like a secret or personal data in a log: key=value secrets, bearer tokens, JWTs, keys in
+ *  connection strings, and email addresses. {text, count}. A safety net, not a guarantee: Loom asks you to remove
+ *  secrets before you paste. */
+export function redactLog(input) {
+  let count = 0;
+  const hit = (s) => { count++; return s; };
+  let text = String(input || "");
+  text = text.replace(/\b(eyJ[\w-]{6,}\.eyJ[\w-]{6,}\.[\w-]{6,})/g, () => hit("<masked token>"));
+  text = text.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{8,}/gi, (m, k) => hit(`${k} <masked>`));
+  text = text.replace(/\b((?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|apikey|access[_-]?key|account[_-]?key|shared[_-]?access[_-]?key|sharedaccesssignature|sig|token|access[_-]?token|refresh[_-]?token|authorization)\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s;,&"']+)/gi, (m, k) => hit(`${k}<masked>`));
+  text = text.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, () => hit("<email>"));
+  return { text, count };
+}
+
+/** A new spike-log-<name> folder: up to 5 words from the error's first line (or the note), never one that exists. */
+function logFolder(raw, note, root) {
+  const lines = raw.split("\n");
+  // The exception line names the error best ("System.TimeoutException: ..."); else the first line that sounds like one.
+  const first = lines.find((l) => /\b[A-Z][A-Za-z]+(Exception|Error)\b\s*:/.test(l)) || lines.find((l) => /(exception|error|fail|fatal|timeout|refused|denied|not found|\b5\d\d\b)/i.test(l)) || note || lines.find((l) => l.trim()) || "error";
+  const words = String(first).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, " ").replace(/^.*?\b([A-Z][A-Za-z]+(?:Exception|Error))\b/, "$1 ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w && w.length > 1 && !/^\d+$/.test(w) && !["the", "a", "an", "at", "of", "to", "in", "on", "for", "and", "system", "error", "exception"].includes(w)).slice(0, 5);
+  const base = ("spike-log-" + (words.join("-") || "error")).slice(0, 60).replace(/-+$/, "");
+  let name = base;
+  for (let i = 2; fs.existsSync(path.join(root, name)); i++) name = `${base}-${i}`;
+  return name;
 }
 const spikeFolders = () => ((model && model.items) || []).filter((i) => /^spike-/.test(i.folder)).map((i) => i.folder);
 

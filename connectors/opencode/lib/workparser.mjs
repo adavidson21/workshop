@@ -580,6 +580,10 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         base.recommendation = section(f, "Recommendation");
         base.nextText = section(f, "Next step");
         base.state = f ? "Findings written" : "In progress";
+        // An error log diagnosis (eng-agents Core 4.3.0 /spike --log): the fix type it chose, and that a log started it.
+        const fixType = field(f, "Fix type");
+        if (fixType) base.fixType = fixType;
+        if (exists(path.join(folder, "log.md"))) base.fromLog = true;
         // Loom's findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
         const closed = readText(path.join(folder, "closed.md"));
         if (f && closed) { base.state = "Closed"; base.nextText = cleanValue(closed.split(/\r?\n/)[0].replace(/^Closed:\s*/i, "")) || null; }
