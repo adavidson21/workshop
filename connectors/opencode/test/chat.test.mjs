@@ -32,9 +32,9 @@ beforeEach(() => {
 });
 const rejects = (p, code, re) => assert.rejects(p, (e) => e.code === code && (!re || re.test(e.message)));
 
-test("everything is refused while AI (the Hub setting) is off", async () => {
-  await rejects(startChat({ text: "hi" }, { config: {} }), "unavailable", /Hub/);
-  assert.throws(() => listChats({ config: { hub: false } }), (e) => e.code === "unavailable");
+test("there is no AI switch: chats work with the old hub setting off or missing (1.16.0)", async () => {
+  assert.deepEqual(await startChat({ text: "hi" }, { config: {} }), { session: "ses_1" });
+  assert.equal(listChats({ config: { hub: false } }).items.length, 1);
 });
 
 test("a new chat goes to opencode's default agent unless you pick one, with the model and files you picked", async () => {
@@ -133,7 +133,6 @@ test("rename changes the title in the list only, and needs a name", async () => 
   assert.equal(listChats({ config: on }).items[0].title, "Sample api");
   assert.throws(() => renameChat({ session: "ses_1", title: "  " }, { config: on }), (e) => e.code === "bad_request" || /name/.test(e.message));
   assert.throws(() => renameChat({ session: "nope", title: "x" }, { config: on }), (e) => /not a chat/.test(e.message));
-  assert.throws(() => renameChat({ session: "ses_1", title: "x" }, { config: {} }), (e) => e.code === "unavailable");
 });
 
 test("slash commands, !shell, undo, redo and compact act on the chat and wait for nothing", async () => {
@@ -188,7 +187,8 @@ test("options list primary agents apart from subagents, plus models and commands
   assert.deepEqual(o.commands, [{ name: "spike", description: "Investigate" }]);
   assert.equal(o.can.shell, true);
   assert.deepEqual(await chatFiles({ query: "app" }, { config: on }), { files: ["src/app.cs"] });
-  await assert.rejects(chatOptions({ config: {} }), (e) => e.code === "unavailable");
+  oc.connected = false;
+  await assert.rejects(chatOptions({ config: on }), (e) => e.code === "unavailable", "opencode not connected");
 });
 
 test("a chat's messages carry parts, totals and the prompts of its subagents", async () => {

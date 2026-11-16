@@ -5,6 +5,8 @@
      this browser); on a phone it is a drawer.
    - One chat in view: the turns in a centered column with tool calls, diffs, thinking and to-dos (parts.js), the
      permission prompts and questions to answer right there, and the composer pinned at the bottom.
+   - opencode is always on here: Chat works whenever the opencode connector is on and ready (Chat 2.1.0 dropped the
+     separate AI switch). Turn the connector off in Settings to stop it.
    - The composer: an agent picker (Tab and Shift+Tab cycle it, like the TUI) and a model picker, / for commands
      (Chat's own and opencode's), @ for workspace files, ! for a shell command, Up for the last message, Esc twice
      to stop. A message sent while opencode is working waits in a queue and goes when it is done.
@@ -363,7 +365,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     const groups = groupChats(shown);
     const list = groups.map(g => `<h3 class="chat-h">${esc(g.label)}</h3><ul>${g.items.map(rowHtml).join('')}</ul>`).join('');
     const empty = !every.length
-      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : '<p class="chat-empty">Turn on AI with the sparkle button in New chat to talk to opencode.</p>')
+      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : `<p class="chat-empty">${esc(aiReady().why || 'Turn on the opencode connector in Settings to talk to opencode.')}</p>`)
       : !shown.length ? `<p class="chat-empty">No chats match "${esc(query)}".</p>` : '';
     return `<aside class="chat-side" aria-label="Chats">` +
       `<div class="chat-side-top"><button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button>` +
@@ -396,7 +398,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     const shell = /^\s*!/.test(draft);
     const q = sel ? (queue[sel] || []).length : 0;
     const ctx = sel && conv && conv.totals ? [conv.totals.context ? `${tokens(conv.totals.context)} context` : '', money(conv.totals.cost)].filter(Boolean).join(' · ') : '';
-    const hint = off ? esc(aiReady().why || 'AI is off.')
+    const hint = off ? esc(aiReady().why || 'opencode is not connected.')
       : note ? esc(note)
       : escAt && busy && Date.now() - escAt < 1500 ? 'Press Esc again to stop.'
       : shell ? 'Shell: runs in the workspace through opencode.'
@@ -406,7 +408,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop (Esc twice)" aria-label="Stop">${ICON.stop}</button>`
       : `<button type="button" class="chat-send" data-chat-send title="${busy ? 'Queue' : 'Send'}" aria-label="${busy ? 'Queue' : 'Send'}"${off || sending ? ' disabled' : ''}>${ICON.up}</button>`;
     return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}<div class="chat-box${shell ? ' shell' : ''}">` +
-      `<textarea rows="1" data-keep="chat:${esc(k)}" placeholder="${off ? 'Turn on AI with the sparkle button in New chat' : sel ? 'Message opencode' : 'Ask anything, or / for commands'}" aria-label="Message to opencode"${off ? ' disabled' : ''}>${esc(draft)}</textarea>` +
+      `<textarea rows="1" data-keep="chat:${esc(k)}" placeholder="${off ? 'opencode is not connected' : sel ? 'Message opencode' : 'Ask anything, or / for commands'}" aria-label="Message to opencode"${off ? ' disabled' : ''}>${esc(draft)}</textarea>` +
       `<div class="chat-bar">${picksHtml()}<span class="grow"></span>${ctx ? `<span class="chat-ctx">${esc(ctx)}</span>` : ''}${action}</div></div>` +
       `<p class="chat-hint" aria-live="polite">${hint}</p></div></div>`;
   }

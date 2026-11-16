@@ -129,8 +129,7 @@ export const configSchema = {
     hub: {
       type: "boolean",
       title: "Hub",
-      description: "Let the hub on Dispatch's page send your messages to Tandem's /hub (eng-agents Core 2.9.0), with your people, Docket list and team area names. Answers come from your AI provider. Off: Home's quick capture still works, with no AI.",
-      default: false,
+      description: "No longer used: since 1.16.0 Chat, the hub and Writing use AI whenever this connector is on. Turn the connector off to stop them. Kept so saved settings stay valid.",
     },
     pollSeconds: {
       type: "integer",

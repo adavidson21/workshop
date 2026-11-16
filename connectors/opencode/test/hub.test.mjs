@@ -34,10 +34,10 @@ test("the request goes to the connector's own folder, never the workspace", () =
   assert.throws(() => folderFor("a", root), (e) => e.code === "bad_request");
 });
 
-test("everything is refused while the hub setting is off", async () => {
-  await rejects(runHub({ id: "hub_abc", text: "x" }, { root, start, config: {} }), "unavailable", /Hub/);
-  assert.throws(() => hubResult({ id: "hub_abc" }, { root, config: { hub: false } }), (e) => e.code === "unavailable");
-  assert.equal(started.length, 0);
+test("there is no hub switch: it runs with the old setting off or missing (1.16.0)", async () => {
+  await runHub({ id: "hub_abc", text: "x" }, { root, start, config: {} });
+  assert.equal(started.length, 1);
+  assert.equal(hubResult({ id: "hub_abc" }, { root, config: { hub: false } }).state, "running");
 });
 
 test("request.md: the message and one-line names, in the docs/hub.md layout", () => {
@@ -117,12 +117,12 @@ test("prune keeps the newest folders", () => {
   assert.equal(KEEP, 200);
 });
 
-test("the actions: run needs confirm (write), result does not; the setting is off by default and local only", () => {
+test("the actions: run needs confirm (write), result does not; the old setting is kept only so saved settings stay valid", () => {
   assert.equal(oc.actions["hub.run"].write, true);
   assert.equal(oc.actions["hub.result"].write, false);
   const h = oc.configSchema.properties.hub;
-  assert.equal(h.default, false);
-  assert.equal(h["x-workshop-hosted"], undefined, "a hosted page cannot turn the hub on");
+  assert.equal(h.type, "boolean");
+  assert.match(h.description, /^No longer used/, "Settings hides it");
   const a = oc.actions["hub.run"].argsSchema;
   assert.deepEqual(schemas.validate(a, { id: "hub_abc", text: "hi", context: CONTEXT }), []);
   assert.notDeepEqual(schemas.validate(a, { id: "hub_abc", text: "hi", extra: 1 }), []);

@@ -14,8 +14,8 @@
 // otherwise); a hub thread's follow-ups default to Tandem's read-only `chat` agent.
 //
 // The list is kept in this connector's own folder, <Workshop home>/data/_connectors/opencode/chats.json (mode
-// 0600), so a thread can go on after a restart. The turns themselves stay in opencode. Everything is refused unless
-// the connector's `hub` setting is on: one AI switch for the hub and chats.
+// 0600), so a thread can go on after a restart. The turns themselves stay in opencode. Since 1.16.0 there is no
+// separate AI switch: turning the connector off in Settings is the off switch.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -100,10 +100,11 @@ function isChat(c) {
 
 const titleOf = (text) => String(text || "").replace(/\s+/g, " ").trim().slice(0, TITLE_MAX) || "Chat";
 
-/** Refuses unless the `hub` setting is on. */
-export function needAi(config = ctx && ctx.config) {
-  if (!config || config.hub !== true) throw httpError(503, "AI is off. Turn on Hub in the opencode connector's settings (Workshop on this computer).");
-}
+/**
+ * Since connector 1.16.0 AI is on whenever this connector is on: the old `hub` setting is no longer read (turn the
+ * connector off in Settings to stop it). Kept as the one place to add a check again.
+ */
+export function needAi() {}
 /** opencode must be connected; a named agent must be one opencode has (when it lists them). */
 function needOc() {
   if (!oc.connected || !oc.api) throw httpError(503, "opencode is not connected.");

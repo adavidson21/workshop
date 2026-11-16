@@ -1602,9 +1602,8 @@ def main():
             af = next((f for f in pg.frames if '/apps/chat/' in f.url), None)
             check('Chat opens from the rail in browser mode', af is not None and pg.url.endswith('#/chat'))
             if af:
-                check('the hub in browser mode shows AI as unavailable and says why', af.get_attribute('#hub .hub-ai', 'data-state') == 'na' and 'needs Workshop on this computer' in (af.get_attribute('#hub .hub-ai', 'title') or ''))
-                af.click('#hub .hub-ai'); pg.wait_for_timeout(200)
-                check('clicking the unavailable AI button explains it under the input', 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
+                check('the hub in browser mode has no AI switch and says under the input why it cannot ask Tandem', af.locator('#hub .hub-ai').count() == 0
+                      and 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
                 af.fill('#hub .cap-in', 'n retro ideas for friday'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
                 check('without Tandem the hub captures with rules and waits for Accept', 'captured with rules' in af.inner_text('#hub .hub-card').lower() and af.locator('#hub [data-hub-accept]').count() == 1)
                 af.click('#hub [data-hub-accept]'); pg.wait_for_timeout(600)
