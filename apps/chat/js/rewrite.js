@@ -1,6 +1,10 @@
 /* Chat, Rewrite a draft (docs/writing.md): paste what you wrote, get one version in your voice for an audience,
    then say what you did with it (Sent as is, I changed it, Didn't use). Moved here from Settings in Chat 1.1.0.
 
+   Chat 2.2.0: no longer a screen of its own. Rewrite is a mode of New chat, picked like Hub in the composer's agent
+   picker (chat.js mounts this element in the New chat pane). Your drafts and their rewrites show as turns, the
+   composer stays at the bottom with For and Reader in its bar, and each rewrite has its own Copy and feedback.
+
    Reads Settings' `writing` collection (the style guide, samples and rules; read only) and the people directory.
    Your answers go in this app's own `writing-feedback` collection; Settings applies them to its samples and rules
    (shared/voice.js, applyPending). Until it does, the pending answers are applied to what this page reads, so a
@@ -8,31 +12,37 @@
    voice.result (read-only agent). */
 import * as V from '../../../shared/voice.js';
 import * as D from '../../../shared/people.js';
+import { keepFocus } from './thread.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const errText = e => (e && e.message) || String(e);
 const OC = 'opencode';
 const POLL_MS = 2000, WAIT_MS = 4 * 60 * 1000;
+const UP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 19V6M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 
-export function startRewrite(ws, { onClose = () => {}, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
-  const el = document.createElement('section');
+/* `bar` draws chat.js's agent picker (and its popup) into this composer, so switching back to an agent works
+   the same as everywhere else in Chat. */
+export function startRewrite(ws, { sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
+  let bar = { picks: () => '', pop: () => '' };
+  const el = document.createElement('div');
   el.className = 'rw';
   el.setAttribute('aria-label', 'Rewrite a draft');
-  el.hidden = true;
 
-  let val = V.defaults(), people = [], fbEnv = null, loaded = false;
+  let val = V.defaults(), people = [], fbEnv = null, loaded = false, loading = false;
   let busy = '';            // 'rewrite' | 'learn'
-  let draft = null;         // {audience, reader, input, text, warnings, answered}
+  const items = [];         // {id, audience, reader, input, text, warnings, answered, more, error}
   let typed = { input: '', audience: '', reader: '' };
-  let more = '';            // 'edited' | 'rejected' while its box is open
+  let nextId = 1;
 
   async function load() {
+    if (loading) return;
+    loading = true;
     let env = null;
     try { env = await ws.data.get(V.COLLECTION, { app: 'settings' }); } catch { env = null; }
     try { fbEnv = await ws.data.get(V.FEEDBACK); } catch { fbEnv = null; }
     val = V.applyPending(V.fromEnvelope(env).value, fbEnv && Array.isArray(fbEnv.items) ? fbEnv.items : []);
     try { people = D.active(await ws.people.get(), { kind: 'person' }).sort((a, b) => a.name.localeCompare(b.name)); } catch { people = []; }
-    loaded = true;
+    loaded = true; loading = false;
     paint();
   }
 
@@ -75,100 +85,142 @@ export function startRewrite(ws, { onClose = () => {}, sleep = ms => new Promise
     return m;
   };
 
+  const audId = () => typed.audience || (val.audiences[0] && val.audiences[0].id) || '';
+  const audName = id => (val.audiences.find(a => a.id === id) || {}).name || id;
+  const personOf = id => people.find(p => p.id === id) || null;
   const audOptions = sel => val.audiences.map(a => `<option value="${esc(a.id)}"${a.id === sel ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
   const readerOptions = sel => '<option value="">Anyone</option>' + people.map(p => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
 
-  function paint() {
-    const ready = V.totalSamples(val) > 0;
-    const d = draft || typed;
-    const moreHtml = more === 'edited'
-      ? `<textarea class="rw-text" rows="6" data-final aria-label="What you sent">${esc(draft.text)}</textarea>
-         <div class="row"><button type="button" class="btn primary" data-fb="edited">Save what I sent</button></div>`
-      : more === 'rejected'
-        ? `<input class="rw-in" data-reason maxlength="300" aria-label="Why not" placeholder="Why not? Optional, but a reason teaches it the most (like: too formal for Erik)">
-         <div class="row"><button type="button" class="btn" data-fb="rejected">Done</button></div>`
+  function feedbackHtml(it) {
+    if (it.answered) return `<p class="hub-meta rw-said">${esc(it.answered)}</p>`;
+    const off = busy ? ' disabled' : '';
+    const more = it.more === 'edited'
+      ? `<div class="rw-more"><textarea class="rw-text" rows="5" data-keep="rw-final:${it.id}" data-rw-final="${it.id}" aria-label="What you sent">${esc(it.final != null ? it.final : it.text)}</textarea>
+         <div class="row"><button type="button" class="btn primary" data-fb="edited" data-rw-id="${it.id}"${off}>Save what I sent</button></div></div>`
+      : it.more === 'rejected'
+        ? `<div class="rw-more"><input class="rw-in" data-keep="rw-reason:${it.id}" data-rw-reason="${it.id}" maxlength="300" aria-label="Why not" placeholder="Why not? Optional, but a reason teaches it the most (like: too formal for Erik)" value="${esc(it.reason || '')}">
+         <div class="row"><button type="button" class="btn" data-fb="rejected" data-rw-id="${it.id}"${off}>Done</button></div></div>`
         : '';
-    el.innerHTML = `<header class="chat-top rw-top"><button type="button" class="btn ghost" data-rw-close>Back to chats</button><h2>Rewrite a draft</h2></header>
-      <div class="rw-col">
-        <p class="hub-meta">Paste what you wrote, the way it came out. You get back one version in your voice for that audience. Nothing is sent anywhere but your opencode, and nothing is posted.</p>
-        ${!loaded ? '<p class="hub-meta">Loading your voice...</p>' : ready ? '' : '<p class="rw-note">Add a few samples in Settings, Writing, first, so it knows how you write. <button type="button" class="lnk" data-rw-settings>Open Writing</button></p>'}
-        <form class="rw-form">
-          <div class="rw-pick"><label>For <select data-aud>${audOptions(d.audience || val.audiences[0].id)}</select></label>
-            <label>Reader <select data-reader>${readerOptions(d.reader || '')}</select></label></div>
-          <textarea class="rw-text" rows="7" data-input aria-label="Your draft" placeholder="Paste your draft here">${esc(d.input || '')}</textarea>
-          <div class="row"><button class="btn primary" data-go${busy ? ' disabled' : ''}>${busy === 'rewrite' ? 'Rewriting...' : 'Rewrite'}</button></div>
-        </form>
-        ${d.text ? `<div class="rw-out">
-          <h3>In your voice</h3>
-          <textarea class="rw-text" rows="7" readonly data-out aria-label="Rewritten draft">${esc(d.text)}</textarea>
-          ${d.warnings.length ? `<ul class="rw-warn">${d.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
-          <div class="row"><button type="button" class="btn" data-copy>Copy</button></div>
-          ${d.answered ? `<p class="hub-meta">${esc(d.answered)}</p>` : `<p class="hub-meta">Then tell it what happened. This is how it learns.</p>
-          <div class="row rw-fb">
-            <button type="button" class="btn" data-fb="approved"${busy ? ' disabled' : ''}>Sent as is</button>
-            <button type="button" class="btn${more === 'edited' ? ' on' : ''}" data-fb="edited-open"${busy ? ' disabled' : ''}>I changed it</button>
-            <button type="button" class="btn ghost${more === 'rejected' ? ' on' : ''}" data-fb="rejected-open"${busy ? ' disabled' : ''}>Didn't use</button>
-          </div>
-          ${moreHtml ? `<div class="rw-more">${moreHtml}</div>` : ''}`}
-        </div>` : ''}
-      </div>`;
+    return `<div class="row rw-fb"><span class="hub-meta">What happened?</span>
+        <button type="button" class="btn" data-fb="approved" data-rw-id="${it.id}"${off}>Sent as is</button>
+        <button type="button" class="btn${it.more === 'edited' ? ' on' : ''}" data-fb="edited-open" data-rw-id="${it.id}"${off}>I changed it</button>
+        <button type="button" class="btn ghost${it.more === 'rejected' ? ' on' : ''}" data-fb="rejected-open" data-rw-id="${it.id}"${off}>Didn't use</button></div>${more}`;
+  }
+  function itemHtml(it, last) {
+    const reader = personOf(it.reader);
+    const label = `For ${audName(it.audience)}${reader ? ` · ${reader.name}` : ''}`;
+    let out = `<div class="turn you rw-you"><span class="who">You</span><div class="tx">${esc(it.input)}</div><span class="you-agent">${esc(label)}</span></div>`;
+    if (!it.text && !it.error) return out + (last && busy === 'rewrite' ? '<div class="turn tandem writing"><span class="who">Rewrite</span><div class="tx"><span class="spin" aria-hidden="true"></span> Rewriting...</div></div>' : '');
+    if (it.error) return out + `<p class="hub-error">${esc(it.error)}</p>`;
+    return out + `<div class="turn tandem rw-turn"><span class="who">Rewrite</span><div class="tx">
+        <div class="rw-out">${esc(it.text)}</div>
+        ${it.warnings.length ? `<ul class="rw-warn">${it.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+        <div class="row rw-acts"><button type="button" class="btn" data-rw-copy="${it.id}">Copy</button></div>
+        ${feedbackHtml(it)}</div></div>`;
   }
 
-  el.addEventListener('input', e => { if (!draft && e.target.matches('[data-input]')) typed.input = e.target.value; });
-  el.addEventListener('change', e => {
-    if (e.target.matches('[data-aud]')) { typed.audience = e.target.value; if (draft) draft.audience = e.target.value; }
-    if (e.target.matches('[data-reader]')) { typed.reader = e.target.value; if (draft) draft.reader = e.target.value; }
-  });
-  el.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    const input = f.querySelector('[data-input]').value.trim();
-    const audience = f.querySelector('[data-aud]').value, readerId = f.querySelector('[data-reader]').value;
+  function paint() {
+    const ready = V.totalSamples(val) > 0;
+    const empty = !items.length;
+    const note = !loaded ? '<p class="hub-meta">Loading your voice...</p>'
+      : ready ? '' : '<p class="rw-note">Add a few samples in Settings, Writing, first, so it knows how you write. <button type="button" class="lnk" data-rw-settings>Open Writing</button></p>';
+    const intro = empty
+      ? `<h3 class="chat-hello">What do you want to rewrite?</h3><p class="hub-meta">Paste what you wrote, the way it came out. You get back one version in your voice for that audience. Nothing is sent anywhere but your opencode, and nothing is posted.</p>`
+      : '';
+    const turns = items.map((it, i) => itemHtml(it, i === items.length - 1)).join('');
+    const hint = busy === 'rewrite' ? 'Rewriting...' : busy === 'learn' ? 'Looking at what you changed...' : 'Enter rewrites · Shift+Enter new line · Tab agent';
+    const html = `<div class="chat-scroll" data-rw-follow><div class="chat-col${empty ? ' chat-start' : ''}">${intro}${note}<div class="turns">${turns}</div></div></div>
+      <div class="chat-compose"><div class="chat-col pop-anchor">${bar.pop()}<div class="chat-box">
+        <textarea rows="1" data-keep="rw-input" data-rw-input placeholder="Paste your draft" aria-label="Your draft">${esc(typed.input)}</textarea>
+        <div class="chat-bar">${bar.picks()}
+          <label class="rw-sel">For <select data-aud aria-label="Audience">${audOptions(audId())}</select></label>
+          <label class="rw-sel">Reader <select data-reader aria-label="Reader">${readerOptions(typed.reader)}</select></label>
+          <span class="grow"></span>
+          <button type="button" class="chat-send" data-rw-go title="Rewrite" aria-label="Rewrite"${busy || !typed.input.trim() ? ' disabled' : ''}>${UP}</button>
+        </div></div>
+        <p class="chat-hint" aria-live="polite">${hint}</p></div></div>`;
+    const scroller = el.querySelector('[data-rw-follow]');
+    const atEnd = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    const keepTop = scroller && !atEnd ? scroller.scrollTop : null;
+    const back = keepFocus(el);
+    el.innerHTML = html;
+    back();
+    grow(el.querySelector('[data-rw-input]'));
+    const s = el.querySelector('[data-rw-follow]');
+    if (s) s.scrollTop = atEnd ? s.scrollHeight : keepTop;
+  }
+  function grow(t) { if (!t) return; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 260) + 'px'; }
+
+  async function rewrite() {
+    const input = typed.input.trim();
+    if (busy) return;
     if (!input) { ws.toast('Paste a draft first.'); return; }
     if (input.length > V.MAX_TEXT) { ws.toast('That draft is too long. Rewrite a shorter part.', { kind: 'error' }); return; }
-    const person = people.find(p => p.id === readerId);
-    draft = { audience, reader: readerId, input, text: '', warnings: [], answered: '' };
-    typed = { input: '', audience, reader: readerId };
-    more = '';
+    const audience = audId(), readerId = typed.reader;
+    const it = { id: nextId++, audience, reader: readerId, input, text: '', warnings: [], answered: '', more: '', error: '' };
+    items.push(it);
+    typed = { ...typed, input: '' };
     try {
-      const text = (await ai('rewrite', V.rewritePrompt(val, { audience, draft: input, reader: V.readerOf(person) }))).trim();
-      draft = Object.assign({}, draft, { text, warnings: V.check(val, audience, text) });
-    } catch (err) { ws.toast(aiError(err), { kind: 'error' }); }
+      it.text = (await ai('rewrite', V.rewritePrompt(val, { audience, draft: input, reader: V.readerOf(personOf(readerId)) }))).trim();
+      it.warnings = V.check(val, audience, it.text);
+    } catch (err) { it.error = aiError(err); }
     paint();
+  }
+
+  el.addEventListener('input', e => {
+    const t = e.target;
+    if (t.matches('[data-rw-input]')) {
+      const was = !!typed.input.trim();
+      typed.input = t.value; grow(t);
+      if (was !== !!t.value.trim()) { const b = el.querySelector('[data-rw-go]'); if (b) b.disabled = !!busy || !t.value.trim(); }
+    } else if (t.matches('[data-rw-final]')) { const it = items.find(x => x.id === +t.dataset.rwFinal); if (it) it.final = t.value; }
+    else if (t.matches('[data-rw-reason]')) { const it = items.find(x => x.id === +t.dataset.rwReason); if (it) it.reason = t.value; }
+  });
+  el.addEventListener('change', e => {
+    if (e.target.matches('[data-aud]')) typed.audience = e.target.value;
+    if (e.target.matches('[data-reader]')) typed.reader = e.target.value;
+  });
+  el.addEventListener('keydown', e => {
+    if (!e.target.matches('[data-rw-input]') || e.isComposing) return;
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); rewrite(); }
   });
   el.addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t) return;
-    if (t.matches('[data-rw-close]')) { onClose(); return; }
+    if (t.matches('[data-rw-go]')) { rewrite(); return; }
     if (t.matches('[data-rw-settings]')) { ws.open({ app: 'settings', path: 'writing' }).catch(() => {}); return; }
-    if (t.matches('[data-copy]')) {
-      try { await navigator.clipboard.writeText(draft.text); ws.toast('Copied.'); } catch { el.querySelector('[data-out]').select(); ws.toast('Press Ctrl+C to copy.'); }
+    if (t.dataset.rwCopy != null) {
+      const it = items.find(x => x.id === +t.dataset.rwCopy);
+      if (!it) return;
+      try { await navigator.clipboard.writeText(it.text); ws.toast('Copied.'); } catch { ws.toast("Couldn't copy. Select the text and press Ctrl+C.", { kind: 'warn' }); }
       return;
     }
     const fb = t.dataset.fb;
-    if (!fb || !draft) return;
-    const person = people.find(p => p.id === draft.reader);
-    const ctx = { audience: draft.audience, reader: person ? person.name : '', draft: draft.text };
+    const it = fb && items.find(x => x.id === +t.dataset.rwId);
+    if (!it) return;
+    const person = personOf(it.reader);
+    const ctx = { audience: it.audience, reader: person ? person.name : '', draft: it.text };
     if (fb === 'edited-open' || fb === 'rejected-open') {
-      more = fb === 'edited-open' ? 'edited' : 'rejected'; paint();
-      const box = el.querySelector('[data-final],[data-reason]'); if (box) box.focus();
+      const want = fb === 'edited-open' ? 'edited' : 'rejected';
+      it.more = it.more === want ? '' : want; paint();
+      const box = el.querySelector(`[data-rw-final="${it.id}"],[data-rw-reason="${it.id}"]`); if (box) box.focus();
       return;
     }
     if (fb === 'approved') {
-      if (await saveFeedback({ verdict: 'approved', ...ctx })) { draft.answered = 'Saved as a sample. Thanks.'; more = ''; paint(); }
+      if (await saveFeedback({ verdict: 'approved', ...ctx })) { it.answered = 'Saved as a sample. Thanks.'; it.more = ''; paint(); }
       return;
     }
     if (fb === 'rejected') {
-      const reason = (el.querySelector('[data-reason]') || {}).value || '';
-      if (await saveFeedback({ verdict: 'rejected', reason, ...ctx })) { draft.answered = reason.trim() ? 'Got it. That is a rule now (see Settings, Writing, Rules).' : 'Noted.'; more = ''; paint(); }
+      const reason = it.reason || '';
+      if (await saveFeedback({ verdict: 'rejected', reason, ...ctx })) { it.answered = reason.trim() ? 'Got it. That is a rule now (see Settings, Writing, Rules).' : 'Noted.'; it.more = ''; paint(); }
       return;
     }
     if (fb === 'edited') {
-      const final = ((el.querySelector('[data-final]') || {}).value || '').trim();
+      const final = String(it.final != null ? it.final : it.text).trim();
       if (!final) { ws.toast('Paste what you sent.'); return; }
-      more = '';
-      if (final === draft.text.trim()) { if (await saveFeedback({ verdict: 'approved', ...ctx })) { draft.answered = 'Same as the draft, so saved as a sample.'; paint(); } return; }
-      draft.answered = 'Looking at what you changed...';
+      it.more = '';
+      if (final === it.text.trim()) { if (await saveFeedback({ verdict: 'approved', ...ctx })) { it.answered = 'Same as the draft, so saved as a sample.'; paint(); } return; }
+      it.answered = 'Looking at what you changed...';
       paint();
       let learn = null, note = '';
       try {
@@ -176,17 +228,22 @@ export function startRewrite(ws, { onClose = () => {}, sleep = ms => new Promise
         learn = V.learnForSave(val, parsed, ctx.audience);
         note = parsed.kind === 'new' ? `Learned a proposed rule: ${parsed.text}` : learn && learn.kind === 'same' ? 'Same change as before, so that rule is active now.' : 'Saved. Nothing new to learn from that change.';
       } catch (err) { note = 'Saved what you sent. Could not look at the change: ' + aiError(err); }
-      if (await saveFeedback({ verdict: 'edited', final, learn, ...ctx })) draft.answered = note;
-      else draft.answered = '';
+      if (await saveFeedback({ verdict: 'edited', final, learn, ...ctx })) it.answered = note;
+      else it.answered = '';
       paint();
     }
   });
 
   ws.data.subscribe(V.COLLECTION, () => { if (!busy) load(); }, { app: 'settings' });
+  paint();
 
   return {
     el,
-    show(on) { el.hidden = !on; if (on) { load(); const box = el.querySelector('[data-input]'); if (box && !draft) setTimeout(() => box.focus(), 0); } },
-    get shown() { return !el.hidden; }
+    /* chat.js mounted this in New chat (or moved it back): read the voice once, then draw with its picker. */
+    shown() { if (!loaded) load(); else paint(); },
+    /* chat.js redrew its picker (a popup opened or the agent changed). */
+    paint,
+    setBar(b) { bar = b; },
+    focus() { const box = el.querySelector('[data-rw-input]'); if (box) box.focus(); }
   };
 }
